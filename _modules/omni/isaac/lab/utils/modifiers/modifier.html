@@ -8,7 +8,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>omni.isaac.lab.utils.noise.noise_model &#8212; Isaac Lab documentation</title>
+    <title>omni.isaac.lab.utils.modifiers.modifier &#8212; Isaac Lab documentation</title>
   
   
   
@@ -48,7 +48,7 @@
     <script src="../../../../../../_static/copybutton.js"></script>
     <script src="../../../../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
     <script src="../../../../../../_static/design-tabs.js"></script>
-    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/omni/isaac/lab/utils/noise/noise_model';</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/omni/isaac/lab/utils/modifiers/modifier';</script>
     <link rel="icon" href="../../../../../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../../../../../genindex.html" />
     <link rel="search" title="Search" href="../../../../../../search.html" />
@@ -406,7 +406,7 @@
       
       
       
-      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2F_modules/omni/isaac/lab/utils/noise/noise_model.html&body=Your%20issue%20content%20here." target="_blank"
+      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2F_modules/omni/isaac/lab/utils/modifiers/modifier.html&body=Your%20issue%20content%20here." target="_blank"
    class="btn btn-sm btn-source-issues-button dropdown-item"
    title="Open an issue"
    data-bs-placement="left" data-bs-toggle="tooltip"
@@ -484,7 +484,7 @@ document.write(`
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <h1>Source code for omni.isaac.lab.utils.noise.noise_model</h1><div class="highlight"><pre>
+  <h1>Source code for omni.isaac.lab.utils.modifiers.modifier</h1><div class="highlight"><pre>
 <span></span><span class="c1"># Copyright (c) 2022-2024, The Isaac Lab Project Developers.</span>
 <span class="c1"># All rights reserved.</span>
 <span class="c1">#</span>
@@ -496,132 +496,254 @@ document.write(`
 <span class="kn">from</span> <span class="nn">collections.abc</span> <span class="kn">import</span> <span class="n">Sequence</span>
 <span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
 
+<span class="kn">from</span> <span class="nn">.modifier_base</span> <span class="kn">import</span> <span class="n">ModifierBase</span>
+
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
-    <span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">noise_cfg</span>
+    <span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">modifier_cfg</span>
 
 <span class="c1">##</span>
-<span class="c1"># Noise as functions.</span>
-<span class="c1">##</span>
-
-
-<div class="viewcode-block" id="constant_noise"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.noise.constant_noise">[docs]</a><span class="k">def</span> <span class="nf">constant_noise</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">noise_cfg</span><span class="o">.</span><span class="n">ConstantNoiseCfg</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Constant noise.&quot;&quot;&quot;</span>
-    <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">operation</span> <span class="o">==</span> <span class="s2">&quot;add&quot;</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">data</span> <span class="o">+</span> <span class="n">cfg</span><span class="o">.</span><span class="n">bias</span>
-    <span class="k">elif</span> <span class="n">cfg</span><span class="o">.</span><span class="n">operation</span> <span class="o">==</span> <span class="s2">&quot;scale&quot;</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">data</span> <span class="o">*</span> <span class="n">cfg</span><span class="o">.</span><span class="n">bias</span>
-    <span class="k">elif</span> <span class="n">cfg</span><span class="o">.</span><span class="n">operation</span> <span class="o">==</span> <span class="s2">&quot;abs&quot;</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">data</span><span class="p">)</span> <span class="o">+</span> <span class="n">cfg</span><span class="o">.</span><span class="n">bias</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unknown operation in noise: </span><span class="si">{</span><span class="n">cfg</span><span class="o">.</span><span class="n">operation</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
-
-
-<div class="viewcode-block" id="uniform_noise"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.noise.uniform_noise">[docs]</a><span class="k">def</span> <span class="nf">uniform_noise</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">noise_cfg</span><span class="o">.</span><span class="n">UniformNoiseCfg</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Uniform noise.&quot;&quot;&quot;</span>
-    <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">operation</span> <span class="o">==</span> <span class="s2">&quot;add&quot;</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">data</span> <span class="o">+</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand_like</span><span class="p">(</span><span class="n">data</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">n_max</span> <span class="o">-</span> <span class="n">cfg</span><span class="o">.</span><span class="n">n_min</span><span class="p">)</span> <span class="o">+</span> <span class="n">cfg</span><span class="o">.</span><span class="n">n_min</span>
-    <span class="k">elif</span> <span class="n">cfg</span><span class="o">.</span><span class="n">operation</span> <span class="o">==</span> <span class="s2">&quot;scale&quot;</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">data</span> <span class="o">*</span> <span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">rand_like</span><span class="p">(</span><span class="n">data</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">n_max</span> <span class="o">-</span> <span class="n">cfg</span><span class="o">.</span><span class="n">n_min</span><span class="p">)</span> <span class="o">+</span> <span class="n">cfg</span><span class="o">.</span><span class="n">n_min</span><span class="p">)</span>
-    <span class="k">elif</span> <span class="n">cfg</span><span class="o">.</span><span class="n">operation</span> <span class="o">==</span> <span class="s2">&quot;abs&quot;</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand_like</span><span class="p">(</span><span class="n">data</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">n_max</span> <span class="o">-</span> <span class="n">cfg</span><span class="o">.</span><span class="n">n_min</span><span class="p">)</span> <span class="o">+</span> <span class="n">cfg</span><span class="o">.</span><span class="n">n_min</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unknown operation in noise: </span><span class="si">{</span><span class="n">cfg</span><span class="o">.</span><span class="n">operation</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
-
-
-<div class="viewcode-block" id="gaussian_noise"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.noise.gaussian_noise">[docs]</a><span class="k">def</span> <span class="nf">gaussian_noise</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">noise_cfg</span><span class="o">.</span><span class="n">GaussianNoiseCfg</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Gaussian noise.&quot;&quot;&quot;</span>
-    <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">operation</span> <span class="o">==</span> <span class="s2">&quot;add&quot;</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">data</span> <span class="o">+</span> <span class="n">cfg</span><span class="o">.</span><span class="n">mean</span> <span class="o">+</span> <span class="n">cfg</span><span class="o">.</span><span class="n">std</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn_like</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
-    <span class="k">elif</span> <span class="n">cfg</span><span class="o">.</span><span class="n">operation</span> <span class="o">==</span> <span class="s2">&quot;scale&quot;</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">data</span> <span class="o">*</span> <span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">mean</span> <span class="o">+</span> <span class="n">cfg</span><span class="o">.</span><span class="n">std</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn_like</span><span class="p">(</span><span class="n">data</span><span class="p">))</span>
-    <span class="k">elif</span> <span class="n">cfg</span><span class="o">.</span><span class="n">operation</span> <span class="o">==</span> <span class="s2">&quot;abs&quot;</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">cfg</span><span class="o">.</span><span class="n">mean</span> <span class="o">+</span> <span class="n">cfg</span><span class="o">.</span><span class="n">std</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn_like</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unknown operation in noise: </span><span class="si">{</span><span class="n">cfg</span><span class="o">.</span><span class="n">operation</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
-
-
-<span class="c1">##</span>
-<span class="c1"># Noise models as classes</span>
+<span class="c1"># Modifiers as functions</span>
 <span class="c1">##</span>
 
 
-<div class="viewcode-block" id="NoiseModel"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.noise.NoiseModel">[docs]</a><span class="k">class</span> <span class="nc">NoiseModel</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Base class for noise models.&quot;&quot;&quot;</span>
+<div class="viewcode-block" id="scale"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.modifiers.scale">[docs]</a><span class="k">def</span> <span class="nf">scale</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">multiplier</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Scales input data by a multiplier.</span>
 
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">noise_model_cfg</span><span class="p">:</span> <span class="n">noise_cfg</span><span class="o">.</span><span class="n">NoiseModelCfg</span><span class="p">,</span> <span class="n">num_envs</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">device</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize the noise model.</span>
+<span class="sd">    Args:</span>
+<span class="sd">        data: The data to apply the scale to.</span>
+<span class="sd">        multiplier: Value to scale input by.</span>
 
-<span class="sd">        Args:</span>
-<span class="sd">            noise_model_cfg: The noise configuration to use.</span>
-<span class="sd">            num_envs: The number of environments.</span>
-<span class="sd">            device: The device to use for the noise model.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_noise_model_cfg</span> <span class="o">=</span> <span class="n">noise_model_cfg</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_num_envs</span> <span class="o">=</span> <span class="n">num_envs</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_device</span> <span class="o">=</span> <span class="n">device</span>
-
-<div class="viewcode-block" id="NoiseModel.reset"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.noise.NoiseModel.reset">[docs]</a>    <span class="k">def</span> <span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Reset the noise model.</span>
-
-<span class="sd">        This method can be implemented by derived classes to reset the noise model.</span>
-<span class="sd">        This is useful when implementing temporal noise models such as random walk.</span>
-
-<span class="sd">        Args:</span>
-<span class="sd">            env_ids: The environment ids to reset the noise model for. Defaults to None,</span>
-<span class="sd">                in which case all environments are considered.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">pass</span></div>
-
-<div class="viewcode-block" id="NoiseModel.apply"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.noise.NoiseModel.apply">[docs]</a>    <span class="k">def</span> <span class="nf">apply</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Apply the noise to the data.</span>
-
-<span class="sd">        Args:</span>
-<span class="sd">            data: The data to apply the noise to. Shape is (num_envs, ...).</span>
-
-<span class="sd">        Returns:</span>
-<span class="sd">            The data with the noise applied. Shape is the same as the input data.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_noise_model_cfg</span><span class="o">.</span><span class="n">noise_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_noise_model_cfg</span><span class="o">.</span><span class="n">noise_cfg</span><span class="p">)</span></div></div>
+<span class="sd">    Returns:</span>
+<span class="sd">        Scaled data. Shape is the same as data.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">data</span> <span class="o">*</span> <span class="n">multiplier</span></div>
 
 
-<div class="viewcode-block" id="NoiseModelWithAdditiveBias"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBias">[docs]</a><span class="k">class</span> <span class="nc">NoiseModelWithAdditiveBias</span><span class="p">(</span><span class="n">NoiseModel</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Noise model with an additive bias.</span>
+<div class="viewcode-block" id="clip"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.modifiers.clip">[docs]</a><span class="k">def</span> <span class="nf">clip</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">bounds</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Clips the data to a minimum and maximum value.</span>
 
-<span class="sd">    The bias term is sampled from a the specified distribution on reset.</span>
+<span class="sd">    Args:</span>
+<span class="sd">        data: The data to apply the clip to.</span>
+<span class="sd">        bounds: A tuple containing the minimum and maximum values to clip data to.</span>
+<span class="sd">            If the value is None, that bound is not applied.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Clipped data. Shape is the same as data.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">data</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="nb">min</span><span class="o">=</span><span class="n">bounds</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="nb">max</span><span class="o">=</span><span class="n">bounds</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span></div>
+
+
+<div class="viewcode-block" id="bias"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.modifiers.bias">[docs]</a><span class="k">def</span> <span class="nf">bias</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Adds a uniform bias to the data.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        data: The data to add bias to.</span>
+<span class="sd">        value: Value of bias to add to data.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Biased data. Shape is the same as data.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">data</span> <span class="o">+</span> <span class="n">value</span></div>
+
+
+<span class="c1">##</span>
+<span class="c1"># Sample of class based modifiers</span>
+<span class="c1">##</span>
+
+
+<div class="viewcode-block" id="DigitalFilter"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.modifiers.DigitalFilter">[docs]</a><span class="k">class</span> <span class="nc">DigitalFilter</span><span class="p">(</span><span class="n">ModifierBase</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Modifier used to apply digital filtering to the input data.</span>
+
+<span class="sd">    `Digital filters &lt;https://en.wikipedia.org/wiki/Digital_filter&gt;`_ are used to process discrete-time</span>
+<span class="sd">    signals to extract useful parts of the signal, such as smoothing, noise reduction, or frequency separation.</span>
+
+<span class="sd">    The filter can be implemented as a linear difference equation in the time domain. This equation</span>
+<span class="sd">    can be used to calculate the output at each time-step based on the current and previous inputs and outputs.</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">         y_{i} = X B - Y A = \sum_{j=0}^{N} b_j x_{i-j} - \sum_{j=1}^{M} a_j y_{i-j}</span>
+
+<span class="sd">    where :math:`y_{i}` is the current output of the filter. The array :math:`Y` contains previous</span>
+<span class="sd">    outputs from the filter :math:`\{y_{i-j}\}_{j=1}^M` for :math:`M` previous time-steps. The array</span>
+<span class="sd">    :math:`X` contains current :math:`x_{i}` and previous inputs to the filter</span>
+<span class="sd">    :math:`\{x_{i-j}\}_{j=1}^N` for :math:`N` previous time-steps respectively.</span>
+<span class="sd">    The filter coefficients :math:`A` and :math:`B` are used to design the filter. They are column vectors of</span>
+<span class="sd">    length :math:`M` and :math:`N + 1` respectively.</span>
+
+<span class="sd">    Different types of filters can be implemented by choosing different values for :math:`A` and :math:`B`.</span>
+<span class="sd">    We provide some examples below.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ^^^^^^^^</span>
+
+<span class="sd">    **Unit Delay Filter**</span>
+
+<span class="sd">    A filter that delays the input signal by a single time-step simply outputs the previous input value.</span>
+
+<span class="sd">    .. math:: y_{i} = x_{i-1}</span>
+
+<span class="sd">    This can be implemented as a digital filter with the coefficients :math:`A = [0.0]` and :math:`B = [0.0, 1.0]`.</span>
+
+<span class="sd">    **Moving Average Filter**</span>
+
+<span class="sd">    A moving average filter is used to smooth out noise in a signal. It is similar to a low-pass filter</span>
+<span class="sd">    but has a finite impulse response (FIR) and is non-recursive.</span>
+
+<span class="sd">    The filter calculates the average of the input signal over a window of time-steps. The linear difference</span>
+<span class="sd">    equation for a moving average filter is:</span>
+
+<span class="sd">    .. math:: y_{i} = \frac{1}{N} \sum_{j=0}^{N} x_{i-j}</span>
+
+<span class="sd">    This can be implemented as a digital filter with the coefficients :math:`A = [0.0]` and</span>
+<span class="sd">    :math:`B = [1/N, 1/N, \cdots, 1/N]`.</span>
+
+<span class="sd">    **First-order recursive low-pass filter**</span>
+
+<span class="sd">    A recursive low-pass filter is used to smooth out high-frequency noise in a signal. It is a first-order</span>
+<span class="sd">    infinite impulse response (IIR) filter which means it has a recursive component (previous output) in the</span>
+<span class="sd">    linear difference equation.</span>
+
+<span class="sd">    A first-order low-pass IIR filter has the difference equation:</span>
+
+<span class="sd">    .. math:: y_{i} = \alpha y_{i-1} + (1-\alpha)x_{i}</span>
+
+<span class="sd">    where :math:`\alpha` is a smoothing parameter between 0 and 1. Typically, the value of :math:`\alpha` is</span>
+<span class="sd">    chosen based on the desired cut-off frequency of the filter.</span>
+
+<span class="sd">    This filter can be implemented as a digital filter with the coefficients :math:`A = [\alpha]` and</span>
+<span class="sd">    :math:`B = [1 - \alpha]`.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">noise_model_cfg</span><span class="p">:</span> <span class="n">noise_cfg</span><span class="o">.</span><span class="n">NoiseModelWithAdditiveBiasCfg</span><span class="p">,</span> <span class="n">num_envs</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">device</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
-        <span class="c1"># initialize parent class</span>
-        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">noise_model_cfg</span><span class="p">,</span> <span class="n">num_envs</span><span class="p">,</span> <span class="n">device</span><span class="p">)</span>
-        <span class="c1"># store the bias noise configuration</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_bias_noise_cfg</span> <span class="o">=</span> <span class="n">noise_model_cfg</span><span class="o">.</span><span class="n">bias_noise_cfg</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_bias</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">num_envs</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
-
-<div class="viewcode-block" id="NoiseModelWithAdditiveBias.reset"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBias.reset">[docs]</a>    <span class="k">def</span> <span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Reset the noise model.</span>
-
-<span class="sd">        This method resets the bias term for the specified environments.</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">modifier_cfg</span><span class="o">.</span><span class="n">DigitalFilterCfg</span><span class="p">,</span> <span class="n">data_dim</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span> <span class="n">device</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initializes digital filter.</span>
 
 <span class="sd">        Args:</span>
-<span class="sd">            env_ids: The environment ids to reset the noise model for. Defaults to None,</span>
-<span class="sd">                in which case all environments are considered.</span>
+<span class="sd">            cfg: Configuration parameters.</span>
+<span class="sd">            data_dim: The dimensions of the data to be modified. First element is the batch size</span>
+<span class="sd">                which usually corresponds to number of environments in the simulation.</span>
+<span class="sd">            device: The device to run the modifier on.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            ValueError: If filter coefficients are None.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># resolve the environment ids</span>
+        <span class="c1"># check that filter coefficients are not None</span>
+        <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">A</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">cfg</span><span class="o">.</span><span class="n">B</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Digital filter coefficients A and B must not be None. Please provide valid coefficients.&quot;</span><span class="p">)</span>
+
+        <span class="c1"># initialize parent class</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">data_dim</span><span class="p">,</span> <span class="n">device</span><span class="p">)</span>
+
+        <span class="c1"># assign filter coefficients and make sure they are column vectors</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">A</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_cfg</span><span class="o">.</span><span class="n">A</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">B</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_cfg</span><span class="o">.</span><span class="n">B</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="c1"># create buffer for input and output history</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">x_n</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data_dim</span> <span class="o">+</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">B</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">y_n</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data_dim</span> <span class="o">+</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+
+<div class="viewcode-block" id="DigitalFilter.reset"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.modifiers.DigitalFilter.reset">[docs]</a>    <span class="k">def</span> <span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Resets digital filter history.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            env_ids: The environment ids. Defaults to None, in which case</span>
+<span class="sd">                all environments are considered.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">env_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
-        <span class="c1"># reset the bias term</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_bias</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bias_noise_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bias</span><span class="p">[</span><span class="n">env_ids</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bias_noise_cfg</span><span class="p">)</span></div>
+        <span class="c1"># reset history buffers</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">x_n</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">y_n</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span></div>
 
-<div class="viewcode-block" id="NoiseModelWithAdditiveBias.apply"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBias.apply">[docs]</a>    <span class="k">def</span> <span class="nf">apply</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Apply bias noise to the data.</span>
+<div class="viewcode-block" id="DigitalFilter.__call__"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.modifiers.DigitalFilter.__call__">[docs]</a>    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Applies digital filter modification with a rolling history window inputs and outputs.</span>
 
 <span class="sd">        Args:</span>
-<span class="sd">            data: The data to apply the noise to. Shape is (num_envs, ...).</span>
+<span class="sd">            data: The data to apply filter to.</span>
 
 <span class="sd">        Returns:</span>
-<span class="sd">            The data with the noise applied. Shape is the same as the input data.</span>
+<span class="sd">            Filtered data. Shape is the same as data.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">data</span><span class="p">)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bias</span></div></div>
+        <span class="c1"># move history window for input</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">x_n</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">roll</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">x_n</span><span class="p">,</span> <span class="n">shifts</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">dims</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">x_n</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">data</span>
+
+        <span class="c1"># calculate current filter value: y[i] = Y*A - X*B</span>
+        <span class="n">y_i</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">matmul</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">x_n</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">B</span><span class="p">)</span> <span class="o">-</span> <span class="n">torch</span><span class="o">.</span><span class="n">matmul</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">y_n</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">)</span>
+        <span class="n">y_i</span><span class="o">.</span><span class="n">squeeze_</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="c1"># move history window for output and add current filter value to history</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">y_n</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">roll</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">y_n</span><span class="p">,</span> <span class="n">shifts</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">dims</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">y_n</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">y_i</span>
+
+        <span class="k">return</span> <span class="n">y_i</span></div></div>
+
+
+<div class="viewcode-block" id="Integrator"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.modifiers.Integrator">[docs]</a><span class="k">class</span> <span class="nc">Integrator</span><span class="p">(</span><span class="n">ModifierBase</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Modifier that applies a numerical forward integration based on a middle Reimann sum.</span>
+
+<span class="sd">    An integrator is used to calculate the integral of a signal over time. The integral of a signal</span>
+<span class="sd">    is the area under the curve of the signal. The integral can be approximated using numerical methods</span>
+<span class="sd">    such as the `Riemann sum &lt;https://en.wikipedia.org/wiki/Riemann_sum&gt;`_.</span>
+
+<span class="sd">    The middle Riemann sum is a method to approximate the integral of a function by dividing the area</span>
+<span class="sd">    under the curve into rectangles. The height of each rectangle is the value of the function at the</span>
+<span class="sd">    midpoint of the interval. The area of each rectangle is the width of the interval multiplied by the</span>
+<span class="sd">    height of the rectangle.</span>
+
+<span class="sd">    This integral method is useful for signals that are sampled at regular intervals. The integral</span>
+<span class="sd">    can be written as:</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">        \int_{t_0}^{t_n} f(t) dt &amp; \approx \int_{t_0}^{t_{n-1}} f(t) dt + \frac{f(t_{n-1}) + f(t_n)}{2} \Delta t</span>
+
+<span class="sd">    where :math:`f(t)` is the signal to integrate, :math:`t_i` is the time at the i-th sample, and</span>
+<span class="sd">    :math:`\Delta t` is the time step between samples.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">modifier_cfg</span><span class="o">.</span><span class="n">IntegratorCfg</span><span class="p">,</span> <span class="n">data_dim</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span> <span class="n">device</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initializes the integrator configuration and state.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            cfg: Integral parameters.</span>
+<span class="sd">            data_dim: The dimensions of the data to be modified. First element is the batch size</span>
+<span class="sd">                which usually corresponds to number of environments in the simulation.</span>
+<span class="sd">            device: The device to run the modifier on.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># initialize parent class</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">data_dim</span><span class="p">,</span> <span class="n">device</span><span class="p">)</span>
+
+        <span class="c1"># assign buffer for integral and previous value</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">integral</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data_dim</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">y_prev</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data_dim</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Integrator.reset"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.modifiers.Integrator.reset">[docs]</a>    <span class="k">def</span> <span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Resets integrator state to zero.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            env_ids: The environment ids. Defaults to None, in which case</span>
+<span class="sd">                all environments are considered.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">env_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+        <span class="c1"># reset history buffers</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">integral</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">y_prev</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span></div>
+
+<div class="viewcode-block" id="Integrator.__call__"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.modifiers.Integrator.__call__">[docs]</a>    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Applies integral modification to input data.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            data: The data to integrate.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            Integral of input signal. Shape is the same as data.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># integrate using middle Riemann sum</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">integral</span> <span class="o">+=</span> <span class="p">(</span><span class="n">data</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">y_prev</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cfg</span><span class="o">.</span><span class="n">dt</span>
+        <span class="c1"># update previous value</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">y_prev</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">data</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">integral</span></div></div>
 </pre></div>
 
                 </article>

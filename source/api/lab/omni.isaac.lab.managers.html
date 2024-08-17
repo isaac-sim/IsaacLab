@@ -609,6 +609,7 @@ document.write(`
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.ObservationTermCfg"><code class="docutils literal notranslate"><span class="pre">ObservationTermCfg</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.ObservationTermCfg.func"><code class="docutils literal notranslate"><span class="pre">ObservationTermCfg.func</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.ObservationTermCfg.modifiers"><code class="docutils literal notranslate"><span class="pre">ObservationTermCfg.modifiers</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.ObservationTermCfg.noise"><code class="docutils literal notranslate"><span class="pre">ObservationTermCfg.noise</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.ObservationTermCfg.clip"><code class="docutils literal notranslate"><span class="pre">ObservationTermCfg.clip</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.ObservationTermCfg.scale"><code class="docutils literal notranslate"><span class="pre">ObservationTermCfg.scale</span></code></a></li>
@@ -1267,7 +1268,8 @@ group configuration to False.</p>
 <p>The observation manager can be used to compute observations for all the groups or for a specific group. The
 observations are computed by calling the registered functions for each term in the group. The functions are
 called in the order of the terms in the group. The functions are expected to return a tensor with shape
-(num_envs, …). If a corruption/noise model is registered for a term, the function is called to corrupt
+(num_envs, …).</p>
+<p>If a noise model or custom modifier is registered for a term, the function is called to corrupt
 the observation. The corruption function is expected to return a tensor with the same shape as the observation.
 The observations are clipped and scaled as per the configuration settings.</p>
 <p><strong>Methods:</strong></p>
@@ -1406,12 +1408,18 @@ with keys corresponding to the term’s name.</p>
 <p>The observations for a given group are computed by calling the registered functions for each
 term in the group. The functions are called in the order of the terms in the group. The functions
 are expected to return a tensor with shape (num_envs, …).</p>
-<p>If a corruption/noise model is registered for a term, the function is called to corrupt
-the observation. The corruption function is expected to return a tensor with the same
-shape as the observation. The observations are clipped and scaled as per the configuration
-settings.</p>
-<p>The operations are performed in the order: compute, add corruption/noise, clip, scale.
-By default, no scaling or clipping is applied.</p>
+<p>The following steps are performed for each observation term:</p>
+<ol class="arabic simple">
+<li><p>Compute observation term by calling the function</p></li>
+<li><p>Apply custom modifiers in the order specified in <a class="reference internal" href="#omni.isaac.lab.managers.ObservationTermCfg.modifiers" title="omni.isaac.lab.managers.ObservationTermCfg.modifiers"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ObservationTermCfg.modifiers</span></code></a></p></li>
+<li><p>Apply corruption/noise model based on <a class="reference internal" href="#omni.isaac.lab.managers.ObservationTermCfg.noise" title="omni.isaac.lab.managers.ObservationTermCfg.noise"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ObservationTermCfg.noise</span></code></a></p></li>
+<li><p>Apply clipping based on <a class="reference internal" href="#omni.isaac.lab.managers.ObservationTermCfg.clip" title="omni.isaac.lab.managers.ObservationTermCfg.clip"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ObservationTermCfg.clip</span></code></a></p></li>
+<li><p>Apply scaling based on <a class="reference internal" href="#omni.isaac.lab.managers.ObservationTermCfg.scale" title="omni.isaac.lab.managers.ObservationTermCfg.scale"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ObservationTermCfg.scale</span></code></a></p></li>
+</ol>
+<p>We apply noise to the computed term first to maintain the integrity of how noise affects the data
+as it truly exists in the real world. If the noise is applied after clipping or scaling, the noise
+could be artificially constrained or amplified, which might misrepresent how noise naturally occurs
+in the data.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><p><strong>group_name</strong> – The name of the group for which to compute the observations. Defaults to None,
@@ -1506,13 +1514,16 @@ Otherwise, no corruption is applied.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.ObservationTermCfg.func" title="omni.isaac.lab.managers.ObservationTermCfg.func"><code class="xref py py-obj docutils literal notranslate"><span class="pre">func</span></code></a></p></td>
 <td><p>The name of the function to be called.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.ObservationTermCfg.noise" title="omni.isaac.lab.managers.ObservationTermCfg.noise"><code class="xref py py-obj docutils literal notranslate"><span class="pre">noise</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.ObservationTermCfg.modifiers" title="omni.isaac.lab.managers.ObservationTermCfg.modifiers"><code class="xref py py-obj docutils literal notranslate"><span class="pre">modifiers</span></code></a></p></td>
+<td><p>The list of data modifiers to apply to the observation in order.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.ObservationTermCfg.noise" title="omni.isaac.lab.managers.ObservationTermCfg.noise"><code class="xref py py-obj docutils literal notranslate"><span class="pre">noise</span></code></a></p></td>
 <td><p>The noise to add to the observation.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.ObservationTermCfg.clip" title="omni.isaac.lab.managers.ObservationTermCfg.clip"><code class="xref py py-obj docutils literal notranslate"><span class="pre">clip</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.ObservationTermCfg.clip" title="omni.isaac.lab.managers.ObservationTermCfg.clip"><code class="xref py py-obj docutils literal notranslate"><span class="pre">clip</span></code></a></p></td>
 <td><p>The clipping range for the observation after adding noise.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.ObservationTermCfg.scale" title="omni.isaac.lab.managers.ObservationTermCfg.scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">scale</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.ObservationTermCfg.scale" title="omni.isaac.lab.managers.ObservationTermCfg.scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">scale</span></code></a></p></td>
 <td><p>The scale to apply to the observation after clipping.</p></td>
 </tr>
 </tbody>
@@ -1525,6 +1536,17 @@ Otherwise, no corruption is applied.</p>
 <p>This function should take the environment object and any other parameters
 as input and return the observation signal as torch float tensors of
 shape (num_envs, obs_term_dim).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.managers.ObservationTermCfg.modifiers">
+<span class="sig-name descname"><span class="pre">modifiers</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.12)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference internal" href="omni.isaac.lab.utils.html#omni.isaac.lab.utils.modifiers.ModifierCfg" title="omni.isaac.lab.utils.modifiers.ModifierCfg"><span class="pre">ModifierCfg</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.managers.ObservationTermCfg.modifiers" title="Permalink to this definition">#</a></dt>
+<dd><p>The list of data modifiers to apply to the observation in order. Defaults to None,
+in which case no modifications will be applied.</p>
+<p>Modifiers are applied in the order they are specified in the list. They can be stateless
+or stateful, and can be used to apply transformations to the observation data. For example,
+a modifier can be used to normalize the observation data or to apply a rolling average.</p>
+<p>For more information on modifiers, see the <a class="reference internal" href="omni.isaac.lab.utils.html#omni.isaac.lab.utils.modifiers.ModifierCfg" title="omni.isaac.lab.utils.modifiers.ModifierCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">ModifierCfg</span></code></a> class.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -3336,6 +3358,7 @@ in the <a class="reference internal" href="#omni.isaac.lab.managers.SceneEntityC
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.ObservationTermCfg"><code class="docutils literal notranslate"><span class="pre">ObservationTermCfg</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.ObservationTermCfg.func"><code class="docutils literal notranslate"><span class="pre">ObservationTermCfg.func</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.ObservationTermCfg.modifiers"><code class="docutils literal notranslate"><span class="pre">ObservationTermCfg.modifiers</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.ObservationTermCfg.noise"><code class="docutils literal notranslate"><span class="pre">ObservationTermCfg.noise</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.ObservationTermCfg.clip"><code class="docutils literal notranslate"><span class="pre">ObservationTermCfg.clip</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.ObservationTermCfg.scale"><code class="docutils literal notranslate"><span class="pre">ObservationTermCfg.scale</span></code></a></li>

@@ -8,7 +8,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>omni.isaac.lab.utils.noise.noise_model &#8212; Isaac Lab documentation</title>
+    <title>omni.isaac.lab.utils.modifiers.modifier_cfg &#8212; Isaac Lab documentation</title>
   
   
   
@@ -48,7 +48,7 @@
     <script src="../../../../../../_static/copybutton.js"></script>
     <script src="../../../../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
     <script src="../../../../../../_static/design-tabs.js"></script>
-    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/omni/isaac/lab/utils/noise/noise_model';</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/omni/isaac/lab/utils/modifiers/modifier_cfg';</script>
     <link rel="icon" href="../../../../../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../../../../../genindex.html" />
     <link rel="search" title="Search" href="../../../../../../search.html" />
@@ -406,7 +406,7 @@
       
       
       
-      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2F_modules/omni/isaac/lab/utils/noise/noise_model.html&body=Your%20issue%20content%20here." target="_blank"
+      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2F_modules/omni/isaac/lab/utils/modifiers/modifier_cfg.html&body=Your%20issue%20content%20here." target="_blank"
    class="btn btn-sm btn-source-issues-button dropdown-item"
    title="Open an issue"
    data-bs-placement="left" data-bs-toggle="tooltip"
@@ -484,144 +484,85 @@ document.write(`
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <h1>Source code for omni.isaac.lab.utils.noise.noise_model</h1><div class="highlight"><pre>
+  <h1>Source code for omni.isaac.lab.utils.modifiers.modifier_cfg</h1><div class="highlight"><pre>
 <span></span><span class="c1"># Copyright (c) 2022-2024, The Isaac Lab Project Developers.</span>
 <span class="c1"># All rights reserved.</span>
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
-<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">annotations</span>
-
 <span class="kn">import</span> <span class="nn">torch</span>
-<span class="kn">from</span> <span class="nn">collections.abc</span> <span class="kn">import</span> <span class="n">Sequence</span>
-<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
+<span class="kn">from</span> <span class="nn">collections.abc</span> <span class="kn">import</span> <span class="n">Callable</span>
+<span class="kn">from</span> <span class="nn">dataclasses</span> <span class="kn">import</span> <span class="n">MISSING</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Any</span>
 
-<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
-    <span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">noise_cfg</span>
+<span class="kn">from</span> <span class="nn">omni.isaac.lab.utils</span> <span class="kn">import</span> <span class="n">configclass</span>
 
-<span class="c1">##</span>
-<span class="c1"># Noise as functions.</span>
-<span class="c1">##</span>
+<span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">modifier</span>
 
 
-<div class="viewcode-block" id="constant_noise"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.noise.constant_noise">[docs]</a><span class="k">def</span> <span class="nf">constant_noise</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">noise_cfg</span><span class="o">.</span><span class="n">ConstantNoiseCfg</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Constant noise.&quot;&quot;&quot;</span>
-    <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">operation</span> <span class="o">==</span> <span class="s2">&quot;add&quot;</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">data</span> <span class="o">+</span> <span class="n">cfg</span><span class="o">.</span><span class="n">bias</span>
-    <span class="k">elif</span> <span class="n">cfg</span><span class="o">.</span><span class="n">operation</span> <span class="o">==</span> <span class="s2">&quot;scale&quot;</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">data</span> <span class="o">*</span> <span class="n">cfg</span><span class="o">.</span><span class="n">bias</span>
-    <span class="k">elif</span> <span class="n">cfg</span><span class="o">.</span><span class="n">operation</span> <span class="o">==</span> <span class="s2">&quot;abs&quot;</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">data</span><span class="p">)</span> <span class="o">+</span> <span class="n">cfg</span><span class="o">.</span><span class="n">bias</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unknown operation in noise: </span><span class="si">{</span><span class="n">cfg</span><span class="o">.</span><span class="n">operation</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+<div class="viewcode-block" id="ModifierCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.modifiers.ModifierCfg">[docs]</a><span class="nd">@configclass</span>
+<span class="k">class</span> <span class="nc">ModifierCfg</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration parameters modifiers&quot;&quot;&quot;</span>
 
+    <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Function or callable class used by modifier.</span>
 
-<div class="viewcode-block" id="uniform_noise"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.noise.uniform_noise">[docs]</a><span class="k">def</span> <span class="nf">uniform_noise</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">noise_cfg</span><span class="o">.</span><span class="n">UniformNoiseCfg</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Uniform noise.&quot;&quot;&quot;</span>
-    <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">operation</span> <span class="o">==</span> <span class="s2">&quot;add&quot;</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">data</span> <span class="o">+</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand_like</span><span class="p">(</span><span class="n">data</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">n_max</span> <span class="o">-</span> <span class="n">cfg</span><span class="o">.</span><span class="n">n_min</span><span class="p">)</span> <span class="o">+</span> <span class="n">cfg</span><span class="o">.</span><span class="n">n_min</span>
-    <span class="k">elif</span> <span class="n">cfg</span><span class="o">.</span><span class="n">operation</span> <span class="o">==</span> <span class="s2">&quot;scale&quot;</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">data</span> <span class="o">*</span> <span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">rand_like</span><span class="p">(</span><span class="n">data</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">n_max</span> <span class="o">-</span> <span class="n">cfg</span><span class="o">.</span><span class="n">n_min</span><span class="p">)</span> <span class="o">+</span> <span class="n">cfg</span><span class="o">.</span><span class="n">n_min</span><span class="p">)</span>
-    <span class="k">elif</span> <span class="n">cfg</span><span class="o">.</span><span class="n">operation</span> <span class="o">==</span> <span class="s2">&quot;abs&quot;</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand_like</span><span class="p">(</span><span class="n">data</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">n_max</span> <span class="o">-</span> <span class="n">cfg</span><span class="o">.</span><span class="n">n_min</span><span class="p">)</span> <span class="o">+</span> <span class="n">cfg</span><span class="o">.</span><span class="n">n_min</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unknown operation in noise: </span><span class="si">{</span><span class="n">cfg</span><span class="o">.</span><span class="n">operation</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+<span class="sd">    The function must take a torch tensor as the first argument. The remaining arguments are specified</span>
+<span class="sd">    in the :attr:`params` attribute.</span>
 
-
-<div class="viewcode-block" id="gaussian_noise"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.noise.gaussian_noise">[docs]</a><span class="k">def</span> <span class="nf">gaussian_noise</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">noise_cfg</span><span class="o">.</span><span class="n">GaussianNoiseCfg</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Gaussian noise.&quot;&quot;&quot;</span>
-    <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">operation</span> <span class="o">==</span> <span class="s2">&quot;add&quot;</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">data</span> <span class="o">+</span> <span class="n">cfg</span><span class="o">.</span><span class="n">mean</span> <span class="o">+</span> <span class="n">cfg</span><span class="o">.</span><span class="n">std</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn_like</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
-    <span class="k">elif</span> <span class="n">cfg</span><span class="o">.</span><span class="n">operation</span> <span class="o">==</span> <span class="s2">&quot;scale&quot;</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">data</span> <span class="o">*</span> <span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">mean</span> <span class="o">+</span> <span class="n">cfg</span><span class="o">.</span><span class="n">std</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn_like</span><span class="p">(</span><span class="n">data</span><span class="p">))</span>
-    <span class="k">elif</span> <span class="n">cfg</span><span class="o">.</span><span class="n">operation</span> <span class="o">==</span> <span class="s2">&quot;abs&quot;</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">cfg</span><span class="o">.</span><span class="n">mean</span> <span class="o">+</span> <span class="n">cfg</span><span class="o">.</span><span class="n">std</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn_like</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unknown operation in noise: </span><span class="si">{</span><span class="n">cfg</span><span class="o">.</span><span class="n">operation</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
-
-
-<span class="c1">##</span>
-<span class="c1"># Noise models as classes</span>
-<span class="c1">##</span>
-
-
-<div class="viewcode-block" id="NoiseModel"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.noise.NoiseModel">[docs]</a><span class="k">class</span> <span class="nc">NoiseModel</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Base class for noise models.&quot;&quot;&quot;</span>
-
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">noise_model_cfg</span><span class="p">:</span> <span class="n">noise_cfg</span><span class="o">.</span><span class="n">NoiseModelCfg</span><span class="p">,</span> <span class="n">num_envs</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">device</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize the noise model.</span>
-
-<span class="sd">        Args:</span>
-<span class="sd">            noise_model_cfg: The noise configuration to use.</span>
-<span class="sd">            num_envs: The number of environments.</span>
-<span class="sd">            device: The device to use for the noise model.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_noise_model_cfg</span> <span class="o">=</span> <span class="n">noise_model_cfg</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_num_envs</span> <span class="o">=</span> <span class="n">num_envs</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_device</span> <span class="o">=</span> <span class="n">device</span>
-
-<div class="viewcode-block" id="NoiseModel.reset"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.noise.NoiseModel.reset">[docs]</a>    <span class="k">def</span> <span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Reset the noise model.</span>
-
-<span class="sd">        This method can be implemented by derived classes to reset the noise model.</span>
-<span class="sd">        This is useful when implementing temporal noise models such as random walk.</span>
-
-<span class="sd">        Args:</span>
-<span class="sd">            env_ids: The environment ids to reset the noise model for. Defaults to None,</span>
-<span class="sd">                in which case all environments are considered.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">pass</span></div>
-
-<div class="viewcode-block" id="NoiseModel.apply"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.noise.NoiseModel.apply">[docs]</a>    <span class="k">def</span> <span class="nf">apply</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Apply the noise to the data.</span>
-
-<span class="sd">        Args:</span>
-<span class="sd">            data: The data to apply the noise to. Shape is (num_envs, ...).</span>
-
-<span class="sd">        Returns:</span>
-<span class="sd">            The data with the noise applied. Shape is the same as the input data.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_noise_model_cfg</span><span class="o">.</span><span class="n">noise_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_noise_model_cfg</span><span class="o">.</span><span class="n">noise_cfg</span><span class="p">)</span></div></div>
-
-
-<div class="viewcode-block" id="NoiseModelWithAdditiveBias"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBias">[docs]</a><span class="k">class</span> <span class="nc">NoiseModelWithAdditiveBias</span><span class="p">(</span><span class="n">NoiseModel</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Noise model with an additive bias.</span>
-
-<span class="sd">    The bias term is sampled from a the specified distribution on reset.</span>
+<span class="sd">    It also supports `callable classes &lt;https://docs.python.org/3/reference/datamodel.html#object.__call__&gt;`_,</span>
+<span class="sd">    i.e. classes that implement the ``__call__()`` method. In this case, the class should inherit from the</span>
+<span class="sd">    :class:`ModifierBase` class and implement the required methods.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">noise_model_cfg</span><span class="p">:</span> <span class="n">noise_cfg</span><span class="o">.</span><span class="n">NoiseModelWithAdditiveBiasCfg</span><span class="p">,</span> <span class="n">num_envs</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">device</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
-        <span class="c1"># initialize parent class</span>
-        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">noise_model_cfg</span><span class="p">,</span> <span class="n">num_envs</span><span class="p">,</span> <span class="n">device</span><span class="p">)</span>
-        <span class="c1"># store the bias noise configuration</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_bias_noise_cfg</span> <span class="o">=</span> <span class="n">noise_model_cfg</span><span class="o">.</span><span class="n">bias_noise_cfg</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_bias</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">num_envs</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+    <span class="n">params</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The parameters to be passed to the function or callable class as keyword arguments. Defaults to</span>
+<span class="sd">    an empty dictionary.&quot;&quot;&quot;</span></div>
 
-<div class="viewcode-block" id="NoiseModelWithAdditiveBias.reset"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBias.reset">[docs]</a>    <span class="k">def</span> <span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Reset the noise model.</span>
 
-<span class="sd">        This method resets the bias term for the specified environments.</span>
+<div class="viewcode-block" id="DigitalFilterCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.modifiers.DigitalFilterCfg">[docs]</a><span class="nd">@configclass</span>
+<span class="k">class</span> <span class="nc">DigitalFilterCfg</span><span class="p">(</span><span class="n">ModifierCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration parameters for a digital filter modifier.</span>
 
-<span class="sd">        Args:</span>
-<span class="sd">            env_ids: The environment ids to reset the noise model for. Defaults to None,</span>
-<span class="sd">                in which case all environments are considered.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># resolve the environment ids</span>
-        <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">env_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
-        <span class="c1"># reset the bias term</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_bias</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bias_noise_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bias</span><span class="p">[</span><span class="n">env_ids</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bias_noise_cfg</span><span class="p">)</span></div>
+<span class="sd">    For more information, please check the :class:`DigitalFilter` class.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="NoiseModelWithAdditiveBias.apply"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBias.apply">[docs]</a>    <span class="k">def</span> <span class="nf">apply</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Apply bias noise to the data.</span>
+    <span class="n">func</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">modifier</span><span class="o">.</span><span class="n">DigitalFilter</span><span class="p">]</span> <span class="o">=</span> <span class="n">modifier</span><span class="o">.</span><span class="n">DigitalFilter</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The digital filter function to be called for applying the filter.&quot;&quot;&quot;</span>
 
-<span class="sd">        Args:</span>
-<span class="sd">            data: The data to apply the noise to. Shape is (num_envs, ...).</span>
+    <span class="n">A</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The coefficients corresponding the the filter&#39;s response to past outputs.</span>
 
-<span class="sd">        Returns:</span>
-<span class="sd">            The data with the noise applied. Shape is the same as the input data.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">data</span><span class="p">)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bias</span></div></div>
+<span class="sd">    These correspond to the weights of the past outputs of the filter. The first element is the coefficient</span>
+<span class="sd">    for the output at the previous time step, the second element is the coefficient for the output at two</span>
+<span class="sd">    time steps ago, and so on.</span>
+
+<span class="sd">    It is the denominator coefficients of the transfer function of the filter.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">B</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The coefficients corresponding the the filter&#39;s response to current and past inputs.</span>
+
+<span class="sd">    These correspond to the weights of the current and past inputs of the filter. The first element is the</span>
+<span class="sd">    coefficient for the current input, the second element is the coefficient for the input at the previous</span>
+<span class="sd">    time step, and so on.</span>
+
+<span class="sd">    It is the numerator coefficients of the transfer function of the filter.</span>
+<span class="sd">    &quot;&quot;&quot;</span></div>
+
+
+<div class="viewcode-block" id="IntegratorCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.modifiers.IntegratorCfg">[docs]</a><span class="nd">@configclass</span>
+<span class="k">class</span> <span class="nc">IntegratorCfg</span><span class="p">(</span><span class="n">ModifierCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration parameters for an integrator modifier.</span>
+
+<span class="sd">    For more information, please check the :class:`Integrator` class.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">func</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">modifier</span><span class="o">.</span><span class="n">Integrator</span><span class="p">]</span> <span class="o">=</span> <span class="n">modifier</span><span class="o">.</span><span class="n">Integrator</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The integrator function to be called for applying the integrator.&quot;&quot;&quot;</span>
+
+    <span class="n">dt</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The time step of the integrator.&quot;&quot;&quot;</span></div>
 </pre></div>
 
                 </article>

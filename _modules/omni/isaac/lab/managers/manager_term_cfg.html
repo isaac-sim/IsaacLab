@@ -500,6 +500,7 @@ document.write(`
 <span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Any</span>
 
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.utils</span> <span class="kn">import</span> <span class="n">configclass</span>
+<span class="kn">from</span> <span class="nn">omni.isaac.lab.utils.modifiers</span> <span class="kn">import</span> <span class="n">ModifierCfg</span>
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.utils.noise</span> <span class="kn">import</span> <span class="n">NoiseCfg</span>
 
 <span class="kn">from</span> <span class="nn">.scene_entity_cfg</span> <span class="kn">import</span> <span class="n">SceneEntityCfg</span>
@@ -618,6 +619,17 @@ document.write(`
 <span class="sd">    This function should take the environment object and any other parameters</span>
 <span class="sd">    as input and return the observation signal as torch float tensors of</span>
 <span class="sd">    shape (num_envs, obs_term_dim).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">modifiers</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">ModifierCfg</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The list of data modifiers to apply to the observation in order. Defaults to None,</span>
+<span class="sd">    in which case no modifications will be applied.</span>
+
+<span class="sd">    Modifiers are applied in the order they are specified in the list. They can be stateless</span>
+<span class="sd">    or stateful, and can be used to apply transformations to the observation data. For example,</span>
+<span class="sd">    a modifier can be used to normalize the observation data or to apply a rolling average.</span>
+
+<span class="sd">    For more information on modifiers, see the :class:`~omni.isaac.lab.utils.modifiers.ModifierCfg` class.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">noise</span><span class="p">:</span> <span class="n">NoiseCfg</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
