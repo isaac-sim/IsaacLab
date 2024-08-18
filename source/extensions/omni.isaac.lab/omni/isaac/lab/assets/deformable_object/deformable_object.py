@@ -77,7 +77,10 @@ class DeformableObject(AssetBase):
 
     @property
     def num_bodies(self) -> int:
-        """Number of bodies in the asset."""
+        """Number of bodies in the asset.
+
+        This is always 1 since each object is a single deformable body.
+        """
         return 1
 
     @property
