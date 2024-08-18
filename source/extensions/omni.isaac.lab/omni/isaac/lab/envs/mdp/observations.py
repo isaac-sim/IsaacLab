@@ -170,13 +170,13 @@ def rgb_camera(env: ManagerBasedEnv, sensor_cfg: CameraCfg) -> torch.Tensor:
     if DEBUG:
         #print(rgb_data.shape)
         import matplotlib.pyplot as plt
-        #$plt.imshow(rgb_data[0, ..., :-1].cpu().numpy())
+        #plt.imshow(rgb_data[0, ..., :-1].cpu().numpy())
         rgb_data_np = rgb_data.cpu().numpy()
         # fig, axes = plt.subplots(1, rgb_data_np.shape[0], figsize=(20, 20))
         # for idx in range(rgb_data_np.shape[0]):
         #     axes[idx].imshow(rgb_data_np[idx, ...], vmin=0, vmax=255)
         
-        # plt.savefig(f"{os.getcwd()}/franka_list_cube_rgb_plt.jpg")
+        #plt.savefig(f"{os.getcwd()}/franka_list_cube_rgb_plt.jpg")
         save_images_to_file(rgb_data[..., :-1].float() / rgb_data[..., :-1].max(), f"{os.getcwd()}/franka_list_cube_rgb.jpg")
         print(f"{rgb_data_np.mean()}+-{rgb_data_np.std()}: [{rgb_data_np.min()}, {rgb_data_np.max()}]")
     #raise("debug")

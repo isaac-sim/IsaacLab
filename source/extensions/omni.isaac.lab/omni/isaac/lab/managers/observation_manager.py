@@ -246,7 +246,8 @@ class ObservationManager(ManagerBase):
             group_obs[name] = obs
         # concatenate all observations in the group together
         if self._group_obs_concatenate[group_name]:
-            return torch.cat(list(group_obs.values()), dim=-1)
+            obs_concat = torch.cat(list(group_obs.values()), dim=-1)
+            return obs_concat
         else:
             return group_obs
 

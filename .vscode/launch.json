@@ -86,6 +86,46 @@
             
         },
 
+        // rsl_rl
+        {
+            "name": "Debug train rsl_rl (states)",
+            "type": "debugpy",
+            "request": "launch",
+            "preLaunchTask": "",
+            "program": "${workspaceFolder}/source/standalone/workflows/rsl_rl/train.py",
+            "args": [
+                "--task", "Isaac-Lift-Cube-Franka-v0",
+                "--num_envs", "2", // Modify here
+                "--headless",
+                "--enable_cameras",
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {},
+            "python": "/home/filip-grigorov/.conda/envs/isaaclab/bin/python",
+            
+        },
+        {
+            "name": "Debug train rsl_rl (RGB)",
+            "type": "debugpy",
+            "request": "launch",
+            "preLaunchTask": "",
+            "program": "${workspaceFolder}/source/standalone/workflows/rsl_rl/train_rgb.py",
+            "args": [
+                "--task", "Isaac-Lift-Cube-Franka-v0-RGB-rsl_rl",
+                "--num_envs", "12", // Modify here
+                "--headless",
+                "--enable_cameras",
+                "--video",
+                "--video_length", "100",
+                "--video_interval", "500"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {},
+            "python": "/home/filip-grigorov/.conda/envs/isaaclab/bin/python",
+            
+        },
 
         // SB3
         {
