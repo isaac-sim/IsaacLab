@@ -14,7 +14,6 @@ from typing import TYPE_CHECKING
 from omni.isaac.lab.assets import Articulation
 from omni.isaac.lab.managers import CommandTerm
 from omni.isaac.lab.markers import VisualizationMarkers
-from omni.isaac.lab.markers.config import GREEN_ARROW_X_MARKER_CFG
 from omni.isaac.lab.terrains import TerrainImporter
 from omni.isaac.lab.utils.math import quat_from_euler_xyz, quat_rotate_inverse, wrap_to_pi, yaw_quat
 
@@ -125,10 +124,7 @@ class UniformPose2dCommand(CommandTerm):
         # create markers if necessary for the first tome
         if debug_vis:
             if not hasattr(self, "arrow_goal_visualizer"):
-                marker_cfg = GREEN_ARROW_X_MARKER_CFG.copy()
-                marker_cfg.markers["arrow"].scale = (0.2, 0.2, 0.8)
-                marker_cfg.prim_path = "/Visuals/Command/pose_goal"
-                self.arrow_goal_visualizer = VisualizationMarkers(marker_cfg)
+                self.arrow_goal_visualizer = VisualizationMarkers(self.cfg.visualizer_cfg.goal_pose_visualizer_cfg)
             # set their visibility to true
             self.arrow_goal_visualizer.set_visibility(True)
         else:

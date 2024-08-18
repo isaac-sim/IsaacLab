@@ -15,7 +15,6 @@ import omni.isaac.lab.utils.math as math_utils
 from omni.isaac.lab.assets import Articulation
 from omni.isaac.lab.managers import CommandTerm
 from omni.isaac.lab.markers import VisualizationMarkers
-from omni.isaac.lab.markers.config import BLUE_ARROW_X_MARKER_CFG, GREEN_ARROW_X_MARKER_CFG
 
 if TYPE_CHECKING:
     from omni.isaac.lab.envs import ManagerBasedEnv
@@ -150,15 +149,9 @@ class UniformVelocityCommand(CommandTerm):
             # create markers if necessary for the first tome
             if not hasattr(self, "base_vel_goal_visualizer"):
                 # -- goal
-                marker_cfg = GREEN_ARROW_X_MARKER_CFG.copy()
-                marker_cfg.prim_path = "/Visuals/Command/velocity_goal"
-                marker_cfg.markers["arrow"].scale = (0.5, 0.5, 0.5)
-                self.base_vel_goal_visualizer = VisualizationMarkers(marker_cfg)
+                self.base_vel_goal_visualizer = VisualizationMarkers(self.cfg.visualizer_cfg.base_vel_goal_visualizer_cfg)
                 # -- current
-                marker_cfg = BLUE_ARROW_X_MARKER_CFG.copy()
-                marker_cfg.prim_path = "/Visuals/Command/velocity_current"
-                marker_cfg.markers["arrow"].scale = (0.5, 0.5, 0.5)
-                self.base_vel_visualizer = VisualizationMarkers(marker_cfg)
+                self.base_vel_visualizer = VisualizationMarkers(self.cfg.visualizer_cfg.base_vel_visualizer_cfg)
             # set their visibility to true
             self.base_vel_goal_visualizer.set_visibility(True)
             self.base_vel_visualizer.set_visibility(True)

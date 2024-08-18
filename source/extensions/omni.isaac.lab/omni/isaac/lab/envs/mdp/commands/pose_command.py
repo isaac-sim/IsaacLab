@@ -14,7 +14,6 @@ from typing import TYPE_CHECKING
 from omni.isaac.lab.assets import Articulation
 from omni.isaac.lab.managers import CommandTerm
 from omni.isaac.lab.markers import VisualizationMarkers
-from omni.isaac.lab.markers.config import FRAME_MARKER_CFG
 from omni.isaac.lab.utils.math import combine_frame_transforms, compute_pose_error, quat_from_euler_xyz, quat_unique
 
 if TYPE_CHECKING:
@@ -131,14 +130,10 @@ class UniformPoseCommand(CommandTerm):
         # create markers if necessary for the first tome
         if debug_vis:
             if not hasattr(self, "goal_pose_visualizer"):
-                marker_cfg = FRAME_MARKER_CFG.copy()
-                marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
                 # -- goal pose
-                marker_cfg.prim_path = "/Visuals/Command/goal_pose"
-                self.goal_pose_visualizer = VisualizationMarkers(marker_cfg)
+                self.goal_pose_visualizer = VisualizationMarkers(self.cfg.visualizer_cfg.goal_pose_visualizer_cfg)
                 # -- current body pose
-                marker_cfg.prim_path = "/Visuals/Command/body_pose"
-                self.body_pose_visualizer = VisualizationMarkers(marker_cfg)
+                self.body_pose_visualizer = VisualizationMarkers(self.cfg.visualizer_cfg.body_pose_visualizer_cfg)
             # set their visibility to true
             self.goal_pose_visualizer.set_visibility(True)
             self.body_pose_visualizer.set_visibility(True)

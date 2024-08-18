@@ -7,6 +7,8 @@ import math
 from dataclasses import MISSING
 
 from omni.isaac.lab.managers import CommandTermCfg
+from omni.isaac.lab.markers import VisualizationMarkersCfg
+from omni.isaac.lab.markers.config import BLUE_ARROW_X_MARKER_CFG, FRAME_MARKER_CFG, GREEN_ARROW_X_MARKER_CFG
 from omni.isaac.lab.utils import configclass
 
 from .null_command import NullCommand
@@ -61,6 +63,33 @@ class UniformVelocityCommandCfg(CommandTermCfg):
 
     ranges: Ranges = MISSING
     """Distribution ranges for the velocity commands."""
+
+    @configclass
+    class VisualizationMarkersCfg:
+        """The configuration for the visualization markers."""
+
+        base_vel_goal_visualizer_cfg: VisualizationMarkersCfg = GREEN_ARROW_X_MARKER_CFG.replace(
+            prim_path="/Visuals/Command/velocity_goal"
+        )
+        """The configuration object for the goal base velocity visualization marker. Defaults to GREEN_ARROW_X_MARKER_CFG."""
+
+        base_vel_goal_visualizer_cfg.markers["arrow"].scale = (0.5, 0.5, 0.5)
+        """The scale of the goal base velocity visualization marker. Defaults to (0.5, 0.5, 0.5)."""
+
+        base_vel_visualizer_cfg: VisualizationMarkersCfg = BLUE_ARROW_X_MARKER_CFG.replace(
+            prim_path="/Visuals/Command/velocity_current"
+        )
+        """The configuration object for the current base velocity visualization marker. Defaults to BLUE_ARROW_X_MARKER_CFG."""
+
+        base_vel_visualizer_cfg.markers["arrow"].scale = (0.5, 0.5, 0.5)
+        """The scale of the current base velocity visualization marker. Defaults to (0.5, 0.5, 0.5)."""
+
+    visualizer_cfg: VisualizationMarkersCfg = VisualizationMarkersCfg()
+    """The configuration object for the visualization markers.
+
+    Note:
+        This attribute is only used when debug visualization is enabled.
+    """
 
 
 @configclass
@@ -125,6 +154,33 @@ class UniformPoseCommandCfg(CommandTermCfg):
     ranges: Ranges = MISSING
     """Ranges for the commands."""
 
+    @configclass
+    class VisualizationMarkersCfg:
+        """The configuration for the visualization markers."""
+
+        goal_pose_visualizer_cfg: VisualizationMarkersCfg = FRAME_MARKER_CFG.replace(
+            prim_path="/Visuals/Command/goal_pose"
+        )
+        """The configuration object for the goal pose visualization marker. Defaults to FRAME_MARKER_CFG."""
+
+        goal_pose_visualizer_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
+        """The scale of the goal pose visualization marker. Defaults to (0.1, 0.1, 0.1)."""
+
+        body_pose_visualizer_cfg: VisualizationMarkersCfg = FRAME_MARKER_CFG.replace(
+            prim_path="/Visuals/Command/body_pose"
+        )
+        """The configuration object for the body pose visualization marker. Defaults to FRAME_MARKER_CFG."""
+
+        body_pose_visualizer_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
+        """The scale of the body pose visualization marker. Defaults to (0.1, 0.1, 0.1)."""
+
+    visualizer_cfg: VisualizationMarkersCfg = VisualizationMarkersCfg()
+    """The configuration object for the visualization markers.
+
+    Note:
+        This attribute is only used when debug visualization is enabled.
+    """
+
 
 @configclass
 class UniformPose2dCommandCfg(CommandTermCfg):
@@ -157,6 +213,25 @@ class UniformPose2dCommandCfg(CommandTermCfg):
 
     ranges: Ranges = MISSING
     """Distribution ranges for the position commands."""
+
+    @configclass
+    class VisualizationMarkersCfg:
+        """The configuration for the visualization markers."""
+
+        goal_pose_visualizer_cfg: VisualizationMarkersCfg = GREEN_ARROW_X_MARKER_CFG.replace(
+            prim_path="/Visuals/Command/pose_goal"
+        )
+        """The configuration object for the goal pose visualization marker. Defaults to GREEN_ARROW_X_MARKER_CFG."""
+
+        goal_pose_visualizer_cfg.markers["arrow"].scale = (0.2, 0.2, 0.8)
+        """The scale of the goal pose visualization marker. Defaults to (0.2, 0.2, 0.8)."""
+
+    visualizer_cfg: VisualizationMarkersCfg = VisualizationMarkersCfg()
+    """The configuration object for the visualization markers.
+
+    Note:
+        This attribute is only used when debug visualization is enabled.
+    """
 
 
 @configclass
