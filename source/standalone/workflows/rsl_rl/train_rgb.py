@@ -102,13 +102,16 @@ def main():
         print("[INFO] Recording videos during training.")
         print_dict(video_kwargs, nesting=4)
         env = gym.wrappers.RecordVideo(env, **video_kwargs)
+
     # wrap around environment for rsl-rl
     env = RslRlVecEnvWrapper(env)
 
     # create runner from rsl-rl
     runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device)
+    
     # write git state to logs
     runner.add_git_repo_to_log(__file__)
+    
     # save resume path before creating a new log_dir
     if agent_cfg.resume:
         # get path to previous checkpoint

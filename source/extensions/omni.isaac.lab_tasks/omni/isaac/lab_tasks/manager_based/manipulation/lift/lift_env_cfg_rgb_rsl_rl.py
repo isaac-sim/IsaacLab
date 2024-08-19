@@ -25,7 +25,7 @@ from . import mdp
 
 # sensors
 from omni.isaac.lab.sensors import CameraCfg, TiledCameraCfg
-WITH_STATES = True
+
 
 ##
 # Scene definition
@@ -106,13 +106,12 @@ class ObservationsCfg:
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
 
-        if WITH_STATES:
-            print("Using states ---")
-            joint_pos = ObsTerm(func=mdp.joint_pos_rel)
-            joint_vel = ObsTerm(func=mdp.joint_vel_rel)
-            # object_position = ObsTerm(func=mdp.object_position_in_robot_root_frame)
-            # target_object_position = ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
-            actions = ObsTerm(func=mdp.last_action)
+        #print("Using states ---")
+        #joint_pos = ObsTerm(func=mdp.joint_pos_rel)
+        #joint_vel = ObsTerm(func=mdp.joint_vel_rel)
+        # object_position = ObsTerm(func=mdp.object_position_in_robot_root_frame)
+        # target_object_position = ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
+        #actions = ObsTerm(func=mdp.last_action)
 
         print("Using camera ---")
         # camera

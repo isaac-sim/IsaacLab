@@ -43,6 +43,10 @@ import gymnasium as gym
 import os
 import torch
 
+import sys
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../../rsl_rl/'))
+sys.path.append(parent_dir)
+print(sys.path)
 from rsl_rl.runners import OnPolicyRunner
 
 from omni.isaac.lab.utils.dict import print_dict

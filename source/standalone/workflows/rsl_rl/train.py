@@ -47,6 +47,10 @@ import os
 import torch
 from datetime import datetime
 
+import sys
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../../rsl_rl/'))
+sys.path.append(parent_dir)
+print(sys.path)
 from rsl_rl.runners import OnPolicyRunner
 
 from omni.isaac.lab.envs import ManagerBasedRLEnvCfg

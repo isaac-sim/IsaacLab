@@ -79,9 +79,8 @@ gym.register(
     entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": joint_pos_env_cfg_rgb_rsl_rl.FrankaCubeLiftEnvCfg_rsl_rl,
-        # NOTE: Change modality here
-        #"rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg_rgb:LiftCubePPORunnerCfg",
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg_rgb_and_states:LiftCubePPORunnerCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg_rgb:LiftCubePPORunnerCfg", # NOTE: Change modality here
+        #"rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg_rgb_and_states:LiftCubePPORunnerCfg",
         #"rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg_rgbd:LiftCubePPORunnerCfg",
         #"rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg_rgb_and_seg:LiftCubePPORunnerCfg",
         

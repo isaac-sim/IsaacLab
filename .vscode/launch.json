@@ -116,9 +116,6 @@
                 "--num_envs", "12", // Modify here
                 "--headless",
                 "--enable_cameras",
-                "--video",
-                "--video_length", "100",
-                "--video_interval", "500"
             ],
             "console": "integratedTerminal",
             "justMyCode": false,

@@ -100,8 +100,8 @@ class FrankaCubeLiftEnvCfg_rsl_rl(LiftEnvCfg):
                 clipping_range=(0.1, 1.0e5)
             ),
             offset=CameraCfg.OffsetCfg(pos=POSITION, rot=rot, convention=coord_sys),
-            colorize_semantic_segmentation=False, # True: uint8 (4 channels, RGBA), False: uint32 (1 channel)
-            colorize_instance_id_segmentation=False,
+            #colorize_semantic_segmentation=False, # True: uint8 (4 channels, RGBA), False: uint32 (1 channel)
+            #colorize_instance_id_segmentation=False,
         )
 
         # Listens to the required transforms
