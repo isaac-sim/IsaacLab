@@ -25,6 +25,7 @@ from . import mdp
 
 # sensors
 from omni.isaac.lab.sensors import CameraCfg, TiledCameraCfg
+WITH_STATES = True
 
 ##
 # Scene definition
@@ -105,14 +106,20 @@ class ObservationsCfg:
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
 
-        joint_pos = ObsTerm(func=mdp.joint_pos_rel)
-        joint_vel = ObsTerm(func=mdp.joint_vel_rel)
-        # object_position = ObsTerm(func=mdp.object_position_in_robot_root_frame)
-        # target_object_position = ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
-        actions = ObsTerm(func=mdp.last_action)
+        if WITH_STATES:
+            print("Using states ---")
+            joint_pos = ObsTerm(func=mdp.joint_pos_rel)
+            joint_vel = ObsTerm(func=mdp.joint_vel_rel)
+            # object_position = ObsTerm(func=mdp.object_position_in_robot_root_frame)
+            # target_object_position = ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
+            actions = ObsTerm(func=mdp.last_action)
 
+        print("Using camera ---")
         # camera
+        # NOTE: Change here the type of visual input
         cam_data = ObsTerm(func=mdp.rgb_camera, params={"sensor_cfg": SceneEntityCfg("camera")})
+        #cam_data = ObsTerm(func=mdp.rgb_seg_camera, params={"sensor_cfg": SceneEntityCfg("camera")})
+        #cam_data = ObsTerm(func=mdp.rgbd_camera, params={"sensor_cfg": SceneEntityCfg("camera")})
 
         def __post_init__(self):
             self.enable_corruption = True

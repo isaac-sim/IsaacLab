@@ -79,7 +79,12 @@ gym.register(
     entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": joint_pos_env_cfg_rgb_rsl_rl.FrankaCubeLiftEnvCfg_rsl_rl,
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg_rgb:LiftCubePPORunnerCfg",
+        # NOTE: Change modality here
+        #"rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg_rgb:LiftCubePPORunnerCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg_rgb_and_states:LiftCubePPORunnerCfg",
+        #"rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg_rgbd:LiftCubePPORunnerCfg",
+        #"rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg_rgb_and_seg:LiftCubePPORunnerCfg",
+        
         #"skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg_rgb_param_search.yaml", # Change this here to move from one to another
         #"rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
     },

@@ -166,10 +166,10 @@ DEBUG = False
 def rgb_camera(env: ManagerBasedEnv, sensor_cfg: CameraCfg) -> torch.Tensor:
     """RGB camera from give sensor w.r.t. the sensor's frame"""
     sensor: Camera = env.scene.sensors[sensor_cfg.name]
-    rgb_data = sensor.data.output["rgb"].clone()
+
+    rgb_data = sensor.data.output["rgb"][..., :-1].clone()
     if DEBUG:
-        #print(rgb_data.shape)
-        import matplotlib.pyplot as plt
+        #import matplotlib.pyplot as plt
         #plt.imshow(rgb_data[0, ..., :-1].cpu().numpy())
         rgb_data_np = rgb_data.cpu().numpy()
         # fig, axes = plt.subplots(1, rgb_data_np.shape[0], figsize=(20, 20))
@@ -177,10 +177,65 @@ def rgb_camera(env: ManagerBasedEnv, sensor_cfg: CameraCfg) -> torch.Tensor:
         #     axes[idx].imshow(rgb_data_np[idx, ...], vmin=0, vmax=255)
         
         #plt.savefig(f"{os.getcwd()}/franka_list_cube_rgb_plt.jpg")
-        save_images_to_file(rgb_data[..., :-1].float() / rgb_data[..., :-1].max(), f"{os.getcwd()}/franka_list_cube_rgb.jpg")
+        save_images_to_file(
+            rgb_data.float() / rgb_data.max(), 
+            f"{os.getcwd()}/franka_list_cube_rgb.jpg"
+        )
         print(f"{rgb_data_np.mean()}+-{rgb_data_np.std()}: [{rgb_data_np.min()}, {rgb_data_np.max()}]")
-    #raise("debug")
-    return rgb_data[..., :-1].reshape(rgb_data.shape[0], -1) # flatten for ppo
+    
+    batch_size = rgb_data.shape[0]
+    return rgb_data.reshape(batch_size, -1) # flatten for ppo
+
+def rgb_seg_camera(env: ManagerBasedEnv, sensor_cfg: CameraCfg) -> torch.Tensor:
+    """RGB camera from give sensor w.r.t. the sensor's frame"""
+    sensor: Camera = env.scene.sensors[sensor_cfg.name]
+
+    rgb_data = sensor.data.output["rgb"][..., :-1].clone()
+    segmentation_data = sensor.data.output["semantic_segmentation"][..., None].clone()
+    combined_data = torch.cat([rgb_data, segmentation_data], dim=-1)
+    if DEBUG:
+        rgb_data_np = rgb_data.cpu().numpy()
+        save_images_to_file(
+            rgb_data.float() / rgb_data.max(), 
+            f"{os.getcwd()}/franka_list_cube_rgb.jpg"
+        )
+        print(f"{rgb_data_np.mean()}+-{rgb_data_np.std()}: [{rgb_data_np.min()}, {rgb_data_np.max()}]")
+
+        segmentation_data_np = segmentation_data.cpu().numpy()
+        save_images_to_file(
+            segmentation_data.float() / segmentation_data.max(), 
+            f"{os.getcwd()}/franka_list_cube_seg.jpg"
+        )
+        print(f"{segmentation_data_np.min()}, {segmentation_data_np.max()}")
+
+    batch_size = rgb_data.shape[0]
+    return combined_data.reshape(batch_size, -1) # flatten for ppo
+
+def rgbd_camera(env: ManagerBasedEnv, sensor_cfg: CameraCfg) -> torch.Tensor:
+    """RGB camera from give sensor w.r.t. the sensor's frame"""
+    sensor: Camera = env.scene.sensors[sensor_cfg.name]
+
+    rgb_data = sensor.data.output["rgb"][..., :-1].clone()
+    depth_data = sensor.data.output["distance_to_image_plane"][..., None].clone()
+    combined_data = torch.cat([rgb_data, depth_data], dim=-1)
+    if DEBUG:
+        rgb_data_np = rgb_data.cpu().numpy()
+        save_images_to_file(
+            rgb_data.float() / rgb_data.max(), 
+            f"{os.getcwd()}/franka_list_cube_rgb.jpg"
+        )
+        print(f"{rgb_data_np.mean()}+-{rgb_data_np.std()}: [{rgb_data_np.min()}, {rgb_data_np.max()}]")
+
+        depth_data_np = depth_data.cpu().numpy()
+        save_images_to_file(
+            depth_data.float() / depth_data.max(), 
+            f"{os.getcwd()}/franka_list_cube_depth.jpg"
+        )
+        print(f"{depth_data_np.min()}, {depth_data_np.max()}")
+
+    batch_size = rgb_data.shape[0]
+    return combined_data.reshape(batch_size, -1) # flatten for ppo
+
 
 def height_scan(env: ManagerBasedEnv, sensor_cfg: SceneEntityCfg, offset: float = 0.5) -> torch.Tensor:
     """Height scan from the given sensor w.r.t. the sensor's frame.

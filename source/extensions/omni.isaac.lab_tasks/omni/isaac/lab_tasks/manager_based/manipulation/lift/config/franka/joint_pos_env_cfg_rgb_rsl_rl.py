@@ -91,7 +91,8 @@ class FrankaCubeLiftEnvCfg_rsl_rl(LiftEnvCfg):
             update_period=0.1,
             height=RESOLUTION[0],
             width=RESOLUTION[1],
-            data_types=["rgb", "distance_to_image_plane"],
+            data_types=["rgb", "distance_to_image_plane"],         # rgb-d
+            #data_types=["rgb", "semantic_segmentation"],          # rgb-seg
             spawn=sim_utils.PinholeCameraCfg(
                 focal_length=24.0, 
                 focus_distance=400.0, 
@@ -99,6 +100,8 @@ class FrankaCubeLiftEnvCfg_rsl_rl(LiftEnvCfg):
                 clipping_range=(0.1, 1.0e5)
             ),
             offset=CameraCfg.OffsetCfg(pos=POSITION, rot=rot, convention=coord_sys),
+            colorize_semantic_segmentation=False, # True: uint8 (4 channels, RGBA), False: uint32 (1 channel)
+            colorize_instance_id_segmentation=False,
         )
 
         # Listens to the required transforms
