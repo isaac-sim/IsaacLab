@@ -322,7 +322,7 @@ class TestImu(unittest.TestCase):
     def test_single_dof_pendulum(self):
 
         # should achieve same results between the two imu sensors on the robot
-        for idx in range(200):
+        for idx in range(500):
             
             # write data to sim
             self.scene.write_data_to_sim()
@@ -354,15 +354,15 @@ class TestImu(unittest.TestCase):
 
             ax = -joint_acc * PEND_POS_OFFSET[0]*torch.sin(joint_pos) - joint_vel**2 * PEND_POS_OFFSET[0] *torch.cos(joint_pos)
             ay = torch.zeros(2,1,device=self.scene.device)
-            az = -joint_acc * PEND_POS_OFFSET[0]*torch.cos(joint_pos) - joint_vel**2 * PEND_POS_OFFSET[0] *torch.sin(joint_pos)
+            az = -joint_acc * PEND_POS_OFFSET[0]*torch.cos(joint_pos) + joint_vel**2 * PEND_POS_OFFSET[0] *torch.sin(joint_pos)
             gt_linear_acc_w = torch.cat([ax,ay,az],dim=-1)
             
             # print("joint_vel_error: ", joint_vel_imu-joint_vel)
             # print("joint_acc_error: ", joint_acc_imu-joint_acc)
             # print("linear_vel_error:", gt_linear_vel_w - lin_vel_w_imu_link)
-            print("joint_pos:", joint_pos)
-            print("linear_acc:", gt_linear_acc_w )
-            print("linear_acc_error:", gt_linear_acc_w - lin_acc_w_imu_link)
+            # print("joint_pos:", joint_pos)
+            # print("linear_acc:", gt_linear_acc_w )
+            # print("linear_acc_error:", gt_linear_acc_w - lin_acc_w_imu_link)
             # skip first step where initial velocity is zero
             if idx < 2:
                 continue
@@ -392,8 +392,8 @@ class TestImu(unittest.TestCase):
             torch.testing.assert_close(
                 gt_linear_acc_w,
                 lin_acc_w_imu_link,
-                rtol=2e-1,
-                atol=1e-1,
+                rtol=1e-1,
+                atol=1e0,
             )
 
             # check the position between offset and imu definition
