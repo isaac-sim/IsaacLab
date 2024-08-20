@@ -128,6 +128,8 @@ in the terminal.
 
 .. figure:: ../../_static/tutorials/tutorial_run_articulation.jpg
     :align: center
+    :figwidth: 100%
+    :alt: result of run_articulation.py
 
 In this tutorial, we learned how to create and interact with a simple articulation. We saw how to set the state
 of an articulation (its root and joint state) and how to apply commands to it. We also saw how to update its

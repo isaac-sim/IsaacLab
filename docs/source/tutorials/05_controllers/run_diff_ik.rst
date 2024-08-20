@@ -153,6 +153,8 @@ the desired pose, the command should cycle through to the next pose specified in
 
 .. figure:: ../../_static/tutorials/tutorial_task_space_controller.jpg
     :align: center
+    :figwidth: 100%
+    :alt: result of run_diff_ik.py
 
 To stop the simulation, you can either close the window, or press the ``STOP`` button in the UI, or
 press ``Ctrl+C`` in the terminal.

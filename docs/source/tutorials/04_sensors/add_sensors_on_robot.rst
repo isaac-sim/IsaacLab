@@ -185,6 +185,8 @@ on how to switch the viewport to the camera view.
 
 .. figure:: ../../_static/tutorials/tutorial_add_sensors. jpg
     :align: center
+    :figwidth: 100%
+    :alt: result of add_sensors_on_robot.py
 
 To stop the simulation, you can either close the window, or press ``Ctrl+C`` in the terminal.
 

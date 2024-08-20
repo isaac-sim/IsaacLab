@@ -155,6 +155,8 @@ To stop the simulation, you can either close the window, or press ``Ctrl+C`` in 
 
 .. figure:: ../../_static/tutorials/tutorial_register_environment.jpg
     :align: center
+    :figwidth: 100%
+    :alt: result of random_agent.py
 
 
 In addition, you can also change the simulation device from GPU to CPU by setting the value of the ``--device`` flag explicitly:

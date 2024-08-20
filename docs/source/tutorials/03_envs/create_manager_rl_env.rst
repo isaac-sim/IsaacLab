@@ -183,6 +183,8 @@ configuration.
 
 .. figure:: ../../_static/tutorials/tutorial_create_manager_rl_env.jpg
     :align: center
+    :figwidth: 100%
+    :alt: result of run_cartpole_rl_env.py
 
 To stop the simulation, you can either close the window, or press ``Ctrl+C`` in the terminal
 where you started the simulation.

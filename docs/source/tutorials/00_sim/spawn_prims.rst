@@ -180,6 +180,8 @@ or press ``Ctrl+C`` in the terminal.
 
 .. figure:: ../../_static/tutorials/tutorial_spawn_prims.jpg
     :align: center
+    :figwidth: 100%
+    :alt: result of spawn_prims.py
 
 This tutorial provided a foundation for spawning various prims into the scene in Isaac Lab. Although simple, it
 demonstrates the basic concepts of scene designing in Isaac Lab and how to use the spawners. In the coming tutorials,

@@ -198,6 +198,8 @@ can be used for debugging and visualization.
 
 .. figure:: ../../_static/tutorials/tutorial_create_manager_base.jpg
     :align: center
+    :figwidth: 100%
+    :alt: result of create_cartpole_base_env.py
 
 To stop the simulation, you can either close the window, or press ``Ctrl+C`` in the terminal where you
 started the simulation.

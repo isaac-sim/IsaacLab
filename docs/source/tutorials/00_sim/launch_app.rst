@@ -146,6 +146,8 @@ process can be killed by pressing ``Ctrl+C`` in the launching terminal.
 
 .. figure:: ../../_static/tutorials/tutorial_launch_app.jpg
     :align: center
+    :figwidth: 100%
+    :alt: result of launch_app.py
 
 Now, let's look at how :class:`~app.AppLauncher` handles conflicting commands:
 

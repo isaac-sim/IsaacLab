@@ -209,6 +209,8 @@ To run training for the direct workflow Cartpole environment, we can use the fol
 
 .. figure:: ../../_static/tutorials/tutorial_create_direct_workflow.jpg
     :align: center
+    :figwidth: 100%
+    :alt: result of train.py
 
 All direct workflow tasks have the suffix ``-Direct`` added to the task name to differentiate the implementation style.
 

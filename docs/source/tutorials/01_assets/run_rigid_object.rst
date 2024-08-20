@@ -144,6 +144,8 @@ the ``STOP`` button in the UI, or press ``Ctrl+C`` in the terminal
 
 .. figure:: ../../_static/tutorials/tutorial_run_rigid_object.jpg
     :align: center
+    :figwidth: 100%
+    :alt: result of run_rigid_object.py
 
 
 This tutorial showed how to spawn rigid objects and wrap them in a :class:`RigidObject` class to initialize their
