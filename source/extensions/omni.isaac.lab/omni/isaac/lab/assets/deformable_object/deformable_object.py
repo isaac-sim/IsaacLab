@@ -105,22 +105,22 @@ class DeformableObject(AssetBase):
         return self._material_physx_view
 
     @property
-    def max_sim_mesh_elements_per_body(self) -> int:
+    def max_sim_elements_per_body(self) -> int:
         """The maximum number of simulation mesh elements per deformable body."""
         return self.root_physx_view.max_sim_elements_per_body
 
     @property
-    def max_collision_mesh_elements_per_body(self) -> int:
+    def max_collision_elements_per_body(self) -> int:
         """The maximum number of collision mesh elements per deformable body."""
         return self.root_physx_view.max_elements_per_body
 
     @property
-    def max_sim_mesh_vertices_per_body(self) -> int:
+    def max_sim_vertices_per_body(self) -> int:
         """The maximum number of simulation mesh vertices per deformable body."""
         return self.root_physx_view.max_sim_vertices_per_body
 
     @property
-    def max_collision_mesh_vertices_per_body(self) -> int:
+    def max_collision_vertices_per_body(self) -> int:
         """The maximum number of collision mesh vertices per deformable body."""
         return self.root_physx_view.max_vertices_per_body
 
@@ -151,7 +151,7 @@ class DeformableObject(AssetBase):
 
         Args:
             nodal_state: Nodal state in simulation frame.
-                Shape is (len(env_ids), max_sim_mesh_vertices_per_body, 6).
+                Shape is (len(env_ids), max_sim_vertices_per_body, 6).
             env_ids: Environment indices. If None, then all indices are used.
         """
         # set into simulation
@@ -166,7 +166,7 @@ class DeformableObject(AssetBase):
 
         Args:
             nodal_pos: Nodal positions in simulation frame.
-                Shape is (len(env_ids), max_sim_mesh_vertices_per_body, 3).
+                Shape is (len(env_ids), max_sim_vertices_per_body, 3).
             env_ids: Environment indices. If None, then all indices are used.
         """
         # resolve all indices
@@ -189,7 +189,7 @@ class DeformableObject(AssetBase):
 
         Args:
             nodal_vel: Nodal velocities in simulation frame.
-                Shape is (len(env_ids), max_sim_mesh_vertices_per_body, 3).
+                Shape is (len(env_ids), max_sim_vertices_per_body, 3).
             env_ids: Environment indices. If None, then all indices are used.
         """
         # resolve all indices
@@ -214,7 +214,7 @@ class DeformableObject(AssetBase):
 
         Args:
             targets: The kinematic targets comprising of nodal positions and flags.
-                Shape is (len(env_ids), max_sim_mesh_vertices_per_body, 4).
+                Shape is (len(env_ids), max_sim_vertices_per_body, 4).
             env_ids: Environment indices. If None, then all indices are used.
         """
         # resolve all indices
@@ -241,14 +241,14 @@ class DeformableObject(AssetBase):
         Internally, it calls the :meth:`omni.isaac.lab.utils.math.transform_points` function.
 
         Args:
-            nodal_pos: The nodal positions in the simulation frame. Shape is (N, max_sim_mesh_vertices_per_body, 3).
+            nodal_pos: The nodal positions in the simulation frame. Shape is (N, max_sim_vertices_per_body, 3).
             pos: The position transformation. Shape is (N, 3).
                 Defaults to None, in which case the position is assumed to be zero.
             quat: The orientation transformation as quaternion (w, x, y, z). Shape is (N, 4).
                 Defaults to None, in which case the orientation is assumed to be identity.
 
         Returns:
-            The transformed nodal positions. Shape is (N, max_sim_mesh_vertices_per_body, 3).
+            The transformed nodal positions. Shape is (N, max_sim_vertices_per_body, 3).
         """
         # offset the nodal positions to center them around the origin
         mean_nodal_pos = nodal_pos.mean(dim=1, keepdim=True)
