@@ -57,7 +57,7 @@
     <link rel="prev" title="Deep-dive into AppLauncher" href="../00_sim/launch_app.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Aug 18, 2024"/>
+    <meta name="docbuild:last-update" content="Aug 20, 2024"/>
   </head>
   
   
@@ -245,6 +245,7 @@
 <li class="toctree-l2 current active has-children"><a class="current reference internal" href="#">Interacting with Assets</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l3"><a class="reference internal" href="run_rigid_object.html">Interacting with a rigid object</a></li>
 <li class="toctree-l3"><a class="reference internal" href="run_articulation.html">Interacting with an articulation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="run_deformable_object.html">Interacting with a deformable object</a></li>
 </ul>
 </details></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../02_scene/index.html">Creating a Scene</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -554,12 +555,13 @@ document.write(`
 <h1>Interacting with Assets<a class="headerlink" href="#interacting-with-assets" title="Permalink to this heading">#</a></h1>
 <p>Having spawned objects in the scene, these tutorials show you how to create physics handles for these
 objects and interact with them. These revolve around the <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.AssetBase" title="omni.isaac.lab.assets.AssetBase"><code class="xref py py-class docutils literal notranslate"><span class="pre">AssetBase</span></code></a>
-class and its derivatives such as <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObject" title="omni.isaac.lab.assets.RigidObject"><code class="xref py py-class docutils literal notranslate"><span class="pre">RigidObject</span></code></a> and
-<a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation" title="omni.isaac.lab.assets.Articulation"><code class="xref py py-class docutils literal notranslate"><span class="pre">Articulation</span></code></a>.</p>
+class and its derivatives such as <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObject" title="omni.isaac.lab.assets.RigidObject"><code class="xref py py-class docutils literal notranslate"><span class="pre">RigidObject</span></code></a>,
+<a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation" title="omni.isaac.lab.assets.Articulation"><code class="xref py py-class docutils literal notranslate"><span class="pre">Articulation</span></code></a> and <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObject" title="omni.isaac.lab.assets.DeformableObject"><code class="xref py py-class docutils literal notranslate"><span class="pre">DeformableObject</span></code></a>.</p>
 <div class="toctree-wrapper compound">
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="run_rigid_object.html">Interacting with a rigid object</a></li>
 <li class="toctree-l1"><a class="reference internal" href="run_articulation.html">Interacting with an articulation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="run_deformable_object.html">Interacting with a deformable object</a></li>
 </ul>
 </div>
 </section>
@@ -628,7 +630,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Aug 18, 2024.
+  Last updated on Aug 20, 2024.
   <br/>
 </p>
   </div>

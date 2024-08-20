@@ -57,7 +57,7 @@
     <link rel="prev" title="omni.isaac.lab.markers" href="omni.isaac.lab.markers.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Aug 18, 2024"/>
+    <meta name="docbuild:last-update" content="Aug 20, 2024"/>
   </head>
   
   
@@ -245,6 +245,7 @@
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../tutorials/01_assets/index.html">Interacting with Assets</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l3"><a class="reference internal" href="../../tutorials/01_assets/run_rigid_object.html">Interacting with a rigid object</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../tutorials/01_assets/run_articulation.html">Interacting with an articulation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../tutorials/01_assets/run_deformable_object.html">Interacting with a deformable object</a></li>
 </ul>
 </details></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../tutorials/02_scene/index.html">Creating a Scene</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -562,6 +563,7 @@ document.write(`
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.env_origins"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.env_origins</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.terrain"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.terrain</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.articulations"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.articulations</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.deformable_objects"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.deformable_objects</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.rigid_objects"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.rigid_objects</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.sensors"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.sensors</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.extras"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.extras</span></code></a></li>
@@ -745,13 +747,16 @@ for more details.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.scene.InteractiveScene.articulations" title="omni.isaac.lab.scene.InteractiveScene.articulations"><code class="xref py py-obj docutils literal notranslate"><span class="pre">articulations</span></code></a></p></td>
 <td><p>A dictionary of articulations in the scene.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.scene.InteractiveScene.rigid_objects" title="omni.isaac.lab.scene.InteractiveScene.rigid_objects"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rigid_objects</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.scene.InteractiveScene.deformable_objects" title="omni.isaac.lab.scene.InteractiveScene.deformable_objects"><code class="xref py py-obj docutils literal notranslate"><span class="pre">deformable_objects</span></code></a></p></td>
+<td><p>A dictionary of deformable objects in the scene.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.scene.InteractiveScene.rigid_objects" title="omni.isaac.lab.scene.InteractiveScene.rigid_objects"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rigid_objects</span></code></a></p></td>
 <td><p>A dictionary of rigid objects in the scene.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.scene.InteractiveScene.sensors" title="omni.isaac.lab.scene.InteractiveScene.sensors"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sensors</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.scene.InteractiveScene.sensors" title="omni.isaac.lab.scene.InteractiveScene.sensors"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sensors</span></code></a></p></td>
 <td><p>A dictionary of the sensors in the scene, such as cameras and contact reporters.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.scene.InteractiveScene.extras" title="omni.isaac.lab.scene.InteractiveScene.extras"><code class="xref py py-obj docutils literal notranslate"><span class="pre">extras</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.scene.InteractiveScene.extras" title="omni.isaac.lab.scene.InteractiveScene.extras"><code class="xref py py-obj docutils literal notranslate"><span class="pre">extras</span></code></a></p></td>
 <td><p>A dictionary of miscellaneous simulation objects that neither inherit from assets nor sensors.</p></td>
 </tr>
 </tbody>
@@ -857,6 +862,12 @@ handled differently from other miscellaneous entities.</p>
 <dt class="sig sig-object py" id="omni.isaac.lab.scene.InteractiveScene.articulations">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">articulations</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.12)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation" title="omni.isaac.lab.assets.articulation.articulation.Articulation"><span class="pre">omni.isaac.lab.assets.articulation.articulation.Articulation</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.scene.InteractiveScene.articulations" title="Permalink to this definition">#</a></dt>
 <dd><p>A dictionary of articulations in the scene.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.scene.InteractiveScene.deformable_objects">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">deformable_objects</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.12)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObject" title="omni.isaac.lab.assets.deformable_object.deformable_object.DeformableObject"><span class="pre">omni.isaac.lab.assets.deformable_object.deformable_object.DeformableObject</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.scene.InteractiveScene.deformable_objects" title="Permalink to this definition">#</a></dt>
+<dd><p>A dictionary of deformable objects in the scene.</p>
 </dd></dl>
 
 <dl class="py property">
@@ -1102,6 +1113,7 @@ by the physics engine. In these cases, this flag needs to be set to False.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.env_origins"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.env_origins</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.terrain"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.terrain</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.articulations"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.articulations</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.deformable_objects"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.deformable_objects</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.rigid_objects"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.rigid_objects</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.sensors"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.sensors</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.extras"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.extras</span></code></a></li>
@@ -1153,7 +1165,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Aug 18, 2024.
+  Last updated on Aug 20, 2024.
   <br/>
 </p>
   </div>

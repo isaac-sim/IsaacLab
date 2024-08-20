@@ -54,7 +54,7 @@
     <link rel="search" title="Search" href="search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Aug 18, 2024"/>
+    <meta name="docbuild:last-update" content="Aug 20, 2024"/>
   </head>
   
   
@@ -244,6 +244,7 @@
 <li class="toctree-l2 has-children"><a class="reference internal" href="source/tutorials/01_assets/index.html">Interacting with Assets</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l3"><a class="reference internal" href="source/tutorials/01_assets/run_rigid_object.html">Interacting with a rigid object</a></li>
 <li class="toctree-l3"><a class="reference internal" href="source/tutorials/01_assets/run_articulation.html">Interacting with an articulation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="source/tutorials/01_assets/run_deformable_object.html">Interacting with a deformable object</a></li>
 </ul>
 </details></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="source/tutorials/02_scene/index.html">Creating a Scene</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -550,6 +551,8 @@ document.write(`
         <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.__init__">(omni.isaac.lab.assets.Articulation method)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.AssetBase.__init__">(omni.isaac.lab.assets.AssetBase method)</a>
+</li>
+        <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObject.__init__">(omni.isaac.lab.assets.DeformableObject method)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObject.__init__">(omni.isaac.lab.assets.RigidObject method)</a>
 </li>
@@ -1239,6 +1242,8 @@ document.write(`
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.cfg">(omni.isaac.lab.assets.Articulation attribute)</a>
 </li>
+        <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObject.cfg">(omni.isaac.lab.assets.DeformableObject attribute)</a>
+</li>
         <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObject.cfg">(omni.isaac.lab.assets.RigidObject attribute)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnv.cfg">(omni.isaac.lab.envs.ManagerBasedRLEnv attribute)</a>
@@ -1330,12 +1335,20 @@ document.write(`
       </ul></li>
       <li><a href="source/api/lab/omni.isaac.lab.sim.converters.html#omni.isaac.lab.sim.converters.MeshConverterCfg.collision_approximation">collision_approximation (omni.isaac.lab.sim.converters.MeshConverterCfg attribute)</a>
 </li>
+      <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObjectData.collision_element_deform_gradient_w">collision_element_deform_gradient_w (omni.isaac.lab.assets.DeformableObjectData property)</a>
+</li>
+      <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObjectData.collision_element_quat_w">collision_element_quat_w (omni.isaac.lab.assets.DeformableObjectData property)</a>
+</li>
+      <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObjectData.collision_element_stress_w">collision_element_stress_w (omni.isaac.lab.assets.DeformableObjectData property)</a>
+</li>
       <li><a href="source/api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.CollisionPropertiesCfg.collision_enabled">collision_enabled (omni.isaac.lab.sim.schemas.CollisionPropertiesCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.ArticulationCfg.collision_group">collision_group (omni.isaac.lab.assets.ArticulationCfg attribute)</a>
 
       <ul>
         <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.AssetBaseCfg.collision_group">(omni.isaac.lab.assets.AssetBaseCfg attribute)</a>
+</li>
+        <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObjectCfg.collision_group">(omni.isaac.lab.assets.DeformableObjectCfg attribute)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObjectCfg.collision_group">(omni.isaac.lab.assets.RigidObjectCfg attribute)</a>
 </li>
@@ -1426,14 +1439,14 @@ document.write(`
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.CameraCfg.colorize_instance_segmentation">colorize_instance_segmentation (omni.isaac.lab.sensors.CameraCfg attribute)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.CameraCfg.colorize_semantic_segmentation">colorize_semantic_segmentation (omni.isaac.lab.sensors.CameraCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.math.combine_frame_transforms">combine_frame_transforms() (in module omni.isaac.lab.utils.math)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.CommandTerm.command">command (omni.isaac.lab.managers.CommandTerm property)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.terminations.command_resample">command_resample() (in module omni.isaac.lab.envs.mdp.terminations)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.controllers.html#omni.isaac.lab.controllers.DifferentialIKControllerCfg.command_type">command_type (omni.isaac.lab.controllers.DifferentialIKControllerCfg attribute)</a>
@@ -1701,6 +1714,8 @@ document.write(`
       <ul>
         <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.AssetBase.data">(omni.isaac.lab.assets.AssetBase property)</a>
 </li>
+        <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObject.data">(omni.isaac.lab.assets.DeformableObject property)</a>
+</li>
         <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObject.data">(omni.isaac.lab.assets.RigidObject property)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.Camera.data">(omni.isaac.lab.sensors.Camera property)</a>
@@ -1736,6 +1751,8 @@ document.write(`
 
       <ul>
         <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.AssetBaseCfg.debug_vis">(omni.isaac.lab.assets.AssetBaseCfg attribute)</a>
+</li>
+        <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObjectCfg.debug_vis">(omni.isaac.lab.assets.DeformableObjectCfg attribute)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObjectCfg.debug_vis">(omni.isaac.lab.assets.RigidObjectCfg attribute)</a>
 </li>
@@ -1854,16 +1871,18 @@ document.write(`
         <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObjectData.default_mass">(omni.isaac.lab.assets.RigidObjectData attribute)</a>
 </li>
       </ul></li>
+      <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObjectData.default_nodal_state_w">default_nodal_state_w (omni.isaac.lab.assets.DeformableObjectData attribute)</a>
+</li>
       <li><a href="source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.math.default_orientation">default_orientation() (in module omni.isaac.lab.utils.math)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.ArticulationData.default_root_state">default_root_state (omni.isaac.lab.assets.ArticulationData attribute)</a>
 
       <ul>
         <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObjectData.default_root_state">(omni.isaac.lab.assets.RigidObjectData attribute)</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.define_articulation_root_properties">define_articulation_root_properties() (in module omni.isaac.lab.sim.schemas)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.define_collision_properties">define_collision_properties() (in module omni.isaac.lab.sim.schemas)</a>
@@ -1875,6 +1894,8 @@ document.write(`
       <li><a href="source/api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.define_rigid_body_properties">define_rigid_body_properties() (in module omni.isaac.lab.sim.schemas)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.deformable_enabled">deformable_enabled (omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg attribute)</a>
+</li>
+      <li><a href="source/api/lab/omni.isaac.lab.scene.html#omni.isaac.lab.scene.InteractiveScene.deformable_objects">deformable_objects (omni.isaac.lab.scene.InteractiveScene property)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.DeformableObjectSpawnerCfg.deformable_props">deformable_props (omni.isaac.lab.sim.spawners.DeformableObjectSpawnerCfg attribute)</a>
 
@@ -1899,6 +1920,14 @@ document.write(`
       <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.materials.DeformableBodyMaterialCfg">DeformableBodyMaterialCfg (class in omni.isaac.lab.sim.spawners.materials)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg">DeformableBodyPropertiesCfg (class in omni.isaac.lab.sim.schemas)</a>
+</li>
+      <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObject">DeformableObject (class in omni.isaac.lab.assets)</a>
+</li>
+      <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObjectCfg">DeformableObjectCfg (class in omni.isaac.lab.assets)</a>
+</li>
+      <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObjectCfg.InitialStateCfg">DeformableObjectCfg.InitialStateCfg (class in omni.isaac.lab.assets)</a>
+</li>
+      <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObjectData">DeformableObjectData (class in omni.isaac.lab.assets)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.DeformableObjectSpawnerCfg">DeformableObjectSpawnerCfg (class in omni.isaac.lab.sim.spawners)</a>
 </li>
@@ -1930,6 +1959,8 @@ document.write(`
 
       <ul>
         <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.AssetBase.device">(omni.isaac.lab.assets.AssetBase property)</a>
+</li>
+        <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObject.device">(omni.isaac.lab.assets.DeformableObject property)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObject.device">(omni.isaac.lab.assets.RigidObject property)</a>
 </li>
@@ -2625,6 +2656,8 @@ document.write(`
       <ul>
         <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.AssetBase.has_debug_vis_implementation">(omni.isaac.lab.assets.AssetBase property)</a>
 </li>
+        <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObject.has_debug_vis_implementation">(omni.isaac.lab.assets.DeformableObject property)</a>
+</li>
         <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObject.has_debug_vis_implementation">(omni.isaac.lab.assets.RigidObject property)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ActionManager.has_debug_vis_implementation">(omni.isaac.lab.managers.ActionManager property)</a>
@@ -2710,10 +2743,10 @@ document.write(`
       </ul></li>
       <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.observations.height_scan">height_scan() (in module omni.isaac.lab.envs.mdp.observations)</a>
 </li>
-      <li><a href="source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfDiscreteObstaclesTerrainCfg">HfDiscreteObstaclesTerrainCfg (class in omni.isaac.lab.terrains.height_field.hf_terrains_cfg)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfDiscreteObstaclesTerrainCfg">HfDiscreteObstaclesTerrainCfg (class in omni.isaac.lab.terrains.height_field.hf_terrains_cfg)</a>
+</li>
       <li><a href="source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidSlopedTerrainCfg">HfInvertedPyramidSlopedTerrainCfg (class in omni.isaac.lab.terrains.height_field.hf_terrains_cfg)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidStairsTerrainCfg">HfInvertedPyramidStairsTerrainCfg (class in omni.isaac.lab.terrains.height_field.hf_terrains_cfg)</a>
@@ -2861,6 +2894,8 @@ document.write(`
       <ul>
         <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.AssetBaseCfg.init_state">(omni.isaac.lab.assets.AssetBaseCfg attribute)</a>
 </li>
+        <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObjectCfg.init_state">(omni.isaac.lab.assets.DeformableObjectCfg attribute)</a>
+</li>
         <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObjectCfg.init_state">(omni.isaac.lab.assets.RigidObjectCfg attribute)</a>
 </li>
       </ul></li>
@@ -2928,6 +2963,8 @@ document.write(`
 
       <ul>
         <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.AssetBase.is_initialized">(omni.isaac.lab.assets.AssetBase property)</a>
+</li>
+        <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObject.is_initialized">(omni.isaac.lab.assets.DeformableObject property)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObject.is_initialized">(omni.isaac.lab.assets.RigidObject property)</a>
 </li>
@@ -3310,11 +3347,17 @@ document.write(`
       </ul></li>
       <li><a href="source/api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.MassPropertiesCfg">MassPropertiesCfg (class in omni.isaac.lab.sim.schemas)</a>
 </li>
+      <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObject.material_physx_view">material_physx_view (omni.isaac.lab.assets.DeformableObject property)</a>
+</li>
       <li><a href="source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.math.matrix_from_euler">matrix_from_euler() (in module omni.isaac.lab.utils.math)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.math.matrix_from_quat">matrix_from_quat() (in module omni.isaac.lab.utils.math)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.RigidBodyPropertiesCfg.max_angular_velocity">max_angular_velocity (omni.isaac.lab.sim.schemas.RigidBodyPropertiesCfg attribute)</a>
+</li>
+      <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObject.max_collision_elements_per_body">max_collision_elements_per_body (omni.isaac.lab.assets.DeformableObject property)</a>
+</li>
+      <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObject.max_collision_vertices_per_body">max_collision_vertices_per_body (omni.isaac.lab.assets.DeformableObject property)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.RigidBodyPropertiesCfg.max_contact_impulse">max_contact_impulse (omni.isaac.lab.sim.schemas.RigidBodyPropertiesCfg attribute)</a>
 </li>
@@ -3369,6 +3412,10 @@ document.write(`
       <li><a href="source/api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.RigidBodyPropertiesCfg.max_linear_velocity">max_linear_velocity (omni.isaac.lab.sim.schemas.RigidBodyPropertiesCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.PhysxCfg.max_position_iteration_count">max_position_iteration_count (omni.isaac.lab.sim.PhysxCfg attribute)</a>
+</li>
+      <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObject.max_sim_elements_per_body">max_sim_elements_per_body (omni.isaac.lab.assets.DeformableObject property)</a>
+</li>
+      <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObject.max_sim_vertices_per_body">max_sim_vertices_per_body (omni.isaac.lab.assets.DeformableObject property)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.buffers.DelayBuffer.max_time_lag">max_time_lag (omni.isaac.lab.utils.buffers.DelayBuffer property)</a>
 </li>
@@ -3440,14 +3487,14 @@ document.write(`
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshPlaneTerrainCfg">MeshPlaneTerrainCfg (class in omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshPyramidStairsTerrainCfg">MeshPyramidStairsTerrainCfg (class in omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRailsTerrainCfg">MeshRailsTerrainCfg (class in omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRandomGridTerrainCfg">MeshRandomGridTerrainCfg (class in omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedBoxesTerrainCfg">MeshRepeatedBoxesTerrainCfg (class in omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedBoxesTerrainCfg.ObjectCfg">MeshRepeatedBoxesTerrainCfg.ObjectCfg (class in omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg)</a>
@@ -3669,6 +3716,14 @@ document.write(`
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext.RenderMode.NO_RENDERING">NO_RENDERING (omni.isaac.lab.sim.SimulationContext.RenderMode attribute)</a>
 </li>
+      <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObjectData.nodal_kinematic_target">nodal_kinematic_target (omni.isaac.lab.assets.DeformableObjectData attribute)</a>
+</li>
+      <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObjectData.nodal_pos_w">nodal_pos_w (omni.isaac.lab.assets.DeformableObjectData property)</a>
+</li>
+      <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObjectData.nodal_state_w">nodal_state_w (omni.isaac.lab.assets.DeformableObjectData property)</a>
+</li>
+      <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObjectData.nodal_vel_w">nodal_vel_w (omni.isaac.lab.assets.DeformableObjectData property)</a>
+</li>
       <li><a href="source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ObservationTermCfg.noise">noise (omni.isaac.lab.managers.ObservationTermCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.noise.NoiseModelCfg.noise_cfg">noise_cfg (omni.isaac.lab.utils.noise.NoiseModelCfg attribute)</a>
@@ -3730,6 +3785,8 @@ document.write(`
       <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.num_bodies">num_bodies (omni.isaac.lab.assets.Articulation property)</a>
 
       <ul>
+        <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObject.num_bodies">(omni.isaac.lab.assets.DeformableObject property)</a>
+</li>
         <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObject.num_bodies">(omni.isaac.lab.assets.RigidObject property)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.ContactSensor.num_bodies">(omni.isaac.lab.sensors.ContactSensor property)</a>
@@ -3779,6 +3836,8 @@ document.write(`
 
       <ul>
         <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.AssetBase.num_instances">(omni.isaac.lab.assets.AssetBase property)</a>
+</li>
+        <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObject.num_instances">(omni.isaac.lab.assets.DeformableObject property)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObject.num_instances">(omni.isaac.lab.assets.RigidObject property)</a>
 </li>
@@ -4550,6 +4609,8 @@ document.write(`
       <ul>
         <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.AssetBaseCfg.InitialStateCfg.pos">(omni.isaac.lab.assets.AssetBaseCfg.InitialStateCfg attribute)</a>
 </li>
+        <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObjectCfg.InitialStateCfg.pos">(omni.isaac.lab.assets.DeformableObjectCfg.InitialStateCfg attribute)</a>
+</li>
         <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObjectCfg.InitialStateCfg.pos">(omni.isaac.lab.assets.RigidObjectCfg.InitialStateCfg attribute)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.OffsetCfg.pos">(omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.OffsetCfg attribute)</a>
@@ -4603,6 +4664,8 @@ document.write(`
 
       <ul>
         <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.AssetBaseCfg.prim_path">(omni.isaac.lab.assets.AssetBaseCfg attribute)</a>
+</li>
+        <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObjectCfg.prim_path">(omni.isaac.lab.assets.DeformableObjectCfg attribute)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObjectCfg.prim_path">(omni.isaac.lab.assets.RigidObjectCfg attribute)</a>
 </li>
@@ -4962,6 +5025,8 @@ document.write(`
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.AssetBase.reset">(omni.isaac.lab.assets.AssetBase method)</a>
 </li>
+        <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObject.reset">(omni.isaac.lab.assets.DeformableObject method)</a>
+</li>
         <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObject.reset">(omni.isaac.lab.assets.RigidObject method)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.controllers.html#omni.isaac.lab.controllers.DifferentialIKController.reset">(omni.isaac.lab.controllers.DifferentialIKController method)</a>
@@ -5190,12 +5255,16 @@ document.write(`
       <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.root_physx_view">root_physx_view (omni.isaac.lab.assets.Articulation property)</a>
 
       <ul>
+        <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObject.root_physx_view">(omni.isaac.lab.assets.DeformableObject property)</a>
+</li>
         <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObject.root_physx_view">(omni.isaac.lab.assets.RigidObject property)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.ArticulationData.root_pos_w">root_pos_w (omni.isaac.lab.assets.ArticulationData property)</a>
 
       <ul>
+        <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObjectData.root_pos_w">(omni.isaac.lab.assets.DeformableObjectData property)</a>
+</li>
         <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObjectData.root_pos_w">(omni.isaac.lab.assets.RigidObjectData property)</a>
 </li>
       </ul></li>
@@ -5218,6 +5287,8 @@ document.write(`
       <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.ArticulationData.root_vel_w">root_vel_w (omni.isaac.lab.assets.ArticulationData property)</a>
 
       <ul>
+        <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObjectData.root_vel_w">(omni.isaac.lab.assets.DeformableObjectData property)</a>
+</li>
         <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObjectData.root_vel_w">(omni.isaac.lab.assets.RigidObjectData property)</a>
 </li>
       </ul></li>
@@ -5225,6 +5296,8 @@ document.write(`
 
       <ul>
         <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.AssetBaseCfg.InitialStateCfg.rot">(omni.isaac.lab.assets.AssetBaseCfg.InitialStateCfg attribute)</a>
+</li>
+        <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObjectCfg.InitialStateCfg.rot">(omni.isaac.lab.assets.DeformableObjectCfg.InitialStateCfg attribute)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObjectCfg.InitialStateCfg.rot">(omni.isaac.lab.assets.RigidObjectCfg.InitialStateCfg attribute)</a>
 </li>
@@ -5438,6 +5511,8 @@ document.write(`
       <ul>
         <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.AssetBase.set_debug_vis">(omni.isaac.lab.assets.AssetBase method)</a>
 </li>
+        <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObject.set_debug_vis">(omni.isaac.lab.assets.DeformableObject method)</a>
+</li>
         <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObject.set_debug_vis">(omni.isaac.lab.assets.RigidObject method)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnv.set_debug_vis">(omni.isaac.lab.envs.DirectRLEnv method)</a>
@@ -5545,6 +5620,12 @@ document.write(`
         <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.sim">(omni.isaac.lab.envs.ManagerBasedRLEnvCfg attribute)</a>
 </li>
       </ul></li>
+      <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObjectData.sim_element_deform_gradient_w">sim_element_deform_gradient_w (omni.isaac.lab.assets.DeformableObjectData property)</a>
+</li>
+      <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObjectData.sim_element_quat_w">sim_element_quat_w (omni.isaac.lab.assets.DeformableObjectData property)</a>
+</li>
+      <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObjectData.sim_element_stress_w">sim_element_stress_w (omni.isaac.lab.assets.DeformableObjectData property)</a>
+</li>
       <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.commands.commands_cfg.TerrainBasedPose2dCommandCfg.simple_heading">simple_heading (omni.isaac.lab.envs.mdp.commands.commands_cfg.TerrainBasedPose2dCommandCfg attribute)</a>
 
       <ul>
@@ -5559,6 +5640,8 @@ document.write(`
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext.RenderMode">SimulationContext.RenderMode (class in omni.isaac.lab.sim)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/omni.isaac.lab.sensors.patterns.html#omni.isaac.lab.sensors.patterns.GridPatternCfg.size">size (omni.isaac.lab.sensors.patterns.GridPatternCfg attribute)</a>
 
       <ul>
@@ -5621,8 +5704,6 @@ document.write(`
         <li><a href="source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshStarTerrainCfg.size">(omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshStarTerrainCfg attribute)</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.math.skew_symmetric_matrix">skew_symmetric_matrix() (in module omni.isaac.lab.utils.math)</a>
 </li>
       <li><a href="source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlVecEnvWrapper">SkrlVecEnvWrapper() (in module omni.isaac.lab_tasks.utils.wrappers.skrl)</a>
@@ -5697,6 +5778,8 @@ document.write(`
 
       <ul>
         <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.AssetBaseCfg.spawn">(omni.isaac.lab.assets.AssetBaseCfg attribute)</a>
+</li>
+        <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObjectCfg.spawn">(omni.isaac.lab.assets.DeformableObjectCfg attribute)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObjectCfg.spawn">(omni.isaac.lab.assets.RigidObjectCfg attribute)</a>
 </li>
@@ -5927,10 +6010,10 @@ document.write(`
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.lights.DomeLightCfg.texture_file">texture_file (omni.isaac.lab.sim.spawners.lights.DomeLightCfg attribute)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.lights.DomeLightCfg.texture_format">texture_format (omni.isaac.lab.sim.spawners.lights.DomeLightCfg attribute)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.materials.MdlFileCfg.texture_scale">texture_scale (omni.isaac.lab.sim.spawners.materials.MdlFileCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.materials.GlassMdlCfg.thin_walled">thin_walled (omni.isaac.lab.sim.spawners.materials.GlassMdlCfg attribute)</a>
@@ -5980,6 +6063,8 @@ document.write(`
       <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.track_lin_vel_xy_exp">track_lin_vel_xy_exp() (in module omni.isaac.lab.envs.mdp.rewards)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.ContactSensorCfg.track_pose">track_pose (omni.isaac.lab.sensors.ContactSensorCfg attribute)</a>
+</li>
+      <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObject.transform_nodal_pos">transform_nodal_pos() (omni.isaac.lab.assets.DeformableObject method)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.math.transform_points">transform_points() (in module omni.isaac.lab.utils.math)</a>
 </li>
@@ -6047,6 +6132,10 @@ document.write(`
 
       <ul>
         <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.AssetBase.update">(omni.isaac.lab.assets.AssetBase method)</a>
+</li>
+        <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObject.update">(omni.isaac.lab.assets.DeformableObject method)</a>
+</li>
+        <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObjectData.update">(omni.isaac.lab.assets.DeformableObjectData method)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObject.update">(omni.isaac.lab.assets.RigidObject method)</a>
 </li>
@@ -6385,9 +6474,11 @@ document.write(`
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.markers.html#omni.isaac.lab.markers.VisualizationMarkers.visualize">visualize() (omni.isaac.lab.markers.VisualizationMarkers method)</a>
 </li>
-      <li><a href="source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.ContactSensorCfg.visualizer_cfg">visualizer_cfg (omni.isaac.lab.sensors.ContactSensorCfg attribute)</a>
+      <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObjectCfg.visualizer_cfg">visualizer_cfg (omni.isaac.lab.assets.DeformableObjectCfg attribute)</a>
 
       <ul>
+        <li><a href="source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.ContactSensorCfg.visualizer_cfg">(omni.isaac.lab.sensors.ContactSensorCfg attribute)</a>
+</li>
         <li><a href="source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.FrameTransformerCfg.visualizer_cfg">(omni.isaac.lab.sensors.FrameTransformerCfg attribute)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.RayCasterCameraCfg.visualizer_cfg">(omni.isaac.lab.sensors.RayCasterCameraCfg attribute)</a>
@@ -6424,6 +6515,8 @@ document.write(`
       <ul>
         <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.AssetBase.write_data_to_sim">(omni.isaac.lab.assets.AssetBase method)</a>
 </li>
+        <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObject.write_data_to_sim">(omni.isaac.lab.assets.DeformableObject method)</a>
+</li>
         <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObject.write_data_to_sim">(omni.isaac.lab.assets.RigidObject method)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.scene.html#omni.isaac.lab.scene.InteractiveScene.write_data_to_sim">(omni.isaac.lab.scene.InteractiveScene method)</a>
@@ -6431,12 +6524,12 @@ document.write(`
       </ul></li>
       <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.write_fixed_tendon_properties_to_sim">write_fixed_tendon_properties_to_sim() (omni.isaac.lab.assets.Articulation method)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.write_joint_armature_to_sim">write_joint_armature_to_sim() (omni.isaac.lab.assets.Articulation method)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.write_joint_damping_to_sim">write_joint_damping_to_sim() (omni.isaac.lab.assets.Articulation method)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.write_joint_effort_limit_to_sim">write_joint_effort_limit_to_sim() (omni.isaac.lab.assets.Articulation method)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.write_joint_friction_to_sim">write_joint_friction_to_sim() (omni.isaac.lab.assets.Articulation method)</a>
@@ -6446,6 +6539,14 @@ document.write(`
       <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.write_joint_state_to_sim">write_joint_state_to_sim() (omni.isaac.lab.assets.Articulation method)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.write_joint_stiffness_to_sim">write_joint_stiffness_to_sim() (omni.isaac.lab.assets.Articulation method)</a>
+</li>
+      <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObject.write_nodal_kinematic_target_to_sim">write_nodal_kinematic_target_to_sim() (omni.isaac.lab.assets.DeformableObject method)</a>
+</li>
+      <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObject.write_nodal_pos_to_sim">write_nodal_pos_to_sim() (omni.isaac.lab.assets.DeformableObject method)</a>
+</li>
+      <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObject.write_nodal_state_to_sim">write_nodal_state_to_sim() (omni.isaac.lab.assets.DeformableObject method)</a>
+</li>
+      <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObject.write_nodal_velocity_to_sim">write_nodal_velocity_to_sim() (omni.isaac.lab.assets.DeformableObject method)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.write_root_pose_to_sim">write_root_pose_to_sim() (omni.isaac.lab.assets.Articulation method)</a>
 
@@ -6547,7 +6648,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Aug 18, 2024.
+  Last updated on Aug 20, 2024.
   <br/>
 </p>
   </div>

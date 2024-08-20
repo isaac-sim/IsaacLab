@@ -59,7 +59,7 @@
     <link rel="prev" title="omni.isaac.lab.actuators" href="omni.isaac.lab.actuators.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Aug 18, 2024"/>
+    <meta name="docbuild:last-update" content="Aug 20, 2024"/>
   </head>
   
   
@@ -247,6 +247,7 @@
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../tutorials/01_assets/index.html">Interacting with Assets</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l3"><a class="reference internal" href="../../tutorials/01_assets/run_rigid_object.html">Interacting with a rigid object</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../tutorials/01_assets/run_articulation.html">Interacting with an articulation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../tutorials/01_assets/run_deformable_object.html">Interacting with a deformable object</a></li>
 </ul>
 </details></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../tutorials/02_scene/index.html">Creating a Scene</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -776,6 +777,66 @@ document.write(`
 </li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#deformable-object">Deformable Object</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObject"><code class="docutils literal notranslate"><span class="pre">DeformableObject</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObject.cfg"><code class="docutils literal notranslate"><span class="pre">DeformableObject.cfg</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObject.__init__"><code class="docutils literal notranslate"><span class="pre">DeformableObject.__init__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObject.data"><code class="docutils literal notranslate"><span class="pre">DeformableObject.data</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObject.num_instances"><code class="docutils literal notranslate"><span class="pre">DeformableObject.num_instances</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObject.num_bodies"><code class="docutils literal notranslate"><span class="pre">DeformableObject.num_bodies</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObject.root_physx_view"><code class="docutils literal notranslate"><span class="pre">DeformableObject.root_physx_view</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObject.material_physx_view"><code class="docutils literal notranslate"><span class="pre">DeformableObject.material_physx_view</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObject.max_sim_elements_per_body"><code class="docutils literal notranslate"><span class="pre">DeformableObject.max_sim_elements_per_body</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObject.max_collision_elements_per_body"><code class="docutils literal notranslate"><span class="pre">DeformableObject.max_collision_elements_per_body</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObject.max_sim_vertices_per_body"><code class="docutils literal notranslate"><span class="pre">DeformableObject.max_sim_vertices_per_body</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObject.max_collision_vertices_per_body"><code class="docutils literal notranslate"><span class="pre">DeformableObject.max_collision_vertices_per_body</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObject.reset"><code class="docutils literal notranslate"><span class="pre">DeformableObject.reset()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObject.write_data_to_sim"><code class="docutils literal notranslate"><span class="pre">DeformableObject.write_data_to_sim()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObject.update"><code class="docutils literal notranslate"><span class="pre">DeformableObject.update()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObject.write_nodal_state_to_sim"><code class="docutils literal notranslate"><span class="pre">DeformableObject.write_nodal_state_to_sim()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObject.write_nodal_pos_to_sim"><code class="docutils literal notranslate"><span class="pre">DeformableObject.write_nodal_pos_to_sim()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObject.write_nodal_velocity_to_sim"><code class="docutils literal notranslate"><span class="pre">DeformableObject.write_nodal_velocity_to_sim()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObject.write_nodal_kinematic_target_to_sim"><code class="docutils literal notranslate"><span class="pre">DeformableObject.write_nodal_kinematic_target_to_sim()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObject.transform_nodal_pos"><code class="docutils literal notranslate"><span class="pre">DeformableObject.transform_nodal_pos()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObject.device"><code class="docutils literal notranslate"><span class="pre">DeformableObject.device</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObject.has_debug_vis_implementation"><code class="docutils literal notranslate"><span class="pre">DeformableObject.has_debug_vis_implementation</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObject.is_initialized"><code class="docutils literal notranslate"><span class="pre">DeformableObject.is_initialized</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObject.set_debug_vis"><code class="docutils literal notranslate"><span class="pre">DeformableObject.set_debug_vis()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectData"><code class="docutils literal notranslate"><span class="pre">DeformableObjectData</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectData.update"><code class="docutils literal notranslate"><span class="pre">DeformableObjectData.update()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectData.default_nodal_state_w"><code class="docutils literal notranslate"><span class="pre">DeformableObjectData.default_nodal_state_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectData.nodal_kinematic_target"><code class="docutils literal notranslate"><span class="pre">DeformableObjectData.nodal_kinematic_target</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectData.nodal_pos_w"><code class="docutils literal notranslate"><span class="pre">DeformableObjectData.nodal_pos_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectData.nodal_vel_w"><code class="docutils literal notranslate"><span class="pre">DeformableObjectData.nodal_vel_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectData.nodal_state_w"><code class="docutils literal notranslate"><span class="pre">DeformableObjectData.nodal_state_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectData.sim_element_quat_w"><code class="docutils literal notranslate"><span class="pre">DeformableObjectData.sim_element_quat_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectData.collision_element_quat_w"><code class="docutils literal notranslate"><span class="pre">DeformableObjectData.collision_element_quat_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectData.sim_element_deform_gradient_w"><code class="docutils literal notranslate"><span class="pre">DeformableObjectData.sim_element_deform_gradient_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectData.collision_element_deform_gradient_w"><code class="docutils literal notranslate"><span class="pre">DeformableObjectData.collision_element_deform_gradient_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectData.sim_element_stress_w"><code class="docutils literal notranslate"><span class="pre">DeformableObjectData.sim_element_stress_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectData.collision_element_stress_w"><code class="docutils literal notranslate"><span class="pre">DeformableObjectData.collision_element_stress_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectData.root_pos_w"><code class="docutils literal notranslate"><span class="pre">DeformableObjectData.root_pos_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectData.root_vel_w"><code class="docutils literal notranslate"><span class="pre">DeformableObjectData.root_vel_w</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectCfg"><code class="docutils literal notranslate"><span class="pre">DeformableObjectCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectCfg.InitialStateCfg"><code class="docutils literal notranslate"><span class="pre">DeformableObjectCfg.InitialStateCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectCfg.InitialStateCfg.pos"><code class="docutils literal notranslate"><span class="pre">DeformableObjectCfg.InitialStateCfg.pos</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectCfg.InitialStateCfg.rot"><code class="docutils literal notranslate"><span class="pre">DeformableObjectCfg.InitialStateCfg.rot</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectCfg.prim_path"><code class="docutils literal notranslate"><span class="pre">DeformableObjectCfg.prim_path</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectCfg.spawn"><code class="docutils literal notranslate"><span class="pre">DeformableObjectCfg.spawn</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectCfg.init_state"><code class="docutils literal notranslate"><span class="pre">DeformableObjectCfg.init_state</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectCfg.collision_group"><code class="docutils literal notranslate"><span class="pre">DeformableObjectCfg.collision_group</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectCfg.debug_vis"><code class="docutils literal notranslate"><span class="pre">DeformableObjectCfg.debug_vis</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectCfg.visualizer_cfg"><code class="docutils literal notranslate"><span class="pre">DeformableObjectCfg.visualizer_cfg</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
 </ul>
             </nav>
         </div>
@@ -844,6 +905,15 @@ the corresponding actuator torques.</p>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationCfg" title="omni.isaac.lab.assets.ArticulationCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ArticulationCfg</span></code></a></p></td>
 <td><p>Configuration parameters for an articulation.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObject" title="omni.isaac.lab.assets.DeformableObject"><code class="xref py py-obj docutils literal notranslate"><span class="pre">DeformableObject</span></code></a></p></td>
+<td><p>A deformable object asset class.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObjectData" title="omni.isaac.lab.assets.DeformableObjectData"><code class="xref py py-obj docutils literal notranslate"><span class="pre">DeformableObjectData</span></code></a></p></td>
+<td><p>Data container for a deformable object.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObjectCfg" title="omni.isaac.lab.assets.DeformableObjectCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">DeformableObjectCfg</span></code></a></p></td>
+<td><p>Configuration parameters for a deformable object.</p></td>
 </tr>
 </tbody>
 </table>
@@ -1103,7 +1173,7 @@ asset is already present in the scene.</p>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.AssetBaseCfg.init_state">
-<span class="sig-name descname"><span class="pre">init_state</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#omni.isaac.lab.assets.AssetBaseCfg.InitialStateCfg" title="omni.isaac.lab.assets.asset_base_cfg.AssetBaseCfg.InitialStateCfg"><span class="pre">InitialStateCfg</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.AssetBaseCfg.init_state" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">init_state</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObjectCfg.InitialStateCfg" title="omni.isaac.lab.assets.asset_base_cfg.AssetBaseCfg.InitialStateCfg"><span class="pre">InitialStateCfg</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.AssetBaseCfg.init_state" title="Permalink to this definition">#</a></dt>
 <dd><p>Initial state of the rigid object. Defaults to identity pose.</p>
 </dd></dl>
 
@@ -1195,7 +1265,7 @@ in Isaac Sim perform additional USD-related operations which are slow and also n
 <td><p>Update the internal buffers.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObject.find_bodies" title="omni.isaac.lab.assets.RigidObject.find_bodies"><code class="xref py py-obj docutils literal notranslate"><span class="pre">find_bodies</span></code></a>(name_keys[, preserve_order])</p></td>
-<td><p>Find bodies in the articulation based on the name keys.</p></td>
+<td><p>Find bodies in the rigid body based on the name keys.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObject.write_root_state_to_sim" title="omni.isaac.lab.assets.RigidObject.write_root_state_to_sim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">write_root_state_to_sim</span></code></a>(root_state[, env_ids])</p></td>
 <td><p>Set the root state over selected environment indices into the simulation.</p></td>
@@ -1249,6 +1319,7 @@ in Isaac Sim perform additional USD-related operations which are slow and also n
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObject.num_bodies">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">num_bodies</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObject.num_bodies" title="Permalink to this definition">#</a></dt>
 <dd><p>Number of bodies in the asset.</p>
+<p>This is always 1 since each object is a single rigid body.</p>
 </dd></dl>
 
 <dl class="py property">
@@ -1305,7 +1376,7 @@ accelerations which are not provided by the simulator.</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObject.find_bodies">
 <span class="sig-name descname"><span class="pre">find_bodies</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name_keys</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence" title="(in Python v3.12)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">preserve_order</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.12)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.12)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.12)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/assets/rigid_object/rigid_object.html#RigidObject.find_bodies"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.assets.RigidObject.find_bodies" title="Permalink to this definition">#</a></dt>
-<dd><p>Find bodies in the articulation based on the name keys.</p>
+<dd><p>Find bodies in the rigid body based on the name keys.</p>
 <p>Please check the <code class="xref py py-meth docutils literal notranslate"><span class="pre">omni.isaac.lab.utils.string_utils.resolve_matching_names()</span></code> function for more
 information on the name matching.</p>
 <dl class="field-list simple">
@@ -1564,7 +1635,7 @@ of the center of mass frame.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectData.default_mass">
 <span class="sig-name descname"><span class="pre">default_mass</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectData.default_mass" title="Permalink to this definition">#</a></dt>
-<dd><p>Default mass read from the simulation. Shape is (num_instances, num_bodies).</p>
+<dd><p>Default mass read from the simulation. Shape is (num_instances, 1).</p>
 </dd></dl>
 
 <dl class="py property">
@@ -1661,49 +1732,49 @@ rigid body’s actor frame.</p>
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectData.body_pos_w">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">body_pos_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectData.body_pos_w" title="Permalink to this definition">#</a></dt>
-<dd><p>Positions of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).</p>
+<dd><p>Positions of all bodies in simulation world frame. Shape is (num_instances, 1, 3).</p>
 <p>This quantity is the position of the rigid bodies’ actor frame.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectData.body_quat_w">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">body_quat_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectData.body_quat_w" title="Permalink to this definition">#</a></dt>
-<dd><p>Orientation (w, x, y, z) of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 4).</p>
+<dd><p>Orientation (w, x, y, z) of all bodies in simulation world frame. Shape is (num_instances, 1, 4).</p>
 <p>This quantity is the orientation of the rigid bodies’ actor frame.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectData.body_vel_w">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">body_vel_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectData.body_vel_w" title="Permalink to this definition">#</a></dt>
-<dd><p>Velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 6).</p>
+<dd><p>Velocity of all bodies in simulation world frame. Shape is (num_instances, 1, 6).</p>
 <p>This quantity contains the linear and angular velocities of the rigid bodies’ center of mass frame.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectData.body_lin_vel_w">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">body_lin_vel_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectData.body_lin_vel_w" title="Permalink to this definition">#</a></dt>
-<dd><p>Linear velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).</p>
+<dd><p>Linear velocity of all bodies in simulation world frame. Shape is (num_instances, 1, 3).</p>
 <p>This quantity is the linear velocity of the rigid bodies’ center of mass frame.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectData.body_ang_vel_w">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">body_ang_vel_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectData.body_ang_vel_w" title="Permalink to this definition">#</a></dt>
-<dd><p>Angular velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).</p>
+<dd><p>Angular velocity of all bodies in simulation world frame. Shape is (num_instances, 1, 3).</p>
 <p>This quantity is the angular velocity of the rigid bodies’ center of mass frame.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectData.body_lin_acc_w">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">body_lin_acc_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectData.body_lin_acc_w" title="Permalink to this definition">#</a></dt>
-<dd><p>Linear acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).</p>
+<dd><p>Linear acceleration of all bodies in simulation world frame. Shape is (num_instances, 1, 3).</p>
 <p>This quantity is the linear acceleration of the rigid bodies’ center of mass frame.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectData.body_ang_acc_w">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">body_ang_acc_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectData.body_ang_acc_w" title="Permalink to this definition">#</a></dt>
-<dd><p>Angular acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).</p>
+<dd><p>Angular acceleration of all bodies in simulation world frame. Shape is (num_instances, 1, 3).</p>
 <p>This quantity is the angular acceleration of the rigid bodies’ center of mass frame.</p>
 </dd></dl>
 
@@ -1735,7 +1806,7 @@ rigid body’s actor frame.</p>
 <dl class="py class">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectCfg.InitialStateCfg">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">InitialStateCfg</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/assets/rigid_object/rigid_object_cfg.html#RigidObjectCfg.InitialStateCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectCfg.InitialStateCfg" title="Permalink to this definition">#</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#omni.isaac.lab.assets.AssetBaseCfg.InitialStateCfg" title="omni.isaac.lab.assets.asset_base_cfg.AssetBaseCfg.InitialStateCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">InitialStateCfg</span></code></a></p>
+<dd><p>Bases: <a class="reference internal" href="#omni.isaac.lab.assets.DeformableObjectCfg.InitialStateCfg" title="omni.isaac.lab.assets.asset_base_cfg.AssetBaseCfg.InitialStateCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">InitialStateCfg</span></code></a></p>
 <p>Initial state of the rigid body.</p>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
@@ -3248,7 +3319,7 @@ articulation root’s actor frame.</p>
 <dl class="py class">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationCfg.InitialStateCfg">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">InitialStateCfg</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/assets/articulation/articulation_cfg.html#ArticulationCfg.InitialStateCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationCfg.InitialStateCfg" title="Permalink to this definition">#</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#omni.isaac.lab.assets.AssetBaseCfg.InitialStateCfg" title="omni.isaac.lab.assets.asset_base_cfg.AssetBaseCfg.InitialStateCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">InitialStateCfg</span></code></a></p>
+<dd><p>Bases: <a class="reference internal" href="#omni.isaac.lab.assets.DeformableObjectCfg.InitialStateCfg" title="omni.isaac.lab.assets.asset_base_cfg.AssetBaseCfg.InitialStateCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">InitialStateCfg</span></code></a></p>
 <p>Initial state of the articulation.</p>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
@@ -3361,6 +3432,643 @@ This is accessible in the articulation data through <a class="reference internal
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationCfg.actuators">
 <span class="sig-name descname"><span class="pre">actuators</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.12)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.ActuatorBaseCfg" title="omni.isaac.lab.actuators.actuator_cfg.ActuatorBaseCfg"><span class="pre">omni.isaac.lab.actuators.actuator_cfg.ActuatorBaseCfg</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationCfg.actuators" title="Permalink to this definition">#</a></dt>
 <dd><p>Actuators for the robot with corresponding joint names.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="deformable-object">
+<h2>Deformable Object<a class="headerlink" href="#deformable-object" title="Permalink to this heading">#</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObject">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.assets.</span></span><span class="sig-name descname"><span class="pre">DeformableObject</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/assets/deformable_object/deformable_object.html#DeformableObject"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObject" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#omni.isaac.lab.assets.AssetBase" title="omni.isaac.lab.assets.asset_base.AssetBase"><code class="xref py py-class docutils literal notranslate"><span class="pre">AssetBase</span></code></a></p>
+<p>A deformable object asset class.</p>
+<p>Deformable objects are assets that can be deformed in the simulation. They are typically used for
+soft bodies, such as stuffed animals and food items.</p>
+<p>Unlike rigid object assets, deformable objects have a more complex structure and require additional
+handling for simulation. The simulation of deformable objects follows a finite element approach, where
+the object is discretized into a mesh of nodes and elements. The nodes are connected by elements, which
+define the material properties of the object. The nodes can be moved and deformed, and the elements
+respond to these changes.</p>
+<p>The state of a deformable object comprises of its nodal positions and velocities, and not the object’s root
+position and orientation. The nodal positions and velocities are in the simulation frame.</p>
+<p>Soft bodies can be <a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/docs/SoftBodies.html#kinematic-soft-bodies">partially kinematic</a>, where some nodes are driven by kinematic targets, and the rest are
+simulated. The kinematic targets are the desired positions of the nodes, and the simulation drives the nodes
+towards these targets. This is useful for partial control of the object, such as moving a stuffed animal’s
+head while the rest of the body is simulated.</p>
+<div class="admonition attention">
+<p class="admonition-title">Attention</p>
+<p>This class is experimental and subject to change due to changes on the underlying PhysX API on which
+it depends. We will try to maintain backward compatibility as much as possible but some changes may be
+necessary.</p>
+</div>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObject.cfg" title="omni.isaac.lab.assets.DeformableObject.cfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">cfg</span></code></a></p></td>
+<td><p>Configuration instance for the deformable object.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObject.data" title="omni.isaac.lab.assets.DeformableObject.data"><code class="xref py py-obj docutils literal notranslate"><span class="pre">data</span></code></a></p></td>
+<td><p>Data related to the asset.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObject.num_instances" title="omni.isaac.lab.assets.DeformableObject.num_instances"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_instances</span></code></a></p></td>
+<td><p>Number of instances of the asset.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObject.num_bodies" title="omni.isaac.lab.assets.DeformableObject.num_bodies"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_bodies</span></code></a></p></td>
+<td><p>Number of bodies in the asset.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObject.root_physx_view" title="omni.isaac.lab.assets.DeformableObject.root_physx_view"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_physx_view</span></code></a></p></td>
+<td><p>Deformable body view for the asset (PhysX).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObject.material_physx_view" title="omni.isaac.lab.assets.DeformableObject.material_physx_view"><code class="xref py py-obj docutils literal notranslate"><span class="pre">material_physx_view</span></code></a></p></td>
+<td><p>Deformable material view for the asset (PhysX).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObject.max_sim_elements_per_body" title="omni.isaac.lab.assets.DeformableObject.max_sim_elements_per_body"><code class="xref py py-obj docutils literal notranslate"><span class="pre">max_sim_elements_per_body</span></code></a></p></td>
+<td><p>The maximum number of simulation mesh elements per deformable body.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObject.max_collision_elements_per_body" title="omni.isaac.lab.assets.DeformableObject.max_collision_elements_per_body"><code class="xref py py-obj docutils literal notranslate"><span class="pre">max_collision_elements_per_body</span></code></a></p></td>
+<td><p>The maximum number of collision mesh elements per deformable body.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObject.max_sim_vertices_per_body" title="omni.isaac.lab.assets.DeformableObject.max_sim_vertices_per_body"><code class="xref py py-obj docutils literal notranslate"><span class="pre">max_sim_vertices_per_body</span></code></a></p></td>
+<td><p>The maximum number of simulation mesh vertices per deformable body.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObject.max_collision_vertices_per_body" title="omni.isaac.lab.assets.DeformableObject.max_collision_vertices_per_body"><code class="xref py py-obj docutils literal notranslate"><span class="pre">max_collision_vertices_per_body</span></code></a></p></td>
+<td><p>The maximum number of collision mesh vertices per deformable body.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObject.device" title="omni.isaac.lab.assets.DeformableObject.device"><code class="xref py py-obj docutils literal notranslate"><span class="pre">device</span></code></a></p></td>
+<td><p>Memory device for computation.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObject.has_debug_vis_implementation" title="omni.isaac.lab.assets.DeformableObject.has_debug_vis_implementation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">has_debug_vis_implementation</span></code></a></p></td>
+<td><p>Whether the asset has a debug visualization implemented.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObject.is_initialized" title="omni.isaac.lab.assets.DeformableObject.is_initialized"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_initialized</span></code></a></p></td>
+<td><p>Whether the asset is initialized.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Methods:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObject.__init__" title="omni.isaac.lab.assets.DeformableObject.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>(cfg)</p></td>
+<td><p>Initialize the deformable object.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObject.reset" title="omni.isaac.lab.assets.DeformableObject.reset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset</span></code></a>([env_ids])</p></td>
+<td><p>Resets all internal buffers of selected environments.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObject.write_data_to_sim" title="omni.isaac.lab.assets.DeformableObject.write_data_to_sim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">write_data_to_sim</span></code></a>()</p></td>
+<td><p>Writes data to the simulator.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObject.update" title="omni.isaac.lab.assets.DeformableObject.update"><code class="xref py py-obj docutils literal notranslate"><span class="pre">update</span></code></a>(dt)</p></td>
+<td><p>Update the internal buffers.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObject.write_nodal_state_to_sim" title="omni.isaac.lab.assets.DeformableObject.write_nodal_state_to_sim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">write_nodal_state_to_sim</span></code></a>(nodal_state[, env_ids])</p></td>
+<td><p>Set the nodal state over selected environment indices into the simulation.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObject.write_nodal_pos_to_sim" title="omni.isaac.lab.assets.DeformableObject.write_nodal_pos_to_sim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">write_nodal_pos_to_sim</span></code></a>(nodal_pos[, env_ids])</p></td>
+<td><p>Set the nodal positions over selected environment indices into the simulation.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObject.write_nodal_velocity_to_sim" title="omni.isaac.lab.assets.DeformableObject.write_nodal_velocity_to_sim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">write_nodal_velocity_to_sim</span></code></a>(nodal_vel[, env_ids])</p></td>
+<td><p>Set the nodal velocity over selected environment indices into the simulation.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObject.write_nodal_kinematic_target_to_sim" title="omni.isaac.lab.assets.DeformableObject.write_nodal_kinematic_target_to_sim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">write_nodal_kinematic_target_to_sim</span></code></a>(targets)</p></td>
+<td><p>Set the kinematic targets of the simulation mesh for the deformable bodies indicated by the indices.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObject.transform_nodal_pos" title="omni.isaac.lab.assets.DeformableObject.transform_nodal_pos"><code class="xref py py-obj docutils literal notranslate"><span class="pre">transform_nodal_pos</span></code></a>(nodal_pos[, pos, quat])</p></td>
+<td><p>Transform the nodal positions based on the pose transformation.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObject.set_debug_vis" title="omni.isaac.lab.assets.DeformableObject.set_debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_debug_vis</span></code></a>(debug_vis)</p></td>
+<td><p>Sets whether to visualize the asset data.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObject.cfg">
+<span class="sig-name descname"><span class="pre">cfg</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObjectCfg" title="omni.isaac.lab.assets.DeformableObjectCfg"><span class="pre">DeformableObjectCfg</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObject.cfg" title="Permalink to this definition">#</a></dt>
+<dd><p>Configuration instance for the deformable object.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObject.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObjectCfg" title="omni.isaac.lab.assets.DeformableObjectCfg"><span class="pre">DeformableObjectCfg</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/assets/deformable_object/deformable_object.html#DeformableObject.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObject.__init__" title="Permalink to this definition">#</a></dt>
+<dd><p>Initialize the deformable object.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>cfg</strong> – A configuration instance.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObject.data">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">data</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObjectData" title="omni.isaac.lab.assets.deformable_object.deformable_object_data.DeformableObjectData"><span class="pre">DeformableObjectData</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObject.data" title="Permalink to this definition">#</a></dt>
+<dd><p>Data related to the asset.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObject.num_instances">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">num_instances</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObject.num_instances" title="Permalink to this definition">#</a></dt>
+<dd><p>Number of instances of the asset.</p>
+<p>This is equal to the number of asset instances per environment multiplied by the number of environments.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObject.num_bodies">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">num_bodies</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObject.num_bodies" title="Permalink to this definition">#</a></dt>
+<dd><p>Number of bodies in the asset.</p>
+<p>This is always 1 since each object is a single deformable body.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObject.root_physx_view">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">root_physx_view</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">omni.physics.tensors.impl.api.SoftBodyView</span></em><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObject.root_physx_view" title="Permalink to this definition">#</a></dt>
+<dd><p>Deformable body view for the asset (PhysX).</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Use this view with caution. It requires handling of tensors in a specific way.</p>
+</div>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObject.material_physx_view">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">material_physx_view</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">physx.SoftBodyMaterialView</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObject.material_physx_view" title="Permalink to this definition">#</a></dt>
+<dd><p>Deformable material view for the asset (PhysX).</p>
+<p>This view is optional and may not be available if the material is not bound to the deformable body.
+If the material is not available, then the material properties will be set to default values.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Use this view with caution. It requires handling of tensors in a specific way.</p>
+</div>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObject.max_sim_elements_per_body">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">max_sim_elements_per_body</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObject.max_sim_elements_per_body" title="Permalink to this definition">#</a></dt>
+<dd><p>The maximum number of simulation mesh elements per deformable body.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObject.max_collision_elements_per_body">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">max_collision_elements_per_body</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObject.max_collision_elements_per_body" title="Permalink to this definition">#</a></dt>
+<dd><p>The maximum number of collision mesh elements per deformable body.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObject.max_sim_vertices_per_body">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">max_sim_vertices_per_body</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObject.max_sim_vertices_per_body" title="Permalink to this definition">#</a></dt>
+<dd><p>The maximum number of simulation mesh vertices per deformable body.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObject.max_collision_vertices_per_body">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">max_collision_vertices_per_body</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObject.max_collision_vertices_per_body" title="Permalink to this definition">#</a></dt>
+<dd><p>The maximum number of collision mesh vertices per deformable body.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObject.reset">
+<span class="sig-name descname"><span class="pre">reset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence" title="(in Python v3.12)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/assets/deformable_object/deformable_object.html#DeformableObject.reset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObject.reset" title="Permalink to this definition">#</a></dt>
+<dd><p>Resets all internal buffers of selected environments.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>env_ids</strong> – The indices of the object to reset. Defaults to None (all instances).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObject.write_data_to_sim">
+<span class="sig-name descname"><span class="pre">write_data_to_sim</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/assets/deformable_object/deformable_object.html#DeformableObject.write_data_to_sim"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObject.write_data_to_sim" title="Permalink to this definition">#</a></dt>
+<dd><p>Writes data to the simulator.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObject.update">
+<span class="sig-name descname"><span class="pre">update</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dt</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/assets/deformable_object/deformable_object.html#DeformableObject.update"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObject.update" title="Permalink to this definition">#</a></dt>
+<dd><p>Update the internal buffers.</p>
+<p>The time step <code class="docutils literal notranslate"><span class="pre">dt</span></code> is used to compute numerical derivatives of quantities such as joint
+accelerations which are not provided by the simulator.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>dt</strong> – The amount of time passed from last <code class="docutils literal notranslate"><span class="pre">update</span></code> call.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObject.write_nodal_state_to_sim">
+<span class="sig-name descname"><span class="pre">write_nodal_state_to_sim</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">nodal_state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence" title="(in Python v3.12)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/assets/deformable_object/deformable_object.html#DeformableObject.write_nodal_state_to_sim"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObject.write_nodal_state_to_sim" title="Permalink to this definition">#</a></dt>
+<dd><p>Set the nodal state over selected environment indices into the simulation.</p>
+<p>The nodal state comprises of the nodal positions and velocities. Since these are nodes, the velocity only has
+a translational component. All the quantities are in the simulation frame.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>nodal_state</strong> – Nodal state in simulation frame.
+Shape is (len(env_ids), max_sim_vertices_per_body, 6).</p></li>
+<li><p><strong>env_ids</strong> – Environment indices. If None, then all indices are used.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObject.write_nodal_pos_to_sim">
+<span class="sig-name descname"><span class="pre">write_nodal_pos_to_sim</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">nodal_pos</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence" title="(in Python v3.12)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/assets/deformable_object/deformable_object.html#DeformableObject.write_nodal_pos_to_sim"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObject.write_nodal_pos_to_sim" title="Permalink to this definition">#</a></dt>
+<dd><p>Set the nodal positions over selected environment indices into the simulation.</p>
+<p>The nodal position comprises of individual nodal positions of the simulation mesh for the deformable body.
+The positions are in the simulation frame.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>nodal_pos</strong> – Nodal positions in simulation frame.
+Shape is (len(env_ids), max_sim_vertices_per_body, 3).</p></li>
+<li><p><strong>env_ids</strong> – Environment indices. If None, then all indices are used.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObject.write_nodal_velocity_to_sim">
+<span class="sig-name descname"><span class="pre">write_nodal_velocity_to_sim</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">nodal_vel</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence" title="(in Python v3.12)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/assets/deformable_object/deformable_object.html#DeformableObject.write_nodal_velocity_to_sim"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObject.write_nodal_velocity_to_sim" title="Permalink to this definition">#</a></dt>
+<dd><p>Set the nodal velocity over selected environment indices into the simulation.</p>
+<p>The nodal velocity comprises of individual nodal velocities of the simulation mesh for the deformable
+body. Since these are nodes, the velocity only has a translational component. The velocities are in the
+simulation frame.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>nodal_vel</strong> – Nodal velocities in simulation frame.
+Shape is (len(env_ids), max_sim_vertices_per_body, 3).</p></li>
+<li><p><strong>env_ids</strong> – Environment indices. If None, then all indices are used.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObject.write_nodal_kinematic_target_to_sim">
+<span class="sig-name descname"><span class="pre">write_nodal_kinematic_target_to_sim</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">targets</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence" title="(in Python v3.12)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/assets/deformable_object/deformable_object.html#DeformableObject.write_nodal_kinematic_target_to_sim"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObject.write_nodal_kinematic_target_to_sim" title="Permalink to this definition">#</a></dt>
+<dd><p>Set the kinematic targets of the simulation mesh for the deformable bodies indicated by the indices.</p>
+<p>The kinematic targets comprise of individual nodal positions of the simulation mesh for the deformable body
+and a flag indicating whether the node is kinematically driven or not. The positions are in the simulation frame.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The flag is set to 0.0 for kinematically driven nodes and 1.0 for free nodes.</p>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>targets</strong> – The kinematic targets comprising of nodal positions and flags.
+Shape is (len(env_ids), max_sim_vertices_per_body, 4).</p></li>
+<li><p><strong>env_ids</strong> – Environment indices. If None, then all indices are used.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObject.transform_nodal_pos">
+<span class="sig-name descname"><span class="pre">transform_nodal_pos</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">nodal_pos</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">torch.tensor</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pos</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quat</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/assets/deformable_object/deformable_object.html#DeformableObject.transform_nodal_pos"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObject.transform_nodal_pos" title="Permalink to this definition">#</a></dt>
+<dd><p>Transform the nodal positions based on the pose transformation.</p>
+<p>This function computes the transformation of the nodal positions based on the pose transformation.
+It multiplies the nodal positions with the rotation matrix of the pose and adds the translation.
+Internally, it calls the <a class="reference internal" href="omni.isaac.lab.utils.html#omni.isaac.lab.utils.math.transform_points" title="omni.isaac.lab.utils.math.transform_points"><code class="xref py py-meth docutils literal notranslate"><span class="pre">omni.isaac.lab.utils.math.transform_points()</span></code></a> function.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>nodal_pos</strong> – The nodal positions in the simulation frame. Shape is (N, max_sim_vertices_per_body, 3).</p></li>
+<li><p><strong>pos</strong> – The position transformation. Shape is (N, 3).
+Defaults to None, in which case the position is assumed to be zero.</p></li>
+<li><p><strong>quat</strong> – The orientation transformation as quaternion (w, x, y, z). Shape is (N, 4).
+Defaults to None, in which case the orientation is assumed to be identity.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The transformed nodal positions. Shape is (N, max_sim_vertices_per_body, 3).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObject.device">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">device</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObject.device" title="Permalink to this definition">#</a></dt>
+<dd><p>Memory device for computation.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObject.has_debug_vis_implementation">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">has_debug_vis_implementation</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObject.has_debug_vis_implementation" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether the asset has a debug visualization implemented.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObject.is_initialized">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">is_initialized</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObject.is_initialized" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether the asset is initialized.</p>
+<p>Returns True if the asset is initialized, False otherwise.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObject.set_debug_vis">
+<span class="sig-name descname"><span class="pre">set_debug_vis</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">debug_vis</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></span></span><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObject.set_debug_vis" title="Permalink to this definition">#</a></dt>
+<dd><p>Sets whether to visualize the asset data.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>debug_vis</strong> – Whether to visualize the asset data.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Whether the debug visualization was successfully set. False if the asset
+does not support debug visualization.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObjectData">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.assets.</span></span><span class="sig-name descname"><span class="pre">DeformableObjectData</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/assets/deformable_object/deformable_object_data.html#DeformableObjectData"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObjectData" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.12)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Data container for a deformable object.</p>
+<p>This class contains the data for a deformable object in the simulation. The data includes the nodal states of
+the root deformable body in the object. The data is stored in the simulation world frame unless otherwise specified.</p>
+<p>A deformable object in PhysX uses two tetrahedral meshes to represent the object:</p>
+<ol class="arabic simple">
+<li><p><strong>Simulation mesh</strong>: This mesh is used for the simulation and is the one that is deformed by the solver.</p></li>
+<li><p><strong>Collision mesh</strong>: This mesh only needs to match the surface of the simulation mesh and is used for
+collision detection.</p></li>
+</ol>
+<p>The APIs exposed provides the data for both the simulation and collision meshes. These are specified
+by the <cite>sim</cite> and <cite>collision</cite> prefixes in the property names.</p>
+<p>The data is lazily updated, meaning that the data is only updated when it is accessed. This is useful
+when the data is expensive to compute or retrieve. The data is updated when the timestamp of the buffer
+is older than the current simulation timestamp. The timestamp is updated whenever the data is updated.</p>
+<p><strong>Methods:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObjectData.update" title="omni.isaac.lab.assets.DeformableObjectData.update"><code class="xref py py-obj docutils literal notranslate"><span class="pre">update</span></code></a>(dt)</p></td>
+<td><p>Updates the data for the deformable object.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObjectData.default_nodal_state_w" title="omni.isaac.lab.assets.DeformableObjectData.default_nodal_state_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">default_nodal_state_w</span></code></a></p></td>
+<td><p>Default nodal state <code class="docutils literal notranslate"><span class="pre">[nodal_pos,</span> <span class="pre">nodal_vel]</span></code> in simulation world frame.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObjectData.nodal_kinematic_target" title="omni.isaac.lab.assets.DeformableObjectData.nodal_kinematic_target"><code class="xref py py-obj docutils literal notranslate"><span class="pre">nodal_kinematic_target</span></code></a></p></td>
+<td><p>Simulation mesh kinematic targets for the deformable bodies.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObjectData.nodal_pos_w" title="omni.isaac.lab.assets.DeformableObjectData.nodal_pos_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">nodal_pos_w</span></code></a></p></td>
+<td><p>Nodal positions in simulation world frame.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObjectData.nodal_vel_w" title="omni.isaac.lab.assets.DeformableObjectData.nodal_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">nodal_vel_w</span></code></a></p></td>
+<td><p>Nodal velocities in simulation world frame.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObjectData.nodal_state_w" title="omni.isaac.lab.assets.DeformableObjectData.nodal_state_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">nodal_state_w</span></code></a></p></td>
+<td><p>Nodal state <code class="docutils literal notranslate"><span class="pre">[nodal_pos,</span> <span class="pre">nodal_vel]</span></code> in simulation world frame.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObjectData.sim_element_quat_w" title="omni.isaac.lab.assets.DeformableObjectData.sim_element_quat_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sim_element_quat_w</span></code></a></p></td>
+<td><p>Simulation mesh element-wise rotations as quaternions for the deformable bodies in simulation world frame.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObjectData.collision_element_quat_w" title="omni.isaac.lab.assets.DeformableObjectData.collision_element_quat_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collision_element_quat_w</span></code></a></p></td>
+<td><p>Collision mesh element-wise rotations as quaternions for the deformable bodies in simulation world frame.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObjectData.sim_element_deform_gradient_w" title="omni.isaac.lab.assets.DeformableObjectData.sim_element_deform_gradient_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sim_element_deform_gradient_w</span></code></a></p></td>
+<td><p>Simulation mesh element-wise second-order deformation gradient tensors for the deformable bodies in simulation world frame.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObjectData.collision_element_deform_gradient_w" title="omni.isaac.lab.assets.DeformableObjectData.collision_element_deform_gradient_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collision_element_deform_gradient_w</span></code></a></p></td>
+<td><p>Collision mesh element-wise second-order deformation gradient tensors for the deformable bodies in simulation world frame.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObjectData.sim_element_stress_w" title="omni.isaac.lab.assets.DeformableObjectData.sim_element_stress_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sim_element_stress_w</span></code></a></p></td>
+<td><p>Simulation mesh element-wise second-order Cauchy stress tensors for the deformable bodies in simulation world frame.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObjectData.collision_element_stress_w" title="omni.isaac.lab.assets.DeformableObjectData.collision_element_stress_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collision_element_stress_w</span></code></a></p></td>
+<td><p>Collision mesh element-wise second-order Cauchy stress tensors for the deformable bodies in simulation world frame.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObjectData.root_pos_w" title="omni.isaac.lab.assets.DeformableObjectData.root_pos_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_pos_w</span></code></a></p></td>
+<td><p>Root position from nodal positions of the simulation mesh for the deformable bodies in simulation world frame.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObjectData.root_vel_w" title="omni.isaac.lab.assets.DeformableObjectData.root_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_vel_w</span></code></a></p></td>
+<td><p>Root velocity from vertex velocities for the deformable bodies in simulation world frame.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObjectData.update">
+<span class="sig-name descname"><span class="pre">update</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dt</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/assets/deformable_object/deformable_object_data.html#DeformableObjectData.update"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObjectData.update" title="Permalink to this definition">#</a></dt>
+<dd><p>Updates the data for the deformable object.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>dt</strong> – The time step for the update. This must be a positive value.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObjectData.default_nodal_state_w">
+<span class="sig-name descname"><span class="pre">default_nodal_state_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObjectData.default_nodal_state_w" title="Permalink to this definition">#</a></dt>
+<dd><p>Default nodal state <code class="docutils literal notranslate"><span class="pre">[nodal_pos,</span> <span class="pre">nodal_vel]</span></code> in simulation world frame.
+Shape is (num_instances, max_sim_vertices_per_body, 6).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObjectData.nodal_kinematic_target">
+<span class="sig-name descname"><span class="pre">nodal_kinematic_target</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObjectData.nodal_kinematic_target" title="Permalink to this definition">#</a></dt>
+<dd><p>Simulation mesh kinematic targets for the deformable bodies.
+Shape is (num_instances, max_sim_vertices_per_body, 4).</p>
+<p>The kinematic targets are used to drive the simulation mesh vertices to the target positions.
+The targets are stored as (x, y, z, is_not_kinematic) where “is_not_kinematic” is a binary
+flag indicating whether the vertex is kinematic or not. The flag is set to 0 for kinematic vertices
+and 1 for non-kinematic vertices.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObjectData.nodal_pos_w">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">nodal_pos_w</span></span><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObjectData.nodal_pos_w" title="Permalink to this definition">#</a></dt>
+<dd><p>Nodal positions in simulation world frame. Shape is (num_instances, max_sim_vertices_per_body, 3).</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObjectData.nodal_vel_w">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">nodal_vel_w</span></span><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObjectData.nodal_vel_w" title="Permalink to this definition">#</a></dt>
+<dd><p>Nodal velocities in simulation world frame. Shape is (num_instances, max_sim_vertices_per_body, 3).</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObjectData.nodal_state_w">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">nodal_state_w</span></span><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObjectData.nodal_state_w" title="Permalink to this definition">#</a></dt>
+<dd><p>Nodal state <code class="docutils literal notranslate"><span class="pre">[nodal_pos,</span> <span class="pre">nodal_vel]</span></code> in simulation world frame.
+Shape is (num_instances, max_sim_vertices_per_body, 6).</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObjectData.sim_element_quat_w">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">sim_element_quat_w</span></span><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObjectData.sim_element_quat_w" title="Permalink to this definition">#</a></dt>
+<dd><p>Simulation mesh element-wise rotations as quaternions for the deformable bodies in simulation world frame.
+Shape is (num_instances, max_sim_elements_per_body, 4).</p>
+<p>The rotations are stored as quaternions in the order (w, x, y, z).</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObjectData.collision_element_quat_w">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">collision_element_quat_w</span></span><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObjectData.collision_element_quat_w" title="Permalink to this definition">#</a></dt>
+<dd><p>Collision mesh element-wise rotations as quaternions for the deformable bodies in simulation world frame.
+Shape is (num_instances, max_collision_elements_per_body, 4).</p>
+<p>The rotations are stored as quaternions in the order (w, x, y, z).</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObjectData.sim_element_deform_gradient_w">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">sim_element_deform_gradient_w</span></span><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObjectData.sim_element_deform_gradient_w" title="Permalink to this definition">#</a></dt>
+<dd><p>Simulation mesh element-wise second-order deformation gradient tensors for the deformable bodies
+in simulation world frame. Shape is (num_instances, max_sim_elements_per_body, 3, 3).</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObjectData.collision_element_deform_gradient_w">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">collision_element_deform_gradient_w</span></span><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObjectData.collision_element_deform_gradient_w" title="Permalink to this definition">#</a></dt>
+<dd><p>Collision mesh element-wise second-order deformation gradient tensors for the deformable bodies
+in simulation world frame. Shape is (num_instances, max_collision_elements_per_body, 3, 3).</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObjectData.sim_element_stress_w">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">sim_element_stress_w</span></span><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObjectData.sim_element_stress_w" title="Permalink to this definition">#</a></dt>
+<dd><p>Simulation mesh element-wise second-order Cauchy stress tensors for the deformable bodies
+in simulation world frame. Shape is (num_instances, max_sim_elements_per_body, 3, 3).</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObjectData.collision_element_stress_w">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">collision_element_stress_w</span></span><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObjectData.collision_element_stress_w" title="Permalink to this definition">#</a></dt>
+<dd><p>Collision mesh element-wise second-order Cauchy stress tensors for the deformable bodies
+in simulation world frame. Shape is (num_instances, max_collision_elements_per_body, 3, 3).</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObjectData.root_pos_w">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">root_pos_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObjectData.root_pos_w" title="Permalink to this definition">#</a></dt>
+<dd><p>Root position from nodal positions of the simulation mesh for the deformable bodies in simulation world frame.
+Shape is (num_instances, 3).</p>
+<p>This quantity is computed as the mean of the nodal positions.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObjectData.root_vel_w">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">root_vel_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObjectData.root_vel_w" title="Permalink to this definition">#</a></dt>
+<dd><p>Root velocity from vertex velocities for the deformable bodies in simulation world frame.
+Shape is (num_instances, 3).</p>
+<p>This quantity is computed as the mean of the nodal velocities.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObjectCfg">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.assets.</span></span><span class="sig-name descname"><span class="pre">DeformableObjectCfg</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/assets/deformable_object/deformable_object_cfg.html#DeformableObjectCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObjectCfg" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#omni.isaac.lab.assets.AssetBaseCfg" title="omni.isaac.lab.assets.asset_base_cfg.AssetBaseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">AssetBaseCfg</span></code></a></p>
+<p>Configuration parameters for a deformable object.</p>
+<p><strong>Classes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObjectCfg.InitialStateCfg" title="omni.isaac.lab.assets.DeformableObjectCfg.InitialStateCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">InitialStateCfg</span></code></a></p></td>
+<td><p>Initial state of the asset.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObjectCfg.visualizer_cfg" title="omni.isaac.lab.assets.DeformableObjectCfg.visualizer_cfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visualizer_cfg</span></code></a></p></td>
+<td><p>The configuration object for the visualization markers.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py class">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObjectCfg.InitialStateCfg">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">InitialStateCfg</span></span><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObjectCfg.InitialStateCfg" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.12)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Initial state of the asset.</p>
+<p>This defines the default initial state of the asset when it is spawned into the simulation, as
+well as the default state when the simulation is reset.</p>
+<p>After parsing the initial state, the asset class stores this information in the <code class="xref py py-attr docutils literal notranslate"><span class="pre">data</span></code>
+attribute of the asset class. This can then be accessed by the user to modify the state of the asset
+during the simulation, for example, at resets.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObjectCfg.InitialStateCfg.pos">
+<span class="sig-name descname"><span class="pre">pos</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.12)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObjectCfg.InitialStateCfg.pos" title="Permalink to this definition">#</a></dt>
+<dd><p>Position of the root in simulation world frame. Defaults to (0.0, 0.0, 0.0).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObjectCfg.InitialStateCfg.rot">
+<span class="sig-name descname"><span class="pre">rot</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.12)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObjectCfg.InitialStateCfg.rot" title="Permalink to this definition">#</a></dt>
+<dd><p>Quaternion rotation (w, x, y, z) of the root in simulation world frame.
+Defaults to (1.0, 0.0, 0.0, 0.0).</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObjectCfg.prim_path">
+<span class="sig-name descname"><span class="pre">prim_path</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObjectCfg.prim_path" title="Permalink to this definition">#</a></dt>
+<dd><p>Prim path (or expression) to the asset.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The expression can contain the environment namespace regex <code class="docutils literal notranslate"><span class="pre">{ENV_REGEX_NS}</span></code> which
+will be replaced with the environment namespace.</p>
+<p>Example: <code class="docutils literal notranslate"><span class="pre">{ENV_REGEX_NS}/Robot</span></code> will be replaced with <code class="docutils literal notranslate"><span class="pre">/World/envs/env_.*/Robot</span></code>.</p>
+</div>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObjectCfg.spawn">
+<span class="sig-name descname"><span class="pre">spawn</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.SpawnerCfg" title="omni.isaac.lab.sim.spawners.spawner_cfg.SpawnerCfg"><span class="pre">SpawnerCfg</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObjectCfg.spawn" title="Permalink to this definition">#</a></dt>
+<dd><p>Spawn configuration for the asset. Defaults to None.</p>
+<p>If None, then no prims are spawned by the asset class. Instead, it is assumed that the
+asset is already present in the scene.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObjectCfg.init_state">
+<span class="sig-name descname"><span class="pre">init_state</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObjectCfg.InitialStateCfg" title="omni.isaac.lab.assets.asset_base_cfg.AssetBaseCfg.InitialStateCfg"><span class="pre">InitialStateCfg</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObjectCfg.init_state" title="Permalink to this definition">#</a></dt>
+<dd><p>Initial state of the rigid object. Defaults to identity pose.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObjectCfg.collision_group">
+<span class="sig-name descname"><span class="pre">collision_group</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Literal[0,</span> <span class="pre">-1]</span></em><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObjectCfg.collision_group" title="Permalink to this definition">#</a></dt>
+<dd><p>Collision group of the asset. Defaults to <code class="docutils literal notranslate"><span class="pre">0</span></code>.</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">-1</span></code>: global collision group (collides with all assets in the scene).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">0</span></code>: local collision group (collides with other assets in the same environment).</p></li>
+</ul>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObjectCfg.debug_vis">
+<span class="sig-name descname"><span class="pre">debug_vis</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObjectCfg.debug_vis" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether to enable debug visualization for the asset. Defaults to <code class="docutils literal notranslate"><span class="pre">False</span></code>.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObjectCfg.visualizer_cfg">
+<span class="sig-name descname"><span class="pre">visualizer_cfg</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="omni.isaac.lab.markers.html#omni.isaac.lab.markers.VisualizationMarkersCfg" title="omni.isaac.lab.markers.visualization_markers.VisualizationMarkersCfg"><span class="pre">VisualizationMarkersCfg</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObjectCfg.visualizer_cfg" title="Permalink to this definition">#</a></dt>
+<dd><p>The configuration object for the visualization markers. Defaults to DEFORMABLE_TARGET_MARKER_CFG.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This attribute is only used when debug visualization is enabled.</p>
+</div>
 </dd></dl>
 
 </dd></dl>
@@ -3639,6 +4347,66 @@ This is accessible in the articulation data through <a class="reference internal
 </li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#deformable-object">Deformable Object</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObject"><code class="docutils literal notranslate"><span class="pre">DeformableObject</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObject.cfg"><code class="docutils literal notranslate"><span class="pre">DeformableObject.cfg</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObject.__init__"><code class="docutils literal notranslate"><span class="pre">DeformableObject.__init__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObject.data"><code class="docutils literal notranslate"><span class="pre">DeformableObject.data</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObject.num_instances"><code class="docutils literal notranslate"><span class="pre">DeformableObject.num_instances</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObject.num_bodies"><code class="docutils literal notranslate"><span class="pre">DeformableObject.num_bodies</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObject.root_physx_view"><code class="docutils literal notranslate"><span class="pre">DeformableObject.root_physx_view</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObject.material_physx_view"><code class="docutils literal notranslate"><span class="pre">DeformableObject.material_physx_view</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObject.max_sim_elements_per_body"><code class="docutils literal notranslate"><span class="pre">DeformableObject.max_sim_elements_per_body</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObject.max_collision_elements_per_body"><code class="docutils literal notranslate"><span class="pre">DeformableObject.max_collision_elements_per_body</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObject.max_sim_vertices_per_body"><code class="docutils literal notranslate"><span class="pre">DeformableObject.max_sim_vertices_per_body</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObject.max_collision_vertices_per_body"><code class="docutils literal notranslate"><span class="pre">DeformableObject.max_collision_vertices_per_body</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObject.reset"><code class="docutils literal notranslate"><span class="pre">DeformableObject.reset()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObject.write_data_to_sim"><code class="docutils literal notranslate"><span class="pre">DeformableObject.write_data_to_sim()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObject.update"><code class="docutils literal notranslate"><span class="pre">DeformableObject.update()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObject.write_nodal_state_to_sim"><code class="docutils literal notranslate"><span class="pre">DeformableObject.write_nodal_state_to_sim()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObject.write_nodal_pos_to_sim"><code class="docutils literal notranslate"><span class="pre">DeformableObject.write_nodal_pos_to_sim()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObject.write_nodal_velocity_to_sim"><code class="docutils literal notranslate"><span class="pre">DeformableObject.write_nodal_velocity_to_sim()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObject.write_nodal_kinematic_target_to_sim"><code class="docutils literal notranslate"><span class="pre">DeformableObject.write_nodal_kinematic_target_to_sim()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObject.transform_nodal_pos"><code class="docutils literal notranslate"><span class="pre">DeformableObject.transform_nodal_pos()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObject.device"><code class="docutils literal notranslate"><span class="pre">DeformableObject.device</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObject.has_debug_vis_implementation"><code class="docutils literal notranslate"><span class="pre">DeformableObject.has_debug_vis_implementation</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObject.is_initialized"><code class="docutils literal notranslate"><span class="pre">DeformableObject.is_initialized</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObject.set_debug_vis"><code class="docutils literal notranslate"><span class="pre">DeformableObject.set_debug_vis()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectData"><code class="docutils literal notranslate"><span class="pre">DeformableObjectData</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectData.update"><code class="docutils literal notranslate"><span class="pre">DeformableObjectData.update()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectData.default_nodal_state_w"><code class="docutils literal notranslate"><span class="pre">DeformableObjectData.default_nodal_state_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectData.nodal_kinematic_target"><code class="docutils literal notranslate"><span class="pre">DeformableObjectData.nodal_kinematic_target</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectData.nodal_pos_w"><code class="docutils literal notranslate"><span class="pre">DeformableObjectData.nodal_pos_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectData.nodal_vel_w"><code class="docutils literal notranslate"><span class="pre">DeformableObjectData.nodal_vel_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectData.nodal_state_w"><code class="docutils literal notranslate"><span class="pre">DeformableObjectData.nodal_state_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectData.sim_element_quat_w"><code class="docutils literal notranslate"><span class="pre">DeformableObjectData.sim_element_quat_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectData.collision_element_quat_w"><code class="docutils literal notranslate"><span class="pre">DeformableObjectData.collision_element_quat_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectData.sim_element_deform_gradient_w"><code class="docutils literal notranslate"><span class="pre">DeformableObjectData.sim_element_deform_gradient_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectData.collision_element_deform_gradient_w"><code class="docutils literal notranslate"><span class="pre">DeformableObjectData.collision_element_deform_gradient_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectData.sim_element_stress_w"><code class="docutils literal notranslate"><span class="pre">DeformableObjectData.sim_element_stress_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectData.collision_element_stress_w"><code class="docutils literal notranslate"><span class="pre">DeformableObjectData.collision_element_stress_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectData.root_pos_w"><code class="docutils literal notranslate"><span class="pre">DeformableObjectData.root_pos_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectData.root_vel_w"><code class="docutils literal notranslate"><span class="pre">DeformableObjectData.root_vel_w</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectCfg"><code class="docutils literal notranslate"><span class="pre">DeformableObjectCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectCfg.InitialStateCfg"><code class="docutils literal notranslate"><span class="pre">DeformableObjectCfg.InitialStateCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectCfg.InitialStateCfg.pos"><code class="docutils literal notranslate"><span class="pre">DeformableObjectCfg.InitialStateCfg.pos</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectCfg.InitialStateCfg.rot"><code class="docutils literal notranslate"><span class="pre">DeformableObjectCfg.InitialStateCfg.rot</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectCfg.prim_path"><code class="docutils literal notranslate"><span class="pre">DeformableObjectCfg.prim_path</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectCfg.spawn"><code class="docutils literal notranslate"><span class="pre">DeformableObjectCfg.spawn</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectCfg.init_state"><code class="docutils literal notranslate"><span class="pre">DeformableObjectCfg.init_state</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectCfg.collision_group"><code class="docutils literal notranslate"><span class="pre">DeformableObjectCfg.collision_group</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectCfg.debug_vis"><code class="docutils literal notranslate"><span class="pre">DeformableObjectCfg.debug_vis</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.DeformableObjectCfg.visualizer_cfg"><code class="docutils literal notranslate"><span class="pre">DeformableObjectCfg.visualizer_cfg</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
 </ul>
   </nav></div>
 
@@ -3672,7 +4440,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Aug 18, 2024.
+  Last updated on Aug 20, 2024.
   <br/>
 </p>
   </div>
