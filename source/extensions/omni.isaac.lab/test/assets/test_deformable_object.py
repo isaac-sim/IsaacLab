@@ -162,7 +162,7 @@ class TestDeformableObject(unittest.TestCase):
                             (num_cubes, cube_object.max_sim_elements_per_body, 4),
                         )
                         self.assertEqual(
-                            cube_object.data.sim_element_deform_grad_w.shape,
+                            cube_object.data.sim_element_deform_gradient_w.shape,
                             (num_cubes, cube_object.max_sim_elements_per_body, 3, 3),
                         )
                         self.assertEqual(
@@ -174,7 +174,7 @@ class TestDeformableObject(unittest.TestCase):
                             (num_cubes, cube_object.max_collision_elements_per_body, 4),
                         )
                         self.assertEqual(
-                            cube_object.data.collision_element_deform_grad_w.shape,
+                            cube_object.data.collision_element_deform_gradient_w.shape,
                             (num_cubes, cube_object.max_collision_elements_per_body, 3, 3),
                         )
                         self.assertEqual(

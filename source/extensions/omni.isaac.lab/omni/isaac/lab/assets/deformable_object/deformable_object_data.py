@@ -58,8 +58,8 @@ class DeformableObjectData:
         self._sim_element_quat_w = TimestampedBuffer()
         self._collision_element_quat_w = TimestampedBuffer()
         # -- mesh element-wise deformation gradients
-        self._sim_element_deform_grad_w = TimestampedBuffer()
-        self._collision_element_deform_grad_w = TimestampedBuffer()
+        self._sim_element_deform_gradient_w = TimestampedBuffer()
+        self._collision_element_deform_gradient_w = TimestampedBuffer()
         # -- mesh element-wise stresses
         self._sim_element_stress_w = TimestampedBuffer()
         self._collision_element_stress_w = TimestampedBuffer()
@@ -162,32 +162,32 @@ class DeformableObjectData:
         return self._collision_element_quat_w.data
 
     @property
-    def sim_element_deform_grad_w(self):
+    def sim_element_deform_gradient_w(self):
         """Simulation mesh element-wise second-order deformation gradient tensors for the deformable bodies
         in simulation world frame. Shape is (num_instances, max_sim_elements_per_body, 3, 3).
         """
-        if self._sim_element_deform_grad_w.timestamp < self._sim_timestamp:
+        if self._sim_element_deform_gradient_w.timestamp < self._sim_timestamp:
             # set the buffer data and timestamp
-            self._sim_element_deform_grad_w.data = (
+            self._sim_element_deform_gradient_w.data = (
                 self._root_physx_view.get_sim_element_deformation_gradients().view(
                     self._root_physx_view.count, -1, 3, 3
                 )
             )
-            self._sim_element_deform_grad_w.timestamp = self._sim_timestamp
-        return self._sim_element_deform_grad_w.data
+            self._sim_element_deform_gradient_w.timestamp = self._sim_timestamp
+        return self._sim_element_deform_gradient_w.data
 
     @property
-    def collision_element_deform_grad_w(self):
+    def collision_element_deform_gradient_w(self):
         """Collision mesh element-wise second-order deformation gradient tensors for the deformable bodies
         in simulation world frame. Shape is (num_instances, max_collision_elements_per_body, 3, 3).
         """
-        if self._collision_element_deform_grad_w.timestamp < self._sim_timestamp:
+        if self._collision_element_deform_gradient_w.timestamp < self._sim_timestamp:
             # set the buffer data and timestamp
-            self._collision_element_deform_grad_w.data = (
+            self._collision_element_deform_gradient_w.data = (
                 self._root_physx_view.get_element_deformation_gradients().view(self._root_physx_view.count, -1, 3, 3)
             )
-            self._collision_element_deform_grad_w.timestamp = self._sim_timestamp
-        return self._collision_element_deform_grad_w.data
+            self._collision_element_deform_gradient_w.timestamp = self._sim_timestamp
+        return self._collision_element_deform_gradient_w.data
 
     @property
     def sim_element_stress_w(self):
