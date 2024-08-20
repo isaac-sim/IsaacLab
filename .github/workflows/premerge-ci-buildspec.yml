@@ -16,6 +16,7 @@ phases:
   build:
     commands:
       - echo "Running tests on EC2 instance"
+      - SRC_DIR=$(basename $CODEBUILD_SRC_DIR)
       - cd ..
       - |
         bash -c '
@@ -24,7 +25,7 @@ phases:
           local wait_time=10
           local count=0
           while [ $count -lt $retries ]; do
-            scp -r IsaacLab ubuntu@$EC2_INSTANCE_IP:~
+            scp -r $SRC_DIR ubuntu@$EC2_INSTANCE_IP:~
             if [ $? -eq 0 ]; then
               echo "SCP command succeeded"
               return 0
@@ -39,7 +40,7 @@ phases:
         retry_scp
         '
       - ssh ubuntu@$EC2_INSTANCE_IP "docker login -u \\\$oauthtoken -p $NGC_TOKEN nvcr.io"
-      - ssh ubuntu@$EC2_INSTANCE_IP "cd IsaacLab;
+      - ssh ubuntu@$EC2_INSTANCE_IP "cd $SRC_DIR;
           docker build -t isaac-lab-dev --build-arg ISAACSIM_VERSION_ARG=4.1.0 --build-arg ISAACSIM_ROOT_PATH_ARG=/isaac-sim --build-arg ISAACLAB_PATH_ARG=/workspace/isaaclab --build-arg DOCKER_USER_HOME_ARG=/root -f docker/Dockerfile.base . ;
           docker run --rm --entrypoint bash --gpus all --network=host --name isaac-lab-test isaac-lab-dev ./isaaclab.sh -t &&
           exit $?"
