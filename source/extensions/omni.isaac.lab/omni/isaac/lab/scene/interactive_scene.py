@@ -14,7 +14,15 @@ from omni.isaac.core.prims import XFormPrimView
 from pxr import PhysxSchema
 
 import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.assets import Articulation, ArticulationCfg, AssetBaseCfg, RigidObject, RigidObjectCfg
+from omni.isaac.lab.assets import (
+    Articulation,
+    ArticulationCfg,
+    AssetBaseCfg,
+    DeformableObject,
+    DeformableObjectCfg,
+    RigidObject,
+    RigidObjectCfg,
+)
 from omni.isaac.lab.sensors import ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg
 from omni.isaac.lab.terrains import TerrainImporter, TerrainImporterCfg
 
@@ -101,6 +109,7 @@ class InteractiveScene:
         # initialize scene elements
         self._terrain = None
         self._articulations = dict()
+        self._deformable_objects = dict()
         self._rigid_objects = dict()
         self._sensors = dict()
         self._extras = dict()
@@ -278,6 +287,11 @@ class InteractiveScene:
         return self._articulations
 
     @property
+    def deformable_objects(self) -> dict[str, DeformableObject]:
+        """A dictionary of deformable objects in the scene."""
+        return self._deformable_objects
+
+    @property
     def rigid_objects(self) -> dict[str, RigidObject]:
         """A dictionary of rigid objects in the scene."""
         return self._rigid_objects
@@ -320,6 +334,8 @@ class InteractiveScene:
         # -- assets
         for articulation in self._articulations.values():
             articulation.reset(env_ids)
+        for deformable_object in self._deformable_objects.values():
+            deformable_object.reset(env_ids)
         for rigid_object in self._rigid_objects.values():
             rigid_object.reset(env_ids)
         # -- sensors
@@ -331,6 +347,8 @@ class InteractiveScene:
         # -- assets
         for articulation in self._articulations.values():
             articulation.write_data_to_sim()
+        for deformable_object in self._deformable_objects.values():
+            deformable_object.write_data_to_sim()
         for rigid_object in self._rigid_objects.values():
             rigid_object.write_data_to_sim()
 
@@ -343,6 +361,8 @@ class InteractiveScene:
         # -- assets
         for articulation in self._articulations.values():
             articulation.update(dt)
+        for deformable_object in self._deformable_objects.values():
+            deformable_object.update(dt)
         for rigid_object in self._rigid_objects.values():
             rigid_object.update(dt)
         # -- sensors
@@ -360,7 +380,13 @@ class InteractiveScene:
             The keys of the scene entities.
         """
         all_keys = ["terrain"]
-        for asset_family in [self._articulations, self._rigid_objects, self._sensors, self._extras]:
+        for asset_family in [
+            self._articulations,
+            self._deformable_objects,
+            self._rigid_objects,
+            self._sensors,
+            self._extras,
+        ]:
             all_keys += list(asset_family.keys())
         return all_keys
 
@@ -379,7 +405,13 @@ class InteractiveScene:
 
         all_keys = ["terrain"]
         # check if it is in other dictionaries
-        for asset_family in [self._articulations, self._rigid_objects, self._sensors, self._extras]:
+        for asset_family in [
+            self._articulations,
+            self._deformable_objects,
+            self._rigid_objects,
+            self._sensors,
+            self._extras,
+        ]:
             out = asset_family.get(key)
             # if found, return
             if out is not None:
@@ -418,6 +450,8 @@ class InteractiveScene:
                 self._terrain = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, ArticulationCfg):
                 self._articulations[asset_name] = asset_cfg.class_type(asset_cfg)
+            elif isinstance(asset_cfg, DeformableObjectCfg):
+                self._deformable_objects[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, RigidObjectCfg):
                 self._rigid_objects[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, SensorBaseCfg):
