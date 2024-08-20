@@ -140,11 +140,11 @@ class TestDeformableObject(unittest.TestCase):
                         # Check buffers that exists and have correct shapes
                         self.assertEqual(
                             cube_object.data.nodal_state_w.shape,
-                            (num_cubes, cube_object.max_sim_mesh_vertices_per_body, 6),
+                            (num_cubes, cube_object.max_sim_vertices_per_body, 6),
                         )
                         self.assertEqual(
                             cube_object.data.nodal_kinematic_target.shape,
-                            (num_cubes, cube_object.max_sim_mesh_vertices_per_body, 4),
+                            (num_cubes, cube_object.max_sim_vertices_per_body, 4),
                         )
                         self.assertEqual(cube_object.data.root_pos_w.shape, (num_cubes, 3))
                         self.assertEqual(cube_object.data.root_vel_w.shape, (num_cubes, 3))
@@ -155,6 +155,32 @@ class TestDeformableObject(unittest.TestCase):
                             sim.step()
                             # update object
                             cube_object.update(sim.cfg.dt)
+
+                        # check we can get all the sim data from the object
+                        self.assertEqual(
+                            cube_object.data.sim_element_quat_w.shape,
+                            (num_cubes, cube_object.max_sim_elements_per_body, 4),
+                        )
+                        self.assertEqual(
+                            cube_object.data.sim_element_deform_grad_w.shape,
+                            (num_cubes, cube_object.max_sim_elements_per_body, 3, 3),
+                        )
+                        self.assertEqual(
+                            cube_object.data.sim_element_stress_w.shape,
+                            (num_cubes, cube_object.max_sim_elements_per_body, 3, 3),
+                        )
+                        self.assertEqual(
+                            cube_object.data.collision_element_quat_w.shape,
+                            (num_cubes, cube_object.max_collision_elements_per_body, 4),
+                        )
+                        self.assertEqual(
+                            cube_object.data.collision_element_deform_grad_w.shape,
+                            (num_cubes, cube_object.max_collision_elements_per_body, 3, 3),
+                        )
+                        self.assertEqual(
+                            cube_object.data.collision_element_stress_w.shape,
+                            (num_cubes, cube_object.max_collision_elements_per_body, 3, 3),
+                        )
 
     def test_initialization_on_device_cpu(self):
         """Test that initialization fails with deformable body API on the CPU."""
@@ -251,7 +277,7 @@ class TestDeformableObject(unittest.TestCase):
 
                             # Set random state
                             state_dict[state_type_to_randomize] = torch.randn(
-                                num_cubes, cube_object.max_sim_mesh_vertices_per_body, 3, device=sim.device
+                                num_cubes, cube_object.max_sim_vertices_per_body, 3, device=sim.device
                             )
 
                             # perform simulation
