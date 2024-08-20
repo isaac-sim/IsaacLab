@@ -312,7 +312,9 @@ class TestDeformableObject(unittest.TestCase):
                                 else:
                                     quat_w = None
                                 # apply random pose to the object
-                                nodal_state[..., :3] = cube_object.transform_nodal_pos(nodal_state[..., :3], pos_w, quat_w)
+                                nodal_state[..., :3] = cube_object.transform_nodal_pos(
+                                    nodal_state[..., :3], pos_w, quat_w
+                                )
                                 # compute mean of initial nodal positions
                                 mean_nodal_pos_init = nodal_state[..., :3].mean(dim=1)
 
