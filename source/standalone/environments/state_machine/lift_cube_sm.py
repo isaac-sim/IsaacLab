@@ -276,6 +276,13 @@ def main():
             object_position = object_data.root_pos_w - env.unwrapped.scene.env_origins
             # -- target object frame
             desired_position = env.unwrapped.command_manager.get_command("object_pose")[..., :3]
+            # -- stacked cube frame
+            stacked_cube_data: RigidObjectData =  env.unwrapped.scene["stacked_cube"].data
+            stacked_cube_position = stacked_cube_data.root_pos_w - env.unwrapped.scene.env_origins
+            stacked_cube_orientation = stacked_cube_data.root_quat_w
+            print("object_position", object_position)
+            print("stacked_cube_position", stacked_cube_position)
+            print("stacked_cube_orientation", stacked_cube_orientation)
 
             # advance state machine
             actions = pick_sm.compute(

@@ -62,6 +62,18 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
     )
 
+    # stacked cube
+    stacked_cube = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/stacked_cube",
+        spawn=sim_utils.UsdFileCfg(
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
+            scale=(0.8, 0.8, 0.8),
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=False),
+            mass_props=sim_utils.MassPropertiesCfg(mass=0.8),
+            collision_props=sim_utils.CollisionPropertiesCfg(),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.5, 0.1, 0.021)),
+    )
 
 ##
 # MDP settings
