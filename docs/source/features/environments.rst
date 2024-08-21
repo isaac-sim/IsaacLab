@@ -75,7 +75,8 @@ for the reach environment:
     +----------------+---------------------------+-----------------------------------------------------------------------------+
     | |lift-cube|    | |lift-cube-link|          | Pick a cube and bring it to a sampled target position with the Franka robot |
     +----------------+---------------------------+-----------------------------------------------------------------------------+
-    | |cabi-franka|  | |cabi-franka-link|        | Grasp the handle of a cabinet's drawer and open it with the Franka robot    |
+    | |cabi-franka|  | | |cabi-franka-link|      | Grasp the handle of a cabinet's drawer and open it with the Franka robot    |
+    |                | | |franka-direct-link|    |                                                                             |
     +----------------+---------------------------+-----------------------------------------------------------------------------+
     | |cube-allegro| | |cube-allegro-link|       | In-hand reorientation of a cube using Allegro hand                          |
     |                | |allegro-direct-link|     |                                                                             |
@@ -98,6 +99,7 @@ for the reach environment:
 .. |lift-cube-ik-abs-link| replace:: `Isaac-Lift-Cube-Franka-IK-Abs-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/manipulation/lift/config/franka/ik_abs_env_cfg.py>`__
 .. |lift-cube-ik-rel-link| replace:: `Isaac-Lift-Cube-Franka-IK-Rel-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/manipulation/lift/config/franka/ik_rel_env_cfg.py>`__
 .. |cabi-franka-link| replace:: `Isaac-Open-Drawer-Franka-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/manipulation/cabinet/config/franka/joint_pos_env_cfg.py>`__
+.. |franka-direct-link| replace:: `Isaac-Franka-Cabinet-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/franka_cabinet/franka_cabinet_env.py>`__
 .. |cube-allegro-link| replace:: `Isaac-Repose-Cube-Allegro-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/manipulation/inhand/config/allegro_hand/allegro_env_cfg.py>`__
 .. |allegro-direct-link| replace:: `Isaac-Repose-Cube-Allegro-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/allegro_hand/allegro_hand_env_cfg.py>`__
 

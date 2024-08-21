@@ -6,9 +6,19 @@ Overview
    :alt: H1 Humanoid example using Isaac Lab
 
 **Isaac Lab** is a unified and modular framework for robot learning that aims to simplify common workflows
-in robotics research (such as RL, learning from demonstrations, and motion planning). It is built upon
+in robotics research (such as reinforcement learning, learning from demonstrations, and motion planning). It is built upon
 `NVIDIA Isaac Sim`_ to leverage the latest simulation capabilities for photo-realistic scenes, and fast
-and efficient simulation. The core objectives of the framework are:
+and efficient simulation.
+
+Isaac Lab provides over 26 environments, and we are actively working on adding more environments to the list. Current environments include Classic tasks - Cartpole, Cartpole with camera, Humanoid and Ant, fixed-arm and dexterous manipulation tasks - UR10, Franka, Allegro, Shadow Hand, Legged locomotion tasks - Quadrupeds and Humanoids, Navigation tasks - Quadruped, and Quadcopter. It features over 16 robots:
+
+- Classic - Cartpole, Humanoid, Ant
+- Fixed-Arms and Hands - UR10, Franka, Allegro, Shadow Hand
+- Quadrupeds – Anybotics Anymal-B, Anymal-C, Anymal-D, Unitree A1, Unitree Go1, Unitree Go2, Boston Dynamics Spot
+- Humanoids - Unitree H1, Unitree G1
+- Quadcopter - Crazyflie
+
+The core objectives of the framework are:
 
 - **Modularity**: Easily customize and add new environments, robots, and sensors.
 - **Agility**: Adapt to the changing needs of the community.
@@ -60,13 +70,39 @@ Table of Contents
    :caption: Getting Started
 
    source/setup/installation/index
-   source/setup/developer
-   source/setup/sample
-   source/setup/template
    source/setup/faq
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
+   :caption: Overview
+   :titlesonly:
+
+   source/overview/developer-guide/index
+   source/overview/environment-workflows/index
+   source/overview/reinforcement-learning/index
+   source/overview/teleop_imitation
+   source/overview/sample_scripts
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Resources
+   :titlesonly:
+
+   source/tutorials/index
+   source/how-to/index
+   source/deployment/index
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Migration Guides
+   :titlesonly:
+
+   source/migration/migrating_from_isaacgymenvs
+   source/migration/migrating_from_omniisaacgymenvs
+   source/migration/migrating_from_orbit
+
+.. toctree::
+   :maxdepth: 3
    :caption: Features
 
    source/features/task_workflows
@@ -80,27 +116,9 @@ Table of Contents
 
 .. toctree::
    :maxdepth: 1
-   :caption: Resources
-   :titlesonly:
-
-   source/tutorials/index
-   source/how-to/index
-   source/deployment/index
-
-.. toctree::
-   :maxdepth: 1
    :caption: Source API
 
    source/api/index
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Migration Guides
-   :titlesonly:
-
-   source/migration/migrating_from_isaacgymenvs
-   source/migration/migrating_from_omniisaacgymenvs
-   source/migration/migrating_from_orbit
 
 .. toctree::
    :maxdepth: 1

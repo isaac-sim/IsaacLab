@@ -64,7 +64,7 @@ class PhysxCfg:
     """
 
     min_velocity_iteration_count: int = 0
-    """Minimum number of solver position iterations (rigid bodies, cloth, particles etc.). Default is 0.
+    """Minimum number of solver velocity iterations (rigid bodies, cloth, particles etc.). Default is 0.
 
     .. note::
 
@@ -74,7 +74,7 @@ class PhysxCfg:
     """
 
     max_velocity_iteration_count: int = 255
-    """Maximum number of solver position iterations (rigid bodies, cloth, particles etc.). Default is 255.
+    """Maximum number of solver velocity iterations (rigid bodies, cloth, particles etc.). Default is 255.
 
     .. note::
 

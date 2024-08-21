@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Wrapper to configure an :class:`ManagerBasedRLEnv` instance to skrl environment.
+"""Wrapper to configure a :class:`ManagerBasedRLEnv` or :class:`DirectRLEnv` instance to skrl environment.
 
 The following example shows how to wrap an environment for skrl:
 
@@ -100,10 +100,12 @@ Vectorized environment wrapper.
 """
 
 
-def SkrlVecEnvWrapper(env: ManagerBasedRLEnv, ml_framework: Literal["torch", "jax", "jax-numpy"] = "torch"):
+def SkrlVecEnvWrapper(
+    env: ManagerBasedRLEnv | DirectRLEnv, ml_framework: Literal["torch", "jax", "jax-numpy"] = "torch"
+):
     """Wraps around Isaac Lab environment for skrl.
 
-    This function wraps around the Isaac Lab environment. Since the :class:`ManagerBasedRLEnv` environment
+    This function wraps around the Isaac Lab environment. Since the :class:`ManagerBasedRLEnv` or :class:`DirectRLEnv` environment
     wrapping functionality is defined within the skrl library itself, this implementation
     is maintained for compatibility with the structure of the extension that contains it.
     Internally it calls the :func:`wrap_env` from the skrl library API.
@@ -113,7 +115,7 @@ def SkrlVecEnvWrapper(env: ManagerBasedRLEnv, ml_framework: Literal["torch", "ja
         ml_framework: The ML framework to use for the wrapper. Defaults to "torch".
 
     Raises:
-        ValueError: When the environment is not an instance of :class:`ManagerBasedRLEnv`.
+        ValueError: When the environment is not an instance of :class:`ManagerBasedRLEnv` or :class:`DirectRLEnv`.
         ValueError: If the specified ML framework is not valid.
 
     Reference:

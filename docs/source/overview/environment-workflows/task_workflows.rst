@@ -68,7 +68,7 @@ for each component (such as the ``ObservationCfg`` and ``RewardCfg``).
     implementation, weight and additional parameters to be passed to the function. Users can define multiple
     reward terms and their weights to be used in the reward function.
 
-    .. literalinclude:: ../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/classic/cartpole/cartpole_env_cfg.py
+    .. literalinclude:: ../../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/classic/cartpole/cartpole_env_cfg.py
         :language: python
         :pyobject: RewardsCfg
 
@@ -105,14 +105,14 @@ for setting up the scene, processing the actions, computing the rewards, observa
 
     The following function is a part of the Cartpole environment class and is responsible for computing the rewards.
 
-    .. literalinclude:: ../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/cartpole/cartpole_env.py
+    .. literalinclude:: ../../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/cartpole/cartpole_env.py
         :language: python
         :pyobject: CartpoleEnv._get_rewards
         :dedent: 4
 
     It calls the :meth:`compute_rewards` function which is Torch JIT compiled for performance benefits.
 
-    .. literalinclude:: ../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/cartpole/cartpole_env.py
+    .. literalinclude:: ../../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/cartpole/cartpole_env.py
         :language: python
         :pyobject: compute_rewards
 
