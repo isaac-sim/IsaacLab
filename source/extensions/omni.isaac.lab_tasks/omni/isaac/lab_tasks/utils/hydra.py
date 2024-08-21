@@ -74,7 +74,7 @@ def hydra_task_config(task_name: str, agent_cfg_entry_point: str) -> Callable:
             # register the task to Hydra
             env_cfg, agent_cfg = register_task_to_hydra(task_name, agent_cfg_entry_point)
 
-            # define thr new Hydra main function
+            # define the new Hydra main function
             @hydra.main(config_path=None, config_name=task_name, version_base="1.3")
             def hydra_main(hydra_env_cfg: DictConfig, env_cfg=env_cfg, agent_cfg=agent_cfg):
                 # convert to a native dictionary
