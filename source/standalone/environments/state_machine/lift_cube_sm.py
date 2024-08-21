@@ -278,17 +278,19 @@ def main():
             desired_position = env.unwrapped.command_manager.get_command("object_pose")[..., :3]
             # -- stacked cube frame
             stacked_cube_data: RigidObjectData =  env.unwrapped.scene["stacked_cube"].data
-            stacked_cube_position = stacked_cube_data.root_pos_w - env.unwrapped.scene.env_origins
-            stacked_cube_orientation = stacked_cube_data.root_quat_w
-            print("object_position", object_position)
-            print("stacked_cube_position", stacked_cube_position)
-            print("stacked_cube_orientation", stacked_cube_orientation)
+            pre_place_position = stacked_cube_data.root_pos_w - env.unwrapped.scene.env_origins
+            # pre place position is higher than the stacked cube
+            pre_place_position[:, 2] += 0.07
+            pre_place_orientation = stacked_cube_data.root_quat_w
+            # print("object_position", object_position)
+            # print("stacked_cube_position", pre_place_position)
+            # print("stacked_cube_orientation", pre_place_orientation)
 
             # advance state machine
             actions = pick_sm.compute(
                 torch.cat([tcp_rest_position, tcp_rest_orientation], dim=-1),
                 torch.cat([object_position, desired_orientation], dim=-1),
-                torch.cat([desired_position, desired_orientation], dim=-1),
+                torch.cat([pre_place_position, desired_orientation], dim=-1),
             )
 
             # reset state machine
