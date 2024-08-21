@@ -43,6 +43,9 @@ exts."omni.kit.window.viewport".blockingGetViewportDrawable = false
 # Fix PlayButtonGroup error
 exts."omni.kit.widget.toolbar".PlayButton.enabled = false
 
+# disable replicator orchestrator for better runtime perf
+exts."omni.replicator.core".Orchestrator.enabled = false
+
 [settings.app.settings]
 persistent = true
 dev_build = false
