@@ -482,15 +482,14 @@ class AppLauncher:
         if launcher_args.get("cpu", False):
             raise ValueError("The `--cpu` flag is deprecated. Please use `--device cpu` instead.")
 
-        if "distributed" in launcher_args:
-            distributed_train = launcher_args["distributed"]
+        if "distributed" in launcher_args and launcher_args["distributed"]:
             # local rank (GPU id) in a current multi-gpu mode
             self.local_rank = int(os.getenv("LOCAL_RANK", "0"))
             # global rank (GPU id) in multi-gpu multi-node mode
             self.global_rank = int(os.getenv("RANK", "0"))
-            if distributed_train:
-                self.device_id = self.local_rank
-                launcher_args["multi_gpu"] = False
+
+            self.device_id = self.local_rank
+            launcher_args["multi_gpu"] = False
             # limit CPU threads to minimize thread context switching
             # this ensures processes do not take up all available threads and fight for resources
             num_cpu_cores = os.cpu_count()
@@ -570,6 +569,9 @@ class AppLauncher:
         # add Isaac Lab modules back to sys.modules
         for key, value in hacked_modules.items():
             sys.modules[key] = value
+        # remove the threadCount argument from sys.argv if it was added for distributed training
+        pattern = r"--/plugins/carb\.tasking\.plugin/threadCount=\d+"
+        sys.argv = [arg for arg in sys.argv if not re.match(pattern, arg)]
 
     def _rendering_enabled(self) -> bool:
         """Check if rendering is required by the app."""

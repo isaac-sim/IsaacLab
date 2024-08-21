@@ -16,7 +16,7 @@ cat <<EOT > job.sh
 #PBS -m bea -M "user@mail"
 
 # Pass the container profile first to run_singularity.sh, then all arguments intended for the executed script
-sh "$1/docker/cluster/run_singularity.sh" "$2" "${@:3}"
+bash "$1/docker/cluster/run_singularity.sh" "$1" "$2" "${@:3}"
 EOT
 
 qsub job.sh

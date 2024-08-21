@@ -3,7 +3,7 @@ Running an example with Docker
 
 From the root of the ``Isaac Lab`` repository,  the ``docker`` directory contains all the Docker relevant files. These include the three files
 (**Dockerfile**, **docker-compose.yaml**, **.env**) which are used by Docker, and an additional script that we use to interface with them,
-**container.sh**.
+**container.py**.
 
 In this tutorial, we will learn how to use the Isaac Lab Docker container for development. For a detailed description of the Docker setup,
 including installation and obtaining access to an Isaac Sim image, please reference the :ref:`deployment-docker`. For a description
@@ -18,26 +18,26 @@ To build the Isaac Lab container from the root of the Isaac Lab repository, we w
 
 .. code-block:: console
 
-   ./docker/container.sh start
+   python docker/container.py start
 
 
 The terminal will first pull the base IsaacSim image, build the Isaac Lab image's additional layers on top of it, and run the Isaac Lab container.
 This should take several minutes upon the first build but will be shorter in subsequent runs as Docker's caching prevents repeated work.
 If we run the command ``docker container ls`` on the terminal, the output will list the containers that are running on the system. If
-everything has been set up correctly, a container with the ``NAME`` **isaaclab** should appear, similar to below:
+everything has been set up correctly, a container with the ``NAME`` **isaac-lab-base** should appear, similar to below:
 
 
 .. code-block:: console
 
-   CONTAINER ID   IMAGE         COMMAND   CREATED           STATUS         PORTS     NAMES
-   483d1d5e2def   isaaclab      "bash"    30 seconds ago   Up 30 seconds             isaaclab
+   CONTAINER ID   IMAGE               COMMAND   CREATED           STATUS         PORTS     NAMES
+   483d1d5e2def   isaac-lab-base      "bash"    30 seconds ago   Up 30 seconds             isaac-lab-base
 
 
 Once the container is up and running, we can enter it from our terminal.
 
 .. code-block:: console
 
-   ./docker/container.sh enter
+   python docker/container.py enter
 
 
 On entering the Isaac Lab container, we are in the terminal as the superuser, ``root``. This environment contains a copy of the
@@ -105,7 +105,7 @@ the following command to retrieve our logs from the Docker container and put the
 
 .. code-block:: console
 
-  ./container.sh copy
+  ./container.py copy
 
 
 We will see a terminal readout reporting the artifacts we have retrieved from the container. If we navigate to
@@ -113,25 +113,25 @@ We will see a terminal readout reporting the artifacts we have retrieved from th
 by the script above.
 
 Each of the directories under ``artifacts`` corresponds to Docker `volumes`_ mapped to directories
-within the container and the ``container.sh copy`` command copies them from those `volumes`_ to these directories.
+within the container and the ``container.py copy`` command copies them from those `volumes`_ to these directories.
 
-We could return to the Isaac Lab Docker terminal environment by running ``container.sh enter`` again,
+We could return to the Isaac Lab Docker terminal environment by running ``container.py enter`` again,
 but we have retrieved our logs and wish to go inspect them. We can stop the Isaac Lab Docker container with the following command:
 
 .. code-block:: console
 
-  ./container.sh stop
+  ./container.py stop
 
 
 This will bring down the Docker Isaac Lab container. The image will persist and remain available for further use, as will
 the contents of any `volumes`_. If we wish to free up the disk space taken by the image, (~20.1GB), and do not mind repeating
-the build process when we next run ``./container.sh start``, we may enter the following command to delete the **isaaclab** image:
+the build process when we next run ``./container.py start``, we may enter the following command to delete the **isaac-lab-base** image:
 
 .. code-block:: console
 
-  docker image rm isaaclab
+  docker image rm isaac-lab-base
 
-A subsequent run of ``docker image ls`` will show that the image tagged **isaaclab** is now gone. We can repeat the process for the
+A subsequent run of ``docker image ls`` will show that the image tagged **isaac-lab-base** is now gone. We can repeat the process for the
 underlying NVIDIA container if we wish to free up more space. If a more powerful method of freeing resources from Docker is desired,
 please consult the documentation for the `docker prune`_ commands.
 

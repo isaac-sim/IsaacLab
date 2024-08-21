@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.10.0 (2024-08-14)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added support for the Hydra configuration system to all the train scripts. As a result, parameters of the environment
+  and the agent can be modified using command line arguments, for example ``env.actions.joint_effort.scale=10``.
+
+
 0.9.0 (2024-08-05)
 ~~~~~~~~~~~~~~~~~~~
 

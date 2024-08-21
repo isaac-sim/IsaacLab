@@ -172,11 +172,11 @@ class DirectRLEnv(gym.Env):
         # setup noise cfg for adding action and observation noise
         if self.cfg.action_noise_model:
             self._action_noise_model: NoiseModel = self.cfg.action_noise_model.class_type(
-                self.num_envs, self.cfg.action_noise_model, self.device
+                self.cfg.action_noise_model, num_envs=self.num_envs, device=self.device
             )
         if self.cfg.observation_noise_model:
             self._observation_noise_model: NoiseModel = self.cfg.observation_noise_model.class_type(
-                self.num_envs, self.cfg.observation_noise_model, self.device
+                self.cfg.observation_noise_model, num_envs=self.num_envs, device=self.device
             )
 
         # perform events at the start of the simulation
@@ -519,7 +519,7 @@ class DirectRLEnv(gym.Env):
         if self.cfg.events:
             if "reset" in self.event_manager.available_modes:
                 env_step_count = self._sim_step_counter // self.cfg.decimation
-                self.event_manager.apply(env_ids=env_ids, mode="reset", global_env_step_count=env_step_count)
+                self.event_manager.apply(mode="reset", env_ids=env_ids, global_env_step_count=env_step_count)
 
         # reset noise models
         if self.cfg.action_noise_model:

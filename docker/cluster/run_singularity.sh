@@ -1,6 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-echo "(run_singularity.py): Called on compute node with container profile $1 and arguments ${@:2}"
+echo "(run_singularity.py): Called on compute node from current isaaclab directory $1 with container profile $2 and arguments ${@:3}"
 
 #==
 # Helper functions
@@ -34,6 +34,7 @@ setup_directories() {
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 # load variables to set the Isaac Lab path on the cluster
+source $SCRIPT_DIR/.env.cluster
 source $SCRIPT_DIR/../.env.base
 
 # make sure that all directories exists in cache directory
@@ -41,13 +42,17 @@ setup_directories
 # copy all cache files
 cp -r $CLUSTER_ISAAC_SIM_CACHE_DIR $TMPDIR
 
-# copy Isaac Lab source code
+# make sure logs directory exists (in the permanent isaaclab directory)
 mkdir -p "$CLUSTER_ISAACLAB_DIR/logs"
 touch "$CLUSTER_ISAACLAB_DIR/logs/.keep"
-cp -r $CLUSTER_ISAACLAB_DIR $TMPDIR
+
+# copy the temporary isaaclab directory with the latest changes to the compute node
+cp -r $1 $TMPDIR
+# Get the directory name
+dir_name=$(basename "$1")
 
 # copy container to the compute node
-tar -xf $CLUSTER_SIF_PATH/$1.tar  -C $TMPDIR
+tar -xf $CLUSTER_SIF_PATH/$2.tar  -C $TMPDIR
 
 # execute command in singularity container
 # NOTE: ISAACLAB_PATH is normally set in `isaaclab.sh` but we directly call the isaac-sim python because we sync the entire
@@ -61,12 +66,17 @@ singularity exec \
     -B $TMPDIR/docker-isaac-sim/logs:${DOCKER_USER_HOME}/.nvidia-omniverse/logs:rw \
     -B $TMPDIR/docker-isaac-sim/data:${DOCKER_USER_HOME}/.local/share/ov/data:rw \
     -B $TMPDIR/docker-isaac-sim/documents:${DOCKER_USER_HOME}/Documents:rw \
-    -B $TMPDIR/isaaclab:/workspace/isaaclab:rw \
+    -B $TMPDIR/$dir_name:/workspace/isaaclab:rw \
     -B $CLUSTER_ISAACLAB_DIR/logs:/workspace/isaaclab/logs:rw \
-    --nv --writable --containall $TMPDIR/$1.sif \
-    bash -c "export ISAACLAB_PATH=/workspace/isaaclab && cd /workspace/isaaclab && /isaac-sim/python.sh ${CLUSTER_PYTHON_EXECUTABLE} ${@:2}"
+    --nv --writable --containall $TMPDIR/$2.sif \
+    bash -c "export ISAACLAB_PATH=/workspace/isaaclab && cd /workspace/isaaclab && /isaac-sim/python.sh ${CLUSTER_PYTHON_EXECUTABLE} ${@:3}"
 
 # copy resulting cache files back to host
-cp -r $TMPDIR/docker-isaac-sim $CLUSTER_ISAAC_SIM_CACHE_DIR/..
+rsync -azPv $TMPDIR/docker-isaac-sim $CLUSTER_ISAAC_SIM_CACHE_DIR/..
+
+# if defined, remove the temporary isaaclab directory pushed when the job was submitted
+if $REMOVE_CODE_COPY_AFTER_JOB; then
+    rm -rf $1
+fi
 
 echo "(run_singularity.py): Return"
