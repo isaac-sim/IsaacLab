@@ -136,7 +136,7 @@ def infer_state_machine(
             sm_state[tid] = PickSmState.LIFT_OBJECT
             sm_wait_time[tid] = 0.0
     elif state == PickSmState.LIFT_OBJECT:
-        des_ee_pose[tid] = des_object_pose[tid]
+        des_ee_pose[tid] = wp.transform_multiply(offset[tid], des_object_pose[tid])
         gripper_state[tid] = GripperState.CLOSE
         # TODO: error between current and desired ee pose below threshold
         # wait for a while
@@ -145,7 +145,7 @@ def infer_state_machine(
             sm_state[tid] = PickSmState.RELEASE_OBJECT
             sm_wait_time[tid] = 0.0
     elif state == PickSmState.RELEASE_OBJECT:
-        des_ee_pose[tid] = des_object_pose[tid]
+        des_ee_pose[tid] = wp.transform_multiply(offset[tid], des_object_pose[tid])
         gripper_state[tid] = GripperState.OPEN
         # TODO: error between current and desired ee pose below threshold
         # wait for a while
@@ -169,7 +169,7 @@ class PickAndLiftSm:
     2. APPROACH_ABOVE_OBJECT: The robot moves above the object.
     3. APPROACH_OBJECT: The robot moves to the object.
     4. GRASP_OBJECT: The robot grasps the object.
-    5. LIFT_OBJECT: The robot lifts the object to the desired pose. 
+    5. LIFT_OBJECT: The robot lifts the object to the pre-place pose. 
     6. RELEASE_OBJECT: The robot opens the gripper. This is the final state.
     """
 
@@ -194,7 +194,7 @@ class PickAndLiftSm:
         self.des_ee_pose = torch.zeros((self.num_envs, 7), device=self.device)
         self.des_gripper_state = torch.full((self.num_envs,), 0.0, device=self.device)
 
-        # approach above object offset
+        # approach above object offset and pre-place offset
         self.offset = torch.zeros((self.num_envs, 7), device=self.device)
         self.offset[:, 2] = 0.1
         self.offset[:, -1] = 1.0  # warp expects quaternion as (x, y, z, w)
@@ -290,19 +290,14 @@ def main():
             desired_position = env.unwrapped.command_manager.get_command("object_pose")[..., :3]
             # -- stacked cube frame
             stacked_cube_data: RigidObjectData =  env.unwrapped.scene["stacked_cube"].data
-            pre_place_position = stacked_cube_data.root_pos_w - env.unwrapped.scene.env_origins
-            # pre place position is higher than the stacked cube
-            pre_place_position[:, 2] += 0.1
-            pre_place_orientation = stacked_cube_data.root_quat_w
-            # print("object_position", object_position)
-            # print("stacked_cube_position", pre_place_position)
-            # print("stacked_cube_orientation", pre_place_orientation)
+            stacked_cube_position = stacked_cube_data.root_pos_w - env.unwrapped.scene.env_origins
+            stacked_cube_orientation = stacked_cube_data.root_quat_w
 
             # advance state machine
             actions = pick_sm.compute(
                 torch.cat([tcp_rest_position, tcp_rest_orientation], dim=-1),
                 torch.cat([object_position, desired_orientation], dim=-1),
-                torch.cat([pre_place_position, desired_orientation], dim=-1),
+                torch.cat([stacked_cube_position, desired_orientation], dim=-1),
             )
 
             # reset state machine
