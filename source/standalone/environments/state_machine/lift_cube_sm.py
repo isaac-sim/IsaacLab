@@ -70,6 +70,7 @@ class PickSmState:
     APPROACH_OBJECT = wp.constant(2)
     GRASP_OBJECT = wp.constant(3)
     LIFT_OBJECT = wp.constant(4)
+    RELEASE_OBJECT = wp.constant(5)
 
 
 class PickSmWaitTime:
@@ -80,6 +81,7 @@ class PickSmWaitTime:
     APPROACH_OBJECT = wp.constant(0.6)
     GRASP_OBJECT = wp.constant(0.3)
     LIFT_OBJECT = wp.constant(1.0)
+    RELEASE_OBJECT = wp.constant(0.3)
 
 
 @wp.kernel
@@ -140,7 +142,16 @@ def infer_state_machine(
         # wait for a while
         if sm_wait_time[tid] >= PickSmWaitTime.LIFT_OBJECT:
             # move to next state and reset wait time
-            sm_state[tid] = PickSmState.LIFT_OBJECT
+            sm_state[tid] = PickSmState.RELEASE_OBJECT
+            sm_wait_time[tid] = 0.0
+    elif state == PickSmState.RELEASE_OBJECT:
+        des_ee_pose[tid] = des_object_pose[tid]
+        gripper_state[tid] = GripperState.OPEN
+        # TODO: error between current and desired ee pose below threshold
+        # wait for a while
+        if sm_wait_time[tid] >= PickSmWaitTime.RELEASE_OBJECT:
+            # move to next state and reset wait time
+            sm_state[tid] = PickSmState.RELEASE_OBJECT
             sm_wait_time[tid] = 0.0
     # increment wait time
     sm_wait_time[tid] = sm_wait_time[tid] + dt[tid]
@@ -158,7 +169,8 @@ class PickAndLiftSm:
     2. APPROACH_ABOVE_OBJECT: The robot moves above the object.
     3. APPROACH_OBJECT: The robot moves to the object.
     4. GRASP_OBJECT: The robot grasps the object.
-    5. LIFT_OBJECT: The robot lifts the object to the desired pose. This is the final state.
+    5. LIFT_OBJECT: The robot lifts the object to the desired pose. 
+    6. RELEASE_OBJECT: The robot opens the gripper. This is the final state.
     """
 
     def __init__(self, dt: float, num_envs: int, device: torch.device | str = "cpu"):
@@ -280,7 +292,7 @@ def main():
             stacked_cube_data: RigidObjectData =  env.unwrapped.scene["stacked_cube"].data
             pre_place_position = stacked_cube_data.root_pos_w - env.unwrapped.scene.env_origins
             # pre place position is higher than the stacked cube
-            pre_place_position[:, 2] += 0.07
+            pre_place_position[:, 2] += 0.1
             pre_place_orientation = stacked_cube_data.root_quat_w
             # print("object_position", object_position)
             # print("stacked_cube_position", pre_place_position)
