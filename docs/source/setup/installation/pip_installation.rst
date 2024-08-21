@@ -74,6 +74,12 @@ compatibility issues with some Linux distributions. If you encounter any issues,
 
             pip install torch==2.4.0 --index-url https://download.pytorch.org/whl/cu121
 
+-  Before installing Isaac Sim, ensure the latest pip version is installed. To update pip, run
+
+   .. code-block:: bash
+
+      pip install --upgrade pip
+
 
 -  Then, install the Isaac Sim packages necessary for running Isaac Lab:
 
