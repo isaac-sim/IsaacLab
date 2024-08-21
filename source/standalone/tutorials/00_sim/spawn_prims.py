@@ -53,53 +53,26 @@ def design_scene():
     # create a new xform prim for all objects to be spawned under
     prim_utils.create_prim("/World/Objects", "Xform")
     # spawn a red cone
-    # cfg_cone = sim_utils.ConeCfg(
-    #     radius=0.15,
-    #     height=0.5,
-    #     visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0)),
-    # )
-    # cfg_cone.func("/World/Objects/Cone1", cfg_cone, translation=(-1.0, 1.0, 1.0))
-    # cfg_cone.func("/World/Objects/Cone2", cfg_cone, translation=(-1.0, -1.0, 1.0))
+    cfg_cone = sim_utils.ConeCfg(
+        radius=0.15,
+        height=0.5,
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0)),
+    )
+    cfg_cone.func("/World/Objects/Cone1", cfg_cone, translation=(-1.0, 1.0, 1.0))
+    cfg_cone.func("/World/Objects/Cone2", cfg_cone, translation=(-1.0, -1.0, 1.0))
 
     # spawn a green cone with colliders and rigid body
-    # cfg_cone_rigid = sim_utils.ConeCfg(
-    #     radius=0.15,
-    #     height=0.5,
-    #     rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-    #     mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-    #     collision_props=sim_utils.CollisionPropertiesCfg(),
-    #     visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0)),
-    # )
-    # cfg_cone_rigid.func(
-    #     "/World/Objects/ConeRigid", cfg_cone_rigid, translation=(0.0, 0.0, 2.0), orientation=(0.5, 0.0, 0.5, 0.0)
-    # )
-
-    cfg_chef_can = sim_utils.UsdFileCfg(
-        usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/YCB/Axis_Aligned_Physics/003_cracker_box.usd", 
+    cfg_cone_rigid = sim_utils.ConeCfg(
+        radius=0.15,
+        height=0.5,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(),
         mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
         collision_props=sim_utils.CollisionPropertiesCfg(),
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0)),
     )
-    cfg_chef_can.func("/World/Objects/chef_can", cfg_chef_can, translation=(0.0, 0.0, 1.55))
-
-    cfg_sugar_box = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/YCB/Axis_Aligned_Physics/004_sugar_box.usd")
-    cfg_sugar_box.func("/World/Objects/sugar_box", cfg_sugar_box, translation=(0.2, -0.2, 1.55))
-
-    cfg_tomato_soup_can = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/YCB/Axis_Aligned_Physics/005_tomato_soup_can.usd")
-    cfg_tomato_soup_can.func("/World/Objects/tomato_soup_can", cfg_tomato_soup_can, translation=(-0.2, -0.2, 1.55))
-
-    cfg_mustard_bottle = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/YCB/Axis_Aligned_Physics/006_mustard_bottle.usd")
-    cfg_mustard_bottle.func("/World/Objects/mustard_bottle", cfg_mustard_bottle, translation=(-0.2, 0.2, 1.55))
-
-    # This is good Blocks/blue_block.usd,  Blocks/DexCube/dex_cube_instanceable.usd
-    cube_cfg = sim_utils.UsdFileCfg(
-        usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/blue_block.usd",
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-        mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-        collision_props=sim_utils.CollisionPropertiesCfg(),
-        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 1.0, 1.0)),
+    cfg_cone_rigid.func(
+        "/World/Objects/ConeRigid", cfg_cone_rigid, translation=(0.0, 0.0, 2.0), orientation=(0.5, 0.0, 0.5, 0.0)
     )
-    cube_cfg.func("/World/Objects/cube", cube_cfg, translation=(0.0, 0.0, 2.05))
 
     # spawn a usd file of a table into the scene
     cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd")

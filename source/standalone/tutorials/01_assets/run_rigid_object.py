@@ -41,7 +41,7 @@ import omni.isaac.lab.sim as sim_utils
 import omni.isaac.lab.utils.math as math_utils
 from omni.isaac.lab.assets import RigidObject, RigidObjectCfg
 from omni.isaac.lab.sim import SimulationContext
-from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
+
 
 def design_scene():
     """Designs the scene."""
@@ -73,20 +73,8 @@ def design_scene():
     )
     cone_object = RigidObject(cfg=cone_cfg)
 
-    cube_object_cfg = RigidObjectCfg(
-        prim_path="/World/Origin.*/Object",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=False),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(),
-    )
-    cube_object = RigidObject(cfg=cube_object_cfg)
-
     # return the scene information
-    scene_entities = {"cone": cone_object, "cube_object": cube_object}
+    scene_entities = {"cone": cone_object}
     return scene_entities, origins
 
 
