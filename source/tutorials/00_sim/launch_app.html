@@ -57,7 +57,7 @@
     <link rel="prev" title="Spawning prims into the scene" href="spawn_prims.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Aug 20, 2024"/>
+    <meta name="docbuild:last-update" content="Aug 21, 2024"/>
   </head>
   
   
@@ -804,6 +804,9 @@ to if we had passed the <code class="docutils literal notranslate"><span class="
 envar. If a visualization is desired, we could get one via Isaac’s <a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/installation/manual_livestream_clients.html#omniverse-streaming-client">Native Livestreaming</a>. Streaming
 is currently the only supported method of visualization from within the container. The
 process can be killed by pressing <code class="docutils literal notranslate"><span class="pre">Ctrl+C</span></code> in the launching terminal.</p>
+<figure class="align-center" style="width: 100%">
+<img alt="result of launch_app.py" src="../../../_images/tutorial_launch_app.jpg" />
+</figure>
 <p>Now, let’s look at how <a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher" title="omni.isaac.lab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> handles conflicting commands:</p>
 <div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">export LIVESTREAM=0</span>
 <span class="go">./isaaclab.sh -p source/standalone/tutorials/00_sim/launch_app.py --size 0.5 --livestream 1</span>
@@ -911,7 +914,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Aug 20, 2024.
+  Last updated on Aug 21, 2024.
   <br/>
 </p>
   </div>
