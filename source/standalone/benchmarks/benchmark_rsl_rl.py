@@ -24,7 +24,6 @@ parser = argparse.ArgumentParser(description="Train an RL agent with RSL-RL.")
 parser.add_argument("--video", action="store_true", default=False, help="Record videos during training.")
 parser.add_argument("--video_length", type=int, default=200, help="Length of the recorded video (in steps).")
 parser.add_argument("--video_interval", type=int, default=2000, help="Interval between video recordings (in steps).")
-parser.add_argument("--cpu", action="store_true", default=False, help="Use CPU pipeline.")
 parser.add_argument(
     "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
 )
@@ -58,6 +57,7 @@ app_start_time_end = time.perf_counter_ns()
 imports_time_begin = time.perf_counter_ns()
 
 import gymnasium as gym
+import numpy as np
 import os
 import torch
 from datetime import datetime
@@ -80,7 +80,7 @@ enable_extension("omni.isaac.benchmark.services")
 from omni.isaac.benchmark.services import BaseIsaacBenchmark
 
 from omni.isaac.lab.utils.timer import Timer
-from source.standalone.workflows.benchmarks.utils import (
+from source.standalone.benchmarks.utils import (
     log_app_start_time,
     log_python_imports_time,
     log_rl_policy_episode_lengths,
@@ -118,7 +118,7 @@ def main():
     # parse configuration
     benchmark.set_phase("loading", start_recording_frametime=False, start_recording_runtime=True)
     env_cfg: ManagerBasedRLEnvCfg = parse_env_cfg(
-        args_cli.task, use_gpu=not args_cli.cpu, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric
+        args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric
     )
     agent_cfg: RslRlOnPolicyRunnerCfg = cli_args.parse_rsl_rl_cfg(args_cli.task, args_cli)
 
@@ -188,9 +188,13 @@ def main():
     log_data = parse_tf_logs(log_dir)
 
     # prepare RL timing dict
+    collection_fps = (
+        1 / (np.array(log_data["Perf/collection time"])) * env.unwrapped.num_envs * agent_cfg.num_steps_per_env
+    )
     rl_training_times = {
-        "Collection Time": log_data["Perf/collection time"],
-        "Learning Time": log_data["Perf/learning_time"],
+        "Collection Time": (np.array(log_data["Perf/collection time"]) / 1000).tolist(),
+        "Learning Time": (np.array(log_data["Perf/learning_time"]) / 1000).tolist(),
+        "Collection FPS": collection_fps.tolist(),
         "Total FPS": log_data["Perf/total_fps"],
     }
 

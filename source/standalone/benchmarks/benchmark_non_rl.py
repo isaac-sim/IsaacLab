@@ -17,7 +17,6 @@ parser = argparse.ArgumentParser(description="Train an RL agent with RL-Games.")
 parser.add_argument("--video", action="store_true", default=False, help="Record videos during training.")
 parser.add_argument("--video_length", type=int, default=200, help="Length of the recorded video (in steps).")
 parser.add_argument("--video_interval", type=int, default=2000, help="Interval between video recordings (in steps).")
-parser.add_argument("--cpu", action="store_true", default=False, help="Use CPU pipeline.")
 parser.add_argument(
     "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
 )
@@ -61,7 +60,7 @@ enable_extension("omni.isaac.benchmark.services")
 from omni.isaac.benchmark.services import BaseIsaacBenchmark
 
 from omni.isaac.lab.utils.timer import Timer
-from source.standalone.workflows.benchmarks.utils import (
+from source.standalone.benchmarks.utils import (
     log_app_start_time,
     log_python_imports_time,
     log_runtime_step_times,
@@ -107,8 +106,16 @@ def main():
 
     # parse configuration
     env_cfg = parse_env_cfg(
-        args_cli.task, use_gpu=not args_cli.cpu, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric
+        args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric
     )
+
+    # process distributed
+    world_size = 1
+    world_rank = 0
+    if args_cli.distributed:
+        env_cfg.sim.device = f"cuda:{app_launcher.local_rank}"
+        world_size = int(os.getenv("WORLD_SIZE", 1))
+        world_rank = app_launcher.global_rank
 
     task_startup_time_begin = time.perf_counter_ns()
 
@@ -158,27 +165,28 @@ def main():
         # terminate
         break
 
-    benchmark.store_measurements()
+    if world_rank == 0:
+        benchmark.store_measurements()
 
-    # compute stats
-    step_times = np.array(step_times) / 1e6  # ns to ms
-    fps = 1.0 / (step_times / 1000)
-    effective_fps = fps * env.unwrapped.num_envs
+        # compute stats
+        step_times = np.array(step_times) / 1e6  # ns to ms
+        fps = 1.0 / (step_times / 1000)
+        effective_fps = fps * env.unwrapped.num_envs * world_size
 
-    # prepare step timing dict
-    environment_step_times = {
-        "Environment step times": step_times.tolist(),
-        "Environment step FPS": fps.tolist(),
-        "Environment step effective FPS": effective_fps.tolist(),
-    }
+        # prepare step timing dict
+        environment_step_times = {
+            "Environment step times": step_times.tolist(),
+            "Environment step FPS": fps.tolist(),
+            "Environment step effective FPS": effective_fps.tolist(),
+        }
 
-    log_app_start_time(benchmark, (app_start_time_end - app_start_time_begin) / 1e6)
-    log_python_imports_time(benchmark, (imports_time_end - imports_time_begin) / 1e6)
-    log_task_start_time(benchmark, (task_startup_time_end - task_startup_time_begin) / 1e6)
-    log_scene_creation_time(benchmark, Timer.get_timer_info("scene_creation") * 1000)
-    log_simulation_start_time(benchmark, Timer.get_timer_info("simulation_start") * 1000)
-    log_total_start_time(benchmark, (task_startup_time_end - app_start_time_begin) / 1e6)
-    log_runtime_step_times(benchmark, environment_step_times, compute_stats=True)
+        log_app_start_time(benchmark, (app_start_time_end - app_start_time_begin) / 1e6)
+        log_python_imports_time(benchmark, (imports_time_end - imports_time_begin) / 1e6)
+        log_task_start_time(benchmark, (task_startup_time_end - task_startup_time_begin) / 1e6)
+        log_scene_creation_time(benchmark, Timer.get_timer_info("scene_creation") * 1000)
+        log_simulation_start_time(benchmark, Timer.get_timer_info("simulation_start") * 1000)
+        log_total_start_time(benchmark, (task_startup_time_end - app_start_time_begin) / 1e6)
+        log_runtime_step_times(benchmark, environment_step_times, compute_stats=True)
 
     benchmark.stop()
 
