@@ -298,10 +298,11 @@ Dummy configuration: Nested dictionaries
 
 
 @configclass
-class NestedDictCfg:
-    """Dummy configuration class with nested dictionaries."""
+class NestedDictAndListCfg:
+    """Dummy configuration class with nested dictionaries and lists."""
 
     dict_1: dict = {"dict_2": {"func": dummy_function1}}
+    list_1: list[EnvCfg] = [EnvCfg(), EnvCfg()]
 
 
 """
@@ -341,10 +342,14 @@ basic_demo_cfg_change_with_none_correct = {
     "device_id": 0,
 }
 
-basic_demo_cfg_nested_dict = {
+basic_demo_cfg_nested_dict_and_list = {
     "dict_1": {
         "dict_2": {"func": dummy_function2},
     },
+    "list_1": [
+        {"num_envs": 23, "episode_length": 3000, "viewer": {"eye": [5.0, 5.0, 5.0], "lookat": [0.0, 0.0, 0.0]}},
+        {"num_envs": 24, "episode_length": 2000, "viewer": {"eye": [6.0, 6.0, 6.0], "lookat": [0.0, 0.0, 0.0]}},
+    ],
 }
 
 basic_demo_post_init_cfg_correct = {
@@ -456,6 +461,10 @@ class TestConfigClass(unittest.TestCase):
         update_class_from_dict(cfg, cfg_dict)
         self.assertDictEqual(asdict(cfg), basic_demo_cfg_change_correct)
 
+        # check types are also correct
+        self.assertIsInstance(cfg.env.viewer, ViewerCfg)
+        self.assertIsInstance(cfg.env.viewer.eye, tuple)
+
     def test_config_update_dict_with_none(self):
         """Test updating configclass using a dictionary that contains None."""
         cfg = BasicDemoCfg()
@@ -464,11 +473,23 @@ class TestConfigClass(unittest.TestCase):
         self.assertDictEqual(asdict(cfg), basic_demo_cfg_change_with_none_correct)
 
     def test_config_update_nested_dict(self):
-        """Test updating configclass with sub-dictionnaries."""
-        cfg = NestedDictCfg()
-        cfg_dict = {"dict_1": {"dict_2": {"func": "__main__:dummy_function2"}}}
+        """Test updating configclass with sub-dictionaries."""
+        cfg = NestedDictAndListCfg()
+        cfg_dict = {
+            "dict_1": {"dict_2": {"func": "__main__:dummy_function2"}},
+            "list_1": [
+                {"num_envs": 23, "episode_length": 3000, "viewer": {"eye": [5.0, 5.0, 5.0]}},
+                {"num_envs": 24, "viewer": {"eye": [6.0, 6.0, 6.0]}},
+            ],
+        }
         update_class_from_dict(cfg, cfg_dict)
-        self.assertDictEqual(asdict(cfg), basic_demo_cfg_nested_dict)
+        self.assertDictEqual(asdict(cfg), basic_demo_cfg_nested_dict_and_list)
+
+        # check types are also correct
+        self.assertIsInstance(cfg.list_1[0], EnvCfg)
+        self.assertIsInstance(cfg.list_1[1], EnvCfg)
+        self.assertIsInstance(cfg.list_1[0].viewer, ViewerCfg)
+        self.assertIsInstance(cfg.list_1[1].viewer, ViewerCfg)
 
     def test_config_update_dict_using_internal(self):
         """Test updating configclass from a dictionary using configclass method."""
