@@ -583,6 +583,16 @@ document.write(`
                     <span class="p">)</span>
                 <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj_mem</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">):</span>
                     <span class="n">value</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">set_obj</span> <span class="o">=</span> <span class="kc">True</span>
+                    <span class="c1"># recursively call if iterable contains dictionaries</span>
+                    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">obj_mem</span><span class="p">)):</span>
+                        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="nb">dict</span><span class="p">):</span>
+                            <span class="n">update_class_from_dict</span><span class="p">(</span><span class="n">obj_mem</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">value</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">_ns</span><span class="o">=</span><span class="n">key_ns</span><span class="p">)</span>
+                            <span class="n">set_obj</span> <span class="o">=</span> <span class="kc">False</span>
+                    <span class="c1"># do not set value to obj, otherwise it overwrites the cfg class with the dict</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="n">set_obj</span><span class="p">:</span>
+                        <span class="k">continue</span>
             <span class="k">elif</span> <span class="nb">callable</span><span class="p">(</span><span class="n">obj_mem</span><span class="p">):</span>
                 <span class="c1"># update function name</span>
                 <span class="n">value</span> <span class="o">=</span> <span class="n">string_to_callable</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
