@@ -256,10 +256,6 @@ class FrameTransformer(SensorBase):
         # when updating sensor in _update_buffers_impl
         duplicate_frame_indices = []
 
-        # The position and rotation components of target frame offsets
-        self._target_frame_offset_pos = torch.zeros(0, 3, device=self.device)
-        self._target_frame_offset_quat = torch.zeros(0, 4, device=self.device)
-
         # Go through each body name and determine the number of duplicates we need for that frame
         # and extract the offsets. This is all done to handles the case where multiple frames
         # reference the same body, but have different names and/or offsets
