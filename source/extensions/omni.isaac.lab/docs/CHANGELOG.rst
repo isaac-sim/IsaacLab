@@ -115,7 +115,16 @@ Changed
 * Disabled default viewport in certain headless scenarios for better performance.
 
 
-0.23.0 (2024-08-17)
+0.23.1 (2024-08-17)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated torch to version 2.4.0.
+
+
+0.23.0 (2024-08-16)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
