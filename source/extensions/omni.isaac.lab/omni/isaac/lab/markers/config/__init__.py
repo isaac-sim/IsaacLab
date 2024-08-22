@@ -42,49 +42,18 @@ CONTACT_SENSOR_MARKER_CFG = VisualizationMarkersCfg(
 # Frames.
 ##
 
-FRAME_MARKER_CFG = VisualizationMarkersCfg(
-    markers={
-        "frame": sim_utils.UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/UIElements/frame_prim.usd",
-            scale=(0.5, 0.5, 0.5),
-        )
-    }
-)
+FRAME_MARKER_CFG = None
 """Configuration for the frame marker."""
 
 
-RED_ARROW_X_MARKER_CFG = VisualizationMarkersCfg(
-    markers={
-        "arrow": sim_utils.UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/UIElements/arrow_x.usd",
-            scale=(1.0, 0.1, 0.1),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0)),
-        )
-    }
-)
+RED_ARROW_X_MARKER_CFG = None
 """Configuration for the red arrow marker (along x-direction)."""
 
 
-BLUE_ARROW_X_MARKER_CFG = VisualizationMarkersCfg(
-    markers={
-        "arrow": sim_utils.UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/UIElements/arrow_x.usd",
-            scale=(1.0, 0.1, 0.1),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
-        )
-    }
-)
+BLUE_ARROW_X_MARKER_CFG = None
 """Configuration for the blue arrow marker (along x-direction)."""
 
-GREEN_ARROW_X_MARKER_CFG = VisualizationMarkersCfg(
-    markers={
-        "arrow": sim_utils.UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/UIElements/arrow_x.usd",
-            scale=(1.0, 0.1, 0.1),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0)),
-        )
-    }
-)
+GREEN_ARROW_X_MARKER_CFG = None
 """Configuration for the green arrow marker (along x-direction)."""
 
 

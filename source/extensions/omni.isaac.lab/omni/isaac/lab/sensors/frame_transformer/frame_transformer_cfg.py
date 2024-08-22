@@ -60,7 +60,7 @@ class FrameTransformerCfg(SensorBaseCfg):
     frame using four frame offsets.
     """
 
-    visualizer_cfg: VisualizationMarkersCfg = FRAME_MARKER_CFG.replace(prim_path="/Visuals/FrameTransformer")
+    # visualizer_cfg: VisualizationMarkersCfg = FRAME_MARKER_CFG.replace(prim_path="/Visuals/FrameTransformer")
     """The configuration object for the visualization markers. Defaults to FRAME_MARKER_CFG.
 
     Note:

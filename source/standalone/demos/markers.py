@@ -39,6 +39,8 @@ from omni.isaac.lab.sim import SimulationContext
 from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from omni.isaac.lab.utils.math import quat_from_angle_axis
 
+print(ISAAC_NUCLEUS_DIR)
+exit()
 
 def define_markers() -> VisualizationMarkers:
     """Define markers with various different shapes."""

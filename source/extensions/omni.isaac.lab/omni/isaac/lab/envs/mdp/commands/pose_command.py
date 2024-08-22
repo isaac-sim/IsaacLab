@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 from omni.isaac.lab.assets import Articulation
 from omni.isaac.lab.managers import CommandTerm
 from omni.isaac.lab.markers import VisualizationMarkers
-from omni.isaac.lab.markers.config import FRAME_MARKER_CFG
+# from omni.isaac.lab.markers.config import FRAME_MARKER_CFG
 from omni.isaac.lab.utils.math import combine_frame_transforms, compute_pose_error, quat_from_euler_xyz, quat_unique
 
 if TYPE_CHECKING:
@@ -129,7 +129,7 @@ class UniformPoseCommand(CommandTerm):
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         # create markers if necessary for the first tome
-        if debug_vis:
+        if False: # debug_vis:
             if not hasattr(self, "goal_pose_visualizer"):
                 marker_cfg = FRAME_MARKER_CFG.copy()
                 marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
@@ -150,7 +150,7 @@ class UniformPoseCommand(CommandTerm):
     def _debug_vis_callback(self, event):
         # check if robot is initialized
         # note: this is needed in-case the robot is de-initialized. we can't access the data
-        if not self.robot.is_initialized:
+        if True: # not self.robot.is_initialized:
             return
         # update the markers
         # -- goal pose
