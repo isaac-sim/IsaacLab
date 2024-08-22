@@ -147,7 +147,7 @@ class SimulationContext(_SimulationContext):
         # this flag is set from the AppLauncher class
         self._offscreen_render = bool(carb_settings_iface.get("/isaaclab/render/offscreen"))
         # read flag for whether the default viewport should be enabled
-        self._render_viewport = bool(carb_settings_iface.get("/isaaclab/render/_render_viewport"))
+        self._render_viewport = bool(carb_settings_iface.get("/isaaclab/render/active_viewport"))
         # flag for whether any GUI will be rendered (local, livestreamed or viewport)
         self._has_gui = self._local_gui or self._livestream_gui
 

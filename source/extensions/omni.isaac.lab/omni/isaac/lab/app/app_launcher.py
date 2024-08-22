@@ -631,7 +631,7 @@ class AppLauncher:
         # set carb setting to indicate Isaac Lab's render_viewport pipeline should be enabled
         # this flag is used by the SimulationContext class to enable the render_viewport pipeline
         # when the render() method is called.
-        carb_settings_iface.set_bool("/isaaclab/render/render_viewport", self._render_viewport)
+        carb_settings_iface.set_bool("/isaaclab/render/active_viewport", self._render_viewport)
 
         # set carb setting to indicate no RTX sensors are used
         # this flag is set to True when an RTX-rendering related sensor is created
