@@ -26,6 +26,7 @@ import omni.isaac.core.utils.stage as stage_utils
 
 import omni.isaac.lab.sim as sim_utils
 import omni.isaac.lab.utils.math as math_utils
+from omni.isaac.lab.assets import RigidObjectCfg
 from omni.isaac.lab.scene import InteractiveScene, InteractiveSceneCfg
 from omni.isaac.lab.sensors import FrameTransformerCfg, OffsetCfg
 from omni.isaac.lab.terrains import TerrainImporterCfg
@@ -62,6 +63,19 @@ class MySceneCfg(InteractiveSceneCfg):
     # sensors - frame transformer (filled inside unit test)
     frame_transformer: FrameTransformerCfg = None
 
+    # block
+    cube: RigidObjectCfg = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/cube",
+        spawn=sim_utils.CuboidCfg(
+            size=(0.2, 0.2, 0.2),
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(max_depenetration_velocity=1.0),
+            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+            physics_material=sim_utils.RigidBodyMaterialCfg(),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.0, 0.0)),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(2.0, 0.0, 5)),
+    )
+
 
 class TestFrameTransformer(unittest.TestCase):
     """Test for frame transformer sensor."""
@@ -71,7 +85,7 @@ class TestFrameTransformer(unittest.TestCase):
         # Create a new stage
         stage_utils.create_new_stage()
         # Load kit helper
-        self.sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.005))
+        self.sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.005, device="cpu"))
         # Set main camera
         self.sim.set_camera_view(eye=[5, 5, 5], target=[0.0, 0.0, 0.0])
 
@@ -90,8 +104,7 @@ class TestFrameTransformer(unittest.TestCase):
     def test_frame_transformer_feet_wrt_base(self):
         """Test feet transformations w.r.t. base source frame.
 
-        In this test, the source frame is the robot base. This frame is at index 0, when
-        the frame bodies are sorted in the order of the regex matching in the frame transformer.
+        In this test, the source frame is the robot base.
         """
         # Spawn things into stage
         scene_cfg = MySceneCfg(num_envs=32, env_spacing=5.0, lazy_sensor_update=False)
@@ -141,9 +154,15 @@ class TestFrameTransformer(unittest.TestCase):
         feet_indices, feet_names = scene.articulations["robot"].find_bodies(
             ["LF_FOOT", "RF_FOOT", "LH_FOOT", "RH_FOOT"]
         )
-        # Check names are parsed the same order
-        user_feet_names = [f"{name}_USER" for name in feet_names]
-        self.assertListEqual(scene.sensors["frame_transformer"].data.target_frame_names, user_feet_names)
+
+        target_frame_names = scene.sensors["frame_transformer"].data.target_frame_names
+
+        # Reorder the feet indices to match the order of the target frames with _USER suffix removed
+        target_frame_names = [name.split("_USER")[0] for name in target_frame_names]
+
+        # Find the indices of the feet in the order of the target frames
+        reordering_indices = [feet_names.index(name) for name in target_frame_names]
+        feet_indices = [feet_indices[i] for i in reordering_indices]
 
         # default joint targets
         default_actions = scene.articulations["robot"].data.default_joint_pos.clone()
@@ -185,6 +204,7 @@ class TestFrameTransformer(unittest.TestCase):
             source_quat_w_tf = scene.sensors["frame_transformer"].data.source_quat_w
             feet_pos_w_tf = scene.sensors["frame_transformer"].data.target_pos_w
             feet_quat_w_tf = scene.sensors["frame_transformer"].data.target_quat_w
+
             # check if they are same
             torch.testing.assert_close(root_pose_w[:, :3], source_pos_w_tf, rtol=1e-3, atol=1e-3)
             torch.testing.assert_close(root_pose_w[:, 3:], source_quat_w_tf, rtol=1e-3, atol=1e-3)
@@ -301,6 +321,87 @@ class TestFrameTransformer(unittest.TestCase):
                 # check if they are same
                 torch.testing.assert_close(feet_pos_source_tf[:, index], foot_pos_b, rtol=1e-3, atol=1e-3)
                 torch.testing.assert_close(feet_quat_source_tf[:, index], foot_quat_b, rtol=1e-3, atol=1e-3)
+
+    def test_frame_transformer_body_wrt_cube(self):
+        """Test body transformation w.r.t. base source frame.
+
+        In this test, the source frame is the robot base.
+
+        The target_frame is a cube in the scene.
+        """
+        # Spawn things into stage
+        scene_cfg = MySceneCfg(num_envs=2, env_spacing=5.0, lazy_sensor_update=False)
+        scene_cfg.frame_transformer = FrameTransformerCfg(
+            prim_path="{ENV_REGEX_NS}/Robot/base",
+            target_frames=[
+                FrameTransformerCfg.FrameCfg(
+                    name="CUBE_USER",
+                    prim_path="{ENV_REGEX_NS}/cube",
+                ),
+            ],
+        )
+        scene = InteractiveScene(scene_cfg)
+
+        # Play the simulator
+        self.sim.reset()
+
+        # default joint targets
+        default_actions = scene.articulations["robot"].data.default_joint_pos.clone()
+        # Define simulation stepping
+        sim_dt = self.sim.get_physics_dt()
+        # Simulate physics
+        for count in range(100):
+            # # reset
+            if count % 25 == 0:
+                # reset root state
+                root_state = scene.articulations["robot"].data.default_root_state.clone()
+                root_state[:, :3] += scene.env_origins
+                joint_pos = scene.articulations["robot"].data.default_joint_pos
+                joint_vel = scene.articulations["robot"].data.default_joint_vel
+                # -- set root state
+                # -- robot
+                scene.articulations["robot"].write_root_state_to_sim(root_state)
+                scene.articulations["robot"].write_joint_state_to_sim(joint_pos, joint_vel)
+                # reset buffers
+                scene.reset()
+
+            # set joint targets
+            robot_actions = default_actions + 0.5 * torch.randn_like(default_actions)
+            scene.articulations["robot"].set_joint_position_target(robot_actions)
+            # write data to sim
+            scene.write_data_to_sim()
+            # perform step
+            self.sim.step()
+            # read data from sim
+            scene.update(sim_dt)
+
+            # check absolute frame transforms in world frame
+            # -- ground-truth
+            root_pose_w = scene.articulations["robot"].data.root_state_w[:, :7]
+            cube_pos_w_gt = scene.rigid_objects["cube"].data.root_state_w[:, :3]
+            cube_quat_w_gt = scene.rigid_objects["cube"].data.root_state_w[:, 3:7]
+            # -- frame transformer
+            source_pos_w_tf = scene.sensors["frame_transformer"].data.source_pos_w
+            source_quat_w_tf = scene.sensors["frame_transformer"].data.source_quat_w
+            cube_pos_w_tf = scene.sensors["frame_transformer"].data.target_pos_w.squeeze()
+            cube_quat_w_tf = scene.sensors["frame_transformer"].data.target_quat_w.squeeze()
+
+            # check if they are same
+            torch.testing.assert_close(root_pose_w[:, :3], source_pos_w_tf, rtol=1e-3, atol=1e-3)
+            torch.testing.assert_close(root_pose_w[:, 3:], source_quat_w_tf, rtol=1e-3, atol=1e-3)
+            torch.testing.assert_close(cube_pos_w_gt, cube_pos_w_tf, rtol=1e-3, atol=1e-3)
+            torch.testing.assert_close(cube_quat_w_gt, cube_quat_w_tf, rtol=1e-3, atol=1e-3)
+
+            # check if relative transforms are same
+            cube_pos_source_tf = scene.sensors["frame_transformer"].data.target_pos_source
+            cube_quat_source_tf = scene.sensors["frame_transformer"].data.target_quat_source
+            # ground-truth
+            cube_pos_b, cube_quat_b = math_utils.subtract_frame_transforms(
+                root_pose_w[:, :3], root_pose_w[:, 3:], cube_pos_w_tf, cube_quat_w_tf
+            )
+            # check if they are same
+            torch.testing.assert_close(cube_pos_source_tf[:, 0], cube_pos_b, rtol=1e-3, atol=1e-3)
+            torch.testing.assert_close(cube_quat_source_tf[:, 0], cube_quat_b, rtol=1e-3, atol=1e-3)
 
 
 if __name__ == "__main__":
