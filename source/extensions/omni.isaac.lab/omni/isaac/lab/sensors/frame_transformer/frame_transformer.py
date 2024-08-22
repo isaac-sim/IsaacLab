@@ -51,13 +51,6 @@ class FrameTransformer(SensorBase):
     typically a fictitious body, the user may need to specify an offset from the end-effector to the body of the
     manipulator.
 
-    .. note::
-
-        Currently, this implementation only handles frames within an articulation. This is because the frame
-        regex expressions are resolved based on their parent prim path. This can be extended to handle
-        frames outside of articulation by using the frame prim path instead. However, this would require
-        additional checks to ensure that the user-specified frames are valid which is not currently implemented.
-
     .. warning::
 
         The implementation assumes that the parent body of a target frame is not the same as that
