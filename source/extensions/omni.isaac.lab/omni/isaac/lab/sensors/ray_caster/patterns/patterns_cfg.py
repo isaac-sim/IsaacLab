@@ -70,7 +70,12 @@ class GridPatternCfg(PatternBaseCfg):
 
 @configclass
 class PinholeCameraPatternCfg(PatternBaseCfg):
-    """Configuration for a pinhole camera depth image pattern for ray-casting."""
+    """Configuration for a pinhole camera depth image pattern for ray-casting.
+    
+    ..note ::
+        Focal length as well as the aperture sizes and offsets are set as a tenth of the world unit. In our case, the
+        world unit is Meter s.t. all of these values are set in cm. 
+    """
 
     func: Callable = patterns.pinhole_camera_pattern
 
@@ -80,7 +85,7 @@ class PinholeCameraPatternCfg(PatternBaseCfg):
     Longer lens lengths narrower FOV, shorter lens lengths wider FOV.
     """
     horizontal_aperture: float = 20.955
-    """Horizontal aperture (in mm). Defaults to 20.955mm.
+    """Horizontal aperture (in cm). Defaults to 20.955cm.
 
     Emulates sensor/film width on a camera.
 
@@ -88,9 +93,9 @@ class PinholeCameraPatternCfg(PatternBaseCfg):
         The default value is the horizontal aperture of a 35 mm spherical projector.
     """
     horizontal_aperture_offset: float = 0.0
-    """Offsets Resolution/Film gate horizontally. Defaults to 0.0."""
+    """Offsets Resolution/Film gate horizontally (in cm). Defaults to 0.0."""
     vertical_aperture_offset: float = 0.0
-    """Offsets Resolution/Film gate vertically. Defaults to 0.0."""
+    """Offsets Resolution/Film gate vertically (in cm). Defaults to 0.0."""
     width: int = MISSING
     """Width of the image (in pixels)."""
     height: int = MISSING

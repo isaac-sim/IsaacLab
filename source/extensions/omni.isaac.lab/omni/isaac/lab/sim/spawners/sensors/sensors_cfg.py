@@ -18,6 +18,10 @@ class PinholeCameraCfg(SpawnerCfg):
 
     For more information on the parameters, please refer to the `camera documentation <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/cameras.html>`__.
 
+    ..note ::
+        Focal length as well as the aperture sizes and offsets are set as a tenth of the world unit. In our case, the
+        world unit is Meter s.t. all of these values are set in cm. 
+
     .. note::
         The default values are taken from the `Replicator camera <https://docs.omniverse.nvidia.com/py/replicator/1.9.8/source/extensions/omni.replicator.core/docs/API.html#omni.replicator.core.create.camera>`__
         function.
@@ -53,17 +57,17 @@ class PinholeCameraCfg(SpawnerCfg):
     Controls Distance Blurring. Lower Numbers decrease focus range, larger numbers increase it.
     """
     horizontal_aperture: float = 20.955
-    """Horizontal aperture (in mm). Defaults to 20.955mm.
+    """Horizontal aperture (in cm). Defaults to 20.955cm.
 
     Emulates sensor/film width on a camera.
 
     Note:
-        The default value is the horizontal aperture of a 35 mm spherical projector.
+        The default value is the horizontal aperture of a 20.955cm spherical projector.
     """
     horizontal_aperture_offset: float = 0.0
-    """Offsets Resolution/Film gate horizontally. Defaults to 0.0."""
+    """Offsets Resolution/Film gate horizontally (in cm). Defaults to 0.0."""
     vertical_aperture_offset: float = 0.0
-    """Offsets Resolution/Film gate vertically. Defaults to 0.0."""
+    """Offsets Resolution/Film gate vertically (in cm). Defaults to 0.0."""
     lock_camera: bool = True
     """Locks the camera in the Omniverse viewport. Defaults to True.
 

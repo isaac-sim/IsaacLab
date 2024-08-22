@@ -214,7 +214,7 @@ class Camera(SensorBase):
 
         Args:
             matrices: The intrinsic matrices for the camera. Shape is (N, 3, 3).
-            focal_length: Focal length to use when computing aperture values. Defaults to 1.0.
+            focal_length: Focal length to use when computing aperture values (in cm). Defaults to 1.0.
             env_ids: A sensor ids to manipulate. Defaults to None, which means all sensor indices.
         """
         # resolve env_ids
