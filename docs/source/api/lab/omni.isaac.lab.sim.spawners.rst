@@ -8,6 +8,7 @@
   .. autosummary::
 
     shapes
+    meshes
     lights
     sensors
     from_files
@@ -19,6 +20,7 @@
 
     SpawnerCfg
     RigidObjectSpawnerCfg
+    DeformableObjectSpawnerCfg
 
 Spawners
 --------
@@ -28,6 +30,11 @@ Spawners
     :exclude-members: __init__
 
 .. autoclass:: RigidObjectSpawnerCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__
+
+.. autoclass:: DeformableObjectSpawnerCfg
     :members:
     :show-inheritance:
     :exclude-members: __init__
@@ -87,6 +94,60 @@ Shapes
     :show-inheritance:
     :exclude-members: __init__, func
 
+Meshes
+------
+
+.. automodule:: omni.isaac.lab.sim.spawners.meshes
+
+  .. rubric:: Classes
+
+  .. autosummary::
+
+    MeshCfg
+    MeshCapsuleCfg
+    MeshConeCfg
+    MeshCuboidCfg
+    MeshCylinderCfg
+    MeshSphereCfg
+
+.. autoclass:: MeshCfg
+    :members:
+    :exclude-members: __init__, func
+
+.. autofunction:: spawn_mesh_capsule
+
+.. autoclass:: MeshCapsuleCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__, func
+
+.. autofunction:: spawn_mesh_cone
+
+.. autoclass:: MeshConeCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__, func
+
+.. autofunction:: spawn_mesh_cuboid
+
+.. autoclass:: MeshCuboidCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__, func
+
+.. autofunction:: spawn_mesh_cylinder
+
+.. autoclass:: MeshCylinderCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__, func
+
+.. autofunction:: spawn_mesh_sphere
+
+.. autoclass:: MeshSphereCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__, func
 
 Lights
 ------
@@ -198,6 +259,7 @@ Materials
     GlassMdlCfg
     PhysicsMaterialCfg
     RigidBodyMaterialCfg
+    DeformableBodyMaterialCfg
 
 Visual Materials
 ~~~~~~~~~~~~~~~~
@@ -232,5 +294,11 @@ Physical Materials
 .. autofunction:: spawn_rigid_body_material
 
 .. autoclass:: RigidBodyMaterialCfg
+    :members:
+    :exclude-members: __init__, func
+
+.. autofunction:: spawn_deformable_body_material
+
+.. autoclass:: DeformableBodyMaterialCfg
     :members:
     :exclude-members: __init__, func

@@ -9,6 +9,7 @@ from .array import *
 from .buffers import *
 from .configclass import configclass
 from .dict import *
-from .linear_interpolation import *
+from .interpolation import *
+from .modifiers import *
 from .string import *
 from .timer import Timer

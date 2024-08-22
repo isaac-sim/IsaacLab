@@ -94,7 +94,7 @@ def define_markers() -> VisualizationMarkers:
 def main():
     """Main function."""
     # Load kit helper
-    sim = SimulationContext(sim_utils.SimulationCfg(dt=0.01, substeps=1))
+    sim = SimulationContext(sim_utils.SimulationCfg(dt=0.01))
     # Set main camera
     sim.set_camera_view([0.0, 18.0, 12.0], [0.0, 3.0, 0.0])
 

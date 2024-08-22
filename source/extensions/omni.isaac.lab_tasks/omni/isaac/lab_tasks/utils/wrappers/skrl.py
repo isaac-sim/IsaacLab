@@ -11,32 +11,23 @@ The following example shows how to wrap an environment for skrl:
 
     from omni.isaac.lab_tasks.utils.wrappers.skrl import SkrlVecEnvWrapper
 
-    env = SkrlVecEnvWrapper(env)
+    env = SkrlVecEnvWrapper(env, ml_framework="torch")  # or ml_framework="jax"
 
 Or, equivalently, by directly calling the skrl library API as follows:
 
 .. code-block:: python
 
-    from skrl.envs.torch.wrappers import wrap_env
+    from skrl.envs.torch.wrappers import wrap_env  # for PyTorch, or...
+    from skrl.envs.jax.wrappers import wrap_env    # for JAX
 
-    env = wrap_env(env, wrapper="isaac-orbit")
+    env = wrap_env(env, wrapper="isaaclab")
 
 """
 
 # needed to import for type hinting: Agent | list[Agent]
 from __future__ import annotations
 
-import copy
-import torch
-import tqdm
-
-from skrl.agents.torch import Agent
-from skrl.envs.wrappers.torch import Wrapper, wrap_env
-from skrl.resources.preprocessors.torch import RunningStandardScaler  # noqa: F401
-from skrl.resources.schedulers.torch import KLAdaptiveLR  # noqa: F401
-from skrl.trainers.torch import Trainer
-from skrl.trainers.torch.sequential import SEQUENTIAL_TRAINER_DEFAULT_CONFIG
-from skrl.utils.model_instantiators.torch import Shape  # noqa: F401
+from typing import Literal
 
 from omni.isaac.lab.envs import DirectRLEnv, ManagerBasedRLEnv
 
@@ -45,14 +36,18 @@ Configuration Parser.
 """
 
 
-def process_skrl_cfg(cfg: dict) -> dict:
+def process_skrl_cfg(cfg: dict, ml_framework: Literal["torch", "jax", "jax-numpy"] = "torch") -> dict:
     """Convert simple YAML types to skrl classes/components.
 
     Args:
         cfg: A configuration dictionary.
+        ml_framework: The ML framework to use for the wrapper. Defaults to "torch".
 
     Returns:
         A dictionary containing the converted configuration.
+
+    Raises:
+        ValueError: If the specified ML framework is not valid.
     """
     _direct_eval = [
         "learning_rate_scheduler",
@@ -69,6 +64,20 @@ def process_skrl_cfg(cfg: dict) -> dict:
         return reward_shaper
 
     def update_dict(d):
+        # import statements according to the ML framework
+        if ml_framework.startswith("torch"):
+            from skrl.resources.preprocessors.torch import RunningStandardScaler  # noqa: F401
+            from skrl.resources.schedulers.torch import KLAdaptiveLR  # noqa: F401
+            from skrl.utils.model_instantiators.torch import Shape  # noqa: F401
+        elif ml_framework.startswith("jax"):
+            from skrl.resources.preprocessors.jax import RunningStandardScaler  # noqa: F401
+            from skrl.resources.schedulers.jax import KLAdaptiveLR  # noqa: F401
+            from skrl.utils.model_instantiators.jax import Shape  # noqa: F401
+        else:
+            ValueError(
+                f"Invalid ML framework for skrl: {ml_framework}. Available options are: 'torch', 'jax' or 'jax-numpy'"
+            )
+
         for key, value in d.items():
             if isinstance(value, dict):
                 update_dict(value)
@@ -91,7 +100,7 @@ Vectorized environment wrapper.
 """
 
 
-def SkrlVecEnvWrapper(env: ManagerBasedRLEnv):
+def SkrlVecEnvWrapper(env: ManagerBasedRLEnv, ml_framework: Literal["torch", "jax", "jax-numpy"] = "torch"):
     """Wraps around Isaac Lab environment for skrl.
 
     This function wraps around the Isaac Lab environment. Since the :class:`ManagerBasedRLEnv` environment
@@ -101,9 +110,11 @@ def SkrlVecEnvWrapper(env: ManagerBasedRLEnv):
 
     Args:
         env: The environment to wrap around.
+        ml_framework: The ML framework to use for the wrapper. Defaults to "torch".
 
     Raises:
         ValueError: When the environment is not an instance of :class:`ManagerBasedRLEnv`.
+        ValueError: If the specified ML framework is not valid.
 
     Reference:
         https://skrl.readthedocs.io/en/latest/api/envs/wrapping.html
@@ -113,174 +124,16 @@ def SkrlVecEnvWrapper(env: ManagerBasedRLEnv):
         raise ValueError(
             f"The environment must be inherited from ManagerBasedRLEnv or DirectRLEnv. Environment type: {type(env)}"
         )
+
+    # import statements according to the ML framework
+    if ml_framework.startswith("torch"):
+        from skrl.envs.wrappers.torch import wrap_env
+    elif ml_framework.startswith("jax"):
+        from skrl.envs.wrappers.jax import wrap_env
+    else:
+        ValueError(
+            f"Invalid ML framework for skrl: {ml_framework}. Available options are: 'torch', 'jax' or 'jax-numpy'"
+        )
+
     # wrap and return the environment
-    return wrap_env(env, wrapper="isaac-orbit")
-
-
-"""
-Custom trainer for skrl.
-"""
-
-
-class SkrlSequentialLogTrainer(Trainer):
-    """Sequential trainer with logging of episode information.
-
-    This trainer inherits from the :class:`skrl.trainers.base_class.Trainer` class. It is used to
-    train agents in a sequential manner (i.e., one after the other in each interaction with the
-    environment). It is most suitable for on-policy RL agents such as PPO, A2C, etc.
-
-    It modifies the :class:`skrl.trainers.torch.sequential.SequentialTrainer` class with the following
-    differences:
-
-    * It also log episode information to the agent's logger.
-    * It does not close the environment at the end of the training.
-
-    Reference:
-        https://skrl.readthedocs.io/en/latest/api/trainers.html#base-class
-    """
-
-    def __init__(
-        self,
-        env: Wrapper,
-        agents: Agent | list[Agent],
-        agents_scope: list[int] | None = None,
-        cfg: dict | None = None,
-    ):
-        """Initializes the trainer.
-
-        Args:
-            env: Environment to train on.
-            agents: Agents to train.
-            agents_scope: Number of environments for each agent to
-                train on. Defaults to None.
-            cfg: Configuration dictionary. Defaults to None.
-        """
-        # update the config
-        _cfg = copy.deepcopy(SEQUENTIAL_TRAINER_DEFAULT_CONFIG)
-        _cfg.update(cfg if cfg is not None else {})
-        # store agents scope
-        agents_scope = agents_scope if agents_scope is not None else []
-        # initialize the base class
-        super().__init__(env=env, agents=agents, agents_scope=agents_scope, cfg=_cfg)
-        # init agents
-        if self.env.num_agents > 1:
-            for agent in self.agents:
-                agent.init(trainer_cfg=self.cfg)
-        else:
-            self.agents.init(trainer_cfg=self.cfg)
-
-    def train(self):
-        """Train the agents sequentially.
-
-        This method executes the training loop for the agents. It performs the following steps:
-
-        * Pre-interaction: Perform any pre-interaction operations.
-        * Compute actions: Compute the actions for the agents.
-        * Step the environments: Step the environments with the computed actions.
-        * Record the environments' transitions: Record the transitions from the environments.
-        * Log custom environment data: Log custom environment data.
-        * Post-interaction: Perform any post-interaction operations.
-        * Reset the environments: Reset the environments if they are terminated or truncated.
-
-        """
-        # init agent
-        self.agents.init(trainer_cfg=self.cfg)
-        self.agents.set_running_mode("train")
-        # reset env
-        states, infos = self.env.reset()
-        # training loop
-        for timestep in tqdm.tqdm(range(self.timesteps), disable=self.disable_progressbar):
-            # pre-interaction
-            self.agents.pre_interaction(timestep=timestep, timesteps=self.timesteps)
-            # compute actions
-            with torch.no_grad():
-                actions = self.agents.act(states, timestep=timestep, timesteps=self.timesteps)[0]
-            # step the environments
-            next_states, rewards, terminated, truncated, infos = self.env.step(actions)
-            # note: here we do not call render scene since it is done in the env.step() method
-            # record the environments' transitions
-            with torch.no_grad():
-                self.agents.record_transition(
-                    states=states,
-                    actions=actions,
-                    rewards=rewards,
-                    next_states=next_states,
-                    terminated=terminated,
-                    truncated=truncated,
-                    infos=infos,
-                    timestep=timestep,
-                    timesteps=self.timesteps,
-                )
-            # log custom environment data
-            if "log" in infos:
-                for k, v in infos["log"].items():
-                    if isinstance(v, torch.Tensor) and v.numel() == 1:
-                        self.agents.track_data(f"EpisodeInfo / {k}", v.item())
-            # post-interaction
-            self.agents.post_interaction(timestep=timestep, timesteps=self.timesteps)
-            # reset the environments
-            # note: here we do not call reset scene since it is done in the env.step() method
-            # update states
-            states.copy_(next_states)
-
-    def eval(self) -> None:
-        """Evaluate the agents sequentially.
-
-        This method executes the following steps in loop:
-
-        * Compute actions: Compute the actions for the agents.
-        * Step the environments: Step the environments with the computed actions.
-        * Record the environments' transitions: Record the transitions from the environments.
-        * Log custom environment data: Log custom environment data.
-        """
-        # set running mode
-        if self.num_agents > 1:
-            for agent in self.agents:
-                agent.set_running_mode("eval")
-        else:
-            self.agents.set_running_mode("eval")
-        # single agent
-        if self.num_agents == 1:
-            self.single_agent_eval()
-            return
-
-        # reset env
-        states, infos = self.env.reset()
-        # evaluation loop
-        for timestep in tqdm.tqdm(range(self.initial_timestep, self.timesteps), disable=self.disable_progressbar):
-            # compute actions
-            with torch.no_grad():
-                actions = torch.vstack([
-                    agent.act(states[scope[0] : scope[1]], timestep=timestep, timesteps=self.timesteps)[0]
-                    for agent, scope in zip(self.agents, self.agents_scope)
-                ])
-
-            # step the environments
-            next_states, rewards, terminated, truncated, infos = self.env.step(actions)
-
-            with torch.no_grad():
-                # write data to TensorBoard
-                for agent, scope in zip(self.agents, self.agents_scope):
-                    # track data
-                    agent.record_transition(
-                        states=states[scope[0] : scope[1]],
-                        actions=actions[scope[0] : scope[1]],
-                        rewards=rewards[scope[0] : scope[1]],
-                        next_states=next_states[scope[0] : scope[1]],
-                        terminated=terminated[scope[0] : scope[1]],
-                        truncated=truncated[scope[0] : scope[1]],
-                        infos=infos,
-                        timestep=timestep,
-                        timesteps=self.timesteps,
-                    )
-                    # log custom environment data
-                    if "log" in infos:
-                        for k, v in infos["log"].items():
-                            if isinstance(v, torch.Tensor) and v.numel() == 1:
-                                agent.track_data(k, v.item())
-                    # perform post-interaction
-                    super(type(agent), agent).post_interaction(timestep=timestep, timesteps=self.timesteps)
-
-                # reset environments
-                # note: here we do not call reset scene since it is done in the env.step() method
-                states.copy_(next_states)
+    return wrap_env(env, wrapper="isaaclab")

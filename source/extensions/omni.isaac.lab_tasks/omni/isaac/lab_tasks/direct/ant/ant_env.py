@@ -20,8 +20,16 @@ from omni.isaac.lab_tasks.direct.locomotion.locomotion_env import LocomotionEnv
 
 @configclass
 class AntEnvCfg(DirectRLEnvCfg):
+    # env
+    episode_length_s = 15.0
+    decimation = 2
+    action_scale = 0.5
+    num_actions = 8
+    num_observations = 36
+    num_states = 0
+
     # simulation
-    sim: SimulationCfg = SimulationCfg(dt=1 / 120)
+    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation)
     terrain = TerrainImporterCfg(
         prim_path="/World/ground",
         terrain_type="plane",
@@ -42,14 +50,6 @@ class AntEnvCfg(DirectRLEnvCfg):
     # robot
     robot: ArticulationCfg = ANT_CFG.replace(prim_path="/World/envs/env_.*/Robot")
     joint_gears: list = [15, 15, 15, 15, 15, 15, 15, 15]
-
-    # env
-    episode_length_s = 15.0
-    decimation = 2
-    action_scale = 0.5
-    num_actions = 8
-    num_observations = 36
-    num_states = 0
 
     heading_weight: float = 0.5
     up_weight: float = 0.1

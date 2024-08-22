@@ -47,11 +47,20 @@ class QuadcopterEnvWindow(BaseEnvWindow):
 
 @configclass
 class QuadcopterEnvCfg(DirectRLEnvCfg):
+    # env
+    episode_length_s = 10.0
+    decimation = 2
+    num_actions = 4
+    num_observations = 12
+    num_states = 0
+    debug_vis = True
+
     ui_window_class_type = QuadcopterEnvWindow
 
     # simulation
     sim: SimulationCfg = SimulationCfg(
         dt=1 / 100,
+        render_interval=decimation,
         disable_contact_processing=True,
         physics_material=sim_utils.RigidBodyMaterialCfg(
             friction_combine_mode="multiply",
@@ -82,14 +91,6 @@ class QuadcopterEnvCfg(DirectRLEnvCfg):
     robot: ArticulationCfg = CRAZYFLIE_CFG.replace(prim_path="/World/envs/env_.*/Robot")
     thrust_to_weight = 1.9
     moment_scale = 0.01
-
-    # env
-    episode_length_s = 10.0
-    decimation = 2
-    num_actions = 4
-    num_observations = 12
-    num_states = 0
-    debug_vis = True
 
     # reward scales
     lin_vel_reward_scale = -0.05
@@ -198,13 +199,13 @@ class QuadcopterEnv(DirectRLEnv):
         extras = dict()
         for key in self._episode_sums.keys():
             episodic_sum_avg = torch.mean(self._episode_sums[key][env_ids])
-            extras["Episode Reward/" + key] = episodic_sum_avg / self.max_episode_length_s
+            extras["Episode_Reward/" + key] = episodic_sum_avg / self.max_episode_length_s
             self._episode_sums[key][env_ids] = 0.0
         self.extras["log"] = dict()
         self.extras["log"].update(extras)
         extras = dict()
-        extras["Episode Termination/died"] = torch.count_nonzero(self.reset_terminated[env_ids]).item()
-        extras["Episode Termination/time_out"] = torch.count_nonzero(self.reset_time_outs[env_ids]).item()
+        extras["Episode_Termination/died"] = torch.count_nonzero(self.reset_terminated[env_ids]).item()
+        extras["Episode_Termination/time_out"] = torch.count_nonzero(self.reset_time_outs[env_ids]).item()
         extras["Metrics/final_distance_to_goal"] = final_distance_to_goal.item()
         self.extras["log"].update(extras)
 

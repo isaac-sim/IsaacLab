@@ -52,7 +52,7 @@ class TestSimulationContext(unittest.TestCase):
 
     def test_initialization(self):
         """Test the simulation config."""
-        cfg = SimulationCfg(physics_prim_path="/Physics/PhysX", substeps=5, gravity=(0.0, -0.5, -0.5))
+        cfg = SimulationCfg(physics_prim_path="/Physics/PhysX", render_interval=5, gravity=(0.0, -0.5, -0.5))
         sim = SimulationContext(cfg)
         # TODO: Figure out why keyword argument doesn't work.
         # note: added a fix in Isaac Sim 2023.1 for this.
@@ -60,7 +60,7 @@ class TestSimulationContext(unittest.TestCase):
 
         # check valid settings
         self.assertEqual(sim.get_physics_dt(), cfg.dt)
-        self.assertEqual(sim.get_rendering_dt(), cfg.dt * cfg.substeps)
+        self.assertEqual(sim.get_rendering_dt(), cfg.dt * cfg.render_interval)
         self.assertFalse(sim.has_rtx_sensors())
         # check valid paths
         self.assertTrue(prim_utils.is_prim_path_valid("/Physics/PhysX"))

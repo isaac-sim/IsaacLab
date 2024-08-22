@@ -1,6 +1,101 @@
 Changelog
 ---------
 
+0.10.0 (2024-08-14)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added support for the Hydra configuration system to all the train scripts. As a result, parameters of the environment
+  and the agent can be modified using command line arguments, for example ``env.actions.joint_effort.scale=10``.
+
+
+0.9.0 (2024-08-05)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Replaced the command line input ``--cpu`` with ``--device`` in the train and play scripts. Running on cpu is
+  supported by passing ``--device cpu``. Running on a specific gpu is now supported by passing ``--device cuda:<device_id>``,
+  where ``<device_id>`` is the id of the GPU to use, for example ``--device cuda:0``.
+
+
+0.8.2 (2024-08-02)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Repose-Cube-Allegro-Direct-v0`` environment
+
+Changed
+^^^^^^^
+
+* Renamed ``Isaac-Shadow-Hand-Direct-v0`` environments to ``Isaac-Repose-Cube-Shadow-Direct-v0``.
+* Renamed ``Isaac-Shadow-Hand-OpenAI-FF-Direct-v0`` environments to ``Isaac-Repose-Cube-Shadow-OpenAI-FF-Direct-v0``.
+* Renamed ``Isaac-Shadow-Hand-OpenAI-LSTM-Direct-v0`` environments to ``Isaac-Repose-Cube-Shadow-OpenAI-LSTM-Direct-v0``.
+
+
+0.8.1 (2024-08-02)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Renamed the folder names for Unitree robots in the manager-based locomotion tasks. Earlier, there was an inconsistency
+  in the folder names as some had ``unitree_`` prefix and some didn't. Now, none of the folders have the prefix.
+
+
+0.8.0 (2024-07-26)
+~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Renamed the action term names inside the manager-based lift-manipulation task. Earlier, they were called
+  ``body_joint_pos`` and ``gripper_joint_pos``. Now, they are called ``arm_action`` and ``gripper_action``.
+
+
+0.7.10 (2024-07-02)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Extended skrl wrapper to support training/evaluation using JAX.
+
+
+0.7.9 (2024-07-01)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the action space check in the Stable-Baselines3 wrapper. Earlier, the wrapper checked
+  the action space via :meth:`gymnasium.spaces.Box.is_bounded` method, which returned a bool
+  value instead of a string.
+
+
+0.7.8 (2024-06-26)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated the skrl RL library integration to the latest release (>= 1.2.0)
+
+
+0.7.7 (2024-06-14)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated the tasks to use the renamed attribute :attr:`omni.isaac.lab.sim.SimulationCfg.render_interval`.
+
+
 0.7.6 (2024-06-13)
 ~~~~~~~~~~~~~~~~~~
 
@@ -37,7 +132,7 @@ Added
 Changed
 ^^^^^^^
 
-* Set default device for RSL RL and SB3 configs to "cuda:0".
+* Made default device for RSL RL and SB3 configs to "cuda:0".
 
 0.7.3 (2024-05-21)
 ~~~~~~~~~~~~~~~~~~
@@ -45,7 +140,7 @@ Changed
 Added
 ^^^^^
 
-* Introduce ``--max_iterations`` argument to training scripts for specifying number of training iterations.
+* Introduced ``--max_iterations`` argument to training scripts for specifying number of training iterations.
 
 0.7.2 (2024-05-13)
 ~~~~~~~~~~~~~~~~~~
@@ -53,7 +148,8 @@ Added
 Added
 ^^^^^
 
-* Add Shadow Hand environments: ``Isaac-Shadow-Hand-Direct-v0``, ``Isaac-Shadow-Hand-OpenAI-FF-Direct-v0``, ``Isaac-Shadow-Hand-OpenAI-LSTM-Direct-v0``.
+* Added Shadow Hand environments: ``Isaac-Shadow-Hand-Direct-v0``, ``Isaac-Shadow-Hand-OpenAI-FF-Direct-v0``,
+  and ``Isaac-Shadow-Hand-OpenAI-LSTM-Direct-v0``.
 
 
 0.7.1 (2024-05-09)
@@ -71,7 +167,9 @@ Added
 Changed
 ^^^^^^^
 
-* Renamed all references of ``BaseEnv``, ``RLTaskEnv``, and ``OIGEEnv`` to :class:`omni.isaac.lab.envs.ManagerBasedEnv`, :class:`omni.isaac.lab.envs.ManagerBasedRLEnv`, and :class:`omni.isaac.lab.envs.DirectRLEnv`.
+* Renamed all references of ``BaseEnv``, ``RLTaskEnv``, and ``OIGEEnv`` to
+  :class:`omni.isaac.lab.envs.ManagerBasedEnv`, :class:`omni.isaac.lab.envs.ManagerBasedRLEnv`,
+  and :class:`omni.isaac.lab.envs.DirectRLEnv` respectively.
 * Split environments into ``manager_based`` and ``direct`` folders.
 
 Added
@@ -293,7 +391,7 @@ Added
 * Added a new flag ``viewport`` to the :class:`IsaacEnv` class to enable/disable rendering of the viewport.
   If the flag is set to ``True``, the viewport is enabled and the environment is rendered in the background.
 * Updated the training scripts in the ``source/standalone/workflows`` directory to use the new flag ``viewport``.
-  If the CLI argument ``--video`` is passed, videos are recorded in the ``videos`` directory using the
+  If the CLI argument ``--video`` is passed, videos are recorded in the ``videos/train`` directory using the
   :class:`gym.wrappers.RecordVideo` wrapper.
 
 Changed

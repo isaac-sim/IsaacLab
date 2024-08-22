@@ -9,7 +9,7 @@
 [package]
 title = "Isaac Lab Python Camera"
 description = "An app for running Isaac Lab with rendering enabled"
-version = "1.0.0"
+version = "1.1.0"
 
 # That makes it browsable in UI with "experience" filter
 keywords = ["experience", "app", "isaaclab", "python", "camera", "minimal"]
@@ -32,7 +32,7 @@ keywords = ["experience", "app", "isaaclab", "python", "camera", "minimal"]
 app.versionFile = "${exe-path}/VERSION"
 app.folder = "${exe-path}/"
 app.name = "Isaac-Sim"
-app.version = "4.0.0"
+app.version = "4.1.0"
 
 # set the default ros bridge to disable on startup
 isaac.startup.ros_bridge_extension = ""
@@ -54,6 +54,9 @@ rtx-transient.dlssg.enabled = false
 
 rtx.sceneDb.ambientLightIntensity = 1.0
 rtx.directLighting.sampledLighting.enabled = true
+
+# Avoids unnecessary GPU context initialization
+renderer.multiGpu.maxGpuCount=1
 
 # Force synchronous rendering to improve training results
 omni.replicator.asyncRendering = false

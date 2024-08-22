@@ -12,7 +12,7 @@ from collections.abc import Iterable, Mapping
 from typing import Any
 
 from .array import TENSOR_TYPE_CONVERSIONS, TENSOR_TYPES
-from .string import callable_to_string, string_to_callable
+from .string import callable_to_string, string_to_callable, string_to_slice
 
 """
 Dictionary <-> Class operations.
@@ -42,6 +42,7 @@ def class_to_dict(obj: object) -> dict[str, Any]:
         obj_dict = obj
     else:
         obj_dict = obj.__dict__
+
     # convert to dictionary
     data = dict()
     for key, value in obj_dict.items():
@@ -79,39 +80,36 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
         # key_ns is the full namespace of the key
         key_ns = _ns + "/" + key
         # check if key is present in the object
-        if hasattr(obj, key):
-            obj_mem = getattr(obj, key)
-            if isinstance(obj_mem, Mapping):
-                # Note: We don't handle two-level nested dictionaries. Just use configclass if this is needed.
-                # iterate over the dictionary to look for callable values
-                for k, v in obj_mem.items():
-                    if callable(v):
-                        value[k] = string_to_callable(value[k])
-                setattr(obj, key, value)
-            elif isinstance(value, Mapping):
+        if hasattr(obj, key) or isinstance(obj, dict):
+            obj_mem = obj[key] if isinstance(obj, dict) else getattr(obj, key)
+            if isinstance(value, Mapping):
                 # recursively call if it is a dictionary
                 update_class_from_dict(obj_mem, value, _ns=key_ns)
-            elif isinstance(value, Iterable) and not isinstance(value, str):
+                continue
+            if isinstance(value, Iterable) and not isinstance(value, str):
                 # check length of value to be safe
                 if len(obj_mem) != len(value) and obj_mem is not None:
                     raise ValueError(
                         f"[Config]: Incorrect length under namespace: {key_ns}."
                         f" Expected: {len(obj_mem)}, Received: {len(value)}."
                     )
-                # set value
-                setattr(obj, key, value)
+                if isinstance(obj_mem, tuple):
+                    value = tuple(value)
             elif callable(obj_mem):
                 # update function name
                 value = string_to_callable(value)
-                setattr(obj, key, value)
-            elif isinstance(value, type(obj_mem)):
-                # check that they are type-safe
-                setattr(obj, key, value)
+            elif isinstance(value, type(obj_mem)) or value is None:
+                pass
             else:
                 raise ValueError(
                     f"[Config]: Incorrect type under namespace: {key_ns}."
                     f" Expected: {type(obj_mem)}, Received: {type(value)}."
                 )
+            # set value
+            if isinstance(obj, dict):
+                obj[key] = value
+            else:
+                setattr(obj, key, value)
         else:
             raise KeyError(f"[Config]: Key not found under namespace: {key_ns}.")
 
@@ -235,6 +233,40 @@ def update_dict(orig_dict: dict, new_dict: collections.abc.Mapping) -> dict:
         else:
             orig_dict[keyname] = value
     return orig_dict
+
+
+def replace_slices_with_strings(data: dict) -> dict:
+    """Replace slice objects with their string representations in a dictionary.
+
+    Args:
+        data: The dictionary to process.
+
+    Returns:
+        The dictionary with slice objects replaced by their string representations.
+    """
+    if isinstance(data, dict):
+        return {k: replace_slices_with_strings(v) for k, v in data.items()}
+    elif isinstance(data, slice):
+        return f"slice({data.start},{data.stop},{data.step})"
+    else:
+        return data
+
+
+def replace_strings_with_slices(data: dict) -> dict:
+    """Replace string representations of slices with slice objects in a dictionary.
+
+    Args:
+        data: The dictionary to process.
+
+    Returns:
+        The dictionary with string representations of slices replaced by slice objects.
+    """
+    if isinstance(data, dict):
+        return {k: replace_strings_with_slices(v) for k, v in data.items()}
+    elif isinstance(data, str) and data.startswith("slice("):
+        return string_to_slice(data)
+    else:
+        return data
 
 
 def print_dict(val, nesting: int = -4, start: bool = True):

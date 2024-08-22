@@ -1,7 +1,7 @@
 Migration Guide (Isaac Sim)
 ===========================
 
-Moving from Isaac Sim 2022.2.1 to 2023.1.0 brings in a number of changes to the
+Moving from Isaac Sim 2022.2.1 to 2023.1.0 and later brings in a number of changes to the
 APIs and the way the application is built. This document outlines the changes
 and how to migrate your code to the new APIs. Many of these changes attribute to
 the underlying Omniverse Kit upgrade from 104.2 to 105.1. The new upgrade brings
@@ -9,11 +9,6 @@ the following notable changes:
 
 * Update to USD 22.11
 * Upgrading the Python from 3.7 to 3.10
-
-
-.. warning::
-    This document is a work in progress and will be updated as we move closer
-    to the release of Isaac Sim 2023.1.0.
 
 
 Renaming of PhysX Flatcache to PhysX Fabric

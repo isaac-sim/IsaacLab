@@ -15,7 +15,7 @@ ENV ISAACSIM_VERSION=${ISAACSIM_VERSION_ARG}
 SHELL ["/bin/bash", "-c"]
 
 # Adds labels to the Dockerfile
-LABEL version="1.0"
+LABEL version="1.1"
 LABEL description="Dockerfile for building and running the Isaac Lab framework inside Isaac Sim container image."
 
 # Arguments
@@ -51,6 +51,12 @@ COPY ../ ${ISAACLAB_PATH}
 
 # Set up a symbolic link between the installed Isaac Sim root folder and _isaac_sim in the Isaac Lab directory
 RUN ln -sf ${ISAACSIM_ROOT_PATH} ${ISAACLAB_PATH}/_isaac_sim
+
+# Install apt dependencies for extensions that declare them in their extension.toml
+RUN --mount=type=cache,target=/var/cache/apt \
+    ${ISAACLAB_PATH}/isaaclab.sh -p ${ISAACLAB_PATH}/tools/install_deps.py apt ${ISAACLAB_PATH}/source/extensions && \
+    apt -y autoremove && apt clean autoclean && \
+    rm -rf /var/lib/apt/lists/*
 
 # for singularity usage, have to create the directories that will binded
 RUN mkdir -p ${ISAACSIM_ROOT_PATH}/kit/cache && \

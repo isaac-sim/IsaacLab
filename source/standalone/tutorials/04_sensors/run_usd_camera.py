@@ -27,7 +27,6 @@ from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="This script demonstrates how to use the camera sensor.")
-parser.add_argument("--cpu", action="store_true", default=False, help="Use CPU device for camera output.")
 parser.add_argument(
     "--draw",
     action="store_true",
@@ -236,20 +235,12 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
             single_cam_info = camera.data.info[camera_index]
 
             # Pack data back into replicator format to save them using its writer
-            if sim.get_version()[0] == 4:
-                rep_output = {"annotators": {}}
-                for key, data, info in zip(single_cam_data.keys(), single_cam_data.values(), single_cam_info.values()):
-                    if info is not None:
-                        rep_output["annotators"][key] = {"render_product": {"data": data, **info}}
-                    else:
-                        rep_output["annotators"][key] = {"render_product": {"data": data}}
-            else:
-                rep_output = dict()
-                for key, data, info in zip(single_cam_data.keys(), single_cam_data.values(), single_cam_info.values()):
-                    if info is not None:
-                        rep_output[key] = {"data": data, "info": info}
-                    else:
-                        rep_output[key] = data
+            rep_output = {"annotators": {}}
+            for key, data, info in zip(single_cam_data.keys(), single_cam_data.values(), single_cam_info.values()):
+                if info is not None:
+                    rep_output["annotators"][key] = {"render_product": {"data": data, **info}}
+                else:
+                    rep_output["annotators"][key] = {"render_product": {"data": data}}
             # Save images
             # Note: We need to provide On-time data for Replicator to save the images.
             rep_output["trigger_outputs"] = {"on_time": camera.frame[camera_index]}
@@ -276,7 +267,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
 def main():
     """Main function."""
     # Load simulation context
-    sim_cfg = sim_utils.SimulationCfg(device="cpu" if args_cli.cpu else "cuda")
+    sim_cfg = sim_utils.SimulationCfg(device=args_cli.device)
     sim = sim_utils.SimulationContext(sim_cfg)
     # Set main camera
     sim.set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])

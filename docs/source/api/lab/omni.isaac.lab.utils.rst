@@ -10,8 +10,11 @@
       io
       array
       assets
+      buffers
       dict
+      interpolation
       math
+      modifiers
       noise
       string
       timer
@@ -52,11 +55,29 @@ Asset operations
    :members:
    :show-inheritance:
 
+Buffer operations
+~~~~~~~~~~~~~~~~~
+
+.. automodule:: omni.isaac.lab.utils.buffers
+   :members:
+   :imported-members:
+   :inherited-members:
+   :show-inheritance:
+
 Dictionary operations
 ~~~~~~~~~~~~~~~~~~~~~
 
 .. automodule:: omni.isaac.lab.utils.dict
    :members:
+   :show-inheritance:
+
+Interpolation operations
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. automodule:: omni.isaac.lab.utils.interpolation
+   :members:
+   :imported-members:
+   :inherited-members:
    :show-inheritance:
 
 Math operations
@@ -66,6 +87,17 @@ Math operations
    :members:
    :inherited-members:
    :show-inheritance:
+
+Modifier operations
+~~~~~~~~~~~~~~~~~~~
+
+.. automodule:: omni.isaac.lab.utils.modifiers
+   :members:
+   :imported-members:
+   :special-members: __call__
+   :inherited-members:
+   :show-inheritance:
+   :exclude-members: __init__, func
 
 Noise operations
 ~~~~~~~~~~~~~~~~

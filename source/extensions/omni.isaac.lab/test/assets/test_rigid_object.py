@@ -48,8 +48,7 @@ def generate_cubes_scene(
         device: Device to use for the simulation.
 
     Returns:
-        RigidObject: The rigid object representing the cubes.
-        origins: The origins of the cubes.
+        A tuple containing the rigid object representing the cubes and the origins of the cubes.
 
     """
     origins = torch.tensor([(i * 1.0, 0, height) for i in range(num_cubes)]).to(device)
@@ -93,6 +92,7 @@ class TestRigidObject(unittest.TestCase):
             for device in ("cuda:0", "cpu"):
                 with self.subTest(num_cubes=num_cubes, device=device):
                     with build_simulation_context(device=device, auto_add_lighting=True) as sim:
+                        # Generate cubes scene
                         cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, device=device)
 
                         # Check that boundedness of rigid object is correct
@@ -102,7 +102,7 @@ class TestRigidObject(unittest.TestCase):
                         sim.reset()
 
                         # Check if object is initialized
-                        self.assertTrue(cube_object._is_initialized)
+                        self.assertTrue(cube_object.is_initialized)
                         self.assertEqual(len(cube_object.body_names), 1)
 
                         # Check buffers that exists and have correct shapes
@@ -122,6 +122,7 @@ class TestRigidObject(unittest.TestCase):
             for device in ("cuda:0", "cpu"):
                 with self.subTest(num_cubes=num_cubes, device=device):
                     with build_simulation_context(device=device, auto_add_lighting=True) as sim:
+                        # Generate cubes scene
                         cube_object, origins = generate_cubes_scene(
                             num_cubes=num_cubes, kinematic_enabled=True, device=device
                         )
@@ -133,7 +134,7 @@ class TestRigidObject(unittest.TestCase):
                         sim.reset()
 
                         # Check if object is initialized
-                        self.assertTrue(cube_object._is_initialized)
+                        self.assertTrue(cube_object.is_initialized)
                         self.assertEqual(len(cube_object.body_names), 1)
 
                         # Check buffers that exists and have correct shapes
@@ -149,7 +150,7 @@ class TestRigidObject(unittest.TestCase):
                             # check that the object is kinematic
                             default_root_state = cube_object.data.default_root_state.clone()
                             default_root_state[:, :3] += origins
-                            torch.testing.assert_allclose(cube_object.data.root_state_w, default_root_state)
+                            torch.testing.assert_close(cube_object.data.root_state_w, default_root_state)
 
     def test_initialization_with_no_rigid_body(self):
         """Test that initialization fails when no rigid body is found at the provided prim path."""
@@ -157,6 +158,7 @@ class TestRigidObject(unittest.TestCase):
             for device in ("cuda:0", "cpu"):
                 with self.subTest(num_cubes=num_cubes, device=device):
                     with build_simulation_context(device=device, auto_add_lighting=True) as sim:
+                        # Generate cubes scene
                         cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, has_api=False, device=device)
 
                         # Check that boundedness of rigid object is correct
@@ -166,7 +168,7 @@ class TestRigidObject(unittest.TestCase):
                         sim.reset()
 
                         # Check if object is initialized
-                        self.assertFalse(cube_object._is_initialized)
+                        self.assertFalse(cube_object.is_initialized)
 
     def test_external_force_on_single_body(self):
         """Test application of external force on the base of the object.
@@ -178,6 +180,7 @@ class TestRigidObject(unittest.TestCase):
         for num_cubes in (2, 4):
             for device in ("cuda:0", "cpu"):
                 with self.subTest(num_cubes=num_cubes, device=device):
+                    # Generate cubes scene
                     with build_simulation_context(device=device, add_ground_plane=True, auto_add_lighting=True) as sim:
                         cube_object, origins = generate_cubes_scene(num_cubes=num_cubes, device=device)
 
@@ -239,6 +242,7 @@ class TestRigidObject(unittest.TestCase):
                     # Turn off gravity for this test as we don't want any external forces acting on the object
                     # to ensure state remains static
                     with build_simulation_context(device=device, gravity_enabled=False, auto_add_lighting=True) as sim:
+                        # Generate cubes scene
                         cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, device=device)
 
                         # Play the simulator
@@ -297,6 +301,7 @@ class TestRigidObject(unittest.TestCase):
             for device in ("cuda:0", "cpu"):
                 with self.subTest(num_cubes=num_cubes, device=device):
                     with build_simulation_context(device=device, gravity_enabled=True, auto_add_lighting=True) as sim:
+                        # Generate cubes scene
                         cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, device=device)
 
                         # Play the simulator
@@ -334,7 +339,7 @@ class TestRigidObject(unittest.TestCase):
                     with build_simulation_context(
                         device=device, gravity_enabled=True, add_ground_plane=True, auto_add_lighting=True
                     ) as sim:
-                        # Create rigid object(s)
+                        # Generate cubes scene
                         cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, device=device)
 
                         # Play sim
@@ -369,6 +374,7 @@ class TestRigidObject(unittest.TestCase):
             for device in ("cuda:0", "cpu"):
                 with self.subTest(num_cubes=num_cubes, device=device):
                     with build_simulation_context(device=device, auto_add_lighting=True) as sim:
+                        # Generate cubes scene
                         cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, height=0.0, device=device)
 
                         # Create ground plane with no friction
@@ -596,6 +602,7 @@ class TestRigidObject(unittest.TestCase):
                     with build_simulation_context(
                         device=device, gravity_enabled=False, add_ground_plane=True, auto_add_lighting=True
                     ) as sim:
+                        # Create a scene with random cubes
                         cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, height=1.0, device=device)
 
                         # Play sim
@@ -626,6 +633,44 @@ class TestRigidObject(unittest.TestCase):
 
                         # Check if mass is set correctly
                         torch.testing.assert_close(masses, masses_to_check)
+
+    def test_gravity_vec_w(self):
+        """Test that gravity vector direction is set correctly for the rigid object."""
+        for num_cubes in (1, 2):
+            for device in ("cuda:0", "cpu"):
+                for gravity_enabled in [True, False]:
+                    with self.subTest(num_cubes=num_cubes, device=device, gravity_enabled=gravity_enabled):
+                        with build_simulation_context(device=device, gravity_enabled=gravity_enabled) as sim:
+                            # Create a scene with random cubes
+                            cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, device=device)
+
+                            # Obtain gravity direction
+                            if gravity_enabled:
+                                gravity_dir = (0.0, 0.0, -1.0)
+                            else:
+                                gravity_dir = (0.0, 0.0, 0.0)
+
+                            # Play sim
+                            sim.reset()
+
+                            # Check that gravity is set correctly
+                            self.assertEqual(cube_object.data.GRAVITY_VEC_W[0, 0], gravity_dir[0])
+                            self.assertEqual(cube_object.data.GRAVITY_VEC_W[0, 1], gravity_dir[1])
+                            self.assertEqual(cube_object.data.GRAVITY_VEC_W[0, 2], gravity_dir[2])
+
+                            # Simulate physics
+                            for _ in range(2):
+                                # perform rendering
+                                sim.step()
+                                # update object
+                                cube_object.update(sim.cfg.dt)
+
+                                # Expected gravity value is the acceleration of the body
+                                gravity = torch.zeros(num_cubes, 1, 6, device=device)
+                                if gravity_enabled:
+                                    gravity[:, :, 2] = -9.81
+                                # Check the body accelerations are correct
+                                torch.testing.assert_close(cube_object.data.body_acc_w, gravity)
 
 
 if __name__ == "__main__":

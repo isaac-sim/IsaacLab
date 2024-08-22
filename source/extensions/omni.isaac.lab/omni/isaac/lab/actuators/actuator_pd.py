@@ -132,8 +132,7 @@ class IdealPDActuator(ActuatorBase):
 
 
 class DCMotor(IdealPDActuator):
-    r"""
-    Direct control (DC) motor actuator model with velocity-based saturation model.
+    r"""Direct control (DC) motor actuator model with velocity-based saturation model.
 
     It uses the same model as the :class:`IdealActuator` for computing the torques from input commands.
     However, it implements a saturation model defined by DC motor characteristics.
@@ -221,65 +220,49 @@ class DCMotor(IdealPDActuator):
 
 
 class DelayedPDActuator(IdealPDActuator):
-    """Ideal PD actuator with delayed data.
+    """Ideal PD actuator with delayed command application.
 
-    The DelayedPDActuator has configurable minimum and maximum time lag values, which are used to initialize a
-    DelayBuffer to hold a queue of pending actuator commands. On reset, a value time_lags will be randomly sampled
-    from the min and max time lag bounds. At every physics step, the most recent actuation value is pushed to the
-    DelayBuffer, but the final actuation value applied to simulation will be `time_lags` physics steps in the past.
+    This class extends the :class:`IdealPDActuator` class by adding a delay to the actuator commands. The delay
+    is implemented using a circular buffer that stores the actuator commands for a certain number of physics steps.
+    The most recent actuation value is pushed to the buffer at every physics step, but the final actuation value
+    applied to the simulation is lagged by a certain number of physics steps.
+
+    The amount of time lag is configurable and can be set to a random value between the minimum and maximum time
+    lag bounds at every reset. The minimum and maximum time lag values are set in the configuration instance passed
+    to the class.
     """
 
-    def __init__(
-        self,
-        cfg: DelayedPDActuatorCfg,
-        joint_names: list[str],
-        joint_ids: Sequence[int],
-        num_envs: int,
-        device: str,
-        stiffness: torch.Tensor | float = 0.0,
-        damping: torch.Tensor | float = 0.0,
-        armature: torch.Tensor | float = 0.0,
-        friction: torch.Tensor | float = 0.0,
-        effort_limit: torch.Tensor | float = torch.inf,
-        velocity_limit: torch.Tensor | float = torch.inf,
-    ):
-        super().__init__(
-            cfg,
-            joint_names,
-            joint_ids,
-            num_envs,
-            device,
-            stiffness,
-            damping,
-            armature,
-            friction,
-            effort_limit,
-            velocity_limit,
-        )
+    cfg: DelayedPDActuatorCfg
+    """The configuration for the actuator model."""
+
+    def __init__(self, cfg: DelayedPDActuatorCfg, *args, **kwargs):
+        super().__init__(cfg, *args, **kwargs)
         # instantiate the delay buffers
-        self.positions_delay_buffer = DelayBuffer(cfg.max_num_time_lags, num_envs=num_envs, device=device)
-        self.velocities_delay_buffer = DelayBuffer(cfg.max_num_time_lags, num_envs=num_envs, device=device)
-        self.efforts_delay_buffer = DelayBuffer(cfg.max_num_time_lags, num_envs=num_envs, device=device)
+        self.positions_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
+        self.velocities_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
+        self.efforts_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
         # all of the envs
-        self._ALL_INDICES = torch.arange(num_envs, dtype=torch.long, device=device)
+        self._ALL_INDICES = torch.arange(self._num_envs, dtype=torch.long, device=self._device)
 
     def reset(self, env_ids: Sequence[int]):
         super().reset(env_ids)
         # number of environments (since env_ids can be a slice)
-        env_size = self._ALL_INDICES[env_ids].size()
+        if env_ids is None or env_ids == slice(None):
+            num_envs = self._num_envs
+        else:
+            num_envs = len(env_ids)
         # set a new random delay for environments in env_ids
-        time_lags = self.positions_delay_buffer.time_lags
-        time_lags[env_ids] = torch.randint(
-            low=self.cfg.min_num_time_lags,
-            high=self.cfg.max_num_time_lags + 1,
-            size=env_size,
-            device=self._device,
+        time_lags = torch.randint(
+            low=self.cfg.min_delay,
+            high=self.cfg.max_delay + 1,
+            size=(num_envs,),
             dtype=torch.int,
+            device=self._device,
         )
         # set delays
-        self.positions_delay_buffer.set_time_lag(time_lags)
-        self.velocities_delay_buffer.set_time_lag(time_lags)
-        self.efforts_delay_buffer.set_time_lag(time_lags)
+        self.positions_delay_buffer.set_time_lag(time_lags, env_ids)
+        self.velocities_delay_buffer.set_time_lag(time_lags, env_ids)
+        self.efforts_delay_buffer.set_time_lag(time_lags, env_ids)
         # reset buffers
         self.positions_delay_buffer.reset(env_ids)
         self.velocities_delay_buffer.reset(env_ids)
@@ -297,10 +280,13 @@ class DelayedPDActuator(IdealPDActuator):
 
 
 class RemotizedPDActuator(DelayedPDActuator):
-    """Ideal PD actuator with angle dependent torque limits.
+    """Ideal PD actuator with angle-dependent torque limits.
 
-    The torque limits for this actuator are applied by querying a lookup table describing the relationship between
-    the joint angle and the maximum output torque.
+    This class extends the :class:`DelayedPDActuator` class by adding angle-dependent torque limits to the actuator.
+    The torque limits are applied by querying a lookup table describing the relationship between the joint angle
+    and the maximum output torque. The lookup table is provided in the configuration instance passed to the class.
+
+    The torque limits are interpolated based on the current joint positions and applied to the actuator commands.
     """
 
     def __init__(
@@ -328,6 +314,10 @@ class RemotizedPDActuator(DelayedPDActuator):
         # define remotized joint torque limit
         self._torque_limit = LinearInterpolation(self.angle_samples, self.max_torque_samples, device=device)
 
+    """
+    Properties.
+    """
+
     @property
     def angle_samples(self) -> torch.Tensor:
         return self._joint_parameter_lookup[:, 0]
@@ -339,6 +329,10 @@ class RemotizedPDActuator(DelayedPDActuator):
     @property
     def max_torque_samples(self) -> torch.Tensor:
         return self._joint_parameter_lookup[:, 2]
+
+    """
+    Operations.
+    """
 
     def compute(
         self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor

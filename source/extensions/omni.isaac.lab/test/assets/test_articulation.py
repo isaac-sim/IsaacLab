@@ -52,6 +52,7 @@ class TestArticulation(unittest.TestCase):
         # stop simulation
         self.sim.stop()
         # clear the stage
+        self.sim.clear_all_callbacks()
         self.sim.clear_instance()
 
     """
@@ -75,8 +76,12 @@ class TestArticulation(unittest.TestCase):
 
         # Play sim
         self.sim.reset()
+
+        # Check that boundedness of articulation is correct
+        self.assertEqual(ctypes.c_long.from_address(id(robot)).value, 1)
+
         # Check if robot is initialized
-        self.assertTrue(robot._is_initialized)
+        self.assertTrue(robot.is_initialized)
         # Check that floating base
         self.assertFalse(robot.is_fixed_base)
         # Check buffers that exists and have correct shapes
@@ -92,10 +97,6 @@ class TestArticulation(unittest.TestCase):
         # -- link names (check within articulation ordering is correct)
         prim_path_body_names = [path.split("/")[-1] for path in robot.root_physx_view.link_paths[0]]
         self.assertListEqual(prim_path_body_names, robot.body_names)
-
-        # Check that the body_physx_view is deprecated
-        with self.assertWarns(DeprecationWarning):
-            robot.body_physx_view
 
         # Simulate physics
         for _ in range(10):
@@ -114,8 +115,12 @@ class TestArticulation(unittest.TestCase):
 
         # Play sim
         self.sim.reset()
+
+        # Check that boundedness of articulation is correct
+        self.assertEqual(ctypes.c_long.from_address(id(robot)).value, 1)
+
         # Check if robot is initialized
-        self.assertTrue(robot._is_initialized)
+        self.assertTrue(robot.is_initialized)
         # Check that floating base
         self.assertFalse(robot.is_fixed_base)
         # Check buffers that exists and have correct shapes
@@ -131,10 +136,6 @@ class TestArticulation(unittest.TestCase):
         # -- link names (check within articulation ordering is correct)
         prim_path_body_names = [path.split("/")[-1] for path in robot.root_physx_view.link_paths[0]]
         self.assertListEqual(prim_path_body_names, robot.body_names)
-
-        # Check that the body_physx_view is deprecated
-        with self.assertWarns(DeprecationWarning):
-            robot.body_physx_view
 
         # Simulate physics
         for _ in range(10):
@@ -153,8 +154,12 @@ class TestArticulation(unittest.TestCase):
 
         # Play sim
         self.sim.reset()
+
+        # Check that boundedness of articulation is correct
+        self.assertEqual(ctypes.c_long.from_address(id(robot)).value, 1)
+
         # Check if robot is initialized
-        self.assertTrue(robot._is_initialized)
+        self.assertTrue(robot.is_initialized)
         # Check that fixed base
         self.assertTrue(robot.is_fixed_base)
         # Check buffers that exists and have correct shapes
@@ -170,10 +175,6 @@ class TestArticulation(unittest.TestCase):
         # -- link names (check within articulation ordering is correct)
         prim_path_body_names = [path.split("/")[-1] for path in robot.root_physx_view.link_paths[0]]
         self.assertListEqual(prim_path_body_names, robot.body_names)
-
-        # Check that the body_physx_view is deprecated
-        with self.assertWarns(DeprecationWarning):
-            robot.body_physx_view
 
         # Simulate physics
         for _ in range(10):
@@ -207,8 +208,12 @@ class TestArticulation(unittest.TestCase):
 
         # Play sim
         self.sim.reset()
+
+        # Check that boundedness of articulation is correct
+        self.assertEqual(ctypes.c_long.from_address(id(robot)).value, 1)
+
         # Check if robot is initialized
-        self.assertTrue(robot._is_initialized)
+        self.assertTrue(robot.is_initialized)
         # Check that fixed base
         self.assertTrue(robot.is_fixed_base)
         # Check buffers that exists and have correct shapes
@@ -224,10 +229,6 @@ class TestArticulation(unittest.TestCase):
         # -- link names (check within articulation ordering is correct)
         prim_path_body_names = [path.split("/")[-1] for path in robot.root_physx_view.link_paths[0]]
         self.assertListEqual(prim_path_body_names, robot.body_names)
-
-        # Check that the body_physx_view is deprecated
-        with self.assertWarns(DeprecationWarning):
-            robot.body_physx_view
 
         # Simulate physics
         for _ in range(10):
@@ -247,8 +248,12 @@ class TestArticulation(unittest.TestCase):
 
         # Play sim
         self.sim.reset()
+
+        # Check that boundedness of articulation is correct
+        self.assertEqual(ctypes.c_long.from_address(id(robot)).value, 1)
+
         # Check if robot is initialized
-        self.assertTrue(robot._is_initialized)
+        self.assertTrue(robot.is_initialized)
         # Check that fixed base
         self.assertTrue(robot.is_fixed_base)
         # Check buffers that exists and have correct shapes
@@ -281,8 +286,12 @@ class TestArticulation(unittest.TestCase):
 
         # Play sim
         self.sim.reset()
+
+        # Check that boundedness of articulation is correct
+        self.assertEqual(ctypes.c_long.from_address(id(robot)).value, 1)
+
         # Check if robot is initialized
-        self.assertTrue(robot._is_initialized)
+        self.assertTrue(robot.is_initialized)
         # Check that floating base
         self.assertTrue(robot.is_fixed_base)
         # Check buffers that exists and have correct shapes
@@ -298,10 +307,6 @@ class TestArticulation(unittest.TestCase):
         # -- link names (check within articulation ordering is correct)
         prim_path_body_names = [path.split("/")[-1] for path in robot.root_physx_view.link_paths[0]]
         self.assertListEqual(prim_path_body_names, robot.body_names)
-
-        # Check that the body_physx_view is deprecated
-        with self.assertWarns(DeprecationWarning):
-            robot.body_physx_view
 
         # Root state should be at the default state
         robot.write_root_state_to_sim(robot.data.default_root_state.clone())
@@ -327,8 +332,12 @@ class TestArticulation(unittest.TestCase):
 
         # Play sim
         self.sim.reset()
+
+        # Check that boundedness of articulation is correct
+        self.assertEqual(ctypes.c_long.from_address(id(robot)).value, 1)
+
         # Check if robot is initialized
-        self.assertTrue(robot._is_initialized)
+        self.assertTrue(robot.is_initialized)
         # Check that fixed base
         self.assertFalse(robot.is_fixed_base)
         # Check buffers that exists and have correct shapes
@@ -372,7 +381,7 @@ class TestArticulation(unittest.TestCase):
         # Play sim
         self.sim.reset()
         # Check if robot is initialized
-        self.assertFalse(robot._is_initialized)
+        self.assertFalse(robot.is_initialized)
 
     def test_out_of_range_default_joint_vel(self):
         """Test that the default joint velocity from configuration is out of range."""
@@ -390,7 +399,7 @@ class TestArticulation(unittest.TestCase):
         # Play sim
         self.sim.reset()
         # Check if robot is initialized
-        self.assertFalse(robot._is_initialized)
+        self.assertFalse(robot.is_initialized)
 
     def test_external_force_on_single_body(self):
         """Test application of external force on the base of the robot."""

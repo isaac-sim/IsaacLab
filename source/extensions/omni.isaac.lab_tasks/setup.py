@@ -26,6 +26,8 @@ INSTALL_REQUIRES = [
     # 5.26.0 introduced a breaking change, so we restricted it for now.
     # See issue https://github.com/tensorflow/tensorboard/issues/6808 for details.
     "protobuf>=3.20.2, < 5.0.0",
+    # configuration management
+    "hydra-core",
     # data collection
     "h5py",
     # basic logger
@@ -39,18 +41,23 @@ PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu118"]
 # Extra dependencies for RL agents
 EXTRAS_REQUIRE = {
     "sb3": ["stable-baselines3>=2.1"],
-    "skrl": ["skrl>=1.1.0"],
+    "skrl": ["skrl>=1.2.0"],
     "rl-games": ["rl-games==1.6.1", "gym"],  # rl-games still needs gym :(
     "rsl-rl": ["rsl-rl@git+https://github.com/leggedrobotics/rsl_rl.git"],
     "robomimic": [],
 }
+# Add the names with hyphens as aliases for convenience
+EXTRAS_REQUIRE["rl_games"] = EXTRAS_REQUIRE["rl-games"]
+EXTRAS_REQUIRE["rsl_rl"] = EXTRAS_REQUIRE["rsl-rl"]
 
 # Check if the platform is Linux and add the dependency
 if platform.system() == "Linux":
     EXTRAS_REQUIRE["robomimic"].append("robomimic@git+https://github.com/ARISE-Initiative/robomimic.git")
 
-# cumulation of all extra-requires
+# Cumulation of all extra-requires
 EXTRAS_REQUIRE["all"] = list(itertools.chain.from_iterable(EXTRAS_REQUIRE.values()))
+# Remove duplicates in the all list to avoid double installations
+EXTRAS_REQUIRE["all"] = list(set(EXTRAS_REQUIRE["all"]))
 
 
 # Installation operation
@@ -71,8 +78,8 @@ setup(
     classifiers=[
         "Natural Language :: English",
         "Programming Language :: Python :: 3.10",
+        "Isaac Sim :: 4.1.0",
         "Isaac Sim :: 4.0.0",
-        "Isaac Sim :: 2023.1.1",
     ],
     zip_safe=False,
 )

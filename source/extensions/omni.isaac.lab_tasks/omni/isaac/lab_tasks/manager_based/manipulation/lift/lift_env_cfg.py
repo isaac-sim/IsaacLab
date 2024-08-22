@@ -100,8 +100,8 @@ class ActionsCfg:
     """Action specifications for the MDP."""
 
     # will be set by agent env cfg
-    body_joint_pos: mdp.JointPositionActionCfg = MISSING
-    finger_joint_pos: mdp.BinaryJointPositionActionCfg = MISSING
+    arm_action: mdp.JointPositionActionCfg = MISSING
+    gripper_action: mdp.BinaryJointPositionActionCfg = MISSING
 
 
 @configclass
@@ -225,6 +225,7 @@ class LiftEnvCfg(ManagerBasedRLEnvCfg):
         self.episode_length_s = 5.0
         # simulation settings
         self.sim.dt = 0.01  # 100Hz
+        self.sim.render_interval = self.decimation
 
         self.sim.physx.bounce_threshold_velocity = 0.2
         self.sim.physx.bounce_threshold_velocity = 0.01

@@ -134,8 +134,8 @@ class CommandsCfg:
 class ActionsCfg:
     """Action specifications for the MDP."""
 
-    body_joint_pos: mdp.JointPositionActionCfg = MISSING
-    finger_joint_pos: mdp.BinaryJointPositionActionCfg = MISSING
+    arm_action: mdp.JointPositionActionCfg = MISSING
+    gripper_action: mdp.BinaryJointPositionActionCfg = MISSING
 
 
 @configclass
@@ -282,6 +282,7 @@ class CabinetEnvCfg(ManagerBasedRLEnvCfg):
         self.viewer.lookat = (0.8, 0.0, 0.5)
         # simulation settings
         self.sim.dt = 1 / 60  # 60Hz
+        self.sim.render_interval = self.decimation
         self.sim.physx.bounce_threshold_velocity = 0.2
         self.sim.physx.bounce_threshold_velocity = 0.01
         self.sim.physx.friction_correlation_distance = 0.00625

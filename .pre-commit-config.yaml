@@ -38,7 +38,7 @@ repos:
       - id: pyupgrade
         args: ["--py310-plus"]
         # FIXME: This is a hack because Pytorch does not like: torch.Tensor | dict aliasing
-        exclude: "source/extensions/omni.isaac.lab/omni/isaac/lab/envs/types.py"
+        exclude: "source/extensions/omni.isaac.lab/omni/isaac/lab/envs/common.py"
   - repo: https://github.com/codespell-project/codespell
     rev: v2.2.6
     hooks:

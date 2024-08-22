@@ -121,6 +121,14 @@ class AssetBase(ABC):
     """
 
     @property
+    def is_initialized(self) -> bool:
+        """Whether the asset is initialized.
+
+        Returns True if the asset is initialized, False otherwise.
+        """
+        return self._is_initialized
+
+    @property
     @abstractmethod
     def num_instances(self) -> int:
         """Number of instances of the asset.

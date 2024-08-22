@@ -24,7 +24,7 @@ from functools import wraps
 from typing import ClassVar
 
 from omni.isaac.lab.utils.configclass import configclass
-from omni.isaac.lab.utils.dict import class_to_dict, update_class_from_dict
+from omni.isaac.lab.utils.dict import class_to_dict, dict_to_md5_hash, update_class_from_dict
 from omni.isaac.lab.utils.io import dump_yaml, load_yaml
 
 """
@@ -293,6 +293,18 @@ class FunctionImplementedDemoCfg:
 
 
 """
+Dummy configuration: Nested dictionaries
+"""
+
+
+@configclass
+class NestedDictCfg:
+    """Dummy configuration class with nested dictionaries."""
+
+    dict_1: dict = {"dict_2": {"func": dummy_function1}}
+
+
+"""
 Test solutions: Basic
 """
 
@@ -316,6 +328,23 @@ basic_demo_cfg_change_correct = {
         "dof_vel": [0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
     },
     "device_id": 0,
+}
+
+basic_demo_cfg_change_with_none_correct = {
+    "env": {"num_envs": 22, "episode_length": 2000, "viewer": None},
+    "robot_default_state": {
+        "pos": (0.0, 0.0, 0.0),
+        "rot": (1.0, 0.0, 0.0, 0.0),
+        "dof_pos": (0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+        "dof_vel": [0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
+    },
+    "device_id": 0,
+}
+
+basic_demo_cfg_nested_dict = {
+    "dict_1": {
+        "dict_2": {"func": dummy_function2},
+    },
 }
 
 basic_demo_post_init_cfg_correct = {
@@ -426,6 +455,20 @@ class TestConfigClass(unittest.TestCase):
         cfg_dict = {"env": {"num_envs": 22, "viewer": {"eye": (2.0, 2.0, 2.0)}}}
         update_class_from_dict(cfg, cfg_dict)
         self.assertDictEqual(asdict(cfg), basic_demo_cfg_change_correct)
+
+    def test_config_update_dict_with_none(self):
+        """Test updating configclass using a dictionary that contains None."""
+        cfg = BasicDemoCfg()
+        cfg_dict = {"env": {"num_envs": 22, "viewer": None}}
+        update_class_from_dict(cfg, cfg_dict)
+        self.assertDictEqual(asdict(cfg), basic_demo_cfg_change_with_none_correct)
+
+    def test_config_update_nested_dict(self):
+        """Test updating configclass with sub-dictionnaries."""
+        cfg = NestedDictCfg()
+        cfg_dict = {"dict_1": {"dict_2": {"func": "__main__:dummy_function2"}}}
+        update_class_from_dict(cfg, cfg_dict)
+        self.assertDictEqual(asdict(cfg), basic_demo_cfg_nested_dict)
 
     def test_config_update_dict_using_internal(self):
         """Test updating configclass from a dictionary using configclass method."""
@@ -749,6 +792,18 @@ class TestConfigClass(unittest.TestCase):
         # check dictionaries are the same
         self.assertNotEqual(list(cfg.to_dict().keys()), list(cfg_loaded.keys()))
         self.assertDictEqual(cfg.to_dict(), cfg_loaded)
+
+    def test_config_md5_hash(self):
+        """Check that config md5 hash generation works properly."""
+
+        # create config
+        cfg = ChildADemoCfg(a=20, d=3, e=ViewerCfg(), j=["c", "d"])
+
+        # generate md5 hash
+        md5_hash_1 = dict_to_md5_hash(cfg.to_dict())
+        md5_hash_2 = dict_to_md5_hash(cfg.to_dict())
+
+        self.assertEqual(md5_hash_1, md5_hash_2)
 
 
 if __name__ == "__main__":

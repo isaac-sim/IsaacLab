@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import torch
-import warnings
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -71,12 +70,15 @@ class RigidObject(AssetBase):
 
     @property
     def num_bodies(self) -> int:
-        """Number of bodies in the asset."""
+        """Number of bodies in the asset.
+
+        This is always 1 since each object is a single rigid body.
+        """
         return 1
 
     @property
     def body_names(self) -> list[str]:
-        """Ordered names of bodies in articulation."""
+        """Ordered names of bodies in the rigid object."""
         prim_paths = self.root_physx_view.prim_paths[: self.num_bodies]
         return [path.split("/")[-1] for path in prim_paths]
 
@@ -88,20 +90,6 @@ class RigidObject(AssetBase):
             Use this view with caution. It requires handling of tensors in a specific way.
         """
         return self._root_physx_view
-
-    @property
-    def body_physx_view(self) -> physx.RigidBodyView:
-        """Rigid body view for the asset (PhysX).
-
-        .. deprecated:: v0.3.0
-
-            The attribute 'body_physx_view' will be removed in v0.4.0. Please use :attr:`root_physx_view` instead.
-
-        """
-        dep_msg = "The attribute 'body_physx_view' will be removed in v0.4.0. Please use 'root_physx_view' instead."
-        warnings.warn(dep_msg, DeprecationWarning)
-        carb.log_error(dep_msg)
-        return self.root_physx_view
 
     """
     Operations.
@@ -128,15 +116,19 @@ class RigidObject(AssetBase):
                 force_data=self._external_force_b.view(-1, 3),
                 torque_data=self._external_torque_b.view(-1, 3),
                 position_data=None,
-                indices=self._ALL_BODY_INDICES,
+                indices=self._ALL_INDICES,
                 is_global=False,
             )
 
     def update(self, dt: float):
         self._data.update(dt)
 
+    """
+    Operations - Finders.
+    """
+
     def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
-        """Find bodies in the articulation based on the name keys.
+        """Find bodies in the rigid body based on the name keys.
 
         Please check the :meth:`omni.isaac.lab.utils.string_utils.resolve_matching_names` function for more
         information on the name matching.
@@ -206,7 +198,6 @@ class RigidObject(AssetBase):
         # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
         self._data.root_state_w[env_ids, 7:] = root_velocity.clone()
-        self._data._previous_body_vel_w[env_ids, 0] = root_velocity.clone()
         self._data.body_acc_w[env_ids] = 0.0
         # set into simulation
         self.root_physx_view.set_velocities(self._data.root_state_w[:, 7:], indices=physx_env_ids)
@@ -253,26 +244,17 @@ class RigidObject(AssetBase):
             # resolve all indices
             # -- env_ids
             if env_ids is None:
-                env_ids = self._ALL_INDICES
-            elif not isinstance(env_ids, torch.Tensor):
-                env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
+                env_ids = slice(None)
             # -- body_ids
             if body_ids is None:
-                body_ids = torch.arange(self.num_bodies, dtype=torch.long, device=self.device)
-            elif isinstance(body_ids, slice):
-                body_ids = torch.arange(self.num_bodies, dtype=torch.long, device=self.device)[body_ids]
-            elif not isinstance(body_ids, torch.Tensor):
-                body_ids = torch.tensor(body_ids, dtype=torch.long, device=self.device)
+                body_ids = slice(None)
+            # broadcast env_ids if needed to allow double indexing
+            if env_ids != slice(None) and body_ids != slice(None):
+                env_ids = env_ids[:, None]
 
-            # note: we need to do this complicated indexing since torch doesn't support multi-indexing
-            # create global body indices from env_ids and env_body_ids
-            # (env_id * total_bodies_per_env) + body_id
-            indices = body_ids.repeat(len(env_ids), 1) + env_ids.unsqueeze(1) * self.num_bodies
-            indices = indices.view(-1)
             # set into internal buffers
-            # note: these are applied in the write_to_sim function
-            self._external_force_b.flatten(0, 1)[indices] = forces.flatten(0, 1)
-            self._external_torque_b.flatten(0, 1)[indices] = torques.flatten(0, 1)
+            self._external_force_b[env_ids, body_ids] = forces
+            self._external_torque_b[env_ids, body_ids] = torques
         else:
             self.has_external_wrench = False
 
@@ -312,7 +294,11 @@ class RigidObject(AssetBase):
         # -- object view
         self._root_physx_view = self._physics_sim_view.create_rigid_body_view(root_prim_path_expr.replace(".*", "*"))
 
-        # log information about the articulation
+        # check if the rigid body was created
+        if self._root_physx_view._backend is None:
+            raise RuntimeError(f"Failed to create rigid body at: {self.cfg.prim_path}. Please check PhysX logs.")
+
+        # log information about the rigid body
         carb.log_info(f"Rigid body initialized at: {self.cfg.prim_path} with root '{root_prim_path_expr}'.")
         carb.log_info(f"Number of instances: {self.num_instances}")
         carb.log_info(f"Number of bodies: {self.num_bodies}")
@@ -332,14 +318,13 @@ class RigidObject(AssetBase):
         """Create buffers for storing data."""
         # constants
         self._ALL_INDICES = torch.arange(self.num_instances, dtype=torch.long, device=self.device)
-        self._ALL_BODY_INDICES = torch.arange(
-            self.root_physx_view.count * self.num_bodies, dtype=torch.long, device=self.device
-        )
+
         # external forces and torques
         self.has_external_wrench = False
         self._external_force_b = torch.zeros((self.num_instances, self.num_bodies, 3), device=self.device)
         self._external_torque_b = torch.zeros_like(self._external_force_b)
 
+        # set information about rigid body into data
         self._data.body_names = self.body_names
         self._data.default_mass = self.root_physx_view.get_masses().clone()
 

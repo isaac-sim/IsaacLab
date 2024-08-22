@@ -22,7 +22,7 @@ Let's take a look at the Python script:
 
    .. literalinclude:: ../../../../source/standalone/tutorials/00_sim/spawn_prims.py
       :language: python
-      :emphasize-lines: 40-79, 91-92
+      :emphasize-lines: 40-88, 100-101
       :linenos:
 
 
@@ -134,8 +134,17 @@ default to the default values set by USD Physics.
 .. literalinclude:: ../../../../source/standalone/tutorials/00_sim/spawn_prims.py
    :language: python
    :start-at: # spawn a green cone with colliders and rigid body
-   :end-before: # spawn a usd file of a table into the scene
+   :end-before: # spawn a blue cuboid with deformable body
 
+Lastly, we spawn a cuboid ``CuboidDeformable`` which contains deformable body physics properties. Unlike the
+rigid body simulation, a deformable body can have relative motion between its vertices. This is useful for simulating
+soft bodies like cloth, rubber, or jello. It is important to note that deformable bodies are only supported in
+GPU simulation and require a mesh object to be spawned with the deformable body physics properties.
+
+.. literalinclude:: ../../../../source/standalone/tutorials/00_sim/spawn_prims.py
+   :language: python
+   :start-at: # spawn a blue cuboid with deformable body
+   :end-before: # spawn a usd file of a table into the scene
 
 Spawning from another file
 --------------------------
@@ -168,6 +177,11 @@ Once the simulation starts, you should see a window with a ground plane, a light
 The green cone, which has rigid body physics enabled, should fall and collide with the table and the ground
 plane. The other cones are visual elements and should not move. To stop the simulation, you can close the window,
 or press ``Ctrl+C`` in the terminal.
+
+.. figure:: ../../_static/tutorials/tutorial_spawn_prims.jpg
+    :align: center
+    :figwidth: 100%
+    :alt: result of spawn_prims.py
 
 This tutorial provided a foundation for spawning various prims into the scene in Isaac Lab. Although simple, it
 demonstrates the basic concepts of scene designing in Isaac Lab and how to use the spawners. In the coming tutorials,

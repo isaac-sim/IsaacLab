@@ -14,11 +14,12 @@ the event introduced by the function.
 
 from __future__ import annotations
 
+import numpy as np
 import torch
-import warnings
 from typing import TYPE_CHECKING, Literal
 
 import carb
+import omni.physics.tensors.impl.api as physx
 
 import omni.isaac.lab.sim as sim_utils
 import omni.isaac.lab.utils.math as math_utils
@@ -80,20 +81,20 @@ def randomize_rigid_body_material(
     materials = asset.root_physx_view.get_material_properties()
 
     # sample material properties from the given ranges
-    material_samples = torch.zeros(materials[env_ids].shape)
-    material_samples[..., 0].uniform_(*static_friction_range)
-    material_samples[..., 1].uniform_(*dynamic_friction_range)
-    material_samples[..., 2].uniform_(*restitution_range)
+    material_samples = np.zeros(materials[env_ids].shape)
+    material_samples[..., 0] = np.random.uniform(*static_friction_range)
+    material_samples[..., 1] = np.random.uniform(*dynamic_friction_range)
+    material_samples[..., 2] = np.random.uniform(*restitution_range)
 
     # create uniform range tensor for bucketing
-    lo = torch.tensor([static_friction_range[0], dynamic_friction_range[0], restitution_range[0]], device="cpu")
-    hi = torch.tensor([static_friction_range[1], dynamic_friction_range[1], restitution_range[1]], device="cpu")
+    lo = np.array([static_friction_range[0], dynamic_friction_range[0], restitution_range[0]])
+    hi = np.array([static_friction_range[1], dynamic_friction_range[1], restitution_range[1]])
 
     # to avoid 64k material limit in physx, we bucket materials by binning randomized material properties
     # into buckets based on the number of buckets specified
     for d in range(3):
-        buckets = torch.tensor([(hi[d] - lo[d]) * i / num_buckets + lo[d] for i in range(num_buckets)], device="cpu")
-        material_samples[..., d] = buckets[torch.searchsorted(buckets, material_samples[..., d].contiguous()) - 1]
+        buckets = np.array([(hi[d] - lo[d]) * i / num_buckets + lo[d] for i in range(num_buckets)])
+        material_samples[..., d] = buckets[np.searchsorted(buckets, material_samples[..., d]) - 1]
 
     # update material buffer with new samples
     if isinstance(asset, Articulation) and asset_cfg.body_ids != slice(None):
@@ -114,38 +115,14 @@ def randomize_rigid_body_material(
             # assign the new materials
             # material ids are of shape: num_env_ids x num_shapes
             # material_buckets are of shape: num_buckets x 3
-            materials[env_ids, start_idx:end_idx] = material_samples[:, start_idx:end_idx]
+            materials[env_ids, start_idx:end_idx] = torch.from_numpy(material_samples[:, start_idx:end_idx]).to(
+                dtype=torch.float
+            )
     else:
-        materials[env_ids] = material_samples
+        materials[env_ids] = torch.from_numpy(material_samples).to(dtype=torch.float)
 
     # apply to simulation
     asset.root_physx_view.set_material_properties(materials, env_ids)
-
-
-def add_body_mass(
-    env: ManagerBasedEnv,
-    env_ids: torch.Tensor | None,
-    mass_distribution_params: tuple[float, float],
-    asset_cfg: SceneEntityCfg,
-):
-    """Randomize the mass of the bodies by adding a random value sampled from the given range.
-
-    .. tip::
-        This function uses CPU tensors to assign the body masses. It is recommended to use this function
-        only during the initialization of the environment.
-
-    .. deprecated:: v0.4
-        This function is deprecated. Please use :func:`randomize_rigid_body_mass` with ``operation="add"`` instead.
-
-    """
-    msg = "Event term 'add_body_mass' is deprecated. Please use 'randomize_rigid_body_mass' with operation='add'."
-    warnings.warn(msg, DeprecationWarning)
-    carb.log_warn(msg)
-
-    # call the new function
-    randomize_rigid_body_mass(
-        env, env_ids, asset_cfg, mass_distribution_params, operation="add", distribution="uniform"
-    )
 
 
 def randomize_rigid_body_mass(
@@ -206,7 +183,12 @@ def randomize_physics_scene_gravity(
     """Randomize gravity by adding, scaling, or setting random values.
 
     This function allows randomizing gravity of the physics scene. The function samples random values from the
-    given distribution parameters and adds, scales, or sets the values into the physics simulation based on the operation.
+    given distribution parameters and adds, scales, or sets the values into the physics simulation based on the
+    operation.
+
+    The distribution parameters are lists of two elements each, representing the lower and upper bounds of the
+    distribution for the x, y, and z components of the gravity vector. The function samples random values for each
+    component independently.
 
     .. attention::
         This function applied the same gravity for all the environments.
@@ -225,9 +207,13 @@ def randomize_physics_scene_gravity(
         slice(None),
         operation=operation,
         distribution=distribution,
-    )[0]
+    )
+    # unbatch the gravity tensor into a list
+    gravity = gravity[0].tolist()
+
     # set the gravity into the physics simulation
-    sim_utils.SimulationContext.instance().physics_sim_view.set_gravity(carb.Float3(gravity[0], gravity[1], gravity[2]))
+    physics_sim_view: physx.SimulationView = sim_utils.SimulationContext.instance().physics_sim_view
+    physics_sim_view.set_gravity(carb.Float3(*gravity))
 
 
 def randomize_actuator_gains(
@@ -841,7 +827,7 @@ Internal helper functions.
 
 def _randomize_prop_by_op(
     data: torch.Tensor,
-    distribution_parameters: tuple[float, float],
+    distribution_parameters: tuple[float | torch.Tensor, float | torch.Tensor],
     dim_0_ids: torch.Tensor | None,
     dim_1_ids: torch.Tensor | slice,
     operation: Literal["add", "scale", "abs"],

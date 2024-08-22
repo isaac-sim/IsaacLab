@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import builtins
 import torch
 from collections.abc import Sequence
 from typing import Any
@@ -15,7 +14,15 @@ from omni.isaac.core.prims import XFormPrimView
 from pxr import PhysxSchema
 
 import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.assets import Articulation, ArticulationCfg, AssetBaseCfg, RigidObject, RigidObjectCfg
+from omni.isaac.lab.assets import (
+    Articulation,
+    ArticulationCfg,
+    AssetBaseCfg,
+    DeformableObject,
+    DeformableObjectCfg,
+    RigidObject,
+    RigidObjectCfg,
+)
 from omni.isaac.lab.sensors import ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg
 from omni.isaac.lab.terrains import TerrainImporter, TerrainImporterCfg
 
@@ -28,6 +35,22 @@ class InteractiveScene:
     The interactive scene parses the :class:`InteractiveSceneCfg` class to create the scene.
     Based on the specified number of environments, it clones the entities and groups them into different
     categories (e.g., articulations, sensors, etc.).
+
+    Cloning can be performed in two ways:
+
+    * For tasks where all environments contain the same assets, a more performant cloning paradigm
+      can be used to allow for faster environment creation. This is specified by the ``replicate_physics`` flag.
+
+      .. code-block:: python
+
+          scene = InteractiveScene(cfg=InteractiveSceneCfg(replicate_physics=True))
+
+    * For tasks that require having separate assets in the environments, ``replicate_physics`` would have to
+      be set to False, which will add some costs to the overall startup time.
+
+      .. code-block:: python
+
+          scene = InteractiveScene(cfg=InteractiveSceneCfg(replicate_physics=False))
 
     Each entity is registered to scene based on its name in the configuration class. For example, if the user
     specifies a robot in the configuration class as follows:
@@ -58,6 +81,14 @@ class InteractiveScene:
         # access the robot based on its type
         robot = scene.articulations["robot"]
 
+    If the :class:`InteractiveSceneCfg` class does not include asset entities, the cloning process
+    can still be triggered if assets were added to the stage outside of the :class:`InteractiveScene` class:
+
+    .. code-block:: python
+
+        scene = InteractiveScene(cfg=InteractiveSceneCfg(num_envs=128, replicate_physics=True))
+        scene.clone_environments()
+
     .. note::
         It is important to note that the scene only performs common operations on the entities. For example,
         resetting the internal buffers, writing the buffers to the simulation and updating the buffers from the
@@ -78,6 +109,7 @@ class InteractiveScene:
         # initialize scene elements
         self._terrain = None
         self._articulations = dict()
+        self._deformable_objects = dict()
         self._rigid_objects = dict()
         self._sensors = dict()
         self._extras = dict()
@@ -91,18 +123,29 @@ class InteractiveScene:
         self.env_prim_paths = self.cloner.generate_paths(f"{self.env_ns}/env", self.cfg.num_envs)
         # create source prim
         self.stage.DefinePrim(self.env_prim_paths[0], "Xform")
-        # clone the env xform
-        env_origins = self.cloner.clone(
-            source_prim_path=self.env_prim_paths[0],
-            prim_paths=self.env_prim_paths,
-            replicate_physics=False,
-            copy_from_source=True,
-        )
-        self._default_env_origins = torch.tensor(env_origins, device=self.device, dtype=torch.float32)
+
+        # when replicate_physics=False, we assume heterogeneous environments and clone the xforms first.
+        # this triggers per-object level cloning in the spawner.
+        if not self.cfg.replicate_physics:
+            # clone the env xform
+            env_origins = self.cloner.clone(
+                source_prim_path=self.env_prim_paths[0],
+                prim_paths=self.env_prim_paths,
+                replicate_physics=False,
+                copy_from_source=True,
+            )
+            self._default_env_origins = torch.tensor(env_origins, device=self.device, dtype=torch.float32)
+        else:
+            # otherwise, environment origins will be initialized during cloning at the end of environment creation
+            self._default_env_origins = None
+
         self._global_prim_paths = list()
         if self._is_scene_setup_from_cfg():
             # add entities from config
             self._add_entities_from_cfg()
+            # clone environments on a global scope if environment is homogeneous
+            if self.cfg.replicate_physics:
+                self.clone_environments(copy_from_source=False)
             # replicate physics if we have more than one environment
             # this is done to make scene initialization faster at play time
             if self.cfg.replicate_physics and self.cfg.num_envs > 1:
@@ -112,6 +155,7 @@ class InteractiveScene:
                     base_env_path=self.env_ns,
                     root_path=self.env_regex_ns.replace(".*", ""),
                 )
+
             self.filter_collisions(self._global_prim_paths)
 
     def clone_environments(self, copy_from_source: bool = False):
@@ -122,31 +166,47 @@ class InteractiveScene:
             If True, clones are independent copies of the source prim and won't reflect its changes (start-up time
             may increase). Defaults to False.
         """
-        self.cloner.clone(
+        env_origins = self.cloner.clone(
             source_prim_path=self.env_prim_paths[0],
             prim_paths=self.env_prim_paths,
             replicate_physics=self.cfg.replicate_physics,
             copy_from_source=copy_from_source,
         )
 
-    def filter_collisions(self, global_prim_paths: list[str] = []):
+        # in case of heterogeneous cloning, the env origins is specified at init
+        if self._default_env_origins is None:
+            self._default_env_origins = torch.tensor(env_origins, device=self.device, dtype=torch.float32)
+
+    def filter_collisions(self, global_prim_paths: list[str] | None = None):
         """Filter environments collisions.
 
         Disables collisions between the environments in ``/World/envs/env_.*`` and enables collisions with the prims
         in global prim paths (e.g. ground plane).
 
         Args:
-            global_prim_paths: The global prim paths to enable collisions with.
+            global_prim_paths: A list of global prim paths to enable collisions with.
+                Defaults to None, in which case no global prim paths are considered.
         """
         # obtain the current physics scene
         physics_scene_prim_path = self.physics_scene_path
+
+        # validate paths in global prim paths
+        if global_prim_paths is None:
+            global_prim_paths = []
+        else:
+            # remove duplicates in paths
+            global_prim_paths = list(set(global_prim_paths))
+
+        # set global prim paths list if not previously defined
+        if len(self._global_prim_paths) < 1:
+            self._global_prim_paths += global_prim_paths
 
         # filter collisions within each environment instance
         self.cloner.filter_collisions(
             physics_scene_prim_path,
             "/World/collisions",
             self.env_prim_paths,
-            global_paths=global_prim_paths,
+            global_paths=self._global_prim_paths,
         )
 
     def __str__(self) -> str:
@@ -227,6 +287,11 @@ class InteractiveScene:
         return self._articulations
 
     @property
+    def deformable_objects(self) -> dict[str, DeformableObject]:
+        """A dictionary of deformable objects in the scene."""
+        return self._deformable_objects
+
+    @property
     def rigid_objects(self) -> dict[str, RigidObject]:
         """A dictionary of rigid objects in the scene."""
         return self._rigid_objects
@@ -269,33 +334,23 @@ class InteractiveScene:
         # -- assets
         for articulation in self._articulations.values():
             articulation.reset(env_ids)
+        for deformable_object in self._deformable_objects.values():
+            deformable_object.reset(env_ids)
         for rigid_object in self._rigid_objects.values():
             rigid_object.reset(env_ids)
         # -- sensors
         for sensor in self._sensors.values():
             sensor.reset(env_ids)
-        # -- flush physics sim view if called in extension mode
-        # this is needed when using PhysX GPU pipeline since the data needs to be sent to the underlying
-        # PhysX buffers that might live on a separate device
-        # note: In standalone mode, this method is called in the `step()` method of the simulation context.
-        #   So we only need to flush when running in extension mode.
-        if builtins.ISAAC_LAUNCHED_FROM_TERMINAL:
-            sim_utils.SimulationContext.instance().physics_sim_view.flush()  # pyright: ignore [reportOptionalMemberAccess]
 
     def write_data_to_sim(self):
         """Writes the data of the scene entities to the simulation."""
         # -- assets
         for articulation in self._articulations.values():
             articulation.write_data_to_sim()
+        for deformable_object in self._deformable_objects.values():
+            deformable_object.write_data_to_sim()
         for rigid_object in self._rigid_objects.values():
             rigid_object.write_data_to_sim()
-        # -- flush physics sim view if called in extension mode
-        # this is needed when using PhysX GPU pipeline since the data needs to be sent to the underlying
-        # PhysX buffers that might live on a separate device
-        # note: In standalone mode, this method is called in the `step()` method of the simulation context.
-        #   So we only need to flush when running in extension mode.
-        if builtins.ISAAC_LAUNCHED_FROM_TERMINAL:
-            sim_utils.SimulationContext.instance().physics_sim_view.flush()  # pyright: ignore [reportOptionalMemberAccess]
 
     def update(self, dt: float) -> None:
         """Update the scene entities.
@@ -306,6 +361,8 @@ class InteractiveScene:
         # -- assets
         for articulation in self._articulations.values():
             articulation.update(dt)
+        for deformable_object in self._deformable_objects.values():
+            deformable_object.update(dt)
         for rigid_object in self._rigid_objects.values():
             rigid_object.update(dt)
         # -- sensors
@@ -323,7 +380,13 @@ class InteractiveScene:
             The keys of the scene entities.
         """
         all_keys = ["terrain"]
-        for asset_family in [self._articulations, self._rigid_objects, self._sensors, self._extras]:
+        for asset_family in [
+            self._articulations,
+            self._deformable_objects,
+            self._rigid_objects,
+            self._sensors,
+            self._extras,
+        ]:
             all_keys += list(asset_family.keys())
         return all_keys
 
@@ -342,7 +405,13 @@ class InteractiveScene:
 
         all_keys = ["terrain"]
         # check if it is in other dictionaries
-        for asset_family in [self._articulations, self._rigid_objects, self._sensors, self._extras]:
+        for asset_family in [
+            self._articulations,
+            self._deformable_objects,
+            self._rigid_objects,
+            self._sensors,
+            self._extras,
+        ]:
             out = asset_family.get(key)
             # if found, return
             if out is not None:
@@ -381,6 +450,8 @@ class InteractiveScene:
                 self._terrain = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, ArticulationCfg):
                 self._articulations[asset_name] = asset_cfg.class_type(asset_cfg)
+            elif isinstance(asset_cfg, DeformableObjectCfg):
+                self._deformable_objects[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, RigidObjectCfg):
                 self._rigid_objects[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, SensorBaseCfg):

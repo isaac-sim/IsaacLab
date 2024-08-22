@@ -1,4 +1,4 @@
-.. _tutorial-create-oige-rl-env:
+.. _tutorial-create-direct-rl-env:
 
 
 Creating a Direct Workflow RL Environment
@@ -103,7 +103,7 @@ Defining Rewards
 
 Reward function should be defined in the ``_get_rewards(self)`` API, which returns the reward
 buffer as a return value. Within this function, the task is free to implement the logic of
-the reward function. In this example, we implement a Pytorch jitted function that computes
+the reward function. In this example, we implement a Pytorch JIT function that computes
 the various components of the reward function.
 
 .. code-block:: python
@@ -206,6 +206,11 @@ To run training for the direct workflow Cartpole environment, we can use the fol
 .. code-block:: bash
 
    ./isaaclab.sh -p source/standalone/workflows/rl_games/train.py --task=Isaac-Cartpole-Direct-v0
+
+.. figure:: ../../_static/tutorials/tutorial_create_direct_workflow.jpg
+    :align: center
+    :figwidth: 100%
+    :alt: result of train.py
 
 All direct workflow tasks have the suffix ``-Direct`` added to the task name to differentiate the implementation style.
 

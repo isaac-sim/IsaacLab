@@ -15,6 +15,10 @@
     IdealPDActuatorCfg
     DCMotor
     DCMotorCfg
+    DelayedPDActuator
+    DelayedPDActuatorCfg
+    RemotizedPDActuator
+    RemotizedPDActuatorCfg
     ActuatorNetMLP
     ActuatorNetMLPCfg
     ActuatorNetLSTM
@@ -74,6 +78,34 @@ DC Motor Actuator
   :show-inheritance:
   :exclude-members: __init__, class_type
 
+Delayed PD Actuator
+-------------------
+
+.. autoclass:: DelayedPDActuator
+  :members:
+  :inherited-members:
+  :show-inheritance:
+
+.. autoclass:: DelayedPDActuatorCfg
+  :members:
+  :inherited-members:
+  :show-inheritance:
+  :exclude-members: __init__, class_type
+
+Remotized PD Actuator
+---------------------
+
+.. autoclass:: RemotizedPDActuator
+  :members:
+  :inherited-members:
+  :show-inheritance:
+
+.. autoclass:: RemotizedPDActuatorCfg
+  :members:
+  :inherited-members:
+  :show-inheritance:
+  :exclude-members: __init__, class_type
+
 MLP Network Actuator
 ---------------------
 
@@ -87,7 +119,6 @@ MLP Network Actuator
   :inherited-members:
   :show-inheritance:
   :exclude-members: __init__, class_type
-
 
 LSTM Network Actuator
 ---------------------
