@@ -62,9 +62,9 @@ class FrankaCubeLiftEnvCfg(LiftEnvCfg):
         )
 
         # Listens to the required transforms
-        marker_cfg = FRAME_MARKER_CFG.copy()
-        marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
-        marker_cfg.prim_path = "/Visuals/FrameTransformer"
+        # marker_cfg = FRAME_MARKER_CFG.copy()
+        # marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
+        # marker_cfg.prim_path = "/Visuals/FrameTransformer"
         self.scene.ee_frame = FrameTransformerCfg(
             prim_path="{ENV_REGEX_NS}/Robot/panda_link0",
             debug_vis=False,

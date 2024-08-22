@@ -23,7 +23,7 @@ from omni.isaac.lab.utils.math import quat_from_euler_xyz
 ##
 # Pre-defined configs
 ##
-from omni.isaac.lab.markers.config import FRAME_MARKER_CFG  # isort: skip
+# from omni.isaac.lab.markers.config import FRAME_MARKER_CFG  # isort: skip
 from omni.isaac.lab_assets.franka import FRANKA_PANDA_CFG  # isort: skip
 
 
@@ -102,13 +102,13 @@ class FrankaCubeLiftEnvCfg(LiftEnvCfg):
         )
 
         # Listens to the required transforms
-        marker_cfg = FRAME_MARKER_CFG.copy()
-        marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
-        marker_cfg.prim_path = "/Visuals/FrameTransformer"
+        # marker_cfg = FRAME_MARKER_CFG.copy()
+        # marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
+        # marker_cfg.prim_path = "/Visuals/FrameTransformer"
         self.scene.ee_frame = FrameTransformerCfg(
             prim_path="{ENV_REGEX_NS}/Robot/panda_link0",
             debug_vis=False,
-            visualizer_cfg=marker_cfg,
+            # visualizer_cfg=marker_cfg,
             target_frames=[
                 FrameTransformerCfg.FrameCfg(
                     prim_path="{ENV_REGEX_NS}/Robot/panda_hand",

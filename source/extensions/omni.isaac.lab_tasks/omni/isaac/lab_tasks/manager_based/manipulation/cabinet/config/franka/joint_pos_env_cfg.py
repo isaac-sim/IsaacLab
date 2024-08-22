@@ -10,7 +10,7 @@ from omni.isaac.lab.utils import configclass
 from omni.isaac.lab_tasks.manager_based.manipulation.cabinet import mdp
 
 from omni.isaac.lab_tasks.manager_based.manipulation.cabinet.cabinet_env_cfg import (  # isort: skip
-    FRAME_MARKER_SMALL_CFG,
+    # FRAME_MARKER_SMALL_CFG,
     CabinetEnvCfg,
 )
 
@@ -49,7 +49,7 @@ class FrankaCabinetEnvCfg(CabinetEnvCfg):
         self.scene.ee_frame = FrameTransformerCfg(
             prim_path="{ENV_REGEX_NS}/Robot/panda_link0",
             debug_vis=False,
-            visualizer_cfg=FRAME_MARKER_SMALL_CFG.replace(prim_path="/Visuals/EndEffectorFrameTransformer"),
+            # visualizer_cfg=FRAME_MARKER_SMALL_CFG.replace(prim_path="/Visuals/EndEffectorFrameTransformer"),
             target_frames=[
                 FrameTransformerCfg.FrameCfg(
                     prim_path="{ENV_REGEX_NS}/Robot/panda_hand",
