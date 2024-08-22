@@ -98,7 +98,7 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
                 else:
                     set_obj = True
                     # recursively call if iterable contains dictionaries
-                    for i, item in enumerate(obj_mem):
+                    for i in range(len(obj_mem)):
                         if isinstance(value[i], dict):
                             update_class_from_dict(obj_mem[i], value[i], _ns=key_ns)
                             set_obj = False
