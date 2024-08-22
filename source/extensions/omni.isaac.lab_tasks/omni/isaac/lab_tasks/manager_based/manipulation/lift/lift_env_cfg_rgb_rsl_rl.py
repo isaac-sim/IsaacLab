@@ -106,12 +106,14 @@ class ObservationsCfg:
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
 
-        #print("Using states ---")
-        #joint_pos = ObsTerm(func=mdp.joint_pos_rel)
-        #joint_vel = ObsTerm(func=mdp.joint_vel_rel)
-        # object_position = ObsTerm(func=mdp.object_position_in_robot_root_frame)
-        # target_object_position = ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
-        #actions = ObsTerm(func=mdp.last_action)
+        print("Using states ---")
+        joint_pos = ObsTerm(func=mdp.joint_pos_rel)
+        joint_vel = ObsTerm(func=mdp.joint_vel_rel)
+
+        object_position = ObsTerm(func=mdp.object_position_in_robot_root_frame)
+        target_object_position = ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
+        
+        actions = ObsTerm(func=mdp.last_action)
 
         print("Using camera ---")
         # camera
@@ -209,7 +211,7 @@ class LiftEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the lifting environment."""
 
     # Scene settings
-    scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=4096, env_spacing=2.5)
+    scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=4096, env_spacing=100) #2.5
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
@@ -225,6 +227,9 @@ class LiftEnvCfg(ManagerBasedRLEnvCfg):
         # general settings
         self.decimation = 2
         self.episode_length_s = 5.0
+        # NOTE: Modify here
+        self.scene.env_spacing = 20 # how much the envs are spaced out
+
         # simulation settings
         self.sim.dt = 0.01  # 100Hz
         self.sim.render_interval = self.decimation

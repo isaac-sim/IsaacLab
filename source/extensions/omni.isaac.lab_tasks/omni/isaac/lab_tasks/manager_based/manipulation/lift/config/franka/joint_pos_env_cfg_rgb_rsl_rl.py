@@ -17,7 +17,7 @@ from omni.isaac.lab_tasks.manager_based.manipulation.lift.lift_env_cfg_rgb_rsl_r
 ##
 # Pre-defined configs
 ##
-from omni.isaac.lab.markers.config import FRAME_MARKER_CFG  # isort: skip
+# from omni.isaac.lab.markers.config import FRAME_MARKER_CFG  # isort: skip
 from omni.isaac.lab_assets.franka import FRANKA_PANDA_CFG  # isort: skip
 
 # sensors
@@ -26,6 +26,57 @@ import torch
 from omni.isaac.lab.sensors import CameraCfg, TiledCameraCfg
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.utils.math import quat_from_euler_xyz
+
+"""
+cameras: Dict[str, CameraCfg] = {
+    "front_camera": CameraCfg(pos= [1.2, 0, 1.5], quat= quat),
+    "wrist_camera": CameraCfg(pos=[0.04339012, -0.03256147, 0.04373], quat=[0.0, 1.0, 0.0, 0.0], attached_prim="Robot/franka/virtual_eef_link")
+}
+"""
+
+def rads2degrees(rads):
+    return rads * 180.0 / np.pi
+
+def degrees2rads(degrees):
+    return degrees * np.pi / 180.0
+
+def top_down_in_world():
+    """Slightly rotated top-down position camera"""
+    coord_sys = "world"
+    position = [1, 0, 1]
+    roll, pitch, yaw = torch.tensor([-180]), torch.tensor([90]), torch.tensor([0])
+    rot_quat = quat_from_euler_xyz(roll=roll, pitch=pitch, yaw=yaw).numpy() + 0.0
+    rot_quat = np.around(rot_quat, decimals=4).flatten()
+    rot_quat = (rot_quat[0], rot_quat[1], rot_quat[2], rot_quat[3])
+
+    return position, rot_quat, coord_sys
+
+def sideview_in_world_ccw():
+    """Counterclockwise sideview position camera relative to being behind the robot"""
+    coord_sys = "world"
+    position = (0.5, -2.3, 0.5) #-1.3
+    pitch, yaw, roll = \
+        torch.tensor([degrees2rads(0)]), \
+        torch.tensor([degrees2rads(90)]), \
+        torch.tensor([degrees2rads(0)])
+    rot_quat = quat_from_euler_xyz(pitch=pitch, yaw=yaw, roll=roll).numpy() + 0.0
+    rot_quat = np.around(rot_quat, decimals=4).flatten()
+    rot_quat = (rot_quat[0], rot_quat[1], rot_quat[2], rot_quat[3])
+
+    return position, rot_quat, coord_sys
+
+def diagonal_view_in_world_ccw():
+    coord_sys = "world"
+    position = (1.5, -1.5, 0.3)
+    pitch, yaw, roll = \
+        torch.tensor([degrees2rads(0)]), \
+        torch.tensor([degrees2rads(130)]), \
+        torch.tensor([degrees2rads(0)])
+    rot_quat = quat_from_euler_xyz(pitch=pitch, yaw=yaw, roll=roll).numpy() + 0.0
+    rot_quat = np.around(rot_quat, decimals=4).flatten()
+    rot_quat = (rot_quat[0], rot_quat[1], rot_quat[2], rot_quat[3])
+
+    return position, rot_quat, coord_sys
 
 
 @configclass
@@ -71,21 +122,12 @@ class FrankaCubeLiftEnvCfg_rsl_rl(LiftEnvCfg):
         # sensors
         # NOTE: {ENV_REGEX_NS} = /World/envs/env_.*/
         print(f"Creating camera sensor (RGB)")
-        #ros: pos = (0.510, 0.0, 0.015)
-        # NOTE: ros
-        # (
-        #   x: up (number increases) and down, 
-        #   y: sideways - left (number decreases) and right (number increases), 
-        #   z: forward(back (bigger) and forth)
-        #)
-        POSITION = (1, 0, 1) #world
-        roll, pitch, yaw = torch.tensor([-180]), torch.tensor([90]), torch.tensor([0])
-        rot = quat_from_euler_xyz(roll=roll, pitch=pitch, yaw=yaw).numpy() + 0.0
-        rot = np.around(rot, decimals=4).flatten()
-        rot = (rot[0], rot[1], rot[2], rot[3])
-        # NOTE: The above fails with a C++ mismatch issue
-        coord_sys = "world" # "ros"
-        RESOLUTION = (640, 640) #(480, 640)
+        
+        #position, rotation, coord_frame = top_down_in_world()
+        #position, rotation, coord_frame = sideview_in_world_ccw()
+        position, rotation, coord_frame = diagonal_view_in_world_ccw()
+
+        RESOLUTION = (480, 640) #(480, 640)
         self.scene.camera = CameraCfg(
             prim_path="{ENV_REGEX_NS}/Camera",
             update_period=0.1,
@@ -99,19 +141,19 @@ class FrankaCubeLiftEnvCfg_rsl_rl(LiftEnvCfg):
                 horizontal_aperture=20.955, 
                 clipping_range=(0.1, 1.0e5)
             ),
-            offset=CameraCfg.OffsetCfg(pos=POSITION, rot=rot, convention=coord_sys),
+            offset=CameraCfg.OffsetCfg(pos=position, rot=rotation, convention=coord_frame),
             #colorize_semantic_segmentation=False, # True: uint8 (4 channels, RGBA), False: uint32 (1 channel)
             #colorize_instance_id_segmentation=False,
         )
 
         # Listens to the required transforms
-        marker_cfg = FRAME_MARKER_CFG.copy()
-        marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
-        marker_cfg.prim_path = "/Visuals/FrameTransformer"
+        # marker_cfg = FRAME_MARKER_CFG.copy()
+        # marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
+        # marker_cfg.prim_path = "/Visuals/FrameTransformer"
         self.scene.ee_frame = FrameTransformerCfg(
             prim_path="{ENV_REGEX_NS}/Robot/panda_link0",
             debug_vis=False,
-            visualizer_cfg=marker_cfg,
+            #visualizer_cfg=marker_cfg,
             target_frames=[
                 FrameTransformerCfg.FrameCfg(
                     prim_path="{ENV_REGEX_NS}/Robot/panda_hand",
