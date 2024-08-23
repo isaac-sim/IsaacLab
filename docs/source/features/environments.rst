@@ -12,11 +12,13 @@ running the following command:
 We are actively working on adding more environments to the list. If you have any environments that
 you would like to add to Isaac Lab, please feel free to open a pull request!
 
+Single-agent
+------------
+
 Classic
--------
+~~~~~~~
 
 Classic environments that are based on IsaacGymEnvs implementation of MuJoCo-style environments.
-
 
 .. table::
     :widths: 33 37 30
@@ -52,7 +54,7 @@ Classic environments that are based on IsaacGymEnvs implementation of MuJoCo-sty
 
 
 Manipulation
-------------
+~~~~~~~~~~~~
 
 Environments based on fixed-arm manipulation tasks.
 
@@ -108,7 +110,7 @@ for the reach environment:
 .. |cube-shadow-lstm-link| replace:: `Isaac-Repose-Cube-Shadow-OpenAI-LSTM-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/shadow_hand/shadow_hand_env_cfg.py>`__
 
 Locomotion
-----------
+~~~~~~~~~~
 
 Environments based on legged locomotion tasks.
 
@@ -204,7 +206,7 @@ Environments based on legged locomotion tasks.
 .. |velocity-rough-g1| image:: ../_static/tasks/locomotion/g1_rough.jpg
 
 Navigation
-----------
+~~~~~~~~~~
 
 .. table::
     :widths: 33 37 30
@@ -221,7 +223,7 @@ Navigation
 
 
 Others
-------
+~~~~~~
 
 .. table::
     :widths: 33 37 30
@@ -236,6 +238,27 @@ Others
 
 
 .. |quadcopter| image:: ../_static/tasks/others/quadcopter.jpg
+
+
+Multi-agent
+------------
+
+Classic
+~~~~~~~
+
+.. table::
+    :widths: 33 37 30
+
+    +------------------------+------------------------------------+-----------------------------------------------------------------------------------------------------------------------+
+    | World                  | Environment ID                     | Description                                                                                                           |
+    +========================+====================================+=======================================================================================================================+
+    | |cart-double-pendulum| | |cart-double-pendulum-direct-link| | Move the cart and the pendulum to keep the last one upwards in the classic inverted double pendulum on a cart control |
+    +------------------------+------------------------------------+-----------------------------------------------------------------------------------------------------------------------+
+
+.. |cart-double-pendulum| image:: ../_static/tasks/classic/cart_double_pendulum.jpg
+
+.. |cart-double-pendulum-direct-link| replace:: `Isaac-Cart-Double-Pendulum-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/cart_double_pendulum/cart_double_pendulum_env.py>`__
+
 
 
 Comprehensive List of Environments
@@ -254,6 +277,8 @@ Comprehensive List of Environments
     | Isaac-Velocity-Flat-Anymal-C-Direct-v0         |                                            | Direct        | rsl_rl, rl_games, skrl      |
     +------------------------------------------------+--------------------------------------------+---------------+-----------------------------+
     | Isaac-Velocity-Rough-Anymal-C-Direct-v0        |                                            | Direct        | rsl_rl, rl_games, skrl      |
+    +------------------------------------------------+--------------------------------------------+---------------+-----------------------------+
+    | Isaac-Cart-Double-Pendulum-Direct-v0           |                                            | Direct        | rsl_rl, rl_games, skrl      |
     +------------------------------------------------+--------------------------------------------+---------------+-----------------------------+
     | Isaac-Cartpole-Direct-v0                       |                                            | Direct        | rsl_rl, rl_games, skrl, sb3 |
     +------------------------------------------------+--------------------------------------------+---------------+-----------------------------+

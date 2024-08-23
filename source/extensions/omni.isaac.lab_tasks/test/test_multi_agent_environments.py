@@ -18,15 +18,16 @@ import gymnasium as gym
 import torch
 import unittest
 
-import carb
 import omni.usd
+
+from omni.isaac.lab.envs import DirectMARLEnv, DirectMARLEnvCfg
 
 import omni.isaac.lab_tasks  # noqa: F401
 from omni.isaac.lab_tasks.utils.parse_cfg import parse_env_cfg
 
 
 class TestEnvironments(unittest.TestCase):
-    """Test cases for all registered environments."""
+    """Test cases for all registered multi-agent environments."""
 
     @classmethod
     def setUpClass(cls):
@@ -37,17 +38,14 @@ class TestEnvironments(unittest.TestCase):
                 cls.registered_tasks.append(task_spec.id)
         # sort environments by name
         cls.registered_tasks.sort()
-
-        # this flag is necessary to prevent a bug where the simulation gets stuck randomly when running the
-        # test on many environments.
-        carb_settings_iface = carb.settings.get_settings()
-        carb_settings_iface.set_bool("/physics/cooking/ujitsoCollisionCooking", False)
+        # print all existing task names
+        print(">>> All registered environments:", cls.registered_tasks)
 
     """
     Test fixtures.
     """
 
-    def test_multiple_num_envs_on_gpu(self):
+    def test_multiple_instances_gpu(self):
         """Run all environments with multiple instances and check environments return valid signals."""
         # common parameters
         num_envs = 32
@@ -62,7 +60,7 @@ class TestEnvironments(unittest.TestCase):
                 print(f">>> Closing environment: {task_name}")
                 print("-" * 80)
 
-    def test_single_env_on_gpu(self):
+    def test_single_instance_gpu(self):
         """Run all environments with single instance and check environments return valid signals."""
         # common parameters
         num_envs = 1
@@ -82,22 +80,22 @@ class TestEnvironments(unittest.TestCase):
     """
 
     def _check_random_actions(self, task_name: str, device: str, num_envs: int, num_steps: int = 1000):
-        """Run random actions and check environments returned signals are valid."""
+        """Run random actions and check environments return valid signals."""
         # create a new stage
         omni.usd.get_context().new_stage()
         # parse configuration
-        env_cfg: ManagerBasedRLEnvCfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
+        env_cfg: DirectMARLEnvCfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
 
-        # skip test if the environment is a multi-agent task
-        if hasattr(env_cfg, "possible_agents"):
-            print(f"[INFO]: Skipping {task_name} as it is a multi-agent task")
+        # skip test if the environment is not a multi-agent task
+        if not hasattr(env_cfg, "possible_agents"):
+            print(f"[INFO]: Skipping {task_name} as it is not a multi-agent task")
             return
 
         # create environment
-        env = gym.make(task_name, cfg=env_cfg)
-
-        # disable control on stop
-        env.unwrapped.sim._app_control_on_stop_handle = None  # type: ignore
+        env: DirectMARLEnv = gym.make(task_name, cfg=env_cfg)
+        # this flag is necessary to prevent a bug where the simulation gets stuck randomly when running the
+        # test on many environments.
+        env.sim.set_setting("/physics/cooking/ujitsoCollisionCooking", False)
 
         # reset environment
         obs, _ = env.reset()
@@ -107,12 +105,16 @@ class TestEnvironments(unittest.TestCase):
         with torch.inference_mode():
             for _ in range(num_steps):
                 # sample actions from -1 to 1
-                actions = 2 * torch.rand(env.action_space.shape, device=env.unwrapped.device) - 1
+                actions = {
+                    agent: 2 * torch.rand(env.action_space(agent).shape, device=env.unwrapped.device) - 1
+                    for agent in env.unwrapped.possible_agents
+                }
                 # apply actions
                 transition = env.step(actions)
                 # check signals
-                for data in transition:
-                    self.assertTrue(self._check_valid_tensor(data), msg=f"Invalid data: {data}")
+                for item in transition[:-1]:  # exclude info
+                    for agent, data in item.items():
+                        self.assertTrue(self._check_valid_tensor(data), msg=f"Invalid data ('{agent}'): {data}")
 
         # close the environment
         env.close()

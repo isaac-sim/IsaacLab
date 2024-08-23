@@ -1,6 +1,20 @@
 Changelog
 ---------
 
+0.10.1 (2024-08-21)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Cart-Double-Pendulum-Direct-v0`` multi-agent environment
+
+Changed
+^^^^^^^
+
+* Update skrl wrapper to support multi-agent environments.
+
+
 0.10.0 (2024-08-14)
 ~~~~~~~~~~~~~~~~~~~
 
