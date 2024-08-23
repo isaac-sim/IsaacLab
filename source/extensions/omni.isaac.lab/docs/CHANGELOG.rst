@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.22.2 (2024-08-21)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Disabled default viewport in certain headless scenarios for better performance.
+
+
 0.22.1 (2024-08-17)
 ~~~~~~~~~~~~~~~~~~~
 
