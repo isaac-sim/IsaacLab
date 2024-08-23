@@ -54,7 +54,7 @@
     <link rel="search" title="Search" href="../../../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Aug 22, 2024"/>
+    <meta name="docbuild:last-update" content="Aug 23, 2024"/>
   </head>
   
   
@@ -634,6 +634,8 @@ document.write(`
         <span class="c1"># casting None to False if the flag doesn&#39;t exist</span>
         <span class="c1"># this flag is set from the AppLauncher class</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_offscreen_render</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">carb_settings_iface</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;/isaaclab/render/offscreen&quot;</span><span class="p">))</span>
+        <span class="c1"># read flag for whether the default viewport should be enabled</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_render_viewport</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">carb_settings_iface</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;/isaaclab/render/active_viewport&quot;</span><span class="p">))</span>
         <span class="c1"># flag for whether any GUI will be rendered (local, livestreamed or viewport)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_has_gui</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_local_gui</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_livestream_gui</span>
 
@@ -670,6 +672,14 @@ document.write(`
             <span class="bp">self</span><span class="o">.</span><span class="n">_render_throttle_counter</span> <span class="o">=</span> <span class="mi">0</span>
             <span class="c1"># rendering frequency in terms of number of render calls</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_render_throttle_period</span> <span class="o">=</span> <span class="mi">5</span>
+
+        <span class="c1"># check the case where we don&#39;t need to render the viewport</span>
+        <span class="c1"># since render_viewport can only be False in headless mode, we only need to check for offscreen_render</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_render_viewport</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_offscreen_render</span><span class="p">:</span>
+            <span class="c1"># disable the viewport if offscreen_render is enabled</span>
+            <span class="kn">from</span> <span class="nn">omni.kit.viewport.utility</span> <span class="kn">import</span> <span class="n">get_active_viewport</span>
+
+            <span class="n">get_active_viewport</span><span class="p">()</span><span class="o">.</span><span class="n">updates_enabled</span> <span class="o">=</span> <span class="kc">False</span>
 
         <span class="c1"># override enable scene querying if rendering is enabled</span>
         <span class="c1"># this is needed for some GUI features</span>
@@ -1281,7 +1291,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Aug 22, 2024.
+  Last updated on Aug 23, 2024.
   <br/>
 </p>
   </div>
