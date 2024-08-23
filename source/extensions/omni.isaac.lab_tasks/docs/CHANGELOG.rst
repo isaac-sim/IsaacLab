@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.10.2 (2024-08-23)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Shadow-Hand-Over-Direct-v0`` multi-agent environment
+
+
 0.10.1 (2024-08-21)
 ~~~~~~~~~~~~~~~~~~~
 

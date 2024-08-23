@@ -259,7 +259,25 @@ Classic
 
 .. |cart-double-pendulum-direct-link| replace:: `Isaac-Cart-Double-Pendulum-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/cart_double_pendulum/cart_double_pendulum_env.py>`__
 
+Manipulation
+~~~~~~~~~~~~
 
+Environments based on fixed-arm manipulation tasks.
+
+.. table::
+    :widths: 33 37 30
+
+    +----------------------+--------------------------------+--------------------------------------------------------+
+    | World                | Environment ID                 | Description                                            |
+    +======================+================================+========================================================+
+    | |shadow-hand-over|   | |shadow-hand-over-direct-link| | Passing an object from one hand over to the other hand |
+    +----------------------+--------------------------------+--------------------------------------------------------+
+
+.. |shadow-hand-over| image:: ../_static/tasks/manipulation/shadow_hand_over.jpg
+
+.. |shadow-hand-over-direct-link| replace:: `Isaac-Shadow-Hand-Over-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/shadow_hand_over/shadow_hand_over_env.py>`__
+
+|
 
 Comprehensive List of Environments
 ==================================
@@ -297,6 +315,8 @@ Comprehensive List of Environments
     | Isaac-Repose-Cube-Shadow-OpenAI-LSTM-Direct-v0 |                                            | Direct        | rl_games                    |
     +------------------------------------------------+--------------------------------------------+---------------+-----------------------------+
     | Isaac-Quadcopter-Direct-v0                     |                                            | Direct        | rsl_rl, rl_games, skrl      |
+    +------------------------------------------------+--------------------------------------------+---------------+-----------------------------+
+    | Isaac-Shadow-Hand-Over-Direct-v0               |                                            | Direct        | rsl_rl, rl_games, skrl      |
     +------------------------------------------------+--------------------------------------------+---------------+-----------------------------+
     | Isaac-Humanoid-v0                              |                                            | Manager Based | rsl_rl, rl_games, skrl, sb3 |
     +------------------------------------------------+--------------------------------------------+---------------+-----------------------------+
