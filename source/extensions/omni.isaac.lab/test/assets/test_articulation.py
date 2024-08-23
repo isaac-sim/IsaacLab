@@ -57,14 +57,10 @@ def generate_articulation_cfg(
             init_state=ArticulationCfg.InitialStateCfg(pos=(0.0, 0.0, 1.34)),
             actuators={"body": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=stiffness, damping=damping)},
         )
-    elif articulation_type in ["panda", "panda_floating_base"]:
+    elif articulation_type == "panda":
         articulation_cfg = FRANKA_PANDA_CFG
-        if articulation_type == "panda_floating_base":
-            articulation_cfg.spawn.articulation_props.fix_root_link = False
-    elif articulation_type in ["anymal", "anymal_fixed_base"]:
+    elif articulation_type == "anymal":
         articulation_cfg = ANYMAL_C_CFG
-        if articulation_type == "anymal_fixed_base":
-            articulation_cfg.spawn.articulation_props.fix_root_link = True
     elif articulation_type == "shadow_hand":
         articulation_cfg = SHADOW_HAND_CFG
     elif articulation_type == "single_joint":
@@ -125,7 +121,6 @@ class TestArticulation(unittest.TestCase):
     Tests
     """
 
-    # @unittest.skip # TODO: unkip this test, only skipped for debugging
     def test_initialization_floating_base_non_root(self):
         """Test initialization for a floating-base with articulation root on a rigid body.
         under the provided prim path."""
