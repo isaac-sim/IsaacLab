@@ -177,7 +177,6 @@ class TestArticulation(unittest.TestCase):
                             # update articulation
                             articulation.update(sim.cfg.dt)
 
-    # @unittest.skip # TODO: unkip this test, only skipped for debugging
     def test_initialization_floating_base(self):
         """Test initialization for a floating-base with articulation root on provided prim path."""
         for num_articulations in (1, 2):
@@ -227,7 +226,6 @@ class TestArticulation(unittest.TestCase):
                             # update articulation
                             articulation.update(sim.cfg.dt)
 
-    # @unittest.skip # TODO: unkip this test, only skipped for debugging
     def test_initialization_fixed_base(self):
         """Test initialization for fixed base."""
         for num_articulations in (1, 2):
@@ -281,7 +279,6 @@ class TestArticulation(unittest.TestCase):
 
                             torch.testing.assert_close(articulation.data.root_state_w, default_root_state)
 
-    # @unittest.skip # TODO: unkip this test, only skipped for debugging
     def test_initialization_fixed_base_single_joint(self):
         """Test initialization for fixed base articulation with a single joint."""
         for num_articulations in (1, 2):
@@ -335,7 +332,6 @@ class TestArticulation(unittest.TestCase):
 
                             torch.testing.assert_close(articulation.data.root_state_w, default_root_state)
 
-    # @unittest.skip # TODO: unkip this test, only skipped for debugging
     def test_initialization_hand_with_tendons(self):
         """Test initialization for fixed base articulated hand with tendons."""
         for num_articulations in (1, 2):
@@ -378,7 +374,6 @@ class TestArticulation(unittest.TestCase):
                             # update articulation
                             articulation.update(sim.cfg.dt)
 
-    # @unittest.skip # TODO: unkip this test, only skipped for debugging
     def test_initialization_floating_base_made_fixed_base(self):
         """Test initialization for a floating-base articulation made fixed-base using schema properties."""
         for num_articulations in (1, 2):
@@ -434,7 +429,6 @@ class TestArticulation(unittest.TestCase):
 
                             torch.testing.assert_close(articulation.data.root_state_w, default_root_state)
 
-    # @unittest.skip # TODO: unkip this test, only skipped for debugging
     def test_initialization_fixed_base_made_floating_base(self):
         """Test initialization for fixed base made floating-base using schema properties."""
         for num_articulations in (1, 2):
@@ -484,7 +478,6 @@ class TestArticulation(unittest.TestCase):
                             # update articulation
                             articulation.update(sim.cfg.dt)
 
-    # @unittest.skip # TODO: unkip this test, only skipped for debugging
     def test_out_of_range_default_joint_pos(self):
         """Test that the default joint position from configuration is out of range."""
         for num_articulations in (1, 2):
@@ -508,7 +501,6 @@ class TestArticulation(unittest.TestCase):
                         # Check if articulation is initialized
                         self.assertFalse(articulation._is_initialized)
 
-    # @unittest.skip # TODO: unkip this test, only skipped for debugging
     def test_out_of_range_default_joint_vel(self):
         """Test that the default joint velocity from configuration is out of range."""
         with build_simulation_context(device="cuda:0", add_ground_plane=False, auto_add_lighting=True) as sim:
@@ -764,7 +756,6 @@ class TestArticulation(unittest.TestCase):
                         self.assertEqual(torch.count_nonzero(articulation._external_torque_b), 0)
 
     def test_apply_joint_command(self):
-        # TODO: Improve this test to actually ensure we get to desired joint positions
         for num_articulations in (1, 2):
             for device in ("cuda:0", "cpu"):
                 with self.subTest(num_articulations=num_articulations, device=device):
