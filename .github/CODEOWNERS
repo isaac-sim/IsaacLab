@@ -1,23 +1,74 @@
+# Codeowners are designated by their GitHub username. They are
+# the people who are responsible for reviewing and approving PRs
+# that modify the files that match the pattern.
+#
+# Codeowners are not the same as contributors. They are not
+# automatically added to the PR, but they will be requested to
+# review the PR when it is created.
+#
+# As a general rule, the codeowners are the people who are
+# most familiar with the code that the PR is modifying. If you
+# are not sure who to add, ask in the issue or in the PR itself.
+#
+# The format of the file is as follows:
+# <file pattern> <codeowners>
+
 # Teams
 # These don't currently work - need to figure out how to do team codeowners
 # @team-aii-devs @hhansen-bdai @jsmith-bdai @jtigue-bdai
 # @team-nvidia @Dhoeller19 @kellyguo11 @Mayankm96 @nikitardn # TODO: Add other members
 # @team-rsl @Mayankm96 @nikitardn @pascal-roth # TODO: Add other members
 
+# App experience files
+# These are the files that are used to launch the app with the correct settings and configurations
+/source/apps/ @kellyguo11 @hhansen-bdai @Mayankm96 @Dhoeller19
 
-# Person specific
-# Hunter Hansen
-docker/* @hhansen-bdai # All docker stuff
-tools/install_deps.py @hhansen-bdai # Dependency installation
-source/extensions/omni.isaac.lab/omni/isaac/lab/app_launcher.py @hhansen-bdai # App launcher
+# Core Framework
+/source/extensions/omni.isaac.lab/ @Dhoeller19 @Mayankm96 @jsmith-bdai @kellyguo11
+/source/extensions/omni.isaac.lab/omni/isaac/lab/actuators @Dhoeller19 @Mayankm96 @nikitardn
+/source/extensions/omni.isaac.lab/omni/isaac/lab/app @hhansen-bdai @kellyguo11
+/source/extensions/omni.isaac.lab/omni/isaac/lab/assets @jsmith-bdai @Dhoeller19 @kellyguo11 @Mayankm96
+/source/extensions/omni.isaac.lab/omni/isaac/lab/assets/deformable_object @kellyguo11 @Mayankm96 @masoudmoghani
+/source/extensions/omni.isaac.lab/omni/isaac/lab/controllers @Mayankm96
+/source/extensions/omni.isaac.lab/omni/isaac/lab/envs @jsmith-bdai @Dhoeller19 @kellyguo11 @Mayankm96
+/source/extensions/omni.isaac.lab/omni/isaac/lab/envs/manager_based_* @jsmith-bdai @Dhoeller19 @Mayankm96
+/source/extensions/omni.isaac.lab/omni/isaac/lab/envs/direct_* @kellyguo11
+/source/extensions/omni.isaac.lab/omni/isaac/lab/managers @jsmith-bdai @Dhoeller19 @Mayankm96
+/source/extensions/omni.isaac.lab/omni/isaac/lab/sensors @jsmith-bdai @Dhoeller19 @pascal-roth @Mayankm96
+/source/extensions/omni.isaac.lab/omni/isaac/lab/sensors/camera @kellyguo11 @pascal-roth
+/source/extensions/omni.isaac.lab/omni/isaac/lab/sensors/contact_sensor @jtigue-bdai
+/source/extensions/omni.isaac.lab/omni/isaac/lab/sensors/frame_transformer @jsmith-bdai
+/source/extensions/omni.isaac.lab/omni/isaac/lab/sensors/ray_caster @pascal-roth @Dhoeller19
+/source/extensions/omni.isaac.lab/omni/isaac/lab/sim @Mayankm96 @jsmith-bdai
+/source/extensions/omni.isaac.lab/omni/isaac/lab/sim/simulation_context.py @Dhoeller19 @kellyguo11
+/source/extensions/omni.isaac.lab/omni/isaac/lab/terrains @Dhoeller19 @Mayankm96
+/source/extensions/omni.isaac.lab/omni/isaac/lab/utils @jsmith-bdai @Dhoeller19 @kellyguo11 @Mayankm96
 
-# James Smith
-tools/*test* @jsmith-bdai # Testing scripts
-source/standalone/tools/* @jsmith-bdai # Standalone tools
-source/extensions/omni.isaac.lab/omni/isaac/lab/sensors/frame_transformer/* @jsmith-bdai # Frame transformer
-source/extensions/omni.isaac.lab/omni/isaac/lab/sim/* @jsmith-bdai # Converters, spawners and schemas
+# RL Environment
+/source/extensions/omni.isaac.lab_tasks/ @Dhoeller19 @Mayankm96 @jsmith-bdai @kellyguo11
+/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct @Dhoeller19 @kellyguo11
+/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based @Dhoeller19 @Mayankm96 @jsmith-bdai
 
+# Assets
+/source/extensions/omni.isaac.lab_assets/omni/isaac/lab_assets/ @Dhoeller19 @pascal-roth @jsmith-bdai
 
-# Team Specific
-# Non-RL Managers
-source/extensions/omni.isaac.lab/omni/isaac/lab/envs/manager_based_env* @jsmith-bdai # Might better be AII?
+# Standalone Scripts
+/source/standalone/demos/ @jsmith-bdai @jtigue-bdai @Dhoeller19 @kellyguo11 @Mayankm96
+/source/standalone/environments/ @Mayankm96
+/source/standalone/tools/ @jsmith-bdai @Mayankm96
+/source/standalone/tutorials/ @jsmith-bdai @pascal-roth @kellyguo11 @Dhoeller19 @Mayankm96
+/source/standalone/workflows/ @jsmith-bdai @Dhoeller19 @kellyguo11 @Mayankm96
+
+# Github Actions
+# This list is for people wanting to be notified every time there's a change
+# related to Github Actions
+/.github/ @kellyguo11 @jsmith-bdai
+
+# Visual Studio Code
+/.vscode/ @hhansen-bdai @Mayankm96
+
+# Infrastructure (Docker, Docs, Tools)
+/docker/ @hhansen-bdai @pascal-roth
+/docs/ @jsmith-bdai @Dhoeller19 @kellyguo11 @Mayankm96
+/tools/ @hhansen-bdai @jsmith-bdai @Dhoeller19
+/isaaclab.* @hhansen-bdai @Dhoeller19 @Mayankm96 @kellyguo11
