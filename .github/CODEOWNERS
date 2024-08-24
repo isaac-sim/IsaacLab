@@ -36,8 +36,15 @@
 /source/extensions/omni.isaac.lab/omni/isaac/lab/sensors/ray_caster @pascal-roth @Dhoeller19
 /source/extensions/omni.isaac.lab/omni/isaac/lab/sim @Mayankm96 @jsmith-bdai
 /source/extensions/omni.isaac.lab/omni/isaac/lab/sim/simulation_context.py @Dhoeller19 @kellyguo11
-/source/extensions/omni.isaac.lab/omni/isaac/lab/terrains @Dhoeller19 @Mayankm96
-/source/extensions/omni.isaac.lab/omni/isaac/lab/utils @jsmith-bdai @Dhoeller19 @kellyguo11 @Mayankm96 @jtigue-bdai
+/source/extensions/omni.isaac.lab/omni/isaac/lab/terrains @Dhoeller19 @Mayankm96 @nikitardn
+/source/extensions/omni.isaac.lab/omni/isaac/lab/utils @Mayankm96 @jsmith-bdai
+/source/extensions/omni.isaac.lab/omni/isaac/lab/utils/modifiers @jtigue-bdai
+/source/extensions/omni.isaac.lab/omni/isaac/lab/utils/interpolation @jtigue-bdai
+/source/extensions/omni.isaac.lab/omni/isaac/lab/utils/noise @jtigue-bdai @kellyguo11
+/source/extensions/omni.isaac.lab/omni/isaac/lab/utils/warp @Dhoeller19 @pascal-roth
+/source/extensions/omni.isaac.lab/omni/isaac/lab/utils/assets.py @Dhoeller19 @kellyguo11 @Mayankm96
+/source/extensions/omni.isaac.lab/omni/isaac/lab/utils/math.py @jsmith-bdai @Dhoeller19 @Mayankm96
+/source/extensions/omni.isaac.lab/omni/isaac/lab/utils/configclass.py @Mayankm96 @Dhoeller19
 
 # RL Environment
 /source/extensions/omni.isaac.lab_tasks/ @Dhoeller19 @Mayankm96 @jsmith-bdai @kellyguo11
