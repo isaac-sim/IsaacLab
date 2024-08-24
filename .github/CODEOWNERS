@@ -20,9 +20,9 @@
 
 # Core Framework
 /source/extensions/omni.isaac.lab/ @Dhoeller19 @Mayankm96 @jsmith-bdai @kellyguo11
-/source/extensions/omni.isaac.lab/omni/isaac/lab/actuators @Dhoeller19 @Mayankm96 @nikitardn @jtigue-bdai 
+/source/extensions/omni.isaac.lab/omni/isaac/lab/actuators @Dhoeller19 @Mayankm96 @nikitardn @jtigue-bdai
 /source/extensions/omni.isaac.lab/omni/isaac/lab/app @hhansen-bdai @kellyguo11
-/source/extensions/omni.isaac.lab/omni/isaac/lab/assets @jsmith-bdai @Dhoeller19 @kellyguo11 @Mayankm96 @jtigue-bdai 
+/source/extensions/omni.isaac.lab/omni/isaac/lab/assets @jsmith-bdai @Dhoeller19 @kellyguo11 @Mayankm96 @jtigue-bdai
 /source/extensions/omni.isaac.lab/omni/isaac/lab/assets/deformable_object @kellyguo11 @Mayankm96 @masoudmoghani
 /source/extensions/omni.isaac.lab/omni/isaac/lab/controllers @Mayankm96
 /source/extensions/omni.isaac.lab/omni/isaac/lab/envs @jsmith-bdai @Dhoeller19 @kellyguo11 @Mayankm96
@@ -37,12 +37,12 @@
 /source/extensions/omni.isaac.lab/omni/isaac/lab/sim @Mayankm96 @jsmith-bdai
 /source/extensions/omni.isaac.lab/omni/isaac/lab/sim/simulation_context.py @Dhoeller19 @kellyguo11
 /source/extensions/omni.isaac.lab/omni/isaac/lab/terrains @Dhoeller19 @Mayankm96
-/source/extensions/omni.isaac.lab/omni/isaac/lab/utils @jsmith-bdai @Dhoeller19 @kellyguo11 @Mayankm96 @jtigue-bdai 
+/source/extensions/omni.isaac.lab/omni/isaac/lab/utils @jsmith-bdai @Dhoeller19 @kellyguo11 @Mayankm96 @jtigue-bdai
 
 # RL Environment
 /source/extensions/omni.isaac.lab_tasks/ @Dhoeller19 @Mayankm96 @jsmith-bdai @kellyguo11
 /source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct @Dhoeller19 @kellyguo11
-/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based @Dhoeller19 @Mayankm96 @jsmith-bdai @jtigue-bdai 
+/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based @Dhoeller19 @Mayankm96 @jsmith-bdai @jtigue-bdai
 
 # Assets
 /source/extensions/omni.isaac.lab_assets/omni/isaac/lab_assets/ @Dhoeller19 @pascal-roth @jsmith-bdai
