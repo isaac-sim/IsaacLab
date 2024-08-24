@@ -168,6 +168,7 @@ such as the reward contribution from individual terms, the termination status of
 The Code Execution
 ~~~~~~~~~~~~~~~~~~
 
+
 Similar to the previous tutorial, we can run the environment by executing the ``run_cartpole_rl_env.py`` script.
 
 .. code-block:: bash
@@ -179,6 +180,11 @@ This should open a similar simulation as in the previous tutorial. However, this
 returns more signals that specify the reward and termination status. Additionally, the individual
 environments reset themselves when they terminate based on the termination criteria specified in the
 configuration.
+
+.. figure:: ../../_static/tutorials/tutorial_create_manager_rl_env.jpg
+    :align: center
+    :figwidth: 100%
+    :alt: result of run_cartpole_rl_env.py
 
 To stop the simulation, you can either close the window, or press ``Ctrl+C`` in the terminal
 where you started the simulation.

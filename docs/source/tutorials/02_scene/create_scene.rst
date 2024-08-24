@@ -142,6 +142,8 @@ methods of the entities in the scene.
 The Code Execution
 ~~~~~~~~~~~~~~~~~~
 
+
+
 Let's run the script to simulate 32 cartpoles in the scene. We can do this by passing
 the ``--num_envs`` argument to the script.
 
@@ -151,6 +153,12 @@ the ``--num_envs`` argument to the script.
 
 This should open a stage with 32 cartpoles swinging around randomly. You can use the
 mouse to rotate the camera and the arrow keys to move around the scene.
+
+
+.. figure:: ../../_static/tutorials/tutorial_creating_a_scene.jpg
+    :align: center
+    :figwidth: 100%
+    :alt: result of create_scene.py
 
 In this tutorial, we saw how to use :class:`scene.InteractiveScene` to create a
 scene with multiple assets. We also saw how to use the ``num_envs`` argument

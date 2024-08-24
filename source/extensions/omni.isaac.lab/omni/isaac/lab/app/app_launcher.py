@@ -462,6 +462,14 @@ class AppLauncher:
         self._offscreen_render = False
         if self._enable_cameras and self._headless:
             self._offscreen_render = True
+
+        # Check if we can disable the viewport to improve performance
+        #   This should only happen if we are running headless and do not require livestreaming or video recording
+        #   This is different from offscreen_render because this only affects the default viewport and not other renderproducts in the scene
+        self._render_viewport = True
+        if self._headless and not self._livestream and not launcher_args.get("video", False):
+            self._render_viewport = False
+
         # hide_ui flag
         launcher_args["hide_ui"] = False
         if self._headless and not self._livestream:
@@ -482,15 +490,14 @@ class AppLauncher:
         if launcher_args.get("cpu", False):
             raise ValueError("The `--cpu` flag is deprecated. Please use `--device cpu` instead.")
 
-        if "distributed" in launcher_args:
-            distributed_train = launcher_args["distributed"]
+        if "distributed" in launcher_args and launcher_args["distributed"]:
             # local rank (GPU id) in a current multi-gpu mode
             self.local_rank = int(os.getenv("LOCAL_RANK", "0"))
             # global rank (GPU id) in multi-gpu multi-node mode
             self.global_rank = int(os.getenv("RANK", "0"))
-            if distributed_train:
-                self.device_id = self.local_rank
-                launcher_args["multi_gpu"] = False
+
+            self.device_id = self.local_rank
+            launcher_args["multi_gpu"] = False
             # limit CPU threads to minimize thread context switching
             # this ensures processes do not take up all available threads and fight for resources
             num_cpu_cores = os.cpu_count()
@@ -570,6 +577,9 @@ class AppLauncher:
         # add Isaac Lab modules back to sys.modules
         for key, value in hacked_modules.items():
             sys.modules[key] = value
+        # remove the threadCount argument from sys.argv if it was added for distributed training
+        pattern = r"--/plugins/carb\.tasking\.plugin/threadCount=\d+"
+        sys.argv = [arg for arg in sys.argv if not re.match(pattern, arg)]
 
     def _rendering_enabled(self) -> bool:
         """Check if rendering is required by the app."""
@@ -617,6 +627,11 @@ class AppLauncher:
         # this flag is used by the SimulationContext class to enable the offscreen_render pipeline
         # when the render() method is called.
         carb_settings_iface.set_bool("/isaaclab/render/offscreen", self._offscreen_render)
+
+        # set carb setting to indicate Isaac Lab's render_viewport pipeline should be enabled
+        # this flag is used by the SimulationContext class to enable the render_viewport pipeline
+        # when the render() method is called.
+        carb_settings_iface.set_bool("/isaaclab/render/active_viewport", self._render_viewport)
 
         # set carb setting to indicate no RTX sensors are used
         # this flag is set to True when an RTX-rendering related sensor is created

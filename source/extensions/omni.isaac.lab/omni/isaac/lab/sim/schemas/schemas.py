@@ -809,7 +809,7 @@ def modify_deformable_body_properties(
 
     # set into PhysX API
     for attr_name, value in cfg.items():
-        if attr_name in ["rest_offset", "collision_offset"]:
+        if attr_name in ["rest_offset", "contact_offset"]:
             safe_set_attribute_on_usd_schema(physx_collision_api, attr_name, value, camel_case=True)
         else:
             safe_set_attribute_on_usd_schema(physx_deformable_api, attr_name, value, camel_case=True)

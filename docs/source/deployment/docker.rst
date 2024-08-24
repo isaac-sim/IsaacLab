@@ -73,14 +73,14 @@ Directory Organization
 The root of the Isaac Lab repository contains the ``docker`` directory that has various files and scripts
 needed to run Isaac Lab inside a Docker container. A subset of these are summarized below:
 
-* ``Dockerfile.base``: Defines the isaaclab image by overlaying Isaac Lab dependencies onto the Isaac Sim Docker image.
-  ``Dockerfiles`` which end with something else, (i.e. ``Dockerfile.ros2``) build an `image_extension <#isaac-lab-image-extensions>`_.
-* ``docker-compose.yaml``: Creates mounts to allow direct editing of Isaac Lab code from the host machine that runs
+* **Dockerfile.base**: Defines the base Isaac Lab image by overlaying its dependencies onto the Isaac Sim Docker image.
+  Dockerfiles which end with something else, (i.e. ``Dockerfile.ros2``) build an `image extension <#isaac-lab-image-extensions>`_.
+* **docker-compose.yaml**: Creates mounts to allow direct editing of Isaac Lab code from the host machine that runs
   the container. It also creates several named volumes such as ``isaac-cache-kit`` to
   store frequently re-used resources compiled by Isaac Sim, such as shaders, and to retain logs, data, and documents.
-* ``base.env``: Stores environment variables required for the ``base`` build process and the container itself. ``.env``
-  files which end with something else (i.e. ``.env.ros2``) define these for `image_extension <#isaac-lab-image-extensions>`_.
-* ``container.py``: A script that interfaces with tools in ``utils`` to configure and build the image,
+* **.env.base**: Stores environment variables required for the ``base`` build process and the container itself. ``.env``
+  files which end with something else (i.e. ``.env.ros2``) define these for `image extension <#isaac-lab-image-extensions>`_.
+* **container.py**: A utility script that interfaces with tools in ``utils`` to configure and build the image,
   and run and interact with the container.
 
 Running the Container
@@ -95,22 +95,22 @@ Running the Container
     For a faster development cycle, we mount the following directories in the Isaac Lab repository into the container
     so that you can edit their files from the host machine:
 
-    * ``source``: This is the directory that contains the Isaac Lab source code.
-    * ``docs``: This is the directory that contains the source code for Isaac Lab documentation. This is overlaid except
+    * **IsaacLab/source**: This is the directory that contains the Isaac Lab source code.
+    * **IsaacLab/docs**: This is the directory that contains the source code for Isaac Lab documentation. This is overlaid except
       for the ``_build`` subdirectory where build artifacts are stored.
 
 
-The script ``container.py`` parallels three basic ``docker compose`` commands. Each can accept an `image_extension argument <#isaac-lab-image-extensions>`_,
-or else they will default to image_extension ``base``:
+The script ``container.py`` parallels basic ``docker compose`` commands. Each can accept an `image extension argument <#isaac-lab-image-extensions>`_,
+or else they will default to the ``base`` image extension. These commands are:
 
-1. ``start``: This builds the image and brings up the container in detached mode (i.e. in the background).
-2. ``enter``: This begins a new bash process in an existing isaaclab container, and which can be exited
-   without bringing down the container.
-3. ``config``: This outputs the compose.yaml which would be result from the inputs given to ``container.py start``. This command is useful
-   for debugging a compose configuration.
-4. ``copy``: This copies the ``logs``, ``data_storage`` and ``docs/_build`` artifacts, from the ``isaac-lab-logs``, ``isaac-lab-data`` and ``isaac-lab-docs``
-   volumes respectively, to the ``docker/artifacts`` directory. These artifacts persist between docker container instances and are shared between image extensions.
-5. ``stop``: This brings down the container and removes it.
+* **start**: This builds the image and brings up the container in detached mode (i.e. in the background).
+* **enter**: This begins a new bash process in an existing Isaac Lab container, and which can be exited
+  without bringing down the container.
+* **config**: This outputs the compose.yaml which would be result from the inputs given to ``container.py start``. This command is useful
+  for debugging a compose configuration.
+* **copy**: This copies the ``logs``, ``data_storage`` and ``docs/_build`` artifacts, from the ``isaac-lab-logs``, ``isaac-lab-data`` and ``isaac-lab-docs``
+  volumes respectively, to the ``docker/artifacts`` directory. These artifacts persist between docker container instances and are shared between image extensions.
+* **stop**: This brings down the container and removes it.
 
 The following shows how to launch the container in a detached state and enter it:
 
@@ -118,15 +118,15 @@ The following shows how to launch the container in a detached state and enter it
 
     # Launch the container in detached mode
     # We don't pass an image extension arg, so it defaults to 'base'
-    python docker/container.py start
+    ./docker/container.py start
 
     # If we want to add .env or .yaml files to customize our compose config,
     # we can simply specify them in the same manner as the compose cli
-    # python docker/container.py start --file my-compose.yaml --env-file .env.my-vars
+    # ./docker/container.py start --file my-compose.yaml --env-file .env.my-vars
 
     # Enter the container
     # We pass 'base' explicitly, but if we hadn't it would default to 'base'
-    python docker/container.py enter base
+    ./docker/container.py enter base
 
 To copy files from the base container to the host machine, you can use the following command:
 
@@ -141,18 +141,26 @@ directories to the ``docker/artifacts`` directory. This is useful for copying th
 .. code:: bash
 
     # stop the container
-    python docker/container.py stop
+    ./docker/container.py stop
 
 
 X11 forwarding
 ~~~~~~~~~~~~~~
 
-The container supports X11 forwarding, which allows the user to run GUI applications from the container and display them
-on the host machine.
+The container supports X11 forwarding, which allows the user to run GUI applications from the container
+and display them on the host machine.
 
-The first time a container is started with ``python docker/container.py start``, the script prompts
-the user whether to activate X11 forwarding. This will create a file ``docker/.container.cfg`` to store the user's choice.
-Subsequently, X11 forwarding can be toggled by changing ``__ISAACLAB_X11_FORWARDING_ENABLED`` to 0 or 1 in ``docker/.container.cfg``.
+The first time a container is started with ``./docker/container.py start``, the script prompts
+the user whether to activate X11 forwarding. This will create a file at ``docker/.container.cfg``
+to store the user's choice for future runs.
+
+If you want to change the choice, you can set the parameter ``X11_FORWARDING_ENABLED`` to '0' or '1'
+in the ``docker/.container.cfg`` file to disable or enable X11 forwarding, respectively. After that, you need to
+re-build the container by running ``./docker/container.py start``. The rebuilding process ensures that the changes
+are applied to the container. Otherwise, the changes will not take effect.
+
+After the container is started, you can enter the container and run GUI applications from it with X11 forwarding enabled.
+The display will be forwarded to the host machine.
 
 
 Python Interpreter
@@ -233,22 +241,23 @@ Isaac Lab Image Extensions
 --------------------------
 
 The produced image depends upon the arguments passed to ``container.py start`` and ``container.py stop``. These
-commands accept an ``image_extension`` as an additional argument. If no argument is passed, then these
-commands default to ``base``. Currently, the only valid ``image_extension`` arguments are (``base``, ``ros2``).
-Only one ``image_extension`` can be passed at a time, and the produced container will be named ``isaac-lab-${profile}``.
+commands accept an image extension parameter as an additional argument. If no argument is passed, then this
+parameter defaults to ``base``. Currently, the only valid values are (``base``, ``ros2``).
+Only one image extension can be passed at a time. The produced container will be named ``isaac-lab-${profile}``,
+where ``${profile}`` is the image extension name.
 
 .. code:: bash
 
     # start base by default
-    python docker/container.py start
+    ./docker/container.py start
     # stop base explicitly
-    python docker/container.py stop base
+    ./docker/container.py stop base
     # start ros2 container
-    python docker/container.py start ros2
+    ./docker/container.py start ros2
     # stop ros2 container
-    python docker/container.py stop ros2
+    ./docker/container.py stop ros2
 
-The passed ``image_extension`` argument will build the image defined in ``Dockerfile.${image_extension}``,
+The passed image extension argument will build the image defined in ``Dockerfile.${image_extension}``,
 with the corresponding `profile`_ in the ``docker-compose.yaml`` and the envars from ``.env.${image_extension}``
 in addition to the ``.env.base``, if any.
 
@@ -258,54 +267,21 @@ ROS2 Image Extension
 In ``Dockerfile.ros2``, the container installs ROS2 Humble via an `apt package`_, and it is sourced in the ``.bashrc``.
 The exact version is specified by the variable ``ROS_APT_PACKAGE`` in the ``.env.ros2`` file,
 defaulting to ``ros-base``. Other relevant ROS2 variables are also specified in the ``.env.ros2`` file,
-including variables defining the `various middleware`_ options. The container defaults to ``FastRTPS``, but ``CylconeDDS``
-is also supported. Each of these middlewares can be `tuned`_ using their corresponding ``.xml`` files under ``docker/.ros``.
+including variables defining the `various middleware`_ options.
+
+The container defaults to ``FastRTPS``, but ``CylconeDDS`` is also supported. Each of these middlewares can be
+`tuned`_ using their corresponding ``.xml`` files under ``docker/.ros``.
+
+
+.. dropdown:: Parameters for ROS2 Image Extension
+   :icon: code
+
+   .. literalinclude:: ../../../docker/.env.ros2
+      :language: bash
 
 
 Known Issues
 ------------
-
-Invalid mount config for type "bind"
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-If you see the following error when building the container:
-
-.. code:: text
-
-    ⠋ Container isaaclab  Creating                                                                                                                                                                         0.0s
-    Error response from daemon: invalid mount config for type "bind": bind source path does not exist: ${HOME}/.Xauthority
-
-This means that the ``.Xauthority`` file is not present in the home directory of the host machine.
-The portion of the docker-compose.yaml that enables this is commented out by default, so this shouldn't
-happen unless it has been altered. This file is required for X11 forwarding to work. To fix this, you can
-create an empty ``.Xauthority`` file in your home directory.
-
-.. code:: bash
-
-    touch ${HOME}/.Xauthority
-
-A similar error but requires a different fix:
-
-.. code:: text
-
-    ⠋ Container isaaclab  Creating                                                                                                                                                                         0.0s
-    Error response from daemon: invalid mount config for type "bind": bind source path does not exist: /tmp/.X11-unix
-
-This means that the folder/files are either not present or not accessible on the host machine.
-The portion of the docker-compose.yaml that enables this is commented out by default, so this
-shouldn't happen unless it has been altered. This usually happens when you have multiple docker
-versions installed on your machine. To fix this, you can try the following:
-
-* Remove all docker versions from your machine.
-
-  .. code:: bash
-
-      sudo apt remove docker*
-      sudo apt remove docker docker-engine docker.io containerd runc docker-desktop docker-compose-plugin
-      sudo snap remove docker
-      sudo apt clean autoclean && sudo apt autoremove --yes
-
-* Install the latest version of docker based on the instructions in the setup section.
 
 WebRTC Streaming
 ~~~~~~~~~~~~~~~~

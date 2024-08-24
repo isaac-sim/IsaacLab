@@ -36,7 +36,6 @@ directory.
       :emphasize-lines: 47-51, 54-71, 74-108, 111-130, 135-139, 144, 148, 153-154, 160-161
       :linenos:
 
-
 The Code Explained
 ~~~~~~~~~~~~~~~~~~
 
@@ -182,7 +181,6 @@ operations under-the-hood and we want to ensure that the simulation is not slowe
 the overhead of PyTorch's autograd engine and gradients are not computed for the simulation
 operations.
 
-
 The Code Execution
 ~~~~~~~~~~~~~~~~~~
 
@@ -192,11 +190,16 @@ To run the base environment made in this tutorial, you can use the following com
 
    ./isaaclab.sh -p source/standalone/tutorials/03_envs/create_cartpole_base_env.py --num_envs 32
 
-
 This should open a stage with a ground plane, light source, and cartpoles. The simulation should be
 playing with random actions on the cartpole. Additionally, it opens a UI window on the bottom
 right corner of the screen named ``"Isaac Lab"``. This window contains different UI elements that
 can be used for debugging and visualization.
+
+
+.. figure:: ../../_static/tutorials/tutorial_create_manager_base.jpg
+    :align: center
+    :figwidth: 100%
+    :alt: result of create_cartpole_base_env.py
 
 To stop the simulation, you can either close the window, or press ``Ctrl+C`` in the terminal where you
 started the simulation.
@@ -212,7 +215,6 @@ directory. For completeness, they can be run using the following commands:
 
    # Quadrupedal locomotion environment with a policy that interacts with the environment
    ./isaaclab.sh -p source/standalone/tutorials/03_envs/create_quadruped_base_env.py --num_envs 32
-
 
 In the following tutorial, we will look at the :class:`envs.ManagerBasedRLEnv` class and how to use it
 to create a Markovian Decision Process (MDP).

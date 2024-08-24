@@ -145,6 +145,11 @@ Now that we have gone through the code, let's run the script and see the result:
 The simulation should be playing, and the stage should be rendering. To stop the simulation,
 you can either close the window, or press ``Ctrl+C`` in the terminal.
 
+.. figure:: ../../_static/tutorials/tutorial_create_empty.jpg
+    :align: center
+    :figwidth: 100%
+    :alt: result of create_empty.py
+
 Passing ``--help`` to the above script will show the different command-line arguments added
 earlier by the :class:`app.AppLauncher` class. To run the script headless, you can execute the
 following:
