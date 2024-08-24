@@ -13,11 +13,6 @@
 # The format of the file is as follows:
 # <file pattern> <codeowners>
 
-# Teams
-# These don't currently work - need to figure out how to do team codeowners
-# @team-aii-devs @hhansen-bdai @jsmith-bdai @jtigue-bdai
-# @team-nvidia @Dhoeller19 @kellyguo11 @Mayankm96 @nikitardn # TODO: Add other members
-# @team-rsl @Mayankm96 @nikitardn @pascal-roth # TODO: Add other members
 
 # App experience files
 # These are the files that are used to launch the app with the correct settings and configurations
@@ -25,16 +20,16 @@
 
 # Core Framework
 /source/extensions/omni.isaac.lab/ @Dhoeller19 @Mayankm96 @jsmith-bdai @kellyguo11
-/source/extensions/omni.isaac.lab/omni/isaac/lab/actuators @Dhoeller19 @Mayankm96 @nikitardn
+/source/extensions/omni.isaac.lab/omni/isaac/lab/actuators @Dhoeller19 @Mayankm96 @nikitardn @jtigue-bdai 
 /source/extensions/omni.isaac.lab/omni/isaac/lab/app @hhansen-bdai @kellyguo11
-/source/extensions/omni.isaac.lab/omni/isaac/lab/assets @jsmith-bdai @Dhoeller19 @kellyguo11 @Mayankm96
+/source/extensions/omni.isaac.lab/omni/isaac/lab/assets @jsmith-bdai @Dhoeller19 @kellyguo11 @Mayankm96 @jtigue-bdai 
 /source/extensions/omni.isaac.lab/omni/isaac/lab/assets/deformable_object @kellyguo11 @Mayankm96 @masoudmoghani
 /source/extensions/omni.isaac.lab/omni/isaac/lab/controllers @Mayankm96
 /source/extensions/omni.isaac.lab/omni/isaac/lab/envs @jsmith-bdai @Dhoeller19 @kellyguo11 @Mayankm96
 /source/extensions/omni.isaac.lab/omni/isaac/lab/envs/manager_based_* @jsmith-bdai @Dhoeller19 @Mayankm96
 /source/extensions/omni.isaac.lab/omni/isaac/lab/envs/direct_* @kellyguo11
 /source/extensions/omni.isaac.lab/omni/isaac/lab/managers @jsmith-bdai @Dhoeller19 @Mayankm96
-/source/extensions/omni.isaac.lab/omni/isaac/lab/sensors @jsmith-bdai @Dhoeller19 @pascal-roth @Mayankm96
+/source/extensions/omni.isaac.lab/omni/isaac/lab/sensors @jsmith-bdai @Dhoeller19 @pascal-roth @Mayankm96 @jtigue-bdai
 /source/extensions/omni.isaac.lab/omni/isaac/lab/sensors/camera @kellyguo11 @pascal-roth
 /source/extensions/omni.isaac.lab/omni/isaac/lab/sensors/contact_sensor @jtigue-bdai
 /source/extensions/omni.isaac.lab/omni/isaac/lab/sensors/frame_transformer @jsmith-bdai
@@ -42,12 +37,12 @@
 /source/extensions/omni.isaac.lab/omni/isaac/lab/sim @Mayankm96 @jsmith-bdai
 /source/extensions/omni.isaac.lab/omni/isaac/lab/sim/simulation_context.py @Dhoeller19 @kellyguo11
 /source/extensions/omni.isaac.lab/omni/isaac/lab/terrains @Dhoeller19 @Mayankm96
-/source/extensions/omni.isaac.lab/omni/isaac/lab/utils @jsmith-bdai @Dhoeller19 @kellyguo11 @Mayankm96
+/source/extensions/omni.isaac.lab/omni/isaac/lab/utils @jsmith-bdai @Dhoeller19 @kellyguo11 @Mayankm96 @jtigue-bdai 
 
 # RL Environment
 /source/extensions/omni.isaac.lab_tasks/ @Dhoeller19 @Mayankm96 @jsmith-bdai @kellyguo11
 /source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct @Dhoeller19 @kellyguo11
-/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based @Dhoeller19 @Mayankm96 @jsmith-bdai
+/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based @Dhoeller19 @Mayankm96 @jsmith-bdai @jtigue-bdai 
 
 # Assets
 /source/extensions/omni.isaac.lab_assets/omni/isaac/lab_assets/ @Dhoeller19 @pascal-roth @jsmith-bdai
