@@ -38,12 +38,14 @@ from omni.isaac.lab_assets import ANYMAL_C_CFG, FRANKA_PANDA_CFG, SHADOW_HAND_CF
 
 
 def generate_articulation_cfg(
-    articulation_type, stiffness: float | None = 10.0, damping: float | None = 2.0
+    articulation_type: Literal["humanoid", "panda", "anymal", "shandow_hand", "single_joint"], 
+    stiffness: float | None = 10.0, 
+    damping: float | None = 2.0
 ) -> ArticulationCfg:
     """Generate an articulation configuration.
 
     Args:
-        articulation_type: Type of articulation to generate. Options are "humanoid", "panda", "anymal", "shadow_hand" and "single_joint".
+        articulation_type: Type of articulation to generate.
         stiffness: Stiffness value for the articulation's actuators. Only currently used for humanoid.
         damping: Damping value for the articulation's actuators. Only currently used for humanoid.
 
