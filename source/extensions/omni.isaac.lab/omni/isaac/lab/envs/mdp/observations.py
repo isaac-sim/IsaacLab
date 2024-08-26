@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 import omni.isaac.lab.utils.math as math_utils
 from omni.isaac.lab.assets import Articulation, RigidObject
 from omni.isaac.lab.managers import SceneEntityCfg
-from omni.isaac.lab.sensors import RayCaster
+from omni.isaac.lab.sensors import RayCaster, Imu
 
 if TYPE_CHECKING:
     from omni.isaac.lab.envs import ManagerBasedEnv, ManagerBasedRLEnv
@@ -181,6 +181,45 @@ def body_incoming_wrench(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg) -> tor
     link_incoming_forces = asset.root_physx_view.get_link_incoming_joint_force()[:, asset_cfg.body_ids]
     return link_incoming_forces.view(env.num_envs, -1)
 
+def imu_orientation(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("imu")) -> torch.Tensor:
+    """imu sensor orientation w.r.t the env.scene.origin
+
+    Args:
+        env: The environment (BaseEnv)
+        asset_cfg: The SceneEntity associated with an Imu sensor
+        
+    Returns:
+        orientation quaternion (wxyz), shape of torch.tensor is 4
+    """
+    asset: Imu = env.scene[asset_cfg.name]
+    return asset.data.quat_w
+
+def imu_ang_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("imu")) -> torch.Tensor:
+    """imu sensor angular velocity w.r.t. sensor frame
+
+    Args:
+        env: The environment (BaseEnv)
+        asset_cfg: The SceneEntity associated with an Imu sensor
+        
+    Returns:
+        angular velocity (rad/s), shape of torch.tensor is 3
+    """
+    asset: Imu = env.scene[asset_cfg.name]
+    return asset.data.ang_vel_b
+
+
+def imu_lin_acc(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("imu")) -> torch.Tensor:
+    """imu sensor linear acceleration w.r.t. sensor frame
+
+    Args:
+        env: The environment (BaseEnv)
+        asset_cfg: The SceneEntity associated with an Imu sensor
+        
+    Returns:
+        linear acceleration (m/s^2), shape of torch.tensor is 3
+    """
+    asset: Imu = env.scene[asset_cfg.name]
+    return asset.data.lin_acc_b
 
 """
 Actions.
