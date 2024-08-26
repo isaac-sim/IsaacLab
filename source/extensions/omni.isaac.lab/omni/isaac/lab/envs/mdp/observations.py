@@ -182,41 +182,41 @@ def body_incoming_wrench(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg) -> tor
     return link_incoming_forces.view(env.num_envs, -1)
 
 def imu_orientation(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("imu")) -> torch.Tensor:
-    """imu sensor orientation w.r.t the env.scene.origin
+    """Imu sensor orientation w.r.t the env.scene.origin.
 
     Args:
-        env: The environment (BaseEnv)
-        asset_cfg: The SceneEntity associated with an Imu sensor
+        env: The environment.
+        asset_cfg: The SceneEntity associated with an Imu sensor.
         
     Returns:
-        orientation quaternion (wxyz), shape of torch.tensor is 4
+        Orientation quaternion (wxyz), shape of torch.tensor is (num_env,4).
     """
     asset: Imu = env.scene[asset_cfg.name]
     return asset.data.quat_w
 
 def imu_ang_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("imu")) -> torch.Tensor:
-    """imu sensor angular velocity w.r.t. sensor frame
+    """Imu sensor angular velocity w.r.t. env.scene.origin expressed in the sensor frame.
 
     Args:
-        env: The environment (BaseEnv)
-        asset_cfg: The SceneEntity associated with an Imu sensor
+        env: The environment.
+        asset_cfg: The SceneEntity associated with an Imu sensor.
         
     Returns:
-        angular velocity (rad/s), shape of torch.tensor is 3
+        Angular velocity (rad/s), shape of torch.tensor is (num_env,3).
     """
     asset: Imu = env.scene[asset_cfg.name]
     return asset.data.ang_vel_b
 
 
 def imu_lin_acc(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("imu")) -> torch.Tensor:
-    """imu sensor linear acceleration w.r.t. sensor frame
+    """Imu sensor linear acceleration w.r.t. env.scene.origin expressed in sensor frame.
 
     Args:
-        env: The environment (BaseEnv)
-        asset_cfg: The SceneEntity associated with an Imu sensor
+        env: The environment.
+        asset_cfg: The SceneEntity associated with an Imu sensor.
         
     Returns:
-        linear acceleration (m/s^2), shape of torch.tensor is 3
+        linear acceleration (m/s^2), shape of torch.tensor is (num_env,3).
     """
     asset: Imu = env.scene[asset_cfg.name]
     return asset.data.lin_acc_b
