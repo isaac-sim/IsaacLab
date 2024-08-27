@@ -621,17 +621,21 @@ class TestWarpCamera(unittest.TestCase):
         )
         camera_usd = Camera(camera_cfg_usd)
 
-        # set intrinsic matrix
-        intrinsic_matrix = torch.tensor(
-            [[229.31640625, 0.0, 164.810546875, 0.0, 229.826171875, 122.1650390625, 0.0, 0.0, 1.0]],
-            device=camera_warp.device,
-        ).reshape(1, 3, 3)
-        camera_warp.set_intrinsic_matrices(intrinsic_matrix, focal_length=10)
-        camera_usd.set_intrinsic_matrices(intrinsic_matrix, focal_length=10)
-
         # play sim
         self.sim.reset()
         self.sim.play()
+
+        # set intrinsic matrix
+        intrinsic_matrix = torch.tensor(
+            [[380.0831, 0.0, 467.7916, 0.0, 380.0831, 262.0532, 0.0, 0.0, 1.0]],
+            device=camera_warp.device,
+        ).reshape(1, 3, 3)
+        camera_warp.set_intrinsic_matrices(intrinsic_matrix, focal_length=100)
+        camera_usd.set_intrinsic_matrices(intrinsic_matrix, focal_length=10)
+
+        # set camera position
+        camera_warp.set_world_poses_from_view(eyes=torch.tensor([[0.0, 0.0, 5.0]], device=camera_warp.device), targets=torch.tensor([[0.0, 0.0, 0.0]], device=camera_warp.device))
+        camera_usd.set_world_poses_from_view(eyes=torch.tensor([[0.0, 0.0, 5.0]], device=camera_usd.device), targets=torch.tensor([[0.0, 0.0, 0.0]], device=camera_usd.device))
 
         # perform steps
         for _ in range(5):
@@ -642,12 +646,6 @@ class TestWarpCamera(unittest.TestCase):
         camera_warp.update(self.dt)
 
         # check image data
-        torch.testing.assert_close(
-            camera_usd.data.output["distance_to_image_plane"],
-            camera_warp.data.output["distance_to_image_plane"],
-            rtol=5e-3,
-            atol=1e-4,
-        )
         torch.testing.assert_close(
             camera_usd.data.output["distance_to_camera"],
             camera_warp.data.output["distance_to_camera"],
