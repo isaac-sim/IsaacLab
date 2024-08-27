@@ -51,7 +51,7 @@ Feature Comparison
    * - Documentation
      - Low
      - Low
-     - Moderate
+     - Comprehensive
      - Extensive
    * - Community Support
      - Small Community
