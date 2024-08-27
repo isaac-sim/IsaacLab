@@ -271,7 +271,7 @@ class RayCasterCamera(RayCaster):
             ray_starts_w,
             ray_directions_w,
             mesh=RayCasterCamera.meshes[self.cfg.mesh_prim_paths[0]],
-            max_dist=self.cfg.max_distance,
+            max_dist=1e6,
             return_distance=any(
                 [name in self.cfg.data_types for name in ["distance_to_image_plane", "distance_to_camera"]]
             ),
@@ -286,9 +286,13 @@ class RayCasterCamera(RayCaster):
                     (ray_depth[:, :, None] * ray_directions_w),
                 )
             )[:, :, 0]
+            # apply the maximum distance after the transformation
+            distance_to_image_plane = torch.clip(distance_to_image_plane, max=self.cfg.max_distance)
             self._data.output["distance_to_image_plane"][env_ids] = distance_to_image_plane.view(-1, *self.image_shape)
         if "distance_to_camera" in self.cfg.data_types:
-            self._data.output["distance_to_camera"][env_ids] = ray_depth.view(-1, *self.image_shape)
+            self._data.output["distance_to_camera"][env_ids] = torch.clip(
+                ray_depth.view(-1, *self.image_shape), max=self.cfg.max_distance
+            )
         if "normals" in self.cfg.data_types:
             self._data.output["normals"][env_ids] = ray_normal.view(-1, *self.image_shape, 3)
 
@@ -347,9 +351,10 @@ class RayCasterCamera(RayCaster):
         # get the sensor properties
         pattern_cfg = self.cfg.pattern_cfg
         # compute the intrinsic matrix
-        vertical_aperture = pattern_cfg.horizontal_aperture * pattern_cfg.height / pattern_cfg.width
+        if pattern_cfg.vertical_aperture is None:
+            pattern_cfg.vertical_aperture = pattern_cfg.horizontal_aperture * pattern_cfg.height / pattern_cfg.width
         f_x = pattern_cfg.width * pattern_cfg.focal_length / pattern_cfg.horizontal_aperture
-        f_y = pattern_cfg.height * pattern_cfg.focal_length / vertical_aperture
+        f_y = pattern_cfg.height * pattern_cfg.focal_length / pattern_cfg.vertical_aperture
         c_x = pattern_cfg.horizontal_aperture_offset * f_x + pattern_cfg.width / 2
         c_y = pattern_cfg.vertical_aperture_offset * f_y + pattern_cfg.height / 2
         # allocate the intrinsic matrices
@@ -357,6 +362,7 @@ class RayCasterCamera(RayCaster):
         self._data.intrinsic_matrices[:, 0, 2] = c_x
         self._data.intrinsic_matrices[:, 1, 1] = f_y
         self._data.intrinsic_matrices[:, 1, 2] = c_y
+
         # save focal length
         self._focal_length = pattern_cfg.focal_length
 
