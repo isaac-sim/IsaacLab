@@ -20,7 +20,7 @@ class PinholeCameraCfg(SpawnerCfg):
 
     ..note ::
         Focal length as well as the aperture sizes and offsets are set as a tenth of the world unit. In our case, the
-        world unit is Meter s.t. all of these values are set in cm. 
+        world unit is Meter s.t. all of these values are set in cm.
 
     .. note::
         The default values are taken from the `Replicator camera <https://docs.omniverse.nvidia.com/py/replicator/1.9.8/source/extensions/omni.replicator.core/docs/API.html#omni.replicator.core.create.camera>`__

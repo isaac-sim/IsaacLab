@@ -71,10 +71,10 @@ class GridPatternCfg(PatternBaseCfg):
 @configclass
 class PinholeCameraPatternCfg(PatternBaseCfg):
     """Configuration for a pinhole camera depth image pattern for ray-casting.
-    
+
     ..note ::
         Focal length as well as the aperture sizes and offsets are set as a tenth of the world unit. In our case, the
-        world unit is Meter s.t. all of these values are set in cm. 
+        world unit is Meter s.t. all of these values are set in cm.
     """
 
     func: Callable = patterns.pinhole_camera_pattern

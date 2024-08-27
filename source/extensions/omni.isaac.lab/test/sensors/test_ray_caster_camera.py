@@ -586,6 +586,75 @@ class TestWarpCamera(unittest.TestCase):
             atol=1e-4,
         )
 
+    def test_output_equal_to_usdcamera_set_intrinsics(self):
+        """Test that the output of the ray caster camera is equal to the output of the usd camera when both are placed
+        under an XForm prim and an intrinsic matrix is set."""
+
+        camera_pattern_cfg = patterns.PinholeCameraPatternCfg(
+            focal_length=24.0,
+            horizontal_aperture=20.955,
+            height=240,
+            width=320,
+        )
+        camera_cfg_warp = RayCasterCameraCfg(
+            prim_path="/World/Camera",
+            mesh_prim_paths=["/World/defaultGroundPlane"],
+            update_period=0,
+            offset=RayCasterCameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(1.0, 0.0, 0.0, 0.0)),
+            debug_vis=False,
+            pattern_cfg=camera_pattern_cfg,
+            data_types=["distance_to_image_plane", "distance_to_camera", "normals"],
+        )
+
+        camera_warp = RayCasterCamera(camera_cfg_warp)
+
+        # create usd camera
+        camera_cfg_usd = CameraCfg(
+            height=240,
+            width=320,
+            prim_path="/World/Camera_usd",
+            update_period=0,
+            data_types=["distance_to_image_plane", "distance_to_camera", "normals"],
+            spawn=PinholeCameraCfg(
+                focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(1e-4, 1.0e5)
+            ),
+        )
+        camera_usd = Camera(camera_cfg_usd)
+
+        # set intrinsic matrix
+        intrinsic_matrix = torch.tensor(
+            [[229.31640625, 0.0, 164.810546875, 0.0, 229.826171875, 122.1650390625, 0.0, 0.0, 1.0]],
+            device=camera_warp.device,
+        ).reshape(1, 3, 3)
+        camera_warp.set_intrinsic_matrices(intrinsic_matrix, focal_length=10)
+        camera_usd.set_intrinsic_matrices(intrinsic_matrix, focal_length=10)
+
+        # play sim
+        self.sim.reset()
+        self.sim.play()
+
+        # perform steps
+        for _ in range(5):
+            self.sim.step()
+
+        # update camera
+        camera_usd.update(self.dt)
+        camera_warp.update(self.dt)
+
+        # check image data
+        torch.testing.assert_close(
+            camera_usd.data.output["distance_to_image_plane"],
+            camera_warp.data.output["distance_to_image_plane"],
+            rtol=5e-3,
+            atol=1e-4,
+        )
+        torch.testing.assert_close(
+            camera_usd.data.output["distance_to_camera"],
+            camera_warp.data.output["distance_to_camera"],
+            rtol=5e-3,
+            atol=1e-4,
+        )
+
 
 if __name__ == "__main__":
     run_tests()
