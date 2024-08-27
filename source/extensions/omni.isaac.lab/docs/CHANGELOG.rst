@@ -1,9 +1,9 @@
 Fixed
 ^^^^^
 
-* Added missing SI units to the documentation of :class:`omni.isaac.lab.sensors.Camera` and 
+* Added missing SI units to the documentation of :class:`omni.isaac.lab.sensors.Camera` and
   :class:`omni.isaac.lab.sensors.RayCasterCamera`.
-* Added test to check :attr:`omni.isaac.lab.sensors.RayCasterCamera.set_intrinsic_matrices` 
+* Added test to check :attr:`omni.isaac.lab.sensors.RayCasterCamera.set_intrinsic_matrices`
 
 
 Changelog

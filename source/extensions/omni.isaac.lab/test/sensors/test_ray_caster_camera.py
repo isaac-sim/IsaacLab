@@ -785,8 +785,14 @@ class TestWarpCamera(unittest.TestCase):
         camera_usd.set_intrinsic_matrices(intrinsic_matrix, focal_length=10)
 
         # set camera position
-        camera_warp.set_world_poses_from_view(eyes=torch.tensor([[0.0, 0.0, 5.0]], device=camera_warp.device), targets=torch.tensor([[0.0, 0.0, 0.0]], device=camera_warp.device))
-        camera_usd.set_world_poses_from_view(eyes=torch.tensor([[0.0, 0.0, 5.0]], device=camera_usd.device), targets=torch.tensor([[0.0, 0.0, 0.0]], device=camera_usd.device))
+        camera_warp.set_world_poses_from_view(
+            eyes=torch.tensor([[0.0, 0.0, 5.0]], device=camera_warp.device),
+            targets=torch.tensor([[0.0, 0.0, 0.0]], device=camera_warp.device),
+        )
+        camera_usd.set_world_poses_from_view(
+            eyes=torch.tensor([[0.0, 0.0, 5.0]], device=camera_usd.device),
+            targets=torch.tensor([[0.0, 0.0, 0.0]], device=camera_usd.device),
+        )
 
         # perform steps
         for _ in range(5):
