@@ -134,7 +134,7 @@ class RayCasterCamera(RayCaster):
             env_ids = slice(None)
         # save new intrinsic matrices and focal length
         self._data.intrinsic_matrices[env_ids] = matrices.to(self._device)
-        self._focal_length = focal_length
+        self._focal_length = focal_length 
         # recompute ray directions
         self.ray_starts[env_ids], self.ray_directions[env_ids] = self.cfg.pattern_cfg.func(
             self.cfg.pattern_cfg, self._data.intrinsic_matrices[env_ids], self._device

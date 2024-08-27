@@ -6,11 +6,13 @@
 """Configuration for the ray-cast camera sensor."""
 
 from typing import Literal
+from dataclasses import MISSING
 
 from omni.isaac.lab.utils import configclass
 
 from .ray_caster_camera import RayCasterCamera
 from .ray_caster_cfg import RayCasterCfg
+from .patterns import PinholeCameraPatternCfg
 
 
 @configclass
@@ -43,6 +45,9 @@ class RayCasterCameraCfg(RayCasterCfg):
 
     data_types: list[str] = ["distance_to_image_plane"]
     """List of sensor names/types to enable for the camera. Defaults to ["distance_to_image_plane"]."""
+
+    pattern_cfg: PinholeCameraPatternCfg = MISSING
+    """The pattern that defines the local ray starting positions and directions in a pinhole camera pattern."""
 
     def __post_init__(self):
         # for cameras, this quantity should be False always.
