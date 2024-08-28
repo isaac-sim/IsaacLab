@@ -1,8 +1,8 @@
-Changed
-^^^^^^^
+Added
+^^^^^
 
-* Changed the data type "depth" to "distance_to_camera" in :class:`omni.isaac.lab.sensors.TiledCamera` class to be
-  consistent with all other cameras.
+* Added alternative data type "distance_to_camera" in :class:`omni.isaac.lab.sensors.TiledCamera` class to be
+  consistent with all other cameras (equal to type "depth").
 
 
 Changelog
