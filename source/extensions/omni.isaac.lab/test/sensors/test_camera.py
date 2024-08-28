@@ -362,7 +362,8 @@ class TestCamera(unittest.TestCase):
     def test_depth_clipping(self):
         """Test depth clipping.
 
-        ..note ::
+        .. note::
+
             This test is the same for all camera models to enforce the same clipping behavior.
         """
         # get camera cfgs
