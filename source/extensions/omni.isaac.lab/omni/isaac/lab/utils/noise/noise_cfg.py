@@ -39,10 +39,6 @@ class ConstantNoiseCfg(NoiseCfg):
     """The bias to add. Defaults to 0.0."""
 
 
-# Backward compatibility
-ConstantBiasNoiseCfg = ConstantNoiseCfg
-
-
 @configclass
 class UniformNoiseCfg(NoiseCfg):
     """Configuration for a additive uniform noise term."""
@@ -53,10 +49,6 @@ class UniformNoiseCfg(NoiseCfg):
     """The minimum value of the noise. Defaults to -1.0."""
     n_max: torch.Tensor | float = 1.0
     """The maximum value of the noise. Defaults to 1.0."""
-
-
-# Backward compatibility
-AdditiveUniformNoiseCfg = UniformNoiseCfg
 
 
 @configclass
@@ -71,8 +63,9 @@ class GaussianNoiseCfg(NoiseCfg):
     """The standard deviation of the noise. Defaults to 1.0."""
 
 
-# Backward compatibility
-AdditiveGaussianNoiseCfg = GaussianNoiseCfg
+##
+# Noise models
+##
 
 
 @configclass
@@ -93,3 +86,7 @@ class NoiseModelWithAdditiveBiasCfg(NoiseModelCfg):
     class_type: type = noise_model.NoiseModelWithAdditiveBias
 
     bias_noise_cfg: NoiseCfg = MISSING
+    """The noise configuration for the bias.
+
+    Based on this configuration, the bias is sampled at every reset of the noise model.
+    """

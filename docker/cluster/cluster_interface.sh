@@ -168,6 +168,10 @@ case $command in
         [ -n "$profile" ] && echo "Using profile: $profile"
         [ -n "$job_args" ] && echo "Job arguments: $job_args"
         source $SCRIPT_DIR/.env.cluster
+        # Get current date and time
+        current_datetime=$(date +"%Y%m%d_%H%M%S")
+        # Append current date and time to CLUSTER_ISAACLAB_DIR
+        CLUSTER_ISAACLAB_DIR="${CLUSTER_ISAACLAB_DIR}_${current_datetime}"
         # Check if singularity image exists on the remote host
         check_singularity_image_exists isaac-lab-$profile
         # make sure target directory exists

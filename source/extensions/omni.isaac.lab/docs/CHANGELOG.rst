@@ -1,6 +1,38 @@
 Changelog
 ---------
 
+0.22.2 (2024-08-21)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Disabled default viewport in certain headless scenarios for better performance.
+
+
+0.22.1 (2024-08-17)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added APIs to interact with the physics simulation of deformable objects. This includes setting the
+  material properties, setting kinematic targets, and getting the state of the deformable object.
+  For more information, please refer to the :mod:`omni.isaac.lab.assets.DeformableObject` class.
+
+
+0.22.0 (2024-08-14)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^^^
+
+* Added :mod:`~omni.isaac.lab.utils.modifiers` module to provide framework for configurable and custom
+  observation data modifiers.
+* Adapted the :class:`~omni.isaac.lab.managers.ObservationManager` class to support custom modifiers.
+  These are applied to the observation data before applying any noise or scaling operations.
+
+
 0.21.2 (2024-08-13)
 ~~~~~~~~~~~~~~~~~~~
 

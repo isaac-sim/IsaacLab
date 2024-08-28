@@ -99,4 +99,4 @@ The simulation should start, and you can observe different objects falling down.
 in the ``IsaacLab/source/standalone/tutorials/04_sensors`` directory, where the images will be saved. Additionally,
 you should see the point cloud in the 3D space drawn on the viewport.
 
-To stop the simulation, close the window, press the ``STOP`` button in the UI, or use ``Ctrl+C`` in the terminal.
+To stop the simulation, close the window, or use ``Ctrl+C`` in the terminal.

@@ -36,9 +36,8 @@ import random
 import torch
 import tqdm
 
-import omni.isaac.core.utils.prims as prim_utils
-
 import omni.isaac.lab.sim as sim_utils
+from omni.isaac.lab.assets import DeformableObject, DeformableObjectCfg
 
 
 def define_origins(num_origins: int, spacing: float) -> list[list[float]]:
@@ -56,8 +55,8 @@ def define_origins(num_origins: int, spacing: float) -> list[list[float]]:
     return env_origins.tolist()
 
 
-def design_scene():
-    """Designs the scene by spawning ground plane, light, and deformable meshes."""
+def design_scene() -> tuple[dict, list[list[float]]]:
+    """Designs the scene."""
     # Ground-plane
     cfg_ground = sim_utils.GroundPlaneCfg()
     cfg_ground.func("/World/defaultGroundPlane", cfg_ground)
@@ -68,11 +67,6 @@ def design_scene():
         color=(0.75, 0.75, 0.75),
     )
     cfg_light.func("/World/light", cfg_light)
-
-    # create new xform prims for all objects to be spawned under
-    origins = define_origins(num_origins=4, spacing=5.5)
-    for idx, origin in enumerate(origins):
-        prim_utils.create_prim(f"/World/Origin{idx:02d}", "Xform", translation=origin)
 
     # spawn a red cone
     cfg_sphere = sim_utils.MeshSphereCfg(
@@ -118,7 +112,7 @@ def design_scene():
     }
 
     # Create separate groups of deformable objects
-    origins = define_origins(num_origins=25, spacing=0.5)
+    origins = define_origins(num_origins=64, spacing=0.6)
     print("[INFO]: Spawning objects...")
     # Iterate over all the origins and randomly spawn objects
     for idx, origin in tqdm.tqdm(enumerate(origins), total=len(origins)):
@@ -132,7 +126,52 @@ def design_scene():
         # randomize the color
         obj_cfg.visual_material.diffuse_color = (random.random(), random.random(), random.random())
         # spawn the object
-        obj_cfg.func(f"/World/Origin.*/Object{idx:02d}", obj_cfg, translation=origin)
+        obj_cfg.func(f"/World/Origin/Object{idx:02d}", obj_cfg, translation=origin)
+
+    # create a view for all the deformables
+    # note: since we manually spawned random deformable meshes above, we don't need to
+    #   specify the spawn configuration for the deformable object
+    cfg = DeformableObjectCfg(
+        prim_path="/World/Origin/Object.*",
+        spawn=None,
+        init_state=DeformableObjectCfg.InitialStateCfg(),
+    )
+    deformable_object = DeformableObject(cfg=cfg)
+
+    # return the scene information
+    scene_entities = {"deformable_object": deformable_object}
+    return scene_entities, origins
+
+
+def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, DeformableObject], origins: torch.Tensor):
+    """Runs the simulation loop."""
+    # Define simulation stepping
+    sim_dt = sim.get_physics_dt()
+    sim_time = 0.0
+    count = 0
+    # Simulate physics
+    while simulation_app.is_running():
+        # reset
+        if count % 400 == 0:
+            # reset counters
+            sim_time = 0.0
+            count = 0
+            # reset deformable object state
+            for _, deform_body in enumerate(entities.values()):
+                # root state
+                nodal_state = deform_body.data.default_nodal_state_w.clone()
+                deform_body.write_nodal_state_to_sim(nodal_state)
+                # reset the internal state
+                deform_body.reset()
+            print("[INFO]: Resetting deformable object state...")
+        # perform step
+        sim.step()
+        # update sim-time
+        sim_time += sim_dt
+        count += 1
+        # update buffers
+        for deform_body in entities.values():
+            deform_body.update(sim_dt)
 
 
 def main():
@@ -141,20 +180,18 @@ def main():
     sim_cfg = sim_utils.SimulationCfg(dt=0.01)
     sim = sim_utils.SimulationContext(sim_cfg)
     # Set main camera
-    sim.set_camera_view([8.0, 8.0, 6.0], [0.0, 0.0, 0.0])
+    sim.set_camera_view([4.0, 4.0, 3.0], [0.5, 0.5, 0.0])
 
     # Design scene by adding assets to it
-    design_scene()
-
+    scene_entities, scene_origins = design_scene()
+    scene_origins = torch.tensor(scene_origins, device=sim.device)
     # Play the simulator
     sim.reset()
     # Now we are ready!
     print("[INFO]: Setup complete...")
 
-    # Simulate physics
-    while simulation_app.is_running():
-        # perform step
-        sim.step()
+    # Run the simulator
+    run_simulator(sim, scene_entities, scene_origins)
 
 
 if __name__ == "__main__":
