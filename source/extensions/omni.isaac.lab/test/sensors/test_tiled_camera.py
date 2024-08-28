@@ -216,6 +216,33 @@ class TestTiledCamera(unittest.TestCase):
                 self.assertGreater(im_data[1].mean().item(), 0.0)
         del camera
 
+    def test_data_types(self):
+        """Test single camera initialization."""
+        # Create camera
+        camera_cfg_distance = copy.deepcopy(self.camera_cfg)
+        camera_cfg_distance.data_types = ["distance_to_camera"]
+        camera_cfg_distance.prim_path = "/World/CameraDistance"
+        camera_distance = TiledCamera(camera_cfg_distance)
+        camera_cfg_depth = copy.deepcopy(self.camera_cfg)
+        camera_cfg_depth.data_types = ["depth"]
+        camera_cfg_depth.prim_path = "/World/CameraDepth"
+        camera_depth = TiledCamera(camera_cfg_depth)
+        camera_cfg_both = copy.deepcopy(self.camera_cfg)
+        camera_cfg_both.data_types = ["distance_to_camera", "depth"]
+        camera_cfg_both.prim_path = "/World/CameraBoth"
+        camera_both = TiledCamera(camera_cfg_both)
+        # Play sim
+        self.sim.reset()
+        # Check if camera is initialized
+        self.assertTrue(camera_distance.is_initialized)
+        self.assertTrue(camera_depth.is_initialized)
+        self.assertTrue(camera_both.is_initialized)
+        self.assertListEqual(list(camera_distance.data.output.keys()), ["distance_to_camera"])
+        self.assertListEqual(list(camera_depth.data.output.keys()), ["depth"])
+        self.assertListEqual(list(camera_both.data.output.keys()), ["distance_to_camera"])
+        
+        del camera_distance, camera_depth, camera_both
+
     def test_depth_only_camera(self):
         """Test initialization with only depth."""
 
