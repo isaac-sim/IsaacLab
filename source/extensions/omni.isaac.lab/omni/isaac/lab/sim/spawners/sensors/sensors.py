@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import carb
 import omni.isaac.core.utils.prims as prim_utils
 import omni.kit.commands
 from pxr import Sdf, Usd
@@ -111,7 +112,7 @@ def spawn_camera(
 
     # TODO: Adjust to handle aperture offsets once supported by omniverse
     if cfg.horizontal_aperture_offset > 1e-4 or cfg.vertical_aperture_offset > 1e-4:
-        print("[WARNING]: Aperture offsets are not supported by Omniverse cameras. Ignoring offsets.")
+        carb.log_warn("[WARNING]: Aperture offsets are not supported by Omniverse cameras. Ignoring offsets.")
 
     # get camera prim
     prim = prim_utils.get_prim_at_path(prim_path)
