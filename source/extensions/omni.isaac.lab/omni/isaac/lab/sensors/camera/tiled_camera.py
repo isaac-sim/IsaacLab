@@ -6,13 +6,13 @@
 from __future__ import annotations
 
 import math
-import carb
 import numpy as np
 import torch
 from collections.abc import Sequence
 from tensordict import TensorDict
 from typing import TYPE_CHECKING, Any
 
+import carb
 import omni.usd
 import warp as wp
 from omni.isaac.core.prims import XFormPrimView
@@ -161,7 +161,9 @@ class TiledCamera(Camera):
         rep.orchestrator._orchestrator._is_started = True
         # check the data_types and remove "depth" if "distance_to_camera" is requested too
         if "depth" in self.cfg.data_types and "distance_to_camera" in self.cfg.data_types:
-            carb.log_warn("Both 'depth' and 'distance_to_camera' are requested which are the same. 'depth' will be ignored.")
+            carb.log_warn(
+                "Both 'depth' and 'distance_to_camera' are requested which are the same. 'depth' will be ignored."
+            )
             self.cfg.data_types.remove("depth")
         # NOTE: internally, "distance_to_camera" is named "depth", name is adjusted here
         data_type = self.cfg.data_types.copy()

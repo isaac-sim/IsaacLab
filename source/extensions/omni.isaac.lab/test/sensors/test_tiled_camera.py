@@ -240,7 +240,7 @@ class TestTiledCamera(unittest.TestCase):
         self.assertListEqual(list(camera_distance.data.output.keys()), ["distance_to_camera"])
         self.assertListEqual(list(camera_depth.data.output.keys()), ["depth"])
         self.assertListEqual(list(camera_both.data.output.keys()), ["distance_to_camera"])
-        
+
         del camera_distance, camera_depth, camera_both
 
     def test_depth_only_camera(self):
