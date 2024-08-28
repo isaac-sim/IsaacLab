@@ -44,6 +44,14 @@ class RayCasterCameraCfg(RayCasterCfg):
     data_types: list[str] = ["distance_to_image_plane"]
     """List of sensor names/types to enable for the camera. Defaults to ["distance_to_image_plane"]."""
 
+    clipping_behavior: Literal["max", "zero"] | None = "zero"
+    """Clipping behavior for the camera for values exceed the maximum value. Defaults to "zero".
+
+    - ``"max"``: Values are clipped to the maximum value.
+    - ``"zero"``: Values are clipped to zero.
+    - ``None``: No clipping is applied. Values will be returned as ``nan``.
+    """
+
     def __post_init__(self):
         # for cameras, this quantity should be False always.
         self.attach_yaw_only = False

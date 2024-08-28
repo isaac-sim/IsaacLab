@@ -53,6 +53,14 @@ class CameraCfg(SensorBaseCfg):
     asset is already present in the scene.
     """
 
+    clipping_behavior: Literal["max", "zero"] | None = "zero"
+    """Clipping behavior for the camera for values exceed the maximum value. Defaults to "zero".
+
+    - ``"max"``: Values are clipped to the maximum value.
+    - ``"zero"``: Values are clipped to zero.
+    - ``None``: No clipping is applied. Values will be returned as ``inf``.
+    """
+
     data_types: list[str] = ["rgb"]
     """List of sensor names/types to enable for the camera. Defaults to ["rgb"].
 

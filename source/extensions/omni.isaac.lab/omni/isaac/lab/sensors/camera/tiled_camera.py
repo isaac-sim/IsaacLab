@@ -23,7 +23,7 @@ from ..sensor_base import SensorBase
 from .camera import Camera
 
 if TYPE_CHECKING:
-    from .camera_cfg import TiledCameraCfg
+    from .tiled_camera_cfg import TiledCameraCfg
 
 
 class TiledCamera(Camera):

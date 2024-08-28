@@ -150,6 +150,45 @@ class TestWarpCamera(unittest.TestCase):
         for im_data in camera.data.output.to_dict().values():
             self.assertTrue(im_data.shape == (1, self.camera_cfg.pattern_cfg.height, self.camera_cfg.pattern_cfg.width))
 
+    def test_depth_clipping(self):
+        """Test depth clipping.
+
+        ..note ::
+            This test is the same for all camera models to enforce the same clipping behavior.
+        """
+        # get camera cfgs
+        camera_cfg = RayCasterCameraCfg(
+            prim_path="/World/Camera",
+            mesh_prim_paths=["/World/defaultGroundPlane"],
+            offset=RayCasterCameraCfg.OffsetCfg(
+                pos=(2.5, 2.5, 6.0), rot=(-0.125, 0.362, 0.873, -0.302), convention="ros"
+            ),
+            pattern_cfg=patterns.PinholeCameraPatternCfg().from_intrinsic_matrix(
+                focal_length=38.0,
+                intrinsic_matrix=[380.08, 0.0, 467.79, 0.0, 380.08, 262.05, 0.0, 0.0, 1.0],
+                height=540,
+                width=960,
+            ),
+            max_distance=10.0,
+            data_types=["distance_to_image_plane", "distance_to_camera"],
+        )
+        camera = RayCasterCamera(camera_cfg)
+
+        # Play sim
+        self.sim.reset()
+
+        camera.update(self.dt)
+
+        self.assertTrue(
+            camera.data.output["distance_to_camera"][camera.data.output["distance_to_camera"] != 0.0].min() >= 0.1
+        )
+        self.assertTrue(camera.data.output["distance_to_camera"].max() <= 10.0)
+        self.assertTrue(
+            camera.data.output["distance_to_image_plane"][camera.data.output["distance_to_image_plane"] != 0.0].min()
+            >= 0.1
+        )
+        self.assertTrue(camera.data.output["distance_to_image_plane"].max() <= 10.0)
+
     def test_camera_init_offset(self):
         """Test camera initialization with offset using different conventions."""
         # define the same offset in all conventions

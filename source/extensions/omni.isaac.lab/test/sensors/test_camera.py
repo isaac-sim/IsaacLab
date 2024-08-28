@@ -359,6 +359,49 @@ class TestCamera(unittest.TestCase):
             torch.testing.assert_close(rs_intrinsic_matrix[0, 0, 0], camera.data.intrinsic_matrices[0, 0, 0])
             # torch.testing.assert_close(rs_intrinsic_matrix[0, 1, 1], camera.data.intrinsic_matrices[0, 1, 1])
 
+    def test_depth_clipping(self):
+        """Test depth clipping.
+
+        ..note ::
+            This test is the same for all camera models to enforce the same clipping behavior.
+        """
+        # get camera cfgs
+        camera_cfg = CameraCfg(
+            prim_path="/World/Camera",
+            offset=CameraCfg.OffsetCfg(pos=(2.5, 2.5, 6.0), rot=(-0.125, 0.362, 0.873, -0.302), convention="ros"),
+            spawn=sim_utils.PinholeCameraCfg().from_intrinsic_matrix(
+                focal_length=38.0,
+                intrinsic_matrix=[380.08, 0.0, 467.79, 0.0, 380.08, 262.05, 0.0, 0.0, 1.0],
+                height=540,
+                width=960,
+                clipping_range=(0.1, 10),
+            ),
+            height=540,
+            width=960,
+            data_types=["distance_to_image_plane", "distance_to_camera"],
+        )
+        camera = Camera(camera_cfg)
+
+        # Play sim
+        self.sim.reset()
+
+        # note: This is a workaround to ensure that the textures are loaded.
+        #   Check "Known Issues" section in the documentation for more details.
+        for _ in range(5):
+            self.sim.step()
+
+        camera.update(self.dt)
+
+        self.assertTrue(
+            camera.data.output["distance_to_camera"][camera.data.output["distance_to_camera"] != 0.0].min() >= 0.1
+        )
+        self.assertTrue(camera.data.output["distance_to_camera"].max() <= 10.0)
+        self.assertTrue(
+            camera.data.output["distance_to_image_plane"][camera.data.output["distance_to_image_plane"] != 0.0].min()
+            >= 0.1
+        )
+        self.assertTrue(camera.data.output["distance_to_image_plane"].max() <= 10.0)
+
     def test_camera_resolution_all_colorize(self):
         """Test camera resolution is correctly set for all types with colorization enabled."""
         # Add all types
