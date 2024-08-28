@@ -123,8 +123,9 @@ class TestTiledCamera(unittest.TestCase):
     def test_multi_camera_init(self):
         """Test multi-camera initialization."""
 
-        prim_utils.create_prim("/World/Origin_00", "Xform")
-        prim_utils.create_prim("/World/Origin_01", "Xform")
+        num_cameras = 4
+        for i in range(num_cameras):
+            prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
         # Create camera
         camera_cfg = copy.deepcopy(self.camera_cfg)
@@ -137,7 +138,7 @@ class TestTiledCamera(unittest.TestCase):
         # Check if camera is initialized
         self.assertTrue(camera.is_initialized)
         # Check if camera prim is set correctly and that it is a camera prim
-        self.assertEqual(camera._sensor_prims[1].GetPath().pathString, "/World/Origin_01/CameraSensor")
+        self.assertEqual(camera._sensor_prims[1].GetPath().pathString, "/World/Origin_1/CameraSensor")
         self.assertIsInstance(camera._sensor_prims[0], UsdGeom.Camera)
 
         # Simulate for a few steps
@@ -147,11 +148,11 @@ class TestTiledCamera(unittest.TestCase):
             self.sim.step()
 
         # Check buffers that exists and have correct shapes
-        self.assertEqual(camera.data.pos_w.shape, (2, 3))
-        self.assertEqual(camera.data.quat_w_ros.shape, (2, 4))
-        self.assertEqual(camera.data.quat_w_world.shape, (2, 4))
-        self.assertEqual(camera.data.quat_w_opengl.shape, (2, 4))
-        self.assertEqual(camera.data.intrinsic_matrices.shape, (2, 3, 3))
+        self.assertEqual(camera.data.pos_w.shape, (num_cameras, 3))
+        self.assertEqual(camera.data.quat_w_ros.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.quat_w_world.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.quat_w_opengl.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.intrinsic_matrices.shape, (num_cameras, 3, 3))
         self.assertEqual(camera.data.image_shape, (self.camera_cfg.height, self.camera_cfg.width))
 
         # Simulate physics
@@ -163,20 +164,21 @@ class TestTiledCamera(unittest.TestCase):
             # check image data
             for im_type, im_data in camera.data.output.to_dict().items():
                 if im_type == "rgb":
-                    self.assertEqual(im_data.shape, (2, self.camera_cfg.height, self.camera_cfg.width, 3))
-                    self.assertGreater((im_data[0] / 255.0).mean().item(), 0.0)
-                    self.assertGreater((im_data[1] / 255.0).mean().item(), 0.0)
+                    self.assertEqual(im_data.shape, (num_cameras, self.camera_cfg.height, self.camera_cfg.width, 3))
+                    for i in range(4):
+                        self.assertGreater((im_data[i] / 255.0).mean().item(), 0.0)
                 elif im_type == "depth":
-                    self.assertEqual(im_data.shape, (2, self.camera_cfg.height, self.camera_cfg.width, 1))
-                    self.assertGreater(im_data[0].mean().item(), 0.0)
-                    self.assertGreater(im_data[1].mean().item(), 0.0)
+                    self.assertEqual(im_data.shape, (num_cameras, self.camera_cfg.height, self.camera_cfg.width, 1))
+                    for i in range(4):
+                        self.assertGreater(im_data[i].mean().item(), 0.0)
         del camera
 
     def test_rgb_only_camera(self):
         """Test initialization with only RGB."""
 
-        prim_utils.create_prim("/World/Origin_00", "Xform")
-        prim_utils.create_prim("/World/Origin_01", "Xform")
+        num_cameras = 4
+        for i in range(num_cameras):
+            prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
         # Create camera
         camera_cfg = copy.deepcopy(self.camera_cfg)
@@ -190,7 +192,7 @@ class TestTiledCamera(unittest.TestCase):
         # Check if camera is initialized
         self.assertTrue(camera.is_initialized)
         # Check if camera prim is set correctly and that it is a camera prim
-        self.assertEqual(camera._sensor_prims[1].GetPath().pathString, "/World/Origin_01/CameraSensor")
+        self.assertEqual(camera._sensor_prims[1].GetPath().pathString, "/World/Origin_1/CameraSensor")
         self.assertIsInstance(camera._sensor_prims[0], UsdGeom.Camera)
         self.assertListEqual(sorted(camera.data.output.keys()), sorted(["rgb", "rgba"]))
         # Simulate for a few steps
@@ -200,11 +202,11 @@ class TestTiledCamera(unittest.TestCase):
             self.sim.step()
 
         # Check buffers that exists and have correct shapes
-        self.assertEqual(camera.data.pos_w.shape, (2, 3))
-        self.assertEqual(camera.data.quat_w_ros.shape, (2, 4))
-        self.assertEqual(camera.data.quat_w_world.shape, (2, 4))
-        self.assertEqual(camera.data.quat_w_opengl.shape, (2, 4))
-        self.assertEqual(camera.data.intrinsic_matrices.shape, (2, 3, 3))
+        self.assertEqual(camera.data.pos_w.shape, (num_cameras, 3))
+        self.assertEqual(camera.data.quat_w_ros.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.quat_w_world.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.quat_w_opengl.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.intrinsic_matrices.shape, (num_cameras, 3, 3))
         self.assertEqual(camera.data.image_shape, (self.camera_cfg.height, self.camera_cfg.width))
 
         # Simulate physics
@@ -215,9 +217,9 @@ class TestTiledCamera(unittest.TestCase):
             camera.update(self.dt)
             # check image data
             im_data = camera.data.output["rgb"]
-            self.assertEqual(im_data.shape, (2, self.camera_cfg.height, self.camera_cfg.width, 3))
-            self.assertGreater((im_data[0] / 255.0).mean().item(), 0.0)
-            self.assertGreater((im_data[1] / 255.0).mean().item(), 0.0)
+            self.assertEqual(im_data.shape, (num_cameras, self.camera_cfg.height, self.camera_cfg.width, 3))
+            for i in range(4):
+                self.assertGreater((im_data[i] / 255.0).mean().item(), 0.0)
         # Check data type of image
         self.assertEqual(camera.data.output["rgb"].dtype, torch.uint8)
         del camera
@@ -252,8 +254,9 @@ class TestTiledCamera(unittest.TestCase):
     def test_depth_only_camera(self):
         """Test initialization with only depth."""
 
-        prim_utils.create_prim("/World/Origin_00", "Xform")
-        prim_utils.create_prim("/World/Origin_01", "Xform")
+        num_cameras = 4
+        for i in range(num_cameras):
+            prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
         # Create camera
         camera_cfg = copy.deepcopy(self.camera_cfg)
@@ -267,7 +270,7 @@ class TestTiledCamera(unittest.TestCase):
         # Check if camera is initialized
         self.assertTrue(camera.is_initialized)
         # Check if camera prim is set correctly and that it is a camera prim
-        self.assertEqual(camera._sensor_prims[1].GetPath().pathString, "/World/Origin_01/CameraSensor")
+        self.assertEqual(camera._sensor_prims[1].GetPath().pathString, "/World/Origin_1/CameraSensor")
         self.assertIsInstance(camera._sensor_prims[0], UsdGeom.Camera)
         self.assertListEqual(sorted(camera.data.output.keys()), sorted(["depth", "distance_to_image_plane"]))
 
@@ -278,11 +281,11 @@ class TestTiledCamera(unittest.TestCase):
             self.sim.step()
 
         # Check buffers that exists and have correct shapes
-        self.assertEqual(camera.data.pos_w.shape, (2, 3))
-        self.assertEqual(camera.data.quat_w_ros.shape, (2, 4))
-        self.assertEqual(camera.data.quat_w_world.shape, (2, 4))
-        self.assertEqual(camera.data.quat_w_opengl.shape, (2, 4))
-        self.assertEqual(camera.data.intrinsic_matrices.shape, (2, 3, 3))
+        self.assertEqual(camera.data.pos_w.shape, (num_cameras, 3))
+        self.assertEqual(camera.data.quat_w_ros.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.quat_w_world.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.quat_w_opengl.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.intrinsic_matrices.shape, (num_cameras, 3, 3))
         self.assertEqual(camera.data.image_shape, (self.camera_cfg.height, self.camera_cfg.width))
 
         # Simulate physics
@@ -293,9 +296,9 @@ class TestTiledCamera(unittest.TestCase):
             camera.update(self.dt)
             # check image data
             im_data = camera.data.output["depth"]
-            self.assertEqual(im_data.shape, (2, self.camera_cfg.height, self.camera_cfg.width, 1))
-            self.assertGreater(im_data[0].mean().item(), 0.0)
-            self.assertGreater(im_data[1].mean().item(), 0.0)
+            self.assertEqual(im_data.shape, (num_cameras, self.camera_cfg.height, self.camera_cfg.width, 1))
+            for i in range(4):
+                self.assertGreater((im_data[i]).mean().item(), 0.0)
         # Check data type of image
         self.assertEqual(camera.data.output["depth"].dtype, torch.float)
         del camera
@@ -303,8 +306,9 @@ class TestTiledCamera(unittest.TestCase):
     def test_rgba_only_camera(self):
         """Test initialization with only RGBA."""
 
-        prim_utils.create_prim("/World/Origin_00", "Xform")
-        prim_utils.create_prim("/World/Origin_01", "Xform")
+        num_cameras = 4
+        for i in range(num_cameras):
+            prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
         # Create camera
         camera_cfg = copy.deepcopy(self.camera_cfg)
@@ -318,7 +322,7 @@ class TestTiledCamera(unittest.TestCase):
         # Check if camera is initialized
         self.assertTrue(camera.is_initialized)
         # Check if camera prim is set correctly and that it is a camera prim
-        self.assertEqual(camera._sensor_prims[1].GetPath().pathString, "/World/Origin_01/CameraSensor")
+        self.assertEqual(camera._sensor_prims[1].GetPath().pathString, "/World/Origin_1/CameraSensor")
         self.assertIsInstance(camera._sensor_prims[0], UsdGeom.Camera)
         self.assertListEqual(list(camera.data.output.keys()), ["rgba"])
 
@@ -329,11 +333,11 @@ class TestTiledCamera(unittest.TestCase):
             self.sim.step()
 
         # Check buffers that exists and have correct shapes
-        self.assertEqual(camera.data.pos_w.shape, (2, 3))
-        self.assertEqual(camera.data.quat_w_ros.shape, (2, 4))
-        self.assertEqual(camera.data.quat_w_world.shape, (2, 4))
-        self.assertEqual(camera.data.quat_w_opengl.shape, (2, 4))
-        self.assertEqual(camera.data.intrinsic_matrices.shape, (2, 3, 3))
+        self.assertEqual(camera.data.pos_w.shape, (num_cameras, 3))
+        self.assertEqual(camera.data.quat_w_ros.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.quat_w_world.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.quat_w_opengl.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.intrinsic_matrices.shape, (num_cameras, 3, 3))
         self.assertEqual(camera.data.image_shape, (self.camera_cfg.height, self.camera_cfg.width))
 
         # Simulate physics
@@ -344,9 +348,9 @@ class TestTiledCamera(unittest.TestCase):
             camera.update(self.dt)
             # check image data
             for _, im_data in camera.data.output.to_dict().items():
-                self.assertEqual(im_data.shape, (2, self.camera_cfg.height, self.camera_cfg.width, 4))
-                self.assertGreater((im_data[0] / 255.0).mean().item(), 0.0)
-                self.assertGreater((im_data[1] / 255.0).mean().item(), 0.0)
+                self.assertEqual(im_data.shape, (num_cameras, self.camera_cfg.height, self.camera_cfg.width, 4))
+                for i in range(4):
+                    self.assertGreater((im_data[i] / 255.0).mean().item(), 0.0)
         # Check data type of image
         self.assertEqual(camera.data.output["rgba"].dtype, torch.uint8)
         del camera
@@ -354,8 +358,9 @@ class TestTiledCamera(unittest.TestCase):
     def test_distance_to_camera_only_camera(self):
         """Test initialization with only distance_to_camera."""
 
-        prim_utils.create_prim("/World/Origin_00", "Xform")
-        prim_utils.create_prim("/World/Origin_01", "Xform")
+        num_cameras = 4
+        for i in range(num_cameras):
+            prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
         # Create camera
         camera_cfg = copy.deepcopy(self.camera_cfg)
@@ -369,7 +374,7 @@ class TestTiledCamera(unittest.TestCase):
         # Check if camera is initialized
         self.assertTrue(camera.is_initialized)
         # Check if camera prim is set correctly and that it is a camera prim
-        self.assertEqual(camera._sensor_prims[1].GetPath().pathString, "/World/Origin_01/CameraSensor")
+        self.assertEqual(camera._sensor_prims[1].GetPath().pathString, "/World/Origin_1/CameraSensor")
         self.assertIsInstance(camera._sensor_prims[0], UsdGeom.Camera)
         self.assertListEqual(list(camera.data.output.keys()), ["distance_to_camera"])
 
@@ -380,11 +385,11 @@ class TestTiledCamera(unittest.TestCase):
             self.sim.step()
 
         # Check buffers that exists and have correct shapes
-        self.assertEqual(camera.data.pos_w.shape, (2, 3))
-        self.assertEqual(camera.data.quat_w_ros.shape, (2, 4))
-        self.assertEqual(camera.data.quat_w_world.shape, (2, 4))
-        self.assertEqual(camera.data.quat_w_opengl.shape, (2, 4))
-        self.assertEqual(camera.data.intrinsic_matrices.shape, (2, 3, 3))
+        self.assertEqual(camera.data.pos_w.shape, (num_cameras, 3))
+        self.assertEqual(camera.data.quat_w_ros.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.quat_w_world.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.quat_w_opengl.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.intrinsic_matrices.shape, (num_cameras, 3, 3))
         self.assertEqual(camera.data.image_shape, (self.camera_cfg.height, self.camera_cfg.width))
 
         # Simulate physics
@@ -395,9 +400,9 @@ class TestTiledCamera(unittest.TestCase):
             camera.update(self.dt)
             # check image data
             for _, im_data in camera.data.output.to_dict().items():
-                self.assertEqual(im_data.shape, (2, self.camera_cfg.height, self.camera_cfg.width, 1))
-                self.assertGreater(im_data[0].mean().item(), 0.0)
-                self.assertGreater(im_data[1].mean().item(), 0.0)
+                self.assertEqual(im_data.shape, (num_cameras, self.camera_cfg.height, self.camera_cfg.width, 1))
+                for i in range(4):
+                    self.assertGreater((im_data[i]).mean().item(), 0.0)
         # Check data type of image
         self.assertEqual(camera.data.output["distance_to_camera"].dtype, torch.float)
         del camera
@@ -405,8 +410,9 @@ class TestTiledCamera(unittest.TestCase):
     def test_distance_to_image_plane_only_camera(self):
         """Test initialization with only distance_to_image_plane."""
 
-        prim_utils.create_prim("/World/Origin_00", "Xform")
-        prim_utils.create_prim("/World/Origin_01", "Xform")
+        num_cameras = 4
+        for i in range(num_cameras):
+            prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
         # Create camera
         camera_cfg = copy.deepcopy(self.camera_cfg)
@@ -420,7 +426,7 @@ class TestTiledCamera(unittest.TestCase):
         # Check if camera is initialized
         self.assertTrue(camera.is_initialized)
         # Check if camera prim is set correctly and that it is a camera prim
-        self.assertEqual(camera._sensor_prims[1].GetPath().pathString, "/World/Origin_01/CameraSensor")
+        self.assertEqual(camera._sensor_prims[1].GetPath().pathString, "/World/Origin_1/CameraSensor")
         self.assertIsInstance(camera._sensor_prims[0], UsdGeom.Camera)
         self.assertListEqual(list(camera.data.output.keys()), ["distance_to_image_plane"])
 
@@ -431,11 +437,11 @@ class TestTiledCamera(unittest.TestCase):
             self.sim.step()
 
         # Check buffers that exists and have correct shapes
-        self.assertEqual(camera.data.pos_w.shape, (2, 3))
-        self.assertEqual(camera.data.quat_w_ros.shape, (2, 4))
-        self.assertEqual(camera.data.quat_w_world.shape, (2, 4))
-        self.assertEqual(camera.data.quat_w_opengl.shape, (2, 4))
-        self.assertEqual(camera.data.intrinsic_matrices.shape, (2, 3, 3))
+        self.assertEqual(camera.data.pos_w.shape, (num_cameras, 3))
+        self.assertEqual(camera.data.quat_w_ros.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.quat_w_world.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.quat_w_opengl.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.intrinsic_matrices.shape, (num_cameras, 3, 3))
         self.assertEqual(camera.data.image_shape, (self.camera_cfg.height, self.camera_cfg.width))
 
         # Simulate physics
@@ -446,9 +452,9 @@ class TestTiledCamera(unittest.TestCase):
             camera.update(self.dt)
             # check image data
             for _, im_data in camera.data.output.to_dict().items():
-                self.assertEqual(im_data.shape, (2, self.camera_cfg.height, self.camera_cfg.width, 1))
-                self.assertGreater(im_data[0].mean().item(), 0.0)
-                self.assertGreater(im_data[1].mean().item(), 0.0)
+                self.assertEqual(im_data.shape, (num_cameras, self.camera_cfg.height, self.camera_cfg.width, 1))
+                for i in range(4):
+                    self.assertGreater((im_data[i]).mean().item(), 0.0)
         # Check data type of image
         self.assertEqual(camera.data.output["distance_to_image_plane"].dtype, torch.float)
         del camera
@@ -456,8 +462,9 @@ class TestTiledCamera(unittest.TestCase):
     def test_normals_only_camera(self):
         """Test initialization with only normals."""
 
-        prim_utils.create_prim("/World/Origin_00", "Xform")
-        prim_utils.create_prim("/World/Origin_01", "Xform")
+        num_cameras = 4
+        for i in range(num_cameras):
+            prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
         # Create camera
         camera_cfg = copy.deepcopy(self.camera_cfg)
@@ -471,7 +478,7 @@ class TestTiledCamera(unittest.TestCase):
         # Check if camera is initialized
         self.assertTrue(camera.is_initialized)
         # Check if camera prim is set correctly and that it is a camera prim
-        self.assertEqual(camera._sensor_prims[1].GetPath().pathString, "/World/Origin_01/CameraSensor")
+        self.assertEqual(camera._sensor_prims[1].GetPath().pathString, "/World/Origin_1/CameraSensor")
         self.assertIsInstance(camera._sensor_prims[0], UsdGeom.Camera)
         self.assertListEqual(list(camera.data.output.keys()), ["normals"])
 
@@ -482,11 +489,11 @@ class TestTiledCamera(unittest.TestCase):
             self.sim.step()
 
         # Check buffers that exists and have correct shapes
-        self.assertEqual(camera.data.pos_w.shape, (2, 3))
-        self.assertEqual(camera.data.quat_w_ros.shape, (2, 4))
-        self.assertEqual(camera.data.quat_w_world.shape, (2, 4))
-        self.assertEqual(camera.data.quat_w_opengl.shape, (2, 4))
-        self.assertEqual(camera.data.intrinsic_matrices.shape, (2, 3, 3))
+        self.assertEqual(camera.data.pos_w.shape, (num_cameras, 3))
+        self.assertEqual(camera.data.quat_w_ros.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.quat_w_world.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.quat_w_opengl.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.intrinsic_matrices.shape, (num_cameras, 3, 3))
         self.assertEqual(camera.data.image_shape, (self.camera_cfg.height, self.camera_cfg.width))
 
         # Simulate physics
@@ -497,9 +504,9 @@ class TestTiledCamera(unittest.TestCase):
             camera.update(self.dt)
             # check image data
             for _, im_data in camera.data.output.to_dict().items():
-                self.assertEqual(im_data.shape, (2, self.camera_cfg.height, self.camera_cfg.width, 3))
-                self.assertGreater(im_data[0].mean().item(), 0.0)
-                self.assertGreater(im_data[1].mean().item(), 0.0)
+                self.assertEqual(im_data.shape, (num_cameras, self.camera_cfg.height, self.camera_cfg.width, 3))
+                for i in range(4):
+                    self.assertGreater((im_data[i]).mean().item(), 0.0)
         # Check data type of image
         self.assertEqual(camera.data.output["normals"].dtype, torch.float)
         del camera
@@ -507,8 +514,9 @@ class TestTiledCamera(unittest.TestCase):
     def test_motion_vectors_only_camera(self):
         """Test initialization with only motion_vectors."""
 
-        prim_utils.create_prim("/World/Origin_00", "Xform")
-        prim_utils.create_prim("/World/Origin_01", "Xform")
+        num_cameras = 4
+        for i in range(num_cameras):
+            prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
         # Create camera
         camera_cfg = copy.deepcopy(self.camera_cfg)
@@ -522,7 +530,7 @@ class TestTiledCamera(unittest.TestCase):
         # Check if camera is initialized
         self.assertTrue(camera.is_initialized)
         # Check if camera prim is set correctly and that it is a camera prim
-        self.assertEqual(camera._sensor_prims[1].GetPath().pathString, "/World/Origin_01/CameraSensor")
+        self.assertEqual(camera._sensor_prims[1].GetPath().pathString, "/World/Origin_1/CameraSensor")
         self.assertIsInstance(camera._sensor_prims[0], UsdGeom.Camera)
         self.assertListEqual(list(camera.data.output.keys()), ["motion_vectors"])
 
@@ -533,11 +541,11 @@ class TestTiledCamera(unittest.TestCase):
             self.sim.step()
 
         # Check buffers that exists and have correct shapes
-        self.assertEqual(camera.data.pos_w.shape, (2, 3))
-        self.assertEqual(camera.data.quat_w_ros.shape, (2, 4))
-        self.assertEqual(camera.data.quat_w_world.shape, (2, 4))
-        self.assertEqual(camera.data.quat_w_opengl.shape, (2, 4))
-        self.assertEqual(camera.data.intrinsic_matrices.shape, (2, 3, 3))
+        self.assertEqual(camera.data.pos_w.shape, (num_cameras, 3))
+        self.assertEqual(camera.data.quat_w_ros.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.quat_w_world.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.quat_w_opengl.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.intrinsic_matrices.shape, (num_cameras, 3, 3))
         self.assertEqual(camera.data.image_shape, (self.camera_cfg.height, self.camera_cfg.width))
 
         # Simulate physics
@@ -548,9 +556,9 @@ class TestTiledCamera(unittest.TestCase):
             camera.update(self.dt)
             # check image data
             for _, im_data in camera.data.output.to_dict().items():
-                self.assertEqual(im_data.shape, (2, self.camera_cfg.height, self.camera_cfg.width, 2))
-                self.assertGreater(im_data[0].mean().item(), 0.0)
-                self.assertGreater(im_data[1].mean().item(), 0.0)
+                self.assertEqual(im_data.shape, (num_cameras, self.camera_cfg.height, self.camera_cfg.width, 2))
+                for i in range(4):
+                    self.assertGreater((im_data[i]).mean().item(), 0.0)
         # Check data type of image
         self.assertEqual(camera.data.output["motion_vectors"].dtype, torch.float)
         del camera
@@ -558,8 +566,9 @@ class TestTiledCamera(unittest.TestCase):
     def test_semantic_segmentation_colorize_only_camera(self):
         """Test initialization with only semantic_segmentation."""
 
-        prim_utils.create_prim("/World/Origin_00", "Xform")
-        prim_utils.create_prim("/World/Origin_01", "Xform")
+        num_cameras = 4
+        for i in range(num_cameras):
+            prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
         # Create camera
         camera_cfg = copy.deepcopy(self.camera_cfg)
@@ -573,7 +582,7 @@ class TestTiledCamera(unittest.TestCase):
         # Check if camera is initialized
         self.assertTrue(camera.is_initialized)
         # Check if camera prim is set correctly and that it is a camera prim
-        self.assertEqual(camera._sensor_prims[1].GetPath().pathString, "/World/Origin_01/CameraSensor")
+        self.assertEqual(camera._sensor_prims[1].GetPath().pathString, "/World/Origin_1/CameraSensor")
         self.assertIsInstance(camera._sensor_prims[0], UsdGeom.Camera)
         self.assertListEqual(list(camera.data.output.keys()), ["semantic_segmentation"])
 
@@ -584,11 +593,11 @@ class TestTiledCamera(unittest.TestCase):
             self.sim.step()
 
         # Check buffers that exists and have correct shapes
-        self.assertEqual(camera.data.pos_w.shape, (2, 3))
-        self.assertEqual(camera.data.quat_w_ros.shape, (2, 4))
-        self.assertEqual(camera.data.quat_w_world.shape, (2, 4))
-        self.assertEqual(camera.data.quat_w_opengl.shape, (2, 4))
-        self.assertEqual(camera.data.intrinsic_matrices.shape, (2, 3, 3))
+        self.assertEqual(camera.data.pos_w.shape, (num_cameras, 3))
+        self.assertEqual(camera.data.quat_w_ros.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.quat_w_world.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.quat_w_opengl.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.intrinsic_matrices.shape, (num_cameras, 3, 3))
         self.assertEqual(camera.data.image_shape, (self.camera_cfg.height, self.camera_cfg.width))
 
         # Simulate physics
@@ -599,9 +608,9 @@ class TestTiledCamera(unittest.TestCase):
             camera.update(self.dt)
             # check image data
             for _, im_data in camera.data.output.to_dict().items():
-                self.assertEqual(im_data.shape, (2, self.camera_cfg.height, self.camera_cfg.width, 4))
-                self.assertGreater((im_data[0] / 255.0).mean().item(), 0.0)
-                self.assertGreater((im_data[1] / 255.0).mean().item(), 0.0)
+                self.assertEqual(im_data.shape, (num_cameras, self.camera_cfg.height, self.camera_cfg.width, 4))
+                for i in range(4):
+                    self.assertGreater((im_data[i] / 255.0).mean().item(), 0.0)
         # Check data type of image and info
         self.assertEqual(camera.data.output["semantic_segmentation"].dtype, torch.uint8)
         self.assertEqual(type(camera.data.info["semantic_segmentation"]), dict)
@@ -610,8 +619,9 @@ class TestTiledCamera(unittest.TestCase):
     def test_instance_segmentation_fast_colorize_only_camera(self):
         """Test initialization with only instance_segmentation_fast."""
 
-        prim_utils.create_prim("/World/Origin_00", "Xform")
-        prim_utils.create_prim("/World/Origin_01", "Xform")
+        num_cameras = 4
+        for i in range(num_cameras):
+            prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
         # Create camera
         camera_cfg = copy.deepcopy(self.camera_cfg)
@@ -625,7 +635,7 @@ class TestTiledCamera(unittest.TestCase):
         # Check if camera is initialized
         self.assertTrue(camera.is_initialized)
         # Check if camera prim is set correctly and that it is a camera prim
-        self.assertEqual(camera._sensor_prims[1].GetPath().pathString, "/World/Origin_01/CameraSensor")
+        self.assertEqual(camera._sensor_prims[1].GetPath().pathString, "/World/Origin_1/CameraSensor")
         self.assertIsInstance(camera._sensor_prims[0], UsdGeom.Camera)
         self.assertListEqual(list(camera.data.output.keys()), ["instance_segmentation_fast"])
 
@@ -636,11 +646,11 @@ class TestTiledCamera(unittest.TestCase):
             self.sim.step()
 
         # Check buffers that exists and have correct shapes
-        self.assertEqual(camera.data.pos_w.shape, (2, 3))
-        self.assertEqual(camera.data.quat_w_ros.shape, (2, 4))
-        self.assertEqual(camera.data.quat_w_world.shape, (2, 4))
-        self.assertEqual(camera.data.quat_w_opengl.shape, (2, 4))
-        self.assertEqual(camera.data.intrinsic_matrices.shape, (2, 3, 3))
+        self.assertEqual(camera.data.pos_w.shape, (num_cameras, 3))
+        self.assertEqual(camera.data.quat_w_ros.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.quat_w_world.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.quat_w_opengl.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.intrinsic_matrices.shape, (num_cameras, 3, 3))
         self.assertEqual(camera.data.image_shape, (self.camera_cfg.height, self.camera_cfg.width))
 
         # Simulate physics
@@ -651,9 +661,9 @@ class TestTiledCamera(unittest.TestCase):
             camera.update(self.dt)
             # check image data
             for _, im_data in camera.data.output.to_dict().items():
-                self.assertEqual(im_data.shape, (2, self.camera_cfg.height, self.camera_cfg.width, 4))
-                self.assertGreater((im_data[0] / 255.0).mean().item(), 0.0)
-                self.assertGreater((im_data[1] / 255.0).mean().item(), 0.0)
+                self.assertEqual(im_data.shape, (num_cameras, self.camera_cfg.height, self.camera_cfg.width, 4))
+                for i in range(num_cameras):
+                    self.assertGreater((im_data[i] / 255.0).mean().item(), 0.0)
         # Check data type of image and info
         self.assertEqual(camera.data.output["instance_segmentation_fast"].dtype, torch.uint8)
         self.assertEqual(type(camera.data.info["instance_segmentation_fast"]), dict)
@@ -662,8 +672,9 @@ class TestTiledCamera(unittest.TestCase):
     def test_instance_id_segmentation_fast_colorize_only_camera(self):
         """Test initialization with only instance_id_segmentation_fast."""
 
-        prim_utils.create_prim("/World/Origin_00", "Xform")
-        prim_utils.create_prim("/World/Origin_01", "Xform")
+        num_cameras = 4
+        for i in range(num_cameras):
+            prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
         # Create camera
         camera_cfg = copy.deepcopy(self.camera_cfg)
@@ -677,7 +688,7 @@ class TestTiledCamera(unittest.TestCase):
         # Check if camera is initialized
         self.assertTrue(camera.is_initialized)
         # Check if camera prim is set correctly and that it is a camera prim
-        self.assertEqual(camera._sensor_prims[1].GetPath().pathString, "/World/Origin_01/CameraSensor")
+        self.assertEqual(camera._sensor_prims[1].GetPath().pathString, "/World/Origin_1/CameraSensor")
         self.assertIsInstance(camera._sensor_prims[0], UsdGeom.Camera)
         self.assertListEqual(list(camera.data.output.keys()), ["instance_id_segmentation_fast"])
 
@@ -688,11 +699,11 @@ class TestTiledCamera(unittest.TestCase):
             self.sim.step()
 
         # Check buffers that exists and have correct shapes
-        self.assertEqual(camera.data.pos_w.shape, (2, 3))
-        self.assertEqual(camera.data.quat_w_ros.shape, (2, 4))
-        self.assertEqual(camera.data.quat_w_world.shape, (2, 4))
-        self.assertEqual(camera.data.quat_w_opengl.shape, (2, 4))
-        self.assertEqual(camera.data.intrinsic_matrices.shape, (2, 3, 3))
+        self.assertEqual(camera.data.pos_w.shape, (num_cameras, 3))
+        self.assertEqual(camera.data.quat_w_ros.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.quat_w_world.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.quat_w_opengl.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.intrinsic_matrices.shape, (num_cameras, 3, 3))
         self.assertEqual(camera.data.image_shape, (self.camera_cfg.height, self.camera_cfg.width))
 
         # Simulate physics
@@ -703,9 +714,9 @@ class TestTiledCamera(unittest.TestCase):
             camera.update(self.dt)
             # check image data
             for _, im_data in camera.data.output.to_dict().items():
-                self.assertEqual(im_data.shape, (2, self.camera_cfg.height, self.camera_cfg.width, 4))
-                self.assertGreater((im_data[0] / 255.0).mean().item(), 0.0)
-                self.assertGreater((im_data[1] / 255.0).mean().item(), 0.0)
+                self.assertEqual(im_data.shape, (num_cameras, self.camera_cfg.height, self.camera_cfg.width, 4))
+                for i in range(num_cameras):
+                    self.assertGreater((im_data[i] / 255.0).mean().item(), 0.0)
         # Check data type of image and info
         self.assertEqual(camera.data.output["instance_id_segmentation_fast"].dtype, torch.uint8)
         self.assertEqual(type(camera.data.info["instance_id_segmentation_fast"]), dict)
@@ -714,8 +725,9 @@ class TestTiledCamera(unittest.TestCase):
     def test_semantic_segmentation_non_colorize_only_camera(self):
         """Test initialization with only semantic_segmentation."""
 
-        prim_utils.create_prim("/World/Origin_00", "Xform")
-        prim_utils.create_prim("/World/Origin_01", "Xform")
+        num_cameras = 4
+        for i in range(num_cameras):
+            prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
         # Create camera
         camera_cfg = copy.deepcopy(self.camera_cfg)
@@ -730,7 +742,7 @@ class TestTiledCamera(unittest.TestCase):
         # Check if camera is initialized
         self.assertTrue(camera.is_initialized)
         # Check if camera prim is set correctly and that it is a camera prim
-        self.assertEqual(camera._sensor_prims[1].GetPath().pathString, "/World/Origin_01/CameraSensor")
+        self.assertEqual(camera._sensor_prims[1].GetPath().pathString, "/World/Origin_1/CameraSensor")
         self.assertIsInstance(camera._sensor_prims[0], UsdGeom.Camera)
         self.assertListEqual(list(camera.data.output.keys()), ["semantic_segmentation"])
 
@@ -741,11 +753,11 @@ class TestTiledCamera(unittest.TestCase):
             self.sim.step()
 
         # Check buffers that exists and have correct shapes
-        self.assertEqual(camera.data.pos_w.shape, (2, 3))
-        self.assertEqual(camera.data.quat_w_ros.shape, (2, 4))
-        self.assertEqual(camera.data.quat_w_world.shape, (2, 4))
-        self.assertEqual(camera.data.quat_w_opengl.shape, (2, 4))
-        self.assertEqual(camera.data.intrinsic_matrices.shape, (2, 3, 3))
+        self.assertEqual(camera.data.pos_w.shape, (num_cameras, 3))
+        self.assertEqual(camera.data.quat_w_ros.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.quat_w_world.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.quat_w_opengl.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.intrinsic_matrices.shape, (num_cameras, 3, 3))
         self.assertEqual(camera.data.image_shape, (self.camera_cfg.height, self.camera_cfg.width))
 
         # Simulate physics
@@ -756,9 +768,9 @@ class TestTiledCamera(unittest.TestCase):
             camera.update(self.dt)
             # check image data
             for _, im_data in camera.data.output.to_dict().items():
-                self.assertEqual(im_data.shape, (2, self.camera_cfg.height, self.camera_cfg.width, 1))
-                self.assertGreater((im_data[0] / 255.0).mean().item(), 0.0)
-                self.assertGreater((im_data[1] / 255.0).mean().item(), 0.0)
+                self.assertEqual(im_data.shape, (num_cameras, self.camera_cfg.height, self.camera_cfg.width, 1))
+                for i in range(num_cameras):
+                    self.assertGreater(im_data[i].to(dtype=float).mean().item(), 0.0)
         # Check data type of image and info
         self.assertEqual(camera.data.output["semantic_segmentation"].dtype, torch.int32)
         self.assertEqual(type(camera.data.info["semantic_segmentation"]), dict)
@@ -768,8 +780,9 @@ class TestTiledCamera(unittest.TestCase):
     def test_instance_segmentation_fast_non_colorize_only_camera(self):
         """Test initialization with only instance_segmentation_fast."""
 
-        prim_utils.create_prim("/World/Origin_00", "Xform")
-        prim_utils.create_prim("/World/Origin_01", "Xform")
+        num_cameras = 4
+        for i in range(num_cameras):
+            prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
         # Create camera
         camera_cfg = copy.deepcopy(self.camera_cfg)
@@ -784,7 +797,7 @@ class TestTiledCamera(unittest.TestCase):
         # Check if camera is initialized
         self.assertTrue(camera.is_initialized)
         # Check if camera prim is set correctly and that it is a camera prim
-        self.assertEqual(camera._sensor_prims[1].GetPath().pathString, "/World/Origin_01/CameraSensor")
+        self.assertEqual(camera._sensor_prims[1].GetPath().pathString, "/World/Origin_1/CameraSensor")
         self.assertIsInstance(camera._sensor_prims[0], UsdGeom.Camera)
         self.assertListEqual(list(camera.data.output.keys()), ["instance_segmentation_fast"])
 
@@ -795,11 +808,11 @@ class TestTiledCamera(unittest.TestCase):
             self.sim.step()
 
         # Check buffers that exists and have correct shapes
-        self.assertEqual(camera.data.pos_w.shape, (2, 3))
-        self.assertEqual(camera.data.quat_w_ros.shape, (2, 4))
-        self.assertEqual(camera.data.quat_w_world.shape, (2, 4))
-        self.assertEqual(camera.data.quat_w_opengl.shape, (2, 4))
-        self.assertEqual(camera.data.intrinsic_matrices.shape, (2, 3, 3))
+        self.assertEqual(camera.data.pos_w.shape, (num_cameras, 3))
+        self.assertEqual(camera.data.quat_w_ros.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.quat_w_world.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.quat_w_opengl.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.intrinsic_matrices.shape, (num_cameras, 3, 3))
         self.assertEqual(camera.data.image_shape, (self.camera_cfg.height, self.camera_cfg.width))
 
         # Simulate physics
@@ -810,9 +823,9 @@ class TestTiledCamera(unittest.TestCase):
             camera.update(self.dt)
             # check image data
             for _, im_data in camera.data.output.to_dict().items():
-                self.assertEqual(im_data.shape, (2, self.camera_cfg.height, self.camera_cfg.width, 1))
-                self.assertGreater((im_data[0] / 255.0).mean().item(), 0.0)
-                self.assertGreater((im_data[1] / 255.0).mean().item(), 0.0)
+                self.assertEqual(im_data.shape, (num_cameras, self.camera_cfg.height, self.camera_cfg.width, 1))
+                for i in range(num_cameras):
+                    self.assertGreater(im_data[i].to(dtype=float).mean().item(), 0.0)
         # Check data type of image and info
         self.assertEqual(camera.data.output["instance_segmentation_fast"].dtype, torch.int32)
         self.assertEqual(type(camera.data.info["instance_segmentation_fast"]), dict)
@@ -821,8 +834,9 @@ class TestTiledCamera(unittest.TestCase):
     def test_instance_id_segmentation_fast_non_colorize_only_camera(self):
         """Test initialization with only instance_id_segmentation_fast."""
 
-        prim_utils.create_prim("/World/Origin_00", "Xform")
-        prim_utils.create_prim("/World/Origin_01", "Xform")
+        num_cameras = 4
+        for i in range(num_cameras):
+            prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
         # Create camera
         camera_cfg = copy.deepcopy(self.camera_cfg)
@@ -837,7 +851,7 @@ class TestTiledCamera(unittest.TestCase):
         # Check if camera is initialized
         self.assertTrue(camera.is_initialized)
         # Check if camera prim is set correctly and that it is a camera prim
-        self.assertEqual(camera._sensor_prims[1].GetPath().pathString, "/World/Origin_01/CameraSensor")
+        self.assertEqual(camera._sensor_prims[1].GetPath().pathString, "/World/Origin_1/CameraSensor")
         self.assertIsInstance(camera._sensor_prims[0], UsdGeom.Camera)
         self.assertListEqual(list(camera.data.output.keys()), ["instance_id_segmentation_fast"])
 
@@ -848,11 +862,11 @@ class TestTiledCamera(unittest.TestCase):
             self.sim.step()
 
         # Check buffers that exists and have correct shapes
-        self.assertEqual(camera.data.pos_w.shape, (2, 3))
-        self.assertEqual(camera.data.quat_w_ros.shape, (2, 4))
-        self.assertEqual(camera.data.quat_w_world.shape, (2, 4))
-        self.assertEqual(camera.data.quat_w_opengl.shape, (2, 4))
-        self.assertEqual(camera.data.intrinsic_matrices.shape, (2, 3, 3))
+        self.assertEqual(camera.data.pos_w.shape, (num_cameras, 3))
+        self.assertEqual(camera.data.quat_w_ros.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.quat_w_world.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.quat_w_opengl.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.intrinsic_matrices.shape, (num_cameras, 3, 3))
         self.assertEqual(camera.data.image_shape, (self.camera_cfg.height, self.camera_cfg.width))
 
         # Simulate physics
@@ -863,9 +877,9 @@ class TestTiledCamera(unittest.TestCase):
             camera.update(self.dt)
             # check image data
             for _, im_data in camera.data.output.to_dict().items():
-                self.assertEqual(im_data.shape, (2, self.camera_cfg.height, self.camera_cfg.width, 1))
-                self.assertGreater((im_data[0] / 255.0).mean().item(), 0.0)
-                self.assertGreater((im_data[1] / 255.0).mean().item(), 0.0)
+                self.assertEqual(im_data.shape, (num_cameras, self.camera_cfg.height, self.camera_cfg.width, 1))
+                for i in range(num_cameras):
+                    self.assertGreater(im_data[i].to(dtype=float).mean().item(), 0.0)
         # Check data type of image and info
         self.assertEqual(camera.data.output["instance_id_segmentation_fast"].dtype, torch.int32)
         self.assertEqual(type(camera.data.info["instance_id_segmentation_fast"]), dict)
@@ -886,8 +900,9 @@ class TestTiledCamera(unittest.TestCase):
             "instance_id_segmentation_fast",
         ]
 
-        prim_utils.create_prim("/World/Origin_00", "Xform")
-        prim_utils.create_prim("/World/Origin_01", "Xform")
+        num_cameras = 4
+        for i in range(num_cameras):
+            prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
         # Create camera
         camera_cfg = copy.deepcopy(self.camera_cfg)
@@ -901,7 +916,7 @@ class TestTiledCamera(unittest.TestCase):
         # Check if camera is initialized
         self.assertTrue(camera.is_initialized)
         # Check if camera prim is set correctly and that it is a camera prim
-        self.assertEqual(camera._sensor_prims[1].GetPath().pathString, "/World/Origin_01/CameraSensor")
+        self.assertEqual(camera._sensor_prims[1].GetPath().pathString, "/World/Origin_1/CameraSensor")
         self.assertIsInstance(camera._sensor_prims[0], UsdGeom.Camera)
         self.assertListEqual(sorted(camera.data.output.keys()), sorted(all_annotator_types))
 
@@ -912,11 +927,11 @@ class TestTiledCamera(unittest.TestCase):
             self.sim.step()
 
         # Check buffers that exists and have correct shapes
-        self.assertEqual(camera.data.pos_w.shape, (2, 3))
-        self.assertEqual(camera.data.quat_w_ros.shape, (2, 4))
-        self.assertEqual(camera.data.quat_w_world.shape, (2, 4))
-        self.assertEqual(camera.data.quat_w_opengl.shape, (2, 4))
-        self.assertEqual(camera.data.intrinsic_matrices.shape, (2, 3, 3))
+        self.assertEqual(camera.data.pos_w.shape, (num_cameras, 3))
+        self.assertEqual(camera.data.quat_w_ros.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.quat_w_world.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.quat_w_opengl.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.intrinsic_matrices.shape, (num_cameras, 3, 3))
         self.assertEqual(camera.data.image_shape, (self.camera_cfg.height, self.camera_cfg.width))
 
         # Simulate physics
@@ -928,24 +943,24 @@ class TestTiledCamera(unittest.TestCase):
             # check image data
             for data_type, im_data in camera.data.output.to_dict().items():
                 if data_type in ["rgb", "normals"]:
-                    self.assertEqual(im_data.shape, (2, self.camera_cfg.height, self.camera_cfg.width, 3))
+                    self.assertEqual(im_data.shape, (num_cameras, self.camera_cfg.height, self.camera_cfg.width, 3))
                 elif data_type in [
                     "rgba",
                     "semantic_segmentation",
                     "instance_segmentation_fast",
                     "instance_id_segmentation_fast",
                 ]:
-                    self.assertEqual(im_data.shape, (2, self.camera_cfg.height, self.camera_cfg.width, 4))
-                    self.assertGreater((im_data[0] / 255.0).mean().item(), 0.0)
-                    self.assertGreater((im_data[1] / 255.0).mean().item(), 0.0)
+                    self.assertEqual(im_data.shape, (num_cameras, self.camera_cfg.height, self.camera_cfg.width, 4))
+                    for i in range(num_cameras):
+                        self.assertGreater((im_data[i] / 255.0).mean().item(), 0.0)
                 elif data_type in ["motion_vectors"]:
-                    self.assertEqual(im_data.shape, (2, self.camera_cfg.height, self.camera_cfg.width, 2))
-                    self.assertGreater(im_data[0].mean().item(), 0.0)
-                    self.assertGreater(im_data[1].mean().item(), 0.0)
+                    self.assertEqual(im_data.shape, (num_cameras, self.camera_cfg.height, self.camera_cfg.width, 2))
+                    for i in range(num_cameras):
+                        self.assertGreater(im_data[i].mean().item(), 0.0)
                 elif data_type in ["depth", "distance_to_camera", "distance_to_image_plane"]:
-                    self.assertEqual(im_data.shape, (2, self.camera_cfg.height, self.camera_cfg.width, 1))
-                    self.assertGreater(im_data[0].mean().item(), 0.0)
-                    self.assertGreater(im_data[1].mean().item(), 0.0)
+                    self.assertEqual(im_data.shape, (num_cameras, self.camera_cfg.height, self.camera_cfg.width, 1))
+                    for i in range(num_cameras):
+                        self.assertGreater(im_data[i].mean().item(), 0.0)
 
         # access image data and compare dtype
         output = camera.data.output

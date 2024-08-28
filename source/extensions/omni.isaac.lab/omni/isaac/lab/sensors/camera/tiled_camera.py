@@ -12,12 +12,11 @@ from collections.abc import Sequence
 from tensordict import TensorDict
 from typing import TYPE_CHECKING, Any
 
-import carb
 import omni.usd
 import warp as wp
 from omni.isaac.core.prims import XFormPrimView
 from omni.isaac.version import get_version
-from pxr import Usd, UsdGeom
+from pxr import UsdGeom
 
 from omni.isaac.lab.utils.warp.kernels import reshape_tiled_image
 
@@ -184,22 +183,10 @@ class TiledCamera(Camera):
             sensor_prim = UsdGeom.Camera(cam_prim)
             self._sensor_prims.append(sensor_prim)
 
-        # get full resolution for all tiles
-        full_resolution = self._tiled_image_shape()
-
-        # Set carb settings for tiled rendering
-        carb_settings = carb.settings.get_settings()
-        carb_settings.set("/rtx/viewTile/height", self.cfg.height)
-        carb_settings.set("/rtx/viewTile/width", self.cfg.width)
-        carb_settings.set("/rtx/viewTile/count", self._view.count)
-
-        # Create render product
-        rp = rep.create.render_product(self._view.prim_paths[0], full_resolution)
-
-        # Attach all cameras to render product
-        rp_prim = stage.GetPrimAtPath(rp.path)
-        with Usd.EditContext(stage, stage.GetSessionLayer()):
-            rp_prim.GetRelationship("camera").SetTargets(self._view.prim_paths)
+        # Create replicator tiled render product
+        rp = rep.create.render_product_tiled(
+            cameras=self._view.prim_paths, tile_resolution=(self.cfg.width, self.cfg.height)
+        )
         self._render_product_paths = [rp.path]
 
         # Define the annotators based on requested data types

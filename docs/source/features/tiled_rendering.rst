@@ -11,7 +11,8 @@ Tiled Rendering
 
     This feature is only available from Isaac Sim version 4.2.0 onwards.
 
-    Tiled rendering in combination with image processing networks require heavy memory resources, especially at larger resolutions. We recommend running at 256 cameras in the scene on RTX 4090 GPUs or similar.
+    Tiled rendering in combination with image processing networks require heavy memory resources, especially at larger resolutions. We recommend running at 512 cameras in the scene on RTX 4090 GPUs or similar.
+
 
 Tiled rendering APIs provide a vectorized interface for collecting data from camera sensors.
 This is useful for reinforcement learning environments requiring vision in the loop.
@@ -57,6 +58,21 @@ environment. For example:
 .. code-block:: shell
 
     python source/standalone/workflows/rl_games/train.py --task=Isaac-Cartpole-RGB-Camera-Direct-v0 --headless --enable_cameras
+
+
+.. warning::
+
+    There are currently a few limitations with tiled rendering:
+
+    * Number of cameras must be a perfect square
+    * Tile resolution must be a square
+    * Due to upsampling in the denoising process, image quality may appear different when running with different numbers of cameras.
+      To overcome this issue, we can use the DLAA denoiser at the cost of some performance.
+
+      .. code-block:: python
+
+        import omni.replicator.core as rep
+        rep.settings.set_render_rtx_realtime(antialiasing="DLAA")
 
 
 Annotators and Data Types
