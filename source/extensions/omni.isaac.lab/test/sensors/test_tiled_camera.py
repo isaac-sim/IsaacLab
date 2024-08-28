@@ -43,7 +43,7 @@ class TestTiledCamera(unittest.TestCase):
             offset=TiledCameraCfg.OffsetCfg(pos=(0.0, 0.0, 4.0), rot=(0.0, 0.0, 1.0, 0.0), convention="ros"),
             prim_path="/World/Camera",
             update_period=0,
-            data_types=["rgb", "depth"],
+            data_types=["rgb", "distance_to_camera"],
             spawn=sim_utils.PinholeCameraCfg(
                 focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1.0e5)
             ),
@@ -224,7 +224,7 @@ class TestTiledCamera(unittest.TestCase):
 
         # Create camera
         camera_cfg = copy.deepcopy(self.camera_cfg)
-        camera_cfg.data_types = ["depth"]
+        camera_cfg.data_types = ["distance_to_camera"]
         camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
         camera = TiledCamera(camera_cfg)
         # Check simulation parameter is set correctly
@@ -236,7 +236,7 @@ class TestTiledCamera(unittest.TestCase):
         # Check if camera prim is set correctly and that it is a camera prim
         self.assertEqual(camera._sensor_prims[1].GetPath().pathString, "/World/Origin_01/CameraSensor")
         self.assertIsInstance(camera._sensor_prims[0], UsdGeom.Camera)
-        self.assertListEqual(list(camera.data.output.keys()), ["depth"])
+        self.assertListEqual(list(camera.data.output.keys()), ["distance_to_camera"])
 
         # Simulate for a few steps
         # note: This is a workaround to ensure that the textures are loaded.

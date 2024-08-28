@@ -37,7 +37,7 @@ class TiledCamera(Camera):
     The following sensor types are supported:
 
     - ``"rgb"``: A rendered color image.
-    - ``"depth"``: An image containing the distance to camera optical center.
+    - ``"distance_to_camera"``: An image containing the distance to camera optical center.
 
     .. attention::
         Please note that the fidelity of RGB images may be lower than the standard camera sensor due to the
@@ -54,7 +54,7 @@ class TiledCamera(Camera):
     cfg: TiledCameraCfg
     """The configuration parameters."""
 
-    SUPPORTED_TYPES: set[str] = {"rgb", "depth"}
+    SUPPORTED_TYPES: set[str] = {"rgb", "distance_to_camera"}
     """The set of sensor types that are supported."""
 
     def __init__(self, cfg: TiledCameraCfg):
@@ -198,7 +198,7 @@ class TiledCamera(Camera):
                     wp.from_torch(self._data.output[data_type]),  # zero-copy alias
                     *list(self._data.output[data_type].shape[1:]),  # height, width, num_channels
                     self._tiling_grid_shape()[0],  # num_tiles_x
-                    offset if data_type == "depth" else 0,
+                    offset if data_type == "distance_to_camera" else 0,
                 ],
                 device=self.device,
             )
@@ -232,8 +232,8 @@ class TiledCamera(Camera):
             data_dict["rgb"] = torch.zeros(
                 (self._view.count, self.cfg.height, self.cfg.width, 3), device=self.device
             ).contiguous()
-        if "depth" in self.cfg.data_types:
-            data_dict["depth"] = torch.zeros(
+        if "distance_to_camera" in self.cfg.data_types:
+            data_dict["distance_to_camera"] = torch.zeros(
                 (self._view.count, self.cfg.height, self.cfg.width, 1), device=self.device
             ).contiguous()
         self._data.output = TensorDict(data_dict, batch_size=self._view.count, device=self.device)
