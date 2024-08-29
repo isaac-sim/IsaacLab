@@ -315,7 +315,7 @@ class TestTiledCamera(unittest.TestCase):
         camera_tiled_cfg = TiledCameraCfg(
             prim_path="/World/Camera_tiled",
             offset=TiledCameraCfg.OffsetCfg(pos=offset_pos, rot=offset_rot, convention="ros"),
-            spawn=sim_utils.PinholeCameraCfg().from_intrinsic_matrix(
+            spawn=sim_utils.PinholeCameraCfg.from_intrinsic_matrix(
                 intrinsic_matrix=intrinsics,
                 height=540,
                 width=960,
@@ -329,7 +329,7 @@ class TestTiledCamera(unittest.TestCase):
         camera_usd_cfg = CameraCfg(
             prim_path="/World/Camera_usd",
             offset=CameraCfg.OffsetCfg(pos=offset_pos, rot=offset_rot, convention="ros"),
-            spawn=sim_utils.PinholeCameraCfg().from_intrinsic_matrix(
+            spawn=sim_utils.PinholeCameraCfg.from_intrinsic_matrix(
                 intrinsic_matrix=intrinsics,
                 height=540,
                 width=960,

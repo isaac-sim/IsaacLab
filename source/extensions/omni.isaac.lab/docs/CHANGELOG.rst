@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.22.4 (2024-08-29)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the support for class-bounded methods when creating a configclass
+  out of them. Earlier, these methods were being made as instance methods
+  which required initialization of the class to call the class-methods.
+
+
 0.22.3 (2024-08-28)
 ~~~~~~~~~~~~~~~~~~~
 
