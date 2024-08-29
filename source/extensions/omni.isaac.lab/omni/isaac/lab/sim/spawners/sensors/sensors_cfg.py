@@ -69,8 +69,9 @@ class PinholeCameraCfg(SpawnerCfg):
     Emulates sensor/film width on a camera.
 
     Note:
-        The default value is the horizontal aperture of a 20.955cm spherical projector.
+        The default value is the horizontal aperture of a 35 mm spherical projector.
     """
+
     vertical_aperture: float | None = None
     """Vertical aperture (in mm). Defaults to None.
 
