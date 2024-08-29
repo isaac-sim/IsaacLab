@@ -62,8 +62,7 @@ Added
 
   * ``cpu``: Use CPU.
   * ``cuda``: Use GPU with device ID ``0``.
-  * ``cuda:N``: Use GPU, where N is the device ID. For example, ``cuda:0``.
-  The default value is ``cuda:0``.
+  * ``cuda:N``: Use GPU, where N is the device ID. For example, ``cuda:0``. The default value is ``cuda:0``.
 
 Changed
 ^^^^^^^
