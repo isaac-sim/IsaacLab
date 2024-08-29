@@ -77,7 +77,7 @@ class PinholeCameraCfg(SpawnerCfg):
     .. math::
         \text{vertical aperture} = \text{horizontal aperture} \times \frac{\text{height}}{\text{width}}
     """
-    
+
     horizontal_aperture_offset: float = 0.0
     """Offsets Resolution/Film gate horizontally. Defaults to 0.0."""
 
