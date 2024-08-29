@@ -579,6 +579,7 @@ document.write(`
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.vertical_aperture_offset"><code class="docutils literal notranslate"><span class="pre">PinholeCameraPatternCfg.vertical_aperture_offset</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.width"><code class="docutils literal notranslate"><span class="pre">PinholeCameraPatternCfg.width</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.height"><code class="docutils literal notranslate"><span class="pre">PinholeCameraPatternCfg.height</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.from_intrinsic_matrix"><code class="docutils literal notranslate"><span class="pre">PinholeCameraPatternCfg.from_intrinsic_matrix()</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -814,6 +815,15 @@ matrices of the cameras, which is not possible with the standard pattern interfa
 </tbody>
 </table>
 </div>
+<p><strong>Methods:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.from_intrinsic_matrix" title="omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.from_intrinsic_matrix"><code class="xref py py-obj docutils literal notranslate"><span class="pre">from_intrinsic_matrix</span></code></a>(intrinsic_matrix, ...)</p></td>
+<td><p>Create a <a class="reference internal" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg" title="omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">PinholeCameraPatternCfg</span></code></a> class instance from an intrinsic matrix.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.focal_length">
 <span class="sig-name descname"><span class="pre">focal_length</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.focal_length" title="Permalink to this definition">#</a></dt>
@@ -866,6 +876,36 @@ aperture is calculated as:</p>
 <dt class="sig sig-object py" id="omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.height">
 <span class="sig-name descname"><span class="pre">height</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a></em><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.height" title="Permalink to this definition">#</a></dt>
 <dd><p>Height of the image (in pixels).</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.from_intrinsic_matrix">
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_intrinsic_matrix</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">intrinsic_matrix</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.12)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">width</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">height</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">focal_length</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">24.0</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg" title="omni.isaac.lab.sensors.ray_caster.patterns.patterns_cfg.PinholeCameraPatternCfg"><span class="pre">PinholeCameraPatternCfg</span></a></span></span><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.from_intrinsic_matrix" title="Permalink to this definition">#</a></dt>
+<dd><p>Create a <a class="reference internal" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg" title="omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">PinholeCameraPatternCfg</span></code></a> class instance from an intrinsic matrix.</p>
+<p>The intrinsic matrix is a 3x3 matrix that defines the mapping between the 3D world coordinates and
+the 2D image. The matrix is defined as:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}I_{cam} = \begin{bmatrix}
+f_x &amp; 0 &amp; c_x \\
+0 &amp; f_y &amp; c_y \\
+0 &amp; 0 &amp; 1
+\end{bmatrix},\end{split}\]</div>
+<p>where <span class="math notranslate nohighlight">\(f_x\)</span> and <span class="math notranslate nohighlight">\(f_y\)</span> are the focal length along x and y direction, while <span class="math notranslate nohighlight">\(c_x\)</span> and <span class="math notranslate nohighlight">\(c_y\)</span> are the
+principle point offsets along x and y direction respectively.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>intrinsic_matrix</strong> – Intrinsic matrix of the camera in row-major format.
+The matrix is defined as [f_x, 0, c_x, 0, f_y, c_y, 0, 0, 1]. Shape is (9,).</p></li>
+<li><p><strong>width</strong> – Width of the image (in pixels).</p></li>
+<li><p><strong>height</strong> – Height of the image (in pixels).</p></li>
+<li><p><strong>focal_length</strong> – Focal length of the camera (in cm). Defaults to 24.0 cm.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>An instance of the <a class="reference internal" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg" title="omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">PinholeCameraPatternCfg</span></code></a> class.</p>
+</dd>
+</dl>
 </dd></dl>
 
 </dd></dl>
@@ -1080,6 +1120,7 @@ are not evenly spaced.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.vertical_aperture_offset"><code class="docutils literal notranslate"><span class="pre">PinholeCameraPatternCfg.vertical_aperture_offset</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.width"><code class="docutils literal notranslate"><span class="pre">PinholeCameraPatternCfg.width</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.height"><code class="docutils literal notranslate"><span class="pre">PinholeCameraPatternCfg.height</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.from_intrinsic_matrix"><code class="docutils literal notranslate"><span class="pre">PinholeCameraPatternCfg.from_intrinsic_matrix()</span></code></a></li>
 </ul>
 </li>
 </ul>

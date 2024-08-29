@@ -898,6 +898,7 @@ document.write(`
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.horizontal_aperture_offset"><code class="docutils literal notranslate"><span class="pre">PinholeCameraCfg.horizontal_aperture_offset</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.vertical_aperture_offset"><code class="docutils literal notranslate"><span class="pre">PinholeCameraCfg.vertical_aperture_offset</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.lock_camera"><code class="docutils literal notranslate"><span class="pre">PinholeCameraCfg.lock_camera</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.from_intrinsic_matrix"><code class="docutils literal notranslate"><span class="pre">PinholeCameraCfg.from_intrinsic_matrix()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.visible"><code class="docutils literal notranslate"><span class="pre">PinholeCameraCfg.visible</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.semantic_tags"><code class="docutils literal notranslate"><span class="pre">PinholeCameraCfg.semantic_tags</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.copy_from_source"><code class="docutils literal notranslate"><span class="pre">PinholeCameraCfg.copy_from_source</span></code></a></li>
@@ -4359,6 +4360,15 @@ function.</p>
 </tbody>
 </table>
 </div>
+<p><strong>Methods:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.from_intrinsic_matrix" title="omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.from_intrinsic_matrix"><code class="xref py py-obj docutils literal notranslate"><span class="pre">from_intrinsic_matrix</span></code></a>(intrinsic_matrix, ...)</p></td>
+<td><p>Create a <a class="reference internal" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg" title="omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">PinholeCameraCfg</span></code></a> class instance from an intrinsic matrix.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.projection_type">
 <span class="sig-name descname"><span class="pre">projection_type</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.projection_type" title="Permalink to this definition">#</a></dt>
@@ -4437,6 +4447,41 @@ horizontal aperture and the aspect ratio of the image to maintain squared pixels
 <dd><p>Locks the camera in the Omniverse viewport. Defaults to True.</p>
 <p>If True, then the camera remains fixed at its configured transform. This is useful when wanting to view
 the camera output on the GUI and not accidentally moving the camera through the GUI interactions.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.from_intrinsic_matrix">
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_intrinsic_matrix</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">intrinsic_matrix</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.12)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">width</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">height</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">clipping_range</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.12)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">(0.01,</span> <span class="pre">1000000.0)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">focal_length</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">24.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">focus_distance</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">400.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">f_stop</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">projection_type</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'pinhole'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lock_camera</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg" title="omni.isaac.lab.sim.spawners.sensors.sensors_cfg.PinholeCameraCfg"><span class="pre">PinholeCameraCfg</span></a></span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/sim/spawners/sensors/sensors_cfg.html#PinholeCameraCfg.from_intrinsic_matrix"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.from_intrinsic_matrix" title="Permalink to this definition">#</a></dt>
+<dd><p>Create a <a class="reference internal" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg" title="omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">PinholeCameraCfg</span></code></a> class instance from an intrinsic matrix.</p>
+<p>The intrinsic matrix is a 3x3 matrix that defines the mapping between the 3D world coordinates and
+the 2D image. The matrix is defined as:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}I_{cam} = \begin{bmatrix}
+f_x &amp; 0 &amp; c_x \\
+0 &amp; f_y &amp; c_y \\
+0 &amp; 0 &amp; 1
+\\end{bmatrix},\end{split}\]</div>
+<p>where <span class="math notranslate nohighlight">\(f_x\)</span> and <span class="math notranslate nohighlight">\(f_y\)</span> are the focal length along x and y direction, while <span class="math notranslate nohighlight">\(c_x\)</span> and <span class="math notranslate nohighlight">\(c_y\)</span> are the
+principle point offsets along x and y direction respectively.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>intrinsic_matrix</strong> – Intrinsic matrix of the camera in row-major format.
+The matrix is defined as [f_x, 0, c_x, 0, f_y, c_y, 0, 0, 1]. Shape is (9,).</p></li>
+<li><p><strong>width</strong> – Width of the image (in pixels).</p></li>
+<li><p><strong>height</strong> – Height of the image (in pixels).</p></li>
+<li><p><strong>clipping_range</strong> – Near and far clipping distances (in m). Defaults to (0.01, 1e6).</p></li>
+<li><p><strong>focal_length</strong> – Perspective focal length (in cm). Defaults to 24.0 cm.</p></li>
+<li><p><strong>focus_distance</strong> – Distance from the camera to the focus plane (in m). Defaults to 400.0 m.</p></li>
+<li><p><strong>f_stop</strong> – Lens aperture. Defaults to 0.0, which turns off focusing.</p></li>
+<li><p><strong>projection_type</strong> – Type of projection to use for the camera. Defaults to “pinhole”.</p></li>
+<li><p><strong>lock_camera</strong> – Locks the camera in the Omniverse viewport. Defaults to True.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>An instance of the <a class="reference internal" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg" title="omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">PinholeCameraCfg</span></code></a> class.</p>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py attribute">
@@ -6317,6 +6362,7 @@ to special effects that look similar to water filled soft bodies.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.horizontal_aperture_offset"><code class="docutils literal notranslate"><span class="pre">PinholeCameraCfg.horizontal_aperture_offset</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.vertical_aperture_offset"><code class="docutils literal notranslate"><span class="pre">PinholeCameraCfg.vertical_aperture_offset</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.lock_camera"><code class="docutils literal notranslate"><span class="pre">PinholeCameraCfg.lock_camera</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.from_intrinsic_matrix"><code class="docutils literal notranslate"><span class="pre">PinholeCameraCfg.from_intrinsic_matrix()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.visible"><code class="docutils literal notranslate"><span class="pre">PinholeCameraCfg.visible</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.semantic_tags"><code class="docutils literal notranslate"><span class="pre">PinholeCameraCfg.semantic_tags</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.copy_from_source"><code class="docutils literal notranslate"><span class="pre">PinholeCameraCfg.copy_from_source</span></code></a></li>
