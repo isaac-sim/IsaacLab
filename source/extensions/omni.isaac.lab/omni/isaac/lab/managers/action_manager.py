@@ -10,6 +10,7 @@ from __future__ import annotations
 import inspect
 import torch
 import weakref
+import carb
 from abc import abstractmethod
 from collections.abc import Sequence
 from prettytable import PrettyTable
@@ -87,7 +88,7 @@ class ActionTerm(ManagerTermBase):
 
     @property
     def has_debug_vis_implementation(self) -> bool:
-        """Whether the action term has a debug visualization implemented."""
+        """Whether the acta"""
         # check if function raises NotImplementedError
         source_code = inspect.getsource(self._set_debug_vis_impl)
         return "NotImplementedError" not in source_code
@@ -105,8 +106,11 @@ class ActionTerm(ManagerTermBase):
             not support debug visualization.
         """
         # check if debug visualization is supported
-        if not self.has_debug_vis_implementation:
-            return False
+        # if not self.has_debug_vis_implementation:
+        #     carb.log_warn("Debug visualization is not supported for ActionTerm.")
+        #     return False
+
+
         # toggle debug visualization objects
         self._set_debug_vis_impl(debug_vis)
         # toggle debug visualization handles
@@ -152,14 +156,15 @@ class ActionTerm(ManagerTermBase):
         and input ``debug_vis`` is True. If the visualization objects exist, the function should
         set their visibility into the stage.
         """
-        raise NotImplementedError(f"Debug visualization is not implemented for {self.__class__.__name__}.")
+        pass
+        
 
     def _debug_vis_callback(self, event):
         """Callback for debug visualization.
         This function calls the visualization objects and sets the data to visualize into them.
         """
-        raise NotImplementedError(f"Debug visualization is not implemented for {self.__class__.__name__}.")
-
+        pass
+        
 
 class ActionManager(ManagerBase, ManagerLivePlotMixin):
     """Manager for processing and applying actions for a given world.
@@ -276,8 +281,12 @@ class ActionManager(ManagerBase, ManagerLivePlotMixin):
             Whether the debug visualization was successfully set. False if the action
             does not support debug visualization.
         """
+        
         for term in self._terms.values():
             term.set_debug_vis(debug_vis)
+
+        self._set_debug_vis_impl(debug_vis)
+        return True        
 
     def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, torch.Tensor]:
         """Resets the action history.

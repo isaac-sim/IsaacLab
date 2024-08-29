@@ -34,12 +34,7 @@ class ManagerBasedRLEnvWindow(BaseEnvWindow):
         with self.ui_window_elements["main_vstack"]:
             with self.ui_window_elements["debug_frame"]:
                 with self.ui_window_elements["debug_vstack"]:
-                    self._create_debug_vis_ui_element("commands", self.env.command_manager)
-                    self._create_debug_vis_ui_element("actions", self.env.action_manager)
-
-                    # Add live-plots for manager terms
-                    self._create_debug_vis_ui_element("actions", self.env.action_manager)
-                    self._create_debug_vis_ui_element("observations", self.env.observation_manager)
+                    self._visualize_manager(title="commands", class_name="command_manager")
                     self._visualize_manager(title="rewards", class_name="reward_manager")
                     self._visualize_manager(title="curriculum", class_name="curriculum_manager")
                     self._visualize_manager(title="termination", class_name="termination_manager")

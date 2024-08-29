@@ -85,6 +85,12 @@ class BaseEnvWindow:
                 self._build_viewer_frame()
                 # create collapsable frame for debug visualization
                 self._build_debug_vis_frame()
+                with self.ui_window_elements["debug_frame"]:
+                    with self.ui_window_elements["debug_vstack"]:
+                        # self._create_debug_vis_ui_element("actions", self.env.action_manager)
+                        # Add live-plots for manager terms
+                        self._visualize_manager("Actions", class_name="action_manager")
+                        self._visualize_manager("Observations", class_name="observation_manager")
 
     def __del__(self):
         """Destructor for the window."""
@@ -236,6 +242,13 @@ class BaseEnvWindow:
                     if elem is not None:
                         self._create_debug_vis_ui_element(name, elem)
 
+    def _visualize_manager(self, title: str, class_name: str):
+        """Checks if the attribute with the name 'class_name' can be visualized. If yes, create vis interface."""
+
+        if hasattr(self.env, class_name):
+            manager = getattr(self.env, class_name)
+            if hasattr(manager, "has_debug_vis_implementation"):
+                self._create_debug_vis_ui_element(title, manager)
     """
     Custom callbacks for UI elements.
     """

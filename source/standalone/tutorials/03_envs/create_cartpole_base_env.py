@@ -129,7 +129,6 @@ class CartpoleEnvCfg(ManagerBasedEnvCfg):
         # simulation settings
         self.sim.dt = 0.005  # sim step every 5ms: 200Hz
 
-
 def main():
     """Main function."""
     # parse the arguments
@@ -137,6 +136,9 @@ def main():
     env_cfg.scene.num_envs = args_cli.num_envs
     # setup base environment
     env = ManagerBasedEnv(cfg=env_cfg)
+    # print("action.debug_vis", env.action_manager.set_debug_vis(True))
+    # print("obs.debug_vis",env.observation_manager.set_debug_vis(True))
+
 
     # simulate physics
     count = 0
