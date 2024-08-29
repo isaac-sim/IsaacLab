@@ -739,7 +739,7 @@ class TestWarpCamera(unittest.TestCase):
             rtol=5e-6,
         )
 
-    def test_output_equal_to_usdcamera_set_intrinsics(self):
+    def test_output_equal_to_usd_camera_when_intrinsics_set(self):
         """
         Test that the output of the ray caster camera is equal to the output of the usd camera when both are placed
         under an XForm prim and an intrinsic matrix is set.
