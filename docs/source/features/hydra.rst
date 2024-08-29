@@ -14,7 +14,7 @@ Similarly, the agent's parameters can be modified by using the ``agent`` prefix,
 
     The way these command line arguments are set follow the exact structure of the configuration files. Since the different
     RL frameworks use different conventions, there might be differences in the way the parameters are set. For example,
-    with `rl_games` the seed will be set with ``agent.params.seed``, while with `rsl_rl` and `skrl` it will be set with
+    with `rl_games` the seed will be set with ``agent.params.seed``, while with `rsl_rl`, `skrl` and `sb3` it will be set with
     ``agent.seed``.
 
 
@@ -43,6 +43,13 @@ As a result, training with hydra arguments can be run with the following syntax:
         .. code-block:: shell
 
             python source/standalone/workflows/skrl/train.py --task=Isaac-Cartpole-v0 --headless env.actions.joint_effort.scale=10.0 agent.seed=2024
+
+    .. tab-item:: sb3
+        :sync: sb3
+
+        .. code-block:: shell
+
+            python source/standalone/workflows/sb3/train.py --task=Isaac-Cartpole-v0 --headless env.actions.joint_effort.scale=10.0 agent.seed=2024
 
 The above command will run the training script with the task ``Isaac-Cartpole-v0`` in headless mode, and set the
 ``env.actions.joint_effort.scale`` parameter to 10.0 and the ``agent.seed`` parameter to 2024.
