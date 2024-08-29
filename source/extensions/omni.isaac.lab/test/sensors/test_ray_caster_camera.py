@@ -204,6 +204,7 @@ class TestWarpCamera(unittest.TestCase):
         np.testing.assert_allclose(camera_ros.data.quat_w_world[0].cpu().numpy(), QUAT_WORLD, rtol=1e-5)
 
     def test_camera_init_intrinsic_matrix(self):
+        """Test camera initialization from intrinsic matrix."""
         # get the first camera
         camera_1 = RayCasterCamera(cfg=self.camera_cfg)
         # get intrinsic matrix
@@ -221,10 +222,10 @@ class TestWarpCamera(unittest.TestCase):
             offset=RayCasterCameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(1.0, 0.0, 0.0, 0.0), convention="world"),
             debug_vis=False,
             pattern_cfg=patterns.PinholeCameraPatternCfg().from_intrinsic_matrix(
-                focal_length=self.camera_cfg.pattern_cfg.focal_length,
                 intrinsic_matrix=intrinsic_matrix,
                 height=self.camera_cfg.pattern_cfg.height,
                 width=self.camera_cfg.pattern_cfg.width,
+                focal_length=self.camera_cfg.pattern_cfg.focal_length,
             ),
             data_types=[
                 "distance_to_image_plane",
@@ -647,9 +648,11 @@ class TestWarpCamera(unittest.TestCase):
             atol=1e-4,
         )
 
-    def test_output_equal_to_usdcamera_intrinsics(self):
-        """Test that the output of the ray caster camera is equal to the output of the usd camera when both are
-        initialized with the same intrinsic matrix."""
+    def test_output_equal_to_usd_camera_intrinsics(self):
+        """
+        Test that the output of the ray caster camera and usd camera are the same when both are
+        initialized with the same intrinsic matrix.
+        """
 
         # create cameras
         offset_rot = [-0.1251, 0.3617, 0.8731, -0.3020]
@@ -663,10 +666,10 @@ class TestWarpCamera(unittest.TestCase):
             offset=RayCasterCameraCfg.OffsetCfg(pos=offset_pos, rot=offset_rot, convention="ros"),
             debug_vis=False,
             pattern_cfg=patterns.PinholeCameraPatternCfg().from_intrinsic_matrix(
-                focal_length=38.0,
                 intrinsic_matrix=intrinsics,
                 height=540,
                 width=960,
+                focal_length=38.0,
             ),
             max_distance=20.0,
             data_types=["distance_to_image_plane"],
@@ -675,11 +678,11 @@ class TestWarpCamera(unittest.TestCase):
             prim_path="/World/Camera_usd",
             offset=CameraCfg.OffsetCfg(pos=offset_pos, rot=offset_rot, convention="ros"),
             spawn=PinholeCameraCfg().from_intrinsic_matrix(
-                focal_length=38.0,
                 intrinsic_matrix=intrinsics,
                 height=540,
                 width=960,
                 clipping_range=(0.01, 20),
+                focal_length=38.0,
             ),
             height=540,
             width=960,
@@ -737,8 +740,10 @@ class TestWarpCamera(unittest.TestCase):
         )
 
     def test_output_equal_to_usdcamera_set_intrinsics(self):
-        """Test that the output of the ray caster camera is equal to the output of the usd camera when both are placed
-        under an XForm prim and an intrinsic matrix is set."""
+        """
+        Test that the output of the ray caster camera is equal to the output of the usd camera when both are placed
+        under an XForm prim and an intrinsic matrix is set.
+        """
 
         camera_pattern_cfg = patterns.PinholeCameraPatternCfg(
             focal_length=24.0,
