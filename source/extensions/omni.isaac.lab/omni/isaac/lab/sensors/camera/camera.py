@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import math
 import numpy as np
 import re
 import torch
@@ -117,6 +116,9 @@ class Camera(SensorBase):
             rot = torch.tensor(self.cfg.offset.rot, dtype=torch.float32).unsqueeze(0)
             rot_offset = convert_orientation_convention(rot, origin=self.cfg.offset.convention, target="opengl")
             rot_offset = rot_offset.squeeze(0).numpy()
+            # ensure vertical aperture is set, otherwise replace with default for squared pixels
+            if self.cfg.spawn.vertical_aperture is None:
+                self.cfg.spawn.vertical_aperture = self.cfg.spawn.horizontal_aperture * self.cfg.height / self.cfg.width
             # spawn the asset
             self.cfg.spawn.func(
                 self.cfg.prim_path, self.cfg.spawn, translation=self.cfg.offset.pos, orientation=rot_offset
@@ -243,6 +245,12 @@ class Camera(SensorBase):
                 "horizontal_aperture_offset": (c_x - width / 2) / f_x,
                 "vertical_aperture_offset": (c_y - height / 2) / f_y,
             }
+
+            # TODO: Adjust to handle aperture offsets once supported by omniverse
+            #   Internal ticket from rendering team: OM-42611
+            if params["horizontal_aperture_offset"] > 1e-4 or params["vertical_aperture_offset"] > 1e-4:
+                carb.log_warn("Camera aperture offsets are not supported by Omniverse. These parameters are ignored.")
+
             # change data for corresponding camera index
             sensor_prim = self._sensor_prims[i]
             # set parameters for camera
@@ -541,17 +549,21 @@ class Camera(SensorBase):
             # get camera parameters
             focal_length = sensor_prim.GetFocalLengthAttr().Get()
             horiz_aperture = sensor_prim.GetHorizontalApertureAttr().Get()
+            vert_aperture = sensor_prim.GetVerticalApertureAttr().Get()
+            horiz_aperture_offset = sensor_prim.GetHorizontalApertureOffsetAttr().Get()
+            vert_aperture_offset = sensor_prim.GetVerticalApertureOffsetAttr().Get()
             # get viewport parameters
             height, width = self.image_shape
-            # calculate the field of view
-            fov = 2 * math.atan(horiz_aperture / (2 * focal_length))
-            # calculate the focal length in pixels
-            focal_px = width * 0.5 / math.tan(fov / 2)
+            # extract intrinsic parameters
+            f_x = (width * focal_length) / horiz_aperture
+            f_y = (height * focal_length) / vert_aperture
+            c_x = width * 0.5 + horiz_aperture_offset * f_x
+            c_y = height * 0.5 + vert_aperture_offset * f_y
             # create intrinsic matrix for depth linear
-            self._data.intrinsic_matrices[i, 0, 0] = focal_px
-            self._data.intrinsic_matrices[i, 0, 2] = width * 0.5
-            self._data.intrinsic_matrices[i, 1, 1] = focal_px
-            self._data.intrinsic_matrices[i, 1, 2] = height * 0.5
+            self._data.intrinsic_matrices[i, 0, 0] = f_x
+            self._data.intrinsic_matrices[i, 0, 2] = c_x
+            self._data.intrinsic_matrices[i, 1, 1] = f_y
+            self._data.intrinsic_matrices[i, 1, 2] = c_y
             self._data.intrinsic_matrices[i, 2, 2] = 1
 
     def _update_poses(self, env_ids: Sequence[int]):
