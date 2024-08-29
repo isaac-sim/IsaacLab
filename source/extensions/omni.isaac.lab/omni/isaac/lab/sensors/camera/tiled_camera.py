@@ -57,7 +57,11 @@ class TiledCamera(Camera):
     """The configuration parameters."""
 
     SUPPORTED_TYPES: set[str] = {"rgb", "distance_to_camera", "depth"}
-    """The set of sensor types that are supported."""
+    """The set of sensor types that are supported.
+
+    .. note::
+        The ``"depth"`` type is an alias for ``"distance_to_camera"``.
+    """
 
     def __init__(self, cfg: TiledCameraCfg):
         """Initializes the tiled camera sensor.
