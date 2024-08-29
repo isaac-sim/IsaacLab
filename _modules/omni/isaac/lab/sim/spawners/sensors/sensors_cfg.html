@@ -491,6 +491,8 @@ document.write(`
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">annotations</span>
+
 <span class="kn">from</span> <span class="nn">collections.abc</span> <span class="kn">import</span> <span class="n">Callable</span>
 <span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Literal</span>
 
@@ -519,27 +521,32 @@ document.write(`
 <span class="sd">    Note:</span>
 <span class="sd">        Currently only &quot;pinhole&quot; is supported.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+
     <span class="n">clipping_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.01</span><span class="p">,</span> <span class="mf">1e6</span><span class="p">)</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Near and far clipping distances (in m). Defaults to (0.01, 1e6).</span>
 
 <span class="sd">    The minimum clipping range will shift the camera forward by the specified distance. Don&#39;t set it too high to</span>
 <span class="sd">    avoid issues for distance related data types (e.g., ``distance_to_image_plane``).</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+
     <span class="n">focal_length</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">24.0</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Perspective focal length (in cm). Defaults to 24.0cm.</span>
 
 <span class="sd">    Longer lens lengths narrower FOV, shorter lens lengths wider FOV.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+
     <span class="n">focus_distance</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">400.0</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Distance from the camera to the focus plane (in m). Defaults to 400.0.</span>
 
 <span class="sd">    The distance at which perfect sharpness is achieved.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+
     <span class="n">f_stop</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Lens aperture. Defaults to 0.0, which turns off focusing.</span>
 
 <span class="sd">    Controls Distance Blurring. Lower Numbers decrease focus range, larger numbers increase it.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+
     <span class="n">horizontal_aperture</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">20.955</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Horizontal aperture (in mm). Defaults to 20.955mm.</span>
 
@@ -548,16 +555,100 @@ document.write(`
 <span class="sd">    Note:</span>
 <span class="sd">        The default value is the horizontal aperture of a 35 mm spherical projector.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">vertical_aperture</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Vertical aperture (in mm). Defaults to None.</span>
+
+<span class="sd">    Emulates sensor/film height on a camera. If None, then the vertical aperture is calculated based on the</span>
+<span class="sd">    horizontal aperture and the aspect ratio of the image to maintain squared pixels. This is calculated as:</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">        \text{vertical aperture} = \text{horizontal aperture} \times \frac{\text{height}}{\text{width}}</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
     <span class="n">horizontal_aperture_offset</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Offsets Resolution/Film gate horizontally. Defaults to 0.0.&quot;&quot;&quot;</span>
+
     <span class="n">vertical_aperture_offset</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Offsets Resolution/Film gate vertically. Defaults to 0.0.&quot;&quot;&quot;</span>
+
     <span class="n">lock_camera</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Locks the camera in the Omniverse viewport. Defaults to True.</span>
 
 <span class="sd">    If True, then the camera remains fixed at its configured transform. This is useful when wanting to view</span>
 <span class="sd">    the camera output on the GUI and not accidentally moving the camera through the GUI interactions.</span>
-<span class="sd">    &quot;&quot;&quot;</span></div>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">from_intrinsic_matrix</span><span class="p">(</span>
+        <span class="bp">cls</span><span class="p">,</span>
+        <span class="n">intrinsic_matrix</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">],</span>
+        <span class="n">width</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">height</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">clipping_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.01</span><span class="p">,</span> <span class="mf">1e6</span><span class="p">),</span>
+        <span class="n">focal_length</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">24.0</span><span class="p">,</span>
+        <span class="n">focus_distance</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">400.0</span><span class="p">,</span>
+        <span class="n">f_stop</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
+        <span class="n">projection_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;pinhole&quot;</span><span class="p">,</span>
+        <span class="n">lock_camera</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">PinholeCameraCfg</span><span class="p">:</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Create a :class:`PinholeCameraCfg` class instance from an intrinsic matrix.</span>
+
+<span class="sd">        The intrinsic matrix is a 3x3 matrix that defines the mapping between the 3D world coordinates and</span>
+<span class="sd">        the 2D image. The matrix is defined as:</span>
+
+<span class="sd">        .. math::</span>
+<span class="sd">            I_{cam} = \begin{bmatrix}</span>
+<span class="sd">            f_x &amp; 0 &amp; c_x \\</span>
+<span class="sd">            0 &amp; f_y &amp; c_y \\</span>
+<span class="sd">            0 &amp; 0 &amp; 1</span>
+<span class="sd">            \\end{bmatrix},</span>
+
+<span class="sd">        where :math:`f_x` and :math:`f_y` are the focal length along x and y direction, while :math:`c_x` and :math:`c_y` are the</span>
+<span class="sd">        principle point offsets along x and y direction respectively.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            intrinsic_matrix: Intrinsic matrix of the camera in row-major format.</span>
+<span class="sd">                The matrix is defined as [f_x, 0, c_x, 0, f_y, c_y, 0, 0, 1]. Shape is (9,).</span>
+<span class="sd">            width: Width of the image (in pixels).</span>
+<span class="sd">            height: Height of the image (in pixels).</span>
+<span class="sd">            clipping_range: Near and far clipping distances (in m). Defaults to (0.01, 1e6).</span>
+<span class="sd">            focal_length: Perspective focal length (in cm). Defaults to 24.0 cm.</span>
+<span class="sd">            focus_distance: Distance from the camera to the focus plane (in m). Defaults to 400.0 m.</span>
+<span class="sd">            f_stop: Lens aperture. Defaults to 0.0, which turns off focusing.</span>
+<span class="sd">            projection_type: Type of projection to use for the camera. Defaults to &quot;pinhole&quot;.</span>
+<span class="sd">            lock_camera: Locks the camera in the Omniverse viewport. Defaults to True.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            An instance of the :class:`PinholeCameraCfg` class.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># raise not implemented error is projection type is not pinhole</span>
+        <span class="k">if</span> <span class="n">projection_type</span> <span class="o">!=</span> <span class="s2">&quot;pinhole&quot;</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Only pinhole projection type is supported.&quot;</span><span class="p">)</span>
+
+        <span class="c1"># extract parameters from matrix</span>
+        <span class="n">f_x</span> <span class="o">=</span> <span class="n">intrinsic_matrix</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">c_x</span> <span class="o">=</span> <span class="n">intrinsic_matrix</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+        <span class="n">f_y</span> <span class="o">=</span> <span class="n">intrinsic_matrix</span><span class="p">[</span><span class="mi">4</span><span class="p">]</span>
+        <span class="n">c_y</span> <span class="o">=</span> <span class="n">intrinsic_matrix</span><span class="p">[</span><span class="mi">5</span><span class="p">]</span>
+        <span class="c1"># resolve parameters for usd camera</span>
+        <span class="n">horizontal_aperture</span> <span class="o">=</span> <span class="n">width</span> <span class="o">*</span> <span class="n">focal_length</span> <span class="o">/</span> <span class="n">f_x</span>
+        <span class="n">vertical_aperture</span> <span class="o">=</span> <span class="n">height</span> <span class="o">*</span> <span class="n">focal_length</span> <span class="o">/</span> <span class="n">f_y</span>
+        <span class="n">horizontal_aperture_offset</span> <span class="o">=</span> <span class="p">(</span><span class="n">c_x</span> <span class="o">-</span> <span class="n">width</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="o">/</span> <span class="n">f_x</span>
+        <span class="n">vertical_aperture_offset</span> <span class="o">=</span> <span class="p">(</span><span class="n">c_y</span> <span class="o">-</span> <span class="n">height</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="o">/</span> <span class="n">f_y</span>
+
+        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span>
+            <span class="n">projection_type</span><span class="o">=</span><span class="n">projection_type</span><span class="p">,</span>
+            <span class="n">clipping_range</span><span class="o">=</span><span class="n">clipping_range</span><span class="p">,</span>
+            <span class="n">focal_length</span><span class="o">=</span><span class="n">focal_length</span><span class="p">,</span>
+            <span class="n">focus_distance</span><span class="o">=</span><span class="n">focus_distance</span><span class="p">,</span>
+            <span class="n">f_stop</span><span class="o">=</span><span class="n">f_stop</span><span class="p">,</span>
+            <span class="n">horizontal_aperture</span><span class="o">=</span><span class="n">horizontal_aperture</span><span class="p">,</span>
+            <span class="n">vertical_aperture</span><span class="o">=</span><span class="n">vertical_aperture</span><span class="p">,</span>
+            <span class="n">horizontal_aperture_offset</span><span class="o">=</span><span class="n">horizontal_aperture_offset</span><span class="p">,</span>
+            <span class="n">vertical_aperture_offset</span><span class="o">=</span><span class="n">vertical_aperture_offset</span><span class="p">,</span>
+            <span class="n">lock_camera</span><span class="o">=</span><span class="n">lock_camera</span><span class="p">,</span>
+        <span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="FisheyeCameraCfg"><a class="viewcode-back" href="../../../../../../../source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg">[docs]</a><span class="nd">@configclass</span>
@@ -589,26 +680,37 @@ document.write(`
 <span class="sd">    - ``&quot;fisheye_polynomial&quot;``: Fisheye camera model with :math:`360^{\circ}` spherical projection.</span>
 <span class="sd">    - ``&quot;fisheye_spherical&quot;``: Fisheye camera model with :math:`360^{\circ}` full-frame projection.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+
     <span class="n">fisheye_nominal_width</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1936.0</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Nominal width of fisheye lens model (in pixels). Defaults to 1936.0.&quot;&quot;&quot;</span>
+
     <span class="n">fisheye_nominal_height</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1216.0</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Nominal height of fisheye lens model (in pixels). Defaults to 1216.0.&quot;&quot;&quot;</span>
+
     <span class="n">fisheye_optical_centre_x</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">970.94244</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Horizontal optical centre position of fisheye lens model (in pixels). Defaults to 970.94244.&quot;&quot;&quot;</span>
+
     <span class="n">fisheye_optical_centre_y</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">600.37482</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Vertical optical centre position of fisheye lens model (in pixels). Defaults to 600.37482.&quot;&quot;&quot;</span>
+
     <span class="n">fisheye_max_fov</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">200.0</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Maximum field of view of fisheye lens model (in degrees). Defaults to 200.0 degrees.&quot;&quot;&quot;</span>
+
     <span class="n">fisheye_polynomial_a</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;First component of fisheye polynomial. Defaults to 0.0.&quot;&quot;&quot;</span>
+
     <span class="n">fisheye_polynomial_b</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.00245</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Second component of fisheye polynomial. Defaults to 0.00245.&quot;&quot;&quot;</span>
+
     <span class="n">fisheye_polynomial_c</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Third component of fisheye polynomial. Defaults to 0.0.&quot;&quot;&quot;</span>
+
     <span class="n">fisheye_polynomial_d</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Fourth component of fisheye polynomial. Defaults to 0.0.&quot;&quot;&quot;</span>
+
     <span class="n">fisheye_polynomial_e</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Fifth component of fisheye polynomial. Defaults to 0.0.&quot;&quot;&quot;</span>
+
     <span class="n">fisheye_polynomial_f</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Sixth component of fisheye polynomial. Defaults to 0.0.&quot;&quot;&quot;</span></div>
 </pre></div>

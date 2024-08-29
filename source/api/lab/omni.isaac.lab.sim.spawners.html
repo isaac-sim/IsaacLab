@@ -894,6 +894,7 @@ document.write(`
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.focus_distance"><code class="docutils literal notranslate"><span class="pre">PinholeCameraCfg.focus_distance</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.f_stop"><code class="docutils literal notranslate"><span class="pre">PinholeCameraCfg.f_stop</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.horizontal_aperture"><code class="docutils literal notranslate"><span class="pre">PinholeCameraCfg.horizontal_aperture</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.vertical_aperture"><code class="docutils literal notranslate"><span class="pre">PinholeCameraCfg.vertical_aperture</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.horizontal_aperture_offset"><code class="docutils literal notranslate"><span class="pre">PinholeCameraCfg.horizontal_aperture_offset</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.vertical_aperture_offset"><code class="docutils literal notranslate"><span class="pre">PinholeCameraCfg.vertical_aperture_offset</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.lock_camera"><code class="docutils literal notranslate"><span class="pre">PinholeCameraCfg.lock_camera</span></code></a></li>
@@ -912,6 +913,7 @@ document.write(`
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg.focus_distance"><code class="docutils literal notranslate"><span class="pre">FisheyeCameraCfg.focus_distance</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg.f_stop"><code class="docutils literal notranslate"><span class="pre">FisheyeCameraCfg.f_stop</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg.horizontal_aperture"><code class="docutils literal notranslate"><span class="pre">FisheyeCameraCfg.horizontal_aperture</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg.vertical_aperture"><code class="docutils literal notranslate"><span class="pre">FisheyeCameraCfg.vertical_aperture</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg.horizontal_aperture_offset"><code class="docutils literal notranslate"><span class="pre">FisheyeCameraCfg.horizontal_aperture_offset</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg.vertical_aperture_offset"><code class="docutils literal notranslate"><span class="pre">FisheyeCameraCfg.vertical_aperture_offset</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg.lock_camera"><code class="docutils literal notranslate"><span class="pre">FisheyeCameraCfg.lock_camera</span></code></a></li>
@@ -4342,13 +4344,16 @@ function.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.horizontal_aperture" title="omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.horizontal_aperture"><code class="xref py py-obj docutils literal notranslate"><span class="pre">horizontal_aperture</span></code></a></p></td>
 <td><p>Horizontal aperture (in mm).</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.horizontal_aperture_offset" title="omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.horizontal_aperture_offset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">horizontal_aperture_offset</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.vertical_aperture" title="omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.vertical_aperture"><code class="xref py py-obj docutils literal notranslate"><span class="pre">vertical_aperture</span></code></a></p></td>
+<td><p>Vertical aperture (in mm).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.horizontal_aperture_offset" title="omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.horizontal_aperture_offset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">horizontal_aperture_offset</span></code></a></p></td>
 <td><p>Offsets Resolution/Film gate horizontally.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.vertical_aperture_offset" title="omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.vertical_aperture_offset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">vertical_aperture_offset</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.vertical_aperture_offset" title="omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.vertical_aperture_offset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">vertical_aperture_offset</span></code></a></p></td>
 <td><p>Offsets Resolution/Film gate vertically.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.lock_camera" title="omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.lock_camera"><code class="xref py py-obj docutils literal notranslate"><span class="pre">lock_camera</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.lock_camera" title="omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.lock_camera"><code class="xref py py-obj docutils literal notranslate"><span class="pre">lock_camera</span></code></a></p></td>
 <td><p>Locks the camera in the Omniverse viewport.</p></td>
 </tr>
 </tbody>
@@ -4402,6 +4407,16 @@ avoid issues for distance related data types (e.g., <code class="docutils litera
 <p class="admonition-title">Note</p>
 <p>The default value is the horizontal aperture of a 35 mm spherical projector.</p>
 </div>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.vertical_aperture">
+<span class="sig-name descname"><span class="pre">vertical_aperture</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.vertical_aperture" title="Permalink to this definition">#</a></dt>
+<dd><p>Vertical aperture (in mm). Defaults to None.</p>
+<p>Emulates sensor/film height on a camera. If None, then the vertical aperture is calculated based on the
+horizontal aperture and the aspect ratio of the image to maintain squared pixels. This is calculated as:</p>
+<div class="math notranslate nohighlight">
+\[\text{vertical aperture} = \text{horizontal aperture} \times \frac{\text{height}}{\text{width}}\]</div>
 </dd></dl>
 
 <dl class="py attribute">
@@ -4603,6 +4618,16 @@ avoid issues for distance related data types (e.g., <code class="docutils litera
 <p class="admonition-title">Note</p>
 <p>The default value is the horizontal aperture of a 35 mm spherical projector.</p>
 </div>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg.vertical_aperture">
+<span class="sig-name descname"><span class="pre">vertical_aperture</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg.vertical_aperture" title="Permalink to this definition">#</a></dt>
+<dd><p>Vertical aperture (in mm). Defaults to None.</p>
+<p>Emulates sensor/film height on a camera. If None, then the vertical aperture is calculated based on the
+horizontal aperture and the aspect ratio of the image to maintain squared pixels. This is calculated as:</p>
+<div class="math notranslate nohighlight">
+\[\text{vertical aperture} = \text{horizontal aperture} \times \frac{\text{height}}{\text{width}}\]</div>
 </dd></dl>
 
 <dl class="py attribute">
@@ -6288,6 +6313,7 @@ to special effects that look similar to water filled soft bodies.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.focus_distance"><code class="docutils literal notranslate"><span class="pre">PinholeCameraCfg.focus_distance</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.f_stop"><code class="docutils literal notranslate"><span class="pre">PinholeCameraCfg.f_stop</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.horizontal_aperture"><code class="docutils literal notranslate"><span class="pre">PinholeCameraCfg.horizontal_aperture</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.vertical_aperture"><code class="docutils literal notranslate"><span class="pre">PinholeCameraCfg.vertical_aperture</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.horizontal_aperture_offset"><code class="docutils literal notranslate"><span class="pre">PinholeCameraCfg.horizontal_aperture_offset</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.vertical_aperture_offset"><code class="docutils literal notranslate"><span class="pre">PinholeCameraCfg.vertical_aperture_offset</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.lock_camera"><code class="docutils literal notranslate"><span class="pre">PinholeCameraCfg.lock_camera</span></code></a></li>
@@ -6306,6 +6332,7 @@ to special effects that look similar to water filled soft bodies.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg.focus_distance"><code class="docutils literal notranslate"><span class="pre">FisheyeCameraCfg.focus_distance</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg.f_stop"><code class="docutils literal notranslate"><span class="pre">FisheyeCameraCfg.f_stop</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg.horizontal_aperture"><code class="docutils literal notranslate"><span class="pre">FisheyeCameraCfg.horizontal_aperture</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg.vertical_aperture"><code class="docutils literal notranslate"><span class="pre">FisheyeCameraCfg.vertical_aperture</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg.horizontal_aperture_offset"><code class="docutils literal notranslate"><span class="pre">FisheyeCameraCfg.horizontal_aperture_offset</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg.vertical_aperture_offset"><code class="docutils literal notranslate"><span class="pre">FisheyeCameraCfg.vertical_aperture_offset</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg.lock_camera"><code class="docutils literal notranslate"><span class="pre">FisheyeCameraCfg.lock_camera</span></code></a></li>

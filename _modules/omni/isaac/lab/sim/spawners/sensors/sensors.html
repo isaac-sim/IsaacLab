@@ -495,6 +495,7 @@ document.write(`
 
 <span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
 
+<span class="kn">import</span> <span class="nn">carb</span>
 <span class="kn">import</span> <span class="nn">omni.isaac.core.utils.prims</span> <span class="k">as</span> <span class="nn">prim_utils</span>
 <span class="kn">import</span> <span class="nn">omni.kit.commands</span>
 <span class="kn">from</span> <span class="nn">pxr</span> <span class="kn">import</span> <span class="n">Sdf</span><span class="p">,</span> <span class="n">Usd</span>
@@ -587,9 +588,21 @@ document.write(`
         <span class="n">attribute_types</span> <span class="o">=</span> <span class="n">CUSTOM_PINHOLE_CAMERA_ATTRIBUTES</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">attribute_types</span> <span class="o">=</span> <span class="n">CUSTOM_FISHEYE_CAMERA_ATTRIBUTES</span>
-    <span class="c1"># custom attributes in the config that are not USD Camera parameters</span>
-    <span class="n">non_usd_cfg_param_names</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;func&quot;</span><span class="p">,</span> <span class="s2">&quot;copy_from_source&quot;</span><span class="p">,</span> <span class="s2">&quot;lock_camera&quot;</span><span class="p">,</span> <span class="s2">&quot;visible&quot;</span><span class="p">,</span> <span class="s2">&quot;semantic_tags&quot;</span><span class="p">]</span>
 
+    <span class="c1"># TODO: Adjust to handle aperture offsets once supported by omniverse</span>
+    <span class="c1">#   Internal ticket from rendering team: OM-42611</span>
+    <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">horizontal_aperture_offset</span> <span class="o">&gt;</span> <span class="mf">1e-4</span> <span class="ow">or</span> <span class="n">cfg</span><span class="o">.</span><span class="n">vertical_aperture_offset</span> <span class="o">&gt;</span> <span class="mf">1e-4</span><span class="p">:</span>
+        <span class="n">carb</span><span class="o">.</span><span class="n">log_warn</span><span class="p">(</span><span class="s2">&quot;Camera aperture offsets are not supported by Omniverse. These parameters will be ignored.&quot;</span><span class="p">)</span>
+
+    <span class="c1"># custom attributes in the config that are not USD Camera parameters</span>
+    <span class="n">non_usd_cfg_param_names</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="s2">&quot;func&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;copy_from_source&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;lock_camera&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;visible&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;semantic_tags&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;from_intrinsic_matrix&quot;</span><span class="p">,</span>
+    <span class="p">]</span>
     <span class="c1"># get camera prim</span>
     <span class="n">prim</span> <span class="o">=</span> <span class="n">prim_utils</span><span class="o">.</span><span class="n">get_prim_at_path</span><span class="p">(</span><span class="n">prim_path</span><span class="p">)</span>
     <span class="c1"># create attributes for the fisheye camera model</span>

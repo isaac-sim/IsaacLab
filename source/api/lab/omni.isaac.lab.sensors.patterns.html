@@ -574,6 +574,7 @@ document.write(`
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg"><code class="docutils literal notranslate"><span class="pre">PinholeCameraPatternCfg</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.focal_length"><code class="docutils literal notranslate"><span class="pre">PinholeCameraPatternCfg.focal_length</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.horizontal_aperture"><code class="docutils literal notranslate"><span class="pre">PinholeCameraPatternCfg.horizontal_aperture</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.vertical_aperture"><code class="docutils literal notranslate"><span class="pre">PinholeCameraPatternCfg.vertical_aperture</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.horizontal_aperture_offset"><code class="docutils literal notranslate"><span class="pre">PinholeCameraPatternCfg.horizontal_aperture_offset</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.vertical_aperture_offset"><code class="docutils literal notranslate"><span class="pre">PinholeCameraPatternCfg.vertical_aperture_offset</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.width"><code class="docutils literal notranslate"><span class="pre">PinholeCameraPatternCfg.width</span></code></a></li>
@@ -795,16 +796,19 @@ matrices of the cameras, which is not possible with the standard pattern interfa
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.horizontal_aperture" title="omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.horizontal_aperture"><code class="xref py py-obj docutils literal notranslate"><span class="pre">horizontal_aperture</span></code></a></p></td>
 <td><p>Horizontal aperture (in mm).</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.horizontal_aperture_offset" title="omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.horizontal_aperture_offset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">horizontal_aperture_offset</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.vertical_aperture" title="omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.vertical_aperture"><code class="xref py py-obj docutils literal notranslate"><span class="pre">vertical_aperture</span></code></a></p></td>
+<td><p>Vertical aperture (in mm).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.horizontal_aperture_offset" title="omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.horizontal_aperture_offset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">horizontal_aperture_offset</span></code></a></p></td>
 <td><p>Offsets Resolution/Film gate horizontally.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.vertical_aperture_offset" title="omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.vertical_aperture_offset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">vertical_aperture_offset</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.vertical_aperture_offset" title="omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.vertical_aperture_offset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">vertical_aperture_offset</span></code></a></p></td>
 <td><p>Offsets Resolution/Film gate vertically.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.width" title="omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.width"><code class="xref py py-obj docutils literal notranslate"><span class="pre">width</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.width" title="omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.width"><code class="xref py py-obj docutils literal notranslate"><span class="pre">width</span></code></a></p></td>
 <td><p>Width of the image (in pixels).</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.height" title="omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.height"><code class="xref py py-obj docutils literal notranslate"><span class="pre">height</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.height" title="omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.height"><code class="xref py py-obj docutils literal notranslate"><span class="pre">height</span></code></a></p></td>
 <td><p>Height of the image (in pixels).</p></td>
 </tr>
 </tbody>
@@ -826,6 +830,18 @@ matrices of the cameras, which is not possible with the standard pattern interfa
 <p class="admonition-title">Note</p>
 <p>The default value is the horizontal aperture of a 35 mm spherical projector.</p>
 </div>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.vertical_aperture">
+<span class="sig-name descname"><span class="pre">vertical_aperture</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.vertical_aperture" title="Permalink to this definition">#</a></dt>
+<dd><p>Vertical aperture (in mm). Defaults to None.</p>
+<p>Emulates sensor/film height on a camera. If None, then the vertical aperture is calculated based on the
+horizontal aperture and the aspect ratio of the image to maintain squared pixels. In this case, the vertical
+aperture is calculated as:</p>
+<div class="math notranslate nohighlight">
+\[ext{vertical aperture} =        ext{horizontal aperture}        imes\]</div>
+<p>rac{      ext{height}}{   ext{width}}</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -1059,6 +1075,7 @@ are not evenly spaced.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg"><code class="docutils literal notranslate"><span class="pre">PinholeCameraPatternCfg</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.focal_length"><code class="docutils literal notranslate"><span class="pre">PinholeCameraPatternCfg.focal_length</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.horizontal_aperture"><code class="docutils literal notranslate"><span class="pre">PinholeCameraPatternCfg.horizontal_aperture</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.vertical_aperture"><code class="docutils literal notranslate"><span class="pre">PinholeCameraPatternCfg.vertical_aperture</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.horizontal_aperture_offset"><code class="docutils literal notranslate"><span class="pre">PinholeCameraPatternCfg.horizontal_aperture_offset</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.vertical_aperture_offset"><code class="docutils literal notranslate"><span class="pre">PinholeCameraPatternCfg.vertical_aperture_offset</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.width"><code class="docutils literal notranslate"><span class="pre">PinholeCameraPatternCfg.width</span></code></a></li>
