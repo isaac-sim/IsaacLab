@@ -73,17 +73,6 @@ class PinholeCameraCfg(SpawnerCfg):
     """
 
     vertical_aperture: float | None = None
-    """Vertical aperture (in mm). Defaults to None.
-
-    Emulates sensor/film height on a camera. If None, then the vertical aperture is calculated based on the
-    horizontal aperture and the aspect ratio of the image to maintain squared pixels. In this case, the vertical
-    aperture is calculated as:
-
-    .. math::
-        \text{vertical aperture} = \text{horizontal aperture} \times \frac{\text{height}}{\text{width}}
-    """
-
-    vertical_aperture: float | None = None
     r"""Vertical aperture (in mm). Defaults to None.
 
     Emulates sensor/film height on a camera. If None, then the vertical aperture is calculated based on the
