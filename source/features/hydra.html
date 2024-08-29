@@ -57,7 +57,7 @@
     <link rel="prev" title="Task Design Workflows" href="task_workflows.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Aug 24, 2024"/>
+    <meta name="docbuild:last-update" content="Aug 29, 2024"/>
   </head>
   
   
@@ -577,7 +577,7 @@ Similarly, the agent’s parameters can be modified by using the <code class="do
 <p class="admonition-title">Note</p>
 <p>The way these command line arguments are set follow the exact structure of the configuration files. Since the different
 RL frameworks use different conventions, there might be differences in the way the parameters are set. For example,
-with <cite>rl_games</cite> the seed will be set with <code class="docutils literal notranslate"><span class="pre">agent.params.seed</span></code>, while with <cite>rsl_rl</cite> and <cite>skrl</cite> it will be set with
+with <cite>rl_games</cite> the seed will be set with <code class="docutils literal notranslate"><span class="pre">agent.params.seed</span></code>, while with <cite>rsl_rl</cite>, <cite>skrl</cite> and <cite>sb3</cite> it will be set with
 <code class="docutils literal notranslate"><span class="pre">agent.seed</span></code>.</p>
 </div>
 <p>As a result, training with hydra arguments can be run with the following syntax:</p>
@@ -600,6 +600,13 @@ rl_games</label><div class="sd-tab-content docutils">
 <label class="sd-tab-label" data-sync-group="rl-train" data-sync-id="skrl" for="sd-tab-item-2">
 skrl</label><div class="sd-tab-content docutils">
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>source/standalone/workflows/skrl/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>env.actions.joint_effort.scale<span class="o">=</span><span class="m">10</span>.0<span class="w"> </span>agent.seed<span class="o">=</span><span class="m">2024</span>
+</pre></div>
+</div>
+</div>
+<input id="sd-tab-item-3" name="sd-tab-set-0" type="radio">
+<label class="sd-tab-label" data-sync-group="rl-train" data-sync-id="sb3" for="sd-tab-item-3">
+sb3</label><div class="sd-tab-content docutils">
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>source/standalone/workflows/sb3/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>env.actions.joint_effort.scale<span class="o">=</span><span class="m">10</span>.0<span class="w"> </span>agent.seed<span class="o">=</span><span class="m">2024</span>
 </pre></div>
 </div>
 </div>
@@ -831,7 +838,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Aug 24, 2024.
+  Last updated on Aug 29, 2024.
   <br/>
 </p>
   </div>
