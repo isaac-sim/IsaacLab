@@ -648,9 +648,11 @@ class TestWarpCamera(unittest.TestCase):
             atol=1e-4,
         )
 
-    def test_output_equal_to_usdcamera_intrinsics(self):
-        """Test that the output of the ray caster camera is equal to the output of the usd camera when both are
-        initialized with the same intrinsic matrix."""
+    def test_output_equal_to_usd_camera_intrinsics(self):
+        """
+        Test that the output of the ray caster camera and usd camera are the same when both are
+        initialized with the same intrinsic matrix.
+        """
 
         # create cameras
         offset_rot = [-0.1251, 0.3617, 0.8731, -0.3020]
