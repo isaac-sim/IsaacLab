@@ -185,7 +185,7 @@ class DirectRLEnv(gym.Env):
                 self.event_manager.apply(mode="startup")
 
         # -- set the framerate of the gym video recorder wrapper so that the playback speed of the produced video matches the simulation
-        self.metadata["render_fps"] = 1 / (self.cfg.decimation * self.cfg.sim.dt)
+        self.metadata["render_fps"] = 1 / self.step_dt
 
         # print the environment information
         print("[INFO]: Completed setting up the environment...")
