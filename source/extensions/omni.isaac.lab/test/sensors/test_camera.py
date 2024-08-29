@@ -232,6 +232,7 @@ class TestCamera(unittest.TestCase):
                     self.assertEqual(im_data.shape, (1, self.camera_cfg.height, self.camera_cfg.width))
 
     def test_camera_init_intrinsic_matrix(self):
+        """Test camera initialization from intrinsic matrix."""
         # get the first camera
         camera_1 = Camera(cfg=self.camera_cfg)
         # get intrinsic matrix

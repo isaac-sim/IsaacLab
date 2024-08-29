@@ -79,6 +79,7 @@ class PinholeCameraPatternCfg(PatternBaseCfg):
 
     Longer lens lengths narrower FOV, shorter lens lengths wider FOV.
     """
+
     horizontal_aperture: float = 20.955
     """Horizontal aperture (in mm). Defaults to 20.955mm.
 
@@ -87,6 +88,7 @@ class PinholeCameraPatternCfg(PatternBaseCfg):
     Note:
         The default value is the horizontal aperture of a 35 mm spherical projector.
     """
+
     vertical_aperture: float | None = None
     """Vertical aperture (in mm). Defaults to None.
 
@@ -97,46 +99,51 @@ class PinholeCameraPatternCfg(PatternBaseCfg):
     .. math::
         \text{vertical aperture} = \text{horizontal aperture} \times \frac{\text{height}}{\text{width}}
     """
+
     horizontal_aperture_offset: float = 0.0
     """Offsets Resolution/Film gate horizontally. Defaults to 0.0."""
+
     vertical_aperture_offset: float = 0.0
     """Offsets Resolution/Film gate vertically. Defaults to 0.0."""
+
     width: int = MISSING
     """Width of the image (in pixels)."""
+
     height: int = MISSING
     """Height of the image (in pixels)."""
 
     @classmethod
     def from_intrinsic_matrix(
         cls,
-        focal_length: float,
         intrinsic_matrix: list[float],
         width: int,
         height: int,
+        focal_length: float = 24.0,
     ) -> PinholeCameraPatternCfg:
-        r"""Create an :class:`PinholeCameraPatternCfg` instance from an intrinsic matrix.
+        r"""Create a :class:`PinholeCameraPatternCfg` class instance from an intrinsic matrix.
 
         The intrinsic matrix is a 3x3 matrix that defines the mapping between the 3D world coordinates and
         the 2D image. The matrix is defined as:
 
         .. math::
-            \begin{bmatrix}
+            I_{cam} = \begin{bmatrix}
             f_x & 0 & c_x \\
             0 & f_y & c_y \\
             0 & 0 & 1
-            \end{bmatrix}
+            \end{bmatrix},
 
         where :math:`f_x` and :math:`f_y` are the focal length along x and y direction, while :math:`c_x` and :math:`c_y` are the
         principle point offsets along x and y direction respectively.
 
         Args:
-            focal_length: Focal length of the camera (in cm).
-            intrinsic_matrix: Intrinsic matrix of the camera in row-major format. Shape is (9,).
+            intrinsic_matrix: Intrinsic matrix of the camera in row-major format.
+                The matrix is defined as [f_x, 0, c_x, 0, f_y, c_y, 0, 0, 1]. Shape is (9,).
             width: Width of the image (in pixels).
             height: Height of the image (in pixels).
+            focal_length: Focal length of the camera (in cm). Defaults to 24.0 cm.
 
         Returns:
-            PinholeCameraPatternCfg: The configuration for the pinhole camera pattern.
+            An instance of the :class:`PinholeCameraPatternCfg` class.
         """
         # extract parameters from matrix
         f_x = intrinsic_matrix[0]

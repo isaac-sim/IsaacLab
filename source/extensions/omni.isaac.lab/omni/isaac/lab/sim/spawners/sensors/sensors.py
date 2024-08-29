@@ -100,6 +100,12 @@ def spawn_camera(
         attribute_types = CUSTOM_PINHOLE_CAMERA_ATTRIBUTES
     else:
         attribute_types = CUSTOM_FISHEYE_CAMERA_ATTRIBUTES
+
+    # TODO: Adjust to handle aperture offsets once supported by omniverse
+    #   Internal ticket from rendering team: OM-42611
+    if cfg.horizontal_aperture_offset > 1e-4 or cfg.vertical_aperture_offset > 1e-4:
+        carb.log_warn("Camera aperture offsets are not supported by Omniverse. These parameters will be ignored.")
+
     # custom attributes in the config that are not USD Camera parameters
     non_usd_cfg_param_names = [
         "func",
@@ -109,11 +115,6 @@ def spawn_camera(
         "semantic_tags",
         "from_intrinsic_matrix",
     ]
-
-    # TODO: Adjust to handle aperture offsets once supported by omniverse
-    if cfg.horizontal_aperture_offset > 1e-4 or cfg.vertical_aperture_offset > 1e-4:
-        carb.log_warn("[WARNING]: Aperture offsets are not supported by Omniverse cameras. Ignoring offsets.")
-
     # get camera prim
     prim = prim_utils.get_prim_at_path(prim_path)
     # create attributes for the fisheye camera model
