@@ -69,11 +69,10 @@ class PinholeCameraCfg(SpawnerCfg):
     """
 
     vertical_aperture: float | None = None
-    """Vertical aperture (in mm). Defaults to None.
+    r"""Vertical aperture (in mm). Defaults to None.
 
     Emulates sensor/film height on a camera. If None, then the vertical aperture is calculated based on the
-    horizontal aperture and the aspect ratio of the image to maintain squared pixels. In this case, the vertical
-    aperture is calculated as:
+    horizontal aperture and the aspect ratio of the image to maintain squared pixels. This is calculated as:
 
     .. math::
         \text{vertical aperture} = \text{horizontal aperture} \times \frac{\text{height}}{\text{width}}
@@ -193,25 +192,36 @@ class FisheyeCameraCfg(PinholeCameraCfg):
     - ``"fisheye_polynomial"``: Fisheye camera model with :math:`360^{\circ}` spherical projection.
     - ``"fisheye_spherical"``: Fisheye camera model with :math:`360^{\circ}` full-frame projection.
     """
+
     fisheye_nominal_width: float = 1936.0
     """Nominal width of fisheye lens model (in pixels). Defaults to 1936.0."""
+
     fisheye_nominal_height: float = 1216.0
     """Nominal height of fisheye lens model (in pixels). Defaults to 1216.0."""
+
     fisheye_optical_centre_x: float = 970.94244
     """Horizontal optical centre position of fisheye lens model (in pixels). Defaults to 970.94244."""
+
     fisheye_optical_centre_y: float = 600.37482
     """Vertical optical centre position of fisheye lens model (in pixels). Defaults to 600.37482."""
+
     fisheye_max_fov: float = 200.0
     """Maximum field of view of fisheye lens model (in degrees). Defaults to 200.0 degrees."""
+
     fisheye_polynomial_a: float = 0.0
     """First component of fisheye polynomial. Defaults to 0.0."""
+
     fisheye_polynomial_b: float = 0.00245
     """Second component of fisheye polynomial. Defaults to 0.00245."""
+
     fisheye_polynomial_c: float = 0.0
     """Third component of fisheye polynomial. Defaults to 0.0."""
+
     fisheye_polynomial_d: float = 0.0
     """Fourth component of fisheye polynomial. Defaults to 0.0."""
+
     fisheye_polynomial_e: float = 0.0
     """Fifth component of fisheye polynomial. Defaults to 0.0."""
+
     fisheye_polynomial_f: float = 0.0
     """Sixth component of fisheye polynomial. Defaults to 0.0."""
