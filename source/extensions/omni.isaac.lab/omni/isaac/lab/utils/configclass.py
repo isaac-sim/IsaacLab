@@ -113,6 +113,9 @@ These are redefined here to add new docstrings.
 def _class_to_dict(obj: object) -> dict[str, Any]:
     """Convert an object into dictionary recursively.
 
+    Args:
+        obj: The object to convert.
+
     Returns:
         Converted dictionary mapping.
     """
@@ -125,6 +128,7 @@ def _update_class_from_dict(obj, data: dict[str, Any]) -> None:
     This function performs in-place update of the class member attributes.
 
     Args:
+        obj: The object to update.
         data: Input (nested) dictionary to update from.
 
     Raises:
@@ -132,7 +136,7 @@ def _update_class_from_dict(obj, data: dict[str, Any]) -> None:
         ValueError: When dictionary has a value that does not match default config type.
         KeyError: When dictionary has a key that does not exist in the default config type.
     """
-    return update_class_from_dict(obj, data, _ns="")
+    update_class_from_dict(obj, data, _ns="")
 
 
 def _replace_class_with_kwargs(obj: object, **kwargs) -> object:

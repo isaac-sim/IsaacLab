@@ -172,17 +172,20 @@ class DirectRLEnv(gym.Env):
         # setup noise cfg for adding action and observation noise
         if self.cfg.action_noise_model:
             self._action_noise_model: NoiseModel = self.cfg.action_noise_model.class_type(
-                self.num_envs, self.cfg.action_noise_model, self.device
+                self.cfg.action_noise_model, num_envs=self.num_envs, device=self.device
             )
         if self.cfg.observation_noise_model:
             self._observation_noise_model: NoiseModel = self.cfg.observation_noise_model.class_type(
-                self.num_envs, self.cfg.observation_noise_model, self.device
+                self.cfg.observation_noise_model, num_envs=self.num_envs, device=self.device
             )
 
         # perform events at the start of the simulation
         if self.cfg.events:
             if "startup" in self.event_manager.available_modes:
                 self.event_manager.apply(mode="startup")
+
+        # -- set the framerate of the gym video recorder wrapper so that the playback speed of the produced video matches the simulation
+        self.metadata["render_fps"] = 1 / self.step_dt
 
         # print the environment information
         print("[INFO]: Completed setting up the environment...")

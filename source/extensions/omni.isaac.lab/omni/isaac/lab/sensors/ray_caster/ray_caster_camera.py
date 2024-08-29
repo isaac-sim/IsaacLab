@@ -264,7 +264,12 @@ class RayCasterCamera(RayCaster):
         ray_starts_w = math_utils.quat_apply(quat_w.repeat(1, self.num_rays), self.ray_starts[env_ids])
         ray_starts_w += pos_w.unsqueeze(1)
         ray_directions_w = math_utils.quat_apply(quat_w.repeat(1, self.num_rays), self.ray_directions[env_ids])
+
         # ray cast and store the hits
+        # note: we set max distance to 1e6 during the ray-casting. THis is because we clip the distance
+        # to the image plane and distance to the camera to the maximum distance afterwards in-order to
+        # match the USD camera behavior.
+
         # TODO: Make ray-casting work for multiple meshes?
         # necessary for regular dictionaries.
         self.ray_hits_w, ray_depth, ray_normal, _ = raycast_mesh(
@@ -292,12 +297,14 @@ class RayCasterCamera(RayCaster):
             elif self.cfg.clipping_behavior == "zero":
                 distance_to_image_plane[distance_to_image_plane > self.cfg.max_distance] = 0.0
             self._data.output["distance_to_image_plane"][env_ids] = distance_to_image_plane.view(-1, *self.image_shape)
+        
         if "distance_to_camera" in self.cfg.data_types:
             if self.cfg.clipping_behavior == "max":
                 ray_depth = torch.clip(ray_depth, max=self.cfg.max_distance)
             elif self.cfg.clipping_behavior == "zero":
                 ray_depth[ray_depth > self.cfg.max_distance] = 0.0
             self._data.output["distance_to_camera"][env_ids] = ray_depth.view(-1, *self.image_shape)
+        
         if "normals" in self.cfg.data_types:
             self._data.output["normals"][env_ids] = ray_normal.view(-1, *self.image_shape, 3)
 
@@ -355,9 +362,13 @@ class RayCasterCamera(RayCaster):
         """Computes the intrinsic matrices for the camera based on the config provided."""
         # get the sensor properties
         pattern_cfg = self.cfg.pattern_cfg
-        # compute the intrinsic matrix
+
+        # check if vertical aperture is provided
+        # if not then it is auto-computed based on the aspect ratio to preserve squared pixels
         if pattern_cfg.vertical_aperture is None:
             pattern_cfg.vertical_aperture = pattern_cfg.horizontal_aperture * pattern_cfg.height / pattern_cfg.width
+
+        # compute the intrinsic matrix
         f_x = pattern_cfg.width * pattern_cfg.focal_length / pattern_cfg.horizontal_aperture
         f_y = pattern_cfg.height * pattern_cfg.focal_length / pattern_cfg.vertical_aperture
         c_x = pattern_cfg.horizontal_aperture_offset * f_x + pattern_cfg.width / 2

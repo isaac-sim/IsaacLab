@@ -142,6 +142,12 @@ This should open a stage with a ground plane, lights, and several green cones. T
 a random height and settling on to the ground. To stop the simulation, you can either close the window, or press
 the ``STOP`` button in the UI, or press ``Ctrl+C`` in the terminal
 
+.. figure:: ../../_static/tutorials/tutorial_run_rigid_object.jpg
+    :align: center
+    :figwidth: 100%
+    :alt: result of run_rigid_object.py
+
+
 This tutorial showed how to spawn rigid objects and wrap them in a :class:`RigidObject` class to initialize their
 physics handles which allows setting and obtaining their state. In the next tutorial, we will see how to interact
 with an articulated object which is a collection of rigid objects connected by joints.

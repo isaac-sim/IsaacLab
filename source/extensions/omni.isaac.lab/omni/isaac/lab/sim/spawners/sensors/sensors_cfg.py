@@ -33,27 +33,32 @@ class PinholeCameraCfg(SpawnerCfg):
     Note:
         Currently only "pinhole" is supported.
     """
+
     clipping_range: tuple[float, float] = (0.01, 1e6)
     """Near and far clipping distances (in m). Defaults to (0.01, 1e6).
 
     The minimum clipping range will shift the camera forward by the specified distance. Don't set it too high to
     avoid issues for distance related data types (e.g., ``distance_to_image_plane``).
     """
+
     focal_length: float = 24.0
     """Perspective focal length (in cm). Defaults to 24.0cm.
 
     Longer lens lengths narrower FOV, shorter lens lengths wider FOV.
     """
+
     focus_distance: float = 400.0
     """Distance from the camera to the focus plane (in m). Defaults to 400.0.
 
     The distance at which perfect sharpness is achieved.
     """
+
     f_stop: float = 0.0
     """Lens aperture. Defaults to 0.0, which turns off focusing.
 
     Controls Distance Blurring. Lower Numbers decrease focus range, larger numbers increase it.
     """
+
     horizontal_aperture: float = 20.955
     """Horizontal aperture (in mm). Defaults to 20.955mm.
 
@@ -62,20 +67,23 @@ class PinholeCameraCfg(SpawnerCfg):
     Note:
         The default value is the horizontal aperture of a 35 mm spherical projector.
     """
+
     vertical_aperture: float | None = None
-    """Vertical aperture (in mm). Defaults to None.
+    r"""Vertical aperture (in mm). Defaults to None.
 
     Emulates sensor/film height on a camera. If None, then the vertical aperture is calculated based on the
-    horizontal aperture and the aspect ratio of the image to maintain squared pixels. In this case, the vertical
-    aperture is calculated as:
+    horizontal aperture and the aspect ratio of the image to maintain squared pixels. This is calculated as:
 
     .. math::
         \text{vertical aperture} = \text{horizontal aperture} \times \frac{\text{height}}{\text{width}}
     """
+    
     horizontal_aperture_offset: float = 0.0
     """Offsets Resolution/Film gate horizontally. Defaults to 0.0."""
+
     vertical_aperture_offset: float = 0.0
     """Offsets Resolution/Film gate vertically. Defaults to 0.0."""
+
     lock_camera: bool = True
     """Locks the camera in the Omniverse viewport. Defaults to True.
 
@@ -89,47 +97,42 @@ class PinholeCameraCfg(SpawnerCfg):
         intrinsic_matrix: list[float],
         width: int,
         height: int,
-        projection_type: str = "pinhole",
         clipping_range: tuple[float, float] = (0.01, 1e6),
         focal_length: float = 24.0,
         focus_distance: float = 400.0,
         f_stop: float = 0.0,
-        horizontal_aperture: float = 20.955,
-        horizontal_aperture_offset: float = 0.0,
-        vertical_aperture_offset: float = 0.0,
+        projection_type: str = "pinhole",
         lock_camera: bool = True,
     ) -> PinholeCameraCfg:
-        """Create a :class:`PinholeCameraCfg` from an intrinsic matrix.
+        r"""Create a :class:`PinholeCameraCfg` class instance from an intrinsic matrix.
 
         The intrinsic matrix is a 3x3 matrix that defines the mapping between the 3D world coordinates and
         the 2D image. The matrix is defined as:
 
         .. math::
-            \begin{bmatrix}
+            I_{cam} = \begin{bmatrix}
             f_x & 0 & c_x \\
             0 & f_y & c_y \\
             0 & 0 & 1
-            \\end{bmatrix}
+            \\end{bmatrix},
 
         where :math:`f_x` and :math:`f_y` are the focal length along x and y direction, while :math:`c_x` and :math:`c_y` are the
         principle point offsets along x and y direction respectively.
 
         Args:
-            intrinsic_matrix: Intrinsic matrix of the camera in row-major format. Shape is (9,).
+            intrinsic_matrix: Intrinsic matrix of the camera in row-major format.
+                The matrix is defined as [f_x, 0, c_x, 0, f_y, c_y, 0, 0, 1]. Shape is (9,).
             width: Width of the image (in pixels).
             height: Height of the image (in pixels).
-            projection_type: Type of projection to use for the camera. Defaults to "pinhole".
             clipping_range: Near and far clipping distances (in m). Defaults to (0.01, 1e6).
-            focal_length: Perspective focal length (in cm). Defaults to 24.0cm.
-            focus_distance: Distance from the camera to the focus plane (in m). Defaults to 400.0.
+            focal_length: Perspective focal length (in cm). Defaults to 24.0 cm.
+            focus_distance: Distance from the camera to the focus plane (in m). Defaults to 400.0 m.
             f_stop: Lens aperture. Defaults to 0.0, which turns off focusing.
-            horizontal_aperture: Horizontal aperture (in mm). Defaults to 20.955mm.
-            horizontal_aperture_offset: Offsets Resolution horizontally. Defaults to 0.0.
-            vertical_aperture_offset: Offsets Resolution vertically. Defaults to 0.0.
+            projection_type: Type of projection to use for the camera. Defaults to "pinhole".
             lock_camera: Locks the camera in the Omniverse viewport. Defaults to True.
 
         Returns:
-            PinholeCameraCfg: The configuration for the pinhole camera pattern.
+            An instance of the :class:`PinholeCameraCfg` class.
         """
         # raise not implemented error is projection type is not pinhole
         if projection_type != "pinhole":
@@ -189,25 +192,36 @@ class FisheyeCameraCfg(PinholeCameraCfg):
     - ``"fisheye_polynomial"``: Fisheye camera model with :math:`360^{\circ}` spherical projection.
     - ``"fisheye_spherical"``: Fisheye camera model with :math:`360^{\circ}` full-frame projection.
     """
+
     fisheye_nominal_width: float = 1936.0
     """Nominal width of fisheye lens model (in pixels). Defaults to 1936.0."""
+
     fisheye_nominal_height: float = 1216.0
     """Nominal height of fisheye lens model (in pixels). Defaults to 1216.0."""
+
     fisheye_optical_centre_x: float = 970.94244
     """Horizontal optical centre position of fisheye lens model (in pixels). Defaults to 970.94244."""
+
     fisheye_optical_centre_y: float = 600.37482
     """Vertical optical centre position of fisheye lens model (in pixels). Defaults to 600.37482."""
+
     fisheye_max_fov: float = 200.0
     """Maximum field of view of fisheye lens model (in degrees). Defaults to 200.0 degrees."""
+
     fisheye_polynomial_a: float = 0.0
     """First component of fisheye polynomial. Defaults to 0.0."""
+
     fisheye_polynomial_b: float = 0.00245
     """Second component of fisheye polynomial. Defaults to 0.00245."""
+
     fisheye_polynomial_c: float = 0.0
     """Third component of fisheye polynomial. Defaults to 0.0."""
+
     fisheye_polynomial_d: float = 0.0
     """Fourth component of fisheye polynomial. Defaults to 0.0."""
+
     fisheye_polynomial_e: float = 0.0
     """Fifth component of fisheye polynomial. Defaults to 0.0."""
+
     fisheye_polynomial_f: float = 0.0
     """Sixth component of fisheye polynomial. Defaults to 0.0."""

@@ -17,23 +17,57 @@ Changed
 Changelog
 ---------
 
-0.21.3 (2024-08-16)
+0.22.3 (2024-08-28)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
 
-* Added possibility to initialize camera configurations with an intrinsic matrix by adding a new classmethod to the
-  :class:`omni.isaac.lab.sim.spawner.sensors.PinholeCameraCfg` class or respectively
-  :class:`omni.isaac.lab.sensors.ray_caster.patterns_cfg.PinholeCameraPatternCfg`.
+* Added a class method to initialize camera configurations with an intrinsic matrix in the
+  :class:`omni.isaac.lab.sim.spawner.sensors.PinholeCameraCfg`
+  :class:`omni.isaac.lab.sensors.ray_caster.patterns_cfg.PinholeCameraPatternCfg` classes.
 
 Fixed
 ^^^^^
 
-* Fixed ray direction in :func:`omni.isaac.lab.sensors.ray_caster.patterns.patterns.pinhole_camera_pattern` to point to
-  the center of the pixel instead of the top-left corner.
-* Fixed clipping of the "distance_to_image_plane" depth image in :class:`omni.isaac.lab.sensors.ray_caster.RayCasterCamera`
-  to be applied after the depth image is generated. This makes the behavior equal to the USD Camera.
+* Fixed the ray direction in :func:`omni.isaac.lab.sensors.ray_caster.patterns.patterns.pinhole_camera_pattern` to
+  point to the center of the pixel instead of the top-left corner.
+* Fixed the clipping of the "distance_to_image_plane" depth image obtained using the
+  :class:`omni.isaac.lab.sensors.ray_caster.RayCasterCamera` class. Earlier, the depth image was being clipped
+  before the depth image was generated. Now, the clipping is applied after the depth image is generated. This makes
+  the behavior equal to the USD Camera.
+
+
+0.22.2 (2024-08-21)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Disabled default viewport in certain headless scenarios for better performance.
+
+
+0.22.1 (2024-08-17)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added APIs to interact with the physics simulation of deformable objects. This includes setting the
+  material properties, setting kinematic targets, and getting the state of the deformable object.
+  For more information, please refer to the :mod:`omni.isaac.lab.assets.DeformableObject` class.
+
+
+0.22.0 (2024-08-14)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^^^
+
+* Added :mod:`~omni.isaac.lab.utils.modifiers` module to provide framework for configurable and custom
+  observation data modifiers.
+* Adapted the :class:`~omni.isaac.lab.managers.ObservationManager` class to support custom modifiers.
+  These are applied to the observation data before applying any noise or scaling operations.
 
 
 0.21.2 (2024-08-13)
@@ -65,8 +99,7 @@ Added
 
   * ``cpu``: Use CPU.
   * ``cuda``: Use GPU with device ID ``0``.
-  * ``cuda:N``: Use GPU, where N is the device ID. For example, ``cuda:0``.
-  The default value is ``cuda:0``.
+  * ``cuda:N``: Use GPU, where N is the device ID. For example, ``cuda:0``. The default value is ``cuda:0``.
 
 Changed
 ^^^^^^^

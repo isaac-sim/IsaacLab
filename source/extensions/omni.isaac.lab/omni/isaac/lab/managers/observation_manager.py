@@ -7,10 +7,13 @@
 
 from __future__ import annotations
 
+import inspect
 import torch
 from collections.abc import Sequence
 from prettytable import PrettyTable
 from typing import TYPE_CHECKING
+
+from omni.isaac.lab.utils import modifiers
 
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
@@ -45,7 +48,9 @@ class ObservationManager(ManagerBase):
     The observation manager can be used to compute observations for all the groups or for a specific group. The
     observations are computed by calling the registered functions for each term in the group. The functions are
     called in the order of the terms in the group. The functions are expected to return a tensor with shape
-    (num_envs, ...). If a corruption/noise model is registered for a term, the function is called to corrupt
+    (num_envs, ...).
+
+    If a noise model or custom modifier is registered for a term, the function is called to corrupt
     the observation. The corruption function is expected to return a tensor with the same shape as the observation.
     The observations are clipped and scaled as per the configuration settings.
     """
@@ -166,6 +171,9 @@ class ObservationManager(ManagerBase):
         for group_cfg in self._group_obs_class_term_cfgs.values():
             for term_cfg in group_cfg:
                 term_cfg.func.reset(env_ids=env_ids)
+        # call all modifiers that are classes
+        for mod in self._group_obs_class_modifiers:
+            mod.reset(env_ids=env_ids)
         # nothing to log here
         return {}
 
@@ -195,13 +203,18 @@ class ObservationManager(ManagerBase):
         term in the group. The functions are called in the order of the terms in the group. The functions
         are expected to return a tensor with shape (num_envs, ...).
 
-        If a corruption/noise model is registered for a term, the function is called to corrupt
-        the observation. The corruption function is expected to return a tensor with the same
-        shape as the observation. The observations are clipped and scaled as per the configuration
-        settings.
+        The following steps are performed for each observation term:
 
-        The operations are performed in the order: compute, add corruption/noise, clip, scale.
-        By default, no scaling or clipping is applied.
+        1. Compute observation term by calling the function
+        2. Apply custom modifiers in the order specified in :attr:`ObservationTermCfg.modifiers`
+        3. Apply corruption/noise model based on :attr:`ObservationTermCfg.noise`
+        4. Apply clipping based on :attr:`ObservationTermCfg.clip`
+        5. Apply scaling based on :attr:`ObservationTermCfg.scale`
+
+        We apply noise to the computed term first to maintain the integrity of how noise affects the data
+        as it truly exists in the real world. If the noise is applied after clipping or scaling, the noise
+        could be artificially constrained or amplified, which might misrepresent how noise naturally occurs
+        in the data.
 
         Args:
             group_name: The name of the group for which to compute the observations. Defaults to None,
@@ -227,21 +240,24 @@ class ObservationManager(ManagerBase):
         group_obs = dict.fromkeys(group_term_names, None)
         # read attributes for each term
         obs_terms = zip(group_term_names, self._group_obs_term_cfgs[group_name])
-        # evaluate terms: compute, add noise, clip, scale.
+
+        # evaluate terms: compute, add noise, clip, scale, custom modifiers
         for name, term_cfg in obs_terms:
             # compute term's value
             obs: torch.Tensor = term_cfg.func(self._env, **term_cfg.params).clone()
             # apply post-processing
+            if term_cfg.modifiers is not None:
+                for modifier in term_cfg.modifiers:
+                    obs = modifier.func(obs, **modifier.params)
             if term_cfg.noise:
                 obs = term_cfg.noise.func(obs, term_cfg.noise)
             if term_cfg.clip:
                 obs = obs.clip_(min=term_cfg.clip[0], max=term_cfg.clip[1])
             if term_cfg.scale:
                 obs = obs.mul_(term_cfg.scale)
-            # TODO: Introduce delay and filtering models.
-            # Ref: https://robosuite.ai/docs/modules/sensors.html#observables
             # add value to list
             group_obs[name] = obs
+
         # concatenate all observations in the group together
         if self._group_obs_concatenate[group_name]:
             return torch.cat(list(group_obs.values()), dim=-1)
@@ -261,6 +277,10 @@ class ObservationManager(ManagerBase):
         self._group_obs_term_cfgs: dict[str, list[ObservationTermCfg]] = dict()
         self._group_obs_class_term_cfgs: dict[str, list[ObservationTermCfg]] = dict()
         self._group_obs_concatenate: dict[str, bool] = dict()
+
+        # create a list to store modifiers that are classes
+        # we store it as a separate list to only call reset on them and prevent unnecessary calls
+        self._group_obs_class_modifiers: list[modifiers.ModifierBase] = list()
 
         # check if config is dict already
         if isinstance(self.cfg, dict):
@@ -285,7 +305,6 @@ class ObservationManager(ManagerBase):
             self._group_obs_class_term_cfgs[group_name] = list()
             # read common config for the group
             self._group_obs_concatenate[group_name] = group_cfg.concatenate_terms
-
             # check if config is dict already
             if isinstance(group_cfg, dict):
                 group_cfg_items = group_cfg.items()
@@ -306,15 +325,64 @@ class ObservationManager(ManagerBase):
                     )
                 # resolve common terms in the config
                 self._resolve_common_term_cfg(f"{group_name}/{term_name}", term_cfg, min_argc=1)
+
                 # check noise settings
                 if not group_cfg.enable_corruption:
                     term_cfg.noise = None
                 # add term config to list to list
                 self._group_obs_term_names[group_name].append(term_name)
                 self._group_obs_term_cfgs[group_name].append(term_cfg)
+
                 # call function the first time to fill up dimensions
-                obs_dims = tuple(term_cfg.func(self._env, **term_cfg.params).shape[1:])
-                self._group_obs_term_dim[group_name].append(obs_dims)
+                obs_dims = tuple(term_cfg.func(self._env, **term_cfg.params).shape)
+                self._group_obs_term_dim[group_name].append(obs_dims[1:])
+
+                # prepare modifiers for each observation
+                if term_cfg.modifiers is not None:
+                    # initialize list of modifiers for term
+                    for mod_cfg in term_cfg.modifiers:
+                        # check if class modifier and initialize with observation size when adding
+                        if isinstance(mod_cfg, modifiers.ModifierCfg):
+                            # to list of modifiers
+                            if inspect.isclass(mod_cfg.func):
+                                if not issubclass(mod_cfg.func, modifiers.ModifierBase):
+                                    raise TypeError(
+                                        f"Modifier function '{mod_cfg.func}' for observation term '{term_name}'"
+                                        f" is not a subclass of 'ModifierBase'. Received: '{type(mod_cfg.func)}'."
+                                    )
+                                mod_cfg.func = mod_cfg.func(cfg=mod_cfg, data_dim=obs_dims, device=self._env.device)
+
+                                # add to list of class modifiers
+                                self._group_obs_class_modifiers.append(mod_cfg.func)
+                        else:
+                            raise TypeError(
+                                f"Modifier configuration '{mod_cfg}' of observation term '{term_name}' is not of"
+                                f" required type ModifierCfg, Received: '{type(mod_cfg)}'"
+                            )
+
+                        # check if function is callable
+                        if not callable(mod_cfg.func):
+                            raise AttributeError(
+                                f"Modifier '{mod_cfg}' of observation term '{term_name}' is not callable."
+                                f" Received: {mod_cfg.func}"
+                            )
+
+                        # check if term's arguments are matched by params
+                        term_params = list(mod_cfg.params.keys())
+                        args = inspect.signature(mod_cfg.func).parameters
+                        args_with_defaults = [arg for arg in args if args[arg].default is not inspect.Parameter.empty]
+                        args_without_defaults = [arg for arg in args if args[arg].default is inspect.Parameter.empty]
+                        args = args_without_defaults + args_with_defaults
+                        # ignore first two arguments for env and env_ids
+                        # Think: Check for cases when kwargs are set inside the function?
+                        if len(args) > 1:
+                            if set(args[1:]) != set(term_params + args_with_defaults):
+                                raise ValueError(
+                                    f"Modifier '{mod_cfg}' of observation term '{term_name}' expects"
+                                    f" mandatory parameters: {args_without_defaults[1:]}"
+                                    f" and optional parameters: {args_with_defaults}, but received: {term_params}."
+                                )
+
                 # add term in a separate list if term is a class
                 if isinstance(term_cfg.func, ManagerTermBase):
                     self._group_obs_class_term_cfgs[group_name].append(term_cfg)
