@@ -1,11 +1,7 @@
 [package]
 
 # Note: Semantic Versioning is used: https://semver.org/
-<<<<<<< HEAD
-version = "0.21.3"
-=======
 version = "0.22.3"
->>>>>>> main
 
 # Description
 title = "Isaac Lab framework for Robot Learning"
