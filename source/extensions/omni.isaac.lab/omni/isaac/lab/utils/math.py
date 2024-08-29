@@ -580,41 +580,39 @@ def quat_apply_yaw(quat: torch.Tensor, vec: torch.Tensor) -> torch.Tensor:
 
 @torch.jit.script
 def quat_rotate(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
-    """Rotate a vector by a quaternion.
+    """Rotate a vector by a quaternion along the last dimension of q and v.
 
     Args:
-        q: The quaternion in (w, x, y, z). Shape is (N, 4).
-        v: The vector in (x, y, z). Shape is (N, 3).
+        q: The quaternion in (w, x, y, z). Shape is (..., 4).
+        v: The vector in (x, y, z). Shape is (..., 3).
 
     Returns:
-        The rotated vector in (x, y, z). Shape is (N, 3).
+        The rotated vector in (x, y, z). Shape is (..., 3).
     """
-    shape = q.shape
     q_w = q[:, 0]
     q_vec = q[:, 1:]
     a = v * (2.0 * q_w**2 - 1.0).unsqueeze(-1)
     b = torch.cross(q_vec, v, dim=-1) * q_w.unsqueeze(-1) * 2.0
-    c = q_vec * torch.bmm(q_vec.view(shape[0], 1, 3), v.view(shape[0], 3, 1)).squeeze(-1) * 2.0
+    c = q_vec * torch.einsum("...i,...i->...", q_vec, v).squeeze(-1) * 2.0
     return a + b + c
 
 
 @torch.jit.script
 def quat_rotate_inverse(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
-    """Rotate a vector by the inverse of a quaternion.
+    """Rotate a vector by the inverse of a quaternion along the last dimension of q and v.
 
     Args:
-        q: The quaternion in (w, x, y, z). Shape is (N, 4).
-        v: The vector in (x, y, z). Shape is (N, 3).
+        q: The quaternion in (w, x, y, z). Shape is (..., 4).
+        v: The vector in (x, y, z). Shape is (..., 3).
 
     Returns:
-        The rotated vector in (x, y, z). Shape is (N, 3).
+        The rotated vector in (x, y, z). Shape is (..., 3).
     """
-    shape = q.shape
     q_w = q[:, 0]
     q_vec = q[:, 1:]
     a = v * (2.0 * q_w**2 - 1.0).unsqueeze(-1)
     b = torch.cross(q_vec, v, dim=-1) * q_w.unsqueeze(-1) * 2.0
-    c = q_vec * torch.bmm(q_vec.view(shape[0], 1, 3), v.view(shape[0], 3, 1)).squeeze(-1) * 2.0
+    c = q_vec * torch.einsum("...i,...i->...", q_vec, v).squeeze(-1) * 2.0
     return a - b + c
 
 
