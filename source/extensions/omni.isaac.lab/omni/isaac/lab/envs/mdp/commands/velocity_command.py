@@ -218,14 +218,14 @@ class NormalVelocityCommand(UniformVelocityCommand):
     cfg: NormalVelocityCommandCfg
     """The command generator configuration."""
 
-    def __init__(self, cfg: NormalVelocityCommandCfg, env: object):
+    def __init__(self, cfg: NormalVelocityCommandCfg, env: ManagerBasedEnv):
         """Initializes the command generator.
 
         Args:
             cfg: The command generator configuration.
             env: The environment.
         """
-        super().__init__(self, cfg, env)
+        super().__init__(cfg, env)
         # create buffers for zero commands envs
         self.is_zero_vel_x_env = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         self.is_zero_vel_y_env = torch.zeros_like(self.is_zero_vel_x_env)
