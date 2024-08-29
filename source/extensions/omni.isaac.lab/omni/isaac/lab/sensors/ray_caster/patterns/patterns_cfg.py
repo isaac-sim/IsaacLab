@@ -87,7 +87,7 @@ class PinholeCameraPatternCfg(PatternBaseCfg):
     """
 
     horizontal_aperture: float = 20.955
-    """Horizontal aperture (in cm). Defaults to 20.955cm.
+    """Horizontal aperture (in cm). Defaults to 20.955 cm.
 
     Emulates sensor/film width on a camera.
 
