@@ -114,6 +114,7 @@ articulation. To update the state inside the buffer, we call the :meth:`assets.A
 The Code Execution
 ~~~~~~~~~~~~~~~~~~
 
+
 To run the code and see the results, let's run the script from the terminal:
 
 .. code-block:: bash
@@ -123,6 +124,11 @@ To run the code and see the results, let's run the script from the terminal:
 
 This command should open a stage with a ground plane, lights, and two cart-poles that are moving around randomly.
 To stop the simulation, you can either close the window, or press ``Ctrl+C`` in the terminal.
+
+.. figure:: ../../_static/tutorials/tutorial_run_articulation.jpg
+    :align: center
+    :figwidth: 100%
+    :alt: result of run_articulation.py
 
 In this tutorial, we learned how to create and interact with a simple articulation. We saw how to set the state
 of an articulation (its root and joint state) and how to apply commands to it. We also saw how to update its

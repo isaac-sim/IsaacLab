@@ -16,11 +16,50 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-
+import functools
 import unittest
+from collections.abc import Callable
+
+import hydra
+from hydra import compose, initialize
+from omegaconf import OmegaConf
+
+from omni.isaac.lab.utils import replace_strings_with_slices
 
 import omni.isaac.lab_tasks  # noqa: F401
-from omni.isaac.lab_tasks.utils.hydra import hydra_task_config
+from omni.isaac.lab_tasks.utils.hydra import register_task_to_hydra
+
+
+def hydra_task_config_test(task_name: str, agent_cfg_entry_point: str) -> Callable:
+    """Copied from hydra.py hydra_task_config, since hydra.main requires a single point of entry,
+    which will not work with multiple tests. Here, we replace hydra.main with hydra initialize
+    and compose."""
+
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            # register the task to Hydra
+            env_cfg, agent_cfg = register_task_to_hydra(task_name, agent_cfg_entry_point)
+
+            # replace hydra.main with initialize and compose
+            with initialize(config_path=None, version_base="1.3"):
+                hydra_env_cfg = compose(config_name=task_name, overrides=sys.argv[1:])
+                # convert to a native dictionary
+                hydra_env_cfg = OmegaConf.to_container(hydra_env_cfg, resolve=True)
+                # replace string with slices because OmegaConf does not support slices
+                hydra_env_cfg = replace_strings_with_slices(hydra_env_cfg)
+                # update the configs with the Hydra command line arguments
+                env_cfg.from_dict(hydra_env_cfg["env"])
+                if isinstance(agent_cfg, dict):
+                    agent_cfg = hydra_env_cfg["agent"]
+                else:
+                    agent_cfg.from_dict(hydra_env_cfg["agent"])
+                # call the original function
+                func(env_cfg, agent_cfg, *args, **kwargs)
+
+        return wrapper
+
+    return decorator
 
 
 class TestHydra(unittest.TestCase):
@@ -39,7 +78,7 @@ class TestHydra(unittest.TestCase):
             "agent.max_iterations=3",  # test simple agent modification
         ]
 
-        @hydra_task_config("Isaac-Velocity-Flat-H1-v0", "rsl_rl_cfg_entry_point")
+        @hydra_task_config_test("Isaac-Velocity-Flat-H1-v0", "rsl_rl_cfg_entry_point")
         def main(env_cfg, agent_cfg, self):
             # env
             self.assertEqual(env_cfg.decimation, 42)
@@ -50,6 +89,23 @@ class TestHydra(unittest.TestCase):
             self.assertEqual(agent_cfg.max_iterations, 3)
 
         main(self)
+        # clean up
+        sys.argv = [sys.argv[0]]
+        hydra.core.global_hydra.GlobalHydra.instance().clear()
+
+    def test_nested_iterable_dict(self):
+        """Test the hydra configuration system when dict is nested in an Iterable."""
+
+        @hydra_task_config_test("Isaac-Lift-Cube-Franka-v0", "rsl_rl_cfg_entry_point")
+        def main(env_cfg, agent_cfg, self):
+            # env
+            self.assertEqual(env_cfg.scene.ee_frame.target_frames[0].name, "end_effector")
+            self.assertEqual(env_cfg.scene.ee_frame.target_frames[0].offset.pos[2], 0.1034)
+
+        main(self)
+        # clean up
+        sys.argv = [sys.argv[0]]
+        hydra.core.global_hydra.GlobalHydra.instance().clear()
 
 
 if __name__ == "__main__":

@@ -19,7 +19,7 @@ To check the minimum system requirements,refer to the documentation
 `here <https://docs.omniverse.nvidia.com/isaacsim/latest/installation/requirements.html>`__.
 
 .. note::
-   We have tested Isaac Lab with Isaac Sim 4.0 release on Ubuntu
+   We have tested Isaac Lab with Isaac Sim 4.1 release on Ubuntu
    20.04LTS with NVIDIA driver 525.147.
 
    .. tab-set::
