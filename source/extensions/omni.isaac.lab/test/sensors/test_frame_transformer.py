@@ -399,6 +399,91 @@ class TestFrameTransformer(unittest.TestCase):
             torch.testing.assert_close(cube_pos_source_tf[:, 0], cube_pos_b)
             torch.testing.assert_close(cube_quat_source_tf[:, 0], cube_quat_b)
 
+    def test_frame_transformer_offset_frames(self):
+        """Test body transformation w.r.t. base source frame.
+
+        In this test, the source frame is the cube frame.
+        """
+        # Spawn things into stage
+        scene_cfg = MySceneCfg(num_envs=2, env_spacing=5.0, lazy_sensor_update=False)
+        scene_cfg.frame_transformer = FrameTransformerCfg(
+            prim_path="{ENV_REGEX_NS}/cube",
+            target_frames=[
+                FrameTransformerCfg.FrameCfg(
+                    name="CUBE_CENTER",
+                    prim_path="{ENV_REGEX_NS}/cube",
+                ),
+                FrameTransformerCfg.FrameCfg(
+                    name="CUBE_TOP",
+                    prim_path="{ENV_REGEX_NS}/cube",
+                    offset=OffsetCfg(
+                        pos=(0.0, 0.0, 0.1),
+                        rot=(1.0, 0.0, 0.0, 0.0),
+                    ),
+                ),
+                FrameTransformerCfg.FrameCfg(
+                    name="CUBE_BOTTOM",
+                    prim_path="{ENV_REGEX_NS}/cube",
+                    offset=OffsetCfg(
+                        pos=(0.0, 0.0, -0.1),
+                        rot=(1.0, 0.0, 0.0, 0.0),
+                    ),
+                ),
+            ],
+        )
+        scene = InteractiveScene(scene_cfg)
+
+        # Play the simulator
+        self.sim.reset()
+
+        # Define simulation stepping
+        sim_dt = self.sim.get_physics_dt()
+        # Simulate physics
+        for count in range(100):
+            # # reset
+            if count % 25 == 0:
+                # reset root state
+                root_state = scene["cube"].data.default_root_state.clone()
+                root_state[:, :3] += scene.env_origins
+                # -- set root state
+                # -- cube
+                scene["cube"].write_root_state_to_sim(root_state)
+                # reset buffers
+                scene.reset()
+
+            # write data to sim
+            scene.write_data_to_sim()
+            # perform step
+            self.sim.step()
+            # read data from sim
+            scene.update(sim_dt)
+
+            # check absolute frame transforms in world frame
+            # -- ground-truth
+            cube_pos_w_gt = scene["cube"].data.root_state_w[:, :3]
+            cube_quat_w_gt = scene["cube"].data.root_state_w[:, 3:7]
+            # -- frame transformer
+            source_pos_w_tf = scene.sensors["frame_transformer"].data.source_pos_w
+            source_quat_w_tf = scene.sensors["frame_transformer"].data.source_quat_w
+            target_pos_w_tf = scene.sensors["frame_transformer"].data.target_pos_w.squeeze()
+            target_quat_w_tf = scene.sensors["frame_transformer"].data.target_quat_w.squeeze()
+
+            # check if they are same
+            torch.testing.assert_close(cube_pos_w_gt, source_pos_w_tf)
+            torch.testing.assert_close(cube_quat_w_gt, source_quat_w_tf)
+            torch.testing.assert_close(cube_pos_w_gt, target_pos_w_tf[:, 0])
+            torch.testing.assert_close(cube_quat_w_gt, target_quat_w_tf[:, 0])
+
+            # test offsets are applied correctly
+            # -- cube top
+            cube_pos_top = target_pos_w_tf[:, 1]
+            cube_quat_top = target_quat_w_tf[:, 1]
+            torch.testing.assert_close(cube_pos_top, cube_pos_w_gt + torch.tensor([0.0, 0.0, 0.1]))
+            # -- cube bottom
+            cube_pos_bottom = target_pos_w_tf[:, 2]
+            cube_quat_bottom = target_quat_w_tf[:, 2]
+            torch.testing.assert_close(cube_pos_bottom, cube_pos_w_gt + torch.tensor([0.0, 0.0, -0.1]))
+
 
 if __name__ == "__main__":
     run_tests()
