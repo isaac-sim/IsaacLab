@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import torch
+import torch.nn.functional as F
 import unittest
 
 """Launch Isaac Sim Simulator first.
@@ -20,6 +21,7 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 from math import pi as PI
+import time
 
 import omni.isaac.lab.utils.math as math_utils
 
@@ -227,6 +229,70 @@ class TestMathUtilities(unittest.TestCase):
                     # Check that the wrapped angle is close to the expected value
                     torch.testing.assert_close(wrapped_angle, expected_angle)
 
+    def test_quat_rotate_and_quat_rotate_inverse(self):
+        ''' tests for quat_rotate() and quat_rotate_inverse()
+        The new implementation uses einsum() instead of bmm() because 1)inputs can be more than 2D tensors
+        2)einsum is faster than bmm
+
+        Our test case aims to answer the following question in a hypothetical scenario:
+        Given 1024 humanoids, each humanoid with 2 hands, each hand with 5 fingertips, each fingertip with a 3D position 
+        and 4D quaternion, and we want to transform the position of the fingertips from world to the robot frame,
+        how accurate and how much faster is the new implementation compared to the old one?
+        '''
+        # define original implementation for quat_rotate and quat_rotate_inverse
+        def original_quat_rotate(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
+            shape = q.shape
+            q_w = q[:, 0]
+            q_vec = q[:, 1:]
+            a = v * (2.0 * q_w**2 - 1.0).unsqueeze(-1)
+            b = torch.cross(q_vec, v, dim=-1) * q_w.unsqueeze(-1) * 2.0
+            c = q_vec * torch.bmm(q_vec.view(shape[0], 1, 3), v.view(shape[0], 3, 1)).squeeze(-1) * 2.0
+            return a + b + c
+        def original_quat_rotate_inverse(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
+            shape = q.shape
+            q_w = q[:, 0]
+            q_vec = q[:, 1:]
+            a = v * (2.0 * q_w**2 - 1.0).unsqueeze(-1)
+            b = torch.cross(q_vec, v, dim=-1) * q_w.unsqueeze(-1) * 2.0
+            c = q_vec * torch.bmm(q_vec.view(shape[0], 1, 3), v.view(shape[0], 3, 1)).squeeze(-1) * 2.0
+            return a - b + c
+        
+        # initialize
+        q_shape = [1024, 2, 5, 4]
+        v_shape = [1024, 2, 5, 3] # note that the two shapes must match, except the last dim
+
+        # implement tests
+        for device in ["cpu", "cuda:0"]: # check performance on both cpu and gpu
+            q = torch.rand(*q_shape, device=device)
+            q = F.normalize(q, p=2.0, dim=-1, eps=1e-12) # noramlize to keep it a unit quaternion
+            v = torch.rand(*v_shape, device=device) * torch.randint(-1000, 1000, v_shape) # random positions * scale
+        
+            # 1) FOR loop for original implementation, direct method for new implementation
+            for q, v in zip(q, v):
+                with self.subTest(q=q, v=v, device=device):
+                    expected = torch.empty(q_shape, device=device)
+                    # compute the expected result
+                    start_time = time.time()
+                    for hand in range(q_shape[1]):
+                        for fingertip in range(q_shape[2]):
+                            expected[:, hand, fingertip, :] = original_quat_rotate(q[:, hand, fingertip,:], v[:, hand, fingertip,:])
+                    end_time = time.time()
+                    print("Original implementation time:", end_time - start_time)
+
+                    # compute the result using the new implementation
+                    start_time = time.time()
+                    result = math_utils.quat_rotate(q, v)
+                    end_time = time.time()
+                    print("New implementation time:", end_time - start_time)
+
+                    # check that the result is close to the expected value
+                    torch.testing.assert_close(result, expected, atol=1e-4)
+            
+            # 2) FOR loop for both implementations (to compare speed of einsum and bmm directly)
+            
+
+
+        # report speed comparison between the new and old implementation
 
 if __name__ == "__main__":
     run_tests()
