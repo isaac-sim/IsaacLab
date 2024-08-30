@@ -3,10 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""
-This script checks the FrameTransformer sensor by visualizing the frames that it creates.
-"""
-
 """Launch Isaac Sim Simulator first."""
 
 from omni.isaac.lab.app import AppLauncher, run_tests
@@ -206,10 +202,10 @@ class TestFrameTransformer(unittest.TestCase):
             feet_quat_w_tf = scene.sensors["frame_transformer"].data.target_quat_w
 
             # check if they are same
-            torch.testing.assert_close(root_pose_w[:, :3], source_pos_w_tf, rtol=1e-3, atol=1e-3)
-            torch.testing.assert_close(root_pose_w[:, 3:], source_quat_w_tf, rtol=1e-3, atol=1e-3)
-            torch.testing.assert_close(feet_pos_w_gt, feet_pos_w_tf, rtol=1e-3, atol=1e-3)
-            torch.testing.assert_close(feet_quat_w_gt, feet_quat_w_tf, rtol=1e-3, atol=1e-3)
+            torch.testing.assert_close(root_pose_w[:, :3], source_pos_w_tf)
+            torch.testing.assert_close(root_pose_w[:, 3:], source_quat_w_tf)
+            torch.testing.assert_close(feet_pos_w_gt, feet_pos_w_tf)
+            torch.testing.assert_close(feet_quat_w_gt, feet_quat_w_tf)
 
             # check if relative transforms are same
             feet_pos_source_tf = scene.sensors["frame_transformer"].data.target_pos_source
@@ -220,8 +216,8 @@ class TestFrameTransformer(unittest.TestCase):
                     root_pose_w[:, :3], root_pose_w[:, 3:], feet_pos_w_tf[:, index], feet_quat_w_tf[:, index]
                 )
                 # check if they are same
-                torch.testing.assert_close(feet_pos_source_tf[:, index], foot_pos_b, rtol=1e-3, atol=1e-3)
-                torch.testing.assert_close(feet_quat_source_tf[:, index], foot_quat_b, rtol=1e-3, atol=1e-3)
+                torch.testing.assert_close(feet_pos_source_tf[:, index], foot_pos_b)
+                torch.testing.assert_close(feet_quat_source_tf[:, index], foot_quat_b)
 
     def test_frame_transformer_feet_wrt_thigh(self):
         """Test feet transformation w.r.t. thigh source frame.
@@ -305,10 +301,10 @@ class TestFrameTransformer(unittest.TestCase):
             feet_pos_w_tf = scene.sensors["frame_transformer"].data.target_pos_w
             feet_quat_w_tf = scene.sensors["frame_transformer"].data.target_quat_w
             # check if they are same
-            torch.testing.assert_close(source_pose_w_gt[:, :3], source_pos_w_tf, rtol=1e-3, atol=1e-3)
-            torch.testing.assert_close(source_pose_w_gt[:, 3:], source_quat_w_tf, rtol=1e-3, atol=1e-3)
-            torch.testing.assert_close(feet_pos_w_gt, feet_pos_w_tf, rtol=1e-3, atol=1e-3)
-            torch.testing.assert_close(feet_quat_w_gt, feet_quat_w_tf, rtol=1e-3, atol=1e-3)
+            torch.testing.assert_close(source_pose_w_gt[:, :3], source_pos_w_tf)
+            torch.testing.assert_close(source_pose_w_gt[:, 3:], source_quat_w_tf)
+            torch.testing.assert_close(feet_pos_w_gt, feet_pos_w_tf)
+            torch.testing.assert_close(feet_quat_w_gt, feet_quat_w_tf)
 
             # check if relative transforms are same
             feet_pos_source_tf = scene.sensors["frame_transformer"].data.target_pos_source
@@ -319,8 +315,8 @@ class TestFrameTransformer(unittest.TestCase):
                     source_pose_w_gt[:, :3], source_pose_w_gt[:, 3:], feet_pos_w_tf[:, index], feet_quat_w_tf[:, index]
                 )
                 # check if they are same
-                torch.testing.assert_close(feet_pos_source_tf[:, index], foot_pos_b, rtol=1e-3, atol=1e-3)
-                torch.testing.assert_close(feet_quat_source_tf[:, index], foot_quat_b, rtol=1e-3, atol=1e-3)
+                torch.testing.assert_close(feet_pos_source_tf[:, index], foot_pos_b)
+                torch.testing.assert_close(feet_quat_source_tf[:, index], foot_quat_b)
 
     def test_frame_transformer_body_wrt_cube(self):
         """Test body transformation w.r.t. base source frame.
@@ -387,10 +383,10 @@ class TestFrameTransformer(unittest.TestCase):
             cube_quat_w_tf = scene.sensors["frame_transformer"].data.target_quat_w.squeeze()
 
             # check if they are same
-            torch.testing.assert_close(root_pose_w[:, :3], source_pos_w_tf, rtol=1e-3, atol=1e-3)
-            torch.testing.assert_close(root_pose_w[:, 3:], source_quat_w_tf, rtol=1e-3, atol=1e-3)
-            torch.testing.assert_close(cube_pos_w_gt, cube_pos_w_tf, rtol=1e-3, atol=1e-3)
-            torch.testing.assert_close(cube_quat_w_gt, cube_quat_w_tf, rtol=1e-3, atol=1e-3)
+            torch.testing.assert_close(root_pose_w[:, :3], source_pos_w_tf)
+            torch.testing.assert_close(root_pose_w[:, 3:], source_quat_w_tf)
+            torch.testing.assert_close(cube_pos_w_gt, cube_pos_w_tf)
+            torch.testing.assert_close(cube_quat_w_gt, cube_quat_w_tf)
 
             # check if relative transforms are same
             cube_pos_source_tf = scene.sensors["frame_transformer"].data.target_pos_source
@@ -400,8 +396,8 @@ class TestFrameTransformer(unittest.TestCase):
                 root_pose_w[:, :3], root_pose_w[:, 3:], cube_pos_w_tf, cube_quat_w_tf
             )
             # check if they are same
-            torch.testing.assert_close(cube_pos_source_tf[:, 0], cube_pos_b, rtol=1e-3, atol=1e-3)
-            torch.testing.assert_close(cube_quat_source_tf[:, 0], cube_quat_b, rtol=1e-3, atol=1e-3)
+            torch.testing.assert_close(cube_pos_source_tf[:, 0], cube_pos_b)
+            torch.testing.assert_close(cube_quat_source_tf[:, 0], cube_quat_b)
 
 
 if __name__ == "__main__":
