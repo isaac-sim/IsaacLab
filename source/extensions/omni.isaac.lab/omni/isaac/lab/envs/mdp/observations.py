@@ -179,7 +179,7 @@ def rgb_camera(env: ManagerBasedEnv, sensor_cfg: CameraCfg) -> torch.Tensor:
         #plt.savefig(f"{os.getcwd()}/franka_list_cube_rgb_plt.jpg")
         save_images_to_file(
             rgb_data.float() / rgb_data.max(), 
-            f"{os.getcwd()}/franka_list_cube_rgb.jpg"
+            f"{os.getcwd()}/franka_lift_cube_rgb.jpg"
         )
         print(f"{rgb_data_np.mean()}+-{rgb_data_np.std()}: [{rgb_data_np.min()}, {rgb_data_np.max()}]")
     

@@ -15,11 +15,12 @@ from omni.isaac.lab_tasks.utils.wrappers.rsl_rl import (
 @configclass
 class LiftCubePPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 24
-    max_iterations = 1500
+    max_iterations = 1000000 #1500
     save_interval = 50
-    experiment_name = "franka_lift"
+    experiment_name = "franka_lift_1Miters_12envs"
     empirical_normalization = False
     policy = RslRlPpoActorCriticCfg(
+        class_name="ActorCritic",
         init_noise_std=1.0,
         actor_hidden_dims=[256, 128, 64],
         critic_hidden_dims=[256, 128, 64],

@@ -192,6 +192,22 @@ class TerminationsCfg:
 class CurriculumCfg:
     """Curriculum terms for the MDP."""
 
+    # debug
+    # print("DEBUG: Curriculum has been introduced")
+    # reaching_object = CurrTerm(
+    #     func=mdp.modify_reward_weight, 
+    #     params={"term_name": "reaching_object", "weight": 9, "num_steps": 100})
+    # lifting_object = CurrTerm(
+    #     func=mdp.modify_reward_weight, 
+    #     params={"term_name": "lifting_object", "weight": 20, "num_steps": 500})
+    # object_goal_tracking = CurrTerm(
+    #     func=mdp.modify_reward_weight, 
+    #     params={"term_name": "object_goal_tracking", "weight": 20, "num_steps": 1000})
+    # object_goal_tracking_fine_grained = CurrTerm(
+    #     func=mdp.modify_reward_weight, 
+    #     params={"term_name": "object_goal_tracking_fine_grained", "weight": 5, "num_steps": 1000})
+    # debug
+
     action_rate = CurrTerm(
         func=mdp.modify_reward_weight, params={"term_name": "action_rate", "weight": -1e-1, "num_steps": 10000}
     )

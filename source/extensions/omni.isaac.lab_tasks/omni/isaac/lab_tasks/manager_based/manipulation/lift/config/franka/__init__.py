@@ -6,14 +6,14 @@ import gymnasium as gym
 import os
 
 from . import agents, ik_abs_env_cfg, ik_rel_env_cfg, joint_pos_env_cfg, joint_pos_env_cfg_rgb
-from . import joint_pos_env_cfg_rgb_rsl_rl
+from . import joint_pos_env_cfg_rgb_rsl_rl, ik_rel_env_cfg_rgb_rsl_rl
 
 ##
 # Register Gym environments.
 ##
 
 ##
-# Joint Position Control
+# Joint Position Control (rsl_rl and skrl)
 ##
 
 gym.register(
@@ -22,8 +22,8 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": joint_pos_env_cfg.FrankaCubeLiftEnvCfg,
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:LiftCubePPORunnerCfg",
-        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg.yaml",
-        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
+        #"skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg.yaml",
+        #"rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
         #"sb3_cfg_entry_point": f"{agents.__name__}:sb3_ppo_cfg.yaml",
     },
     disable_env_checker=True,
@@ -35,8 +35,8 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": joint_pos_env_cfg.FrankaCubeLiftEnvCfg_PLAY,
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:LiftCubePPORunnerCfg",
-        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg.yaml",
-        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
+        #"skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg.yaml",
+        #"rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
         #"sb3_cfg_entry_point": f"{agents.__name__}:sb3_ppo_cfg.yaml",
     },
     disable_env_checker=True,
@@ -70,6 +70,7 @@ gym.register(
     disable_env_checker=True,
 )
 
+
 ##
 # RGB input based Control (rsl_rl)
 ##
@@ -79,7 +80,8 @@ gym.register(
     entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": joint_pos_env_cfg_rgb_rsl_rl.FrankaCubeLiftEnvCfg_rsl_rl,
-        #"rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg_rgb:LiftCubePPORunnerCfg", # NOTE: Change modality here
+        #"env_cfg_entry_point": ik_rel_env_cfg_rgb_rsl_rl.FrankaCubeLiftEnvCfg_rsl_rl,
+        #"rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg_rgb:LiftCubePPORunnerCfg",
         #"rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg_rgb_and_states:LiftCubePPORunnerCfg",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg_rgb_and_all_states:LiftCubePPORunnerCfg",
         #"rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg_rgbd:LiftCubePPORunnerCfg",
@@ -96,7 +98,12 @@ gym.register(
     entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": joint_pos_env_cfg_rgb_rsl_rl.FrankaCubeLiftEnvCfg_rsl_rl_PLAY,
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg_rgb:LiftCubePPORunnerCfg",
+        #"rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg_rgb:LiftCubePPORunnerCfg",
+        #"rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg_rgb_and_states:LiftCubePPORunnerCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg_rgb_and_all_states:LiftCubePPORunnerCfg",
+        #"rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg_rgbd:LiftCubePPORunnerCfg",
+        #"rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg_rgb_and_seg:LiftCubePPORunnerCfg",
+
         #"skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg.yaml",
         #"rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
     },

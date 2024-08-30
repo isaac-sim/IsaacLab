@@ -123,6 +123,24 @@
             "python": "/home/filip-grigorov/.conda/envs/isaaclab/bin/python",
             
         },
+        {
+            "name": "Debug param search rsl_rl (RGB)",
+            "type": "debugpy",
+            "request": "launch",
+            "preLaunchTask": "",
+            "program": "${workspaceFolder}/source/standalone/workflows/rsl_rl/param_search_rgb.py",
+            "args": [
+                "--task", "Isaac-Lift-Cube-Franka-v0-RGB-rsl_rl",
+                "--num_envs", "12", // Modify here
+                "--headless",
+                "--enable_cameras",
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {},
+            "python": "/home/filip-grigorov/.conda/envs/isaaclab/bin/python",
+            
+        },
 
         // SB3
         {

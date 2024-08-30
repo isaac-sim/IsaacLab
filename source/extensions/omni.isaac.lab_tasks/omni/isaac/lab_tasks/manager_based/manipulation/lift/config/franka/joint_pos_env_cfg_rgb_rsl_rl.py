@@ -79,6 +79,20 @@ def diagonal_view_in_world_ccw():
     return position, rot_quat, coord_sys
 
 
+def diagonal_looking_down_view_in_world_ccw():
+    coord_sys = "world"
+    position = (1.6, -1.3, 0.9)
+    pitch, yaw, roll = \
+        torch.tensor([degrees2rads(21)]), \
+        torch.tensor([degrees2rads(130)]), \
+        torch.tensor([degrees2rads(0)])
+    rot_quat = quat_from_euler_xyz(pitch=pitch, yaw=yaw, roll=roll).numpy() + 0.0
+    rot_quat = np.around(rot_quat, decimals=4).flatten()
+    rot_quat = (rot_quat[0], rot_quat[1], rot_quat[2], rot_quat[3])
+
+    return position, rot_quat, coord_sys
+
+
 @configclass
 class FrankaCubeLiftEnvCfg_rsl_rl(LiftEnvCfg):
     def __post_init__(self):
@@ -125,9 +139,10 @@ class FrankaCubeLiftEnvCfg_rsl_rl(LiftEnvCfg):
         
         #position, rotation, coord_frame = top_down_in_world()
         #position, rotation, coord_frame = sideview_in_world_ccw()
-        position, rotation, coord_frame = diagonal_view_in_world_ccw()
+        #position, rotation, coord_frame = diagonal_view_in_world_ccw()
+        position, rotation, coord_frame = diagonal_looking_down_view_in_world_ccw()
 
-        RESOLUTION = (480, 640) #(480, 640)
+        RESOLUTION = (256, 256) #(480, 640)
         self.scene.camera = CameraCfg(
             prim_path="{ENV_REGEX_NS}/Camera",
             update_period=0.1,
