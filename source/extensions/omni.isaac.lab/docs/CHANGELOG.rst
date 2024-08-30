@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+0.22.3 (2024-08-30)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Uses :meth:`torch.einsum` for :meth:`quat_rotate` and :meth:`quat_rotate_inverse` operations
+
 0.22.2 (2024-08-21)
 ~~~~~~~~~~~~~~~~~~~
 
