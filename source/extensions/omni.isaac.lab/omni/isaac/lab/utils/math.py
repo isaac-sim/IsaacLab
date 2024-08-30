@@ -589,11 +589,11 @@ def quat_rotate(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
     Returns:
         The rotated vector in (x, y, z). Shape is (..., 3).
     """
-    q_w = q[:, 0]
-    q_vec = q[:, 1:]
+    q_w = q[..., 0]
+    q_vec = q[..., 1:]
     a = v * (2.0 * q_w**2 - 1.0).unsqueeze(-1)
     b = torch.cross(q_vec, v, dim=-1) * q_w.unsqueeze(-1) * 2.0
-    c = q_vec * torch.einsum("...i,...i->...", q_vec, v).squeeze(-1) * 2.0
+    c = q_vec * torch.einsum("...i,...i->...", q_vec, v).unsqueeze(-1) * 2.0
     return a + b + c
 
 
@@ -608,11 +608,11 @@ def quat_rotate_inverse(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
     Returns:
         The rotated vector in (x, y, z). Shape is (..., 3).
     """
-    q_w = q[:, 0]
-    q_vec = q[:, 1:]
+    q_w = q[..., 0]
+    q_vec = q[..., 1:]
     a = v * (2.0 * q_w**2 - 1.0).unsqueeze(-1)
     b = torch.cross(q_vec, v, dim=-1) * q_w.unsqueeze(-1) * 2.0
-    c = q_vec * torch.einsum("...i,...i->...", q_vec, v).squeeze(-1) * 2.0
+    c = q_vec * torch.einsum("...i,...i->...", q_vec, v).unsqueeze(-1) * 2.0
     return a - b + c
 
 

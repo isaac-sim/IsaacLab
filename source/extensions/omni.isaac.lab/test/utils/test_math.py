@@ -260,39 +260,60 @@ class TestMathUtilities(unittest.TestCase):
         # initialize
         q_shape = [1024, 2, 5, 4]
         v_shape = [1024, 2, 5, 3] # note that the two shapes must match, except the last dim
+        time_table = {
+            'original': {'cpu': 0.0, 'cuda:0': 0.0,},
+            'new_FOR':  {'cpu': 0.0, 'cuda:0': 0.0,},
+            'new':      {'cpu': 0.0, 'cuda:0': 0.0,},
+        }
 
         # implement tests
         for device in ["cpu", "cuda:0"]: # check performance on both cpu and gpu
             q = torch.rand(*q_shape, device=device)
             q = F.normalize(q, p=2.0, dim=-1, eps=1e-12) # noramlize to keep it a unit quaternion
-            v = torch.rand(*v_shape, device=device) * torch.randint(-1000, 1000, v_shape) # random positions * scale
+            v = torch.rand(*v_shape, device=device) * torch.randint(-1000, 1000, v_shape, device=device) # random positions * scale
+            expected = torch.empty([2, *v_shape], device=device) # 2 for storing quat_rotate() and _inverse()
+            result = torch.empty([2, *v_shape], device=device) # 2 for storing quat_rotate() and _inverse()
+            
+            with self.subTest(q=q, v=v, device=device):
+                # compute the expected result from original implementation
+                start_time = time.time()
+                for hand in range(v_shape[1]):
+                    for fingertip in range(v_shape[2]):
+                        expected[0, :, hand, fingertip, :] = original_quat_rotate(q[:, hand, fingertip,:], v[:, hand, fingertip,:])
+                        expected[1, :, hand, fingertip, :] = original_quat_rotate_inverse(q[:, hand, fingertip,:], v[:, hand, fingertip,:])
+                end_time = time.time()
+                time_table["original"][device] = end_time - start_time
+
+                # compute the new implementation using the same FOR loop
+                # to directly compare the speed of einsum and bmm given the exact same input dimensions
+                start_time = time.time()
+                for hand in range(v_shape[1]):
+                    for fingertip in range(v_shape[2]):
+                        math_utils.quat_rotate(q[:, hand, fingertip,:], v[:, hand, fingertip,:])
+                        math_utils.quat_rotate_inverse(q[:, hand, fingertip,:], v[:, hand, fingertip,:])
+                        # only testing for speed here, so we don't need to store the result
+                end_time = time.time()
+                time_table["new_FOR"][device] = end_time - start_time
+
+                # compute the result using the new implementation directly
+                start_time = time.time()
+                result[0] = math_utils.quat_rotate(q, v)
+                result[1] = math_utils.quat_rotate_inverse(q, v)
+                end_time = time.time()
+                time_table["new"][device] = end_time - start_time
+
+                # check that the result is close to the expected value
+                torch.testing.assert_close(result, expected)
         
-            # 1) FOR loop for original implementation, direct method for new implementation
-            for q, v in zip(q, v):
-                with self.subTest(q=q, v=v, device=device):
-                    expected = torch.empty(q_shape, device=device)
-                    # compute the expected result
-                    start_time = time.time()
-                    for hand in range(q_shape[1]):
-                        for fingertip in range(q_shape[2]):
-                            expected[:, hand, fingertip, :] = original_quat_rotate(q[:, hand, fingertip,:], v[:, hand, fingertip,:])
-                    end_time = time.time()
-                    print("Original implementation time:", end_time - start_time)
-
-                    # compute the result using the new implementation
-                    start_time = time.time()
-                    result = math_utils.quat_rotate(q, v)
-                    end_time = time.time()
-                    print("New implementation time:", end_time - start_time)
-
-                    # check that the result is close to the expected value
-                    torch.testing.assert_close(result, expected, atol=1e-4)
-            
-            # 2) FOR loop for both implementations (to compare speed of einsum and bmm directly)
-            
+        # report the time
+        # print the time table
+        print("test_quat_rotate_and_quat_rotate_inverse")
+        print("Device   \t CPU \t\t CUDA")
+        print(f"original \t{time_table['original']['cpu']:.6f} \t {time_table['original']['cuda:0']:.6f}")
+        print(f"new_FOR  \t{time_table['new_FOR']['cpu']:.6f} \t {time_table['new_FOR']['cuda:0']:.6f}")
+        print(f"new      \t{time_table['new']['cpu']:.6f} \t {time_table['new']['cuda:0']:.6f}")
 
 
-        # report speed comparison between the new and old implementation
 
 if __name__ == "__main__":
     run_tests()
