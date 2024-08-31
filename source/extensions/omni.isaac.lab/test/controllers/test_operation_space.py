@@ -29,7 +29,7 @@ from omni.isaac.lab.utils.math import compute_pose_error, subtract_frame_transfo
 ##
 from omni.isaac.lab_assets import FRANKA_PANDA_HIGH_PD_CFG, UR10_CFG  # isort:skip
 
-class TestDifferentialIKController(unittest.TestCase):
+class TestOperationSpaceController(unittest.TestCase):
     """Test fixture for checking that differential IK controller tracks commands properly."""
 
     def setUp(self):
