@@ -9,14 +9,16 @@ def filter_boxes(boxes, scores, lbls, score_thresh=0.1):
     ordered_idx = np.argsort(scores, axis=-1).flatten()
     scores = scores[ordered_idx, ...]
     boxes = boxes[ordered_idx, ...]
-    lbls = lbls[ordered_idx, ...]
+    if lbls is not None:
+        lbls = lbls[ordered_idx, ...]
 
     indices = np.where(scores > score_thresh)
     scores = scores[indices, ...]
     boxes = boxes[indices, ...]
-    lbls = lbls[indices, ...]
+    if lbls is not None:
+        lbls = lbls[indices, ...]
 
-    return boxes[0], scores[0], lbls[0]
+    return boxes[0], scores[0], lbls[0] if lbls is not None else None
 
 class PoseApproximator:
     def __init__(self, device, segm_checkpoint):
@@ -28,13 +30,19 @@ class PoseApproximator:
 
         SAM_MODEL_TYPE = "vit_h" #vit_l, vit_b
         self.segm_model = SamPredictor(sam_model_registry[SAM_MODEL_TYPE](checkpoint=segm_checkpoint))
-        self.input_label = np.array([1])
 
     def __call__(self, image, query_image, depth=None, od_score_thresh=0.8):
         od_inputs = self.od_processor(images=image, query_images=query_image, return_tensors="pt",).to(self.device)
         with torch.no_grad():
             # (1) OD
             od_outputs = self.od_model.image_guided_detection(**od_inputs)
+
+            # target_sizes = torch.Tensor([image.size[::-1]])
+            # od_preds = self.od_processor.post_process_image_guided_detection(outputs=od_outputs, target_sizes=target_sizes, threshold=0.1)[0]
+            # od_scores = od_preds["scores"].cpu().detach().numpy()
+            # od_labels = None
+            # od_bboxes = od_preds["boxes"].cpu().detach().numpy()
+
             od_logits = torch.max(od_outputs["logits"][0], dim=-1)
 
             od_scores = torch.sigmoid(od_logits.values).cpu().detach().numpy()
@@ -45,18 +53,24 @@ class PoseApproximator:
             # box: A length 4 array given a box prompt to the model, in XYXY format.
 
             od_bboxes, od_scores, od_labels = filter_boxes(od_bboxes, od_scores, od_labels, od_score_thresh)
+            W, H = image.size
+            od_bboxes[..., 0::2] *= W
+            od_bboxes[..., 1::2] *= H
 
-            X_IDX, Y_IDX = 0, 1
-            box_center_coords = np.asarray([ np.array([ box[X_IDX] + int(0.5 * box[X_IDX + 2]), box[Y_IDX] + int(0.5 * box[Y_IDX + 2]) ]) for box in od_bboxes ])
+            # norm coords: (cx, cy, w, h) -> (cx - w/2, cy - h/2, cx + w/2, cy + w2) = (x1, y1, x2, y2)
+            box_center_coords = np.asarray([ np.array([ box[0], box[1] ]) for box in od_bboxes ])
+
+            print(box_center_coords) # debug
 
             # (2) Segmentation
+            input_labels = np.ones(box_center_coords.shape[0])
             self.segm_model.set_image(np.asarray(image))
 
             # The output masks in CxHxW format, where C is the number of masks, and (H, W) is the original image size. 
             segm_masks, segm_scores, segm_logits = self.segm_model.predict(
-                box=od_bboxes,
+                #box=od_bboxes,
                 point_coords=box_center_coords,
-                point_labels=self.input_label,
+                point_labels=input_labels,
                 multimask_output=True,
             )
             max_idx = np.argmax(segm_scores)
@@ -68,13 +82,13 @@ class PoseApproximator:
 
             # (4) Tracker (track pose temporaly)
 
-        return (od_scores, od_labels, od_bboxes), (segm_scores, segm_masks)
+        return (od_scores, od_labels, od_bboxes), (segm_scores, segm_masks, box_center_coords, input_labels)
 
     def plot_boxes(self, img, scores, boxes):
+        """Plot the boxes with original coordiantes (norm)"""
         fig, ax = plt.subplots(1, 1, figsize=(8, 8))
-        ax.imshow(img, extent=(0, 1, 1, 0))
+        ax.imshow(img)#, extent=(0, 1, 1, 0))
         ax.set_axis_off()
-
         for score, box in zip(scores, boxes):
             cx, cy, w, h = box
             ax.plot(
@@ -97,9 +111,8 @@ class PoseApproximator:
                 }
             )
         plt.show()
-        plt.clf()
 
-    def plot_masks(self, img, scores, masks):
+    def plot_masks(self, img, scores, masks, input_coords, input_lbls):
         def show_mask(mask, ax, random_color=False):
             if random_color:
                 color = np.concatenate([np.random.random(3), np.array([0.6])], axis=0)
@@ -110,13 +123,17 @@ class PoseApproximator:
             mask_image = mask.reshape(h, w, 1) * color.reshape(1, 1, -1)
             ax.imshow(mask_image)
 
-        plt.figure(figsize=(10,10))
+        def show_points(coords, labels, ax, marker_size=375):
+            pos_points = coords[labels==1]
+            neg_points = coords[labels==0]
+            ax.scatter(pos_points[:, 0], pos_points[:, 1], color='green', marker='*', s=marker_size, edgecolor='white', linewidth=1.25)
+            ax.scatter(neg_points[:, 0], neg_points[:, 1], color='red', marker='*', s=marker_size, edgecolor='white', linewidth=1.25)
 
-        for i, (mask, score) in enumerate(zip(masks, scores)):
-            plt.imshow(img)
+        plt.figure(figsize=(10,10))
+        plt.imshow(img)
+        for i, (mask, score, coords, lbl) in enumerate(zip(masks, scores, input_coords, input_lbls)):
             show_mask(mask, plt.gca())
-        
+            show_points(coords, lbl, plt.gca())
         plt.title(f"Mask {i+1}, Score: {score:.3f}", fontsize=18)
         plt.axis('off')    
         plt.show()
-        plt.clf()
