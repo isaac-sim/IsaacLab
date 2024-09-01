@@ -44,7 +44,7 @@ class RayCasterCameraCfg(RayCasterCfg):
     data_types: list[str] = ["distance_to_image_plane"]
     """List of sensor names/types to enable for the camera. Defaults to ["distance_to_image_plane"]."""
 
-    clipping_behavior: Literal["max", "zero"] | None = "zero"
+    depth_clipping_behavior: Literal["max", "zero"] | None = "zero"
     """Clipping behavior for the camera for values exceed the maximum value. Defaults to "zero".
 
     - ``"max"``: Values are clipped to the maximum value.

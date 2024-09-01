@@ -53,7 +53,7 @@ class CameraCfg(SensorBaseCfg):
     asset is already present in the scene.
     """
 
-    clipping_behavior: Literal["max", "zero"] | None = "zero"
+    depth_clipping_behavior: Literal["max", "zero"] | None = "zero"
     """Clipping behavior for the camera for values exceed the maximum value. Defaults to "zero".
 
     - ``"max"``: Values are clipped to the maximum value.
