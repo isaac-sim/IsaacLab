@@ -123,17 +123,15 @@ class PoseApproximator:
             mask_image = mask.reshape(h, w, 1) * color.reshape(1, 1, -1)
             ax.imshow(mask_image)
 
-        def show_points(coords, labels, ax, marker_size=375):
-            pos_points = coords[labels==1]
-            neg_points = coords[labels==0]
-            ax.scatter(pos_points[:, 0], pos_points[:, 1], color='green', marker='*', s=marker_size, edgecolor='white', linewidth=1.25)
-            ax.scatter(neg_points[:, 0], neg_points[:, 1], color='red', marker='*', s=marker_size, edgecolor='white', linewidth=1.25)
+        def show_points(coords, ax, marker_size=375):
+            ax.scatter(coords[0], coords[1], color='green', marker='*', s=marker_size, edgecolor='white', linewidth=1.25)
 
         plt.figure(figsize=(10,10))
         plt.imshow(img)
-        for i, (mask, score, coords, lbl) in enumerate(zip(masks, scores, input_coords, input_lbls)):
+        for i, (mask, score) in enumerate(zip(masks, scores)):
             show_mask(mask, plt.gca())
-            show_points(coords, lbl, plt.gca())
+        for i, (coords, lbl) in enumerate(zip(input_coords, input_lbls)):
+            show_points(coords, plt.gca())
         plt.title(f"Mask {i+1}, Score: {score:.3f}", fontsize=18)
         plt.axis('off')    
         plt.show()
