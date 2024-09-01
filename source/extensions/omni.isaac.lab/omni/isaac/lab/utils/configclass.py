@@ -6,6 +6,7 @@
 """Sub-module that provides a wrapper around the Python 3.7 onwards ``dataclasses`` module."""
 
 import inspect
+import types
 from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import MISSING, Field, dataclass, field, replace
@@ -392,6 +393,11 @@ def _skippable_class_member(key: str, value: Any, hints: dict | None = None) -> 
         return True
     # skip functions bounded to class
     if callable(value):
+        # FIXME: This doesn't yet work for static methods because they are essentially seen as function types.
+        # check for class methods
+        if isinstance(value, types.MethodType):
+            return True
+        # check for instance methods
         signature = inspect.signature(value)
         if "self" in signature.parameters or "cls" in signature.parameters:
             return True

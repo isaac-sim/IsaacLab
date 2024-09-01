@@ -261,7 +261,7 @@ class TestWarpCamera(unittest.TestCase):
             update_period=0,
             offset=RayCasterCameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(1.0, 0.0, 0.0, 0.0), convention="world"),
             debug_vis=False,
-            pattern_cfg=patterns.PinholeCameraPatternCfg().from_intrinsic_matrix(
+            pattern_cfg=patterns.PinholeCameraPatternCfg.from_intrinsic_matrix(
                 intrinsic_matrix=intrinsic_matrix,
                 height=self.camera_cfg.pattern_cfg.height,
                 width=self.camera_cfg.pattern_cfg.width,
@@ -705,7 +705,7 @@ class TestWarpCamera(unittest.TestCase):
             mesh_prim_paths=["/World/defaultGroundPlane"],
             offset=RayCasterCameraCfg.OffsetCfg(pos=offset_pos, rot=offset_rot, convention="ros"),
             debug_vis=False,
-            pattern_cfg=patterns.PinholeCameraPatternCfg().from_intrinsic_matrix(
+            pattern_cfg=patterns.PinholeCameraPatternCfg.from_intrinsic_matrix(
                 intrinsic_matrix=intrinsics,
                 height=540,
                 width=960,
@@ -717,7 +717,7 @@ class TestWarpCamera(unittest.TestCase):
         camera_usd_cfg = CameraCfg(
             prim_path="/World/Camera_usd",
             offset=CameraCfg.OffsetCfg(pos=offset_pos, rot=offset_rot, convention="ros"),
-            spawn=PinholeCameraCfg().from_intrinsic_matrix(
+            spawn=PinholeCameraCfg.from_intrinsic_matrix(
                 intrinsic_matrix=intrinsics,
                 height=540,
                 width=960,
