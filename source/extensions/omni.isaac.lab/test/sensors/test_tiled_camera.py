@@ -19,6 +19,7 @@ simulation_app = app_launcher.app
 import copy
 import numpy as np
 import random
+import torch
 import unittest
 
 import omni.isaac.core.utils.prims as prim_utils
@@ -28,7 +29,7 @@ from omni.isaac.core.prims import GeometryPrim, RigidPrim
 from pxr import Gf, UsdGeom
 
 import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.sensors.camera import TiledCamera, TiledCameraCfg
+from omni.isaac.lab.sensors.camera import Camera, CameraCfg, TiledCamera, TiledCameraCfg
 from omni.isaac.lab.utils.timer import Timer
 
 
@@ -298,6 +299,107 @@ class TestTiledCamera(unittest.TestCase):
                     self.assertEqual(im_data.shape, (1, camera_cfg.height, camera_cfg.width, 1))
                 self.assertGreater(im_data.mean().item(), 0.0)
         del camera
+
+    def test_output_equal_to_usd_camera_intrinsics(self):
+        """
+        Test that the output of the ray caster camera and the usd camera are the same when both are
+        initialized with the same intrinsic matrix.
+        """
+
+        # create cameras
+        offset_rot = (-0.1251, 0.3617, 0.8731, -0.3020)
+        offset_pos = (2.5, 2.5, 4.0)
+        intrinsics = [380.08, 0.0, 467.79, 0.0, 380.08, 262.05, 0.0, 0.0, 1.0]
+        # get camera cfgs
+        # TODO: add clipping range back, once correctly supported by tiled camera
+        camera_tiled_cfg = TiledCameraCfg(
+            prim_path="/World/Camera_tiled",
+            offset=TiledCameraCfg.OffsetCfg(pos=offset_pos, rot=offset_rot, convention="ros"),
+            spawn=sim_utils.PinholeCameraCfg.from_intrinsic_matrix(
+                intrinsic_matrix=intrinsics,
+                height=540,
+                width=960,
+                focal_length=38.0,
+                # clipping_range=(0.01, 20),
+            ),
+            height=540,
+            width=960,
+            data_types=["depth"],
+        )
+        camera_usd_cfg = CameraCfg(
+            prim_path="/World/Camera_usd",
+            offset=CameraCfg.OffsetCfg(pos=offset_pos, rot=offset_rot, convention="ros"),
+            spawn=sim_utils.PinholeCameraCfg.from_intrinsic_matrix(
+                intrinsic_matrix=intrinsics,
+                height=540,
+                width=960,
+                focal_length=38.0,
+                # clipping_range=(0.01, 20),
+            ),
+            height=540,
+            width=960,
+            data_types=["distance_to_camera"],
+        )
+
+        # set aperture offsets to 0, as currently not supported for usd/ tiled camera
+        camera_tiled_cfg.spawn.horizontal_aperture_offset = 0
+        camera_tiled_cfg.spawn.vertical_aperture_offset = 0
+        camera_usd_cfg.spawn.horizontal_aperture_offset = 0
+        camera_usd_cfg.spawn.vertical_aperture_offset = 0
+        # init cameras
+        camera_tiled = TiledCamera(camera_tiled_cfg)
+        camera_usd = Camera(camera_usd_cfg)
+
+        # play sim
+        self.sim.reset()
+        self.sim.play()
+
+        # perform steps
+        for _ in range(5):
+            self.sim.step()
+
+        # update camera
+        camera_usd.update(self.dt)
+        camera_tiled.update(self.dt)
+
+        # filter nan and inf from output
+        cam_tiled_output = camera_tiled.data.output["depth"].clone()
+        cam_usd_output = camera_usd.data.output["distance_to_camera"].clone()
+        cam_tiled_output[torch.isnan(cam_tiled_output)] = 0
+        cam_tiled_output[torch.isinf(cam_tiled_output)] = 0
+        cam_usd_output[torch.isnan(cam_usd_output)] = 0
+        cam_usd_output[torch.isinf(cam_usd_output)] = 0
+
+        # check that both have the same intrinsic matrices
+        torch.testing.assert_close(camera_tiled.data.intrinsic_matrices[0], camera_usd.data.intrinsic_matrices[0])
+
+        # check the apertures
+        torch.testing.assert_close(
+            camera_usd._sensor_prims[0].GetHorizontalApertureAttr().Get(),
+            camera_tiled._sensor_prims[0].GetHorizontalApertureAttr().Get(),
+        )
+        torch.testing.assert_close(
+            camera_usd._sensor_prims[0].GetVerticalApertureAttr().Get(),
+            camera_tiled._sensor_prims[0].GetVerticalApertureAttr().Get(),
+        )
+
+        # check image data
+        # FIXME: The tiled camera output is not exactly equal to the usd camera output. This should be fixed with the
+        #        update to the new tiled camera implementation. Test will fail, if the difference between the images
+        #        disappears. Check again @pascal-roth.
+
+        # Intended test
+        # torch.testing.assert_close(
+        #     cam_tiled_output[..., 0],
+        #     cam_usd_output,
+        #     atol=5e-5,
+        #     rtol=5e-6,
+        # )
+        # current failure case
+        self.assertTrue(torch.max(torch.abs(cam_tiled_output[..., 0] - cam_usd_output)).item() > 1)
+
+        del camera_tiled
+        del camera_usd
 
     """
     Helper functions.
