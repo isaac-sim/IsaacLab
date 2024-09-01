@@ -34,8 +34,9 @@ def spawn_multi_object_randomly_sdf(
     Args:
         prim_path: The path to the asset to spawn (e.g. "/World/env_*/Object")
         cfg: The configuration for the asset spawning
-        translation: The translation to apply to the spawned asset
-        orientation: The orientation to apply to the spawned asset
+        translation: The translation to apply to the prim w.r.t. its parent prim in meters. Defaults to None, in which case this is set to the origin.
+        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None, in which case this is set to identity (1, 0, 0, 0).
+
     """
 
     # resolve: {SPAWN_NS}/AssetName

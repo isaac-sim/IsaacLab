@@ -24,8 +24,8 @@ def randomize_and_spawn_asset(
     Args:
         prim_path: The path to the asset to spawn
         cfg: The configuration for the asset randomization
-        translation: The translation to apply to the spawned asset, gets passed to the child spawner defined in the configuration
-        orientation: The orientation to apply to the spawned asset, gets passed to the child spawner defined in the configuration
+        translation:  The translation to apply to the prim w.r.t. its parent prim in meters. Defaults to None, in which case this is set to the origin. Gets passed to the child spawner defined in the configuration
+        orientation:  The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None, in which case this is set to identity (1, 0, 0, 0). Gets passed to the child spawner defined in the configuration
     """
     prim = cfg.child_spawner_cfg.func(prim_path, cfg.child_spawner_cfg, translation, orientation)
     randomizations = cfg.randomization_cfg
