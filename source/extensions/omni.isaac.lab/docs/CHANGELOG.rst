@@ -1,6 +1,38 @@
 Changelog
 ---------
 
+0.22.4 (2024-08-29)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the support for class-bounded methods when creating a configclass
+  out of them. Earlier, these methods were being made as instance methods
+  which required initialization of the class to call the class-methods.
+
+
+0.22.3 (2024-08-28)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a class method to initialize camera configurations with an intrinsic matrix in the
+  :class:`omni.isaac.lab.sim.spawner.sensors.PinholeCameraCfg`
+  :class:`omni.isaac.lab.sensors.ray_caster.patterns_cfg.PinholeCameraPatternCfg` classes.
+
+Fixed
+^^^^^
+
+* Fixed the ray direction in :func:`omni.isaac.lab.sensors.ray_caster.patterns.patterns.pinhole_camera_pattern` to
+  point to the center of the pixel instead of the top-left corner.
+* Fixed the clipping of the "distance_to_image_plane" depth image obtained using the
+  :class:`omni.isaac.lab.sensors.ray_caster.RayCasterCamera` class. Earlier, the depth image was being clipped
+  before the depth image was generated. Now, the clipping is applied after the depth image is generated. This makes
+  the behavior equal to the USD Camera.
+
+
 0.22.2 (2024-08-21)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -62,8 +94,7 @@ Added
 
   * ``cpu``: Use CPU.
   * ``cuda``: Use GPU with device ID ``0``.
-  * ``cuda:N``: Use GPU, where N is the device ID. For example, ``cuda:0``.
-  The default value is ``cuda:0``.
+  * ``cuda:N``: Use GPU, where N is the device ID. For example, ``cuda:0``. The default value is ``cuda:0``.
 
 Changed
 ^^^^^^^

@@ -81,6 +81,9 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         self.common_step_counter = 0
         # -- init buffers
         self.episode_length_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
+        # -- set the framerate of the gym video recorder wrapper so that the playback speed of the produced video matches the simulation
+        self.metadata["render_fps"] = 1 / self.step_dt
+
         print("[INFO]: Completed setting up the environment...")
 
     """
