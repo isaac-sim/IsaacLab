@@ -179,7 +179,7 @@ def rgb_camera(env: ManagerBasedEnv, sensor_cfg: CameraCfg) -> torch.Tensor:
         #plt.savefig(f"{os.getcwd()}/franka_list_cube_rgb_plt.jpg")
         save_images_to_file(
             rgb_data.float() / rgb_data.max(), 
-            f"{os.getcwd()}/franka_lift_cube_rgb.jpg"
+            f"{os.getcwd()}/plot_franka_cube_rgb.jpg"
         )
         print(f"{rgb_data_np.mean()}+-{rgb_data_np.std()}: [{rgb_data_np.min()}, {rgb_data_np.max()}]")
     
@@ -197,14 +197,14 @@ def rgb_seg_camera(env: ManagerBasedEnv, sensor_cfg: CameraCfg) -> torch.Tensor:
         rgb_data_np = rgb_data.cpu().numpy()
         save_images_to_file(
             rgb_data.float() / rgb_data.max(), 
-            f"{os.getcwd()}/plot_franka_list_cube_rgb.jpg"
+            f"{os.getcwd()}/plot_franka_cube_rgb.jpg"
         )
         print(f"{rgb_data_np.mean()}+-{rgb_data_np.std()}: [{rgb_data_np.min()}, {rgb_data_np.max()}]")
 
         segmentation_data_np = segmentation_data.cpu().numpy()
         save_images_to_file(
             segmentation_data.float() / segmentation_data.max(), 
-            f"{os.getcwd()}/plot_franka_list_cube_seg.jpg"
+            f"{os.getcwd()}/plot_franka_cube_seg.jpg"
         )
         print(f"{segmentation_data_np.min()}, {segmentation_data_np.max()}")
 
@@ -222,14 +222,14 @@ def rgbd_camera(env: ManagerBasedEnv, sensor_cfg: CameraCfg) -> torch.Tensor:
         rgb_data_np = rgb_data.cpu().numpy()
         save_images_to_file(
             rgb_data.float() / rgb_data.max(), 
-            f"{os.getcwd()}/plot_franka_list_cube_rgb.jpg"
+            f"{os.getcwd()}/plot_franka_cube_rgb.jpg"
         )
         print(f"{rgb_data_np.mean()}+-{rgb_data_np.std()}: [{rgb_data_np.min()}, {rgb_data_np.max()}]")
 
         depth_data_np = depth_data.cpu().numpy()
         save_images_to_file(
             depth_data.float() / depth_data.max(), 
-            f"{os.getcwd()}/franka_list_cube_depth.jpg"
+            f"{os.getcwd()}/plot_franka_cube_depth.jpg"
         )
         print(f"{depth_data_np.min()}, {depth_data_np.max()}")
 
