@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import torch
+
 from dataclasses import MISSING
 
 import omni.isaac.lab.sim as sim_utils
@@ -47,6 +49,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     object: RigidObjectCfg = MISSING
     # camera object: will be populated by agent env cfg
     camera: CameraCfg = MISSING
+    #K: torch.Tensor = MISSING
 
     # Table
     table = AssetBaseCfg(
@@ -78,7 +81,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
 class CommandsCfg:
     """Command (goal) terms for the MDP."""
 
-    null = mdp.NullCommandCfg
+    null = mdp.NullCommandCfg()
 
 
 @configclass

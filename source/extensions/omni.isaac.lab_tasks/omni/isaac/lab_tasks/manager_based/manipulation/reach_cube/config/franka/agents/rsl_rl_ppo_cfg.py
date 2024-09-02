@@ -13,7 +13,7 @@ from omni.isaac.lab_tasks.utils.wrappers.rsl_rl import (
 
 
 @configclass
-class LiftCubePPORunnerCfg(RslRlOnPolicyRunnerCfg):
+class ReachCubePPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 24
     max_iterations = 1000000 #1500
     save_interval = 50

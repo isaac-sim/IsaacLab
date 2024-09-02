@@ -23,6 +23,7 @@ from omni.isaac.lab_assets.franka import FRANKA_PANDA_CFG  # isort: skip
 # sensors
 import numpy as np
 import torch
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 from omni.isaac.lab.sensors import CameraCfg, TiledCameraCfg
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.utils.math import quat_from_euler_xyz
@@ -92,6 +93,25 @@ def diagonal_looking_down_view_in_world_ccw():
 
     return position, rot_quat, coord_sys
 
+def compute_camera_intrinsics_matrix(image_width, image_heigth, focal_length, horizontal_aperture, device):
+    """
+        Due to limitations of Omniverse camera, we need to assume that the camera is a spherical lens, 
+        i.e. has square pixels, and the optical center is centered at the camera eye.
+    """
+    horizontal_fov = np.degrees(2 * np.arctan2(horizontal_aperture, (2.0 * focal_length)))
+    vertical_fov = (image_heigth / image_width * horizontal_fov) * np.pi / 180
+    horizontal_fov = degrees2rads(horizontal_fov)
+
+    f_x = (image_width / 2.0) / np.tan(horizontal_fov / 2.0)
+    f_y = (image_heigth / 2.0) / np.tan(vertical_fov / 2.0)
+
+    K = torch.tensor([
+        [f_x, 0.0, image_width / 2.0], 
+        [0.0, f_y, image_heigth / 2.0], 
+        [0.0, 0.0, 1.0]], 
+    device=device, dtype=torch.float)
+    return K
+
 
 @configclass
 class FrankaCubeReachEnvCfg_rsl_rl(ReachEnvCfg):
@@ -112,8 +132,6 @@ class FrankaCubeReachEnvCfg_rsl_rl(ReachEnvCfg):
             open_command_expr={"panda_finger_.*": 0.04},
             close_command_expr={"panda_finger_.*": 0.0},
         )
-        # Set the body name for the end effector
-        self.commands.object_pose.body_name = "panda_hand"
 
         # Set Cube as object
         self.scene.object = RigidObjectCfg(
@@ -142,7 +160,7 @@ class FrankaCubeReachEnvCfg_rsl_rl(ReachEnvCfg):
         #position, rotation, coord_frame = diagonal_view_in_world_ccw()
         position, rotation, coord_frame = diagonal_looking_down_view_in_world_ccw()
 
-        RESOLUTION = (256, 256) #(480, 640)
+        RESOLUTION = (480, 640) #(480, 640)
         self.scene.camera = CameraCfg(
             prim_path="{ENV_REGEX_NS}/Camera",
             update_period=0.1,
@@ -160,6 +178,14 @@ class FrankaCubeReachEnvCfg_rsl_rl(ReachEnvCfg):
             #colorize_semantic_segmentation=False, # True: uint8 (4 channels, RGBA), False: uint32 (1 channel)
             #colorize_instance_id_segmentation=False,
         )
+
+        # self.scene.K = compute_camera_intrinsics_matrix(
+        #     image_heigth=RESOLUTION[0], 
+        #     image_width=RESOLUTION[1], 
+        #     focal_length=self.scene.camera.spawn.focal_length,
+        #     horizontal_aperture=self.scene.camera.spawn.horizontal_aperture,
+        #     device=DEVICE)
+        # print(f"Camera intrinsics (K): {self.scene.K}", end="\n")
 
         # Listens to the required transforms
         # marker_cfg = FRAME_MARKER_CFG.copy()

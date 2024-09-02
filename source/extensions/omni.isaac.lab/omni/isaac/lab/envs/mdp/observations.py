@@ -11,6 +11,8 @@ the observation introduced by the function.
 
 from __future__ import annotations
 
+import matplotlib.pyplot as plt
+import numpy as np
 import os
 
 import torch
@@ -162,6 +164,15 @@ def joint_vel_rel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityC
 Sensors.
 """
 
+def save_plt_plot(data: np.ndarray, type="rgb"):
+    fig, axes = plt.subplots(1, data.shape[0], figsize=(20, 20))
+    for idx in range(data.shape[0]):
+        if type == 'rgb':
+            axes[idx].imshow(data[idx, ...], vmin=data.min(), vmax=data.max())
+        else:
+            axes[idx].imshow(data[idx, ...], vmin=data.min(), vmax=data.max(), cmap='gray')
+    plt.savefig(f"{os.getcwd()}/plot_franka_cube_{type}_plt.jpg", bbox_inches='tight')
+
 DEBUG = False
 def rgb_camera(env: ManagerBasedEnv, sensor_cfg: CameraCfg) -> torch.Tensor:
     """RGB camera from give sensor w.r.t. the sensor's frame"""
@@ -220,15 +231,18 @@ def rgbd_camera(env: ManagerBasedEnv, sensor_cfg: CameraCfg) -> torch.Tensor:
     combined_data = torch.cat([rgb_data, depth_data], dim=-1)
     if DEBUG:
         rgb_data_np = rgb_data.cpu().numpy()
+        save_plt_plot(rgb_data_np, type="rgb")
         save_images_to_file(
             rgb_data.float() / rgb_data.max(), 
             f"{os.getcwd()}/plot_franka_cube_rgb.jpg"
         )
         print(f"{rgb_data_np.mean()}+-{rgb_data_np.std()}: [{rgb_data_np.min()}, {rgb_data_np.max()}]")
 
-        depth_data_np = depth_data.cpu().numpy()
+        depth_data_torch = torch.nan_to_num(depth_data, nan=0, posinf=0, neginf=0)
+        depth_data_np = depth_data_torch.cpu().numpy()
+        save_plt_plot(depth_data_np, type="depth")
         save_images_to_file(
-            depth_data.float() / depth_data.max(), 
+            depth_data_torch.float() / depth_data_torch.max(), 
             f"{os.getcwd()}/plot_franka_cube_depth.jpg"
         )
         print(f"{depth_data_np.min()}, {depth_data_np.max()}")
