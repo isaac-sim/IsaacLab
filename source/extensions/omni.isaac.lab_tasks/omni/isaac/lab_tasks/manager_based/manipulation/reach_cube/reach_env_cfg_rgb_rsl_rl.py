@@ -23,6 +23,10 @@ from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from . import mdp
 
+# sensors
+from omni.isaac.lab.sensors import CameraCfg, TiledCameraCfg
+
+
 ##
 # Scene definition
 ##
@@ -41,6 +45,8 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     ee_frame: FrameTransformerCfg = MISSING
     # target object: will be populated by agent env cfg
     object: RigidObjectCfg = MISSING
+    # camera object: will be populated by agent env cfg
+    camera: CameraCfg = MISSING
 
     # Table
     table = AssetBaseCfg(
@@ -70,17 +76,9 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
 
 @configclass
 class CommandsCfg:
-    """Command terms for the MDP."""
+    """Command (goal) terms for the MDP."""
 
-    object_pose = mdp.UniformPoseCommandCfg(
-        asset_name="robot",
-        body_name=MISSING,  # will be set by agent env cfg
-        resampling_time_range=(5.0, 5.0),
-        debug_vis=True,
-        ranges=mdp.UniformPoseCommandCfg.Ranges(
-            pos_x=(0.4, 0.6), pos_y=(-0.25, 0.25), pos_z=(0.25, 0.5), roll=(0.0, 0.0), pitch=(0.0, 0.0), yaw=(0.0, 0.0)
-        ),
-    )
+    null = mdp.NullCommandCfg
 
 
 @configclass
@@ -100,11 +98,21 @@ class ObservationsCfg:
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
 
+        print("Using states ---")
         joint_pos = ObsTerm(func=mdp.joint_pos_rel)
         joint_vel = ObsTerm(func=mdp.joint_vel_rel)
+
         object_position = ObsTerm(func=mdp.object_position_in_robot_root_frame)
         target_object_position = ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
+        
         actions = ObsTerm(func=mdp.last_action)
+
+        print("Using camera ---")
+        # camera
+        # NOTE: Change here the type of visual input
+        cam_data = ObsTerm(func=mdp.rgb_camera, params={"sensor_cfg": SceneEntityCfg("camera")})
+        #cam_data = ObsTerm(func=mdp.rgb_seg_camera, params={"sensor_cfg": SceneEntityCfg("camera")})
+        #cam_data = ObsTerm(func=mdp.rgbd_camera, params={"sensor_cfg": SceneEntityCfg("camera")})
 
         def __post_init__(self):
             self.enable_corruption = True
@@ -135,21 +143,7 @@ class EventCfg:
 class RewardsCfg:
     """Reward terms for the MDP."""
 
-    reaching_object = RewTerm(func=mdp.object_ee_distance, params={"std": 0.1}, weight=1.0)
-
-    lifting_object = RewTerm(func=mdp.object_is_lifted, params={"minimal_height": 0.04}, weight=15.0)
-
-    object_goal_tracking = RewTerm(
-        func=mdp.object_goal_distance,
-        params={"std": 0.3, "minimal_height": 0.04, "command_name": "object_pose"},
-        weight=16.0,
-    )
-
-    object_goal_tracking_fine_grained = RewTerm(
-        func=mdp.object_goal_distance,
-        params={"std": 0.05, "minimal_height": 0.04, "command_name": "object_pose"},
-        weight=5.0,
-    )
+    reaching_object = RewTerm(func=mdp.object_ee_distance, params={"std": 0.1}, weight=15.0)
 
     # action penalty
     action_rate = RewTerm(func=mdp.action_rate_l2, weight=-1e-4)
@@ -166,10 +160,6 @@ class TerminationsCfg:
     """Termination terms for the MDP."""
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
-
-    object_dropping = DoneTerm(
-        func=mdp.root_height_below_minimum, params={"minimum_height": -0.05, "asset_cfg": SceneEntityCfg("object")}
-    )
 
 
 @configclass
@@ -191,11 +181,11 @@ class CurriculumCfg:
 
 
 @configclass
-class LiftEnvCfg(ManagerBasedRLEnvCfg):
-    """Configuration for the lifting environment."""
+class ReachEnvCfg(ManagerBasedRLEnvCfg):
+    """Configuration for the cube reaching environment."""
 
     # Scene settings
-    scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=4096, env_spacing=2.5)
+    scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=4096, env_spacing=100) #2.5
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
@@ -211,6 +201,9 @@ class LiftEnvCfg(ManagerBasedRLEnvCfg):
         # general settings
         self.decimation = 2
         self.episode_length_s = 5.0
+        # NOTE: Modify here
+        self.scene.env_spacing = 20 # how much the envs are spaced out
+
         # simulation settings
         self.sim.dt = 0.01  # 100Hz
         self.sim.render_interval = self.decimation

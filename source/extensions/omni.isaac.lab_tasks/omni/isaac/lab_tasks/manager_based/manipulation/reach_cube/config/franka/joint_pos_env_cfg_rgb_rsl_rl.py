@@ -11,8 +11,8 @@ from omni.isaac.lab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 from omni.isaac.lab.utils import configclass
 from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
 
-from omni.isaac.lab_tasks.manager_based.manipulation.lift import mdp
-from omni.isaac.lab_tasks.manager_based.manipulation.lift.lift_env_cfg_rgb_rsl_rl import LiftEnvCfg
+from omni.isaac.lab_tasks.manager_based.manipulation.reach_cube import mdp
+from omni.isaac.lab_tasks.manager_based.manipulation.reach_cube.reach_env_cfg_rgb_rsl_rl import ReachEnvCfg
 
 ##
 # Pre-defined configs
@@ -94,7 +94,7 @@ def diagonal_looking_down_view_in_world_ccw():
 
 
 @configclass
-class FrankaCubeLiftEnvCfg_rsl_rl(LiftEnvCfg):
+class FrankaCubeReachEnvCfg_rsl_rl(ReachEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
@@ -182,7 +182,7 @@ class FrankaCubeLiftEnvCfg_rsl_rl(LiftEnvCfg):
 
 
 @configclass
-class FrankaCubeLiftEnvCfg_rsl_rl_PLAY(FrankaCubeLiftEnvCfg_rsl_rl):
+class FrankaCubeReachEnvCfg_rsl_rl_PLAY(FrankaCubeReachEnvCfg_rsl_rl):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()

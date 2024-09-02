@@ -5,6 +5,8 @@ import torch
 from transformers import OwlViTProcessor, OwlViTForObjectDetection
 from segment_anything import SamPredictor, sam_model_registry, SamAutomaticMaskGenerator
 
+TRANSFORM_READY = False
+
 def filter_boxes(boxes, scores, lbls, score_thresh=0.1):
     ordered_idx = np.argsort(scores, axis=-1).flatten()
     scores = scores[ordered_idx, ...]
@@ -20,6 +22,14 @@ def filter_boxes(boxes, scores, lbls, score_thresh=0.1):
 
     return boxes[0], scores[0], lbls[0] if lbls is not None else None
 
+def estimate_point_depth(roi, depth):
+    raise NotImplementedError
+
+def compute_depth_range(depth_map, object_mask):
+    raise NotImplementedError
+
+
+
 class PoseApproximator:
     def __init__(self, device, segm_checkpoint):
 
@@ -31,7 +41,7 @@ class PoseApproximator:
         SAM_MODEL_TYPE = "vit_h" #vit_l, vit_b
         self.segm_model = SamPredictor(sam_model_registry[SAM_MODEL_TYPE](checkpoint=segm_checkpoint))
 
-    def __call__(self, image, query_image, depth=None, od_score_thresh=0.8):
+    def __call__(self, image, query_image, depth_map=None, od_score_thresh=0.8):
         od_inputs = self.od_processor(images=image, query_images=query_image, return_tensors="pt",).to(self.device)
         with torch.no_grad():
             # (1) OD
@@ -79,8 +89,27 @@ class PoseApproximator:
 
             # (3) Estimate 3D position (world) using the depth
             # (segment out the depth -> depth point estimate -> deproject bbox/centroid from 2D img space to 3D world Euclidean space -> (Xw, Yw, Zw))
+            # NOTE: we can detect corner for the orientation estimation
+            if TRANSFORM_READY:
+                K, Tw, Tr = np.eye(4), np.eye(4), np.eye(4)
+                for (cx, cy, w, h) in od_bboxes:
+                    print(f"(cx, cy, w, h): {cx}, {cy}, {w}, {h}")
+                    xl, yt, xr, yb = cx-w//2, cy-h//2, cx+w//w, cy+h//2
+                    #tl_corner = np.array([xl, yt, 1])
+                    #br_corner = np.array([xr, yb, 1])
+                    center = np.array([cx, cy, 1])
+                    center_depth = estimate_point_depth(center, depth_map)
+                    center_3d = np.linalg.pinv(K) @ (center * center_depth)
+                    pos = Tr @ Tw @ center_3d # in robot's coordinate frame (cam -> world -> robot)
+
+                    # TODO: Compute orientation if possible (detect corners)
+                    min_depth, max_depth = compute_depth_range(depth_map, segm_masks)
+                    corners = None
+                    estimated_orientation_euler = None # from the corners in 3d, estimate orientation (world/robot?)
+
 
             # (4) Tracker (track pose temporaly)
+
 
         return (od_scores, od_labels, od_bboxes), (segm_scores, segm_masks, box_center_coords, input_labels)
 

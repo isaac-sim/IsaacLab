@@ -17,7 +17,7 @@ from . import joint_pos_env_cfg_rgb_rsl_rl, ik_rel_env_cfg_rgb_rsl_rl
 ##
 
 gym.register(
-    id="Isaac-Lift-Cube-Franka-v0",
+    id="Isaac-Reach-Cube-Franka-v0",
     entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": joint_pos_env_cfg.FrankaCubeLiftEnvCfg,
@@ -27,7 +27,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Lift-Cube-Franka-Play-v0",
+    id="Isaac-Reach-Cube-Franka-Play-v0",
     entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": joint_pos_env_cfg.FrankaCubeLiftEnvCfg_PLAY,
@@ -42,7 +42,7 @@ gym.register(
 ##
 
 gym.register(
-    id="Isaac-Lift-Cube-Franka-v0-RGB-rsl_rl",
+    id="Isaac-Reach-Cube-Franka-v0-RGB-rsl_rl",
     entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": joint_pos_env_cfg_rgb_rsl_rl.FrankaCubeLiftEnvCfg_rsl_rl,
@@ -57,7 +57,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Lift-Cube-Franka-Play-v0-RGB-rsl_rl",
+    id="Isaac-Reach-Cube-Franka-Play-v0-RGB-rsl_rl",
     entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": joint_pos_env_cfg_rgb_rsl_rl.FrankaCubeLiftEnvCfg_rsl_rl_PLAY,
@@ -76,7 +76,7 @@ gym.register(
 ##
 
 gym.register(
-    id="Isaac-Lift-Cube-Franka-IK-Abs-v0",
+    id="Isaac-Reach-Cube-Franka-IK-Abs-v0",
     entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": ik_abs_env_cfg.FrankaCubeLiftEnvCfg,
@@ -90,7 +90,7 @@ gym.register(
 ##
 
 gym.register(
-    id="Isaac-Lift-Cube-Franka-IK-Rel-v0",
+    id="Isaac-Reach-Cube-Franka-IK-Rel-v0",
     entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": ik_rel_env_cfg.FrankaCubeLiftEnvCfg,
