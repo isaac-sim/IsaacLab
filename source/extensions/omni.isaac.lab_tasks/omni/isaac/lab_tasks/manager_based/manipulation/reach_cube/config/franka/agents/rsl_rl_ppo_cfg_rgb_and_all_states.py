@@ -17,7 +17,7 @@ class LiftCubePPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 24
     max_iterations = 1500
     save_interval = 50
-    experiment_name = "franka_lift_rgb_and_all_states"
+    experiment_name = "franka_reach_cube_rgb_and_all_states"
     empirical_normalization = False
     policy = RslRlPpoActorCriticCfg(
         class_name="ActorCriticRGBAndAllStates",

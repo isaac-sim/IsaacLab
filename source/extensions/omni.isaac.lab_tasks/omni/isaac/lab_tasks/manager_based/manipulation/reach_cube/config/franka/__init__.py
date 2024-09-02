@@ -20,7 +20,7 @@ gym.register(
     id="Isaac-Reach-Cube-Franka-v0",
     entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
     kwargs={
-        "env_cfg_entry_point": joint_pos_env_cfg.FrankaCubeLiftEnvCfg,
+        "env_cfg_entry_point": joint_pos_env_cfg.FrankaCubeReachEnvCfg,
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:LiftCubePPORunnerCfg",
     },
     disable_env_checker=True,
@@ -30,7 +30,7 @@ gym.register(
     id="Isaac-Reach-Cube-Franka-Play-v0",
     entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
     kwargs={
-        "env_cfg_entry_point": joint_pos_env_cfg.FrankaCubeLiftEnvCfg_PLAY,
+        "env_cfg_entry_point": joint_pos_env_cfg.FrankaCubeReachEnvCfg_PLAY,
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:LiftCubePPORunnerCfg",
     },
     disable_env_checker=True,
@@ -45,12 +45,12 @@ gym.register(
     id="Isaac-Reach-Cube-Franka-v0-RGB-rsl_rl",
     entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
     kwargs={
-        "env_cfg_entry_point": joint_pos_env_cfg_rgb_rsl_rl.FrankaCubeLiftEnvCfg_rsl_rl,
+        "env_cfg_entry_point": joint_pos_env_cfg_rgb_rsl_rl.FrankaCubeReachEnvCfg_rsl_rl,
         #"env_cfg_entry_point": ik_rel_env_cfg_rgb_rsl_rl.FrankaCubeLiftEnvCfg_rsl_rl,
         #"rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg_rgb:LiftCubePPORunnerCfg",
         #"rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg_rgb_and_states:LiftCubePPORunnerCfg",
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg_rgb_and_all_states:LiftCubePPORunnerCfg",
-        #"rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg_rgbd:LiftCubePPORunnerCfg",
+        #"rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg_rgb_and_all_states:LiftCubePPORunnerCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg_rgbd:LiftCubePPORunnerCfg",
         #"rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg_rgb_and_seg:LiftCubePPORunnerCfg",
     },
     disable_env_checker=True,
@@ -60,11 +60,11 @@ gym.register(
     id="Isaac-Reach-Cube-Franka-Play-v0-RGB-rsl_rl",
     entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
     kwargs={
-        "env_cfg_entry_point": joint_pos_env_cfg_rgb_rsl_rl.FrankaCubeLiftEnvCfg_rsl_rl_PLAY,
+        "env_cfg_entry_point": joint_pos_env_cfg_rgb_rsl_rl.FrankaCubeReachEnvCfg_rsl_rl_PLAY,
         #"rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg_rgb:LiftCubePPORunnerCfg",
         #"rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg_rgb_and_states:LiftCubePPORunnerCfg",
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg_rgb_and_all_states:LiftCubePPORunnerCfg",
-        #"rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg_rgbd:LiftCubePPORunnerCfg",
+        #"rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg_rgb_and_all_states:LiftCubePPORunnerCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg_rgbd:LiftCubePPORunnerCfg",
         #"rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg_rgb_and_seg:LiftCubePPORunnerCfg",
     },
     disable_env_checker=True,
@@ -79,7 +79,7 @@ gym.register(
     id="Isaac-Reach-Cube-Franka-IK-Abs-v0",
     entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
     kwargs={
-        "env_cfg_entry_point": ik_abs_env_cfg.FrankaCubeLiftEnvCfg,
+        "env_cfg_entry_point": ik_abs_env_cfg.FrankaCubeReachEnvCfg,
     },
     disable_env_checker=True,
 )
@@ -93,7 +93,7 @@ gym.register(
     id="Isaac-Reach-Cube-Franka-IK-Rel-v0",
     entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
     kwargs={
-        "env_cfg_entry_point": ik_rel_env_cfg.FrankaCubeLiftEnvCfg,
+        "env_cfg_entry_point": ik_rel_env_cfg.FrankaCubeReachEnvCfg,
         "robomimic_bc_cfg_entry_point": os.path.join(agents.__path__[0], "robomimic/bc.json"),
     },
     disable_env_checker=True,
