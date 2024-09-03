@@ -249,7 +249,7 @@ class TestCamera(unittest.TestCase):
             prim_path="/World/Camera_2",
             update_period=0,
             data_types=["distance_to_image_plane"],
-            spawn=sim_utils.PinholeCameraCfg().from_intrinsic_matrix(
+            spawn=sim_utils.PinholeCameraCfg.from_intrinsic_matrix(
                 intrinsic_matrix=intrinsic_matrix,
                 width=128,
                 height=128,

@@ -1,3 +1,9 @@
+Changelog
+---------
+
+0.22.6 (2024-08-29)
+~~~~~~~~~~~~~~~~~~~
+
 Added
 ^^^^^
 
@@ -5,8 +11,27 @@ Added
   consistent with all other cameras (equal to type "depth").
 
 
-Changelog
----------
+0.22.5 (2024-08-29)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added missing SI units to the documentation of :class:`omni.isaac.lab.sensors.Camera` and
+  :class:`omni.isaac.lab.sensors.RayCasterCamera`.
+* Added test to check :attr:`omni.isaac.lab.sensors.RayCasterCamera.set_intrinsic_matrices`
+
+
+0.22.4 (2024-08-29)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the support for class-bounded methods when creating a configclass
+  out of them. Earlier, these methods were being made as instance methods
+  which required initialization of the class to call the class-methods.
+
 
 0.22.3 (2024-08-28)
 ~~~~~~~~~~~~~~~~~~~
