@@ -16,7 +16,8 @@ import omni.kit.commands
 import omni.usd
 from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics
 
-from omni.isaac.lab.ui.widgets.ui_visualizer_mixin import UiVisualizerMixin
+# from omni.isaac.lab.ui.widgets.ui_visualizer_mixin import UiVisualizerMixin
+from omni.isaac.lab.managers.live_visualization_manager import ManagerLiveVisualizer
 
 if TYPE_CHECKING:
     import omni.ui
@@ -60,7 +61,7 @@ class BaseEnvWindow:
         ]
 
         # Listeners for environment selection changes
-        self._env_selection_listeners: list[UiVisualizerMixin] = []
+        self._ui_listeners: list[ManagerLiveVisualizer] = []
 
         print("Creating window for environment.")
         # create window for UI
@@ -89,8 +90,10 @@ class BaseEnvWindow:
                     with self.ui_window_elements["debug_vstack"]:
                         # self._create_debug_vis_ui_element("actions", self.env.action_manager)
                         # Add live-plots for manager terms
-                        self._visualize_manager("Actions", class_name="action_manager")
-                        self._visualize_manager("Observations", class_name="observation_manager")
+                        self._create_debug_vis_ui_element("Actions", self.env.manager_visualizers["action_manager"])
+                        self._create_debug_vis_ui_element("Observations", self.env.manager_visualizers["observation_manager"])
+                        # self._visualize_manager("Actions", class_name="action_manager")
+                        # self._visualize_manager("Observations", class_name="observation_manager")
 
     def __del__(self):
         """Destructor for the window."""
@@ -245,10 +248,7 @@ class BaseEnvWindow:
     def _visualize_manager(self, title: str, class_name: str):
         """Checks if the attribute with the name 'class_name' can be visualized. If yes, create vis interface."""
 
-        if hasattr(self.env, class_name):
-            manager = getattr(self.env, class_name)
-            if hasattr(manager, "has_debug_vis_implementation"):
-                self._create_debug_vis_ui_element(title, manager)
+        self._create_debug_vis_ui_element(title, manager)
     """
     Custom callbacks for UI elements.
     """
@@ -373,7 +373,7 @@ class BaseEnvWindow:
         # store the desired env index, UI is 1-indexed
         vcc.set_view_env_index(model.as_int - 1)
         # notify additional listeners
-        for listener in self._env_selection_listeners:
+        for listener in self._ui_listeners:
             listener.set_env_selection(model.as_int - 1)
 
     """
@@ -406,17 +406,17 @@ class BaseEnvWindow:
             )
             omni.isaac.ui.ui_utils.add_line_rect_flourish()
 
-        if isinstance(elem, UiVisualizerMixin) and elem.has_window_implementation:
-            elem.set_window(self.ui_window)
+        # if isinstance(elem, ManagerLiveVisualizer) and elem.has_window_implementation:
+        #     elem.set_window(self.ui_window)
 
         # Create a panel for the debug visualization
-        if isinstance(elem, UiVisualizerMixin) and elem.has_vis_frame_implementation:
+        if isinstance(elem, ManagerLiveVisualizer):
             self.ui_window_elements[f"{name}_panel"] = omni.ui.Frame(width=omni.ui.Fraction(1))
             elem.set_vis_frame(self.ui_window_elements[f"{name}_panel"])
 
         # Add listener for environment selection changes
-        if isinstance(elem, UiVisualizerMixin) and elem.has_env_selection_implementation:
-            self._env_selection_listeners.append(elem)
+        if isinstance(elem, ManagerLiveVisualizer):
+            self._ui_listeners.append(elem)
 
     async def _dock_window(self, window_title: str):
         """Docks the custom UI window to the property window."""

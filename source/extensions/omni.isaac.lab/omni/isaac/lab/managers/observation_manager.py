@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from omni.isaac.lab.envs import ManagerBasedEnv
 
 
-class ObservationManager(ManagerBase, ManagerLivePlotMixin):
+class ObservationManager(ManagerBase):
     """Manager for computing observation signals for a given world.
 
     Observations are organized into groups based on their intended usage. This allows having different observation
@@ -122,7 +122,7 @@ class ObservationManager(ManagerBase, ManagerLivePlotMixin):
 
         return msg
 
-    def get_active_iterable_terms(self) -> Sequence[tuple[str, Sequence[float]]]:
+    def get_active_iterable_terms(self, env_idx: int) -> Sequence[tuple[str, Sequence[float]]]:
         """Returns the active terms as iterable sequence of tuples.
         The first element of the tuple is the name of the term and the second element is the raw value(s) of the term.
         Returns:
@@ -139,7 +139,7 @@ class ObservationManager(ManagerBase, ManagerLivePlotMixin):
 
             if not self.group_obs_concatenate[group_name]:
                 for name, term in obs_buffer[group_name].items():
-                    terms.append((group_name + "-" + name, term[self._viewer_env_idx].cpu().tolist()))
+                    terms.append((group_name + "-" + name, term[env_idx].cpu().tolist()))
                 continue
 
             idx = 0
@@ -150,7 +150,7 @@ class ObservationManager(ManagerBase, ManagerLivePlotMixin):
                 self._group_obs_term_dim[group_name],
             ):
                 data_length = np.prod(shape)
-                term = data[self._viewer_env_idx, idx : idx + data_length]
+                term = data[env_idx, idx : idx + data_length]
                 terms.append((group_name + "-" + name, term.cpu().tolist()))
                 idx += data_length
 

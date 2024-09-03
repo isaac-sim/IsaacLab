@@ -11,7 +11,7 @@ from typing import Any
 import carb
 import omni.isaac.core.utils.torch as torch_utils
 
-from omni.isaac.lab.managers import ActionManager, EventManager, ObservationManager
+from omni.isaac.lab.managers import ActionManager, EventManager, ObservationManager, ManagerLiveVisualizer
 from omni.isaac.lab.scene import InteractiveScene
 from omni.isaac.lab.sim import SimulationContext
 from omni.isaac.lab.utils.timer import Timer
@@ -209,6 +209,11 @@ class ManagerBasedEnv:
         self.event_manager = EventManager(self.cfg.events, self)
         print("[INFO] Event Manager: ", self.event_manager)
 
+        # setup live visualizers
+        self._manager_visualizers: dict[str,ManagerLiveVisualizer] = dict()
+        self._manager_visualizers["action_manager"] = ManagerLiveVisualizer(manager=self.action_manager)
+        self._manager_visualizers["observation_manager"] = ManagerLiveVisualizer(manager=self.observation_manager)
+
         # perform events at the start of the simulation
         # in-case a child implementation creates other managers, the randomization should happen
         # when all the other managers are created
@@ -355,3 +360,7 @@ class ManagerBasedEnv:
         # -- event manager
         info = self.event_manager.reset(env_ids)
         self.extras["log"].update(info)
+
+    @property
+    def manager_visualizers(self):
+        return self._manager_visualizers
