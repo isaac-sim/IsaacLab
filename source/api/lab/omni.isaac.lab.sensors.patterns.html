@@ -788,6 +788,12 @@ matrices of the cameras, which is not possible with the standard pattern interfa
 <dt class="sig sig-object py" id="omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.sensors.patterns.</span></span><span class="sig-name descname"><span class="pre">PinholeCameraPatternCfg</span></span><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg" title="Permalink to this definition">#</a></dt>
 <dd><p>Configuration for a pinhole camera depth image pattern for ray-casting.</p>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p>Focal length as well as the aperture sizes and offsets are set as a tenth of the world unit. In our case, the
+world unit is meters, so all of these values are in cm. For more information, please check:
+<a class="reference external" href="https://docs.omniverse.nvidia.com/materials-and-rendering/latest/cameras.html">https://docs.omniverse.nvidia.com/materials-and-rendering/latest/cameras.html</a></p>
+</div>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
@@ -795,10 +801,10 @@ matrices of the cameras, which is not possible with the standard pattern interfa
 <td><p>Perspective focal length (in cm).</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.horizontal_aperture" title="omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.horizontal_aperture"><code class="xref py py-obj docutils literal notranslate"><span class="pre">horizontal_aperture</span></code></a></p></td>
-<td><p>Horizontal aperture (in mm).</p></td>
+<td><p>Horizontal aperture (in cm).</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.vertical_aperture" title="omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.vertical_aperture"><code class="xref py py-obj docutils literal notranslate"><span class="pre">vertical_aperture</span></code></a></p></td>
-<td><p>Vertical aperture (in mm).</p></td>
+<td><p>Vertical aperture (in cm).</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.horizontal_aperture_offset" title="omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.horizontal_aperture_offset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">horizontal_aperture_offset</span></code></a></p></td>
 <td><p>Offsets Resolution/Film gate horizontally.</p></td>
@@ -834,7 +840,7 @@ matrices of the cameras, which is not possible with the standard pattern interfa
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.horizontal_aperture">
 <span class="sig-name descname"><span class="pre">horizontal_aperture</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.horizontal_aperture" title="Permalink to this definition">#</a></dt>
-<dd><p>Horizontal aperture (in mm). Defaults to 20.955mm.</p>
+<dd><p>Horizontal aperture (in cm). Defaults to 20.955 cm.</p>
 <p>Emulates sensor/film width on a camera.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -845,13 +851,12 @@ matrices of the cameras, which is not possible with the standard pattern interfa
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.vertical_aperture">
 <span class="sig-name descname"><span class="pre">vertical_aperture</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.vertical_aperture" title="Permalink to this definition">#</a></dt>
-<dd><p>Vertical aperture (in mm). Defaults to None.</p>
+<dd><p>Vertical aperture (in cm). Defaults to None.</p>
 <p>Emulates sensor/film height on a camera. If None, then the vertical aperture is calculated based on the
 horizontal aperture and the aspect ratio of the image to maintain squared pixels. In this case, the vertical
 aperture is calculated as:</p>
 <div class="math notranslate nohighlight">
-\[ext{vertical aperture} =        ext{horizontal aperture}        imes\]</div>
-<p>rac{      ext{height}}{   ext{width}}</p>
+\[\text{vertical aperture} = \text{horizontal aperture} \times \frac{\text{height}}{\text{width}}\]</div>
 </dd></dl>
 
 <dl class="py attribute">

@@ -508,6 +508,10 @@ document.write(`
 
 <span class="sd">    For more information on the parameters, please refer to the `camera documentation &lt;https://docs.omniverse.nvidia.com/materials-and-rendering/latest/cameras.html&gt;`__.</span>
 
+<span class="sd">    ..note ::</span>
+<span class="sd">        Focal length as well as the aperture sizes and offsets are set as a tenth of the world unit. In our case, the</span>
+<span class="sd">        world unit is Meter s.t. all of these values are set in cm.</span>
+
 <span class="sd">    .. note::</span>
 <span class="sd">        The default values are taken from the `Replicator camera &lt;https://docs.omniverse.nvidia.com/py/replicator/1.9.8/source/extensions/omni.replicator.core/docs/API.html#omni.replicator.core.create.camera&gt;`__</span>
 <span class="sd">        function.</span>
@@ -548,7 +552,7 @@ document.write(`
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">horizontal_aperture</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">20.955</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Horizontal aperture (in mm). Defaults to 20.955mm.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Horizontal aperture (in cm). Defaults to 20.955 cm.</span>
 
 <span class="sd">    Emulates sensor/film width on a camera.</span>
 

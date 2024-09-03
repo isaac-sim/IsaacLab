@@ -4319,6 +4319,11 @@ in which case this is set to identity.</p></li>
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.sim.spawners.sensors.</span></span><span class="sig-name descname"><span class="pre">PinholeCameraCfg</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/sim/spawners/sensors/sensors_cfg.html#PinholeCameraCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg" title="Permalink to this definition">#</a></dt>
 <dd><p>Configuration parameters for a USD camera prim with pinhole camera settings.</p>
 <p>For more information on the parameters, please refer to the <a class="reference external" href="https://docs.omniverse.nvidia.com/materials-and-rendering/latest/cameras.html">camera documentation</a>.</p>
+<dl class="simple">
+<dt>..note ::</dt><dd><p>Focal length as well as the aperture sizes and offsets are set as a tenth of the world unit. In our case, the
+world unit is Meter s.t. all of these values are set in cm.</p>
+</dd>
+</dl>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>The default values are taken from the <a class="reference external" href="https://docs.omniverse.nvidia.com/py/replicator/1.9.8/source/extensions/omni.replicator.core/docs/API.html#omni.replicator.core.create.camera">Replicator camera</a>
@@ -4343,7 +4348,7 @@ function.</p>
 <td><p>Lens aperture.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.horizontal_aperture" title="omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.horizontal_aperture"><code class="xref py py-obj docutils literal notranslate"><span class="pre">horizontal_aperture</span></code></a></p></td>
-<td><p>Horizontal aperture (in mm).</p></td>
+<td><p>Horizontal aperture (in cm).</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.vertical_aperture" title="omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.vertical_aperture"><code class="xref py py-obj docutils literal notranslate"><span class="pre">vertical_aperture</span></code></a></p></td>
 <td><p>Vertical aperture (in mm).</p></td>
@@ -4411,7 +4416,7 @@ avoid issues for distance related data types (e.g., <code class="docutils litera
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.horizontal_aperture">
 <span class="sig-name descname"><span class="pre">horizontal_aperture</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.horizontal_aperture" title="Permalink to this definition">#</a></dt>
-<dd><p>Horizontal aperture (in mm). Defaults to 20.955mm.</p>
+<dd><p>Horizontal aperture (in cm). Defaults to 20.955 cm.</p>
 <p>Emulates sensor/film width on a camera.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -4657,7 +4662,7 @@ avoid issues for distance related data types (e.g., <code class="docutils litera
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg.horizontal_aperture">
 <span class="sig-name descname"><span class="pre">horizontal_aperture</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg.horizontal_aperture" title="Permalink to this definition">#</a></dt>
-<dd><p>Horizontal aperture (in mm). Defaults to 20.955mm.</p>
+<dd><p>Horizontal aperture (in cm). Defaults to 20.955 cm.</p>
 <p>Emulates sensor/film width on a camera.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>

@@ -493,10 +493,12 @@ document.write(`
 
 <span class="sd">&quot;&quot;&quot;Configuration for the ray-cast camera sensor.&quot;&quot;&quot;</span>
 
+<span class="kn">from</span> <span class="nn">dataclasses</span> <span class="kn">import</span> <span class="n">MISSING</span>
 <span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Literal</span>
 
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.utils</span> <span class="kn">import</span> <span class="n">configclass</span>
 
+<span class="kn">from</span> <span class="nn">.patterns</span> <span class="kn">import</span> <span class="n">PinholeCameraPatternCfg</span>
 <span class="kn">from</span> <span class="nn">.ray_caster_camera</span> <span class="kn">import</span> <span class="n">RayCasterCamera</span>
 <span class="kn">from</span> <span class="nn">.ray_caster_cfg</span> <span class="kn">import</span> <span class="n">RayCasterCfg</span>
 
@@ -531,6 +533,9 @@ document.write(`
 
     <span class="n">data_types</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;distance_to_image_plane&quot;</span><span class="p">]</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;List of sensor names/types to enable for the camera. Defaults to [&quot;distance_to_image_plane&quot;].&quot;&quot;&quot;</span>
+
+    <span class="n">pattern_cfg</span><span class="p">:</span> <span class="n">PinholeCameraPatternCfg</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The pattern that defines the local ray starting positions and directions in a pinhole camera pattern.&quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="c1"># for cameras, this quantity should be False always.</span>

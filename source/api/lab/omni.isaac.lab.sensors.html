@@ -834,13 +834,13 @@ document.write(`
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.history_length"><code class="docutils literal notranslate"><span class="pre">RayCasterCameraCfg.history_length</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.debug_vis"><code class="docutils literal notranslate"><span class="pre">RayCasterCameraCfg.debug_vis</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.mesh_prim_paths"><code class="docutils literal notranslate"><span class="pre">RayCasterCameraCfg.mesh_prim_paths</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.offset"><code class="docutils literal notranslate"><span class="pre">RayCasterCameraCfg.offset</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.attach_yaw_only"><code class="docutils literal notranslate"><span class="pre">RayCasterCameraCfg.attach_yaw_only</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.pattern_cfg"><code class="docutils literal notranslate"><span class="pre">RayCasterCameraCfg.pattern_cfg</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.max_distance"><code class="docutils literal notranslate"><span class="pre">RayCasterCameraCfg.max_distance</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.drift_range"><code class="docutils literal notranslate"><span class="pre">RayCasterCameraCfg.drift_range</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.visualizer_cfg"><code class="docutils literal notranslate"><span class="pre">RayCasterCameraCfg.visualizer_cfg</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.offset"><code class="docutils literal notranslate"><span class="pre">RayCasterCameraCfg.offset</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.data_types"><code class="docutils literal notranslate"><span class="pre">RayCasterCameraCfg.data_types</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.pattern_cfg"><code class="docutils literal notranslate"><span class="pre">RayCasterCameraCfg.pattern_cfg</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -1340,7 +1340,7 @@ is not true in the input intrinsic matrix, then the camera will not set up corre
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>matrices</strong> – The intrinsic matrices for the camera. Shape is (N, 3, 3).</p></li>
-<li><p><strong>focal_length</strong> – Focal length to use when computing aperture values. Defaults to 1.0.</p></li>
+<li><p><strong>focal_length</strong> – Focal length to use when computing aperture values (in cm). Defaults to 1.0.</p></li>
 <li><p><strong>env_ids</strong> – A sensor ids to manipulate. Defaults to None, which means all sensor indices.</p></li>
 </ul>
 </dd>
@@ -1993,7 +1993,7 @@ is not true in the input intrinsic matrix, then the camera will not set up corre
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>matrices</strong> – The intrinsic matrices for the camera. Shape is (N, 3, 3).</p></li>
-<li><p><strong>focal_length</strong> – Focal length to use when computing aperture values. Defaults to 1.0.</p></li>
+<li><p><strong>focal_length</strong> – Focal length to use when computing aperture values (in cm). Defaults to 1.0.</p></li>
 <li><p><strong>env_ids</strong> – A sensor ids to manipulate. Defaults to None, which means all sensor indices.</p></li>
 </ul>
 </dd>
@@ -3668,7 +3668,7 @@ code snippet in your sensor implementation:</p>
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>matrices</strong> – The intrinsic matrices for the camera. Shape is (N, 3, 3).</p></li>
-<li><p><strong>focal_length</strong> – Focal length to use when computing aperture values. Defaults to 1.0.</p></li>
+<li><p><strong>focal_length</strong> – Focal length to use when computing aperture values (in cm). Defaults to 1.0.</p></li>
 <li><p><strong>env_ids</strong> – A sensor ids to manipulate. Defaults to None, which means all sensor indices.</p></li>
 </ul>
 </dd>
@@ -3814,6 +3814,9 @@ does not support debug visualization.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.data_types" title="omni.isaac.lab.sensors.RayCasterCameraCfg.data_types"><code class="xref py py-obj docutils literal notranslate"><span class="pre">data_types</span></code></a></p></td>
 <td><p>List of sensor names/types to enable for the camera.</p></td>
 </tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.pattern_cfg" title="omni.isaac.lab.sensors.RayCasterCameraCfg.pattern_cfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pattern_cfg</span></code></a></p></td>
+<td><p>The pattern that defines the local ray starting positions and directions in a pinhole camera pattern.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -3905,16 +3908,16 @@ static meshes and dynamic meshes.</p>
 </dd></dl>
 
 <dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sensors.RayCasterCameraCfg.offset">
+<span class="sig-name descname"><span class="pre">offset</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.OffsetCfg" title="omni.isaac.lab.sensors.ray_caster.ray_caster_camera_cfg.RayCasterCameraCfg.OffsetCfg"><span class="pre">OffsetCfg</span></a></em><a class="headerlink" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.offset" title="Permalink to this definition">#</a></dt>
+<dd><p>The offset pose of the sensor’s frame from the sensor’s parent frame. Defaults to identity.</p>
+</dd></dl>
+
+<dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sensors.RayCasterCameraCfg.attach_yaw_only">
 <span class="sig-name descname"><span class="pre">attach_yaw_only</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.attach_yaw_only" title="Permalink to this definition">#</a></dt>
 <dd><p>Whether the rays’ starting positions and directions only track the yaw orientation.</p>
 <p>This is useful for ray-casting height maps, where only yaw rotation is needed.</p>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="omni.isaac.lab.sensors.RayCasterCameraCfg.pattern_cfg">
-<span class="sig-name descname"><span class="pre">pattern_cfg</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="omni.isaac.lab.sensors.patterns.html#omni.isaac.lab.sensors.patterns.PatternBaseCfg" title="omni.isaac.lab.sensors.ray_caster.patterns.patterns_cfg.PatternBaseCfg"><span class="pre">PatternBaseCfg</span></a></em><a class="headerlink" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.pattern_cfg" title="Permalink to this definition">#</a></dt>
-<dd><p>The pattern that defines the local ray starting positions and directions.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -3941,15 +3944,15 @@ static meshes and dynamic meshes.</p>
 </dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="omni.isaac.lab.sensors.RayCasterCameraCfg.offset">
-<span class="sig-name descname"><span class="pre">offset</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.OffsetCfg" title="omni.isaac.lab.sensors.ray_caster.ray_caster_camera_cfg.RayCasterCameraCfg.OffsetCfg"><span class="pre">OffsetCfg</span></a></em><a class="headerlink" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.offset" title="Permalink to this definition">#</a></dt>
-<dd><p>The offset pose of the sensor’s frame from the sensor’s parent frame. Defaults to identity.</p>
-</dd></dl>
-
-<dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sensors.RayCasterCameraCfg.data_types">
 <span class="sig-name descname"><span class="pre">data_types</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.12)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.data_types" title="Permalink to this definition">#</a></dt>
 <dd><p>List of sensor names/types to enable for the camera. Defaults to [“distance_to_image_plane”].</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sensors.RayCasterCameraCfg.pattern_cfg">
+<span class="sig-name descname"><span class="pre">pattern_cfg</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="omni.isaac.lab.sensors.patterns.html#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg" title="omni.isaac.lab.sensors.ray_caster.patterns.patterns_cfg.PinholeCameraPatternCfg"><span class="pre">PinholeCameraPatternCfg</span></a></em><a class="headerlink" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.pattern_cfg" title="Permalink to this definition">#</a></dt>
+<dd><p>The pattern that defines the local ray starting positions and directions in a pinhole camera pattern.</p>
 </dd></dl>
 
 </dd></dl>
@@ -4285,13 +4288,13 @@ static meshes and dynamic meshes.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.history_length"><code class="docutils literal notranslate"><span class="pre">RayCasterCameraCfg.history_length</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.debug_vis"><code class="docutils literal notranslate"><span class="pre">RayCasterCameraCfg.debug_vis</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.mesh_prim_paths"><code class="docutils literal notranslate"><span class="pre">RayCasterCameraCfg.mesh_prim_paths</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.offset"><code class="docutils literal notranslate"><span class="pre">RayCasterCameraCfg.offset</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.attach_yaw_only"><code class="docutils literal notranslate"><span class="pre">RayCasterCameraCfg.attach_yaw_only</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.pattern_cfg"><code class="docutils literal notranslate"><span class="pre">RayCasterCameraCfg.pattern_cfg</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.max_distance"><code class="docutils literal notranslate"><span class="pre">RayCasterCameraCfg.max_distance</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.drift_range"><code class="docutils literal notranslate"><span class="pre">RayCasterCameraCfg.drift_range</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.visualizer_cfg"><code class="docutils literal notranslate"><span class="pre">RayCasterCameraCfg.visualizer_cfg</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.offset"><code class="docutils literal notranslate"><span class="pre">RayCasterCameraCfg.offset</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.data_types"><code class="docutils literal notranslate"><span class="pre">RayCasterCameraCfg.data_types</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.pattern_cfg"><code class="docutils literal notranslate"><span class="pre">RayCasterCameraCfg.pattern_cfg</span></code></a></li>
 </ul>
 </li>
 </ul>
