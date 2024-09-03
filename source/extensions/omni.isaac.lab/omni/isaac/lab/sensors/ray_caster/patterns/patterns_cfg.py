@@ -70,7 +70,13 @@ class GridPatternCfg(PatternBaseCfg):
 
 @configclass
 class PinholeCameraPatternCfg(PatternBaseCfg):
-    """Configuration for a pinhole camera depth image pattern for ray-casting."""
+    """Configuration for a pinhole camera depth image pattern for ray-casting.
+
+    .. caution::
+        Focal length as well as the aperture sizes and offsets are set as a tenth of the world unit. In our case, the
+        world unit is meters, so all of these values are in cm. For more information, please check:
+        https://docs.omniverse.nvidia.com/materials-and-rendering/latest/cameras.html
+    """
 
     func: Callable = patterns.pinhole_camera_pattern
 
@@ -81,16 +87,15 @@ class PinholeCameraPatternCfg(PatternBaseCfg):
     """
 
     horizontal_aperture: float = 20.955
-    """Horizontal aperture (in mm). Defaults to 20.955mm.
+    """Horizontal aperture (in cm). Defaults to 20.955 cm.
 
     Emulates sensor/film width on a camera.
 
     Note:
         The default value is the horizontal aperture of a 35 mm spherical projector.
     """
-
     vertical_aperture: float | None = None
-    """Vertical aperture (in mm). Defaults to None.
+    r"""Vertical aperture (in cm). Defaults to None.
 
     Emulates sensor/film height on a camera. If None, then the vertical aperture is calculated based on the
     horizontal aperture and the aspect ratio of the image to maintain squared pixels. In this case, the vertical

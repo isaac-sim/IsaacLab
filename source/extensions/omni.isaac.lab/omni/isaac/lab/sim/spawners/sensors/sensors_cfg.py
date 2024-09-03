@@ -20,6 +20,10 @@ class PinholeCameraCfg(SpawnerCfg):
 
     For more information on the parameters, please refer to the `camera documentation <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/cameras.html>`__.
 
+    ..note ::
+        Focal length as well as the aperture sizes and offsets are set as a tenth of the world unit. In our case, the
+        world unit is Meter s.t. all of these values are set in cm.
+
     .. note::
         The default values are taken from the `Replicator camera <https://docs.omniverse.nvidia.com/py/replicator/1.9.8/source/extensions/omni.replicator.core/docs/API.html#omni.replicator.core.create.camera>`__
         function.
@@ -60,7 +64,7 @@ class PinholeCameraCfg(SpawnerCfg):
     """
 
     horizontal_aperture: float = 20.955
-    """Horizontal aperture (in mm). Defaults to 20.955mm.
+    """Horizontal aperture (in cm). Defaults to 20.955 cm.
 
     Emulates sensor/film width on a camera.
 
