@@ -3,76 +3,15 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import torch
-from collections.abc import Sequence
-from dataclasses import MISSING
+from __future__ import annotations
 
-from omni.isaac.lab.utils import configclass
+import torch
+from typing import TYPE_CHECKING
+
 from omni.isaac.lab.utils.math import apply_delta_pose, compute_pose_error
 
-
-@configclass
-class OperationSpaceControllerCfg:
-    """Configuration for operation-space controller."""
-
-    command_types: Sequence[str] = MISSING
-    """Type of command.
-
-    It has two sub-strings joined by underscore:
-        - type of command mode: "position", "pose", "force"
-        - type of command resolving: "abs" (absolute), "rel" (relative)
-    """
-
-    impedance_mode: str = MISSING
-    """Type of gains for motion control: "fixed", "variable", "variable_kp"."""
-
-    uncouple_motion_wrench: bool = False
-    """Whether to decouple the wrench computation from task-space pose (motion) error."""
-
-    motion_control_axes: Sequence[int] = (1, 1, 1, 1, 1, 1)
-    """Motion direction to control. Mark as 0/1 for each axis."""
-    force_control_axes: Sequence[int] = (0, 0, 0, 0, 0, 0)
-    """Force direction to control. Mark as 0/1 for each axis."""
-
-    inertial_compensation: bool = False
-    """Whether to perform inertial compensation for motion control (inverse dynamics)."""
-
-    gravity_compensation: bool = False
-    """Whether to perform gravity compensation."""
-
-    stiffness: float | Sequence[float] = MISSING
-    """The positional gain for determining wrenches based on task-space pose error."""
-
-    damping_ratio: float | Sequence[float] | None = None
-    """The damping ratio is used in-conjunction with positional gain to compute wrenches
-    based on task-space velocity error.
-
-    The following math operation is performed for computing velocity gains:
-        :math:`d_gains = 2 * sqrt(p_gains) * damping_ratio`.
-    """
-
-    stiffness_limits: tuple[float, float] = (0, 300)
-    """Minimum and maximum values for positional gains.
-
-    Note: Used only when :obj:`impedance_mode` is "variable" or "variable_kp".
-    """
-
-    damping_ratio_limits: tuple[float, float] = (0, 100)
-    """Minimum and maximum values for damping ratios used to compute velocity gains.
-
-    Note: Used only when :obj:`impedance_mode` is "variable".
-    """
-
-    force_stiffness: float | Sequence[float] = None
-    """The positional gain for determining wrenches for closed-loop force control.
-
-    If obj:`None`, then open-loop control of desired forces is performed.
-    """
-
-    position_command_scale: tuple[float, float, float] = (1.0, 1.0, 1.0)
-    """Scaling of the position command received. Used only in relative mode."""
-    rotation_command_scale: tuple[float, float, float] = (1.0, 1.0, 1.0)
-    """Scaling of the rotation command received. Used only in relative mode."""
+if TYPE_CHECKING:
+    from .operational_space_cfg import OperationSpaceControllerCfg
 
 
 class OperationSpaceController:
@@ -82,12 +21,12 @@ class OperationSpaceController:
         [1] https://ethz.ch/content/dam/ethz/special-interest/mavt/robotics-n-intelligent-systems/rsl-dam/documents/RobotDynamics2017/RD_HS2017script.pdf
     """
 
-    def __init__(self, cfg: OperationSpaceControllerCfg, num_robots: int, num_dof: int, device: str):
+    def __init__(self, cfg: OperationSpaceControllerCfg, num_envs: int, num_dof: int, device: str):
         """Initialize operation-space controller.
 
         Args:
             cfg: The configuration for operation-space controller.
-            num_robots: The number of robots to control.
+            num_envs: The number of environments.
             num_dof: The number of degrees of freedom of the robot.
             device: The device to use for computations.
 
@@ -96,7 +35,7 @@ class OperationSpaceController:
         """
         # store inputs
         self.cfg = cfg
-        self.num_robots = num_robots
+        self.num_envs = num_envs
         self.num_dof = num_dof
         self._device = device
 
@@ -124,22 +63,22 @@ class OperationSpaceController:
             torch.tensor(self.cfg.force_control_axes, dtype=torch.float, device=self._device)
         )
         # -- commands
-        self._task_space_target = torch.zeros(self.num_robots, self.target_dim, device=self._device)
+        self._task_space_target = torch.zeros(self.num_envs, self.target_dim, device=self._device)
         # -- scaling of command
         self._position_command_scale = torch.diag(torch.tensor(self.cfg.position_command_scale, device=self._device))
         self._rotation_command_scale = torch.diag(torch.tensor(self.cfg.rotation_command_scale, device=self._device))
         # -- motion control gains
-        self._p_gains = torch.zeros(self.num_robots, 6, device=self._device)
+        self._p_gains = torch.zeros(self.num_envs, 6, device=self._device)
         self._p_gains[:] = torch.tensor(self.cfg.stiffness, device=self._device)
         self._d_gains = 2 * torch.sqrt(self._p_gains) * torch.tensor(self.cfg.damping_ratio, device=self._device)
         # -- force control gains
         if self.cfg.force_stiffness is not None:
-            self._p_wrench_gains = torch.zeros(self.num_robots, 6, device=self._device)
+            self._p_wrench_gains = torch.zeros(self.num_envs, 6, device=self._device)
             self._p_wrench_gains[:] = torch.tensor(self.cfg.force_stiffness, device=self._device)
         else:
             self._p_wrench_gains = None
         # -- position gain limits
-        self._p_gains_limits = torch.zeros(self.num_robots, 6, device=self._device)
+        self._p_gains_limits = torch.zeros(self.num_envs, 6, device=self._device)
         self._p_gains_limits[..., 0], self._p_gains_limits[..., 1] = (
             self.cfg.stiffness_limits[0],
             self.cfg.stiffness_limits[1],
@@ -151,7 +90,8 @@ class OperationSpaceController:
             self.cfg.damping_ratio_limits[1],
         )
         # -- storing outputs
-        self._desired_torques = torch.zeros(self.num_robots, self.num_dof, self.num_dof, device=self._device)
+        self._desired_torques = torch.zeros(self.num_envs, self.num_dof, device=self._device) 
+        # FIXME: this could be wrong, original was self._desired_torques = torch.zeros(self.num_envs, self.num_dof, self.num_dof, device=self._device)  
 
     """
     Properties.
@@ -177,6 +117,14 @@ class OperationSpaceController:
     Operations.
     """
 
+    def reset(self, env_ids: torch.Tensor = None):
+        """Reset the internals.
+
+        Args:
+            env_ids: The environment indices to reset. If None, then all environments are reset.
+        """
+        pass
+
     def initialize(self):
         """Initialize the internals."""
         pass
@@ -192,9 +140,9 @@ class OperationSpaceController:
             command: The target end-effector pose or force command.
         """
         # check input size
-        if command.shape != (self.num_robots, self.num_actions):
+        if command.shape != (self.num_envs, self.num_actions):
             raise ValueError(
-                f"Invalid command shape '{command.shape}'. Expected: '{(self.num_robots, self.num_actions)}'."
+                f"Invalid command shape '{command.shape}'. Expected: '{(self.num_envs, self.num_actions)}'."
             )
         # impedance mode
         if self.cfg.impedance_mode == "fixed":
