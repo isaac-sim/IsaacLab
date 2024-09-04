@@ -6,7 +6,7 @@
 from dataclasses import MISSING
 
 import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
+from omni.isaac.lab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg, DeformableObjectCfg, DeformableObject
 from omni.isaac.lab.envs import ManagerBasedRLEnvCfg
 from omni.isaac.lab.managers import CurriculumTermCfg as CurrTerm
 from omni.isaac.lab.managers import EventTermCfg as EventTerm
@@ -73,6 +73,33 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
             collision_props=sim_utils.CollisionPropertiesCfg(),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.5, 0.1, 0.021)),
+    )
+
+    # deformable Object
+    deformable_cube = DeformableObjectCfg(
+        prim_path="{ENV_REGEX_NS}/deformable_cube",
+        spawn=sim_utils.MeshCuboidCfg(
+            size=(0.05, 0.05, 0.05),
+            deformable_props=sim_utils.DeformableBodyPropertiesCfg(rest_offset=0.0, contact_offset=0.001),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.1, 0.0)),
+            physics_material=sim_utils.DeformableBodyMaterialCfg(poissons_ratio=0.2, youngs_modulus=1e5, dynamic_friction=100), # steel poissons_ratio=0.3, youngs_modulus=2e11
+        ),
+        init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.6, 0.2, 0.021)),
+        debug_vis=True,
+    )
+    # # # deformable_cube = DeformableObject(cfg=deformable_cube)
+
+    # deformable Object
+    stacked_deformable_cube = DeformableObjectCfg(
+        prim_path="{ENV_REGEX_NS}/stacked_deformable_cube",
+        spawn=sim_utils.MeshCuboidCfg(
+            size=(0.05, 0.05, 0.05),
+            deformable_props=sim_utils.DeformableBodyPropertiesCfg(rest_offset=0.0, contact_offset=0.001),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.5, 0.0)),
+            physics_material=sim_utils.DeformableBodyMaterialCfg(poissons_ratio=0.4, youngs_modulus=1e5),
+        ),
+        init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.6, 0, 0.021)),
+        debug_vis=True,
     )
 
 ##
@@ -207,7 +234,7 @@ class LiftEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the lifting environment."""
 
     # Scene settings
-    scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=4096, env_spacing=2.5)
+    scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=4096, env_spacing=2.5, replicate_physics=False)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()

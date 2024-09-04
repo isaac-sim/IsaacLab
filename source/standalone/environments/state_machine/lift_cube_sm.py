@@ -258,7 +258,7 @@ def main():
         use_fabric=not args_cli.disable_fabric,
     )
     # create environment
-    env = gym.make("Isaac-Lift-Cube-Franka-IK-Abs-v0", cfg=env_cfg)
+    env = gym.make("Isaac-Lift-Cube-Franka-IK-Abs-v0", cfg=env_cfg) # SimulationContext(sim_cfg)?
     # reset environment at start
     env.reset()
 
@@ -282,7 +282,9 @@ def main():
             ee_frame_sensor = env.unwrapped.scene["ee_frame"]
             tcp_rest_position = ee_frame_sensor.data.target_pos_w[..., 0, :].clone() - env.unwrapped.scene.env_origins
             tcp_rest_orientation = ee_frame_sensor.data.target_quat_w[..., 0, :].clone()
-            # -- object frame
+
+            # ---- rigid objects ----
+            # -- picked object frame
             object_data: RigidObjectData = env.unwrapped.scene["object"].data
             object_position = object_data.root_pos_w - env.unwrapped.scene.env_origins
             # -- target object frame
@@ -292,12 +294,33 @@ def main():
             stacked_cube_position = stacked_cube_data.root_pos_w - env.unwrapped.scene.env_origins
             stacked_cube_orientation = stacked_cube_data.root_quat_w
 
+            # # advance state machine
+            # actions = pick_sm.compute(
+            #     torch.cat([tcp_rest_position, tcp_rest_orientation], dim=-1),
+            #     torch.cat([object_position, desired_orientation], dim=-1),
+            #     torch.cat([stacked_cube_position, desired_orientation], dim=-1),
+            # )
+
+            # ---- deformable objects ----
+            # picked object frame
+            deform_body = env.unwrapped.scene["deformable_cube"]
+            deform_body_pos = deform_body.data.root_pos_w - env.unwrapped.scene.env_origins
+            # stacked object frame
+            stacked_deform_body = env.unwrapped.scene["stacked_deformable_cube"]
+            stacked_deform_body_pos = stacked_deform_body.data.root_pos_w - env.unwrapped.scene.env_origins
+            # print('picked', deform_body_pos, 'stacked', stacked_deform_body_pos)
+
             # advance state machine
             actions = pick_sm.compute(
                 torch.cat([tcp_rest_position, tcp_rest_orientation], dim=-1),
-                torch.cat([object_position, desired_orientation], dim=-1),
-                torch.cat([stacked_cube_position, desired_orientation], dim=-1),
+                torch.cat([deform_body_pos, desired_orientation], dim=-1),
+                torch.cat([stacked_deform_body_pos, desired_orientation], dim=-1),
             )
+
+            # print(env_cfg.scene.deformable_cube)
+            # print("2", env.unwrapped.scene["deformable_cube"])
+            # deform_body = DeformableObject(cfg=env_cfg.scene.deformable_cube)
+            # print(deform_body.data.nodal_kinematic_target)
 
             # reset state machine
             if dones.any():
