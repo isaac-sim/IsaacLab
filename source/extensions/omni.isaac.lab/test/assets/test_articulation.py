@@ -20,8 +20,8 @@ simulation_app = app_launcher.app
 
 import ctypes
 import torch
-from typing import Literal
 import unittest
+from typing import Literal
 
 import omni.isaac.core.utils.prims as prim_utils
 
@@ -39,9 +39,9 @@ from omni.isaac.lab_assets import ANYMAL_C_CFG, FRANKA_PANDA_CFG, SHADOW_HAND_CF
 
 
 def generate_articulation_cfg(
-    articulation_type: Literal["humanoid", "panda", "anymal", "shadow_hand", "single_joint"], 
-    stiffness: float | None = 10.0, 
-    damping: float | None = 2.0
+    articulation_type: Literal["humanoid", "panda", "anymal", "shadow_hand", "single_joint"],
+    stiffness: float | None = 10.0,
+    damping: float | None = 2.0,
 ) -> ArticulationCfg:
     """Generate an articulation configuration.
 
