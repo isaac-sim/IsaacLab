@@ -205,7 +205,7 @@ class OperationSpaceController:
         desired_ee_rot = None
         desired_ee_force = None
         # resolve the commands
-        target_groups = torch.split(self._task_space_target, self.target_list)
+        target_groups = torch.split(self._task_space_target, self.target_list, dim=1)
         for command_type, target in zip(self.cfg.command_types, target_groups):
             if command_type == "position_rel":
                 # check input is provided
