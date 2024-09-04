@@ -270,23 +270,22 @@ class OperationSpaceController:
                 mass_matrix_inv = torch.inverse(mass_matrix)
                 if self.cfg.uncouple_motion_wrench:
                     # decoupled-mass matrices
-                    lambda_pos = torch.inverse(jacobian[:, 0:3] @ mass_matrix_inv * jacobian[:, 0:3].T)
-                    lambda_ori = torch.inverse(jacobian[:, 3:6] @ mass_matrix_inv * jacobian[:, 3:6].T)
+                    lambda_pos = torch.inverse(jacobian[:, 0:3] @ mass_matrix_inv @ jacobian[:, 0:3].mT)
+                    lambda_ori = torch.inverse(jacobian[:, 3:6] @ mass_matrix_inv @ jacobian[:, 3:6].mT)
                     # desired end-effector wrench (from pseudo-dynamics)
-                    decoupled_force = lambda_pos @ des_ee_acc[:, 0:3]
-                    decoupled_torque = lambda_ori @ des_ee_acc[:, 3:6]
-                    des_motion_wrench = torch.cat(decoupled_force, decoupled_torque)
+                    decoupled_force = (lambda_pos @ des_ee_acc[:, 0:3].unsqueeze(-1)).squeeze(-1)
+                    decoupled_torque = (lambda_ori @ des_ee_acc[:, 3:6].unsqueeze(-1)).squeeze(-1)
+                    des_motion_wrench = torch.cat([decoupled_force, decoupled_torque], dim=-1)
                 else:
                     # coupled dynamics
-                    lambda_full = torch.inverse(jacobian @ mass_matrix_inv * jacobian.T)
-                    # desired end-effector wrench (from pseudo-dynamics)
-                    des_motion_wrench = lambda_full @ des_ee_acc
+                    lambda_full = torch.inverse(jacobian @ mass_matrix_inv @ jacobian.mT)
+                    des_motion_wrench = (lambda_full @ des_ee_acc.unsqueeze(-1)).squeeze(-1)
             else:
                 # task-space impedance control
                 # wrench = \ddot(x_des)
                 des_motion_wrench = des_ee_acc
             # -- joint-space wrench
-            joint_efforts += (jacobian.transpose(1, 2) @ self._selection_matrix_motion @ des_motion_wrench.unsqueeze(-1)).squeeze(-1)
+            joint_efforts += (jacobian.mT @ self._selection_matrix_motion @ des_motion_wrench.unsqueeze(-1)).squeeze(-1)
 
         # compute for force control
         if desired_ee_force is not None:
