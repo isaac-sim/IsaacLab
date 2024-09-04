@@ -13,6 +13,10 @@ It uses the `warp` library to run the state machine in parallel on the GPU.
 
     ./isaaclab.sh -p source/standalone/environments/state_machine/lift_cube_sm.py --num_envs 32
 
+    or 
+
+    ./isaaclab.sh -p source/standalone/environments/state_machine/lift_cube_sm.py --num_envs 32 --stack_deformable True
+
 """
 
 """Launch Omniverse Toolkit first."""
@@ -27,6 +31,7 @@ parser.add_argument(
     "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
 )
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
+parser.add_argument("--stack_deformable", type=bool, default=False, help="Stack deformable objects.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -282,45 +287,28 @@ def main():
             ee_frame_sensor = env.unwrapped.scene["ee_frame"]
             tcp_rest_position = ee_frame_sensor.data.target_pos_w[..., 0, :].clone() - env.unwrapped.scene.env_origins
             tcp_rest_orientation = ee_frame_sensor.data.target_quat_w[..., 0, :].clone()
+            # -- target end-effector frame
+            desired_ee_position = env.unwrapped.command_manager.get_command("object_pose")[..., :3]
 
-            # ---- rigid objects ----
+            # stack deformable object or rigid object
+            if args_cli.stack_deformable:
+                picked_object = env.unwrapped.scene["deformable_cube"]
+                target_object = env.unwrapped.scene["stacked_deformable_cube"]
+            else:
+                picked_object = env.unwrapped.scene["object"]
+                target_object = env.unwrapped.scene["stacked_cube"]
             # -- picked object frame
-            object_data: RigidObjectData = env.unwrapped.scene["object"].data
-            object_position = object_data.root_pos_w - env.unwrapped.scene.env_origins
+            object_position = picked_object.data.root_pos_w - env.unwrapped.scene.env_origins
             # -- target object frame
-            desired_position = env.unwrapped.command_manager.get_command("object_pose")[..., :3]
-            # -- stacked cube frame
-            stacked_cube_data: RigidObjectData =  env.unwrapped.scene["stacked_cube"].data
-            stacked_cube_position = stacked_cube_data.root_pos_w - env.unwrapped.scene.env_origins
-            stacked_cube_orientation = stacked_cube_data.root_quat_w
+            target_position = target_object.data.root_pos_w - env.unwrapped.scene.env_origins
 
-            # # advance state machine
-            # actions = pick_sm.compute(
-            #     torch.cat([tcp_rest_position, tcp_rest_orientation], dim=-1),
-            #     torch.cat([object_position, desired_orientation], dim=-1),
-            #     torch.cat([stacked_cube_position, desired_orientation], dim=-1),
-            # )
-
-            # ---- deformable objects ----
-            # picked object frame
-            deform_body = env.unwrapped.scene["deformable_cube"]
-            deform_body_pos = deform_body.data.root_pos_w - env.unwrapped.scene.env_origins
-            # stacked object frame
-            stacked_deform_body = env.unwrapped.scene["stacked_deformable_cube"]
-            stacked_deform_body_pos = stacked_deform_body.data.root_pos_w - env.unwrapped.scene.env_origins
-            # print('picked', deform_body_pos, 'stacked', stacked_deform_body_pos)
 
             # advance state machine
             actions = pick_sm.compute(
                 torch.cat([tcp_rest_position, tcp_rest_orientation], dim=-1),
-                torch.cat([deform_body_pos, desired_orientation], dim=-1),
-                torch.cat([stacked_deform_body_pos, desired_orientation], dim=-1),
+                torch.cat([object_position, desired_orientation], dim=-1),
+                torch.cat([target_position, desired_orientation], dim=-1),
             )
-
-            # print(env_cfg.scene.deformable_cube)
-            # print("2", env.unwrapped.scene["deformable_cube"])
-            # deform_body = DeformableObject(cfg=env_cfg.scene.deformable_cube)
-            # print(deform_body.data.nodal_kinematic_target)
 
             # reset state machine
             if dones.any():
