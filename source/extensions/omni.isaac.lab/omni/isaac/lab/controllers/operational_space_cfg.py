@@ -18,7 +18,7 @@ class OperationSpaceControllerCfg:
     class_type: type = OperationSpaceController
     """The associated controller class."""
 
-    command_type: Sequence[str] = MISSING
+    command_types: Sequence[str] = MISSING
     """Type of command.
 
     It has two sub-strings joined by underscore:
