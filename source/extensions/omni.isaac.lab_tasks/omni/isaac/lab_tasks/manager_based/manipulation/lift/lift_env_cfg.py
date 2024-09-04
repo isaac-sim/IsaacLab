@@ -72,7 +72,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
             mass_props=sim_utils.MassPropertiesCfg(mass=0.8),
             collision_props=sim_utils.CollisionPropertiesCfg(),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.5, 0.1, 0.021)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.5, 0., 0.021)),
     )
 
     # deformable Object
@@ -98,7 +98,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.5, 0.0)),
             physics_material=sim_utils.DeformableBodyMaterialCfg(poissons_ratio=0.4, youngs_modulus=1e5),
         ),
-        init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.6, 0, 0.021)),
+        init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.5, 0.1, 0.021)),
         debug_vis=True,
     )
 

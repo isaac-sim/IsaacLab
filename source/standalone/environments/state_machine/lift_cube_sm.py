@@ -52,6 +52,7 @@ import warp as wp
 from omni.isaac.lab.assets.rigid_object.rigid_object_data import RigidObjectData
 
 import omni.isaac.lab_tasks  # noqa: F401
+import omni.isaac.lab.utils.math as math_utils
 from omni.isaac.lab_tasks.manager_based.manipulation.lift.lift_env_cfg import LiftEnvCfg
 from omni.isaac.lab_tasks.utils.parse_cfg import parse_env_cfg
 
@@ -276,6 +277,14 @@ def main():
     # create state machine
     pick_sm = PickAndLiftSm(env_cfg.sim.dt * env_cfg.decimation, env.unwrapped.num_envs, env.unwrapped.device)
 
+    range = torch.tensor([0.2, 0.2, 0], device=env.unwrapped.device).repeat(env.unwrapped.num_envs, 1)
+    pos_offset = math_utils.sample_uniform(
+        lower=-range, 
+        upper=range, 
+        size=(env.unwrapped.num_envs, 3), 
+        device=env.unwrapped.device
+    )
+
     while simulation_app.is_running():
         # run everything in inference mode
         with torch.inference_mode():
@@ -309,10 +318,25 @@ def main():
                 torch.cat([object_position, desired_orientation], dim=-1),
                 torch.cat([target_position, desired_orientation], dim=-1),
             )
-
-            # reset state machine
+            
+            # reset state machine and apply random pose to the object
             if dones.any():
                 pick_sm.reset_idx(dones.nonzero(as_tuple=False).squeeze(-1))
+                if args_cli.stack_deformable:
+                    nodal_state = target_object.data.default_nodal_state_w.clone()
+                    # root_state_origin = nodal_state.mean(dim=1)[:, :3]
+                    nodal_state[..., :3] = target_object.transform_nodal_pos(nodal_state[..., :3], pos_offset)
+                    target_object.write_nodal_state_to_sim(nodal_state)
+                    # print("desired", pos_offset)
+                    # print(target_object.data.root_pos_w - root_state_origin)
+                else:
+                    root_state = target_object.data.default_root_state.clone()
+                    root_state[:, :3] += env.unwrapped.scene.env_origins
+                    root_state[:, :3] += pos_offset
+                    target_object.write_root_state_to_sim(root_state)
+                target_object.reset()
+                print("----------------------------------------")
+                print("[INFO]: Resetting object state...")
 
     # close the environment
     env.close()
