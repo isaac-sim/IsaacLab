@@ -194,7 +194,7 @@ class TestOperationSpaceController(unittest.TestCase):
                 # so we MUST skip the first step
                 # obtain quantities from simulation
                 jacobian = robot.root_physx_view.get_jacobians()[:, ee_jacobi_idx, :, arm_joint_ids]
-                mass_matrix = robot.root_physx_view.get_mass_matrices()[:, arm_joint_ids, arm_joint_ids]
+                mass_matrix = robot.root_physx_view.get_mass_matrices()[:, arm_joint_ids, :][:, :, arm_joint_ids]
 
                 ee_pose_w = robot.data.body_state_w[:, ee_frame_idx, 0:7]
                 root_pose_w = robot.data.root_state_w[:, 0:7]
