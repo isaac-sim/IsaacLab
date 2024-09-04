@@ -21,13 +21,12 @@ class OperationSpaceController:
         [1] https://ethz.ch/content/dam/ethz/special-interest/mavt/robotics-n-intelligent-systems/rsl-dam/documents/RobotDynamics2017/RD_HS2017script.pdf
     """
 
-    def __init__(self, cfg: OperationSpaceControllerCfg, num_envs: int, num_dof: int, device: str):
+    def __init__(self, cfg: OperationSpaceControllerCfg, num_envs: int, device: str):
         """Initialize operation-space controller.
 
         Args:
             cfg: The configuration for operation-space controller.
             num_envs: The number of environments.
-            num_dof: The number of degrees of freedom of the robot.
             device: The device to use for computations.
 
         Raises:
@@ -36,7 +35,6 @@ class OperationSpaceController:
         # store inputs
         self.cfg = cfg
         self.num_envs = num_envs
-        self.num_dof = num_dof
         self._device = device
 
         # resolve tasks-pace target dimensions
@@ -89,9 +87,6 @@ class OperationSpaceController:
             self.cfg.damping_ratio_limits[0],
             self.cfg.damping_ratio_limits[1],
         )
-        # -- storing outputs
-        self._desired_torques = torch.zeros(self.num_envs, self.num_dof, device=self._device) 
-        # FIXME: this could be wrong, original was self._desired_torques = torch.zeros(self.num_envs, self.num_dof, self.num_dof, device=self._device)  
 
     """
     Properties.
@@ -247,8 +242,11 @@ class OperationSpaceController:
             else:
                 raise ValueError(f"Invalid control command: {self.cfg.command_type}.")
 
-        # reset desired joint torques
-        self._desired_torques[:] = 0
+        # deduce number of DoF
+        nDoF = jacobian.shape[2]
+        # create joint effort vector
+        joint_efforts = torch.zeros(self.num_envs, nDoF, device=self._device)
+
         # compute for motion-control
         if desired_ee_pos is not None:
             # check input is provided
@@ -287,7 +285,7 @@ class OperationSpaceController:
                 # wrench = \ddot(x_des)
                 des_motion_wrench = des_ee_acc
             # -- joint-space wrench
-            self._desired_torques += jacobian.T @ self._selection_matrix_motion @ des_motion_wrench
+            joint_efforts += jacobian.T @ self._selection_matrix_motion @ des_motion_wrench
 
         # compute for force control
         if desired_ee_force is not None:
@@ -302,7 +300,7 @@ class OperationSpaceController:
                 # open-loop control
                 des_force_wrench = desired_ee_force
             # -- joint-space wrench
-            self._desired_torques += jacobian.T @ self._selection_matrix_force @ des_force_wrench
+            joint_efforts += jacobian.T @ self._selection_matrix_force @ des_force_wrench
 
         # add gravity compensation (bias correction)
         if self.cfg.gravity_compensation:
@@ -310,6 +308,6 @@ class OperationSpaceController:
             if gravity is None:
                 raise ValueError("Gravity vector is required for gravity compensation.")
             # add gravity compensation
-            self._desired_torques += gravity
+            joint_efforts += gravity
 
-        return self._desired_torques
+        return joint_efforts
