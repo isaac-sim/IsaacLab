@@ -253,8 +253,9 @@ class OperationSpaceController:
             if ee_pose is None or ee_vel is None:
                 raise ValueError("End-effector pose and velocity are required for motion control.")
             # -- end-effector tracking error
-            pose_error = compute_pose_error(
-                ee_pose[:, :3], ee_pose[:, 3:], desired_ee_pos, desired_ee_rot, rot_error_type="axis_angle"
+            pose_error = torch.cat(compute_pose_error(
+                ee_pose[:, :3], ee_pose[:, 3:], desired_ee_pos, desired_ee_rot, rot_error_type="axis_angle"),
+                dim=-1
             )
             velocity_error = -ee_vel  # zero target velocity
             # -- desired end-effector acceleration (spring damped system)
