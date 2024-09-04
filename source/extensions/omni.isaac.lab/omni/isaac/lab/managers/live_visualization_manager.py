@@ -18,16 +18,18 @@ from omni.isaac.lab.utils import configclass
 import omni.isaac.lab.managers as managers
 from omni.isaac.lab.ui.widgets.line_plot import LiveLinePlot
 
-# @configclass
-# class ManagerLiveVisualizerCfg():
-
+@configclass
+class ManagerLiveVisualizerCfg():
+    debug_vis = False
 
 class ManagerLiveVisualizer():
-    def __init__(self, manager):
+    def __init__(self, manager,cfg: ManagerLiveVisualizerCfg = ManagerLiveVisualizerCfg()):
         """"""
         self._manager = manager
-        self.debug_vis = True    
+        self.debug_vis = cfg.debug_vis    
         self._env_idx: int = 0
+        self.cfg = cfg
+
 
     @property
     def has_debug_vis_implementation(self) -> bool:
@@ -84,8 +86,16 @@ class ManagerLiveVisualizer():
             # Visualizers have not been created yet.
             return
         # update the visualization
-        for (_, terms), vis in zip(self._manager.get_active_iterable_terms(), self._term_visualizers):
+        for (_, terms), vis in zip(self._manager.get_active_iterable_terms(env_idx=self._env_idx), self._term_visualizers):
             vis.add_datapoint(terms)
+
+    def set_debug_vis(self, debug_vis: bool):
+        """Set the debug visualization external facing function.
+        
+        Args: 
+            debug_vis: Whether to enable or disable the debug visualization.
+        """
+        self._set_debug_vis_impl(debug_vis)
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         """Set the debug visualization implementation.
@@ -124,7 +134,7 @@ class ManagerLiveVisualizer():
         with self._vis_frame:
             with VStack():
                 # Add a plot in a collapsible frame for each action term
-                for name, terms in self._manager.get_active_iterable_terms():
+                for name, terms in self._manager.get_active_iterable_terms(env_idx=self._env_idx):
                     frame = CollapsableFrame(
                         name,
                         collapsed=False,
