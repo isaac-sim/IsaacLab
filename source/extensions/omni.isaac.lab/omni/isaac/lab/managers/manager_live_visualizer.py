@@ -15,7 +15,6 @@ from omni.ui import CollapsableFrame, Frame, VStack, Window
 from omni.isaac.core.simulation_context import SimulationContext
 
 from omni.isaac.lab.utils import configclass
-import omni.isaac.lab.managers as managers
 from omni.isaac.lab.ui.widgets.line_plot import LiveLinePlot
 
 @configclass
