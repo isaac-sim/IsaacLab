@@ -5,90 +5,53 @@
 
 from __future__ import annotations
 
-import inspect
 import weakref
-from collections.abc import Sequence
+
 import carb
-
 import omni.kit.app
-from omni.ui import CollapsableFrame, Frame, VStack, Window
 from omni.isaac.core.simulation_context import SimulationContext
+from omni.ui import CollapsableFrame, Frame, VStack, Window
 
+from omni.isaac.lab.ui.widgets import LiveLinePlot, UiVisualizerMixin
 from omni.isaac.lab.utils import configclass
-from omni.isaac.lab.ui.widgets.line_plot import LiveLinePlot
+
 
 @configclass
-class ManagerLiveVisualizerCfg():
+class ManagerLiveVisualizerCfg:
     debug_vis = False
 
-class ManagerLiveVisualizer():
-    def __init__(self, manager,cfg: ManagerLiveVisualizerCfg = ManagerLiveVisualizerCfg()):
+
+class ManagerLiveVisualizer(UiVisualizerMixin):
+    def __init__(self, manager, cfg: ManagerLiveVisualizerCfg = ManagerLiveVisualizerCfg()):
         """"""
         self._manager = manager
-        self.debug_vis = cfg.debug_vis    
+        self.debug_vis = cfg.debug_vis
         self._env_idx: int = 0
         self.cfg = cfg
+        self._viewer_env_idx = 0
+        self._vis_frame: Frame
+        self._vis_window: Window
 
     #
     # Implementation checks
-    # 
-
-    @property
-    def has_debug_vis_implementation(self) -> bool:
-        """Whether the component has a debug visualization implemented."""
-        # check if function raises NotImplementedError
-        source_code = inspect.getsource(self._set_debug_vis_impl)
-        return "NotImplementedError" not in source_code
-
-    @property
-    def has_vis_frame_implementation(self) -> bool:
-        """Whether the component has a debug visualization implemented."""
-        # check if function raises NotImplementedError
-        source_code = inspect.getsource(self.set_vis_frame)
-        return "NotImplementedError" not in source_code
-
-    @property
-    def has_window_implementation(self) -> bool:
-        """Whether the component has a debug visualization implemented."""
-        # check if function raises NotImplementedError
-        source_code = inspect.getsource(self.set_window)
-        return "NotImplementedError" not in source_code
-
-    @property
-    def has_env_selection_implementation(self) -> bool:
-        """Whether the component has a debug visualization implemented."""
-        # check if function raises NotImplementedError
-        source_code = inspect.getsource(self.set_env_selection)
-        return "NotImplementedError" not in source_code
+    #
 
     @property
     def get_vis_frame(self) -> Frame:
         return self._vis_frame
-    
+
+    @property
+    def get_vis_window(self) -> Window:
+        return self._vis_window
+
     #
     # Setters
     #
 
-    def set_env_selection(self,idx: int):
-        if idx > 0 and idx < self._manager.num_envs:
-            self._env_idx = idx
-        else:
-            carb.log_warn(f"Environment index is out of range (0,{self._manager.num_envs})")
-
-    def set_vis_frame(self, frame: Frame):
-        """Updates the assigned frame that can be used for visualizations.
-        Args:
-            frame: The debug visualization frame.
-        """
-        self._vis_frame = frame
-
-    def set_window(self, window: Window):
-        pass 
-
     def set_debug_vis(self, debug_vis: bool):
         """Set the debug visualization external facing function.
-        
-        Args: 
+
+        Args:
             debug_vis: Whether to enable or disable the debug visualization.
         """
         self._set_debug_vis_impl(debug_vis)
@@ -97,6 +60,23 @@ class ManagerLiveVisualizer():
     # Implementations
     #
 
+    def _set_env_selection_impl(self, env_idx: int):
+        """Update the index of the selected environment to display.
+        Args:
+            env_idx: The index of the selected environment.
+        """
+        if env_idx > 0 and env_idx < self._manager.num_envs:
+            self._env_idx = env_idx
+        else:
+            carb.log_warn(f"Environment index is out of range (0,{self._manager.num_envs})")
+
+    def _set_vis_frame_impl(self, frame: Frame):
+        """Updates the assigned frame that can be used for visualizations.
+        Args:
+            frame: The debug visualization frame.
+        """
+        self._vis_frame = frame
+
     def _debug_vis_callback(self, event):
         """Callback for the debug visualization event."""
 
@@ -104,19 +84,16 @@ class ManagerLiveVisualizer():
             # Visualizers have not been created yet.
             return
         # update the visualization
-        for (_, terms), vis in zip(self._manager.get_active_iterable_terms(env_idx=self._env_idx), self._term_visualizers):
+        for (_, terms), vis in zip(
+            self._manager.get_active_iterable_terms(env_idx=self._env_idx), self._term_visualizers
+        ):
             vis.add_datapoint(terms)
-
-
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         """Set the debug visualization implementation.
         Args:
             debug_vis: Whether to enable or disable debug visualization.
         """
-
-        if not hasattr(self, "_viewer_env_idx"):
-            self._viewer_env_idx = 0
 
         if not hasattr(self, "_vis_frame"):
             raise RuntimeError("No frame set for debug visualization.")

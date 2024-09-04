@@ -110,7 +110,7 @@ class UiVisualizerMixin:
     Internal Implementation
     """
 
-    def _set_env_selection_impl(self, env_selection: int):
+    def _set_env_selection_impl(self, env_idx: int):
         """Set the environment selection."""
         raise NotImplementedError(f"Environment selection is not implemented for {self.__class__.__name__}.")
 

@@ -10,7 +10,6 @@ from __future__ import annotations
 import inspect
 import torch
 import weakref
-import carb
 from abc import abstractmethod
 from collections.abc import Sequence
 from prettytable import PrettyTable
@@ -109,7 +108,6 @@ class ActionTerm(ManagerTermBase):
         #     carb.log_warn("Debug visualization is not supported for ActionTerm.")
         #     return False
 
-
         # toggle debug visualization objects
         self._set_debug_vis_impl(debug_vis)
         # toggle debug visualization handles
@@ -156,14 +154,13 @@ class ActionTerm(ManagerTermBase):
         set their visibility into the stage.
         """
         pass
-        
 
     def _debug_vis_callback(self, event):
         """Callback for debug visualization.
         This function calls the visualization objects and sets the data to visualize into them.
         """
         pass
-        
+
 
 class ActionManager(ManagerBase):
     """Manager for processing and applying actions for a given world.
@@ -280,12 +277,12 @@ class ActionManager(ManagerBase):
             Whether the debug visualization was successfully set. False if the action
             does not support debug visualization.
         """
-        
+
         for term in self._terms.values():
             term.set_debug_vis(debug_vis)
 
         self._set_debug_vis_impl(debug_vis)
-        return True        
+        return True
 
     def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, torch.Tensor]:
         """Resets the action history.

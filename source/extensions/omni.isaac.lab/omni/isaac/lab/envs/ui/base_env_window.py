@@ -88,8 +88,8 @@ class BaseEnvWindow:
                 self._build_debug_vis_frame()
                 with self.ui_window_elements["debug_frame"]:
                     with self.ui_window_elements["debug_vstack"]:
-                        self._visualize_manager(title="Actions",class_name="action_manager")
-                        self._visualize_manager(title="Observations",class_name="observation_manager")
+                        self._visualize_manager(title="Actions", class_name="action_manager")
+                        self._visualize_manager(title="Observations", class_name="observation_manager")
 
     def __del__(self):
         """Destructor for the window."""
@@ -247,9 +247,12 @@ class BaseEnvWindow:
         if hasattr(self.env, class_name) and class_name in self.env.manager_visualizers:
             manager = self.env.manager_visualizers[class_name]
             if hasattr(manager, "has_debug_vis_implementation"):
-                self._create_debug_vis_ui_element(title,manager)
+                self._create_debug_vis_ui_element(title, manager)
             else:
-                print(f"ManagerLiveVisualizer cannot be created for manager: {class_name}, has_debug_vis_implementation does not exist")
+                print(
+                    f"ManagerLiveVisualizer cannot be created for manager: {class_name}, has_debug_vis_implementation"
+                    " does not exist"
+                )
         else:
             print(f"ManagerLiveVisualizer cannot be created for manager: {class_name}, Manager does not exist")
 
@@ -413,13 +416,12 @@ class BaseEnvWindow:
         # Create a panel for the debug visualization
         if isinstance(elem, ManagerLiveVisualizer):
             self.ui_window_elements[f"{name}_panel"] = omni.ui.Frame(width=omni.ui.Fraction(1))
-            elem.set_vis_frame(self.ui_window_elements[f"{name}_panel"])
-            print(f"Frame set for ManagerLiveVisualizer: {name}")
+            if not elem.set_vis_frame(self.ui_window_elements[f"{name}_panel"]):
+                print(f"Frame failed to set for ManagerLiveVisualizer: {name}")                
 
         # Add listener for environment selection changes
         if isinstance(elem, ManagerLiveVisualizer):
             self._ui_listeners.append(elem)
-            print(f"Listener set for ManagerLiveVisualizer: {name}")
 
     async def _dock_window(self, window_title: str):
         """Docks the custom UI window to the property window."""
