@@ -22,7 +22,6 @@ from omni.isaac.lab.assets import AssetBase
 
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ActionTermCfg
-from .ui_tools import ManagerLivePlotMixin
 
 if TYPE_CHECKING:
     from omni.isaac.lab.envs import ManagerBasedEnv

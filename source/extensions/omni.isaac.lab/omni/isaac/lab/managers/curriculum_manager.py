@@ -14,13 +14,12 @@ from typing import TYPE_CHECKING
 
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import CurriculumTermCfg
-from .ui_tools import ManagerLivePlotMixin
 
 if TYPE_CHECKING:
     from omni.isaac.lab.envs import ManagerBasedRLEnv
 
 
-class CurriculumManager(ManagerBase, ManagerLivePlotMixin):
+class CurriculumManager(ManagerBase):
     """Manager to implement and execute specific curricula.
 
     The curriculum manager updates various quantities of the environment subject to a training curriculum by
@@ -132,7 +131,7 @@ class CurriculumManager(ManagerBase, ManagerLivePlotMixin):
             state = term_cfg.func(self._env, env_ids, **term_cfg.params)
             self._curriculum_state[name] = state
 
-    def get_active_iterable_terms(self) -> Sequence[tuple[str, Sequence[float]]]:
+    def get_active_iterable_terms(self, env_idx: int) -> Sequence[tuple[str, Sequence[float]]]:
         """Returns the active terms as iterable sequence of tuples.
         The first element of the tuple is the name of the term and the second element is the raw value(s) of the term.
         Returns:

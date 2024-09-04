@@ -191,7 +191,7 @@ class ManagerBase(ABC):
 
         # return the matching names
         return string_utils.resolve_matching_names(name_keys, list_of_strings)[1]
-
+    
     """
     Implementation specific.
     """

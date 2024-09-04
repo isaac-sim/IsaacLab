@@ -15,7 +15,7 @@ from typing import Any, ClassVar
 
 from omni.isaac.version import get_version
 
-from omni.isaac.lab.managers import CommandManager, CurriculumManager, RewardManager, TerminationManager
+from omni.isaac.lab.managers import CommandManager, CurriculumManager, RewardManager, TerminationManager, ManagerLiveVisualizer
 
 from .common import VecEnvStepReturn
 from .manager_based_env import ManagerBasedEnv
@@ -121,6 +121,11 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # -- curriculum manager
         self.curriculum_manager = CurriculumManager(self.cfg.curriculum, self)
         print("[INFO] Curriculum Manager: ", self.curriculum_manager)
+
+        # setup live visualizers
+        self._manager_visualizers["termination_manager"] = ManagerLiveVisualizer(manager=self.termination_manager)
+        self._manager_visualizers["reward_manager"] = ManagerLiveVisualizer(manager=self.reward_manager)
+        self._manager_visualizers["curriculum_manager"] = ManagerLiveVisualizer(manager=self.curriculum_manager)
 
         # setup the action and observation spaces for Gym
         self._configure_gym_env_spaces()

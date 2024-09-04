@@ -30,6 +30,9 @@ class ManagerLiveVisualizer():
         self._env_idx: int = 0
         self.cfg = cfg
 
+    #
+    # Implementation checks
+    # 
 
     @property
     def has_debug_vis_implementation(self) -> bool:
@@ -59,6 +62,14 @@ class ManagerLiveVisualizer():
         source_code = inspect.getsource(self.set_env_selection)
         return "NotImplementedError" not in source_code
 
+    @property
+    def get_vis_frame(self) -> Frame:
+        return self._vis_frame
+    
+    #
+    # Setters
+    #
+
     def set_env_selection(self,idx: int):
         if idx > 0 and idx < self._manager.num_envs:
             self._env_idx = idx
@@ -75,9 +86,17 @@ class ManagerLiveVisualizer():
     def set_window(self, window: Window):
         pass 
 
-    @property
-    def get_vis_frame(self) -> Frame:
-        return self._vis_frame
+    def set_debug_vis(self, debug_vis: bool):
+        """Set the debug visualization external facing function.
+        
+        Args: 
+            debug_vis: Whether to enable or disable the debug visualization.
+        """
+        self._set_debug_vis_impl(debug_vis)
+
+    #
+    # Implementations
+    #
 
     def _debug_vis_callback(self, event):
         """Callback for the debug visualization event."""
@@ -89,13 +108,7 @@ class ManagerLiveVisualizer():
         for (_, terms), vis in zip(self._manager.get_active_iterable_terms(env_idx=self._env_idx), self._term_visualizers):
             vis.add_datapoint(terms)
 
-    def set_debug_vis(self, debug_vis: bool):
-        """Set the debug visualization external facing function.
-        
-        Args: 
-            debug_vis: Whether to enable or disable the debug visualization.
-        """
-        self._set_debug_vis_impl(debug_vis)
+
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         """Set the debug visualization implementation.
@@ -150,20 +163,3 @@ class ManagerLiveVisualizer():
                     frame.collapsed = True
 
         self._debug_vis = debug_vis
-
-
-class EnvLiveVisualizer():
-    def __init__(self):
-        # Manager name : Manager object
-        self._managers: dict[str,managers.ManagerBase] = dict()
-        # Manager name : ManagerLiveVisualizerTerm
-        self._manager_visulizers: dict[str,ManagerLiveVisualizer] = dict()
-        # Manager name : {Manager Term : Manager Term Data} or 
-        # or Manager name : {Manager Group: {Manager Term : Manager Term Data}}
-
-    def register_vis_manager(self, name: str, manager: managers.ManagerBase):
-        if manager is not None:
-            self._managers[name] = manager
-            self._manager_visulizers[name] = ManagerLiveVisualizer(manager)
-
-
