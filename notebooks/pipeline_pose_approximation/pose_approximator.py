@@ -15,12 +15,26 @@ def filter_boxes(boxes, scores, lbls, score_thresh=0.1):
         lbls = lbls[ordered_idx, ...]
 
     indices = np.where(scores > score_thresh)
+    scores = scores[indices, ...][0]
+    boxes = boxes[indices, ...][0]
+    if lbls is not None:
+        lbls = lbls[indices, ...][0]
+
+    PER_W, PER_H = 0.4, 0.4
+    MIN_ASPECT, MAX_ASPECT = 0.7, 1.35
+    widths = boxes[..., 2]
+    heights = boxes[..., 3]
+    aspect_ratios = widths / heights
+    aspect_ratio_mask = (aspect_ratios >= MIN_ASPECT) & (aspect_ratios <= MAX_ASPECT)
+    size_mask = (widths <= PER_W) & (heights <= PER_H)
+    combined_mask = size_mask & aspect_ratio_mask
+    indices = np.where(combined_mask)[0]
     scores = scores[indices, ...]
     boxes = boxes[indices, ...]
     if lbls is not None:
         lbls = lbls[indices, ...]
 
-    return boxes[0], scores[0], lbls[0] if lbls is not None else None
+    return boxes, scores, lbls if lbls is not None else None
 
 def estimate_point_depth(roi, depth):
     raise NotImplementedError
@@ -41,7 +55,7 @@ class PoseApproximator:
         SAM_MODEL_TYPE = "vit_h" #vit_l, vit_b
         self.segm_model = SamPredictor(sam_model_registry[SAM_MODEL_TYPE](checkpoint=segm_checkpoint))
 
-    def __call__(self, image, query_image, depth_map=None, od_score_thresh=0.8):
+    def __call__(self, image, query_image, intrinsics=None, depth_map=None, od_score_thresh=0.8):
         od_inputs = self.od_processor(images=image, query_images=query_image, return_tensors="pt",).to(self.device)
         with torch.no_grad():
             # (1) OD
@@ -70,7 +84,10 @@ class PoseApproximator:
             # norm coords: (cx, cy, w, h) -> (cx - w/2, cy - h/2, cx + w/2, cy + w2) = (x1, y1, x2, y2)
             box_center_coords = np.asarray([ np.array([ box[0], box[1] ]) for box in od_bboxes ])
 
-            print(box_center_coords) # debug
+            #print(box_center_coords) # debug
+
+            if len(od_bboxes) == 0:
+                return (None, None, None), (None, None, None, None)
 
             # (2) Segmentation
             input_labels = np.ones(box_center_coords.shape[0])
@@ -164,3 +181,6 @@ class PoseApproximator:
         plt.title(f"Mask {i+1}, Score: {score:.3f}", fontsize=18)
         plt.axis('off')    
         plt.show()
+
+    def plot_pcd_in_world(self):
+        raise NotImplementedError
