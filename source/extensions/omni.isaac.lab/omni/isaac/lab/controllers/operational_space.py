@@ -93,7 +93,7 @@ class OperationSpaceController:
     """
 
     @property
-    def num_actions(self) -> int:
+    def action_dim(self) -> int:
         """Dimension of the action space of controller."""
         # impedance mode
         if self.cfg.impedance_mode == "fixed":
@@ -135,9 +135,9 @@ class OperationSpaceController:
             command: The target end-effector pose or force command.
         """
         # check input size
-        if command.shape != (self.num_envs, self.num_actions):
+        if command.shape != (self.num_envs, self.action_dim):
             raise ValueError(
-                f"Invalid command shape '{command.shape}'. Expected: '{(self.num_envs, self.num_actions)}'."
+                f"Invalid command shape '{command.shape}'. Expected: '{(self.num_envs, self.action_dim)}'."
             )
         # impedance mode
         if self.cfg.impedance_mode == "fixed":
