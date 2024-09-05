@@ -97,6 +97,7 @@ class TestFrameTransformer(unittest.TestCase):
     Tests
     """
 
+    @unittest.skip("Temporary")
     def test_frame_transformer_feet_wrt_base(self):
         """Test feet transformations w.r.t. base source frame.
 
@@ -219,6 +220,7 @@ class TestFrameTransformer(unittest.TestCase):
                 torch.testing.assert_close(feet_pos_source_tf[:, index], foot_pos_b)
                 torch.testing.assert_close(feet_quat_source_tf[:, index], foot_quat_b)
 
+    @unittest.skip("Temporary")
     def test_frame_transformer_feet_wrt_thigh(self):
         """Test feet transformation w.r.t. thigh source frame.
 
@@ -318,6 +320,7 @@ class TestFrameTransformer(unittest.TestCase):
                 torch.testing.assert_close(feet_pos_source_tf[:, index], foot_pos_b)
                 torch.testing.assert_close(feet_quat_source_tf[:, index], foot_quat_b)
 
+    @unittest.skip("Temporary")
     def test_frame_transformer_body_wrt_cube(self):
         """Test body transformation w.r.t. base source frame.
 

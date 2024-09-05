@@ -158,6 +158,7 @@ class FrameTransformer(SensorBase):
                     " No matching prims were found."
                 )
             for prim in matching_prims:
+                print(f"prim: {prim}")
                 # Get the prim path of the matching prim
                 matching_prim_path = prim.GetPath().pathString
                 # Check if it is a rigid prim
@@ -186,8 +187,11 @@ class FrameTransformer(SensorBase):
                     if not is_identity_pose(offset_pos, offset_quat):
                         non_identity_offset_frames.append(frame_name)
                         self._apply_target_frame_offset = True
-
+                    print(f"Setting offest")
                     target_offsets[frame_name] = {"pos": offset_pos, "quat": offset_quat}
+                    print(f"target_offsets: {target_offsets}")
+
+        print(f"body_names_to_frames: {body_names_to_frames}")
 
         if not self._apply_target_frame_offset:
             carb.log_info(
@@ -204,7 +208,12 @@ class FrameTransformer(SensorBase):
         tracked_prim_paths = [body_names_to_frames[body_name]["prim_path"] for body_name in body_names_to_frames.keys()]
         tracked_body_names = [body_name for body_name in body_names_to_frames.keys()]
 
+        print(f"Tracked prim paths: {tracked_prim_paths}")
+        print(f"tracked body names: {tracked_body_names}")
+        print(f"Cfg prim path: {self.cfg.prim_path}")
+
         body_names_regex = [tracked_prim_path.replace("env_0", "env_*") for tracked_prim_path in tracked_prim_paths]
+        print(body_names)
 
         # Create simulation view
         self._physics_sim_view = physx.create_simulation_view(self._backend)
@@ -239,7 +248,11 @@ class FrameTransformer(SensorBase):
 
         # -- target frames
         self._target_frame_body_names = first_env_body_names[:]
-        self._target_frame_body_names.remove(self._source_frame_body_name)
+        print(f"Target frame body names: {self._target_frame_body_names}")
+        # self._target_frame_body_names.remove(self._source_frame_body_name)
+        print(f"Target frame body names: {self._target_frame_body_names}")
+
+        print(f"source frame body name: {self._source_frame_body_name}")
 
         # Determine indices into all tracked body frames for both source and target frames
         all_ids = torch.arange(self._num_envs * len(tracked_body_names))
@@ -257,10 +270,13 @@ class FrameTransformer(SensorBase):
         duplicate_frame_indices = []
 
         # Go through each body name and determine the number of duplicates we need for that frame
-        # and extract the offsets. This is all done to handles the case where multiple frames
+        # and extract the offsets. This is all done to handle the case where multiple frames
         # reference the same body, but have different names and/or offsets
-        for i, body_name in enumerate(self._target_frame_body_names):
+        for i, body_name in enumerate(body_names_to_frames.keys()):
+            print(f"body_name: {body_name}")
             for frame in body_names_to_frames[body_name]["frames"]:
+                if frame == body_name:
+                    continue
                 target_frame_offset_pos.append(target_offsets[frame]["pos"])
                 target_frame_offset_quat.append(target_offsets[frame]["quat"])
                 self._target_frame_names.append(frame)
