@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 # NOTE: While we don't actually use the simulation app in this test, we still need to launch it
 #       because warp is only available in the context of a running simulation
 """Launch Isaac Sim Simulator first."""
@@ -290,6 +292,20 @@ class FunctionImplementedDemoCfg:
 
     def set_a(self, a: int):
         self.a = a
+
+
+@configclass
+class ClassFunctionImplementedDemoCfg:
+    """Dummy configuration class with function members defined in the class."""
+
+    a: int = 5
+
+    def instance_method(self):
+        print("Value of a: ", self.a)
+
+    @classmethod
+    def class_method(cls, value: int) -> ClassFunctionImplementedDemoCfg:
+        return cls(a=value)
 
 
 """
@@ -618,11 +634,30 @@ class TestConfigClass(unittest.TestCase):
         self.assertEqual(cfg.func_in_dict["func"](), 1)
 
     def test_function_impl_config(self):
+        """Tests having function defined in the class instance."""
         cfg = FunctionImplementedDemoCfg()
         # change value
         self.assertEqual(cfg.a, 5)
         cfg.set_a(10)
         self.assertEqual(cfg.a, 10)
+
+    def test_class_function_impl_config(self):
+        """Tests having class and static function defined in the class instance."""
+        cfg = ClassFunctionImplementedDemoCfg()
+
+        # check that the annotations are correct
+        self.assertDictEqual(cfg.__annotations__, {"a": "int"})
+
+        # check all methods are callable
+        cfg.instance_method()
+        new_cfg1 = cfg.class_method(20)
+        # check value is correct
+        self.assertEqual(new_cfg1.a, 20)
+
+        # create the same config instance using class method
+        new_cfg2 = ClassFunctionImplementedDemoCfg.class_method(20)
+        # check value is correct
+        self.assertEqual(new_cfg2.a, 20)
 
     def test_dict_conversion_functions_config(self):
         """Tests conversion of config with functions into dictionary."""

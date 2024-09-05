@@ -155,13 +155,11 @@ class FrankaCabinetEnvCfg(DirectRLEnvCfg):
     dof_velocity_scale = 0.1
 
     # reward scales
-    dist_reward_scale = 2.0
-    rot_reward_scale = 0.5
-    around_handle_reward_scale = 0.0
-    open_reward_scale = 7.5
-    action_penalty_scale = 0.01
-    finger_dist_reward_scale = 0.0
-    finger_close_reward_scale = 10.0
+    dist_reward_scale = 1.5
+    rot_reward_scale = 1.5
+    open_reward_scale = 10.0
+    action_penalty_scale = 0.05
+    finger_reward_scale = 2.0
 
 
 class FrankaCabinetEnv(DirectRLEnv):
@@ -320,12 +318,10 @@ class FrankaCabinetEnv(DirectRLEnv):
             self.num_envs,
             self.cfg.dist_reward_scale,
             self.cfg.rot_reward_scale,
-            self.cfg.around_handle_reward_scale,
             self.cfg.open_reward_scale,
-            self.cfg.finger_dist_reward_scale,
             self.cfg.action_penalty_scale,
+            self.cfg.finger_reward_scale,
             self._robot.data.joint_pos,
-            self.cfg.finger_close_reward_scale,
         )
 
     def _reset_idx(self, env_ids: torch.Tensor | None):
@@ -413,12 +409,10 @@ class FrankaCabinetEnv(DirectRLEnv):
         num_envs,
         dist_reward_scale,
         rot_reward_scale,
-        around_handle_reward_scale,
         open_reward_scale,
-        finger_dist_reward_scale,
         action_penalty_scale,
+        finger_reward_scale,
         joint_positions,
-        finger_close_reward_scale,
     ):
         # distance from hand to the drawer
         d = torch.norm(franka_grasp_pos - drawer_grasp_pos, p=2, dim=-1)
@@ -440,64 +434,41 @@ class FrankaCabinetEnv(DirectRLEnv):
         # reward for matching the orientation of the hand to the drawer (fingers wrapped)
         rot_reward = 0.5 * (torch.sign(dot1) * dot1**2 + torch.sign(dot2) * dot2**2)
 
-        # bonus if left finger is above the drawer handle and right below
-        around_handle_reward = torch.zeros_like(rot_reward)
-        around_handle_reward = torch.where(
-            franka_lfinger_pos[:, 2] > drawer_grasp_pos[:, 2],
-            torch.where(
-                franka_rfinger_pos[:, 2] < drawer_grasp_pos[:, 2], around_handle_reward + 0.5, around_handle_reward
-            ),
-            around_handle_reward,
-        )
-        # reward for distance of each finger from the drawer
-        finger_dist_reward = torch.zeros_like(rot_reward)
-        lfinger_dist = torch.abs(franka_lfinger_pos[:, 2] - drawer_grasp_pos[:, 2])
-        rfinger_dist = torch.abs(franka_rfinger_pos[:, 2] - drawer_grasp_pos[:, 2])
-        finger_dist_reward = torch.where(
-            franka_lfinger_pos[:, 2] > drawer_grasp_pos[:, 2],
-            torch.where(
-                franka_rfinger_pos[:, 2] < drawer_grasp_pos[:, 2],
-                (0.04 - lfinger_dist) + (0.04 - rfinger_dist),
-                finger_dist_reward,
-            ),
-            finger_dist_reward,
-        )
-
-        finger_close_reward = torch.zeros_like(rot_reward)
-        finger_close_reward = torch.where(
-            d <= 0.03, (0.04 - joint_positions[:, 7]) + (0.04 - joint_positions[:, 8]), finger_close_reward
-        )
-
         # regularization on the actions (summed for each environment)
         action_penalty = torch.sum(actions**2, dim=-1)
 
         # how far the cabinet has been opened out
-        open_reward = cabinet_dof_pos[:, 3] * around_handle_reward + cabinet_dof_pos[:, 3]  # drawer_top_joint
+        open_reward = cabinet_dof_pos[:, 3]  # drawer_top_joint
+
+        # penalty for distance of each finger from the drawer handle
+        lfinger_dist = franka_lfinger_pos[:, 2] - drawer_grasp_pos[:, 2]
+        rfinger_dist = drawer_grasp_pos[:, 2] - franka_rfinger_pos[:, 2]
+        finger_dist_penalty = torch.zeros_like(lfinger_dist)
+        finger_dist_penalty += torch.where(lfinger_dist < 0, lfinger_dist, torch.zeros_like(lfinger_dist))
+        finger_dist_penalty += torch.where(rfinger_dist < 0, rfinger_dist, torch.zeros_like(rfinger_dist))
 
         rewards = (
             dist_reward_scale * dist_reward
             + rot_reward_scale * rot_reward
-            + around_handle_reward_scale * around_handle_reward
             + open_reward_scale * open_reward
-            + finger_dist_reward_scale * finger_dist_reward
+            + finger_reward_scale * finger_dist_penalty
             - action_penalty_scale * action_penalty
-            + finger_close_reward * finger_close_reward_scale
         )
 
         self.extras["log"] = {
             "dist_reward": (dist_reward_scale * dist_reward).mean(),
             "rot_reward": (rot_reward_scale * rot_reward).mean(),
-            "around_handle_reward": (around_handle_reward_scale * around_handle_reward).mean(),
             "open_reward": (open_reward_scale * open_reward).mean(),
-            "finger_dist_reward": (finger_dist_reward_scale * finger_dist_reward).mean(),
-            "action_penalty": (action_penalty_scale * action_penalty).mean(),
-            "finger_close_reward": (finger_close_reward * finger_close_reward_scale).mean(),
+            "action_penalty": (-action_penalty_scale * action_penalty).mean(),
+            "left_finger_distance_reward": (finger_reward_scale * lfinger_dist).mean(),
+            "right_finger_distance_reward": (finger_reward_scale * rfinger_dist).mean(),
+            "finger_dist_penalty": (finger_reward_scale * finger_dist_penalty).mean(),
         }
 
         # bonus for opening drawer properly
-        rewards = torch.where(cabinet_dof_pos[:, 3] > 0.01, rewards + 0.5, rewards)
-        rewards = torch.where(cabinet_dof_pos[:, 3] > 0.2, rewards + around_handle_reward, rewards)
-        rewards = torch.where(cabinet_dof_pos[:, 3] > 0.39, rewards + (2.0 * around_handle_reward), rewards)
+        rewards = torch.where(cabinet_dof_pos[:, 3] > 0.01, rewards + 0.25, rewards)
+        rewards = torch.where(cabinet_dof_pos[:, 3] > 0.2, rewards + 0.25, rewards)
+        rewards = torch.where(cabinet_dof_pos[:, 3] > 0.35, rewards + 0.25, rewards)
 
         return rewards
 

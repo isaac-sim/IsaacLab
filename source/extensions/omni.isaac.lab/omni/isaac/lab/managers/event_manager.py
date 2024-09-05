@@ -226,17 +226,18 @@ class EventManager(ManagerBase):
 
                     # select the valid environment indices based on the trigger
                     if env_ids == slice(None):
-                        env_ids = valid_trigger.nonzero().flatten()
+                        valid_env_ids = valid_trigger.nonzero().flatten()
                     else:
-                        env_ids = env_ids[valid_trigger]
+                        valid_env_ids = env_ids[valid_trigger]
 
                     # reset the last reset step for each environment to the current env step count
-                    if len(env_ids) > 0:
-                        self._reset_term_last_triggered_once[index][env_ids] = True
-                        self._reset_term_last_triggered_step_id[index][env_ids] = global_env_step_count
-                    else:
-                        # no need to call func to apply term
-                        continue
+                    if len(valid_env_ids) > 0:
+                        self._reset_term_last_triggered_once[index][valid_env_ids] = True
+                        self._reset_term_last_triggered_step_id[index][valid_env_ids] = global_env_step_count
+                        # call the event term
+                        term_cfg.func(self._env, valid_env_ids, **term_cfg.params)
+                    # no need to call func to apply term again
+                    continue
             # call the event term
             term_cfg.func(self._env, env_ids, **term_cfg.params)
 
