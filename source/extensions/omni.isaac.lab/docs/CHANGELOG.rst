@@ -1,3 +1,29 @@
+Changelog
+---------
+
+0.22.7 (2024-09-05)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Adapted the ``A`` and ``D`` button bindings inside :meth:`omni.isaac.lab.device.Se3Keyboard` to make them now
+  more-intuitive to control the y-axis motion based on the right-hand rule.
+
+
+0.22.6 (2024-08-29)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added alternative data type "distance_to_camera" in :class:`omni.isaac.lab.sensors.TiledCamera` class to be
+  consistent with all other cameras (equal to type "depth").
+
+
+0.22.5 (2024-08-29)
+~~~~~~~~~~~~~~~~~~~
+
 Fixed
 ^^^^^
 
@@ -5,9 +31,6 @@ Fixed
   :class:`omni.isaac.lab.sensors.RayCasterCamera`.
 * Added test to check :attr:`omni.isaac.lab.sensors.RayCasterCamera.set_intrinsic_matrices`
 
-
-Changelog
----------
 
 0.22.4 (2024-08-29)
 ~~~~~~~~~~~~~~~~~~~
