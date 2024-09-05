@@ -127,3 +127,20 @@ class DirectRLEnvCfg:
 
     Please refer to the :class:`omni.isaac.lab.utils.noise.NoiseModel` class for more details.
     """
+
+    ##
+    # Properties.
+    ##
+
+    def set_seed(self, value: int):
+        """Set the seed for the environment.
+
+        Note:
+            We recommend using this method to set the seed for the environment instead of directly
+            setting the seed attribute. This is to ensure that other internal settings are updated
+            when the seed is set as well.
+
+        Args:
+            value: The seed value. Should be a non-negative integer.
+        """
+        self.seed = value

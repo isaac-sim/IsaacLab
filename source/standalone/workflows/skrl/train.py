@@ -104,7 +104,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: dict):
 
     # set the environment seed
     # note: certain randomizations occur in the environment initialization so we set the seed here
-    env_cfg.seed = args_cli.seed if args_cli.seed is not None else agent_cfg["seed"]
+    env_cfg.set_seed(args_cli.seed if args_cli.seed is not None else agent_cfg["seed"])
 
     # specify directory for logging experiments
     log_root_path = os.path.join("logs", "skrl", agent_cfg["agent"]["experiment"]["directory"])
