@@ -12,6 +12,7 @@ from collections.abc import Sequence
 from tensordict import TensorDict
 from typing import TYPE_CHECKING, Any
 
+import carb
 import omni.usd
 import warp as wp
 from omni.isaac.core.prims import XFormPrimView
@@ -37,7 +38,8 @@ class TiledCamera(Camera):
     The following sensor types are supported:
 
     - ``"rgb"``: A rendered color image.
-    - ``"depth"``: An image containing the distance to camera optical center.
+    - ``"distance_to_camera"``: An image containing the distance to camera optical center.
+    - ``"depth"``: An alias for ``"distance_to_camera"``.
 
     .. attention::
         Please note that the fidelity of RGB images may be lower than the standard camera sensor due to the
@@ -54,8 +56,12 @@ class TiledCamera(Camera):
     cfg: TiledCameraCfg
     """The configuration parameters."""
 
-    SUPPORTED_TYPES: set[str] = {"rgb", "depth"}
-    """The set of sensor types that are supported."""
+    SUPPORTED_TYPES: set[str] = {"rgb", "distance_to_camera", "depth"}
+    """The set of sensor types that are supported.
+
+    .. note::
+        The ``"depth"`` type is an alias for ``"distance_to_camera"``.
+    """
 
     def __init__(self, cfg: TiledCameraCfg):
         """Initializes the tiled camera sensor.
@@ -157,12 +163,23 @@ class TiledCamera(Camera):
 
         # start the orchestrator (if not already started)
         rep.orchestrator._orchestrator._is_started = True
+        # check the data_types and remove "depth" if "distance_to_camera" is requested too
+        if "depth" in self.cfg.data_types and "distance_to_camera" in self.cfg.data_types:
+            carb.log_warn(
+                "Both 'depth' and 'distance_to_camera' are requested which are the same. 'depth' will be ignored."
+            )
+            self.cfg.data_types.remove("depth")
+        # NOTE: internally, "distance_to_camera" is named "depth", name is adjusted here
+        data_type = self.cfg.data_types.copy()
+        if "distance_to_camera" in data_type:
+            data_type.remove("distance_to_camera")
+            data_type.append("depth")
         # Create a tiled sensor from the camera prims
         rep_sensor = rep.create.tiled_sensor(
             cameras=self._view.prim_paths,
             camera_resolution=[self.image_shape[1], self.image_shape[0]],
             tiled_resolution=self._tiled_image_shape(),
-            output_types=self.cfg.data_types,
+            output_types=data_type,
         )
         # Get render product
         render_prod_path = rep.create.render_product(camera=rep_sensor, resolution=self._tiled_image_shape())
@@ -198,7 +215,7 @@ class TiledCamera(Camera):
                     wp.from_torch(self._data.output[data_type]),  # zero-copy alias
                     *list(self._data.output[data_type].shape[1:]),  # height, width, num_channels
                     self._tiling_grid_shape()[0],  # num_tiles_x
-                    offset if data_type == "depth" else 0,
+                    offset if data_type == "distance_to_camera" or data_type == "depth" else 0,
                 ],
                 device=self.device,
             )
@@ -232,10 +249,11 @@ class TiledCamera(Camera):
             data_dict["rgb"] = torch.zeros(
                 (self._view.count, self.cfg.height, self.cfg.width, 3), device=self.device
             ).contiguous()
-        if "depth" in self.cfg.data_types:
-            data_dict["depth"] = torch.zeros(
-                (self._view.count, self.cfg.height, self.cfg.width, 1), device=self.device
-            ).contiguous()
+        for data_type in ["distance_to_camera", "depth"]:
+            if data_type in self.cfg.data_types:
+                data_dict[data_type] = torch.zeros(
+                    (self._view.count, self.cfg.height, self.cfg.width, 1), device=self.device
+                ).contiguous()
         self._data.output = TensorDict(data_dict, batch_size=self._view.count, device=self.device)
 
     def _tiled_image_shape(self) -> tuple[int, int]:
