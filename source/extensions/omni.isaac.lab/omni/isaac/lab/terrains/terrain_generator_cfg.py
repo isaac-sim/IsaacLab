@@ -105,8 +105,7 @@ class TerrainGeneratorCfg:
     """Configuration for the terrain generator."""
 
     seed: int | None = None
-    """The seed for the random number generator. Defaults to None,
-    in which case the seed is not set."""
+    """The seed for the random number generator. Defaults to None, in which case the seed is not set."""
 
     curriculum: bool = False
     """Whether to use the curriculum mode. Defaults to False.

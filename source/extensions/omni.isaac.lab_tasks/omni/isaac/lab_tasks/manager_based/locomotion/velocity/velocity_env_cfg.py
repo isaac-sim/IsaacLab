@@ -318,3 +318,7 @@ class LocomotionVelocityRoughEnvCfg(ManagerBasedRLEnvCfg):
         else:
             if self.scene.terrain.terrain_generator is not None:
                 self.scene.terrain.terrain_generator.curriculum = False
+
+        # set the seed for the terrain generator
+        if self.scene.terrain.terrain_generator is not None and self.seed is not None:
+            self.scene.terrain.terrain_generator.seed = self.seed
