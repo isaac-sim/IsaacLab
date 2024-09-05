@@ -7,7 +7,8 @@ Changelog
 Changed
 ^^^^^^^
 
-* Uses :meth:`torch.einsum` for :meth:`quat_rotate` and :meth:`quat_rotate_inverse` operations
+* Modified:meth:`quat_rotate` and :meth:`quat_rotate_inverse` operations to use :meth:`torch.einsum` for batch processing.
+
 
 0.22.2 (2024-08-21)
 ~~~~~~~~~~~~~~~~~~~
