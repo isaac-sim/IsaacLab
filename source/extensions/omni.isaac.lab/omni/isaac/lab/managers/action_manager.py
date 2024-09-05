@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import carb
 import inspect
 import torch
 import weakref
@@ -104,9 +105,9 @@ class ActionTerm(ManagerTermBase):
             not support debug visualization.
         """
         # check if debug visualization is supported
-        # if not self.has_debug_vis_implementation:
-        #     carb.log_warn("Debug visualization is not supported for ActionTerm.")
-        #     return False
+        if not self.has_debug_vis_implementation:
+            carb.log_warn("Debug visualization is not supported for ActionTerm.")
+            return False
 
         # toggle debug visualization objects
         self._set_debug_vis_impl(debug_vis)

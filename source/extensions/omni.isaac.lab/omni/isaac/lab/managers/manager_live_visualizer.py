@@ -122,20 +122,23 @@ class ManagerLiveVisualizer(UiVisualizerMixin):
 
         with self._vis_frame:
             with VStack():
-                # Add a plot in a collapsible frame for each action term
+                # Add a plot in a collapsible frame for each term
                 for name, terms in self._manager.get_active_iterable_terms(env_idx=self._env_idx):
+                    # 2d plots
                     frame = CollapsableFrame(
                         name,
                         collapsed=False,
                         style={"border_color": 0xFF8A8777, "padding": 4},
                     )
                     with frame:
+                        print(len(terms))
                         plot = LiveLinePlot(
                             y_data=[[term] for term in terms],
                             plot_height=150,
                             show_legend=True,
                         )
                         self._term_visualizers.append(plot)
+
                     frame.collapsed = True
 
         self._debug_vis = debug_vis
