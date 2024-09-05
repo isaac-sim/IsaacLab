@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.22.7 (2024-09-05)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Adapted the ``A`` and ``D`` button bindings inside :meth:`omni.isaac.lab.device.Se3Keyboard` to make them now
+  more-intuitive to control the y-axis motion based on the right-hand rule.
+
+
 0.22.6 (2024-08-29)
 ~~~~~~~~~~~~~~~~~~~
 
