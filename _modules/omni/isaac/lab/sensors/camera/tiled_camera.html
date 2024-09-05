@@ -500,6 +500,7 @@ document.write(`
 <span class="kn">from</span> <span class="nn">tensordict</span> <span class="kn">import</span> <span class="n">TensorDict</span>
 <span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Any</span>
 
+<span class="kn">import</span> <span class="nn">carb</span>
 <span class="kn">import</span> <span class="nn">omni.usd</span>
 <span class="kn">import</span> <span class="nn">warp</span> <span class="k">as</span> <span class="nn">wp</span>
 <span class="kn">from</span> <span class="nn">omni.isaac.core.prims</span> <span class="kn">import</span> <span class="n">XFormPrimView</span>
@@ -525,7 +526,8 @@ document.write(`
 <span class="sd">    The following sensor types are supported:</span>
 
 <span class="sd">    - ``&quot;rgb&quot;``: A rendered color image.</span>
-<span class="sd">    - ``&quot;depth&quot;``: An image containing the distance to camera optical center.</span>
+<span class="sd">    - ``&quot;distance_to_camera&quot;``: An image containing the distance to camera optical center.</span>
+<span class="sd">    - ``&quot;depth&quot;``: An alias for ``&quot;distance_to_camera&quot;``.</span>
 
 <span class="sd">    .. attention::</span>
 <span class="sd">        Please note that the fidelity of RGB images may be lower than the standard camera sensor due to the</span>
@@ -542,8 +544,12 @@ document.write(`
     <span class="n">cfg</span><span class="p">:</span> <span class="n">TiledCameraCfg</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The configuration parameters.&quot;&quot;&quot;</span>
 
-    <span class="n">SUPPORTED_TYPES</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;rgb&quot;</span><span class="p">,</span> <span class="s2">&quot;depth&quot;</span><span class="p">}</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The set of sensor types that are supported.&quot;&quot;&quot;</span>
+    <span class="n">SUPPORTED_TYPES</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;rgb&quot;</span><span class="p">,</span> <span class="s2">&quot;distance_to_camera&quot;</span><span class="p">,</span> <span class="s2">&quot;depth&quot;</span><span class="p">}</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The set of sensor types that are supported.</span>
+
+<span class="sd">    .. note::</span>
+<span class="sd">        The ``&quot;depth&quot;`` type is an alias for ``&quot;distance_to_camera&quot;``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
 <div class="viewcode-block" id="TiledCamera.__init__"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.TiledCamera.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">TiledCameraCfg</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Initializes the tiled camera sensor.</span>
@@ -645,12 +651,23 @@ document.write(`
 
         <span class="c1"># start the orchestrator (if not already started)</span>
         <span class="n">rep</span><span class="o">.</span><span class="n">orchestrator</span><span class="o">.</span><span class="n">_orchestrator</span><span class="o">.</span><span class="n">_is_started</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="c1"># check the data_types and remove &quot;depth&quot; if &quot;distance_to_camera&quot; is requested too</span>
+        <span class="k">if</span> <span class="s2">&quot;depth&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">data_types</span> <span class="ow">and</span> <span class="s2">&quot;distance_to_camera&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">data_types</span><span class="p">:</span>
+            <span class="n">carb</span><span class="o">.</span><span class="n">log_warn</span><span class="p">(</span>
+                <span class="s2">&quot;Both &#39;depth&#39; and &#39;distance_to_camera&#39; are requested which are the same. &#39;depth&#39; will be ignored.&quot;</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">data_types</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="s2">&quot;depth&quot;</span><span class="p">)</span>
+        <span class="c1"># NOTE: internally, &quot;distance_to_camera&quot; is named &quot;depth&quot;, name is adjusted here</span>
+        <span class="n">data_type</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">data_types</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="k">if</span> <span class="s2">&quot;distance_to_camera&quot;</span> <span class="ow">in</span> <span class="n">data_type</span><span class="p">:</span>
+            <span class="n">data_type</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="s2">&quot;distance_to_camera&quot;</span><span class="p">)</span>
+            <span class="n">data_type</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;depth&quot;</span><span class="p">)</span>
         <span class="c1"># Create a tiled sensor from the camera prims</span>
         <span class="n">rep_sensor</span> <span class="o">=</span> <span class="n">rep</span><span class="o">.</span><span class="n">create</span><span class="o">.</span><span class="n">tiled_sensor</span><span class="p">(</span>
             <span class="n">cameras</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">prim_paths</span><span class="p">,</span>
             <span class="n">camera_resolution</span><span class="o">=</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">image_shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">image_shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]],</span>
             <span class="n">tiled_resolution</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_tiled_image_shape</span><span class="p">(),</span>
-            <span class="n">output_types</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">data_types</span><span class="p">,</span>
+            <span class="n">output_types</span><span class="o">=</span><span class="n">data_type</span><span class="p">,</span>
         <span class="p">)</span>
         <span class="c1"># Get render product</span>
         <span class="n">render_prod_path</span> <span class="o">=</span> <span class="n">rep</span><span class="o">.</span><span class="n">create</span><span class="o">.</span><span class="n">render_product</span><span class="p">(</span><span class="n">camera</span><span class="o">=</span><span class="n">rep_sensor</span><span class="p">,</span> <span class="n">resolution</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_tiled_image_shape</span><span class="p">())</span>
@@ -686,7 +703,7 @@ document.write(`
                     <span class="n">wp</span><span class="o">.</span><span class="n">from_torch</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">output</span><span class="p">[</span><span class="n">data_type</span><span class="p">]),</span>  <span class="c1"># zero-copy alias</span>
                     <span class="o">*</span><span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">output</span><span class="p">[</span><span class="n">data_type</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">:]),</span>  <span class="c1"># height, width, num_channels</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">_tiling_grid_shape</span><span class="p">()[</span><span class="mi">0</span><span class="p">],</span>  <span class="c1"># num_tiles_x</span>
-                    <span class="n">offset</span> <span class="k">if</span> <span class="n">data_type</span> <span class="o">==</span> <span class="s2">&quot;depth&quot;</span> <span class="k">else</span> <span class="mi">0</span><span class="p">,</span>
+                    <span class="n">offset</span> <span class="k">if</span> <span class="n">data_type</span> <span class="o">==</span> <span class="s2">&quot;distance_to_camera&quot;</span> <span class="ow">or</span> <span class="n">data_type</span> <span class="o">==</span> <span class="s2">&quot;depth&quot;</span> <span class="k">else</span> <span class="mi">0</span><span class="p">,</span>
                 <span class="p">],</span>
                 <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
             <span class="p">)</span>
@@ -720,10 +737,11 @@ document.write(`
             <span class="n">data_dict</span><span class="p">[</span><span class="s2">&quot;rgb&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span>
                 <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">count</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">height</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">width</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span>
             <span class="p">)</span><span class="o">.</span><span class="n">contiguous</span><span class="p">()</span>
-        <span class="k">if</span> <span class="s2">&quot;depth&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">data_types</span><span class="p">:</span>
-            <span class="n">data_dict</span><span class="p">[</span><span class="s2">&quot;depth&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span>
-                <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">count</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">height</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">width</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span>
-            <span class="p">)</span><span class="o">.</span><span class="n">contiguous</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">data_type</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;distance_to_camera&quot;</span><span class="p">,</span> <span class="s2">&quot;depth&quot;</span><span class="p">]:</span>
+            <span class="k">if</span> <span class="n">data_type</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">data_types</span><span class="p">:</span>
+                <span class="n">data_dict</span><span class="p">[</span><span class="n">data_type</span><span class="p">]</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span>
+                    <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">count</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">height</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">width</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span>
+                <span class="p">)</span><span class="o">.</span><span class="n">contiguous</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">output</span> <span class="o">=</span> <span class="n">TensorDict</span><span class="p">(</span><span class="n">data_dict</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">count</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">_tiled_image_shape</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>

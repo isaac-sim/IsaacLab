@@ -1774,7 +1774,8 @@ cameras efficiently.</p>
 <p>The following sensor types are supported:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">&quot;rgb&quot;</span></code>: A rendered color image.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">&quot;depth&quot;</span></code>: An image containing the distance to camera optical center.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&quot;distance_to_camera&quot;</span></code>: An image containing the distance to camera optical center.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&quot;depth&quot;</span></code>: An alias for <code class="docutils literal notranslate"><span class="pre">&quot;distance_to_camera&quot;</span></code>.</p></li>
 </ul>
 <div class="admonition attention">
 <p class="admonition-title">Attention</p>
@@ -1857,8 +1858,12 @@ were not available.</p>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sensors.TiledCamera.SUPPORTED_TYPES">
-<span class="sig-name descname"><span class="pre">SUPPORTED_TYPES</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#set" title="(in Python v3.12)"><span class="pre">set</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'depth',</span> <span class="pre">'rgb'}</span></em><a class="headerlink" href="#omni.isaac.lab.sensors.TiledCamera.SUPPORTED_TYPES" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">SUPPORTED_TYPES</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#set" title="(in Python v3.12)"><span class="pre">set</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'depth',</span> <span class="pre">'distance_to_camera',</span> <span class="pre">'rgb'}</span></em><a class="headerlink" href="#omni.isaac.lab.sensors.TiledCamera.SUPPORTED_TYPES" title="Permalink to this definition">#</a></dt>
 <dd><p>The set of sensor types that are supported.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">&quot;depth&quot;</span></code> type is an alias for <code class="docutils literal notranslate"><span class="pre">&quot;distance_to_camera&quot;</span></code>.</p>
+</div>
 </dd></dl>
 
 <dl class="py method">
