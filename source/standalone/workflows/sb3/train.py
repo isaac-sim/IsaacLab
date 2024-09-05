@@ -105,8 +105,6 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: dict):
         env = gym.wrappers.RecordVideo(env, **video_kwargs)
     # wrap around environment for stable baselines
     env = Sb3VecEnvWrapper(env)
-    # set the seed
-    env.seed(seed=agent_cfg["seed"])
 
     if "normalize_input" in agent_cfg:
         env = VecNormalize(
