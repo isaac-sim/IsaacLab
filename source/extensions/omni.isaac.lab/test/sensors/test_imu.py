@@ -8,7 +8,7 @@
 from omni.isaac.lab.app import AppLauncher, run_tests
 
 # launch omniverse app
-app_launcher = AppLauncher(headless=False, enable_cameras=True)
+app_launcher = AppLauncher(headless=True, enable_cameras=True)
 simulation_app = app_launcher.app
 
 """Rest everything follows."""
@@ -35,32 +35,13 @@ from omni.isaac.lab.utils import configclass
 from omni.isaac.lab_assets.anymal import ANYMAL_C_CFG  # isort: skip
 from omni.isaac.lab.utils.assets import NUCLEUS_ASSET_ROOT_DIR  # isort: skip
 
-
+# offset of imu_link from base_link on anymal_c
 POS_OFFSET = (0.2488, 0.00835, 0.04628)
 ROT_OFFSET = (0.7071068, 0, 0, 0.7071068)
 
 # offset of imu_link from link_1 on simple_2_link
 PEND_POS_OFFSET = (0.4, 0.0, 0.1)
 PEND_ROT_OFFSET = (0.5, 0.5, 0.5, 0.5)
-
-
-def vector_error(v1: torch.Tensor, v2: torch.Tensor):
-    """Returns the magnitude and direction error between two vectors"""
-    v1_mag = torch.linalg.vector_norm(v1, dim=-1)
-    v2_mag = torch.linalg.vector_norm(v2, dim=-1)
-
-    v1_dir = torch.nn.functional.normalize(v1, dim=-1)
-    v2_dir = torch.nn.functional.normalize(v2, dim=-1)
-    # v1_dir = torch.transpose(torch.div(torch.transpose(v1,0,-1),v1_mag),0,-1)
-    # v2_dir = torch.transpose(torch.div(torch.transpose(v2,0,-1),v2_mag),0,-1)
-
-    mag_abs_err = torch.abs(v1_mag - v2_mag)
-    mag_rel_err = mag_abs_err / v2_mag
-
-    dir_err = torch.acos(torch.sum(v1_dir * v2_dir, dim=-1))
-
-    return mag_abs_err, mag_rel_err, dir_err
-
 
 @configclass
 class MySceneCfg(InteractiveSceneCfg):
@@ -136,8 +117,9 @@ class MySceneCfg(InteractiveSceneCfg):
 
     imu_pendulum_imu_link: ImuCfg = ImuCfg(
         prim_path="{ENV_REGEX_NS}/pendulum/imu_link",
-        debug_vis=False,  # not app_launcher._headless,
-        visualizer_cfg=RED_ARROW_X_MARKER_CFG.replace(prim_path="/Visuals/Acceleration/imu_link"),
+        debug_vis= not app_launcher._headless,
+        visualizer_cfg=RED_ARROW_X_MARKER_CFG.replace(prim_path="/Visuals/Acceleration/imu_link")
+
     )
     imu_pendulum_base: ImuCfg = ImuCfg(
         prim_path="{ENV_REGEX_NS}/pendulum/link_1",
@@ -145,8 +127,8 @@ class MySceneCfg(InteractiveSceneCfg):
             pos=PEND_POS_OFFSET,
             rot=PEND_ROT_OFFSET,
         ),
-        debug_vis=False,  # not app_launcher._headless,
-        visualizer_cfg=GREEN_ARROW_X_MARKER_CFG.replace(prim_path="/Visuals/Acceleration/base"),
+        debug_vis= not app_launcher._headless,
+        visualizer_cfg=GREEN_ARROW_X_MARKER_CFG.replace(prim_path="/Visuals/Acceleration/base")
     )
 
     def __post_init__(self):
@@ -158,8 +140,8 @@ class MySceneCfg(InteractiveSceneCfg):
         # change asset
         self.robot.spawn.usd_path = f"{NUCLEUS_ASSET_ROOT_DIR}/Isaac/Robots/ANYbotics/anymal_c.usd"
         # change iterations
-        # self.robot.spawn.articulation_props.solver_position_iteration_count = 32
-        # self.robot.spawn.articulation_props.solver_velocity_iteration_count = 32
+        self.robot.spawn.articulation_props.solver_position_iteration_count = 32
+        self.robot.spawn.articulation_props.solver_velocity_iteration_count = 32
 
 
 class TestImu(unittest.TestCase):
@@ -334,40 +316,26 @@ class TestImu(unittest.TestCase):
             joint_vel = self.scene.articulations["pendulum"].data.joint_vel
             joint_acc = self.scene.articulations["pendulum"].data.joint_acc
 
-            lin_vel_w_imu_link = math_utils.quat_rotate(
-                self.scene.sensors["imu_pendulum_imu_link"].data.quat_w,
-                self.scene.sensors["imu_pendulum_imu_link"].data.lin_vel_b,
-            )
-            # lin_vel_w_base = math_utils.quat_rotate(self.scene.sensors["imu_pendulum_base"].data.quat_w,self.scene.sensors["imu_pendulum_base"].data.lin_vel_b)
-            lin_acc_w_imu_link = math_utils.quat_rotate(
-                self.scene.sensors["imu_pendulum_imu_link"].data.quat_w,
-                self.scene.sensors["imu_pendulum_imu_link"].data.lin_acc_b,
-            )
-            # lin_acc_w_base = math_utils.quat_rotate(self.scene.sensors["imu_pendulum_base"].data.quat_w,self.scene.sensors["imu_pendulum_base"].data.lin_acc_b)
+            # extract imu_link imu_sensor dynamics
+            lin_vel_w_imu_link = math_utils.quat_rotate(self.scene.sensors["imu_pendulum_imu_link"].data.quat_w,self.scene.sensors["imu_pendulum_imu_link"].data.lin_vel_b)           
+            lin_acc_w_imu_link = math_utils.quat_rotate(self.scene.sensors["imu_pendulum_imu_link"].data.quat_w,self.scene.sensors["imu_pendulum_imu_link"].data.lin_acc_b)
 
-            joint_vel_imu = math_utils.quat_rotate(
-                self.scene.sensors["imu_pendulum_imu_link"].data.quat_w,
-                self.scene.sensors["imu_pendulum_imu_link"].data.ang_vel_b,
-            )[..., 1].unsqueeze(-1)
-            joint_acc_imu = math_utils.quat_rotate(
-                self.scene.sensors["imu_pendulum_imu_link"].data.quat_w,
-                self.scene.sensors["imu_pendulum_imu_link"].data.ang_acc_b,
-            )[..., 1].unsqueeze(-1)
+            # calcuate the joint dynamics from the imu_sensor (y axis of imu_link is parallel to joint axis of pendulum)
+            joint_vel_imu = math_utils.quat_rotate(self.scene.sensors["imu_pendulum_imu_link"].data.quat_w,self.scene.sensors["imu_pendulum_imu_link"].data.ang_vel_b)[...,1].unsqueeze(-1)
+            joint_acc_imu = math_utils.quat_rotate(self.scene.sensors["imu_pendulum_imu_link"].data.quat_w,self.scene.sensors["imu_pendulum_imu_link"].data.ang_acc_b)[...,1].unsqueeze(-1)
+            
+             # calculate analytical solu
+            vx = -joint_vel * PEND_POS_OFFSET[0]*torch.sin(joint_pos)
+            vy = torch.zeros(2,1,device=self.scene.device)
+            vz = -joint_vel * PEND_POS_OFFSET[0]*torch.cos(joint_pos)
+            gt_linear_vel_w = torch.cat([vx,vy,vz],dim=-1)
 
-            vx = -joint_vel * PEND_POS_OFFSET[0] * torch.sin(joint_pos)
-            vy = torch.zeros(2, 1, device=self.scene.device)
-            vz = -joint_vel * PEND_POS_OFFSET[0] * torch.cos(joint_pos)
-            gt_linear_vel_w = torch.cat([vx, vy, vz], dim=-1)
-
-            ax = -joint_acc * PEND_POS_OFFSET[0] * torch.sin(joint_pos) - joint_vel**2 * PEND_POS_OFFSET[
-                0
-            ] * torch.cos(joint_pos)
-            ay = torch.zeros(2, 1, device=self.scene.device)
-            az = -joint_acc * PEND_POS_OFFSET[0] * torch.cos(joint_pos) + joint_vel**2 * PEND_POS_OFFSET[
-                0
-            ] * torch.sin(joint_pos)
-            gt_linear_acc_w = torch.cat([ax, ay, az], dim=-1)
-
+            ax = -joint_acc * PEND_POS_OFFSET[0]*torch.sin(joint_pos) - joint_vel**2 * PEND_POS_OFFSET[0] *torch.cos(joint_pos)
+            ay = torch.zeros(2,1,device=self.scene.device)
+            az = -joint_acc * PEND_POS_OFFSET[0]*torch.cos(joint_pos) + joint_vel**2 * PEND_POS_OFFSET[0] *torch.sin(joint_pos)
+            gt_linear_acc_w = torch.cat([ax,ay,az],dim=-1)
+            
+            # skip first step where initial velocity is zero
             if idx < 2:
                 continue
 
