@@ -173,7 +173,6 @@ class EventManager(ManagerBase):
 
         # iterate over all the event terms
         for index, term_cfg in enumerate(self._mode_term_cfgs[mode]):
-            # resample interval if needed
             if mode == "interval":
                 # extract time left for this term
                 time_left = self._interval_term_time_left[index]
@@ -186,19 +185,18 @@ class EventManager(ManagerBase):
                         lower, upper = term_cfg.interval_range_s
                         sampled_interval = torch.rand(1) * (upper - lower) + lower
                         self._interval_term_time_left[index][:] = sampled_interval
-                    else:
-                        # no need to call func to apply term
-                        continue
+
+                        # call the event term with env_ids as None (default)
+                        term_cfg.func(self._env, env_ids=None, **term_cfg.params)
                 else:
-                    env_ids = (time_left < 1e-6).nonzero().flatten()
-                    if len(env_ids) > 0:
+                    valid_env_ids = (time_left < 1e-6).nonzero().flatten()
+                    if len(valid_env_ids) > 0:
                         lower, upper = term_cfg.interval_range_s
-                        sampled_time = torch.rand(len(env_ids), device=self.device) * (upper - lower) + lower
-                        self._interval_term_time_left[index][env_ids] = sampled_time
-                    else:
-                        # no need to call func to apply term
-                        continue
-            # check for minimum frequency for reset
+                        sampled_time = torch.rand(len(valid_env_ids), device=self.device) * (upper - lower) + lower
+                        self._interval_term_time_left[index][valid_env_ids] = sampled_time
+
+                        # call the event term
+                        term_cfg.func(self._env, valid_env_ids, **term_cfg.params)
             elif mode == "reset":
                 # obtain the minimum step count between resets
                 min_step_count = term_cfg.min_step_count_between_reset
@@ -236,10 +234,9 @@ class EventManager(ManagerBase):
                         self._reset_term_last_triggered_step_id[index][valid_env_ids] = global_env_step_count
                         # call the event term
                         term_cfg.func(self._env, valid_env_ids, **term_cfg.params)
-                    # no need to call func to apply term again
-                    continue
-            # call the event term
-            term_cfg.func(self._env, env_ids, **term_cfg.params)
+            else:
+                # call the event term directly since the mode is not special
+                term_cfg.func(self._env, env_ids, **term_cfg.params)
 
     """
     Operations - Term settings.
