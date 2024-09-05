@@ -38,8 +38,10 @@ import torch
 import carb
 
 from omni.isaac.lab.devices import Se3Gamepad, Se3Keyboard, Se3SpaceMouse
+from omni.isaac.lab.managers import TerminationTermCfg as DoneTerm
 
 import omni.isaac.lab_tasks  # noqa: F401
+from omni.isaac.lab_tasks.manager_based.manipulation.lift import mdp
 from omni.isaac.lab_tasks.utils import parse_env_cfg
 
 
@@ -66,7 +68,11 @@ def main():
     )
     # modify configuration
     env_cfg.terminations.time_out = None
-
+    if "Lift" in args_cli.task:
+        # set the resampling time range to large number to avoid resampling
+        env_cfg.commands.object_pose.resampling_time_range = (1.0e9, 1.0e9)
+        # add termination condition for reaching the goal otherwise the environment won't reset
+        env_cfg.terminations.object_reached_goal = DoneTerm(func=mdp.object_reached_goal)
     # create environment
     env = gym.make(args_cli.task, cfg=env_cfg)
     # check environment name (for reach , we don't allow the gripper)
