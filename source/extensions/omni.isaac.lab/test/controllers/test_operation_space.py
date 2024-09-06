@@ -116,7 +116,7 @@ class TestOperationSpaceController(unittest.TestCase):
         """Stops simulator after each test."""
         # stop simulation
         self.sim.stop()
-        # self.sim.clear()  # FIXME: This hangs the test for some reason when LIVESTREAM is not enabled.
+        self.sim.clear()  # FIXME: This hangs the test for some reason when LIVESTREAM is not enabled.
         self.sim.clear_all_callbacks()
         self.sim.clear_instance()
 

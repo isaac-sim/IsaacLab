@@ -301,7 +301,7 @@ class OperationSpaceController:
                 # open-loop control
                 des_force_wrench = self.desired_ee_force
             # -- joint-space wrench
-            joint_efforts += (jacobian.transpose(1, 2) @ self._selection_matrix_motion @ des_force_wrench.unsqueeze(-1)).squeeze(-1)
+            joint_efforts += (jacobian.mT @ self._selection_matrix_motion @ des_force_wrench.unsqueeze(-1)).squeeze(-1)
 
         # add gravity compensation (bias correction)
         if self.cfg.gravity_compensation:
