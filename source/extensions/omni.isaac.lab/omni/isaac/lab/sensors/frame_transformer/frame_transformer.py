@@ -132,7 +132,7 @@ class FrameTransformer(SensorBase):
 
         # Keep track of mapping from the rigid body name to the desired frames and prim path, as there may be multiple frames
         # based upon the same body name and we don't want to create unnecessary views
-        body_names_to_frames: dict[str, dict[str, set[str]]] = {}
+        body_names_to_frames: dict[str, dict[str, set[str] | str]] = {}
         # The offsets associated with each target frame
         target_offsets: dict[str, dict[str, torch.Tensor]] = {}
         # The frames whose offsets are not identity
@@ -141,6 +141,9 @@ class FrameTransformer(SensorBase):
         # Only need to perform offsetting of target frame if any of the position offsets are non-zero or any of the
         # rotation offsets are not the identity quaternion for efficiency in _update_buffer_impl
         self._apply_target_frame_offset = False
+
+        # Need to keep track of whether the source frame is also a target frame
+        self._source_is_also_target_frame = False
 
         # Collect all target frames, their associated body prim paths and their offsets so that we can extract
         # the prim, check that it has the appropriate rigid body API in a single loop.
@@ -158,7 +161,6 @@ class FrameTransformer(SensorBase):
                     " No matching prims were found."
                 )
             for prim in matching_prims:
-                print(f"prim: {prim}")
                 # Get the prim path of the matching prim
                 matching_prim_path = prim.GetPath().pathString
                 # Check if it is a rigid prim
@@ -176,9 +178,18 @@ class FrameTransformer(SensorBase):
                 # Keep track of which frames are associated with which bodies
                 if body_name in body_names_to_frames:
                     body_names_to_frames[body_name]["frames"].add(frame_name)
+                    
+                    # This is a corner case where the source frame is also a target frame
+                    if body_names_to_frames[body_name]["type"] == "source" and len(body_names_to_frames[body_name]["frames"]) > 1:
+                        self._source_is_also_target_frame = True
+
                 else:
-                    # Store the first matching prim path
-                    body_names_to_frames[body_name] = {"frames": {frame_name}, "prim_path": matching_prim_path}
+                    # Store the first matching prim path and the type of frame
+                    body_names_to_frames[body_name] = {
+                        "frames": {frame_name}, 
+                        "prim_path": matching_prim_path, 
+                        "type": "source" if frame is None else "target"
+                    }
 
                 if offset is not None:
                     offset_pos = torch.tensor(offset.pos, device=self.device)
@@ -187,11 +198,7 @@ class FrameTransformer(SensorBase):
                     if not is_identity_pose(offset_pos, offset_quat):
                         non_identity_offset_frames.append(frame_name)
                         self._apply_target_frame_offset = True
-                    print(f"Setting offest")
                     target_offsets[frame_name] = {"pos": offset_pos, "quat": offset_quat}
-                    print(f"target_offsets: {target_offsets}")
-
-        print(f"body_names_to_frames: {body_names_to_frames}")
 
         if not self._apply_target_frame_offset:
             carb.log_info(
@@ -208,19 +215,13 @@ class FrameTransformer(SensorBase):
         tracked_prim_paths = [body_names_to_frames[body_name]["prim_path"] for body_name in body_names_to_frames.keys()]
         tracked_body_names = [body_name for body_name in body_names_to_frames.keys()]
 
-        print(f"Tracked prim paths: {tracked_prim_paths}")
-        print(f"tracked body names: {tracked_body_names}")
-        print(f"Cfg prim path: {self.cfg.prim_path}")
-
         body_names_regex = [tracked_prim_path.replace("env_0", "env_*") for tracked_prim_path in tracked_prim_paths]
-        print(body_names)
 
         # Create simulation view
         self._physics_sim_view = physx.create_simulation_view(self._backend)
         self._physics_sim_view.set_subspace_roots("/")
         # Create a prim view for all frames and initialize it
         # order of transforms coming out of view will be source frame followed by target frame(s)
-        # self._frame_physx_view = self._physics_sim_view.create_rigid_body_view('/World/envs/env_*/{Robot/base,Robot/LH_SHANK,Robot/LF_SHANK,cube}')
         self._frame_physx_view = self._physics_sim_view.create_rigid_body_view(body_names_regex)
 
         # Determine the order in which regex evaluated body names so we can later index into frame transforms
@@ -248,16 +249,20 @@ class FrameTransformer(SensorBase):
 
         # -- target frames
         self._target_frame_body_names = first_env_body_names[:]
-        print(f"Target frame body names: {self._target_frame_body_names}")
-        # self._target_frame_body_names.remove(self._source_frame_body_name)
-        print(f"Target frame body names: {self._target_frame_body_names}")
 
-        print(f"source frame body name: {self._source_frame_body_name}")
+        # Only remove source frame from tracked bodies if it is not also a target frame
+        if not self._source_is_also_target_frame:
+            self._target_frame_body_names.remove(self._source_frame_body_name)
 
         # Determine indices into all tracked body frames for both source and target frames
         all_ids = torch.arange(self._num_envs * len(tracked_body_names))
         self._source_frame_body_ids = torch.arange(self._num_envs) * len(tracked_body_names) + source_frame_index
-        self._target_frame_body_ids = all_ids[~torch.isin(all_ids, self._source_frame_body_ids)]
+        
+        # If source frame is also a target frame, then the target frame body ids are the same as the source frame body ids
+        if self._source_is_also_target_frame:
+            self._target_frame_body_ids = all_ids
+        else:
+            self._target_frame_body_ids = all_ids[~torch.isin(all_ids, self._source_frame_body_ids)]
 
         # The name of each of the target frame(s) - either user specified or defaulted to the body name
         self._target_frame_names: list[str] = []
@@ -272,8 +277,7 @@ class FrameTransformer(SensorBase):
         # Go through each body name and determine the number of duplicates we need for that frame
         # and extract the offsets. This is all done to handle the case where multiple frames
         # reference the same body, but have different names and/or offsets
-        for i, body_name in enumerate(body_names_to_frames.keys()):
-            print(f"body_name: {body_name}")
+        for i, body_name in enumerate(self._target_frame_body_names):
             for frame in body_names_to_frames[body_name]["frames"]:
                 if frame == body_name:
                     continue
@@ -285,7 +289,11 @@ class FrameTransformer(SensorBase):
         # To handle multiple environments, need to expand so [0, 1, 1, 2] with 2 environments becomes
         # [0, 1, 1, 2, 3, 4, 4, 5]. Again, this is a optimization to make _update_buffer_impl more efficient
         duplicate_frame_indices = torch.tensor(duplicate_frame_indices, device=self.device)
-        num_target_body_frames = len(tracked_body_names) - 1
+        if self._source_is_also_target_frame:
+            num_target_body_frames = len(tracked_body_names)
+        else:
+            num_target_body_frames = len(tracked_body_names) - 1
+        
         self._duplicate_frame_indices = torch.cat(
             [duplicate_frame_indices + num_target_body_frames * env_num for env_num in range(self._num_envs)]
         )
@@ -337,6 +345,7 @@ class FrameTransformer(SensorBase):
         target_frames = transforms[self._target_frame_body_ids]
         duplicated_target_frame_pos_w = target_frames[self._duplicate_frame_indices, :3]
         duplicated_target_frame_quat_w = target_frames[self._duplicate_frame_indices, 3:]
+
         # Only apply offset if the offsets will result in a coordinate frame transform
         if self._apply_target_frame_offset:
             target_pos_w, target_quat_w = combine_frame_transforms(

@@ -97,7 +97,6 @@ class TestFrameTransformer(unittest.TestCase):
     Tests
     """
 
-    @unittest.skip("Temporary")
     def test_frame_transformer_feet_wrt_base(self):
         """Test feet transformations w.r.t. base source frame.
 
@@ -220,7 +219,6 @@ class TestFrameTransformer(unittest.TestCase):
                 torch.testing.assert_close(feet_pos_source_tf[:, index], foot_pos_b)
                 torch.testing.assert_close(feet_quat_source_tf[:, index], foot_quat_b)
 
-    @unittest.skip("Temporary")
     def test_frame_transformer_feet_wrt_thigh(self):
         """Test feet transformation w.r.t. thigh source frame.
 
@@ -320,13 +318,12 @@ class TestFrameTransformer(unittest.TestCase):
                 torch.testing.assert_close(feet_pos_source_tf[:, index], foot_pos_b)
                 torch.testing.assert_close(feet_quat_source_tf[:, index], foot_quat_b)
 
-    @unittest.skip("Temporary")
-    def test_frame_transformer_body_wrt_cube(self):
-        """Test body transformation w.r.t. base source frame.
+    def test_frame_transformer_robot_body_to_external_cube(self):
+        """Test transformation from robot body to a cube in the scene.
 
         In this test, the source frame is the robot base.
 
-        The target_frame is a cube in the scene.
+        The target_frame is a cube in the scene, external to the robot.
         """
         # Spawn things into stage
         scene_cfg = MySceneCfg(num_envs=2, env_spacing=5.0, lazy_sensor_update=False)
@@ -470,22 +467,30 @@ class TestFrameTransformer(unittest.TestCase):
             source_quat_w_tf = scene.sensors["frame_transformer"].data.source_quat_w
             target_pos_w_tf = scene.sensors["frame_transformer"].data.target_pos_w.squeeze()
             target_quat_w_tf = scene.sensors["frame_transformer"].data.target_quat_w.squeeze()
+            target_frame_names = scene.sensors["frame_transformer"].data.target_frame_names
+
+            cube_center_idx = target_frame_names.index("CUBE_CENTER")
+            cube_bottom_idx = target_frame_names.index("CUBE_BOTTOM")
+            cube_top_idx = target_frame_names.index("CUBE_TOP")
 
             # check if they are same
             torch.testing.assert_close(cube_pos_w_gt, source_pos_w_tf)
             torch.testing.assert_close(cube_quat_w_gt, source_quat_w_tf)
-            torch.testing.assert_close(cube_pos_w_gt, target_pos_w_tf[:, 0])
-            torch.testing.assert_close(cube_quat_w_gt, target_quat_w_tf[:, 0])
+            torch.testing.assert_close(cube_pos_w_gt, target_pos_w_tf[:, cube_center_idx])
+            torch.testing.assert_close(cube_quat_w_gt, target_quat_w_tf[:, cube_center_idx])
 
             # test offsets are applied correctly
             # -- cube top
-            cube_pos_top = target_pos_w_tf[:, 1]
-            cube_quat_top = target_quat_w_tf[:, 1]
+            cube_pos_top = target_pos_w_tf[:, cube_top_idx]
+            cube_quat_top = target_quat_w_tf[:, cube_top_idx]
             torch.testing.assert_close(cube_pos_top, cube_pos_w_gt + torch.tensor([0.0, 0.0, 0.1]))
+            torch.testing.assert_close(cube_quat_top, cube_quat_w_gt)
+            
             # -- cube bottom
-            cube_pos_bottom = target_pos_w_tf[:, 2]
-            cube_quat_bottom = target_quat_w_tf[:, 2]
+            cube_pos_bottom = target_pos_w_tf[:, cube_bottom_idx]
+            cube_quat_bottom = target_quat_w_tf[:, cube_bottom_idx]
             torch.testing.assert_close(cube_pos_bottom, cube_pos_w_gt + torch.tensor([0.0, 0.0, -0.1]))
+            torch.testing.assert_close(cube_quat_bottom, cube_quat_w_gt)
 
 
 if __name__ == "__main__":
