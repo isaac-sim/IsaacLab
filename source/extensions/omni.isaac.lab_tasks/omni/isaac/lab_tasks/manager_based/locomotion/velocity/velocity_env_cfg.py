@@ -318,14 +318,3 @@ class LocomotionVelocityRoughEnvCfg(ManagerBasedRLEnvCfg):
         else:
             if self.scene.terrain.terrain_generator is not None:
                 self.scene.terrain.terrain_generator.curriculum = False
-
-    ##
-    # Properties.
-    ##
-
-    def set_seed(self, value: int):
-        # set parent seed
-        super().set_seed(value)
-        # set seed for terrain generator
-        if self.scene.terrain.terrain_generator is not None:
-            self.scene.terrain.terrain_generator.seed = value

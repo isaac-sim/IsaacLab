@@ -90,7 +90,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: dict):
 
     # set the environment seed (after multi-gpu config for updated rank from agent seed)
     # note: certain randomizations occur in the environment initialization so we set the seed here
-    env_cfg.set_seed(agent_cfg["params"]["seed"])
+    env_cfg.seed = agent_cfg["params"]["seed"]
 
     # specify directory for logging experiments
     log_root_path = os.path.join("logs", "rl_games", agent_cfg["params"]["config"]["name"])

@@ -134,7 +134,7 @@ class TestEnvironmentDeterminism(unittest.TestCase):
         # parse configuration
         env_cfg: ManagerBasedRLEnvCfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
         # set seed
-        env_cfg.set_seed(seed)
+        env_cfg.seed = seed
 
         # create environment
         env: ManagerBasedRLEnv = gym.make(task_name, cfg=env_cfg)
