@@ -119,6 +119,17 @@ class AnymalCRoughEnvCfg(AnymalCFlatEnvCfg):
     # reward scales (override from flat config)
     flat_orientation_reward_scale = 0.0
 
+    ##
+    # Properties.
+    ##
+
+    def set_seed(self, value: int):
+        # set parent seed
+        super().set_seed(value)
+        # set seed for terrain generator
+        if self.terrain.terrain_generator is not None:
+            self.terrain.terrain_generator.seed = value
+
 
 class AnymalCEnv(DirectRLEnv):
     cfg: AnymalCFlatEnvCfg | AnymalCRoughEnvCfg
