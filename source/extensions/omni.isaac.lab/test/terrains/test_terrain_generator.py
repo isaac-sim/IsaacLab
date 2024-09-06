@@ -58,7 +58,7 @@ class TestTerrainGenerator(unittest.TestCase):
         We check both scenarios where the seed is set globally only and when it is set both globally and locally.
         Setting only locally is not tested as it is not supported.
         """
-        for is_global_seed in [True, False]:
+        for use_global_seed in [True, False]:
             for seed in [20, 40, 80]:
                 with self.subTest(seed=seed):
                     # set initial seed
@@ -67,7 +67,7 @@ class TestTerrainGenerator(unittest.TestCase):
                     # create terrain generator
                     cfg = ROUGH_TERRAINS_CFG.copy()
                     cfg.use_cache = False
-                    cfg.seed = seed if not is_global_seed else None
+                    cfg.seed = seed if use_global_seed else None
                     terrain_generator = TerrainGenerator(cfg=cfg)
 
                     # keep a copy of the generated terrain mesh
