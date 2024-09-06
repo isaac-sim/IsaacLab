@@ -28,5 +28,8 @@ class MjcfConverterCfg(AssetConverterBaseCfg):
     fix_base: bool = MISSING
     """Create a fix joint to the root/base link. Defaults to True."""
 
+    import_sites: bool = True
+    """Import the sites from the MJCF. Defaults to True."""
+
     self_collision: bool = False
     """Activate self-collisions between links of the articulation. Defaults to False."""

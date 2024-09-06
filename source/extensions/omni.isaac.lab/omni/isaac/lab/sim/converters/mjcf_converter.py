@@ -106,7 +106,7 @@ class MjcfConverter(AssetConverterBase):
         # add a physics scene to the stage on import if none exists
         import_config.set_create_physics_scene(False)
         # set flag to parse <site> tag
-        import_config.set_import_sites(False)
+        import_config.set_import_sites(True)
 
         # -- instancing settings
         # meshes will be placed in a separate usd file
