@@ -62,6 +62,10 @@ class OperationSpaceController:
         )
         # -- commands
         self._task_space_target = torch.zeros(self.num_envs, self.target_dim, device=self._device)
+        # -- buffers for motion/force control
+        self.desired_ee_pos = None
+        self.desired_ee_rot = None
+        self.desired_ee_force = None
         # -- scaling of command
         self._position_command_scale = torch.diag(torch.tensor(self.cfg.position_command_scale, device=self._device))
         self._rotation_command_scale = torch.diag(torch.tensor(self.cfg.rotation_command_scale, device=self._device))
@@ -128,7 +132,7 @@ class OperationSpaceController:
         """Reset the internals."""
         pass
 
-    def set_command(self, command: torch.Tensor):
+    def set_command(self, command: torch.Tensor, ee_pose: torch.Tensor | None = None):
         """Set target end-effector pose or force command.
 
         Args:
@@ -165,6 +169,44 @@ class OperationSpaceController:
         else:
             raise ValueError(f"Invalid impedance mode: {self.cfg.impedance_mode}.")
 
+        # resolve the target commands
+        target_groups = torch.split(self._task_space_target, self.target_list, dim=1)
+        for command_type, target in zip(self.cfg.command_types, target_groups):
+            if command_type == "position_rel":
+                # check input is provided
+                if ee_pose is None:
+                    raise ValueError("End-effector pose is required for 'position_rel' command.")
+                # scale command
+                target @= self._position_command_scale
+                # compute targets
+                self.desired_ee_pos = ee_pose[:, :3] + target
+                self.desired_ee_rot = ee_pose[:, 3:]
+            elif command_type == "position_abs":
+                # check input is provided
+                if ee_pose is None:
+                    raise ValueError("End-effector pose is required for 'position_abs' command.")
+                # compute targets
+                self.desired_ee_pos = target
+                self.desired_ee_rot = ee_pose[:, 3:]
+            elif command_type == "pose_rel":
+                # check input is provided
+                if ee_pose is None:
+                    raise ValueError("End-effector pose is required for 'pose_rel' command.")
+                # scale command
+                target[:, 0:3] @= self._position_command_scale
+                target[:, 3:6] @= self._rotation_command_scale
+                # compute targets
+                self.desired_ee_pos, self.desired_ee_rot = apply_delta_pose(ee_pose[:, :3], ee_pose[:, 3:], target)
+            elif command_type == "pose_abs":
+                # compute targets
+                self.desired_ee_pos = target[:, 0:3]
+                self.desired_ee_rot = target[:, 3:7]
+            elif command_type == "force_abs":
+                # compute targets
+                self.desired_ee_force = target
+            else:
+                raise ValueError(f"Invalid control command: {self.cfg.command_type}.")
+
     def compute(
         self,
         jacobian: torch.Tensor,
@@ -200,47 +242,6 @@ class OperationSpaceController:
         Returns:
             The target joint torques commands.
         """
-        # buffers for motion/force control
-        desired_ee_pos = None
-        desired_ee_rot = None
-        desired_ee_force = None
-        # resolve the commands
-        target_groups = torch.split(self._task_space_target, self.target_list, dim=1)
-        for command_type, target in zip(self.cfg.command_types, target_groups):
-            if command_type == "position_rel":
-                # check input is provided
-                if ee_pose is None:
-                    raise ValueError("End-effector pose is required for 'position_rel' command.")
-                # scale command
-                target @= self._position_command_scale
-                # compute targets
-                desired_ee_pos = ee_pose[:, :3] + target
-                desired_ee_rot = ee_pose[:, 3:]
-            elif command_type == "position_abs":
-                # check input is provided
-                if ee_pose is None:
-                    raise ValueError("End-effector pose is required for 'position_abs' command.")
-                # compute targets
-                desired_ee_pos = target
-                desired_ee_rot = ee_pose[:, 3:]
-            elif command_type == "pose_rel":
-                # check input is provided
-                if ee_pose is None:
-                    raise ValueError("End-effector pose is required for 'pose_rel' command.")
-                # scale command
-                target[:, 0:3] @= self._position_command_scale
-                target[:, 3:6] @= self._rotation_command_scale
-                # compute targets
-                desired_ee_pos, desired_ee_rot = apply_delta_pose(ee_pose[:, :3], ee_pose[:, 3:], target)
-            elif command_type == "pose_abs":
-                # compute targets
-                desired_ee_pos = target[:, 0:3]
-                desired_ee_rot = target[:, 3:7]
-            elif command_type == "force_abs":
-                # compute targets
-                desired_ee_force = target
-            else:
-                raise ValueError(f"Invalid control command: {self.cfg.command_type}.")
 
         # deduce number of DoF
         nDoF = jacobian.shape[2]
@@ -248,13 +249,13 @@ class OperationSpaceController:
         joint_efforts = torch.zeros(self.num_envs, nDoF, device=self._device)
 
         # compute for motion-control
-        if desired_ee_pos is not None:
+        if self.desired_ee_pos is not None:
             # check input is provided
             if ee_pose is None or ee_vel is None:
                 raise ValueError("End-effector pose and velocity are required for motion control.")
             # -- end-effector tracking error
             pose_error = torch.cat(compute_pose_error(
-                ee_pose[:, :3], ee_pose[:, 3:], desired_ee_pos, desired_ee_rot, rot_error_type="axis_angle"),
+                ee_pose[:, :3], ee_pose[:, 3:], self.desired_ee_pos, self.desired_ee_rot, rot_error_type="axis_angle"),
                 dim=-1
             )
             velocity_error = -ee_vel  # zero target velocity
@@ -288,17 +289,17 @@ class OperationSpaceController:
             joint_efforts += (jacobian.mT @ self._selection_matrix_motion @ des_motion_wrench.unsqueeze(-1)).squeeze(-1)
 
         # compute for force control
-        if desired_ee_force is not None:
+        if self.desired_ee_force is not None:
             # -- task-space wrench
             if self.cfg.stiffness is not None:
                 # check input is provided
                 if ee_force is None:
                     raise ValueError("End-effector force is required for closed-loop force control.")
                 # closed-loop control
-                des_force_wrench = desired_ee_force + self._p_wrench_gains * (desired_ee_force - ee_force)
+                des_force_wrench = self.desired_ee_force + self._p_wrench_gains * (self.desired_ee_force - ee_force)
             else:
                 # open-loop control
-                des_force_wrench = desired_ee_force
+                des_force_wrench = self.desired_ee_force
             # -- joint-space wrench
             joint_efforts += (jacobian.transpose(1, 2) @ self._selection_matrix_motion @ des_force_wrench.unsqueeze(-1)).squeeze(-1)
 
