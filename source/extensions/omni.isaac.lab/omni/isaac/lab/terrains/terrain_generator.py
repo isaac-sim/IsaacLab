@@ -71,8 +71,8 @@ class TerrainGenerator:
     .. attention::
 
         The terrain generation has its own seed parameter. This is set using the :attr:`TerrainGeneratorCfg.seed`
-        parameter. If the seed is not set and the caching is disabled, the terrain generation will not be
-        reproducible.
+        parameter. If the seed is not set and the caching is disabled, the terrain generation may not be
+        completely reproducible.
 
     """
 
