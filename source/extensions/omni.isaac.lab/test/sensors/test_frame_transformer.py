@@ -492,6 +492,93 @@ class TestFrameTransformer(unittest.TestCase):
             torch.testing.assert_close(cube_pos_bottom, cube_pos_w_gt + torch.tensor([0.0, 0.0, -0.1]))
             torch.testing.assert_close(cube_quat_bottom, cube_quat_w_gt)
 
+    def test_frame_transformer_all_bodies(self):
+        """Test transformation of all bodies w.r.t. base source frame.
+
+        In this test, the source frame is the robot base.
+
+        The target_frames are all bodies in the robot, implemented using .* pattern.
+        """
+        # Spawn things into stage
+        scene_cfg = MySceneCfg(num_envs=2, env_spacing=5.0, lazy_sensor_update=False)
+        scene_cfg.frame_transformer = FrameTransformerCfg(
+            prim_path="{ENV_REGEX_NS}/Robot/base",
+            target_frames=[
+                FrameTransformerCfg.FrameCfg(
+                    prim_path="{ENV_REGEX_NS}/Robot/.*",
+                ),
+            ],
+        )
+        scene = InteractiveScene(scene_cfg)
+
+        # Play the simulator
+        self.sim.reset()
+
+        target_frame_names = scene.sensors["frame_transformer"].data.target_frame_names
+        articulation_body_names = scene.articulations["robot"].data.body_names
+
+        reordering_indices = [target_frame_names.index(name) for name in articulation_body_names]
+
+        # default joint targets
+        default_actions = scene.articulations["robot"].data.default_joint_pos.clone()
+        # Define simulation stepping
+        sim_dt = self.sim.get_physics_dt()
+        # Simulate physics
+        for count in range(100):
+            # # reset
+            if count % 25 == 0:
+                # reset root state
+                root_state = scene.articulations["robot"].data.default_root_state.clone()
+                root_state[:, :3] += scene.env_origins
+                joint_pos = scene.articulations["robot"].data.default_joint_pos
+                joint_vel = scene.articulations["robot"].data.default_joint_vel
+                # -- set root state
+                # -- robot
+                scene.articulations["robot"].write_root_state_to_sim(root_state)
+                scene.articulations["robot"].write_joint_state_to_sim(joint_pos, joint_vel)
+                # reset buffers
+                scene.reset()
+
+            # set joint targets
+            robot_actions = default_actions + 0.5 * torch.randn_like(default_actions)
+            scene.articulations["robot"].set_joint_position_target(robot_actions)
+            # write data to sim
+            scene.write_data_to_sim()
+            # perform step
+            self.sim.step()
+            # read data from sim
+            scene.update(sim_dt)
+
+            # check absolute frame transforms in world frame
+            # -- ground-truth
+            root_pose_w = scene.articulations["robot"].data.root_state_w[:, :7]
+            bodies_pos_w_gt = scene.articulations["robot"].data.body_pos_w
+            bodies_quat_w_gt = scene.articulations["robot"].data.body_quat_w
+
+            # -- frame transformer
+            source_pos_w_tf = scene.sensors["frame_transformer"].data.source_pos_w
+            source_quat_w_tf = scene.sensors["frame_transformer"].data.source_quat_w
+            bodies_pos_w_tf = scene.sensors["frame_transformer"].data.target_pos_w
+            bodies_quat_w_tf = scene.sensors["frame_transformer"].data.target_quat_w
+
+            # check if they are same
+            torch.testing.assert_close(root_pose_w[:, :3], source_pos_w_tf)
+            torch.testing.assert_close(root_pose_w[:, 3:], source_quat_w_tf)
+            torch.testing.assert_close(bodies_pos_w_gt, bodies_pos_w_tf[:, reordering_indices])
+            torch.testing.assert_close(bodies_quat_w_gt, bodies_quat_w_tf[:, reordering_indices])
+
+            bodies_pos_source_tf = scene.sensors["frame_transformer"].data.target_pos_source
+            bodies_quat_source_tf = scene.sensors["frame_transformer"].data.target_quat_source
+
+            # Go through each body and check if relative transforms are same
+            for index in range(len(articulation_body_names)):
+                body_pos_b, body_quat_b = math_utils.subtract_frame_transforms(
+                    root_pose_w[:, :3], root_pose_w[:, 3:], bodies_pos_w_tf[:, index], bodies_quat_w_tf[:, index]
+                )
+
+                torch.testing.assert_close(bodies_pos_source_tf[:, index], body_pos_b)
+                torch.testing.assert_close(bodies_quat_source_tf[:, index], body_quat_b)
+
 
 if __name__ == "__main__":
     run_tests()

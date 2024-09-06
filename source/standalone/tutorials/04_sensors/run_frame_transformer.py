@@ -139,10 +139,10 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
             if count % 50 == 0:
                 # get frame names
                 frame_names = frame_transformer.data.target_frame_names
-                print(f"Displaying Frame ID {frame_index}: {frame_names[frame_index]}")
                 # increment frame index
                 frame_index += 1
                 frame_index = frame_index % len(frame_names)
+                print(f"Displaying Frame ID {frame_index}: {frame_names[frame_index]}")
 
             # visualize frame
             source_pos = frame_transformer.data.source_pos_w

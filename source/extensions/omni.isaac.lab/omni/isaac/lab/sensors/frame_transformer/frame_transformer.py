@@ -51,14 +51,6 @@ class FrameTransformer(SensorBase):
     typically a fictitious body, the user may need to specify an offset from the end-effector to the body of the
     manipulator.
 
-    .. warning::
-
-        The implementation assumes that the parent body of a target frame is not the same as that
-        of the source frame (i.e. :attr:`FrameTransformerCfg.prim_path`). While a corner case, this can occur
-        if the user specifies the same prim path for both the source frame and target frame. In this case,
-        the target frame will be ignored and not reported. This is a limitation of the current implementation
-        and will be fixed in a future release.
-
     """
 
     cfg: FrameTransformerCfg
@@ -152,7 +144,8 @@ class FrameTransformer(SensorBase):
         frame_prim_paths = [self.cfg.prim_path] + [target_frame.prim_path for target_frame in self.cfg.target_frames]
         # First element is None because source frame offset is handled separately
         frame_offsets = [None] + [target_frame.offset for target_frame in self.cfg.target_frames]
-        for frame, prim_path, offset in zip(frames, frame_prim_paths, frame_offsets):
+        frame_types = ["source"] + ["target"] * len(self.cfg.target_frames)
+        for frame, prim_path, offset, frame_type in zip(frames, frame_prim_paths, frame_offsets, frame_types):
             # Find correct prim
             matching_prims = sim_utils.find_matching_prims(prim_path)
             if len(matching_prims) == 0:
@@ -180,10 +173,7 @@ class FrameTransformer(SensorBase):
                     body_names_to_frames[body_name]["frames"].add(frame_name)
 
                     # This is a corner case where the source frame is also a target frame
-                    if (
-                        body_names_to_frames[body_name]["type"] == "source"
-                        and len(body_names_to_frames[body_name]["frames"]) > 1
-                    ):
+                    if body_names_to_frames[body_name]["type"] == "source" and frame_type == "target":
                         self._source_is_also_target_frame = True
 
                 else:
@@ -191,7 +181,7 @@ class FrameTransformer(SensorBase):
                     body_names_to_frames[body_name] = {
                         "frames": {frame_name},
                         "prim_path": matching_prim_path,
-                        "type": "source" if frame is None else "target",
+                        "type": frame_type,
                     }
 
                 if offset is not None:
@@ -231,27 +221,45 @@ class FrameTransformer(SensorBase):
         # by frame name correctly
         all_prim_paths = self._frame_physx_view.prim_paths
 
-        def extract_env_num(item):
-            match = re.search(r"env_(\d+)(.*)", item)
-            return (int(match.group(1)), match.group(2))
+        if "env_" in all_prim_paths[0]:
 
-        # Find the indices that would reorganize output to be per environment. We want `env_1/blah` to come before `env_11/blah`
-        # so we need to use a custom key function
-        sorted_indexed_prim_paths = sorted(list(enumerate(all_prim_paths)), key=lambda x: extract_env_num(x[1]))
-        self._per_env_indices = [index for index, _ in sorted_indexed_prim_paths]
-        sorted_prim_paths = [all_prim_paths[i] for i in self._per_env_indices]
+            def extract_env_num_and_prim_path(item: str) -> tuple[int, str]:
+                """Separates the environment number and prim_path from the item.
 
-        # Only need first env as the names and their ordering are the same across environments
-        first_env_prim_paths = [prim_path for prim_path in sorted_prim_paths if "env_0" in prim_path]
-        first_env_body_names = [first_env_prim_path.split("/")[-1] for first_env_prim_path in first_env_prim_paths]
+                Args:
+                    item: The item to extract the environment number from. Assumes item is of the form
+                        `/World/env_1/blah` or `/World/env_11/blah`.
+                Returns:
+                    The environment number and the prim_path.
+                """
+                match = re.search(r"env_(\d+)(.*)", item)
+                return (int(match.group(1)), match.group(2))
 
-        # Re-parse the list as it may have moved when resolving regex above
-        # -- source frame
-        self._source_frame_body_name = self.cfg.prim_path.split("/")[-1]
-        source_frame_index = first_env_body_names.index(self._source_frame_body_name)
+            # Find the indices that would reorganize output to be per environment. We want `env_1/blah` to come before `env_11/blah`
+            # and env_1/Robot/base to come before env_1/Robot/foot so we need to use custom key function
+            self._per_env_indices = [
+                index
+                for index, _ in sorted(
+                    list(enumerate(all_prim_paths)), key=lambda x: extract_env_num_and_prim_path(x[1])
+                )
+            ]
+
+            # Only need 0th env as the names and their ordering are the same across environments
+            sorted_prim_paths = [
+                all_prim_paths[index] for index in self._per_env_indices if "env_0" in all_prim_paths[index]
+            ]
+
+        else:
+            # If no environment is present, then the order of the body names is the same as the order of the prim paths sorted alphabetically
+            self._per_env_indices = [index for index, _ in sorted(enumerate(all_prim_paths), key=lambda x: x[1])]
+            sorted_prim_paths = [all_prim_paths[index] for index in self._per_env_indices]
 
         # -- target frames
-        self._target_frame_body_names = first_env_body_names[:]
+        self._target_frame_body_names = [prim_path.split("/")[-1] for prim_path in sorted_prim_paths]
+
+        # -- source frame
+        self._source_frame_body_name = self.cfg.prim_path.split("/")[-1]
+        source_frame_index = self._target_frame_body_names.index(self._source_frame_body_name)
 
         # Only remove source frame from tracked bodies if it is not also a target frame
         if not self._source_is_also_target_frame:
@@ -282,12 +290,12 @@ class FrameTransformer(SensorBase):
         # reference the same body, but have different names and/or offsets
         for i, body_name in enumerate(self._target_frame_body_names):
             for frame in body_names_to_frames[body_name]["frames"]:
-                if frame == body_name:
-                    continue
-                target_frame_offset_pos.append(target_offsets[frame]["pos"])
-                target_frame_offset_quat.append(target_offsets[frame]["quat"])
-                self._target_frame_names.append(frame)
-                duplicate_frame_indices.append(i)
+                # Only need to handle target frames here as source frame is handled separately
+                if frame in target_offsets:
+                    target_frame_offset_pos.append(target_offsets[frame]["pos"])
+                    target_frame_offset_quat.append(target_offsets[frame]["quat"])
+                    self._target_frame_names.append(frame)
+                    duplicate_frame_indices.append(i)
 
         # To handle multiple environments, need to expand so [0, 1, 1, 2] with 2 environments becomes
         # [0, 1, 1, 2, 3, 4, 4, 5]. Again, this is a optimization to make _update_buffer_impl more efficient
@@ -301,9 +309,11 @@ class FrameTransformer(SensorBase):
             [duplicate_frame_indices + num_target_body_frames * env_num for env_num in range(self._num_envs)]
         )
 
-        # Stack up all the frame offsets for shape (num_envs, num_frames, 3) and (num_envs, num_frames, 4)
-        self._target_frame_offset_pos = torch.stack(target_frame_offset_pos).repeat(self._num_envs, 1)
-        self._target_frame_offset_quat = torch.stack(target_frame_offset_quat).repeat(self._num_envs, 1)
+        # Target frame offsets are only applied if at least one of the offsets are non-identity
+        if self._apply_target_frame_offset:
+            # Stack up all the frame offsets for shape (num_envs, num_frames, 3) and (num_envs, num_frames, 4)
+            self._target_frame_offset_pos = torch.stack(target_frame_offset_pos).repeat(self._num_envs, 1)
+            self._target_frame_offset_quat = torch.stack(target_frame_offset_quat).repeat(self._num_envs, 1)
 
         # fill the data buffer
         self._data.target_frame_names = self._target_frame_names
