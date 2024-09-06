@@ -53,37 +53,42 @@ class TestTerrainGenerator(unittest.TestCase):
         self.assertAlmostEqual(actualSize[1], expectedSizeY)
 
     def test_generation_reproducibility(self):
-        """Generates assorted terrains and tests that the resulting mesh is reproducible."""
-        for seed in [20, 40, 80]:
-            with self.subTest(seed=seed):
-                # set initial seed
-                torch_utils.set_seed(seed)
+        """Generates assorted terrains and tests that the resulting mesh is reproducible.
 
-                # create terrain generator
-                cfg = ROUGH_TERRAINS_CFG.copy()
-                cfg.use_cache = False
-                cfg.seed = seed
-                terrain_generator = TerrainGenerator(cfg=cfg)
+        We check both scenarios where the seed is set globally only and when it is set both globally and locally.
+        Setting only locally is not tested as it is not supported.
+        """
+        for is_global_seed in [True, False]:
+            for seed in [20, 40, 80]:
+                with self.subTest(seed=seed):
+                    # set initial seed
+                    torch_utils.set_seed(seed)
 
-                # keep a copy of the generated terrain mesh
-                terrain_mesh_1 = terrain_generator.terrain_mesh.copy()
+                    # create terrain generator
+                    cfg = ROUGH_TERRAINS_CFG.copy()
+                    cfg.use_cache = False
+                    cfg.seed = seed if not is_global_seed else None
+                    terrain_generator = TerrainGenerator(cfg=cfg)
 
-                # set seed again
-                torch_utils.set_seed(seed)
+                    # keep a copy of the generated terrain mesh
+                    terrain_mesh_1 = terrain_generator.terrain_mesh.copy()
 
-                # create terrain generator
-                terrain_generator = TerrainGenerator(cfg=cfg)
+                    # set seed again
+                    torch_utils.set_seed(seed)
 
-                # keep a copy of the generated terrain mesh
-                terrain_mesh_2 = terrain_generator.terrain_mesh.copy()
+                    # create terrain generator
+                    terrain_generator = TerrainGenerator(cfg=cfg)
 
-                # check if the meshes are equal
-                np.testing.assert_allclose(
-                    terrain_mesh_1.vertices, terrain_mesh_2.vertices, atol=1e-5, err_msg="Vertices are not equal"
-                )
-                np.testing.assert_allclose(
-                    terrain_mesh_1.faces, terrain_mesh_2.faces, atol=1e-5, err_msg="Faces are not equal"
-                )
+                    # keep a copy of the generated terrain mesh
+                    terrain_mesh_2 = terrain_generator.terrain_mesh.copy()
+
+                    # check if the meshes are equal
+                    np.testing.assert_allclose(
+                        terrain_mesh_1.vertices, terrain_mesh_2.vertices, atol=1e-5, err_msg="Vertices are not equal"
+                    )
+                    np.testing.assert_allclose(
+                        terrain_mesh_1.faces, terrain_mesh_2.faces, atol=1e-5, err_msg="Faces are not equal"
+                    )
 
     def test_generation_cache(self):
         """Generate the terrain and check that caching works.
