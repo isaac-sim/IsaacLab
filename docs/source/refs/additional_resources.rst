@@ -29,4 +29,4 @@ At the heart of Isaac Lab is Isaac Sim, which is itself a feature rich tool that
 
 * `Deploying Policies in Isaac Sim <https://docs.omniverse.nvidia.com/isaacsim/latest/isaac_lab_tutorials/tutorial_policy_deployment.html>`_ is an Isaac Sim tutorial on how to use trained policies within the simulation.
 
-* `Supercharge Robotics Workflows with AI and Simulation Using NVIDIA Isaac Sim 4.0 and NVIDIA Isaac Lab <https://developer.nvidia.com/blog/supercharge-robotics-workflows-with-ai-and-simulation-using-nvidia-isaac-sim-4-0-and-nvidia-isaac-lab/>`_ is a blog post covering the newest features of Isaac Sim 4.0, including `pip install`, a more advanced physics engine, updated sensor simulations, and more!
+* `Supercharge Robotics Workflows with AI and Simulation Using NVIDIA Isaac Sim 4.0 and NVIDIA Isaac Lab <https://developer.nvidia.com/blog/supercharge-robotics-workflows-with-ai-and-simulation-using-nvidia-isaac-sim-4-0-and-nvidia-isaac-lab/>`_ is a blog post covering the newest features of Isaac Sim 4.0, including ``pip install``, a more advanced physics engine, updated sensor simulations, and more!
