@@ -822,8 +822,10 @@ document.write(`
             <span class="k">continue</span>
         <span class="c1"># get data member</span>
         <span class="n">value</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
-        <span class="c1"># duplicate data members</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="nb">callable</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+        <span class="c1"># check annotation</span>
+        <span class="n">ann</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__dict__</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="c1"># duplicate data members that are mutable</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">callable</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ann</span><span class="p">,</span> <span class="nb">property</span><span class="p">):</span>
             <span class="nb">setattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">value</span><span class="p">))</span>
 
 
@@ -860,6 +862,7 @@ document.write(`
 <span class="sd">    * Manually-added special class functions: From :obj:`_CONFIGCLASS_METHODS`.</span>
 <span class="sd">    * Members that are already present in the type annotations.</span>
 <span class="sd">    * Functions bounded to class object or class.</span>
+<span class="sd">    * Properties bounded to class object.</span>
 
 <span class="sd">    Args:</span>
 <span class="sd">        key: The class member name.</span>
@@ -889,6 +892,9 @@ document.write(`
         <span class="n">signature</span> <span class="o">=</span> <span class="n">inspect</span><span class="o">.</span><span class="n">signature</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
         <span class="k">if</span> <span class="s2">&quot;self&quot;</span> <span class="ow">in</span> <span class="n">signature</span><span class="o">.</span><span class="n">parameters</span> <span class="ow">or</span> <span class="s2">&quot;cls&quot;</span> <span class="ow">in</span> <span class="n">signature</span><span class="o">.</span><span class="n">parameters</span><span class="p">:</span>
             <span class="k">return</span> <span class="kc">True</span>
+    <span class="c1"># skip property methods</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">property</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">True</span>
     <span class="c1"># Otherwise, don&#39;t skip</span>
     <span class="k">return</span> <span class="kc">False</span>
 
