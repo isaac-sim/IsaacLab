@@ -374,6 +374,7 @@ def _skippable_class_member(key: str, value: Any, hints: dict | None = None) -> 
     * Manually-added special class functions: From :obj:`_CONFIGCLASS_METHODS`.
     * Members that are already present in the type annotations.
     * Functions bounded to class object or class.
+    * Properties bounded to class object.
 
     Args:
         key: The class member name.
