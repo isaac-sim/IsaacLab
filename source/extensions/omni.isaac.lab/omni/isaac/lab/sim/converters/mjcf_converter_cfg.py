@@ -4,10 +4,10 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from dataclasses import MISSING
-from typing import Literal
 
 from omni.isaac.lab.sim.converters.asset_converter_base_cfg import AssetConverterBaseCfg
 from omni.isaac.lab.utils import configclass
+
 
 @configclass
 class MjcfConverterCfg(AssetConverterBaseCfg):
@@ -30,4 +30,3 @@ class MjcfConverterCfg(AssetConverterBaseCfg):
 
     self_collision: bool = False
     """Activate self-collisions between links of the articulation. Defaults to False."""
-

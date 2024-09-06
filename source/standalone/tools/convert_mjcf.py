@@ -64,28 +64,64 @@ from omni.isaac.lab.utils.assets import check_file_path
 from omni.isaac.lab.utils.dict import print_dict
 
 
+def main():
+    # check valid file path
+    mjcf_path = args_cli.input
+    if not os.path.isabs(mjcf_path):
+        mjcf_path = os.path.abspath(mjcf_path)
+    if not check_file_path(mjcf_path):
+        raise ValueError(f"Invalid file path: {mjcf_path}")
+    # create destination path
+    dest_path = args_cli.output
+    if not os.path.isabs(dest_path):
+        dest_path = os.path.abspath(dest_path)
 
+    # create the converter configuration
+    mjcf_converter_cfg = MjcfConverterCfg(
+        asset_path=mjcf_path,
+        usd_dir=os.path.dirname(dest_path),
+        usd_file_name=os.path.basename(dest_path),
+        fix_base=args_cli.fix_base,
+        force_usd_conversion=True,
+        make_instanceable=args_cli.make_instanceable,
+    )
 
+    # Print info
+    print("-" * 80)
+    print("-" * 80)
+    print(f"Input MJCF file: {mjcf_path}")
+    print("MJCF importer config:")
+    print_dict(mjcf_converter_cfg.to_dict(), nesting=0)
+    print("-" * 80)
+    print("-" * 80)
 
+    # Create mjcf converter and import the file
+    mjcf_converter = MjcfConverter(mjcf_converter_cfg)
+    # print output
+    print("MJCF importer output:")
+    print(f"Generated USD file: {mjcf_converter.usd_path}")
+    print("-" * 80)
+    print("-" * 80)
 
+    # Determine if there is a GUI to update:
+    # acquire settings interface
+    carb_settings_iface = carb.settings.get_settings()
+    # read flag for whether a local GUI is enabled
+    local_gui = carb_settings_iface.get("/app/window/enabled")
+    # read flag for whether livestreaming GUI is enabled
+    livestream_gui = carb_settings_iface.get("/app/livestream/enabled")
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    # Simulate scene (if not headless)
+    if local_gui or livestream_gui:
+        # Open the stage with USD
+        stage_utils.open_stage(mjcf_converter.usd_path)
+        # Reinitialize the simulation
+        app = omni.kit.app.get_app_interface()
+        # Run simulation
+        with contextlib.suppress(KeyboardInterrupt):
+            while app.is_running():
+                # perform step
+                app.update()
 
 
 if __name__ == "__main__":
