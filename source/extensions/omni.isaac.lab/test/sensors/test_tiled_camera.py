@@ -44,7 +44,7 @@ class TestTiledCamera(unittest.TestCase):
             offset=TiledCameraCfg.OffsetCfg(pos=(0.0, 0.0, 4.0), rot=(0.0, 0.0, 1.0, 0.0), convention="ros"),
             prim_path="/World/Camera",
             update_period=0,
-            data_types=["rgb", "depth"],
+            data_types=["rgb", "distance_to_camera"],
             spawn=sim_utils.PinholeCameraCfg(
                 focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1.0e5)
             ),
@@ -217,6 +217,33 @@ class TestTiledCamera(unittest.TestCase):
                 self.assertGreater(im_data[1].mean().item(), 0.0)
         del camera
 
+    def test_data_types(self):
+        """Test single camera initialization."""
+        # Create camera
+        camera_cfg_distance = copy.deepcopy(self.camera_cfg)
+        camera_cfg_distance.data_types = ["distance_to_camera"]
+        camera_cfg_distance.prim_path = "/World/CameraDistance"
+        camera_distance = TiledCamera(camera_cfg_distance)
+        camera_cfg_depth = copy.deepcopy(self.camera_cfg)
+        camera_cfg_depth.data_types = ["depth"]
+        camera_cfg_depth.prim_path = "/World/CameraDepth"
+        camera_depth = TiledCamera(camera_cfg_depth)
+        camera_cfg_both = copy.deepcopy(self.camera_cfg)
+        camera_cfg_both.data_types = ["distance_to_camera", "depth"]
+        camera_cfg_both.prim_path = "/World/CameraBoth"
+        camera_both = TiledCamera(camera_cfg_both)
+        # Play sim
+        self.sim.reset()
+        # Check if camera is initialized
+        self.assertTrue(camera_distance.is_initialized)
+        self.assertTrue(camera_depth.is_initialized)
+        self.assertTrue(camera_both.is_initialized)
+        self.assertListEqual(list(camera_distance.data.output.keys()), ["distance_to_camera"])
+        self.assertListEqual(list(camera_depth.data.output.keys()), ["depth"])
+        self.assertListEqual(list(camera_both.data.output.keys()), ["distance_to_camera"])
+
+        del camera_distance, camera_depth, camera_both
+
     def test_depth_only_camera(self):
         """Test initialization with only depth."""
 
@@ -225,7 +252,7 @@ class TestTiledCamera(unittest.TestCase):
 
         # Create camera
         camera_cfg = copy.deepcopy(self.camera_cfg)
-        camera_cfg.data_types = ["depth"]
+        camera_cfg.data_types = ["distance_to_camera"]
         camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
         camera = TiledCamera(camera_cfg)
         # Check simulation parameter is set correctly
@@ -237,7 +264,7 @@ class TestTiledCamera(unittest.TestCase):
         # Check if camera prim is set correctly and that it is a camera prim
         self.assertEqual(camera._sensor_prims[1].GetPath().pathString, "/World/Origin_01/CameraSensor")
         self.assertIsInstance(camera._sensor_prims[0], UsdGeom.Camera)
-        self.assertListEqual(list(camera.data.output.keys()), ["depth"])
+        self.assertListEqual(list(camera.data.output.keys()), ["distance_to_camera"])
 
         # Simulate for a few steps
         # note: This is a workaround to ensure that the textures are loaded.
