@@ -56,14 +56,6 @@ class ManagerBasedEnvCfg:
     """
 
     # general settings
-    seed: int | None = None
-    """The seed for the random number generator. Defaults to None, in which case the seed is not set.
-
-    Note:
-      The seed is set at the beginning of the environment initialization. This ensures that the environment
-      creation is more deterministic and behaves similarly across different runs.
-    """
-
     decimation: int = MISSING
     """Number of control action updates @ sim dt per policy dt.
 
@@ -103,12 +95,24 @@ class ManagerBasedEnvCfg:
     def set_seed(self, value: int):
         """Set the seed for the environment.
 
-        Note:
-            We recommend using this method to set the seed for the environment instead of directly
-            setting the seed attribute. This is to ensure that other internal settings are updated
-            when the seed is set as well.
+        The seed is set at the beginning of the environment initialization. This ensures that the environment
+        creation is more deterministic and behaves similarly across different runs.
+
+        We recommend using this method to set the seed for the environment instead of directly
+        setting the seed attribute. This is to ensure that other internal settings are updated
+        when the seed is set as well.
 
         Args:
             value: The seed value. Should be a non-negative integer.
         """
+        if value is not None and value < 0:
+            raise ValueError(f"Seed value must be a non-negative integer. Got {value}.")
         self.seed = value
+
+    def get_seed(self) -> int | None:
+        """Get the seed for the environment.
+
+        Returns:
+            The seed value. This is None if the seed is not set.
+        """
+        return self.seed if hasattr(self, "seed") else None
