@@ -6,6 +6,7 @@ Here we provide external links to tools and various resources that you may also 
 
 Sim-to-Real Resources
 ------------------------
+
 One of the core goals of the broader Isaac project is to bring real robots to life through the power of NVIDIA technology. There are many ways to do this, and thus, many tools that you could use.  These resources are dedicated to helping you navigate these possibilities by providing examples and discussions about closing the Sim-to-Real gap and deploying policies to actual real robots.
 
 * `Closing the Sim-to-Real Gap: Training Spot Quadruped Locomotion with NVIDIA Isaac Lab <https://developer.nvidia.com/blog/closing-the-sim-to-real-gap-training-spot-quadruped-locomotion-with-nvidia-isaac-lab/>`_ is a detailed guide for training a quadruped locomotion policy for the Spot Quadruped from Boston Dynamics, and deploying it to the real robot.
@@ -23,6 +24,7 @@ Our breakthrough research endeavor, ``Eureka!``, has resulted in a pipeline for 
 
 Simulation Features
 ----------------------
+
 At the heart of Isaac Lab is Isaac Sim, which is itself a feature rich tool that is useful for robotics in general, and not only for RL. The stronger your understanding of the simulation, the readily you will be able to exploit its capabilities for your own projects and applications. These resources are dedicated to informing you about the other features of the simulation that may be useful to you given your specific interest in Isaac Lab!
 
 * `Deploying Policies in Isaac Sim <https://docs.omniverse.nvidia.com/isaacsim/latest/isaac_lab_tutorials/tutorial_policy_deployment.html>`_ is an Isaac Sim tutorial on how to use trained policies within the simulation.
