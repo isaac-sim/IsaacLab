@@ -111,6 +111,7 @@ Table of Contents
    source/refs/changelog
    source/refs/license
    source/refs/bibliography
+   source/refs/additional_resources
 
 .. toctree::
     :hidden:
