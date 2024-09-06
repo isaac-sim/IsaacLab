@@ -73,6 +73,22 @@ class TestOperationSpaceController(unittest.TestCase):
             replicate_physics=True,
         )
 
+        self.robot_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/envs/env_.*/Robot")
+        self.robot_cfg.spawn.rigid_props.disable_gravity = True
+        self.robot_cfg.actuators["panda_shoulder"].stiffness = 0.0
+        self.robot_cfg.actuators["panda_shoulder"].damping = 0.0
+        self.robot_cfg.actuators["panda_forearm"].stiffness = 0.0
+        self.robot_cfg.actuators["panda_forearm"].damping = 0.0
+        self.robot_cfg.spawn.rigid_props.disable_gravity = True
+
+        # Define goals for the arm [xyz, quat_wxyz]
+        ee_goals_set = [
+            [0.5, 0.5, 0.7, 0.707, 0, 0.707, 0],
+            [0.5, -0.4, 0.6, 0.707, 0.707, 0.0, 0.0],
+            [0.5, 0, 0.5, 0.0, 1.0, 0.0, 0.0],
+        ]
+        self.ee_pose_b_des_set = torch.tensor(ee_goals_set, device=self.sim.device)
+
     def tearDown(self):
         """Stops simulator after each test."""
         # stop simulation
@@ -87,15 +103,9 @@ class TestOperationSpaceController(unittest.TestCase):
 
     def test_franka_pose_abs_fixed_impedance_with_full_inertial_and_gravity_compensation(self):
         """Test absolute pose control with fixed impedance, full inertial and gravity compensation."""
-        robot_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/envs/env_.*/Robot")
-        robot_cfg.spawn.rigid_props.disable_gravity = False
-        robot_cfg.actuators["panda_shoulder"].stiffness = 0.0
-        robot_cfg.actuators["panda_shoulder"].damping = 0.0
-        robot_cfg.actuators["panda_forearm"].stiffness = 0.0
-        robot_cfg.actuators["panda_forearm"].damping = 0.0
-        robot = Articulation(cfg=robot_cfg)
-
-        # Create IK controller
+        self.robot_cfg.spawn.rigid_props.disable_gravity = False
+        robot = Articulation(cfg=self.robot_cfg)
+        # Create OPC controller
         opc_cfg = OperationSpaceControllerCfg(command_types=["pose_abs"], impedance_mode="fixed",
                                               inertial_compensation=True,
                                               uncouple_motion_wrench=False,
@@ -103,27 +113,12 @@ class TestOperationSpaceController(unittest.TestCase):
                                               stiffness=500.0, damping_ratio=1.0)
         opc = OperationSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
 
-        # Define goals for the arm [xyz, quat_wxyz]
-        ee_goals_set = [
-            [0.5, 0.5, 0.7, 0.707, 0, 0.707, 0],
-            [0.5, -0.4, 0.6, 0.707, 0.707, 0.0, 0.0],
-            [0.5, 0, 0.5, 0.0, 1.0, 0.0, 0.0],
-        ]
-        ee_pose_b_des_set = torch.tensor(ee_goals_set, device=self.sim.device)
-
-        self._run_op_space_controller(robot, opc, "panda_hand", ["panda_joint.*"], ee_pose_b_des_set)
+        self._run_op_space_controller(robot, opc, "panda_hand", ["panda_joint.*"], self.ee_pose_b_des_set)
 
     def test_franka_pose_abs_fixed_impedance_with_full_inertial_compensation(self):
         """Test absolute pose control with fixed impedance and full inertial compensation."""
-        robot_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/envs/env_.*/Robot")
-        robot_cfg.spawn.rigid_props.disable_gravity = True
-        robot_cfg.actuators["panda_shoulder"].stiffness = 0.0
-        robot_cfg.actuators["panda_shoulder"].damping = 0.0
-        robot_cfg.actuators["panda_forearm"].stiffness = 0.0
-        robot_cfg.actuators["panda_forearm"].damping = 0.0
-        robot = Articulation(cfg=robot_cfg)
-
-        # Create IK controller
+        robot = Articulation(cfg=self.robot_cfg)
+        # Create OPC controller
         opc_cfg = OperationSpaceControllerCfg(command_types=["pose_abs"], impedance_mode="fixed",
                                               inertial_compensation=True,
                                               uncouple_motion_wrench=False,
@@ -131,27 +126,12 @@ class TestOperationSpaceController(unittest.TestCase):
                                               stiffness=500.0, damping_ratio=1.0)
         opc = OperationSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
 
-        # Define goals for the arm [xyz, quat_wxyz]
-        ee_goals_set = [
-            [0.5, 0.5, 0.7, 0.707, 0, 0.707, 0],
-            [0.5, -0.4, 0.6, 0.707, 0.707, 0.0, 0.0],
-            [0.5, 0, 0.5, 0.0, 1.0, 0.0, 0.0],
-        ]
-        ee_pose_b_des_set = torch.tensor(ee_goals_set, device=self.sim.device)
-
-        self._run_op_space_controller(robot, opc, "panda_hand", ["panda_joint.*"], ee_pose_b_des_set)
+        self._run_op_space_controller(robot, opc, "panda_hand", ["panda_joint.*"], self.ee_pose_b_des_set)
 
     def test_franka_pose_abs_fixed_impedance_with_decoupled_inertial_compensation(self):
         """Test absolute pose control with fixed impedance and decoupled inertial compensation."""
-        robot_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/envs/env_.*/Robot")
-        robot_cfg.spawn.rigid_props.disable_gravity = True
-        robot_cfg.actuators["panda_shoulder"].stiffness = 0.0
-        robot_cfg.actuators["panda_shoulder"].damping = 0.0
-        robot_cfg.actuators["panda_forearm"].stiffness = 0.0
-        robot_cfg.actuators["panda_forearm"].damping = 0.0
-        robot = Articulation(cfg=robot_cfg)
-
-        # Create IK controller
+        robot = Articulation(cfg=self.robot_cfg)
+        # Create OPC controller
         opc_cfg = OperationSpaceControllerCfg(command_types=["pose_abs"], impedance_mode="fixed",
                                               inertial_compensation=True,
                                               uncouple_motion_wrench=True,
@@ -159,27 +139,12 @@ class TestOperationSpaceController(unittest.TestCase):
                                               stiffness=1000.0, damping_ratio=1.0)
         opc = OperationSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
 
-        # Define goals for the arm [xyz, quat_wxyz]
-        ee_goals_set = [
-            [0.5, 0.5, 0.7, 0.707, 0, 0.707, 0],
-            [0.5, -0.4, 0.6, 0.707, 0.707, 0.0, 0.0],
-            [0.5, 0, 0.5, 0.0, 1.0, 0.0, 0.0],
-        ]
-        ee_pose_b_des_set = torch.tensor(ee_goals_set, device=self.sim.device)
-
-        self._run_op_space_controller(robot, opc, "panda_hand", ["panda_joint.*"], ee_pose_b_des_set)
+        self._run_op_space_controller(robot, opc, "panda_hand", ["panda_joint.*"], self.ee_pose_b_des_set)
 
     def test_franka_pose_abs_fixed_impedance_without_inertial_compensation(self):
         """Test absolute pose control with fixed impedance and without inertial compensation."""
-        robot_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/envs/env_.*/Robot")
-        robot_cfg.spawn.rigid_props.disable_gravity = True
-        robot_cfg.actuators["panda_shoulder"].stiffness = 0.0
-        robot_cfg.actuators["panda_shoulder"].damping = 0.0
-        robot_cfg.actuators["panda_forearm"].stiffness = 0.0
-        robot_cfg.actuators["panda_forearm"].damping = 0.0
-        robot = Articulation(cfg=robot_cfg)
-
-        # Create IK controller
+        robot = Articulation(cfg=self.robot_cfg)
+        # Create OPC controller
         opc_cfg = OperationSpaceControllerCfg(command_types=["pose_abs"], impedance_mode="fixed",
                                               inertial_compensation=False,
                                               gravity_compensation=False,
@@ -187,15 +152,7 @@ class TestOperationSpaceController(unittest.TestCase):
                                               damping_ratio=[5.0, 5.0, 5.0, 0.001, 0.001, 0.001])
         opc = OperationSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
 
-        # Define goals for the arm [xyz, quat_wxyz]
-        ee_goals_set = [
-            [0.5, 0.5, 0.7, 0.707, 0, 0.707, 0],
-            [0.5, -0.4, 0.6, 0.707, 0.707, 0.0, 0.0],
-            [0.5, 0, 0.5, 0.0, 1.0, 0.0, 0.0],
-        ]
-        ee_pose_b_des_set = torch.tensor(ee_goals_set, device=self.sim.device)
-
-        self._run_op_space_controller(robot, opc, "panda_hand", ["panda_joint.*"], ee_pose_b_des_set)
+        self._run_op_space_controller(robot, opc, "panda_hand", ["panda_joint.*"], self.ee_pose_b_des_set)
 
     # def test_franka_position_rel(self):
     #     """Test relative position control."""
