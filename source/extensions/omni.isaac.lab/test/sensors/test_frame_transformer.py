@@ -485,7 +485,7 @@ class TestFrameTransformer(unittest.TestCase):
             cube_quat_top = target_quat_w_tf[:, cube_top_idx]
             torch.testing.assert_close(cube_pos_top, cube_pos_w_gt + torch.tensor([0.0, 0.0, 0.1]))
             torch.testing.assert_close(cube_quat_top, cube_quat_w_gt)
-            
+
             # -- cube bottom
             cube_pos_bottom = target_pos_w_tf[:, cube_bottom_idx]
             cube_quat_bottom = target_quat_w_tf[:, cube_bottom_idx]

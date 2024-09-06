@@ -178,17 +178,20 @@ class FrameTransformer(SensorBase):
                 # Keep track of which frames are associated with which bodies
                 if body_name in body_names_to_frames:
                     body_names_to_frames[body_name]["frames"].add(frame_name)
-                    
+
                     # This is a corner case where the source frame is also a target frame
-                    if body_names_to_frames[body_name]["type"] == "source" and len(body_names_to_frames[body_name]["frames"]) > 1:
+                    if (
+                        body_names_to_frames[body_name]["type"] == "source"
+                        and len(body_names_to_frames[body_name]["frames"]) > 1
+                    ):
                         self._source_is_also_target_frame = True
 
                 else:
                     # Store the first matching prim path and the type of frame
                     body_names_to_frames[body_name] = {
-                        "frames": {frame_name}, 
-                        "prim_path": matching_prim_path, 
-                        "type": "source" if frame is None else "target"
+                        "frames": {frame_name},
+                        "prim_path": matching_prim_path,
+                        "type": "source" if frame is None else "target",
                     }
 
                 if offset is not None:
@@ -257,7 +260,7 @@ class FrameTransformer(SensorBase):
         # Determine indices into all tracked body frames for both source and target frames
         all_ids = torch.arange(self._num_envs * len(tracked_body_names))
         self._source_frame_body_ids = torch.arange(self._num_envs) * len(tracked_body_names) + source_frame_index
-        
+
         # If source frame is also a target frame, then the target frame body ids are the same as the source frame body ids
         if self._source_is_also_target_frame:
             self._target_frame_body_ids = all_ids
@@ -293,7 +296,7 @@ class FrameTransformer(SensorBase):
             num_target_body_frames = len(tracked_body_names)
         else:
             num_target_body_frames = len(tracked_body_names) - 1
-        
+
         self._duplicate_frame_indices = torch.cat(
             [duplicate_frame_indices + num_target_body_frames * env_num for env_num in range(self._num_envs)]
         )
