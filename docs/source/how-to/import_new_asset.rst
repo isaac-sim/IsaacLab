@@ -20,7 +20,8 @@ extensions to Omniverse Kit:
 
 The recommended workflow from NVIDIA is to use the above importers to convert
 the asset into its USD representation. Once the asset is in USD format, you can
-use the Omniverse Kit to edit the asset and export it to other file formats.
+use the Omniverse Kit to edit the asset and export it to other file formats. Isaac Sim includes these importers by default. They can also be enabled manually in Omniverse Kit.
+
 
 An important note to use assets for large-scale simulation is to ensure that they
 are in `instanceable`_ format. This allows the asset to be efficiently loaded
@@ -32,27 +33,28 @@ For more details on instanceable assets, please check the Isaac Sim `documentati
 Using URDF Importer
 -------------------
 
-Isaac Sim includes the URDF and MJCF importers by default. These importers support the
-option to import assets as instanceable assets. By selecting this option, the
+For using the URDF importers in the GUI, please check the documentation at `URDF importer`_. For using the URDF importers from Python scripts, we include a utility tool called ``convert_urdf.py``. This script creates an instance of :class:`~sim.converters.UrdfConverterCfg` which
+is then passed to the :class:`~sim.converters.UrdfConverter` class.
+
+The URDF importer has various configuration parameters that can be set to control the behavior of the importer.
+The default values for the importers configuration parameters are specified are in the :class:`~sim.converters.UrdfConverterCfg` class, and they are listed below. We made a few commonly modified settings to be available as command-line arguments when calling the ``convert_urdf.py``, and they are marked with ``*``` in the list. For a comprehensive list of the configuration parameters, please check the the documentation at `URDF importer`_.
+
+Note that when instanceable option is selected, the
 importer will create two USD files: one for all the mesh data and one for
 all the non-mesh data (e.g. joints, rigid bodies, etc.). The prims in the mesh data file are
 referenced in the non-mesh data file. This allows the mesh data (which is often bulky) to be
 loaded into memory only once and used multiple times in a scene.
 
-For using these importers from the GUI, please check the documentation for `MJCF importer`_ and
-`URDF importer`_ respectively.
 
-For using the URDF importers from Python scripts, we include a utility tool called ``convert_urdf.py``.
-Internally, this script creates an instance of :class:`~sim.converters.UrdfConverterCfg` which
-is then passed to the :class:`~sim.converters.UrdfConverter` class. The configuration class specifies
-the default values for the importer. The important settings are:
-
-* :attr:`~sim.converters.UrdfConverterCfg.fix_base` - Whether to fix the base of the robot.
-  This depends on whether you have a floating-base or fixed-base robot.
-* :attr:`~sim.converters.UrdfConverterCfg.make_instanceable` - Whether to create instanceable assets.
-  Usually, this should be set to ``True``.
-* :attr:`~sim.converters.UrdfConverterCfg.merge_fixed_joints` - Whether to merge the fixed joints.
-  Usually, this should be set to ``True`` to reduce the asset complexity.
+* :attr:`~sim.converters.UrdfConverterCfg.fix_base*` - Whether to fix the base of the robot.
+  This depends on whether you have a floating-base or fixed-base robot. The command-line flag is
+  ``--fix-base`` where when set, the importer will fix the base of the robot, otherwise it will default to floating-base.
+* :attr:`~sim.converters.UrdfConverterCfg.make_instanceable*` - Whether to create instanceable assets.
+  Usually, this should be set to ``True``. The command-line flag is ``--make-instanceable`` where
+  when set, the importer will create instanceable assets, otherwise it will default to non-instanceable.
+* :attr:`~sim.converters.UrdfConverterCfg.merge_fixed_joints*` - Whether to merge the fixed joints.
+  Usually, this should be set to ``True`` to reduce the asset complexity. The command-line flag is
+  ``--merge-joints`` where when set, the importer will merge the fixed joints, otherwise it will default to not merging the fixed joints.
 * :attr:`~sim.converters.UrdfConverterCfg.default_drive_type` - The drive-type for the joints.
   We recommend this to always be ``"none"``. This allows changing the drive configuration using the
   actuator models.
@@ -108,12 +110,72 @@ Executing the above script will create two USD files inside the
   main asset file even if the ``--make-instanceable`` flag is set. This means that the
   ``Props/instanceable_assets.usd`` file is created but not used anymore.
 
+Running the above script will open Isaac Sim with the asset on stage. If you only see joint frames in the viewport with a black background, add a light to stage. Go to the menu bar and click on Create > Light > Dome Light. This will add a light to the scene and you should be able to see the converted asset.
+
 You can press play on the opened window to see the asset in the scene. The asset should "collapse"
 if everything is working correctly. If it blows up, then it might be that you have self-collisions
 present in the URDF.
 
 To run the script headless, you can add the ``--headless`` flag. This will not open the GUI and
 exit the script after the conversion is complete.
+
+
+.. figure:: ../_static/tutorials/tutorial_convert_urdf.gif
+    :align: center
+    :figwidth: 100%
+    :alt: result of convert_urdf.py
+
+
+
+Using MJCF Importer
+-------------------
+
+Similar to the URDF Importer, the MJCF Importer also has a GUI interface. Please check the documentation at `MJCF importer`_ for more details. For using the MJCF importer from Python scripts, we include a utility tool called ``convert_mjcf.py``. This script creates an instance of :class:`~sim.converters.MjcfConverterCfg` which is then passed to the :class:`~sim.converters.MjcfConverter` class.
+
+The default values for the importers configuration parameters are specified in the :class:`~sim.converters.MjcfConverterCfg` class. The configuration parameters are listed below. We made a few commonly modified settings to be available as command-line arguments when calling the ``convert_mjcf.py``, and they are marked with ``*`` in the list. For a comprehensive list of the configuration parameters, please check the the documentation at `MJCF importer`_.
+
+
+* :attr:`~sim.converters.UrdfConverterCfg.fix_base*` - Whether to fix the base of the robot.
+  This depends on whether you have a floating-base or fixed-base robot. The command-line flag is
+  ``--fix-base`` where when set, the importer will fix the base of the robot, otherwise it will default to floating-base.
+* :attr:`~sim.converters.UrdfConverterCfg.make_instanceable*` - Whether to create instanceable assets.
+  Usually, this should be set to ``True``. The command-line flag is ``--make-instanceable`` where
+  when set, the importer will create instanceable assets, otherwise it will default to non-instanceable.
+* :attr:`~sim.converters.UrdfConverterCfg.import_sites*` - Whether to parse the <site> tag in the MJCF.
+  Usually, this should be set to ``True``. The command-line flag is ``--import-sites`` where when set, the importer will parse the <site> tag, otherwise it will default to not parsing the <site> tag.
+
+
+Example Usage
+~~~~~~~~~~~~~
+
+In this example, we use the MuJoCo model of the Unitree's H1 humanoid robot in the `mujoco_menagerie`_.
+
+The following shows the steps to clone the repository and run the converter:
+
+.. code-block:: bash
+
+  # create a directory to clone
+  mkdir ~/git && cd ~/git
+  # clone a repository with URDF files
+  git clone git@github.com:git@github.com:google-deepmind/mujoco_menagerie.git
+
+  # go to top of the repository
+  cd IsaacLab
+  # run the converter
+  ./isaaclab.sh -p source/standalone/tools/convert_mjcf.py \
+    ~/git/mujoco_menagerie/unitree_h1/h1.xml \
+    source/extensions/omni.isaac.lab_assets/data/Robots/Unitree/h1.usd \
+    --import-sites \
+    --make-instanceable
+
+Running the above script will open Isaac Sim with the asset on stage. If you only see joint frames in the viewport with a black background, add a light to stage. Go to the menu bar and click on Create > Light > Dome Light. This will add a light to the scene and you should be able to see the converted asset.
+
+.. figure:: ../_static/tutorials/tutorial_convert_mjcf.gif
+    :align: center
+    :figwidth: 100%
+    :alt: result of convert_mjcf.py
+
+
 
 
 Using Mesh Importer
@@ -168,9 +230,16 @@ of gravity.
   properties as well and will be imported as a visual asset.
 
 
+.. figure:: ../_static/tutorials/tutorial_convert_mesh.gif
+    :align: center
+    :figwidth: 100%
+    :alt: result of convert_mesh.py
+
+
 .. _instanceable: https://openusd.org/dev/api/_usd__page__scenegraph_instancing.html
 .. _documentation: https://docs.omniverse.nvidia.com/isaacsim/latest/isaac_lab_tutorials/tutorial_instanceable_assets.html
 .. _MJCF importer: https://docs.omniverse.nvidia.com/isaacsim/latest/advanced_tutorials/tutorial_advanced_import_mjcf.html
 .. _URDF importer: https://docs.omniverse.nvidia.com/isaacsim/latest/advanced_tutorials/tutorial_advanced_import_urdf.html
 .. _anymal.urdf: https://github.com/isaac-orbit/anymal_d_simple_description/blob/master/urdf/anymal.urdf
 .. _asset converter: https://docs.omniverse.nvidia.com/extensions/latest/ext_asset-converter.html
+.. _mujoco_menagerie: https://github.com/google-deepmind/mujoco_menagerie/tree/main/unitree_h1

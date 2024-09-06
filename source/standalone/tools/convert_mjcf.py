@@ -36,7 +36,7 @@ parser.add_argument("input", type=str, help="The path to the input MJCF file.")
 parser.add_argument("output", type=str, help="The path to store the USD file.")
 parser.add_argument("--fix-base", action="store_true", default=False, help="Fix the base to where it is imported.")
 parser.add_argument(
-    "--no-import-sites", action="store_true", default=False, help="Do not import sites by not ignoring the <site> tag."
+    "--import-sites", action="store_true", default=False, help="Import sites by parsing the <site> tag."
 )
 parser.add_argument(
     "--make-instanceable",
@@ -86,7 +86,7 @@ def main():
         usd_dir=os.path.dirname(dest_path),
         usd_file_name=os.path.basename(dest_path),
         fix_base=args_cli.fix_base,
-        import_sites=not args_cli.no_import_sites,
+        import_sites=args_cli.import_sites,
         force_usd_conversion=True,
         make_instanceable=args_cli.make_instanceable,
     )
