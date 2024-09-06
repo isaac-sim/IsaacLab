@@ -127,7 +127,6 @@ class ObservationManager(ManagerBase):
         Returns:
             The active terms.
         """
-
         terms = []
 
         if self._obs_buffer is None:
@@ -135,12 +134,11 @@ class ObservationManager(ManagerBase):
         obs_buffer: dict[str, torch.Tensor | dict[str, torch.Tensor]] = self._obs_buffer
 
         for group_name, _ in self._group_obs_dim.items():
-
             if not self.group_obs_concatenate[group_name]:
                 for name, term in obs_buffer[group_name].items():
                     terms.append((group_name + "-" + name, term[env_idx].cpu().tolist()))
                 continue
-
+            
             idx = 0
             # add info for each term
             data = obs_buffer[group_name]

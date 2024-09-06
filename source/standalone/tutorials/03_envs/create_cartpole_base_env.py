@@ -66,13 +66,19 @@ class ObservationsCfg:
         # observation terms (order preserved)
         joint_pos_rel = ObsTerm(func=mdp.joint_pos_rel)
         joint_vel_rel = ObsTerm(func=mdp.joint_vel_rel)
-
+    
         def __post_init__(self) -> None:
             self.enable_corruption = False
             self.concatenate_terms = True
 
+    @configclass
+    class PerceptionCfg(ObsGroup):
+        """Observation for perception group."""
+        rgb_image = ObsTerm(func=mdp.camera_rgb_image,params={"sensor_cfg":SceneEntityCfg("camera")})
+
     # observation groups
     policy: PolicyCfg = PolicyCfg()
+    perception: PerceptionCfg = PerceptionCfg()
 
 
 @configclass
@@ -132,17 +138,7 @@ class CartpoleEnvCfg(ManagerBasedEnvCfg):
         self.decimation = 4  # env step every 4 sim steps: 200Hz / 4 = 50Hz
         # simulation settings
         self.sim.dt = 0.005  # sim step every 5ms: 200Hz
-        self.camera = CameraCfg(
-            prim_path="{ENV_REGEX_NS}/Robot/front_cam",
-            update_period=0.1,
-            height=480,
-            width=640,
-            data_types=["distance_to_image_plane"],
-            spawn=sim_utils.PinholeCameraCfg(
-                focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1.0e5)
-            ),
-        offset=CameraCfg.OffsetCfg(pos=(0.510, 0.0, 0.015), rot=(0.5, -0.5, 0.5, -0.5), convention="ros"),
-    )
+
 
 
 def main():
@@ -168,7 +164,7 @@ def main():
             # step the environment
             obs, _ = env.step(joint_efforts)
             # print current orientation of pole
-            print("[Env 0]: Pole joint: ", obs["policy"][0][1].item())
+            # print("[Env 0]: Pole joint: ", obs["policy"][0][1].item())
             # update counter
             count += 1
 

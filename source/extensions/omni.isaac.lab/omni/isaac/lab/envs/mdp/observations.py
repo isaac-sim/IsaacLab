@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 import omni.isaac.lab.utils.math as math_utils
 from omni.isaac.lab.assets import Articulation, RigidObject
 from omni.isaac.lab.managers import SceneEntityCfg
-from omni.isaac.lab.sensors import RayCaster
+from omni.isaac.lab.sensors import RayCaster, Camera, TiledCamera
 
 if TYPE_CHECKING:
     from omni.isaac.lab.envs import ManagerBasedEnv, ManagerBasedRLEnv
@@ -180,6 +180,38 @@ def body_incoming_wrench(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg) -> tor
     # obtain the link incoming forces in world frame
     link_incoming_forces = asset.root_physx_view.get_link_incoming_joint_force()[:, asset_cfg.body_ids]
     return link_incoming_forces.view(env.num_envs, -1)
+
+def camera_rgb_image(env: ManagerBasedEnv, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Camera sensor rgb image.
+    
+    Args:
+        env: The IsaacLab environment.
+        sensor_cfg: The config refering to the Camera or TiledCamera sensor
+
+    Returns:
+        RGB camera data if available. Shape is determined by the camera.data.image_shape.
+    """
+
+    # extract camera or tiled camera sensor
+    camera: Camera | TiledCamera = env.scene.sensors[sensor_cfg.name]
+    # rgb data
+    return camera.data.output["rgb"]
+
+def camera_depth_image(env: ManagerBasedEnv, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Camera sensor depth image, this refers to the distance_to_image_plane annotator.
+    
+    Args:
+        env: The IsaacLab environment.
+        sensor_cfg: The config refering to the Camera or TiledCamera sensor
+
+    Returns:
+        Depth image camera data in meters if available. Shape is determined by the camera.data.image_shape.
+    """
+    
+    # extract camera or tiled camera sensor
+    camera: Camera | TiledCamera = env.scene.sensors[sensor_cfg.name]
+    # depth data
+    return camera.data.output["distance_to_image_plane"]
 
 
 """

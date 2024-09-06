@@ -11,7 +11,7 @@ from omni.kit.window.property.templates import LABEL_WIDTH
 
 
 class ImagePlot(UIWidgetWrapper):
-    def __init__(self, image: np.ndarray = None, label: str = "", widget_height=200, show_min_max=True, unit=(1, "")):
+    def __init__(self, image: np.ndarray, label: str = "", widget_height=200, show_min_max=True, unit=(1, "")):
         """Create an XY plot UI Widget with axis scaling, legends, and support for multiple plots.
         Overlapping data is most accurately plotted when centered in the frame with reasonable axis scaling.
         Pressing down the mouse gives the x and y values of each function at an x coordinate.
@@ -29,10 +29,11 @@ class ImagePlot(UIWidgetWrapper):
 
         self._has_built = False
 
-        self._enabled = False
+        self._enabled = True
 
         self._byte_provider = ui.ByteImageProvider()
         if image is None:
+            print("image is NONE")
             image = np.ones((480, 640, 3), dtype=np.uint8) * 255
             image[:, :, 0] = 0
             image[:, :240, 1] = 0
@@ -52,6 +53,7 @@ class ImagePlot(UIWidgetWrapper):
     def update_image(self, image: np.ndarray):
         if not self._enabled:
             return
+        
         height, width = image.shape[:2]
 
         # convert image to 4-channel RGBA

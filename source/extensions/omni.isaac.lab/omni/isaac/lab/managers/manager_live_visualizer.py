@@ -8,11 +8,13 @@ from __future__ import annotations
 import weakref
 
 import carb
+import numpy
+
 import omni.kit.app
 from omni.isaac.core.simulation_context import SimulationContext
 from omni.ui import CollapsableFrame, Frame, VStack, Window
 
-from omni.isaac.lab.ui.widgets import LiveLinePlot, UiVisualizerMixin
+from omni.isaac.lab.ui.widgets import ImagePlot, LiveLinePlot, UiVisualizerMixin
 from omni.isaac.lab.utils import configclass
 
 
@@ -84,10 +86,13 @@ class ManagerLiveVisualizer(UiVisualizerMixin):
             # Visualizers have not been created yet.
             return
         # update the visualization
-        for (_, terms), vis in zip(
+        for (_, term), vis in zip(
             self._manager.get_active_iterable_terms(env_idx=self._env_idx), self._term_visualizers
         ):
-            vis.add_datapoint(terms)
+            if isinstance(vis,LiveLinePlot):
+                vis.add_datapoint(term)
+            elif isinstance(vis,ImagePlot):
+                vis.update_image(numpy.array(term))
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         """Set the debug visualization implementation.
@@ -123,7 +128,7 @@ class ManagerLiveVisualizer(UiVisualizerMixin):
         with self._vis_frame:
             with VStack():
                 # Add a plot in a collapsible frame for each term
-                for name, terms in self._manager.get_active_iterable_terms(env_idx=self._env_idx):
+                for name, term in self._manager.get_active_iterable_terms(env_idx=self._env_idx):
                     # 2d plots
                     frame = CollapsableFrame(
                         name,
@@ -131,14 +136,21 @@ class ManagerLiveVisualizer(UiVisualizerMixin):
                         style={"border_color": 0xFF8A8777, "padding": 4},
                     )
                     with frame:
-                        print(len(terms))
-                        plot = LiveLinePlot(
-                            y_data=[[term] for term in terms],
-                            plot_height=150,
-                            show_legend=True,
-                        )
-                        self._term_visualizers.append(plot)
-
+                        if len(term) <= 2:
+                            print(name,len(term))
+                            plot = LiveLinePlot(
+                                y_data=[[elem] for elem in term],
+                                plot_height=150,
+                                show_legend=True,
+                            )
+                            self._term_visualizers.append(plot)
+                        if len(term) > 2:
+                            print(name,len(term))
+                            image = ImagePlot(
+                                image=numpy.array(term),
+                                label=name,
+                            )
+                            self._term_visualizers.append(image)
                     frame.collapsed = True
 
         self._debug_vis = debug_vis

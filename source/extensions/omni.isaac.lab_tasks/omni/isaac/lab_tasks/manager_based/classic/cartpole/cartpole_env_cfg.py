@@ -58,13 +58,13 @@ class CartpoleSceneCfg(InteractiveSceneCfg):
     camera = CameraCfg(
             prim_path="{ENV_REGEX_NS}/Robot/front_cam",
             update_period=0.1,
-            height=480,
-            width=640,
-            data_types=["distance_to_image_plane"],
+            height=150,
+            width=150,
+            data_types=["rgb"],
             spawn=sim_utils.PinholeCameraCfg(
-                focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1.0e5)
+                focal_length=24.0, focus_distance=400.0, horizontal_aperture=60.0, clipping_range=(0.1, 1)
             ),
-        offset=CameraCfg.OffsetCfg(pos=(0.510, 0.0, 0.015), rot=(0.5, -0.5, 0.5, -0.5), convention="ros"),
+        offset=CameraCfg.OffsetCfg(pos=(-0.5, 0.0, 0.015), rot=(0.5, -0.5, 0.5, -0.5), convention="ros"),
     )
 ##
 # MDP settings
