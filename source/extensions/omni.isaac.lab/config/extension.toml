@@ -24,7 +24,8 @@ requirements = [
     "toml",
     "hidapi",
     "gymnasium==0.29.0",
-    "trimesh"
+    "trimesh",
+    "torch"
 ]
 
 modules = [
@@ -34,7 +35,8 @@ modules = [
     "toml",
     "hid",
     "gymnasium",
-    "trimesh"
+    "trimesh",
+    "torch"
 ]
 
 use_online_index=true

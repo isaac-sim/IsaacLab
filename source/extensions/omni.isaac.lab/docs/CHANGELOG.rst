@@ -9,13 +9,13 @@ Fixed
 Changelog
 ---------
 
-0.22.5 (2024-09-05)
+0.22.5 (2024-09-06)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
 ^^^^^^^
 
-* Modified:meth:`quat_rotate` and :meth:`quat_rotate_inverse` operations to use :meth:`torch.einsum` for batch processing.
+* Modified:meth:`quat_rotate` and :meth:`quat_rotate_inverse` operations to use :meth:`torch.einsum` for faster processing of high dimensional input tensors.
 
 
 0.22.4 (2024-08-29)
