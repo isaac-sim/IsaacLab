@@ -59,6 +59,7 @@ Guidelines for modifications:
 * Xavier Nal
 * Zhengyu Zhang
 * Ziqi Fan
+* Qian Wan
 
 ## Acknowledgements
 

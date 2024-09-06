@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.22.9 (2024-09-06)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added config class, support, and tests for MJCF conversion via standalone python scripts.
+
+
 0.22.8 (2024-09-06)
 ~~~~~~~~~~~~~~~~~~~
 

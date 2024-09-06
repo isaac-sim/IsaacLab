@@ -13,18 +13,17 @@ simulation_app = AppLauncher(config).app
 
 """Rest everything follows."""
 
-import math
-import numpy as np
+
 import os
 import unittest
 
 import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.core.utils.stage as stage_utils
-from omni.isaac.core.articulations import ArticulationView
 from omni.isaac.core.simulation_context import SimulationContext
 from omni.isaac.core.utils.extensions import enable_extension, get_extension_path_from_name
 
 from omni.isaac.lab.sim.converters import MjcfConverter, MjcfConverterCfg
+
 
 class TestMjcfConverter(unittest.TestCase):
     """Test fixture for the MjcfConverter class."""
@@ -39,7 +38,7 @@ class TestMjcfConverter(unittest.TestCase):
         # default configuration
         self.config = MjcfConverterCfg(
             asset_path=f"{extension_path}/data/mjcf/nv_ant.xml",
-            import_sites = True,
+            import_sites=True,
             fix_base=False,
             make_instanceable=True,
         )
@@ -89,7 +88,6 @@ class TestMjcfConverter(unittest.TestCase):
         new_time_usd_file_created = os.stat(new_mjcf_converter.usd_path).st_mtime_ns
 
         self.assertNotEqual(time_usd_file_created, new_time_usd_file_created)
-
 
     def test_create_prim_from_usd(self):
         """Call conversion and create a prim from it."""
