@@ -10,8 +10,6 @@ One of the core goals of the broader Isaac project is to bring real robots to li
 
 * `Closing the Sim-to-Real Gap: Training Spot Quadruped Locomotion with NVIDIA Isaac Lab <https://developer.nvidia.com/blog/closing-the-sim-to-real-gap-training-spot-quadruped-locomotion-with-nvidia-isaac-lab/>`_ is a detailed guide for training a quadruped locomotion policy for the Spot Quadruped from Boston Dynamics, and deploying it to the real robot.
 
-* `Fast-Track Robot Learning in Simulation Using NVIDIA Isaac Lab <https://developer.nvidia.com/blog/fast-track-robot-learning-in-simulation-using-nvidia-isaac-lab/>`_ is a blog post covering the gamut of features for accelerated robot learning through Isaac Lab.
-
 
 LLM Generated Reward Functions
 --------------------------------
@@ -30,3 +28,5 @@ At the heart of Isaac Lab is Isaac Sim, which is itself a feature rich tool that
 * `Deploying Policies in Isaac Sim <https://docs.omniverse.nvidia.com/isaacsim/latest/isaac_lab_tutorials/tutorial_policy_deployment.html>`_ is an Isaac Sim tutorial on how to use trained policies within the simulation.
 
 * `Supercharge Robotics Workflows with AI and Simulation Using NVIDIA Isaac Sim 4.0 and NVIDIA Isaac Lab <https://developer.nvidia.com/blog/supercharge-robotics-workflows-with-ai-and-simulation-using-nvidia-isaac-sim-4-0-and-nvidia-isaac-lab/>`_ is a blog post covering the newest features of Isaac Sim 4.0, including ``pip install``, a more advanced physics engine, updated sensor simulations, and more!
+
+* `Fast-Track Robot Learning in Simulation Using NVIDIA Isaac Lab <https://developer.nvidia.com/blog/fast-track-robot-learning-in-simulation-using-nvidia-isaac-lab/>`_ is a blog post covering the gamut of features for accelerated robot learning through Isaac Lab.
