@@ -6,7 +6,7 @@ version = "0.22.8"
 # Description
 title = "Isaac Lab framework for Robot Learning"
 description="Extension providing main framework interfaces and abstractions for robot learning."
-readme  = "docs/REA DME.md"
+readme  = "docs/README.md"
 repository = "https://github.com/isaac-sim/IsaacLab"
 category = "robotics"
 keywords = ["kit", "robotics", "learning", "ai"]
