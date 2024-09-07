@@ -1,12 +1,12 @@
 [package]
 
 # Note: Semantic Versioning is used: https://semver.org/
-version = "0.22.7"
+version = "0.22.8"
 
 # Description
 title = "Isaac Lab framework for Robot Learning"
 description="Extension providing main framework interfaces and abstractions for robot learning."
-readme  = "docs/README.md"
+readme  = "docs/REA DME.md"
 repository = "https://github.com/isaac-sim/IsaacLab"
 category = "robotics"
 keywords = ["kit", "robotics", "learning", "ai"]
@@ -24,8 +24,7 @@ requirements = [
     "toml",
     "hidapi",
     "gymnasium==0.29.0",
-    "trimesh",
-    "torch"
+    "trimesh"
 ]
 
 modules = [
@@ -35,8 +34,7 @@ modules = [
     "toml",
     "hid",
     "gymnasium",
-    "trimesh",
-    "torch"
+    "trimesh"
 ]
 
 use_online_index=true
