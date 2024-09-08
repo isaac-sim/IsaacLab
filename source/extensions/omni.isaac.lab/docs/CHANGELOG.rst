@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.22.8 (2024-09-06)
+0.22.9 (2024-09-08)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -9,6 +9,17 @@ Changed
 
 * Modified:meth:`quat_rotate` and :meth:`quat_rotate_inverse` operations to use :meth:`torch.einsum`
   for faster processing of high dimensional input tensors.
+
+
+0.22.8 (2024-09-06)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added support for property attributes in the :meth:``omni.isaac.lab.utils.configclass`` method.
+  Earlier, the configclass decorator failed to parse the property attributes correctly and made them
+  instance variables instead.
 
 
 0.22.7 (2024-09-05)
