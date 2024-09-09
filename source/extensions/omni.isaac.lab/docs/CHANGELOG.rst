@@ -1,13 +1,22 @@
 Changelog
 ---------
 
-0.22.9 (2024-09-06)
+0.22.10 (2024-09-09)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
 
 * Added config class, support, and tests for MJCF conversion via standalone python scripts.
+
+0.22.9 (2024-09-08)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Modified:meth:`quat_rotate` and :meth:`quat_rotate_inverse` operations to use :meth:`torch.einsum`
+  for faster processing of high dimensional input tensors.
 
 
 0.22.8 (2024-09-06)
