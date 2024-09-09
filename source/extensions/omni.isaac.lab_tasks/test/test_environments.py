@@ -21,8 +21,6 @@ import unittest
 import carb
 import omni.usd
 
-from omni.isaac.lab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg
-
 import omni.isaac.lab_tasks  # noqa: F401
 from omni.isaac.lab_tasks.utils.parse_cfg import parse_env_cfg
 
@@ -83,14 +81,14 @@ class TestEnvironments(unittest.TestCase):
     Helper functions.
     """
 
-    def _check_random_actions(self, task_name: str, device: str, num_envs: int, num_steps: int = 1000):
+    def _check_random_actions(self, task_name: str, device: str, num_envs: int, num_steps: int):
         """Run random actions and check environments returned signals are valid."""
         # create a new stage
         omni.usd.get_context().new_stage()
         # parse configuration
-        env_cfg: ManagerBasedRLEnvCfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
+        env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
         # create environment
-        env: ManagerBasedRLEnv = gym.make(task_name, cfg=env_cfg)
+        env = gym.make(task_name, cfg=env_cfg)
 
         # disable control on stop
         env.unwrapped.sim._app_control_on_stop_handle = None  # type: ignore
