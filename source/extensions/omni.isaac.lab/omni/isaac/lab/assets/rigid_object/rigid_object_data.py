@@ -67,7 +67,8 @@ class RigidObjectData:
         self._body_acc_w = TimestampedBuffer()
 
         # Link com
-        self._com_pos_b, _ = self._root_physx_view.get_coms().to(self.device).split([3, 4], dim=-1)
+        com_pos_b, _ = self._root_physx_view.get_coms().to(self.device).split([3, 4], dim=-1)
+        self._com_pos_b = torch.tensor(com_pos_b,device=self.device)
 
     def update(self, dt: float):
         """Updates the data for the rigid object.
@@ -142,10 +143,10 @@ class RigidObjectData:
             # note: we use finite differencing to compute acceleration
             self._body_acc_w.data = self._root_physx_view.get_accelerations().unsqueeze(1)
             # move linear acceleration to link frame
-            ang_acc_w = self._body_acc_w.data[:, 3:]
-            ang_vel_w = self.body_state_w[:, 7:9]
-            com_pos_w = math_utils.quat_rotate(self.body_state_w[:, 3:7], -self._com_pos_b)
-            self._body_acc_w.data[:, :3] += torch.linalg.cross(ang_acc_w, com_pos_w, dim=-1) + torch.linalg.cross(
+            ang_acc_w = self._body_acc_w.data[..., 3:]
+            ang_vel_w = self.body_state_w[..., 7:10]
+            com_pos_w = math_utils.quat_rotate(self.body_state_w[..., 3:7], -self._com_pos_b.unsqueeze(1))
+            self._body_acc_w.data[..., :3] += torch.linalg.cross(ang_acc_w, com_pos_w, dim=-1) + torch.linalg.cross(
                 ang_vel_w, torch.linalg.cross(ang_vel_w, com_pos_w, dim=-1), dim=-1
             )
             self._body_acc_w.timestamp = self._sim_timestamp

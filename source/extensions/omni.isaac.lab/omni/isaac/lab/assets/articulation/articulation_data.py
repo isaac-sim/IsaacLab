@@ -71,7 +71,8 @@ class ArticulationData:
         self._joint_vel = TimestampedBuffer()
 
         # Link com
-        self._com_pos_b, _ = self._root_physx_view.get_coms().to(self.device).split([3, 4], dim=-1)
+        com_pos_b, _ = self._root_physx_view.get_coms().to(self.device).split([3, 4], dim=-1)
+        self._com_pos_b = torch.tensor(com_pos_b,device=self.device)
 
     def update(self, dt: float):
         # update the simulation timestamp
@@ -267,8 +268,9 @@ class ArticulationData:
             pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
             velocity = self._root_physx_view.get_root_velocities()
             velocity[:, :3] += torch.linalg.cross(
-                velocity[:, 3:], math_utils.quat_rotate(pose[:, 3:7], -self._com_pos_b), dim=-1
+                velocity[:, 3:], math_utils.quat_rotate(pose[:, 3:7], -self._com_pos_b[:,0,:]), dim=-1
             )
+
             # set the buffer data and timestamp
             self._root_state_w.data = torch.cat((pose, velocity), dim=-1)
             self._root_state_w.timestamp = self._sim_timestamp
@@ -286,8 +288,8 @@ class ArticulationData:
             poses = self._root_physx_view.get_link_transforms().clone()
             poses[..., 3:7] = math_utils.convert_quat(poses[..., 3:7], to="wxyz")
             velocities = self._root_physx_view.get_link_velocities()
-            velocities[:, :3] += torch.linalg.cross(
-                velocities[..., 3:], math_utils.quat_rotate(poses[..., 3:7], -self._com_pos_b[0]), dim=-1
+            velocities[..., :3] += torch.linalg.cross(
+                velocities[..., 3:], math_utils.quat_rotate(poses[..., 3:7], -self._com_pos_b), dim=-1
             )
 
             # set the buffer data and timestamp
@@ -305,9 +307,9 @@ class ArticulationData:
             # read data from simulation and set the buffer data and timestamp
             self._body_acc_w.data = self._root_physx_view.get_link_accelerations()
             # move linear acceleration to link frame
-            ang_acc_w = self._body_acc_w.data[:, 3:]
-            ang_vel_w = self.body_state_w[:, 7:9]
-            com_pos_w = math_utils.quat_rotate(self.body_state_w[:, 3:7], -self._com_pos_b)
+            ang_acc_w = self._body_acc_w.data[..., 3:]
+            ang_vel_w = self.body_state_w[..., 7:10]
+            com_pos_w = math_utils.quat_rotate(self.body_state_w[..., 3:7], -self._com_pos_b)
             self._body_acc_w.data[..., :3] += torch.linalg.cross(ang_acc_w, com_pos_w, dim=-1) + torch.linalg.cross(
                 ang_vel_w, torch.linalg.cross(ang_vel_w, com_pos_w, dim=-1), dim=-1
             )
