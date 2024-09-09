@@ -21,8 +21,6 @@ import unittest
 import carb
 import omni.usd
 
-from omni.isaac.lab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg
-
 import omni.isaac.lab_tasks  # noqa: F401
 from omni.isaac.lab_tasks.utils.parse_cfg import parse_env_cfg
 
@@ -112,7 +110,7 @@ class TestEnvironmentDeterminism(unittest.TestCase):
         env_cfg.seed = seed
 
         # create environment
-        env: ManagerBasedRLEnv = gym.make(task_name, cfg=env_cfg)
+        env = gym.make(task_name, cfg=env_cfg)
 
         # disable control on stop
         env.unwrapped.sim._app_control_on_stop_handle = None  # type: ignore
@@ -130,7 +128,7 @@ class TestEnvironmentDeterminism(unittest.TestCase):
         # close the environment
         env.close()
 
-        return obs.clone(), rewards.clone()
+        return obs, rewards
 
 
 if __name__ == "__main__":
