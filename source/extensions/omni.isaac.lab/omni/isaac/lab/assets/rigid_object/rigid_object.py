@@ -70,7 +70,10 @@ class RigidObject(AssetBase):
 
     @property
     def num_bodies(self) -> int:
-        """Number of bodies in the asset."""
+        """Number of bodies in the asset.
+
+        This is always 1 since each object is a single rigid body.
+        """
         return 1
 
     @property
@@ -125,7 +128,7 @@ class RigidObject(AssetBase):
     """
 
     def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
-        """Find bodies in the articulation based on the name keys.
+        """Find bodies in the rigid body based on the name keys.
 
         Please check the :meth:`omni.isaac.lab.utils.string_utils.resolve_matching_names` function for more
         information on the name matching.
@@ -291,7 +294,11 @@ class RigidObject(AssetBase):
         # -- object view
         self._root_physx_view = self._physics_sim_view.create_rigid_body_view(root_prim_path_expr.replace(".*", "*"))
 
-        # log information about the articulation
+        # check if the rigid body was created
+        if self._root_physx_view._backend is None:
+            raise RuntimeError(f"Failed to create rigid body at: {self.cfg.prim_path}. Please check PhysX logs.")
+
+        # log information about the rigid body
         carb.log_info(f"Rigid body initialized at: {self.cfg.prim_path} with root '{root_prim_path_expr}'.")
         carb.log_info(f"Number of instances: {self.num_instances}")
         carb.log_info(f"Number of bodies: {self.num_bodies}")
