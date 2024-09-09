@@ -59,7 +59,7 @@
     <link rel="prev" title="omni.isaac.lab.terrains" href="omni.isaac.lab.terrains.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Sep 06, 2024"/>
+    <meta name="docbuild:last-update" content="Sep 09, 2024"/>
   </head>
   
   
@@ -1917,10 +1917,10 @@ Shape is (num_samples,)</p></li>
 <td><p>Rotate a vector only around the yaw-direction.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.math.quat_rotate" title="omni.isaac.lab.utils.math.quat_rotate"><code class="xref py py-obj docutils literal notranslate"><span class="pre">quat_rotate</span></code></a></p></td>
-<td><p>Rotate a vector by a quaternion.</p></td>
+<td><p>Rotate a vector by a quaternion along the last dimension of q and v.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.math.quat_rotate_inverse" title="omni.isaac.lab.utils.math.quat_rotate_inverse"><code class="xref py py-obj docutils literal notranslate"><span class="pre">quat_rotate_inverse</span></code></a></p></td>
-<td><p>Rotate a vector by the inverse of a quaternion.</p></td>
+<td><p>Rotate a vector by the inverse of a quaternion along the last dimension of q and v.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.math.quat_from_angle_axis" title="omni.isaac.lab.utils.math.quat_from_angle_axis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">quat_from_angle_axis</span></code></a></p></td>
 <td><p>Convert rotations given as angle-axis to quaternions.</p></td>
@@ -2366,16 +2366,16 @@ rotation. This function ensures the real part of the quaternion is non-negative.
 <dl class="py function">
 <dt class="sig sig-object py" id="omni.isaac.lab.utils.math.quat_rotate">
 <span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.utils.math.</span></span><span class="sig-name descname"><span class="pre">quat_rotate</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">q</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">v</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></span></span><a class="headerlink" href="#omni.isaac.lab.utils.math.quat_rotate" title="Permalink to this definition">#</a></dt>
-<dd><p>Rotate a vector by a quaternion.</p>
+<dd><p>Rotate a vector by a quaternion along the last dimension of q and v.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>q</strong> – The quaternion in (w, x, y, z). Shape is (N, 4).</p></li>
-<li><p><strong>v</strong> – The vector in (x, y, z). Shape is (N, 3).</p></li>
+<li><p><strong>q</strong> – The quaternion in (w, x, y, z). Shape is (…, 4).</p></li>
+<li><p><strong>v</strong> – The vector in (x, y, z). Shape is (…, 3).</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>The rotated vector in (x, y, z). Shape is (N, 3).</p>
+<dd class="field-even"><p>The rotated vector in (x, y, z). Shape is (…, 3).</p>
 </dd>
 </dl>
 </dd></dl>
@@ -2383,16 +2383,16 @@ rotation. This function ensures the real part of the quaternion is non-negative.
 <dl class="py function">
 <dt class="sig sig-object py" id="omni.isaac.lab.utils.math.quat_rotate_inverse">
 <span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.utils.math.</span></span><span class="sig-name descname"><span class="pre">quat_rotate_inverse</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">q</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">v</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></span></span><a class="headerlink" href="#omni.isaac.lab.utils.math.quat_rotate_inverse" title="Permalink to this definition">#</a></dt>
-<dd><p>Rotate a vector by the inverse of a quaternion.</p>
+<dd><p>Rotate a vector by the inverse of a quaternion along the last dimension of q and v.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>q</strong> – The quaternion in (w, x, y, z). Shape is (N, 4).</p></li>
-<li><p><strong>v</strong> – The vector in (x, y, z). Shape is (N, 3).</p></li>
+<li><p><strong>q</strong> – The quaternion in (w, x, y, z). Shape is (…, 4).</p></li>
+<li><p><strong>v</strong> – The vector in (x, y, z). Shape is (…, 3).</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>The rotated vector in (x, y, z). Shape is (N, 3).</p>
+<dd class="field-even"><p>The rotated vector in (x, y, z). Shape is (…, 3).</p>
 </dd>
 </dl>
 </dd></dl>
@@ -4499,7 +4499,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 06, 2024.
+  Last updated on Sep 09, 2024.
   <br/>
 </p>
   </div>

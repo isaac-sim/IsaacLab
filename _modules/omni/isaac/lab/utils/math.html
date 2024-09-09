@@ -54,7 +54,7 @@
     <link rel="search" title="Search" href="../../../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Sep 06, 2024"/>
+    <meta name="docbuild:last-update" content="Sep 09, 2024"/>
   </head>
   
   
@@ -1068,41 +1068,47 @@ document.write(`
 
 <span class="nd">@torch</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">script</span>
 <span class="k">def</span> <span class="nf">quat_rotate</span><span class="p">(</span><span class="n">q</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">v</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Rotate a vector by a quaternion.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Rotate a vector by a quaternion along the last dimension of q and v.</span>
 
 <span class="sd">    Args:</span>
-<span class="sd">        q: The quaternion in (w, x, y, z). Shape is (N, 4).</span>
-<span class="sd">        v: The vector in (x, y, z). Shape is (N, 3).</span>
+<span class="sd">        q: The quaternion in (w, x, y, z). Shape is (..., 4).</span>
+<span class="sd">        v: The vector in (x, y, z). Shape is (..., 3).</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">        The rotated vector in (x, y, z). Shape is (N, 3).</span>
+<span class="sd">        The rotated vector in (x, y, z). Shape is (..., 3).</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">shape</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">shape</span>
-    <span class="n">q_w</span> <span class="o">=</span> <span class="n">q</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span>
-    <span class="n">q_vec</span> <span class="o">=</span> <span class="n">q</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">:]</span>
+    <span class="n">q_w</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="n">q_vec</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">:]</span>
     <span class="n">a</span> <span class="o">=</span> <span class="n">v</span> <span class="o">*</span> <span class="p">(</span><span class="mf">2.0</span> <span class="o">*</span> <span class="n">q_w</span><span class="o">**</span><span class="mi">2</span> <span class="o">-</span> <span class="mf">1.0</span><span class="p">)</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
     <span class="n">b</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cross</span><span class="p">(</span><span class="n">q_vec</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">q_w</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="mf">2.0</span>
-    <span class="n">c</span> <span class="o">=</span> <span class="n">q_vec</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">bmm</span><span class="p">(</span><span class="n">q_vec</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">v</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span><span class="o">.</span><span class="n">squeeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="mf">2.0</span>
+    <span class="c1"># for two-dimensional tensors, bmm is faster than einsum</span>
+    <span class="k">if</span> <span class="n">q_vec</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="n">q_vec</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">bmm</span><span class="p">(</span><span class="n">q_vec</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">q</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">v</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">q</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span><span class="o">.</span><span class="n">squeeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="mf">2.0</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="n">q_vec</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s2">&quot;...i,...i-&gt;...&quot;</span><span class="p">,</span> <span class="n">q_vec</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="mf">2.0</span>
     <span class="k">return</span> <span class="n">a</span> <span class="o">+</span> <span class="n">b</span> <span class="o">+</span> <span class="n">c</span>
 
 
 <span class="nd">@torch</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">script</span>
 <span class="k">def</span> <span class="nf">quat_rotate_inverse</span><span class="p">(</span><span class="n">q</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">v</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Rotate a vector by the inverse of a quaternion.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Rotate a vector by the inverse of a quaternion along the last dimension of q and v.</span>
 
 <span class="sd">    Args:</span>
-<span class="sd">        q: The quaternion in (w, x, y, z). Shape is (N, 4).</span>
-<span class="sd">        v: The vector in (x, y, z). Shape is (N, 3).</span>
+<span class="sd">        q: The quaternion in (w, x, y, z). Shape is (..., 4).</span>
+<span class="sd">        v: The vector in (x, y, z). Shape is (..., 3).</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">        The rotated vector in (x, y, z). Shape is (N, 3).</span>
+<span class="sd">        The rotated vector in (x, y, z). Shape is (..., 3).</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">shape</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">shape</span>
-    <span class="n">q_w</span> <span class="o">=</span> <span class="n">q</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span>
-    <span class="n">q_vec</span> <span class="o">=</span> <span class="n">q</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">:]</span>
+    <span class="n">q_w</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="n">q_vec</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">:]</span>
     <span class="n">a</span> <span class="o">=</span> <span class="n">v</span> <span class="o">*</span> <span class="p">(</span><span class="mf">2.0</span> <span class="o">*</span> <span class="n">q_w</span><span class="o">**</span><span class="mi">2</span> <span class="o">-</span> <span class="mf">1.0</span><span class="p">)</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
     <span class="n">b</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cross</span><span class="p">(</span><span class="n">q_vec</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">q_w</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="mf">2.0</span>
-    <span class="n">c</span> <span class="o">=</span> <span class="n">q_vec</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">bmm</span><span class="p">(</span><span class="n">q_vec</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">v</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span><span class="o">.</span><span class="n">squeeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="mf">2.0</span>
+    <span class="c1"># for two-dimensional tensors, bmm is faster than einsum</span>
+    <span class="k">if</span> <span class="n">q_vec</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="n">q_vec</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">bmm</span><span class="p">(</span><span class="n">q_vec</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">q</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">v</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">q</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span><span class="o">.</span><span class="n">squeeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="mf">2.0</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="n">q_vec</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s2">&quot;...i,...i-&gt;...&quot;</span><span class="p">,</span> <span class="n">q_vec</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="mf">2.0</span>
     <span class="k">return</span> <span class="n">a</span> <span class="o">-</span> <span class="n">b</span> <span class="o">+</span> <span class="n">c</span>
 
 
@@ -1837,7 +1843,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 06, 2024.
+  Last updated on Sep 09, 2024.
   <br/>
 </p>
   </div>
