@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.22.8 (2024-09-06)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added support for property attributes in the :meth:``omni.isaac.lab.utils.configclass`` method.
+  Earlier, the configclass decorator failed to parse the property attributes correctly and made them
+  instance variables instead.
+
+
 0.22.7 (2024-09-05)
 ~~~~~~~~~~~~~~~~~~~
 
