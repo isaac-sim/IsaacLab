@@ -305,19 +305,10 @@ class ArticulationData:
             # read data from simulation and set the buffer data and timestamp
             self._body_acc_w.data = self._root_physx_view.get_link_accelerations()
             # move linear acceleration to link frame
-            self._body_acc_w.data[..., :3] += torch.cross(
-                self._body_acc_w.data[..., 3:],
-                math_utils.quat_rotate(self.body_state_w[..., 3:7], -self._com_pos_b),
-                dim=-1,
-            ) + torch.cross(
-                self.body_state_w[..., 7:9],
-                torch.cross(
-                    self.body_state_w[..., 7:9],
-                    math_utils.quat_rotate(self.body_state_w[..., 3:7], -self._com_pos_b),
-                    dim=-1,
-                ),
-                dim=-1,
-            )
+            ang_acc_w = self._body_acc_w.data[:,3:]
+            ang_vel_w = self.body_state_w[:,7:9]
+            com_pos_w = math_utils.quat_rotate(self.body_state_w[:,3:7], -self._com_pos_b)
+            self._body_acc_w.data[..., :3] += torch.linalg.cross(ang_acc_w,com_pos_w,dim=-1) + torch.linalg.cross(ang_vel_w, torch.linalg.cross(ang_vel_w,com_pos_w,dim=-1),dim=-1)
             self._body_acc_w.timestamp = self._sim_timestamp
         return self._body_acc_w.data
 

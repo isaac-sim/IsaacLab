@@ -116,9 +116,7 @@ class RigidObjectData:
             pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
             velocity = self._root_physx_view.get_velocities()
             # transform velocity to link coordinate frame
-            velocity[:, :3] += torch.linalg.cross(
-                velocity[:, 3:], math_utils.quat_rotate(pose[:, 3:7], -self._com_pos_b), dim=-1
-            )
+            velocity[:,:3] += torch.linalg.cross(velocity[:,3:], math_utils.quat_rotate(pose[:, 3:7], -self._com_pos_b), dim=-1)
             # set the buffer data and timestamp
             self._root_state_w.data = torch.cat((pose, velocity), dim=-1)
             self._root_state_w.timestamp = self._sim_timestamp
@@ -128,31 +126,24 @@ class RigidObjectData:
     def body_state_w(self):
         """State of all bodies `[pos, quat, lin_vel, ang_vel]` in simulation world frame. Shape is (num_instances, 1, 13).
 
-        The position and orientation are of the rigid bodies' actor frame. Meanwhile, the linear and angular
-        velocities are of the rigid bodies' center of mass frame.
+        All values are relative to the world.
         """
         return self.root_state_w.view(-1, 1, 13)
 
     @property
     def body_acc_w(self):
-        """Acceleration of all bodies. Shape is (num_instances, 1, 6)."""
+        """Acceleration of all bodies. Shape is (num_instances, 1, 6).
+        
+        All values are relative to the world.
+        """
         if self._body_acc_w.timestamp < self._sim_timestamp:
             # note: we use finite differencing to compute acceleration
-            self._body_acc_w.data = self._root_physx_view.get_accelerations().unsqueeze(1)
+            self._body_acc_w.data = self._root_physx_view.get_accelerations().unsqueeze(1) 
             # move linear acceleration to link frame
-            self._body_acc_w.data[:, :3] += torch.cross(
-                self._body_acc_w.data[:, 3:],
-                math_utils.quat_rotate(self.body_state_w[:, 3:7], -self._com_pos_b),
-                dim=-1,
-            ) + torch.cross(
-                self.body_state_w[:, 7:9],
-                torch.cross(
-                    self.body_state_w[:, 7:9],
-                    math_utils.quat_rotate(self.body_state_w[:, 3:7], -self._com_pos_b),
-                    dim=-1,
-                ),
-                dim=-1,
-            )
+            ang_acc_w = self._body_acc_w.data[:,3:]
+            ang_vel_w = self.body_state_w[:,7:9]
+            com_pos_w = math_utils.quat_rotate(self.body_state_w[:,3:7], -self._com_pos_b)
+            self._body_acc_w.data[:,:3] += torch.linalg.cross(ang_acc_w,com_pos_w,dim=-1) + torch.linalg.cross(ang_vel_w, torch.linalg.cross(ang_vel_w,com_pos_w,dim=-1),dim=-1)
             self._body_acc_w.timestamp = self._sim_timestamp
         return self._body_acc_w.data
 
