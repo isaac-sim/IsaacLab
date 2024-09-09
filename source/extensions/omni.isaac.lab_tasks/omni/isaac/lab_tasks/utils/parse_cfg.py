@@ -16,7 +16,7 @@ import yaml
 from omni.isaac.lab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
 
 
-def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | ManagerBasedRLEnvCfg | DirectRLEnvCfg:
+def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | object:
     """Load default configuration given its entry point from the gym registry.
 
     This function loads the configuration object from the gym registry for the given task name.
