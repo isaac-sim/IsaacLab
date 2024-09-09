@@ -210,7 +210,12 @@ class TestCamera(unittest.TestCase):
         cam_cfg_2 = copy.deepcopy(self.camera_cfg)
         cam_cfg_2.prim_path = "/World/Camera_2"
         cam_2 = Camera(cam_cfg_2)
-
+        # -- camera 3
+        cam_cfg_3 = copy.deepcopy(self.camera_cfg)
+        cam_cfg_3.prim_path = "/World/Camera_3"
+        cam_cfg_3.height = 240
+        cam_cfg_3.width = 320
+        cam_3 = Camera(cam_cfg_3)
         # play sim
         self.sim.reset()
 
@@ -226,6 +231,15 @@ class TestCamera(unittest.TestCase):
             # update camera
             cam_1.update(self.dt)
             cam_2.update(self.dt)
+            cam_3.update(self.dt)
+            # check image sizes
+            self.assertEqual(
+                cam_1.data.output["distance_to_image_plane"].shape, (1, self.camera_cfg.height, self.camera_cfg.width)
+            )
+            self.assertEqual(
+                cam_2.data.output["distance_to_image_plane"].shape, (1, self.camera_cfg.height, self.camera_cfg.width)
+            )
+            self.assertEqual(cam_3.data.output["distance_to_image_plane"].shape, (1, 240, 320))
             # check image data
             for cam in [cam_1, cam_2]:
                 for im_data in cam.data.output.to_dict().values():
