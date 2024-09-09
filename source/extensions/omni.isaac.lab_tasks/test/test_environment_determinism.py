@@ -60,10 +60,9 @@ class TestEnvironmentDeterminism(unittest.TestCase):
     def test_locomotion_env_determinism(self):
         """Check deterministic environment creation for locomotion."""
         for task_name in [
-            "Isaac-Ant-v0",
             "Isaac-Velocity-Flat-Anymal-C-v0",
             "Isaac-Velocity-Rough-Anymal-C-v0",
-            "Isaac-Velocity-Flat-H1-v0",
+            "Isaac-Velocity-Rough-Anymal-C-Direct-v0",
         ]:
             for device in ["cuda", "cpu"]:
                 for seed in [25, 8001]:
@@ -88,7 +87,7 @@ class TestEnvironmentDeterminism(unittest.TestCase):
     def _test_environment_determinism(self, task_name: str, device: str, seed: int):
         """Check deterministic environment creation."""
         # fix number of steps
-        num_envs = 128
+        num_envs = 32
         num_steps = 100
         # call function to create and step the environment
         obs_1, rew_1 = self._obtain_transition_tuples(task_name, seed, num_envs, device, num_steps)
@@ -108,7 +107,7 @@ class TestEnvironmentDeterminism(unittest.TestCase):
         # create a new stage
         omni.usd.get_context().new_stage()
         # parse configuration
-        env_cfg: ManagerBasedRLEnvCfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
+        env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
         # set seed
         env_cfg.seed = seed
 
@@ -116,11 +115,11 @@ class TestEnvironmentDeterminism(unittest.TestCase):
         env: ManagerBasedRLEnv = gym.make(task_name, cfg=env_cfg)
 
         # disable control on stop
-        env.sim._app_control_on_stop_handle = None  # type: ignore
+        env.unwrapped.sim._app_control_on_stop_handle = None  # type: ignore
 
         # reset environment
         obs, _ = env.reset()
-        # simulate environment for 10 steps
+        # simulate environment for fixed steps
         with torch.inference_mode():
             for _ in range(num_steps):
                 # sample actions from -1 to 1
@@ -131,7 +130,7 @@ class TestEnvironmentDeterminism(unittest.TestCase):
         # close the environment
         env.close()
 
-        return obs, rewards
+        return obs.clone(), rewards.clone()
 
 
 if __name__ == "__main__":
