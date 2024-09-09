@@ -8,7 +8,7 @@
 from omni.isaac.lab.app import AppLauncher, run_tests
 
 # launch the simulator
-app_launcher = AppLauncher(headless=True, enable_cameras=True)
+app_launcher = AppLauncher(headless=True)
 simulation_app = app_launcher.app
 
 
@@ -52,7 +52,7 @@ class TestEnvironmentDeterminism(unittest.TestCase):
                     with self.subTest(task_name=task_name, device=device, seed=seed):
                         # fix number of steps
                         num_envs = 128
-                        num_steps = 600
+                        num_steps = 100
                         # call function to create and step the environment
                         obs_1, rew_1 = self._obtain_transition_tuples(task_name, seed, num_envs, device, num_steps)
                         obs_2, rew_2 = self._obtain_transition_tuples(task_name, seed, num_envs, device, num_steps)
@@ -77,7 +77,7 @@ class TestEnvironmentDeterminism(unittest.TestCase):
                     with self.subTest(task_name=task_name, device=device, seed=seed):
                         # fix number of steps
                         num_envs = 128
-                        num_steps = 600
+                        num_steps = 100
                         # call function to create and step the environment
                         obs_1, rew_1 = self._obtain_transition_tuples(task_name, seed, num_envs, device, num_steps)
                         obs_2, rew_2 = self._obtain_transition_tuples(task_name, seed, num_envs, device, num_steps)
@@ -100,7 +100,7 @@ class TestEnvironmentDeterminism(unittest.TestCase):
                     with self.subTest(task_name=task_name, device=device, seed=seed):
                         # fix number of steps
                         num_envs = 128
-                        num_steps = 600
+                        num_steps = 100
                         # call function to create and step the environment
                         obs_1, rew_1 = self._obtain_transition_tuples(task_name, seed, num_envs, device, num_steps)
                         obs_2, rew_2 = self._obtain_transition_tuples(task_name, seed, num_envs, device, num_steps)

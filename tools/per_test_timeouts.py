@@ -9,7 +9,7 @@ Any tests not listed here will use the default timeout.
 """
 PER_TEST_TIMEOUTS = {
     "test_environments.py": 1200,  # This test runs through all the environments for 100 steps each
-    "test_environment_determinism.py": 1200,  # This test runs through many the environments for 600 steps each
+    "test_environment_determinism.py": 600,  # This test runs through many the environments for 100 steps each
     "test_env_rendering_logic.py": 300,
     "test_rsl_rl_wrapper.py": 200,
     "test_sb3_wrapper.py": 200,
