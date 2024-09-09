@@ -16,6 +16,7 @@ from omni.isaac.lab.managers import EventTermCfg as EventTerm
 from omni.isaac.lab.scene import InteractiveSceneCfg
 from omni.isaac.lab.sim import SimulationCfg
 from omni.isaac.lab.utils import configclass
+from omni.isaac.lab.managers import DefaultManagerBasedEnvLiveVisCfg 
 
 from .common import ViewerCfg
 from .ui import BaseEnvWindow
@@ -87,3 +88,5 @@ class ManagerBasedEnvCfg:
 
     Please refer to the :class:`omni.isaac.lab.managers.EventManager` class for more details.
     """
+
+    live_visualizer: object = DefaultManagerBasedEnvLiveVisCfg()

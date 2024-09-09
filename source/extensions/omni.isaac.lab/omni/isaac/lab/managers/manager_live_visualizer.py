@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import weakref
+from dataclasses import MISSING
 
 import carb
 import numpy
@@ -13,14 +14,18 @@ import numpy
 import omni.kit.app
 from omni.isaac.core.simulation_context import SimulationContext
 from omni.ui import CollapsableFrame, Frame, VStack, Window
-
+from omni.isaac.lab.managers import ManagerBase
 from omni.isaac.lab.ui.widgets import ImagePlot, LiveLinePlot, UiVisualizerMixin
 from omni.isaac.lab.utils import configclass
 
 
+
 @configclass
 class ManagerLiveVisualizerCfg:
-    debug_vis = False
+    debug_vis: bool = False
+    manager_name: str = MISSING
+    term_names: list[str] | None = None
+    group_name: str | None = None
 
 
 class ManagerLiveVisualizer(UiVisualizerMixin):
@@ -33,6 +38,15 @@ class ManagerLiveVisualizer(UiVisualizerMixin):
         self._viewer_env_idx = 0
         self._vis_frame: Frame
         self._vis_window: Window
+
+        # check provided config
+        self.term_names = []
+        if self.cfg.term_names is not None:
+            for term_name in self.cfg.term_names:
+                if not term_name in self._manager.active_terms:
+                    carb.log_warn(f"ManagerVisualizer Failure: ManagerTerm ({term_name}) does not exist in Manager({self.cfg.manager_name})")
+                else:
+                    self.term_names.append(term_name)
 
     #
     # Implementation checks
@@ -129,28 +143,72 @@ class ManagerLiveVisualizer(UiVisualizerMixin):
             with VStack():
                 # Add a plot in a collapsible frame for each term
                 for name, term in self._manager.get_active_iterable_terms(env_idx=self._env_idx):
-                    # 2d plots
-                    frame = CollapsableFrame(
-                        name,
-                        collapsed=False,
-                        style={"border_color": 0xFF8A8777, "padding": 4},
-                    )
-                    with frame:
-                        if len(term) <= 2:
-                            print(name,len(term))
-                            plot = LiveLinePlot(
-                                y_data=[[elem] for elem in term],
-                                plot_height=150,
-                                show_legend=True,
-                            )
-                            self._term_visualizers.append(plot)
-                        if len(term) > 2:
-                            print(name,len(term))
-                            image = ImagePlot(
-                                image=numpy.array(term),
-                                label=name,
-                            )
-                            self._term_visualizers.append(image)
-                    frame.collapsed = True
+                    if name in self.term_names or len(self.term_names)==0:
+                        frame = CollapsableFrame(
+                            name,
+                            collapsed=False,
+                            style={"border_color": 0xFF8A8777, "padding": 4},
+                        )
+                        with frame:
+                            if len(term) <= 2:
+                                plot = LiveLinePlot(
+                                    y_data=[[elem] for elem in term],
+                                    plot_height=150,
+                                    show_legend=True,
+                                )
+                                self._term_visualizers.append(plot)
+                            elif len(term) > 2:
+                                image = ImagePlot(
+                                    image=numpy.array(term),
+                                    label=name,
+                                )
+                                self._term_visualizers.append(image)
+                        frame.collapsed = True
 
         self._debug_vis = debug_vis
+
+
+@configclass
+class DefaultManagerBasedEnvLiveVisCfg():
+    action_live_vis = ManagerLiveVisualizerCfg(manager_name="action_manager")
+    observation_live_vis = ManagerLiveVisualizerCfg(manager_name="observation_manager")
+
+
+@configclass
+class DefaultManagerBasedRLEnvLiveVisCfg(DefaultManagerBasedEnvLiveVisCfg):
+    curriculum_live_vis = ManagerLiveVisualizerCfg(manager_name="curriculum_manager")
+    command_live_vis = ManagerLiveVisualizerCfg(manager_name="command_manager")
+    reward_live_vis = ManagerLiveVisualizerCfg(manager_name="command_manager")
+    termination_live_vis = ManagerLiveVisualizerCfg(manager_name="termination_manager")
+
+
+class EnvLiveVisualizer:
+    def __init__(self, cfg: object, managers: dict[str,ManagerBase]):
+        self.cfg = cfg
+        self.managers = managers
+        self._prepare_terms()
+        
+    def _prepare_terms(self):
+        self._manager_visualizers: dict[str,ManagerLiveVisualizer] = dict()
+
+        # check if config is dict already
+        if isinstance(self.cfg, dict):
+            cfg_items = self.cfg.items()
+        else:
+            cfg_items = self.cfg.__dict__.items()
+
+        for term_name, term_cfg in cfg_items:
+            # check if term config is None
+            if term_cfg is None:
+                continue
+            # check if term config is viable
+            if not isinstance(term_cfg,ManagerLiveVisualizerCfg):
+                raise TypeError(f"Provided EnvLiveVisualizer term: '{term_name}' is not of type ManagerLiveVisualizerCfg")
+            else:
+                # find appropriate manager name
+                manager = self.managers[term_cfg.manager_name]
+                self._manager_visualizers[term_cfg.manager_name] = ManagerLiveVisualizer(manager=manager,cfg=term_cfg)
+
+    @property
+    def manager_visualizers(self):
+        return self._manager_visualizers
