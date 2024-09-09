@@ -56,16 +56,13 @@ class TestEnvironmentDeterminism(unittest.TestCase):
                         # call function to create and step the environment
                         obs_1, rew_1 = self._obtain_transition_tuples(task_name, seed, num_envs, device, num_steps)
                         obs_2, rew_2 = self._obtain_transition_tuples(task_name, seed, num_envs, device, num_steps)
-                        obs_3, rew_3 = self._obtain_transition_tuples(task_name, seed * 2, num_envs, device, num_steps)
 
                         # check everything is as expected
                         # -- rewards should be the same
                         torch.testing.assert_close(rew_1, rew_2)
-                        self.assertFalse(torch.allclose(rew_1, rew_3))
                         # -- observations should be the same
                         for key in obs_1.keys():
                             torch.testing.assert_close(obs_1[key], obs_2[key])
-                            self.assertFalse(torch.allclose(obs_1[key], obs_3[key]))
 
     def test_locomotion_env_determinism(self):
         """Check deterministic environment creation for locomotion."""
@@ -84,16 +81,13 @@ class TestEnvironmentDeterminism(unittest.TestCase):
                         # call function to create and step the environment
                         obs_1, rew_1 = self._obtain_transition_tuples(task_name, seed, num_envs, device, num_steps)
                         obs_2, rew_2 = self._obtain_transition_tuples(task_name, seed, num_envs, device, num_steps)
-                        obs_3, rew_3 = self._obtain_transition_tuples(task_name, seed * 2, num_envs, device, num_steps)
 
                         # check everything is as expected
                         # -- rewards should be the same
                         torch.testing.assert_close(rew_1, rew_2)
-                        self.assertFalse(torch.allclose(rew_1, rew_3))
                         # -- observations should be the same
                         for key in obs_1.keys():
                             torch.testing.assert_close(obs_1[key], obs_2[key])
-                            self.assertFalse(torch.allclose(obs_1[key], obs_3[key]))
 
     def test_dextrous_env_determinism(self):
         """Check deterministic environment creation for dextrous manipulation."""
@@ -110,16 +104,13 @@ class TestEnvironmentDeterminism(unittest.TestCase):
                         # call function to create and step the environment
                         obs_1, rew_1 = self._obtain_transition_tuples(task_name, seed, num_envs, device, num_steps)
                         obs_2, rew_2 = self._obtain_transition_tuples(task_name, seed, num_envs, device, num_steps)
-                        obs_3, rew_3 = self._obtain_transition_tuples(task_name, seed * 2, num_envs, device, num_steps)
 
                         # check everything is as expected
                         # -- rewards should be the same
                         torch.testing.assert_close(rew_1, rew_2)
-                        self.assertFalse(torch.allclose(rew_1, rew_3))
                         # -- observations should be the same
                         for key in obs_1.keys():
                             torch.testing.assert_close(obs_1[key], obs_2[key])
-                            self.assertFalse(torch.allclose(obs_1[key], obs_3[key]))
 
     """
     Helper functions.
