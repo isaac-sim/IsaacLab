@@ -123,17 +123,17 @@ class UniformPose2dCommand(CommandTerm):
     def _set_debug_vis_impl(self, debug_vis: bool):
         # create markers if necessary for the first tome
         if debug_vis:
-            if not hasattr(self, "arrow_goal_visualizer"):
-                self.arrow_goal_visualizer = VisualizationMarkers(self.cfg.visualizer_cfg.goal_pose_visualizer_cfg)
+            if not hasattr(self, "goal_pose_visualizer"):
+                self.goal_pose_visualizer = VisualizationMarkers(self.cfg.goal_pose_visualizer_cfg)
             # set their visibility to true
-            self.arrow_goal_visualizer.set_visibility(True)
+            self.goal_pose_visualizer.set_visibility(True)
         else:
-            if hasattr(self, "arrow_goal_visualizer"):
-                self.arrow_goal_visualizer.set_visibility(False)
+            if hasattr(self, "goal_pose_visualizer"):
+                self.goal_pose_visualizer.set_visibility(False)
 
     def _debug_vis_callback(self, event):
         # update the box marker
-        self.arrow_goal_visualizer.visualize(
+        self.goal_pose_visualizer.visualize(
             translations=self.pos_command_w,
             orientations=quat_from_euler_xyz(
                 torch.zeros_like(self.heading_command_w),

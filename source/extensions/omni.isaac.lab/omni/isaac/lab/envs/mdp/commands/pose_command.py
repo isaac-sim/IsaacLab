@@ -131,16 +131,16 @@ class UniformPoseCommand(CommandTerm):
         if debug_vis:
             if not hasattr(self, "goal_pose_visualizer"):
                 # -- goal pose
-                self.goal_pose_visualizer = VisualizationMarkers(self.cfg.visualizer_cfg.goal_pose_visualizer_cfg)
+                self.goal_pose_visualizer = VisualizationMarkers(self.cfg.goal_pose_visualizer_cfg)
                 # -- current body pose
-                self.body_pose_visualizer = VisualizationMarkers(self.cfg.visualizer_cfg.body_pose_visualizer_cfg)
+                self.current_pose_visualizer = VisualizationMarkers(self.cfg.current_pose_visualizer_cfg)
             # set their visibility to true
             self.goal_pose_visualizer.set_visibility(True)
-            self.body_pose_visualizer.set_visibility(True)
+            self.current_pose_visualizer.set_visibility(True)
         else:
             if hasattr(self, "goal_pose_visualizer"):
                 self.goal_pose_visualizer.set_visibility(False)
-                self.body_pose_visualizer.set_visibility(False)
+                self.current_pose_visualizer.set_visibility(False)
 
     def _debug_vis_callback(self, event):
         # check if robot is initialized
@@ -152,4 +152,4 @@ class UniformPoseCommand(CommandTerm):
         self.goal_pose_visualizer.visualize(self.pose_command_w[:, :3], self.pose_command_w[:, 3:])
         # -- current body pose
         body_pose_w = self.robot.data.body_state_w[:, self.body_idx]
-        self.body_pose_visualizer.visualize(body_pose_w[:, :3], body_pose_w[:, 3:7])
+        self.current_pose_visualizer.visualize(body_pose_w[:, :3], body_pose_w[:, 3:7])
