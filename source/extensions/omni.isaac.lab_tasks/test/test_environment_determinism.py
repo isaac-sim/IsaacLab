@@ -28,7 +28,12 @@ from omni.isaac.lab_tasks.utils.parse_cfg import parse_env_cfg
 
 
 class TestEnvironmentDeterminism(unittest.TestCase):
-    """Test cases for environment determinism."""
+    """Test cases for environment determinism.
+
+    We make separate test cases for manipulation, locomotion, and dextrous manipulation environments.
+    This is because each of these environments has different simulation dynamics and different types of actions.
+    The test cases are run for different devices and seeds to ensure that the environment creation is deterministic.
+    """
 
     @classmethod
     def setUpClass(cls):
@@ -50,19 +55,7 @@ class TestEnvironmentDeterminism(unittest.TestCase):
             for device in ["cuda", "cpu"]:
                 for seed in [25, 8001]:
                     with self.subTest(task_name=task_name, device=device, seed=seed):
-                        # fix number of steps
-                        num_envs = 128
-                        num_steps = 100
-                        # call function to create and step the environment
-                        obs_1, rew_1 = self._obtain_transition_tuples(task_name, seed, num_envs, device, num_steps)
-                        obs_2, rew_2 = self._obtain_transition_tuples(task_name, seed, num_envs, device, num_steps)
-
-                        # check everything is as expected
-                        # -- rewards should be the same
-                        torch.testing.assert_close(rew_1, rew_2)
-                        # -- observations should be the same
-                        for key in obs_1.keys():
-                            torch.testing.assert_close(obs_1[key], obs_2[key])
+                        self._test_environment_determinism(task_name, device, seed)
 
     def test_locomotion_env_determinism(self):
         """Check deterministic environment creation for locomotion."""
@@ -75,19 +68,7 @@ class TestEnvironmentDeterminism(unittest.TestCase):
             for device in ["cuda", "cpu"]:
                 for seed in [25, 8001]:
                     with self.subTest(task_name=task_name, device=device, seed=seed):
-                        # fix number of steps
-                        num_envs = 128
-                        num_steps = 100
-                        # call function to create and step the environment
-                        obs_1, rew_1 = self._obtain_transition_tuples(task_name, seed, num_envs, device, num_steps)
-                        obs_2, rew_2 = self._obtain_transition_tuples(task_name, seed, num_envs, device, num_steps)
-
-                        # check everything is as expected
-                        # -- rewards should be the same
-                        torch.testing.assert_close(rew_1, rew_2)
-                        # -- observations should be the same
-                        for key in obs_1.keys():
-                            torch.testing.assert_close(obs_1[key], obs_2[key])
+                        self._test_environment_determinism(task_name, device, seed)
 
     def test_dextrous_env_determinism(self):
         """Check deterministic environment creation for dextrous manipulation."""
@@ -98,23 +79,27 @@ class TestEnvironmentDeterminism(unittest.TestCase):
             for device in ["cuda", "cpu"]:
                 for seed in [25, 8001]:
                     with self.subTest(task_name=task_name, device=device, seed=seed):
-                        # fix number of steps
-                        num_envs = 128
-                        num_steps = 100
-                        # call function to create and step the environment
-                        obs_1, rew_1 = self._obtain_transition_tuples(task_name, seed, num_envs, device, num_steps)
-                        obs_2, rew_2 = self._obtain_transition_tuples(task_name, seed, num_envs, device, num_steps)
-
-                        # check everything is as expected
-                        # -- rewards should be the same
-                        torch.testing.assert_close(rew_1, rew_2)
-                        # -- observations should be the same
-                        for key in obs_1.keys():
-                            torch.testing.assert_close(obs_1[key], obs_2[key])
+                        self._test_environment_determinism(task_name, device, seed)
 
     """
     Helper functions.
     """
+
+    def _test_environment_determinism(self, task_name: str, device: str, seed: int):
+        """Check deterministic environment creation."""
+        # fix number of steps
+        num_envs = 128
+        num_steps = 100
+        # call function to create and step the environment
+        obs_1, rew_1 = self._obtain_transition_tuples(task_name, seed, num_envs, device, num_steps)
+        obs_2, rew_2 = self._obtain_transition_tuples(task_name, seed, num_envs, device, num_steps)
+
+        # check everything is as expected
+        # -- rewards should be the same
+        torch.testing.assert_close(rew_1, rew_2)
+        # -- observations should be the same
+        for key in obs_1.keys():
+            torch.testing.assert_close(obs_1[key], obs_2[key])
 
     def _obtain_transition_tuples(
         self, task_name: str, seed: int, num_envs: int, device: str, num_steps: int
