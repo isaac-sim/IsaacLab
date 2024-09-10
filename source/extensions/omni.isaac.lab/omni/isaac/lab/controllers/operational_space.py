@@ -291,7 +291,7 @@ class OperationSpaceController:
         # compute for force control
         if self.desired_ee_force is not None:
             # -- task-space wrench
-            if self.cfg.stiffness is not None:
+            if self.cfg.force_stiffness is not None:
                 # check input is provided
                 if ee_force is None:
                     raise ValueError("End-effector force is required for closed-loop force control.")
