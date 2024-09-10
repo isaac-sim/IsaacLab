@@ -1065,32 +1065,35 @@ def convert_perspective_depth_image_to_orthogonal_depth_image(
 ) -> torch.Tensor:
     """
     Converts depth images captured by the distance_to_camera replicator
-    to being as if captured by the distance_to_image_plane replicator.
+    to depth images as if captured by the distance_to_image_plane replicator.
 
     Provided a depth image where depth is provided as the distance to the principal
-    point of the camera (perspective depth), convert it so that depth is provided
-    as the distance to the camera's image plane (orthogonal depth).
+    point of the camera (perspective depth), this function converts it so that depth
+    is provided as the distance to the camera's image plane (orthogonal depth).
 
-    This is helpful as unproject_depth assumes that depth is expressed in
+    This is helpful because `unproject_depth` assumes that depth is expressed in
     the orthogonal depth format.
 
-    If `depth` is a batch of depth images and `intrinsics` is a single intrinsic matrix, the same
-    calibration matrix is applied to all depth images in the batch.
+    If `perspective_depth` is a batch of depth images and `intrinsics` is a single intrinsic matrix,
+    the same calibration matrix is applied to all depth images in the batch.
 
-    The function assumes that the width and height are both greater than 1. This makes the function
-    deal with many possible shapes of depth images and intrinsics matrices.
+    The function assumes that the width and height are both greater than 1.
 
     Parameters:
-    - perspective_depth: A torch.Tensor containing perspective depth images obtained with the
-        distance_to_camera replicator.
-      Shape can be (H, W), (N, H, W), (H, W, 1), or (N, H, W, 1).
-    - intrinsics: A torch.Tensor representing the intrinsics matrix of the standard_camera.
-      Shape can be (3, 3) or (N, 3, 3).
+    -----------
+    perspective_depth : torch.Tensor
+        A tensor containing perspective depth images obtained with the distance_to_camera replicator.
+        The shape can be (H, W), (N, H, W), (H, W, 1), or (N, H, W, 1).
+
+    intrinsics : torch.Tensor
+        A tensor representing the intrinsics matrix of the standard camera.
+        The shape can be (3, 3) or (N, 3, 3).
 
     Returns:
-    - normal_depth: A torch.Tensor containing depth images as if
-        captured by the distance_to_image_plane replicator.
-        Shape will match the input perspective_depth shape.
+    --------
+    torch.Tensor
+        A tensor containing depth images as if captured by the distance_to_image_plane replicator.
+        The shape will match the input `perspective_depth` shape.
     """
 
     # Clone inputs to avoid in-place modifications
