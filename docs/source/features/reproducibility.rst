@@ -20,4 +20,23 @@ simulation results are reproducible across different runs. The seed is set into 
 parameters :attr:`omni.isaac.lab.envs.ManagerBasedEnvCfg.seed` or :attr:`omni.isaac.lab.envs.DirectRLEnvCfg.seed`
 depending on the manager-based or direct environment implementation respectively.
 
+For results on our determinacy testing for RL training, please check the GitHub Pull Request `#940`_.
+
+.. tip::
+
+  Due to GPU work scheduling, there's a possibility that runtime changes to simulation parameters
+  may alter the order in which operations take place. This occurs because environment updates can
+  happen while the GPU is occupied with other tasks. Due to the inherent nature of floating-point
+  numeric storage, any modification to the execution ordering can result in minor changes in the
+  least significant bits of output data. These changes may lead to divergent execution over the
+  course of simulating thousands of environments and simulation frames.
+
+  An illustrative example of this issue is observed with the runtime domain randomization of object's
+  physics materials. This process can introduce both determinacy and simulation issues when executed
+  on the GPU due to the way these parameters are passed from the CPU to the GPU in the lower-level APIs.
+  Consequently, it is strongly advised to perform this operation only at setup time, before the
+  environment stepping commences.
+
+
 .. _PhysX Determinism documentation: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/docs/API.html#determinism
+.. _#940: https://github.com/isaac-sim/IsaacLab/pull/940
