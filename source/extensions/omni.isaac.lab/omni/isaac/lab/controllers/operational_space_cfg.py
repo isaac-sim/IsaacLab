@@ -54,7 +54,7 @@ class OperationSpaceControllerCfg:
         :math:`d_gains = 2 * sqrt(p_gains) * damping_ratio`.
     """
 
-    stiffness_limits: tuple[float, float] = (0, 300)
+    stiffness_limits: tuple[float, float] = (0, 1000)
     """Minimum and maximum values for positional gains.
 
     Note: Used only when :obj:`impedance_mode` is "variable" or "variable_kp".

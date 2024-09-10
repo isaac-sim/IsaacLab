@@ -80,7 +80,7 @@ class OperationSpaceController:
         else:
             self._p_wrench_gains = None
         # -- position gain limits
-        self._p_gains_limits = torch.zeros(self.num_envs, 6, device=self._device)
+        self._p_gains_limits = torch.zeros(self.num_envs, 6, 2, device=self._device)
         self._p_gains_limits[..., 0], self._p_gains_limits[..., 1] = (
             self.cfg.stiffness_limits[0],
             self.cfg.stiffness_limits[1],
@@ -149,19 +149,19 @@ class OperationSpaceController:
             self._task_space_target[:] = command
         elif self.cfg.impedance_mode == "variable_kp":
             # split input command
-            task_space_command, stiffness = torch.tensor_split(command, (self.target_dim, 6), dim=-1)
+            task_space_command, stiffness = torch.split(command, (self.target_dim, 6), dim=-1)
             # format command
-            stiffness = stiffness.clip_(min=self._p_gains_limits[0], max=self._p_gains_limits[1])
+            stiffness = stiffness.clip_(min=self._p_gains_limits[..., 0], max=self._p_gains_limits[..., 1])
             # joint positions + stiffness
             self._task_space_target[:] = task_space_command.squeeze(dim=-1)
             self._p_gains[:] = stiffness
-            self._d_gains[:] = 2 * torch.sqrt(self._p_gains)  # critically damped
+            self._d_gains[:] = 2 * torch.sqrt(self._p_gains) * torch.tensor(self.cfg.damping_ratio, device=self._device)
         elif self.cfg.impedance_mode == "variable":
             # split input command
-            task_space_command, stiffness, damping_ratio = torch.tensor_split(command, 3, dim=-1)
+            task_space_command, stiffness, damping_ratio = torch.split(command, (self.target_dim, 6, 6), dim=-1)
             # format command
-            stiffness = stiffness.clip_(min=self._p_gains_limits[0], max=self._p_gains_limits[1])
-            damping_ratio = damping_ratio.clip_(min=self._damping_ratio_limits[0], max=self._damping_ratio_limits[1])
+            stiffness = stiffness.clip_(min=self._p_gains_limits[..., 0], max=self._p_gains_limits[..., 1])
+            damping_ratio = damping_ratio.clip_(min=self._damping_ratio_limits[..., 0], max=self._damping_ratio_limits[..., 1])
             # joint positions + stiffness + damping
             self._task_space_target[:] = task_space_command
             self._p_gains[:] = stiffness
