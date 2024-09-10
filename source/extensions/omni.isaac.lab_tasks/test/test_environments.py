@@ -81,7 +81,7 @@ class TestEnvironments(unittest.TestCase):
     Helper functions.
     """
 
-    def _check_random_actions(self, task_name: str, device: str, num_envs: int, num_steps: int):
+    def _check_random_actions(self, task_name: str, device: str, num_envs: int, num_steps: int = 1000):
         """Run random actions and check environments returned signals are valid."""
         # create a new stage
         omni.usd.get_context().new_stage()
