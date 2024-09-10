@@ -1058,18 +1058,20 @@ def unproject_depth(depth: torch.Tensor, intrinsics: torch.Tensor) -> torch.Tens
 
     return points_xyz
 
+
 @torch.jit.script
-def convert_perspective_depth_image_to_orthogonal_depth_image(perspective_depth: torch.Tensor, 
-                                                              intrinsics: torch.Tensor) -> torch.Tensor:
+def convert_perspective_depth_image_to_orthogonal_depth_image(
+    perspective_depth: torch.Tensor, intrinsics: torch.Tensor
+) -> torch.Tensor:
     """
-    Converts depth images captured by the distance_to_camera replicator 
+    Converts depth images captured by the distance_to_camera replicator
     to being as if captured by the distance_to_image_plane replicator.
 
-    Provided a depth image where depth is provided as the distance to the principal 
-    point of the camera (perspective depth), convert it so that depth is provided 
+    Provided a depth image where depth is provided as the distance to the principal
+    point of the camera (perspective depth), convert it so that depth is provided
     as the distance to the camera's image plane (orthogonal depth).
-    
-    This is helpful as unproject_depth assumes that depth is expressed in 
+
+    This is helpful as unproject_depth assumes that depth is expressed in
     the orthogonal depth format.
 
     If `depth` is a batch of depth images and `intrinsics` is a single intrinsic matrix, the same
@@ -1086,7 +1088,7 @@ def convert_perspective_depth_image_to_orthogonal_depth_image(perspective_depth:
       Shape can be (3, 3) or (N, 3, 3).
 
     Returns:
-    - normal_depth: A torch.Tensor containing depth images as if 
+    - normal_depth: A torch.Tensor containing depth images as if
         captured by the distance_to_image_plane replicator.
         Shape will match the input perspective_depth shape.
     """
@@ -1096,7 +1098,9 @@ def convert_perspective_depth_image_to_orthogonal_depth_image(perspective_depth:
     intrinsics_batch = intrinsics.clone()
 
     # Check if inputs are batched
-    is_batched = perspective_depth_batch.dim() == 4 or (perspective_depth_batch.dim() == 3 and perspective_depth_batch.shape[-1] != 1)
+    is_batched = perspective_depth_batch.dim() == 4 or (
+        perspective_depth_batch.dim() == 3 and perspective_depth_batch.shape[-1] != 1
+    )
 
     # Make sure inputs are correctly shaped
     if perspective_depth_batch.dim() == 3 and perspective_depth_batch.shape[-1] == 1:
@@ -1130,7 +1134,7 @@ def convert_perspective_depth_image_to_orthogonal_depth_image(perspective_depth:
     # Create meshgrid of pixel coordinates
     u_grid = torch.arange(im_width, device=perspective_depth.device, dtype=perspective_depth.dtype)
     v_grid = torch.arange(im_height, device=perspective_depth.device, dtype=perspective_depth.dtype)
-    u_grid, v_grid = torch.meshgrid(u_grid, v_grid, indexing='xy')  # v_grid first, then u_grid
+    u_grid, v_grid = torch.meshgrid(u_grid, v_grid, indexing="xy")  # v_grid first, then u_grid
 
     # Expand the grids for batch processing
     u_grid = u_grid.unsqueeze(0).expand(perspective_depth_batch.shape[0], -1, -1)
@@ -1148,6 +1152,7 @@ def convert_perspective_depth_image_to_orthogonal_depth_image(perspective_depth:
         normal_depth = normal_depth.squeeze(0)
 
     return normal_depth
+
 
 @torch.jit.script
 def project_points(points: torch.Tensor, intrinsics: torch.Tensor) -> torch.Tensor:
