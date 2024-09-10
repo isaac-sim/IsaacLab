@@ -518,6 +518,71 @@ class TestCamera(unittest.TestCase):
         self.assertEqual(output["instance_segmentation_fast"].dtype, torch.int32)
         self.assertEqual(output["instance_id_segmentation_fast"].dtype, torch.int32)
 
+    def test_camera_large_resolution_all_colorize(self):
+        """Test camera resolution is correctly set for all types with colorization enabled."""
+        # Add all types
+        camera_cfg = copy.deepcopy(self.camera_cfg)
+        camera_cfg.data_types = [
+            "rgb",
+            "rgba",
+            "depth",
+            "distance_to_camera",
+            "distance_to_image_plane",
+            "normals",
+            "motion_vectors",
+            "semantic_segmentation",
+            "instance_segmentation_fast",
+            "instance_id_segmentation_fast",
+        ]
+        camera_cfg.colorize_instance_id_segmentation = True
+        camera_cfg.colorize_instance_segmentation = True
+        camera_cfg.colorize_semantic_segmentation = True
+        camera_cfg.width = 512
+        camera_cfg.height = 512
+        # Create camera
+        camera = Camera(camera_cfg)
+
+        # Play sim
+        self.sim.reset()
+
+        # Simulate for a few steps
+        # note: This is a workaround to ensure that the textures are loaded.
+        #   Check "Known Issues" section in the documentation for more details.
+        for _ in range(5):
+            self.sim.step()
+        camera.update(self.dt)
+
+        # expected sizes
+        hw_1c_shape = (1, camera_cfg.height, camera_cfg.width, 1)
+        hw_2c_shape = (1, camera_cfg.height, camera_cfg.width, 2)
+        hw_3c_shape = (1, camera_cfg.height, camera_cfg.width, 3)
+        hw_4c_shape = (1, camera_cfg.height, camera_cfg.width, 4)
+        # access image data and compare shapes
+        output = camera.data.output
+        self.assertEqual(output["rgb"].shape, hw_3c_shape)
+        self.assertEqual(output["rgba"].shape, hw_4c_shape)
+        self.assertEqual(output["depth"].shape, hw_1c_shape)
+        self.assertEqual(output["distance_to_camera"].shape, hw_1c_shape)
+        self.assertEqual(output["distance_to_image_plane"].shape, hw_1c_shape)
+        self.assertEqual(output["normals"].shape, hw_3c_shape)
+        self.assertEqual(output["motion_vectors"].shape, hw_2c_shape)
+        self.assertEqual(output["semantic_segmentation"].shape, hw_4c_shape)
+        self.assertEqual(output["instance_segmentation_fast"].shape, hw_4c_shape)
+        self.assertEqual(output["instance_id_segmentation_fast"].shape, hw_4c_shape)
+
+        # access image data and compare dtype
+        output = camera.data.output
+        self.assertEqual(output["rgb"].dtype, torch.uint8)
+        self.assertEqual(output["rgba"].dtype, torch.uint8)
+        self.assertEqual(output["depth"].dtype, torch.float)
+        self.assertEqual(output["distance_to_camera"].dtype, torch.float)
+        self.assertEqual(output["distance_to_image_plane"].dtype, torch.float)
+        self.assertEqual(output["normals"].dtype, torch.float)
+        self.assertEqual(output["motion_vectors"].dtype, torch.float)
+        self.assertEqual(output["semantic_segmentation"].dtype, torch.uint8)
+        self.assertEqual(output["instance_segmentation_fast"].dtype, torch.uint8)
+        self.assertEqual(output["instance_id_segmentation_fast"].dtype, torch.uint8)
+
     def test_camera_resolution_rgb_only(self):
         """Test camera resolution is correctly set for RGB only."""
         # Add all types

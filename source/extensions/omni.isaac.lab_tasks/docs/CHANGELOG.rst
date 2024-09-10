@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.10.3 (2024-09-05)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added environment config flag ``rerender_on_reset`` to allow updating sensor data after a reset.
+
+
 0.10.2 (2024-08-23)
 ~~~~~~~~~~~~~~~~~~~
 

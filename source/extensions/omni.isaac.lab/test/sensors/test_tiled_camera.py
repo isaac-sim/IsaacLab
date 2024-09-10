@@ -123,7 +123,7 @@ class TestTiledCamera(unittest.TestCase):
     def test_multi_camera_init(self):
         """Test multi-camera initialization."""
 
-        num_cameras = 4
+        num_cameras = 9
         for i in range(num_cameras):
             prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
@@ -176,7 +176,7 @@ class TestTiledCamera(unittest.TestCase):
     def test_rgb_only_camera(self):
         """Test initialization with only RGB."""
 
-        num_cameras = 4
+        num_cameras = 9
         for i in range(num_cameras):
             prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
@@ -254,7 +254,7 @@ class TestTiledCamera(unittest.TestCase):
     def test_depth_only_camera(self):
         """Test initialization with only depth."""
 
-        num_cameras = 4
+        num_cameras = 9
         for i in range(num_cameras):
             prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
@@ -306,7 +306,7 @@ class TestTiledCamera(unittest.TestCase):
     def test_rgba_only_camera(self):
         """Test initialization with only RGBA."""
 
-        num_cameras = 4
+        num_cameras = 9
         for i in range(num_cameras):
             prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
@@ -358,7 +358,7 @@ class TestTiledCamera(unittest.TestCase):
     def test_distance_to_camera_only_camera(self):
         """Test initialization with only distance_to_camera."""
 
-        num_cameras = 4
+        num_cameras = 9
         for i in range(num_cameras):
             prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
@@ -410,7 +410,7 @@ class TestTiledCamera(unittest.TestCase):
     def test_distance_to_image_plane_only_camera(self):
         """Test initialization with only distance_to_image_plane."""
 
-        num_cameras = 4
+        num_cameras = 9
         for i in range(num_cameras):
             prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
@@ -462,7 +462,7 @@ class TestTiledCamera(unittest.TestCase):
     def test_normals_only_camera(self):
         """Test initialization with only normals."""
 
-        num_cameras = 4
+        num_cameras = 9
         for i in range(num_cameras):
             prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
@@ -514,7 +514,7 @@ class TestTiledCamera(unittest.TestCase):
     def test_motion_vectors_only_camera(self):
         """Test initialization with only motion_vectors."""
 
-        num_cameras = 4
+        num_cameras = 9
         for i in range(num_cameras):
             prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
@@ -566,7 +566,7 @@ class TestTiledCamera(unittest.TestCase):
     def test_semantic_segmentation_colorize_only_camera(self):
         """Test initialization with only semantic_segmentation."""
 
-        num_cameras = 4
+        num_cameras = 9
         for i in range(num_cameras):
             prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
@@ -619,7 +619,7 @@ class TestTiledCamera(unittest.TestCase):
     def test_instance_segmentation_fast_colorize_only_camera(self):
         """Test initialization with only instance_segmentation_fast."""
 
-        num_cameras = 4
+        num_cameras = 9
         for i in range(num_cameras):
             prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
@@ -672,7 +672,7 @@ class TestTiledCamera(unittest.TestCase):
     def test_instance_id_segmentation_fast_colorize_only_camera(self):
         """Test initialization with only instance_id_segmentation_fast."""
 
-        num_cameras = 4
+        num_cameras = 9
         for i in range(num_cameras):
             prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
@@ -725,7 +725,7 @@ class TestTiledCamera(unittest.TestCase):
     def test_semantic_segmentation_non_colorize_only_camera(self):
         """Test initialization with only semantic_segmentation."""
 
-        num_cameras = 4
+        num_cameras = 9
         for i in range(num_cameras):
             prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
@@ -780,7 +780,7 @@ class TestTiledCamera(unittest.TestCase):
     def test_instance_segmentation_fast_non_colorize_only_camera(self):
         """Test initialization with only instance_segmentation_fast."""
 
-        num_cameras = 4
+        num_cameras = 9
         for i in range(num_cameras):
             prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
@@ -834,7 +834,7 @@ class TestTiledCamera(unittest.TestCase):
     def test_instance_id_segmentation_fast_non_colorize_only_camera(self):
         """Test initialization with only instance_id_segmentation_fast."""
 
-        num_cameras = 4
+        num_cameras = 9
         for i in range(num_cameras):
             prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
@@ -900,7 +900,201 @@ class TestTiledCamera(unittest.TestCase):
             "instance_id_segmentation_fast",
         ]
 
-        num_cameras = 4
+        num_cameras = 9
+        for i in range(num_cameras):
+            prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
+
+        # Create camera
+        camera_cfg = copy.deepcopy(self.camera_cfg)
+        camera_cfg.data_types = all_annotator_types
+        camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
+        camera = TiledCamera(camera_cfg)
+        # Check simulation parameter is set correctly
+        self.assertTrue(self.sim.has_rtx_sensors())
+        # Play sim
+        self.sim.reset()
+        # Check if camera is initialized
+        self.assertTrue(camera.is_initialized)
+        # Check if camera prim is set correctly and that it is a camera prim
+        self.assertEqual(camera._sensor_prims[1].GetPath().pathString, "/World/Origin_1/CameraSensor")
+        self.assertIsInstance(camera._sensor_prims[0], UsdGeom.Camera)
+        self.assertListEqual(sorted(camera.data.output.keys()), sorted(all_annotator_types))
+
+        # Simulate for a few steps
+        # note: This is a workaround to ensure that the textures are loaded.
+        #   Check "Known Issues" section in the documentation for more details.
+        for _ in range(5):
+            self.sim.step()
+
+        # Check buffers that exists and have correct shapes
+        self.assertEqual(camera.data.pos_w.shape, (num_cameras, 3))
+        self.assertEqual(camera.data.quat_w_ros.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.quat_w_world.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.quat_w_opengl.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.intrinsic_matrices.shape, (num_cameras, 3, 3))
+        self.assertEqual(camera.data.image_shape, (self.camera_cfg.height, self.camera_cfg.width))
+
+        # Simulate physics
+        for _ in range(10):
+            # perform rendering
+            self.sim.step()
+            # update camera
+            camera.update(self.dt)
+            # check image data
+            for data_type, im_data in camera.data.output.to_dict().items():
+                if data_type in ["rgb", "normals"]:
+                    self.assertEqual(im_data.shape, (num_cameras, self.camera_cfg.height, self.camera_cfg.width, 3))
+                elif data_type in [
+                    "rgba",
+                    "semantic_segmentation",
+                    "instance_segmentation_fast",
+                    "instance_id_segmentation_fast",
+                ]:
+                    self.assertEqual(im_data.shape, (num_cameras, self.camera_cfg.height, self.camera_cfg.width, 4))
+                    for i in range(num_cameras):
+                        self.assertGreater((im_data[i] / 255.0).mean().item(), 0.0)
+                elif data_type in ["motion_vectors"]:
+                    self.assertEqual(im_data.shape, (num_cameras, self.camera_cfg.height, self.camera_cfg.width, 2))
+                    for i in range(num_cameras):
+                        self.assertGreater(im_data[i].mean().item(), 0.0)
+                elif data_type in ["depth", "distance_to_camera", "distance_to_image_plane"]:
+                    self.assertEqual(im_data.shape, (num_cameras, self.camera_cfg.height, self.camera_cfg.width, 1))
+                    for i in range(num_cameras):
+                        self.assertGreater(im_data[i].mean().item(), 0.0)
+
+        # access image data and compare dtype
+        output = camera.data.output
+        info = camera.data.info
+        self.assertEqual(output["rgb"].dtype, torch.uint8)
+        self.assertEqual(output["rgba"].dtype, torch.uint8)
+        self.assertEqual(output["depth"].dtype, torch.float)
+        self.assertEqual(output["distance_to_camera"].dtype, torch.float)
+        self.assertEqual(output["distance_to_image_plane"].dtype, torch.float)
+        self.assertEqual(output["normals"].dtype, torch.float)
+        self.assertEqual(output["motion_vectors"].dtype, torch.float)
+        self.assertEqual(output["semantic_segmentation"].dtype, torch.uint8)
+        self.assertEqual(output["instance_segmentation_fast"].dtype, torch.uint8)
+        self.assertEqual(output["instance_id_segmentation_fast"].dtype, torch.uint8)
+        self.assertEqual(type(info["semantic_segmentation"]), dict)
+        self.assertEqual(type(info["instance_segmentation_fast"]), dict)
+        self.assertEqual(type(info["instance_id_segmentation_fast"]), dict)
+
+        del camera
+
+    def test_all_annotators_low_resolution_camera(self):
+        """Test initialization with all supported annotators."""
+        all_annotator_types = [
+            "rgb",
+            "rgba",
+            "depth",
+            "distance_to_camera",
+            "distance_to_image_plane",
+            "normals",
+            "motion_vectors",
+            "semantic_segmentation",
+            "instance_segmentation_fast",
+            "instance_id_segmentation_fast",
+        ]
+
+        num_cameras = 2
+        for i in range(num_cameras):
+            prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
+
+        # Create camera
+        camera_cfg = copy.deepcopy(self.camera_cfg)
+        camera_cfg.height = 40
+        camera_cfg.width = 40
+        camera_cfg.data_types = all_annotator_types
+        camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
+        camera = TiledCamera(camera_cfg)
+        # Check simulation parameter is set correctly
+        self.assertTrue(self.sim.has_rtx_sensors())
+        # Play sim
+        self.sim.reset()
+        # Check if camera is initialized
+        self.assertTrue(camera.is_initialized)
+        # Check if camera prim is set correctly and that it is a camera prim
+        self.assertEqual(camera._sensor_prims[1].GetPath().pathString, "/World/Origin_1/CameraSensor")
+        self.assertIsInstance(camera._sensor_prims[0], UsdGeom.Camera)
+        self.assertListEqual(sorted(camera.data.output.keys()), sorted(all_annotator_types))
+
+        # Simulate for a few steps
+        # note: This is a workaround to ensure that the textures are loaded.
+        #   Check "Known Issues" section in the documentation for more details.
+        for _ in range(5):
+            self.sim.step()
+
+        # Check buffers that exists and have correct shapes
+        self.assertEqual(camera.data.pos_w.shape, (num_cameras, 3))
+        self.assertEqual(camera.data.quat_w_ros.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.quat_w_world.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.quat_w_opengl.shape, (num_cameras, 4))
+        self.assertEqual(camera.data.intrinsic_matrices.shape, (num_cameras, 3, 3))
+        self.assertEqual(camera.data.image_shape, (camera_cfg.height, camera_cfg.width))
+
+        # Simulate physics
+        for _ in range(10):
+            # perform rendering
+            self.sim.step()
+            # update camera
+            camera.update(self.dt)
+            # check image data
+            for data_type, im_data in camera.data.output.to_dict().items():
+                if data_type in ["rgb", "normals"]:
+                    self.assertEqual(im_data.shape, (num_cameras, camera_cfg.height, camera_cfg.width, 3))
+                elif data_type in [
+                    "rgba",
+                    "semantic_segmentation",
+                    "instance_segmentation_fast",
+                    "instance_id_segmentation_fast",
+                ]:
+                    self.assertEqual(im_data.shape, (num_cameras, camera_cfg.height, camera_cfg.width, 4))
+                    for i in range(num_cameras):
+                        self.assertGreater((im_data[i] / 255.0).mean().item(), 0.0)
+                elif data_type in ["motion_vectors"]:
+                    self.assertEqual(im_data.shape, (num_cameras, camera_cfg.height, camera_cfg.width, 2))
+                    for i in range(num_cameras):
+                        self.assertGreater(im_data[i].mean().item(), 0.0)
+                elif data_type in ["depth", "distance_to_camera", "distance_to_image_plane"]:
+                    self.assertEqual(im_data.shape, (num_cameras, camera_cfg.height, camera_cfg.width, 1))
+                    for i in range(num_cameras):
+                        self.assertGreater(im_data[i].mean().item(), 0.0)
+
+        # access image data and compare dtype
+        output = camera.data.output
+        info = camera.data.info
+        self.assertEqual(output["rgb"].dtype, torch.uint8)
+        self.assertEqual(output["rgba"].dtype, torch.uint8)
+        self.assertEqual(output["depth"].dtype, torch.float)
+        self.assertEqual(output["distance_to_camera"].dtype, torch.float)
+        self.assertEqual(output["distance_to_image_plane"].dtype, torch.float)
+        self.assertEqual(output["normals"].dtype, torch.float)
+        self.assertEqual(output["motion_vectors"].dtype, torch.float)
+        self.assertEqual(output["semantic_segmentation"].dtype, torch.uint8)
+        self.assertEqual(output["instance_segmentation_fast"].dtype, torch.uint8)
+        self.assertEqual(output["instance_id_segmentation_fast"].dtype, torch.uint8)
+        self.assertEqual(type(info["semantic_segmentation"]), dict)
+        self.assertEqual(type(info["instance_segmentation_fast"]), dict)
+        self.assertEqual(type(info["instance_id_segmentation_fast"]), dict)
+
+        del camera
+
+    def test_all_annotators_non_perfect_square_number_camera(self):
+        """Test initialization with all supported annotators."""
+        all_annotator_types = [
+            "rgb",
+            "rgba",
+            "depth",
+            "distance_to_camera",
+            "distance_to_image_plane",
+            "normals",
+            "motion_vectors",
+            "semantic_segmentation",
+            "instance_segmentation_fast",
+            "instance_id_segmentation_fast",
+        ]
+
+        num_cameras = 11
         for i in range(num_cameras):
             prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
@@ -1054,7 +1248,7 @@ class TestTiledCamera(unittest.TestCase):
             ),
             height=540,
             width=960,
-            data_types=["distance_to_camera"],
+            data_types=["distance_to_image_plane"],
         )
 
         # set aperture offsets to 0, as currently not supported for usd/ tiled camera
@@ -1080,7 +1274,7 @@ class TestTiledCamera(unittest.TestCase):
 
         # filter nan and inf from output
         cam_tiled_output = camera_tiled.data.output["depth"].clone()
-        cam_usd_output = camera_usd.data.output["distance_to_camera"].clone()
+        cam_usd_output = camera_usd.data.output["distance_to_image_plane"].clone()
         cam_tiled_output[torch.isnan(cam_tiled_output)] = 0
         cam_tiled_output[torch.isinf(cam_tiled_output)] = 0
         cam_usd_output[torch.isnan(cam_usd_output)] = 0
@@ -1100,19 +1294,12 @@ class TestTiledCamera(unittest.TestCase):
         )
 
         # check image data
-        # FIXME: The tiled camera output is not exactly equal to the usd camera output. This should be fixed with the
-        #        update to the new tiled camera implementation. Test will fail, if the difference between the images
-        #        disappears. Check again @pascal-roth.
-
-        # Intended test
-        # torch.testing.assert_close(
-        #     cam_tiled_output[..., 0],
-        #     cam_usd_output,
-        #     atol=5e-5,
-        #     rtol=5e-6,
-        # )
-        # current failure case
-        self.assertTrue(torch.max(torch.abs(cam_tiled_output[..., 0] - cam_usd_output)).item() > 1)
+        torch.testing.assert_close(
+            cam_tiled_output[..., 0],
+            cam_usd_output[..., 0],
+            atol=5e-5,
+            rtol=5e-6,
+        )
 
         del camera_tiled
         del camera_usd

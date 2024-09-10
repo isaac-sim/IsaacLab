@@ -60,21 +60,6 @@ environment. For example:
     python source/standalone/workflows/rl_games/train.py --task=Isaac-Cartpole-RGB-Camera-Direct-v0 --headless --enable_cameras
 
 
-.. warning::
-
-    There are currently a few limitations with tiled rendering:
-
-    * Number of cameras must be a perfect square
-    * Tile resolution must be a square
-    * Due to upsampling in the denoising process, image quality may appear different when running with different numbers of cameras.
-      To overcome this issue, we can use the DLAA denoiser at the cost of some performance.
-
-      .. code-block:: python
-
-        import omni.replicator.core as rep
-        rep.settings.set_render_rtx_realtime(antialiasing="DLAA")
-
-
 Annotators and Data Types
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 

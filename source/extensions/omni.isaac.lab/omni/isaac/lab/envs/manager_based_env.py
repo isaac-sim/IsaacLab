@@ -350,6 +350,9 @@ class ManagerBasedEnv:
         """
         # reset the internal buffers of the scene elements
         self.scene.reset(env_ids)
+        # if sensors are added to the scene, make sure we render to reflect changes in reset
+        if len(env_ids) > 0 and self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
+            self.sim.render()
         # apply events such as randomization for environments that need a reset
         if "reset" in self.event_manager.available_modes:
             env_step_count = self._sim_step_counter // self.cfg.decimation
