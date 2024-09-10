@@ -110,6 +110,16 @@ class TestOperationSpaceController(unittest.TestCase):
             [0.0, 10.0, 0.0, 0.0, 0.0, 0.0],
             [10.0, 0.0, 0.0, 0.0, 0.0, 0.0],
         ], device=self.sim.device)
+        kp_set = torch.tensor([
+            [500.0, 500.0, 500.0, 500.0, 500.0, 500.0],
+            [600.0, 600.0, 600.0, 600.0, 600.0, 600.0],
+            [400.0, 400.0, 400.0, 400.0, 400.0, 400.0],
+        ], device=self.sim.device)
+        d_ratio_set = torch.tensor([
+            [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+            [1.1, 1.1, 1.1, 1.1, 1.1, 1.1],
+            [0.9, 0.9, 0.9, 0.9, 0.9, 0.9],
+        ], device=self.sim.device)
 
         # Define goals for the arm [xyz]
         self.target_abs_pos_set = ee_goal_abs_pos_set.clone()
@@ -121,6 +131,10 @@ class TestOperationSpaceController(unittest.TestCase):
         self.target_rel_pose_b_set = torch.cat([ee_goal_rel_pos_set, ee_goal_rel_angleaxis_set], dim=-1)
         # Define goals for the arm [force_xyz + torque_xyz]
         self.target_abs_force_set = ee_goal_abs_force_set.clone()
+        # Define goals for the arm [xyz + quat_wxyz] and variable kp [kp_xyz + kp_rot_xyz]
+        self.target_abs_pose_variable_kp_set = torch.cat([self.target_abs_pose_set, kp_set], dim=-1)
+        # Define goals for the arm [xyz + quat_wxyz] and the variable imp. [kp_xyz + kp_rot_xyz + d_xyz + d_rot_xyz]
+        self.target_abs_pose_variable_set = torch.cat([self.target_abs_pose_set, kp_set, d_ratio_set], dim=-1)
 
     def tearDown(self):
         """Stops simulator after each test."""
@@ -219,6 +233,30 @@ class TestOperationSpaceController(unittest.TestCase):
 
         self._run_op_space_controller(robot, opc, "panda_hand", ["panda_joint.*"], self.target_rel_pos_set)
 
+    def test_franka_pose_abs_variable_kp_impedance_with_full_inertial_compensation(self):
+        """Test absolute pose control with variable kp impedance and full inertial compensation."""
+        robot = Articulation(cfg=self.robot_cfg)
+        opc_cfg = OperationSpaceControllerCfg(command_types=["pose_abs"], impedance_mode="variable_kp",
+                                              inertial_compensation=True,
+                                              uncouple_motion_wrench=False,
+                                              gravity_compensation=False,
+                                              stiffness=500.0, damping_ratio=1.0)
+        opc = OperationSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
+
+        self._run_op_space_controller(robot, opc, "panda_hand", ["panda_joint.*"], self.target_abs_pose_variable_kp_set)
+
+    def test_franka_pose_abs_variable_impedance_with_full_inertial_compensation(self):
+        """Test absolute pose control with variable impedance and full inertial compensation."""
+        robot = Articulation(cfg=self.robot_cfg)
+        opc_cfg = OperationSpaceControllerCfg(command_types=["pose_abs"], impedance_mode="variable",
+                                              inertial_compensation=True,
+                                              uncouple_motion_wrench=False,
+                                              gravity_compensation=False,
+                                              stiffness=500.0, damping_ratio=1.0)
+        opc = OperationSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
+
+        self._run_op_space_controller(robot, opc, "panda_hand", ["panda_joint.*"], self.target_abs_pose_variable_set)
+
     def test_franka_force_abs_open_loop(self):
         """Test open loop absolute force control."""
         robot = Articulation(cfg=self.robot_cfg)
@@ -289,12 +327,6 @@ class TestOperationSpaceController(unittest.TestCase):
 
         self._run_op_space_controller(robot, opc, "panda_hand", ["panda_joint.*"], self.target_abs_force_set)
         self.contact_forces = None  # Make contact_forces None after the test otherwise other tests give warning
-
-    # def test_franka_variable_kp(self):
-    #     """Tests operational space controller for franka using variable stiffness impedance."""
-
-    # def test_franka_variable(self):
-    #     """Tests operational space controller for franka using variable stiffness and damping ratio impedance."""
 
     # def test_franka_control_hybrid_motion_force(self):
     #     """Tests operational space control for hybrid motion and force control."""
@@ -431,13 +463,13 @@ class TestOperationSpaceController(unittest.TestCase):
         ee_target_pose_b = torch.zeros(self.num_envs, 7, device=self.sim.device)
         for command_type in opc.cfg.command_types:
             if command_type == "pose_abs":
-                ee_target_pose_b[:] = ee_target_b
+                ee_target_pose_b[:] = ee_target_b[:, :7]
             elif command_type == "pose_rel":
-                ee_target_pose_b[:, 0:3], ee_target_pose_b[:, 3:7] = apply_delta_pose(ee_pose_b[:, :3], ee_pose_b[:, 3:], ee_target_b)
+                ee_target_pose_b[:, 0:3], ee_target_pose_b[:, 3:7] = apply_delta_pose(ee_pose_b[:, :3], ee_pose_b[:, 3:], ee_target_b[:, :7])
             elif command_type == "position_abs":
-                ee_target_pose_b[:, 0:3] = ee_target_b
+                ee_target_pose_b[:, 0:3] = ee_target_b[:, :3]
             elif command_type == "position_rel":
-                ee_target_pose_b[:, 0:3] = ee_pose_b[:, 0:3] + ee_target_b
+                ee_target_pose_b[:, 0:3] = ee_pose_b[:, 0:3] + ee_target_b[:, :3]
             elif command_type == "force_abs":
                 pass  # ee_target_pose_b could stay at the robot base for force control, what matters is ee_target_b
             else:
