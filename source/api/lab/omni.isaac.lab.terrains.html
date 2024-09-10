@@ -59,7 +59,7 @@
     <link rel="prev" title="omni.isaac.lab.sim" href="omni.isaac.lab.sim.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Sep 09, 2024"/>
+    <meta name="docbuild:last-update" content="Sep 10, 2024"/>
   </head>
   
   
@@ -234,6 +234,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../../features/tiled_rendering.html">Tiled Rendering and Recording</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/environments.html">Environments</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/actuators.html">Actuators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/reproducibility.html">Reproducibility and Determinism</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
@@ -1440,8 +1441,8 @@ generating complex sub-terrains that take a long time to generate.</p>
 <div class="admonition attention">
 <p class="admonition-title">Attention</p>
 <p>The terrain generation has its own seed parameter. This is set using the <a class="reference internal" href="#omni.isaac.lab.terrains.TerrainGeneratorCfg.seed" title="omni.isaac.lab.terrains.TerrainGeneratorCfg.seed"><code class="xref py py-attr docutils literal notranslate"><span class="pre">TerrainGeneratorCfg.seed</span></code></a>
-parameter. If the seed is not set and the caching is disabled, the terrain generation will not be
-reproducible.</p>
+parameter. If the seed is not set and the caching is disabled, the terrain generation may not be
+completely reproducible.</p>
 </div>
 <p><strong>Methods:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
@@ -1573,8 +1574,12 @@ Similarly, the key “target_spawn” maps to a tensor containing the flat patch
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.terrains.TerrainGeneratorCfg.seed">
 <span class="sig-name descname"><span class="pre">seed</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.terrains.TerrainGeneratorCfg.seed" title="Permalink to this definition">#</a></dt>
-<dd><p>The seed for the random number generator. Defaults to None,
-in which case the seed is not set.</p>
+<dd><p>The seed for the random number generator. Defaults to None, in which case the seed from the
+current NumPy’s random state is used.</p>
+<p>When the seed is set, the random number generator is initialized with the given seed. This ensures
+that the generated terrains are deterministic across different runs. If the seed is not set, the
+seed from the current NumPy’s random state is used. This assumes that the seed is set elsewhere in
+the code.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -4914,7 +4919,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 09, 2024.
+  Last updated on Sep 10, 2024.
   <br/>
 </p>
   </div>

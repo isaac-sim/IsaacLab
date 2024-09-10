@@ -54,7 +54,7 @@
     <link rel="search" title="Search" href="../../../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Sep 09, 2024"/>
+    <meta name="docbuild:last-update" content="Sep 10, 2024"/>
   </head>
   
   
@@ -231,6 +231,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/tiled_rendering.html">Tiled Rendering and Recording</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/environments.html">Environments</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/actuators.html">Actuators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/reproducibility.html">Reproducibility and Determinism</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
@@ -559,8 +560,8 @@ document.write(`
 <span class="sd">    .. attention::</span>
 
 <span class="sd">        The terrain generation has its own seed parameter. This is set using the :attr:`TerrainGeneratorCfg.seed`</span>
-<span class="sd">        parameter. If the seed is not set and the caching is disabled, the terrain generation will not be</span>
-<span class="sd">        reproducible.</span>
+<span class="sd">        parameter. If the seed is not set and the caching is disabled, the terrain generation may not be</span>
+<span class="sd">        completely reproducible.</span>
 
 <span class="sd">    &quot;&quot;&quot;</span>
 
@@ -612,10 +613,16 @@ document.write(`
                 <span class="s2">&quot; Please set the seed in the terrain generator configuration to make the generation reproducible.&quot;</span>
             <span class="p">)</span>
 
+        <span class="c1"># if the seed is not set, we assume there is a global seed set and use that.</span>
+        <span class="c1"># this ensures that the terrain is reproducible if the seed is set at the beginning of the program.</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">seed</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">seed</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">seed</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">seed</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">get_state</span><span class="p">()[</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
         <span class="c1"># set the seed for reproducibility</span>
         <span class="c1"># note: we create a new random number generator to avoid affecting the global state</span>
         <span class="c1">#  in the other places where random numbers are used.</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">np_rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">seed</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">np_rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="n">seed</span><span class="p">)</span>
 
         <span class="c1"># buffer for storing valid patches</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">flat_patches</span> <span class="o">=</span> <span class="p">{}</span>
@@ -914,7 +921,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 09, 2024.
+  Last updated on Sep 10, 2024.
   <br/>
 </p>
   </div>

@@ -57,7 +57,7 @@
     <link rel="prev" title="Tricks and Troubleshooting" href="troubleshooting.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Sep 09, 2024"/>
+    <meta name="docbuild:last-update" content="Sep 10, 2024"/>
   </head>
   
   
@@ -232,6 +232,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../features/tiled_rendering.html">Tiled Rendering and Recording</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../features/environments.html">Environments</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../features/actuators.html">Actuators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../features/reproducibility.html">Reproducibility and Determinism</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
@@ -550,7 +551,6 @@ document.write(`
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#stale-values-after-resetting-the-environment">Stale values after resetting the environment</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#non-determinism-in-physics-simulation">Non-determinism in physics simulation</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#blank-initial-frames-from-the-camera">Blank initial frames from the camera</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#using-instanceable-assets-for-markers">Using instanceable assets for markers</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#exiting-the-process">Exiting the process</a></li>
@@ -595,30 +595,6 @@ and does not affect the performance that critically.</p>
 <p>We have made a feature request to the respective Omniverse teams to have complete control
 over stepping different parts of the simulation app. However, at this point, there is no set
 timeline for this feature request.</p>
-</section>
-<section id="non-determinism-in-physics-simulation">
-<h2>Non-determinism in physics simulation<a class="headerlink" href="#non-determinism-in-physics-simulation" title="Permalink to this heading">#</a></h2>
-<p>Due to GPU work scheduling, there’s a possibility that runtime changes to simulation parameters
-may alter the order in which operations take place. This occurs because environment updates can
-happen while the GPU is occupied with other tasks. Due to the inherent nature of floating-point
-numeric storage, any modification to the execution ordering can result in minor changes in the
-least significant bits of output data. These changes may lead to divergent execution over the
-course of simulating thousands of environments and simulation frames.</p>
-<p>An illustrative example of this issue is observed with the runtime domain randomization of object’s
-physics materials. This process can introduce both determinancy and simulation issues when executed
-on the GPU due to the way these parameters are passed from the CPU to the GPU in the lower-level APIs.
-Consequently, it is strongly advised to perform this operation only at setup time, before the
-environment stepping commences.</p>
-<p>For more information, please refer to the <a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.3.1/docs/BestPractices.html#determinism">PhysX Determinism documentation</a>.</p>
-<p>In addition, due to floating point precision, states across different environments in the simulation
-may be non-deterministic when the same set of actions are applied to the same initial
-states. This occurs as environments are placed further apart from the world origin at (0, 0, 0).
-As actors get placed at different origins in the world, floating point errors may build up
-and result in slight variance in results even when starting from the same initial states. One
-possible workaround for this issue is to place all actors/environments at the world origin
-at (0, 0, 0) and filter out collisions between the environments. Note that this may induce
-a performance degradation of around 15-50%, depending on the complexity of actors and
-environment.</p>
 </section>
 <section id="blank-initial-frames-from-the-camera">
 <h2>Blank initial frames from the camera<a class="headerlink" href="#blank-initial-frames-from-the-camera" title="Permalink to this heading">#</a></h2>
@@ -705,7 +681,6 @@ message and continue with terminating the process. On Windows systems, please us
   <nav class="bd-toc-nav page-toc">
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#stale-values-after-resetting-the-environment">Stale values after resetting the environment</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#non-determinism-in-physics-simulation">Non-determinism in physics simulation</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#blank-initial-frames-from-the-camera">Blank initial frames from the camera</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#using-instanceable-assets-for-markers">Using instanceable assets for markers</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#exiting-the-process">Exiting the process</a></li>
@@ -742,7 +717,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 09, 2024.
+  Last updated on Sep 10, 2024.
   <br/>
 </p>
   </div>

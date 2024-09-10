@@ -57,7 +57,7 @@
     <link rel="prev" title="omni.isaac.lab.devices" href="omni.isaac.lab.devices.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Sep 09, 2024"/>
+    <meta name="docbuild:last-update" content="Sep 10, 2024"/>
   </head>
   
   
@@ -232,6 +232,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../../features/tiled_rendering.html">Tiled Rendering and Recording</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/environments.html">Environments</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/actuators.html">Actuators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/reproducibility.html">Reproducibility and Determinism</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
@@ -567,6 +568,7 @@ document.write(`
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedEnvCfg.viewer"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg.viewer</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedEnvCfg.sim"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg.sim</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedEnvCfg.ui_window_class_type"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg.ui_window_class_type</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedEnvCfg.seed"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg.seed</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedEnvCfg.decimation"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg.decimation</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedEnvCfg.scene"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg.scene</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedEnvCfg.observations"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg.observations</span></code></a></li>
@@ -606,6 +608,7 @@ document.write(`
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.rewards"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.rewards</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.viewer"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.viewer</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.sim"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.sim</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.seed"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.seed</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.decimation"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.decimation</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.scene"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.scene</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.observations"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.observations</span></code></a></li>
@@ -644,6 +647,7 @@ document.write(`
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.DirectRLEnvCfg.viewer"><code class="docutils literal notranslate"><span class="pre">DirectRLEnvCfg.viewer</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.DirectRLEnvCfg.sim"><code class="docutils literal notranslate"><span class="pre">DirectRLEnvCfg.sim</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.DirectRLEnvCfg.ui_window_class_type"><code class="docutils literal notranslate"><span class="pre">DirectRLEnvCfg.ui_window_class_type</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.DirectRLEnvCfg.seed"><code class="docutils literal notranslate"><span class="pre">DirectRLEnvCfg.seed</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.DirectRLEnvCfg.decimation"><code class="docutils literal notranslate"><span class="pre">DirectRLEnvCfg.decimation</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.DirectRLEnvCfg.is_finite_horizon"><code class="docutils literal notranslate"><span class="pre">DirectRLEnvCfg.is_finite_horizon</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.DirectRLEnvCfg.episode_length_s"><code class="docutils literal notranslate"><span class="pre">DirectRLEnvCfg.episode_length_s</span></code></a></li>
@@ -891,6 +895,9 @@ is reset. This is because the simulator is only reset when the user calls
 <dt class="sig sig-object py" id="omni.isaac.lab.envs.ManagerBasedEnv.reset">
 <span class="sig-name descname"><span class="pre">reset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">seed</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">options</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.12)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.12)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.12)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Dict" title="(in Python v3.12)"><span class="pre">Dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Union" title="(in Python v3.12)"><span class="pre">Union</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Dict" title="(in Python v3.12)"><span class="pre">Dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.12)"><span class="pre">dict</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/envs/manager_based_env.html#ManagerBasedEnv.reset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.envs.ManagerBasedEnv.reset" title="Permalink to this definition">#</a></dt>
 <dd><p>Resets all the environments and returns observations.</p>
+<p>This function calls the <code class="xref py py-meth docutils literal notranslate"><span class="pre">_reset_idx()</span></code> function to reset all the environments.
+However, certain operations, such as procedural terrain generation, that happened during initialization
+are not repeated.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -963,19 +970,22 @@ Based on these parameters, the environment time-step is computed as the product 
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedEnvCfg.sim" title="omni.isaac.lab.envs.ManagerBasedEnvCfg.sim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sim</span></code></a></p></td>
 <td><p>Physics simulation configuration.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedEnvCfg.decimation" title="omni.isaac.lab.envs.ManagerBasedEnvCfg.decimation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decimation</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedEnvCfg.seed" title="omni.isaac.lab.envs.ManagerBasedEnvCfg.seed"><code class="xref py py-obj docutils literal notranslate"><span class="pre">seed</span></code></a></p></td>
+<td><p>The seed for the random number generator.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedEnvCfg.decimation" title="omni.isaac.lab.envs.ManagerBasedEnvCfg.decimation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decimation</span></code></a></p></td>
 <td><p>Number of control action updates &#64; sim dt per policy dt.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedEnvCfg.scene" title="omni.isaac.lab.envs.ManagerBasedEnvCfg.scene"><code class="xref py py-obj docutils literal notranslate"><span class="pre">scene</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedEnvCfg.scene" title="omni.isaac.lab.envs.ManagerBasedEnvCfg.scene"><code class="xref py py-obj docutils literal notranslate"><span class="pre">scene</span></code></a></p></td>
 <td><p>Scene settings.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedEnvCfg.observations" title="omni.isaac.lab.envs.ManagerBasedEnvCfg.observations"><code class="xref py py-obj docutils literal notranslate"><span class="pre">observations</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedEnvCfg.observations" title="omni.isaac.lab.envs.ManagerBasedEnvCfg.observations"><code class="xref py py-obj docutils literal notranslate"><span class="pre">observations</span></code></a></p></td>
 <td><p>Observation space settings.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedEnvCfg.actions" title="omni.isaac.lab.envs.ManagerBasedEnvCfg.actions"><code class="xref py py-obj docutils literal notranslate"><span class="pre">actions</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedEnvCfg.actions" title="omni.isaac.lab.envs.ManagerBasedEnvCfg.actions"><code class="xref py py-obj docutils literal notranslate"><span class="pre">actions</span></code></a></p></td>
 <td><p>Action space settings.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedEnvCfg.events" title="omni.isaac.lab.envs.ManagerBasedEnvCfg.events"><code class="xref py py-obj docutils literal notranslate"><span class="pre">events</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedEnvCfg.events" title="omni.isaac.lab.envs.ManagerBasedEnvCfg.events"><code class="xref py py-obj docutils literal notranslate"><span class="pre">events</span></code></a></p></td>
 <td><p>Event settings.</p></td>
 </tr>
 </tbody>
@@ -1006,6 +1016,17 @@ Based on these parameters, the environment time-step is computed as the product 
 <dt class="sig sig-object py" id="omni.isaac.lab.envs.ManagerBasedEnvCfg.ui_window_class_type">
 <span class="sig-name descname"><span class="pre">ui_window_class_type</span></span><a class="headerlink" href="#omni.isaac.lab.envs.ManagerBasedEnvCfg.ui_window_class_type" title="Permalink to this definition">#</a></dt>
 <dd><p>alias of <a class="reference internal" href="omni.isaac.lab.envs.ui.html#omni.isaac.lab.envs.ui.BaseEnvWindow" title="omni.isaac.lab.envs.ui.base_env_window.BaseEnvWindow"><code class="xref py py-class docutils literal notranslate"><span class="pre">BaseEnvWindow</span></code></a></p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.ManagerBasedEnvCfg.seed">
+<span class="sig-name descname"><span class="pre">seed</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.ManagerBasedEnvCfg.seed" title="Permalink to this definition">#</a></dt>
+<dd><p>The seed for the random number generator. Defaults to None, in which case the seed is not set.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The seed is set at the beginning of the environment initialization. This ensures that the environment
+creation is deterministic and behaves similarly across different runs.</p>
+</div>
 </dd></dl>
 
 <dl class="py attribute">
@@ -1307,6 +1328,9 @@ Defaults to False.</p>
 <dt class="sig sig-object py" id="omni.isaac.lab.envs.ManagerBasedRLEnv.reset">
 <span class="sig-name descname"><span class="pre">reset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">seed</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">options</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.12)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.12)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.12)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Dict" title="(in Python v3.12)"><span class="pre">Dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Union" title="(in Python v3.12)"><span class="pre">Union</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Dict" title="(in Python v3.12)"><span class="pre">Dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.12)"><span class="pre">dict</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.reset" title="Permalink to this definition">#</a></dt>
 <dd><p>Resets all the environments and returns observations.</p>
+<p>This function calls the <code class="xref py py-meth docutils literal notranslate"><span class="pre">_reset_idx()</span></code> function to reset all the environments.
+However, certain operations, such as procedural terrain generation, that happened during initialization
+are not repeated.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -1459,6 +1483,17 @@ then the episode length in steps is 100.</p>
 <dt class="sig sig-object py" id="omni.isaac.lab.envs.ManagerBasedRLEnvCfg.sim">
 <span class="sig-name descname"><span class="pre">sim</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationCfg" title="omni.isaac.lab.sim.simulation_cfg.SimulationCfg"><span class="pre">SimulationCfg</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.sim" title="Permalink to this definition">#</a></dt>
 <dd><p>Physics simulation configuration. Default is SimulationCfg().</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.ManagerBasedRLEnvCfg.seed">
+<span class="sig-name descname"><span class="pre">seed</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.seed" title="Permalink to this definition">#</a></dt>
+<dd><p>The seed for the random number generator. Defaults to None, in which case the seed is not set.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The seed is set at the beginning of the environment initialization. This ensures that the environment
+creation is deterministic and behaves similarly across different runs.</p>
+</div>
 </dd></dl>
 
 <dl class="py attribute">
@@ -1686,6 +1721,9 @@ is similar to <code class="docutils literal notranslate"><span class="pre">&quot
 <dt class="sig sig-object py" id="omni.isaac.lab.envs.DirectRLEnv.reset">
 <span class="sig-name descname"><span class="pre">reset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">seed</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">options</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.12)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.12)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.12)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Dict" title="(in Python v3.12)"><span class="pre">Dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Union" title="(in Python v3.12)"><span class="pre">Union</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Dict" title="(in Python v3.12)"><span class="pre">Dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.12)"><span class="pre">dict</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/envs/direct_rl_env.html#DirectRLEnv.reset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.envs.DirectRLEnv.reset" title="Permalink to this definition">#</a></dt>
 <dd><p>Resets all the environments and returns observations.</p>
+<p>This function calls the <code class="xref py py-meth docutils literal notranslate"><span class="pre">_reset_idx()</span></code> function to reset all the environments.
+However, certain operations, such as procedural terrain generation, that happened during initialization
+are not repeated.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -1844,34 +1882,37 @@ does not support debug visualization.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.DirectRLEnvCfg.sim" title="omni.isaac.lab.envs.DirectRLEnvCfg.sim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sim</span></code></a></p></td>
 <td><p>Physics simulation configuration.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.DirectRLEnvCfg.decimation" title="omni.isaac.lab.envs.DirectRLEnvCfg.decimation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decimation</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.DirectRLEnvCfg.seed" title="omni.isaac.lab.envs.DirectRLEnvCfg.seed"><code class="xref py py-obj docutils literal notranslate"><span class="pre">seed</span></code></a></p></td>
+<td><p>The seed for the random number generator.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.DirectRLEnvCfg.decimation" title="omni.isaac.lab.envs.DirectRLEnvCfg.decimation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decimation</span></code></a></p></td>
 <td><p>Number of control action updates &#64; sim dt per policy dt.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.DirectRLEnvCfg.is_finite_horizon" title="omni.isaac.lab.envs.DirectRLEnvCfg.is_finite_horizon"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_finite_horizon</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.DirectRLEnvCfg.is_finite_horizon" title="omni.isaac.lab.envs.DirectRLEnvCfg.is_finite_horizon"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_finite_horizon</span></code></a></p></td>
 <td><p>Whether the learning task is treated as a finite or infinite horizon problem for the agent.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.DirectRLEnvCfg.episode_length_s" title="omni.isaac.lab.envs.DirectRLEnvCfg.episode_length_s"><code class="xref py py-obj docutils literal notranslate"><span class="pre">episode_length_s</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.DirectRLEnvCfg.episode_length_s" title="omni.isaac.lab.envs.DirectRLEnvCfg.episode_length_s"><code class="xref py py-obj docutils literal notranslate"><span class="pre">episode_length_s</span></code></a></p></td>
 <td><p>Duration of an episode (in seconds).</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.DirectRLEnvCfg.scene" title="omni.isaac.lab.envs.DirectRLEnvCfg.scene"><code class="xref py py-obj docutils literal notranslate"><span class="pre">scene</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.DirectRLEnvCfg.scene" title="omni.isaac.lab.envs.DirectRLEnvCfg.scene"><code class="xref py py-obj docutils literal notranslate"><span class="pre">scene</span></code></a></p></td>
 <td><p>Scene settings.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.DirectRLEnvCfg.events" title="omni.isaac.lab.envs.DirectRLEnvCfg.events"><code class="xref py py-obj docutils literal notranslate"><span class="pre">events</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.DirectRLEnvCfg.events" title="omni.isaac.lab.envs.DirectRLEnvCfg.events"><code class="xref py py-obj docutils literal notranslate"><span class="pre">events</span></code></a></p></td>
 <td><p>Event settings.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.DirectRLEnvCfg.num_observations" title="omni.isaac.lab.envs.DirectRLEnvCfg.num_observations"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_observations</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.DirectRLEnvCfg.num_observations" title="omni.isaac.lab.envs.DirectRLEnvCfg.num_observations"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_observations</span></code></a></p></td>
 <td><p>The dimension of the observation space from each environment instance.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.DirectRLEnvCfg.num_states" title="omni.isaac.lab.envs.DirectRLEnvCfg.num_states"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_states</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.DirectRLEnvCfg.num_states" title="omni.isaac.lab.envs.DirectRLEnvCfg.num_states"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_states</span></code></a></p></td>
 <td><p>The dimension of the state-space from each environment instance.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.DirectRLEnvCfg.observation_noise_model" title="omni.isaac.lab.envs.DirectRLEnvCfg.observation_noise_model"><code class="xref py py-obj docutils literal notranslate"><span class="pre">observation_noise_model</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.DirectRLEnvCfg.observation_noise_model" title="omni.isaac.lab.envs.DirectRLEnvCfg.observation_noise_model"><code class="xref py py-obj docutils literal notranslate"><span class="pre">observation_noise_model</span></code></a></p></td>
 <td><p>The noise model to apply to the computed observations from the environment.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.DirectRLEnvCfg.num_actions" title="omni.isaac.lab.envs.DirectRLEnvCfg.num_actions"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_actions</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.DirectRLEnvCfg.num_actions" title="omni.isaac.lab.envs.DirectRLEnvCfg.num_actions"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_actions</span></code></a></p></td>
 <td><p>The dimension of the action space for each environment.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.DirectRLEnvCfg.action_noise_model" title="omni.isaac.lab.envs.DirectRLEnvCfg.action_noise_model"><code class="xref py py-obj docutils literal notranslate"><span class="pre">action_noise_model</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.DirectRLEnvCfg.action_noise_model" title="omni.isaac.lab.envs.DirectRLEnvCfg.action_noise_model"><code class="xref py py-obj docutils literal notranslate"><span class="pre">action_noise_model</span></code></a></p></td>
 <td><p>The noise model applied to the actions provided to the environment.</p></td>
 </tr>
 </tbody>
@@ -1902,6 +1943,17 @@ does not support debug visualization.</p>
 <dt class="sig sig-object py" id="omni.isaac.lab.envs.DirectRLEnvCfg.ui_window_class_type">
 <span class="sig-name descname"><span class="pre">ui_window_class_type</span></span><a class="headerlink" href="#omni.isaac.lab.envs.DirectRLEnvCfg.ui_window_class_type" title="Permalink to this definition">#</a></dt>
 <dd><p>alias of <a class="reference internal" href="omni.isaac.lab.envs.ui.html#omni.isaac.lab.envs.ui.BaseEnvWindow" title="omni.isaac.lab.envs.ui.base_env_window.BaseEnvWindow"><code class="xref py py-class docutils literal notranslate"><span class="pre">BaseEnvWindow</span></code></a></p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.DirectRLEnvCfg.seed">
+<span class="sig-name descname"><span class="pre">seed</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.DirectRLEnvCfg.seed" title="Permalink to this definition">#</a></dt>
+<dd><p>The seed for the random number generator. Defaults to None, in which case the seed is not set.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The seed is set at the beginning of the environment initialization. This ensures that the environment
+creation is deterministic and behaves similarly across different runs.</p>
+</div>
 </dd></dl>
 
 <dl class="py attribute">
@@ -2151,6 +2203,7 @@ Default is (1280, 720).</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedEnvCfg.viewer"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg.viewer</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedEnvCfg.sim"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg.sim</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedEnvCfg.ui_window_class_type"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg.ui_window_class_type</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedEnvCfg.seed"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg.seed</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedEnvCfg.decimation"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg.decimation</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedEnvCfg.scene"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg.scene</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedEnvCfg.observations"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg.observations</span></code></a></li>
@@ -2190,6 +2243,7 @@ Default is (1280, 720).</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.rewards"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.rewards</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.viewer"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.viewer</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.sim"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.sim</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.seed"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.seed</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.decimation"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.decimation</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.scene"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.scene</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.observations"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.observations</span></code></a></li>
@@ -2228,6 +2282,7 @@ Default is (1280, 720).</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.DirectRLEnvCfg.viewer"><code class="docutils literal notranslate"><span class="pre">DirectRLEnvCfg.viewer</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.DirectRLEnvCfg.sim"><code class="docutils literal notranslate"><span class="pre">DirectRLEnvCfg.sim</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.DirectRLEnvCfg.ui_window_class_type"><code class="docutils literal notranslate"><span class="pre">DirectRLEnvCfg.ui_window_class_type</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.DirectRLEnvCfg.seed"><code class="docutils literal notranslate"><span class="pre">DirectRLEnvCfg.seed</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.DirectRLEnvCfg.decimation"><code class="docutils literal notranslate"><span class="pre">DirectRLEnvCfg.decimation</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.DirectRLEnvCfg.is_finite_horizon"><code class="docutils literal notranslate"><span class="pre">DirectRLEnvCfg.is_finite_horizon</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.DirectRLEnvCfg.episode_length_s"><code class="docutils literal notranslate"><span class="pre">DirectRLEnvCfg.episode_length_s</span></code></a></li>
@@ -2288,7 +2343,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 09, 2024.
+  Last updated on Sep 10, 2024.
   <br/>
 </p>
   </div>

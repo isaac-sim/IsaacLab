@@ -57,7 +57,7 @@
     <link rel="prev" title="Tiled Rendering and Recording" href="tiled_rendering.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Sep 09, 2024"/>
+    <meta name="docbuild:last-update" content="Sep 10, 2024"/>
   </head>
   
   
@@ -232,6 +232,7 @@
 <li class="toctree-l1"><a class="reference internal" href="tiled_rendering.html">Tiled Rendering and Recording</a></li>
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">Environments</a></li>
 <li class="toctree-l1"><a class="reference internal" href="actuators.html">Actuators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="reproducibility.html">Reproducibility and Determinism</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
@@ -592,29 +593,20 @@ you would like to add to Isaac Lab, please feel free to open a pull request!</p>
 </thead>
 <tbody>
 <tr class="row-even"><td><p><img alt="humanoid" src="../../_images/humanoid.jpg" /></p></td>
-<td><div class="line-block">
-<div class="line"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/classic/humanoid/humanoid_env_cfg.py">Isaac-Humanoid-v0</a></div>
-<div class="line"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/humanoid/humanoid_env.py">Isaac-Humanoid-Direct-v0</a></div>
-</div>
-</td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/classic/humanoid/humanoid_env_cfg.py">Isaac-Humanoid-v0</a>
+<a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/humanoid/humanoid_env.py">Isaac-Humanoid-Direct-v0</a></p></td>
 <td><p>Move towards a direction with the MuJoCo humanoid robot</p></td>
 </tr>
 <tr class="row-odd"><td><p><img alt="ant" src="../../_images/ant.jpg" /></p></td>
-<td><div class="line-block">
-<div class="line"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/classic/ant/ant_env_cfg.py">Isaac-Ant-v0</a></div>
-<div class="line"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/ant/ant_env.py">Isaac-Ant-Direct-v0</a></div>
-</div>
-</td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/classic/ant/ant_env_cfg.py">Isaac-Ant-v0</a>
+<a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/ant/ant_env.py">Isaac-Ant-Direct-v0</a></p></td>
 <td><p>Move towards a direction with the MuJoCo ant robot</p></td>
 </tr>
 <tr class="row-even"><td><p><img alt="cartpole" src="../../_images/cartpole.jpg" /></p></td>
-<td><div class="line-block">
-<div class="line"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/classic/cartpole/cartpole_env_cfg.py">Isaac-Cartpole-v0</a></div>
-<div class="line"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/cartpole/cartpole_env.py">Isaac-Cartpole-Direct-v0</a></div>
-<div class="line"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/cartpole/cartpole_camera_env.py">Isaac-Cartpole-RGB-Camera-Direct-v0</a></div>
-<div class="line"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/cartpole/cartpole_camera_env.py">Isaac-Cartpole-Depth-Camera-Direct-v0</a></div>
-</div>
-</td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/classic/cartpole/cartpole_env_cfg.py">Isaac-Cartpole-v0</a>
+<a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/cartpole/cartpole_env.py">Isaac-Cartpole-Direct-v0</a>
+<a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/cartpole/cartpole_camera_env.py">Isaac-Cartpole-RGB-Camera-Direct-v0</a>
+<a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/cartpole/cartpole_camera_env.py">Isaac-Cartpole-Depth-Camera-Direct-v0</a></p></td>
 <td><p>Move the cart to keep the pole upwards in the classic cartpole control</p></td>
 </tr>
 </tbody>
@@ -661,20 +653,14 @@ for the reach environment:</p>
 <td><p>Grasp the handle of a cabinet’s drawer and open it with the Franka robot</p></td>
 </tr>
 <tr class="row-even"><td><p><img alt="cube-allegro" src="../../_images/allegro_cube.jpg" /></p></td>
-<td><div class="line-block">
-<div class="line"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/manipulation/inhand/config/allegro_hand/allegro_env_cfg.py">Isaac-Repose-Cube-Allegro-v0</a></div>
-<div class="line"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/allegro_hand/allegro_hand_env_cfg.py">Isaac-Repose-Cube-Allegro-Direct-v0</a></div>
-</div>
-</td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/manipulation/inhand/config/allegro_hand/allegro_env_cfg.py">Isaac-Repose-Cube-Allegro-v0</a>
+<a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/allegro_hand/allegro_hand_env_cfg.py">Isaac-Repose-Cube-Allegro-Direct-v0</a></p></td>
 <td><p>In-hand reorientation of a cube using Allegro hand</p></td>
 </tr>
 <tr class="row-odd"><td><p><img alt="cube-shadow" src="../../_images/shadow_cube.jpg" /></p></td>
-<td><div class="line-block">
-<div class="line"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/shadow_hand/shadow_hand_env_cfg.py">Isaac-Repose-Cube-Shadow-Direct-v0</a></div>
-<div class="line"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/shadow_hand/shadow_hand_env_cfg.py">Isaac-Repose-Cube-Shadow-OpenAI-FF-Direct-v0</a></div>
-<div class="line"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/shadow_hand/shadow_hand_env_cfg.py">Isaac-Repose-Cube-Shadow-OpenAI-LSTM-Direct-v0</a></div>
-</div>
-</td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/shadow_hand/shadow_hand_env_cfg.py">Isaac-Repose-Cube-Shadow-Direct-v0</a>
+<a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/shadow_hand/shadow_hand_env_cfg.py">Isaac-Repose-Cube-Shadow-OpenAI-FF-Direct-v0</a>
+<a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/shadow_hand/shadow_hand_env_cfg.py">Isaac-Repose-Cube-Shadow-OpenAI-LSTM-Direct-v0</a></p></td>
 <td><p>In-hand reorientation of a cube using Shadow hand</p></td>
 </tr>
 </tbody>
@@ -706,19 +692,13 @@ for the reach environment:</p>
 <td><p>Track a velocity command on rough terrain with the Anymal B robot</p></td>
 </tr>
 <tr class="row-even"><td><p><img alt="velocity-flat-anymal-c" src="../../_images/anymal_c_flat.jpg" /></p></td>
-<td><div class="line-block">
-<div class="line"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/locomotion/velocity/config/anymal_c/flat_env_cfg.py">Isaac-Velocity-Flat-Anymal-C-v0</a></div>
-<div class="line"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/anymal_c/anymal_c_env.py">Isaac-Velocity-Flat-Anymal-C-Direct-v0</a></div>
-</div>
-</td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/locomotion/velocity/config/anymal_c/flat_env_cfg.py">Isaac-Velocity-Flat-Anymal-C-v0</a>
+<a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/anymal_c/anymal_c_env.py">Isaac-Velocity-Flat-Anymal-C-Direct-v0</a></p></td>
 <td><p>Track a velocity command on flat terrain with the Anymal C robot</p></td>
 </tr>
 <tr class="row-odd"><td><p><img alt="velocity-rough-anymal-c" src="../../_images/anymal_c_rough.jpg" /></p></td>
-<td><div class="line-block">
-<div class="line"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/locomotion/velocity/config/anymal_c/rough_env_cfg.py">Isaac-Velocity-Rough-Anymal-C-v0</a></div>
-<div class="line"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/anymal_c/anymal_c_env.py">Isaac-Velocity-Rough-Anymal-C-Direct-v0</a></div>
-</div>
-</td>
+<td><p><a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/locomotion/velocity/config/anymal_c/rough_env_cfg.py">Isaac-Velocity-Rough-Anymal-C-v0</a>
+<a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/anymal_c/anymal_c_env.py">Isaac-Velocity-Rough-Anymal-C-Direct-v0</a></p></td>
 <td><p>Track a velocity command on rough terrain with the Anymal C robot</p></td>
 </tr>
 <tr class="row-even"><td><p><img alt="velocity-flat-anymal-d" src="../../_images/anymal_d_flat.jpg" /></p></td>
@@ -908,7 +888,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 09, 2024.
+  Last updated on Sep 10, 2024.
   <br/>
 </p>
   </div>

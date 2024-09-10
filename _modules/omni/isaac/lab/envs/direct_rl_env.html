@@ -54,7 +54,7 @@
     <link rel="search" title="Search" href="../../../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Sep 09, 2024"/>
+    <meta name="docbuild:last-update" content="Sep 10, 2024"/>
   </head>
   
   
@@ -231,6 +231,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/tiled_rendering.html">Tiled Rendering and Recording</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/environments.html">Environments</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/actuators.html">Actuators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/reproducibility.html">Reproducibility and Determinism</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
@@ -572,6 +573,12 @@ document.write(`
         <span class="c1"># initialize internal variables</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_is_closed</span> <span class="o">=</span> <span class="kc">False</span>
 
+        <span class="c1"># set the seed for the environment</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">seed</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">seed</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">carb</span><span class="o">.</span><span class="n">log_warn</span><span class="p">(</span><span class="s2">&quot;Seed not set for the environment. The environment creation may not be deterministic.&quot;</span><span class="p">)</span>
+
         <span class="c1"># create a simulation context to control the simulator</span>
         <span class="k">if</span> <span class="n">SimulationContext</span><span class="o">.</span><span class="n">instance</span><span class="p">()</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="p">:</span> <span class="n">SimulationContext</span> <span class="o">=</span> <span class="n">SimulationContext</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">sim</span><span class="p">)</span>
@@ -581,6 +588,7 @@ document.write(`
         <span class="c1"># print useful information</span>
         <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Base environment:&quot;</span><span class="p">)</span>
         <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">Environment device    : </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">Environment seed      : </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">seed</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
         <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">Physics step-size     : </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">physics_dt</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
         <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">Rendering step-size   : </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">physics_dt</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">render_interval</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
         <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">Environment step-size : </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">step_dt</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
@@ -729,6 +737,10 @@ document.write(`
 <div class="viewcode-block" id="DirectRLEnv.reset"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnv.reset">[docs]</a>    <span class="k">def</span> <span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">seed</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">options</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">VecEnvObs</span><span class="p">,</span> <span class="nb">dict</span><span class="p">]:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Resets all the environments and returns observations.</span>
 
+<span class="sd">        This function calls the :meth:`_reset_idx` function to reset all the environments.</span>
+<span class="sd">        However, certain operations, such as procedural terrain generation, that happened during initialization</span>
+<span class="sd">        are not repeated.</span>
+
 <span class="sd">        Args:</span>
 <span class="sd">            seed: The seed to use for randomization. Defaults to None, in which case the seed is not set.</span>
 <span class="sd">            options: Additional information to specify how the environment is reset. Defaults to None.</span>
@@ -742,13 +754,13 @@ document.write(`
         <span class="c1"># set the seed</span>
         <span class="k">if</span> <span class="n">seed</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="n">seed</span><span class="p">)</span>
+
         <span class="c1"># reset state of scene</span>
         <span class="n">indices</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">int64</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_reset_idx</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
 
-        <span class="n">obs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_observations</span><span class="p">()</span>
         <span class="c1"># return observations</span>
-        <span class="k">return</span> <span class="n">obs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">extras</span></div>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_observations</span><span class="p">(),</span> <span class="bp">self</span><span class="o">.</span><span class="n">extras</span></div>
 
 <div class="viewcode-block" id="DirectRLEnv.step"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnv.step">[docs]</a>    <span class="k">def</span> <span class="nf">step</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">action</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">VecEnvStepReturn</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Execute one time-step of the environment&#39;s dynamics.</span>
@@ -1153,7 +1165,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 09, 2024.
+  Last updated on Sep 10, 2024.
   <br/>
 </p>
   </div>

@@ -57,7 +57,7 @@
     <link rel="prev" title="Interacting with a rigid object" href="run_rigid_object.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Sep 09, 2024"/>
+    <meta name="docbuild:last-update" content="Sep 10, 2024"/>
   </head>
   
   
@@ -232,6 +232,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../../features/tiled_rendering.html">Tiled Rendering and Recording</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/environments.html">Environments</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/actuators.html">Actuators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/reproducibility.html">Reproducibility and Determinism</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="current nav bd-sidenav">
@@ -746,6 +747,20 @@ default initial state, actuator models for different joints, and other meta-info
 create this configuration object is provided in the <a class="reference internal" href="../../how-to/write_articulation_cfg.html#how-to-write-articulation-config"><span class="std std-ref">Writing an Asset Configuration</span></a> tutorial.</p>
 <p>As seen in the previous tutorial, we can spawn the articulation into the scene in a similar fashion by creating
 an instance of the <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation" title="omni.isaac.lab.assets.Articulation"><code class="xref py py-class docutils literal notranslate"><span class="pre">assets.Articulation</span></code></a> class by passing the configuration object to its constructor.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span>    <span class="c1"># Create separate groups called &quot;Origin1&quot;, &quot;Origin2&quot;</span>
+    <span class="c1"># Each group will have a robot in it</span>
+    <span class="n">origins</span> <span class="o">=</span> <span class="p">[[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="o">-</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">]]</span>
+    <span class="c1"># Origin 1</span>
+    <span class="n">prim_utils</span><span class="o">.</span><span class="n">create_prim</span><span class="p">(</span><span class="s2">&quot;/World/Origin1&quot;</span><span class="p">,</span> <span class="s2">&quot;Xform&quot;</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="n">origins</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="c1"># Origin 2</span>
+    <span class="n">prim_utils</span><span class="o">.</span><span class="n">create_prim</span><span class="p">(</span><span class="s2">&quot;/World/Origin2&quot;</span><span class="p">,</span> <span class="s2">&quot;Xform&quot;</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="n">origins</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+
+    <span class="c1"># Articulation</span>
+    <span class="n">cartpole_cfg</span> <span class="o">=</span> <span class="n">CARTPOLE_CFG</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="n">cartpole_cfg</span><span class="o">.</span><span class="n">prim_path</span> <span class="o">=</span> <span class="s2">&quot;/World/Origin.*/Robot&quot;</span>
+    <span class="n">cartpole</span> <span class="o">=</span> <span class="n">Articulation</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">cartpole_cfg</span><span class="p">)</span>
+</pre></div>
+</div>
 </section>
 <section id="running-the-simulation-loop">
 <h3>Running the simulation loop<a class="headerlink" href="#running-the-simulation-loop" title="Permalink to this heading">#</a></h3>
@@ -927,7 +942,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 09, 2024.
+  Last updated on Sep 10, 2024.
   <br/>
 </p>
   </div>

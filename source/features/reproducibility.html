@@ -9,7 +9,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
-    <title>Multi-GPU and Multi-Node Training &#8212; Isaac Lab documentation</title>
+    <title>Reproducibility and Determinism &#8212; Isaac Lab documentation</title>
   
   
   
@@ -49,12 +49,12 @@
     <script src="../../_static/copybutton.js"></script>
     <script src="../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
     <script src="../../_static/design-tabs.js"></script>
-    <script>DOCUMENTATION_OPTIONS.pagename = 'source/features/multi_gpu';</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'source/features/reproducibility';</script>
     <link rel="icon" href="../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
-    <link rel="next" title="Tiled Rendering and Recording" href="tiled_rendering.html" />
-    <link rel="prev" title="Hydra Configuration System" href="hydra.html" />
+    <link rel="next" title="Tutorials" href="../tutorials/index.html" />
+    <link rel="prev" title="Actuators" href="actuators.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
     <meta name="docbuild:last-update" content="Sep 10, 2024"/>
@@ -228,11 +228,11 @@
 <ul class="current nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="task_workflows.html">Task Design Workflows</a></li>
 <li class="toctree-l1"><a class="reference internal" href="hydra.html">Hydra Configuration System</a></li>
-<li class="toctree-l1 current active"><a class="current reference internal" href="#">Multi-GPU and Multi-Node Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="tiled_rendering.html">Tiled Rendering and Recording</a></li>
 <li class="toctree-l1"><a class="reference internal" href="environments.html">Environments</a></li>
 <li class="toctree-l1"><a class="reference internal" href="actuators.html">Actuators</a></li>
-<li class="toctree-l1"><a class="reference internal" href="reproducibility.html">Reproducibility and Determinism</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Reproducibility and Determinism</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
@@ -409,7 +409,7 @@
       
       
       
-      <li><a href="https://github.com/isaac-sim/IsaacLab/edit/main/source/features/multi_gpu.rst" target="_blank"
+      <li><a href="https://github.com/isaac-sim/IsaacLab/edit/main/source/features/reproducibility.rst" target="_blank"
    class="btn btn-sm btn-source-edit-button dropdown-item"
    title="Suggest edit"
    data-bs-placement="left" data-bs-toggle="tooltip"
@@ -426,7 +426,7 @@
       
       
       
-      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2Fsource/features/multi_gpu.html&body=Your%20issue%20content%20here." target="_blank"
+      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2Fsource/features/reproducibility.html&body=Your%20issue%20content%20here." target="_blank"
    class="btn btn-sm btn-source-issues-button dropdown-item"
    title="Open an issue"
    data-bs-placement="left" data-bs-toggle="tooltip"
@@ -456,7 +456,7 @@
       
       
       
-      <li><a href="../../_sources/source/features/multi_gpu.rst" target="_blank"
+      <li><a href="../../_sources/source/features/reproducibility.rst" target="_blank"
    class="btn btn-sm btn-download-source-button dropdown-item"
    title="Download source file"
    data-bs-placement="left" data-bs-toggle="tooltip"
@@ -527,9 +527,7 @@ document.write(`
   </button>
 `);
 </script>
-<label class="sidebar-toggle secondary-toggle btn btn-sm" for="__secondary"title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
-    <span class="fa-solid fa-list"></span>
-</label>
+
 </div></div>
       
     </div>
@@ -540,20 +538,11 @@ document.write(`
               
 
 <div id="jb-print-docs-body" class="onlyprint">
-    <h1>Multi-GPU and Multi-Node Training</h1>
+    <h1>Reproducibility and Determinism</h1>
     <!-- Table of contents -->
     <div id="print-main-content">
         <div id="jb-print-toc">
             
-            <div>
-                <h2> Contents </h2>
-            </div>
-            <nav aria-label="Page">
-                <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#multi-gpu-training">Multi-GPU Training</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#multi-node-training">Multi-Node Training</a></li>
-</ul>
-            </nav>
         </div>
     </div>
 </div>
@@ -563,96 +552,39 @@ document.write(`
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="multi-gpu-and-multi-node-training">
-<h1>Multi-GPU and Multi-Node Training<a class="headerlink" href="#multi-gpu-and-multi-node-training" title="Permalink to this heading">#</a></h1>
-<p>Isaac Lab supports multi-GPU and multi-node reinforcement learning. Currently, this feature is only
-available for RL-Games and skrl libraries workflows. We are working on extending this feature to
-other workflows.</p>
-<div class="admonition attention">
-<p class="admonition-title">Attention</p>
-<p>Multi-GPU and multi-node training is only supported on Linux. Windows support is not available at this time.
-This is due to limitations of the NCCL library on Windows.</p>
+  <section id="reproducibility-and-determinism">
+<h1>Reproducibility and Determinism<a class="headerlink" href="#reproducibility-and-determinism" title="Permalink to this heading">#</a></h1>
+<p>Given the same hardware and Isaac Sim (and consequently PhysX) version, the simulation produces
+identical results for scenes with rigid bodies and articulations. However, the simulation results can
+vary across different hardware configurations due to floating point precision and rounding errors.
+At present, PhysX does not guarantee determinism for any scene with non-rigid bodies, such as cloth
+or soft bodies. For more information, please refer to the <a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/docs/API.html#determinism">PhysX Determinism documentation</a>.</p>
+<p>Based on above, Isaac Lab provides a deterministic simulation that ensures consistent simulation
+results across different runs. This is achieved by using the same random seed for the
+simulation environment and the physics engine. At construction of the environment, the random seed
+is set to a fixed value using the <code class="xref py py-meth docutils literal notranslate"><span class="pre">set_seed()</span></code> method. This method sets the
+random seed for both the CPU and GPU globally across different libraries, including PyTorch and
+NumPy.</p>
+<p>In the included workflow scripts, the seed specified in the learning agent’s configuration file or the
+command line argument is used to set the random seed for the environment. This ensures that the
+simulation results are reproducible across different runs. The seed is set into the environment
+parameters <a class="reference internal" href="../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnvCfg.seed" title="omni.isaac.lab.envs.ManagerBasedEnvCfg.seed"><code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.envs.ManagerBasedEnvCfg.seed</span></code></a> or <a class="reference internal" href="../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnvCfg.seed" title="omni.isaac.lab.envs.DirectRLEnvCfg.seed"><code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.envs.DirectRLEnvCfg.seed</span></code></a>
+depending on the manager-based or direct environment implementation respectively.</p>
+<p>For results on our determinacy testing for RL training, please check the GitHub Pull Request <a class="reference external" href="https://github.com/isaac-sim/IsaacLab/pull/940">#940</a>.</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>Due to GPU work scheduling, there’s a possibility that runtime changes to simulation parameters
+may alter the order in which operations take place. This occurs because environment updates can
+happen while the GPU is occupied with other tasks. Due to the inherent nature of floating-point
+numeric storage, any modification to the execution ordering can result in minor changes in the
+least significant bits of output data. These changes may lead to divergent execution over the
+course of simulating thousands of environments and simulation frames.</p>
+<p>An illustrative example of this issue is observed with the runtime domain randomization of object’s
+physics materials. This process can introduce both determinacy and simulation issues when executed
+on the GPU due to the way these parameters are passed from the CPU to the GPU in the lower-level APIs.
+Consequently, it is strongly advised to perform this operation only at setup time, before the
+environment stepping commences.</p>
 </div>
-<section id="multi-gpu-training">
-<h2>Multi-GPU Training<a class="headerlink" href="#multi-gpu-training" title="Permalink to this heading">#</a></h2>
-<p>For complex reinforcement learning environments, it may be desirable to scale up training across multiple GPUs.
-This is possible in Isaac Lab through the use of the
-<a class="reference external" href="https://pytorch.org/docs/stable/distributed.html">PyTorch distributed</a> framework.</p>
-<p>The <code class="xref py py-meth docutils literal notranslate"><span class="pre">torch.distributed()</span></code> API is used to launch multiple processes of training, where the number of
-processes must be equal to or less than the number of GPUs available. Each process runs on
-a dedicated GPU and launches its own instance of Isaac Sim and the Isaac Lab environment.
-Each process collects its own rollouts during the training process and has its own copy of the policy
-network. During training, gradients are aggregated across the processes and broadcasted back to the process
-at the end of the epoch.</p>
-<a class="only-light reference internal image-reference" href="../../_images/a3c-light.svg"><img alt="Multi-GPU training paradigm" class="only-light align-center" src="../../_images/a3c-light.svg" width="80%" /></a>
-<a class="only-dark reference internal image-reference" href="../../_images/a3c-dark.svg"><img alt="Multi-GPU training paradigm" class="only-dark align-center" src="../../_images/a3c-dark.svg" width="80%" /></a>
-<p>To train with multiple GPUs, use the following command, where <code class="docutils literal notranslate"><span class="pre">--proc_per_node</span></code> represents the number of available GPUs:</p>
-<div class="sd-tab-set docutils">
-<input checked="checked" id="sd-tab-item-0" name="sd-tab-set-0" type="radio">
-<label class="sd-tab-label" data-sync-group="rl-train" data-sync-id="rl_games" for="sd-tab-item-0">
-rl_games</label><div class="sd-tab-content docutils">
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>torch.distributed.run<span class="w"> </span>--nnodes<span class="o">=</span><span class="m">1</span><span class="w"> </span>--nproc_per_node<span class="o">=</span><span class="m">2</span><span class="w"> </span>source/standalone/workflows/rl_games/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>--distributed
-</pre></div>
-</div>
-</div>
-<input id="sd-tab-item-1" name="sd-tab-set-0" type="radio">
-<label class="sd-tab-label" data-sync-group="rl-train" data-sync-id="skrl" for="sd-tab-item-1">
-skrl</label><div class="sd-tab-content docutils">
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>torch.distributed.run<span class="w"> </span>--nnodes<span class="o">=</span><span class="m">1</span><span class="w"> </span>--nproc_per_node<span class="o">=</span><span class="m">2</span><span class="w"> </span>source/standalone/workflows/skrl/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>--distributed
-</pre></div>
-</div>
-</div>
-</div>
-</section>
-<section id="multi-node-training">
-<h2>Multi-Node Training<a class="headerlink" href="#multi-node-training" title="Permalink to this heading">#</a></h2>
-<p>To scale up training beyond multiple GPUs on a single machine, it is also possible to train across multiple nodes.
-To train across multiple nodes/machines, it is required to launch an individual process on each node.</p>
-<p>For the master node, use the following command, where <code class="docutils literal notranslate"><span class="pre">--proc_per_node</span></code> represents the number of available GPUs, and
-<code class="docutils literal notranslate"><span class="pre">--nnodes</span></code> represents the number of nodes:</p>
-<div class="sd-tab-set docutils">
-<input checked="checked" id="sd-tab-item-2" name="sd-tab-set-1" type="radio">
-<label class="sd-tab-label" data-sync-group="rl-train" data-sync-id="rl_games" for="sd-tab-item-2">
-rl_games</label><div class="sd-tab-content docutils">
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>torch.distributed.run<span class="w"> </span>--nproc_per_node<span class="o">=</span><span class="m">2</span><span class="w"> </span>--nnodes<span class="o">=</span><span class="m">2</span><span class="w"> </span>--node_rank<span class="o">=</span><span class="m">0</span><span class="w"> </span>--rdzv_id<span class="o">=</span><span class="m">123</span><span class="w"> </span>--rdzv_backend<span class="o">=</span>c10d<span class="w"> </span>--rdzv_endpoint<span class="o">=</span>localhost:5555<span class="w"> </span>source/standalone/workflows/rl_games/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>--distributed
-</pre></div>
-</div>
-</div>
-<input id="sd-tab-item-3" name="sd-tab-set-1" type="radio">
-<label class="sd-tab-label" data-sync-group="rl-train" data-sync-id="skrl" for="sd-tab-item-3">
-skrl</label><div class="sd-tab-content docutils">
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>torch.distributed.run<span class="w"> </span>--nproc_per_node<span class="o">=</span><span class="m">2</span><span class="w"> </span>--nnodes<span class="o">=</span><span class="m">2</span><span class="w"> </span>--node_rank<span class="o">=</span><span class="m">0</span><span class="w"> </span>--rdzv_id<span class="o">=</span><span class="m">123</span><span class="w"> </span>--rdzv_backend<span class="o">=</span>c10d<span class="w"> </span>--rdzv_endpoint<span class="o">=</span>localhost:5555<span class="w"> </span>source/standalone/workflows/skrl/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>--distributed
-</pre></div>
-</div>
-</div>
-</div>
-<p>Note that the port (<code class="docutils literal notranslate"><span class="pre">5555</span></code>) can be replaced with any other available port.</p>
-<p>For non-master nodes, use the following command, replacing <code class="docutils literal notranslate"><span class="pre">--node_rank</span></code> with the index of each machine:</p>
-<div class="sd-tab-set docutils">
-<input checked="checked" id="sd-tab-item-4" name="sd-tab-set-2" type="radio">
-<label class="sd-tab-label" data-sync-group="rl-train" data-sync-id="rl_games" for="sd-tab-item-4">
-rl_games</label><div class="sd-tab-content docutils">
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>torch.distributed.run<span class="w"> </span>--nproc_per_node<span class="o">=</span><span class="m">2</span><span class="w"> </span>--nnodes<span class="o">=</span><span class="m">2</span><span class="w"> </span>--node_rank<span class="o">=</span><span class="m">1</span><span class="w"> </span>--rdzv_id<span class="o">=</span><span class="m">123</span><span class="w"> </span>--rdzv_backend<span class="o">=</span>c10d<span class="w"> </span>--rdzv_endpoint<span class="o">=</span>ip_of_master_machine:5555<span class="w"> </span>source/standalone/workflows/rl_games/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>--distributed
-</pre></div>
-</div>
-</div>
-<input id="sd-tab-item-5" name="sd-tab-set-2" type="radio">
-<label class="sd-tab-label" data-sync-group="rl-train" data-sync-id="skrl" for="sd-tab-item-5">
-skrl</label><div class="sd-tab-content docutils">
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>torch.distributed.run<span class="w"> </span>--nproc_per_node<span class="o">=</span><span class="m">2</span><span class="w"> </span>--nnodes<span class="o">=</span><span class="m">2</span><span class="w"> </span>--node_rank<span class="o">=</span><span class="m">1</span><span class="w"> </span>--rdzv_id<span class="o">=</span><span class="m">123</span><span class="w"> </span>--rdzv_backend<span class="o">=</span>c10d<span class="w"> </span>--rdzv_endpoint<span class="o">=</span>ip_of_master_machine:5555<span class="w"> </span>source/standalone/workflows/skrl/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>--distributed
-</pre></div>
-</div>
-</div>
-</div>
-<p>For more details on multi-node training with PyTorch, please visit the
-<a class="reference external" href="https://pytorch.org/tutorials/intermediate/ddp_series_multinode.html">PyTorch documentation</a>.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>As mentioned in the PyTorch documentation, “multi-node training is bottlenecked by inter-node communication
-latencies”. When this latency is high, it is possible multi-node training will perform worse than running on
-a single node instance.</p>
-</div>
-</section>
 </section>
 
 
@@ -667,20 +599,20 @@ a single node instance.</p>
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="hydra.html"
+       href="actuators.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">Hydra Configuration System</p>
+        <p class="prev-next-title">Actuators</p>
       </div>
     </a>
     <a class="right-next"
-       href="tiled_rendering.html"
+       href="../tutorials/index.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Tiled Rendering and Recording</p>
+        <p class="prev-next-title">Tutorials</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -690,22 +622,6 @@ a single node instance.</p>
             </div>
             
             
-              
-                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
-
-
-  <div class="sidebar-secondary-item">
-  <div class="page-toc tocsection onthispage">
-    <i class="fa-solid fa-list"></i> Contents
-  </div>
-  <nav class="bd-toc-nav page-toc">
-    <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#multi-gpu-training">Multi-GPU Training</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#multi-node-training">Multi-Node Training</a></li>
-</ul>
-  </nav></div>
-
-</div></div>
               
             
           </div>
