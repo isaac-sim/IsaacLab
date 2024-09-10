@@ -502,11 +502,10 @@ document.write(`
 <span class="kn">import</span> <span class="nn">re</span>
 <span class="kn">import</span> <span class="nn">yaml</span>
 
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.envs</span> <span class="kn">import</span> <span class="n">ManagerBasedRLEnvCfg</span>
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.utils</span> <span class="kn">import</span> <span class="n">update_class_from_dict</span><span class="p">,</span> <span class="n">update_dict</span>
+<span class="kn">from</span> <span class="nn">omni.isaac.lab.envs</span> <span class="kn">import</span> <span class="n">DirectRLEnvCfg</span><span class="p">,</span> <span class="n">ManagerBasedRLEnvCfg</span>
 
 
-<div class="viewcode-block" id="load_cfg_from_registry"><a class="viewcode-back" href="../../../../../source/api/lab_tasks/omni.isaac.lab_tasks.utils.html#omni.isaac.lab_tasks.utils.load_cfg_from_registry">[docs]</a><span class="k">def</span> <span class="nf">load_cfg_from_registry</span><span class="p">(</span><span class="n">task_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">entry_point_key</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span> <span class="o">|</span> <span class="n">ManagerBasedRLEnvCfg</span><span class="p">:</span>
+<div class="viewcode-block" id="load_cfg_from_registry"><a class="viewcode-back" href="../../../../../source/api/lab_tasks/omni.isaac.lab_tasks.utils.html#omni.isaac.lab_tasks.utils.load_cfg_from_registry">[docs]</a><span class="k">def</span> <span class="nf">load_cfg_from_registry</span><span class="p">(</span><span class="n">task_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">entry_point_key</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span> <span class="o">|</span> <span class="nb">object</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Load default configuration given its entry point from the gym registry.</span>
 
 <span class="sd">    This function loads the configuration object from the gym registry for the given task name.</span>
@@ -535,7 +534,8 @@ document.write(`
 <span class="sd">        entry_point_key: The entry point key to resolve the configuration file.</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">        The parsed configuration object. This is either a dictionary or a class object.</span>
+<span class="sd">        The parsed configuration object. If the entry point is a YAML file, it is parsed into a dictionary.</span>
+<span class="sd">        If the entry point is a Python class, it is instantiated and returned.</span>
 
 <span class="sd">    Raises:</span>
 <span class="sd">        ValueError: If the entry point key is not available in the gym registry for the task.</span>
@@ -587,7 +587,7 @@ document.write(`
 
 <div class="viewcode-block" id="parse_env_cfg"><a class="viewcode-back" href="../../../../../source/api/lab_tasks/omni.isaac.lab_tasks.utils.html#omni.isaac.lab_tasks.utils.parse_env_cfg">[docs]</a><span class="k">def</span> <span class="nf">parse_env_cfg</span><span class="p">(</span>
     <span class="n">task_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">device</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;cuda:0&quot;</span><span class="p">,</span> <span class="n">num_envs</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">use_fabric</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span> <span class="o">|</span> <span class="n">ManagerBasedRLEnvCfg</span><span class="p">:</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ManagerBasedRLEnvCfg</span> <span class="o">|</span> <span class="n">DirectRLEnvCfg</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Parse configuration for an environment and override based on inputs.</span>
 
 <span class="sd">    Args:</span>
@@ -599,35 +599,28 @@ document.write(`
 <span class="sd">            Defaults to None, in which case it is left unchanged.</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">        The parsed configuration object. This is either a dictionary or a class object.</span>
+<span class="sd">        The parsed configuration object.</span>
 
 <span class="sd">    Raises:</span>
-<span class="sd">        ValueError: If the task name is not provided, i.e. None.</span>
+<span class="sd">        RuntimeError: If the configuration for the task is not a class. We assume users always use a class for the</span>
+<span class="sd">            environment configuration.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="c1"># check if a task name is provided</span>
-    <span class="k">if</span> <span class="n">task_name</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Please provide a valid task name. Hint: Use --task &lt;task_name&gt;.&quot;</span><span class="p">)</span>
-    <span class="c1"># create a dictionary to update from</span>
-    <span class="n">args_cfg</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;sim&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;physx&quot;</span><span class="p">:</span> <span class="nb">dict</span><span class="p">()},</span> <span class="s2">&quot;scene&quot;</span><span class="p">:</span> <span class="nb">dict</span><span class="p">()}</span>
-
-    <span class="c1"># simulation device</span>
-    <span class="n">args_cfg</span><span class="p">[</span><span class="s2">&quot;sim&quot;</span><span class="p">][</span><span class="s2">&quot;device&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">device</span>
-
-    <span class="c1"># disable fabric to read/write through USD</span>
-    <span class="k">if</span> <span class="n">use_fabric</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">args_cfg</span><span class="p">[</span><span class="s2">&quot;sim&quot;</span><span class="p">][</span><span class="s2">&quot;use_fabric&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">use_fabric</span>
-
-    <span class="c1"># number of environments</span>
-    <span class="k">if</span> <span class="n">num_envs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">args_cfg</span><span class="p">[</span><span class="s2">&quot;scene&quot;</span><span class="p">][</span><span class="s2">&quot;num_envs&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">num_envs</span>
-
     <span class="c1"># load the default configuration</span>
     <span class="n">cfg</span> <span class="o">=</span> <span class="n">load_cfg_from_registry</span><span class="p">(</span><span class="n">task_name</span><span class="p">,</span> <span class="s2">&quot;env_cfg_entry_point&quot;</span><span class="p">)</span>
-    <span class="c1"># update the main configuration</span>
+
+    <span class="c1"># check that it is not a dict</span>
+    <span class="c1"># we assume users always use a class for the configuration</span>
     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
-        <span class="n">cfg</span> <span class="o">=</span> <span class="n">update_dict</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">args_cfg</span><span class="p">)</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="n">update_class_from_dict</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">args_cfg</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Configuration for the task: &#39;</span><span class="si">{</span><span class="n">task_name</span><span class="si">}</span><span class="s2">&#39; is not a class. Please provide a class.&quot;</span><span class="p">)</span>
+
+    <span class="c1"># simulation device</span>
+    <span class="n">cfg</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span> <span class="o">=</span> <span class="n">device</span>
+    <span class="c1"># disable fabric to read/write through USD</span>
+    <span class="k">if</span> <span class="n">use_fabric</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">cfg</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">use_fabric</span> <span class="o">=</span> <span class="n">use_fabric</span>
+    <span class="c1"># number of environments</span>
+    <span class="k">if</span> <span class="n">num_envs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">cfg</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span> <span class="o">=</span> <span class="n">num_envs</span>
 
     <span class="k">return</span> <span class="n">cfg</span></div>
 
@@ -654,12 +647,13 @@ document.write(`
 <span class="sd">        sort_alpha: Whether to sort the runs by alphabetical order. Defaults to True.</span>
 <span class="sd">            If False, the folders in :attr:`run_dir` are sorted by the last modified time.</span>
 
+<span class="sd">    Returns:</span>
+<span class="sd">        The path to the model checkpoint.</span>
+
 <span class="sd">    Raises:</span>
 <span class="sd">        ValueError: When no runs are found in the input directory.</span>
 <span class="sd">        ValueError: When no checkpoints are found in the input directory.</span>
 
-<span class="sd">    Returns:</span>
-<span class="sd">        The path to the model checkpoint.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="c1"># check if runs present in directory</span>
     <span class="k">try</span><span class="p">:</span>
