@@ -113,7 +113,7 @@ Executing the above script will create two USD files inside the
 To run the script headless, you can add the ``--headless`` flag. This will not open the GUI and
 exit the script after the conversion is complete.
 
-You can press play on the opened window to see the asset in the scene. The asset should fall under gravity. If it blows up, then it might be that you have self-collisions present in the URDF. 
+You can press play on the opened window to see the asset in the scene. The asset should fall under gravity. If it blows up, then it might be that you have self-collisions present in the URDF.
 
 
 .. figure:: ../_static/tutorials/tutorial_convert_urdf.jpg
