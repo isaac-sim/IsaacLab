@@ -72,7 +72,7 @@ class ArticulationData:
 
         # Link com
         com_pos_b, _ = self._root_physx_view.get_coms().to(self.device).split([3, 4], dim=-1)
-        self._com_pos_b = torch.tensor(com_pos_b,device=self.device)
+        self._com_pos_b = torch.tensor(com_pos_b, device=self.device)
 
     def update(self, dt: float):
         # update the simulation timestamp
@@ -268,7 +268,7 @@ class ArticulationData:
             pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
             velocity = self._root_physx_view.get_root_velocities()
             velocity[:, :3] += torch.linalg.cross(
-                velocity[:, 3:], math_utils.quat_rotate(pose[:, 3:7], -self._com_pos_b[:,0,:]), dim=-1
+                velocity[:, 3:], math_utils.quat_rotate(pose[:, 3:7], -self._com_pos_b[:, 0, :]), dim=-1
             )
 
             # set the buffer data and timestamp
