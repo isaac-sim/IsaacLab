@@ -21,8 +21,6 @@ import unittest
 import carb
 import omni.usd
 
-from omni.isaac.lab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg
-
 import omni.isaac.lab_tasks  # noqa: F401
 from omni.isaac.lab_tasks.utils.parse_cfg import parse_env_cfg
 
@@ -88,9 +86,9 @@ class TestEnvironments(unittest.TestCase):
         # create a new stage
         omni.usd.get_context().new_stage()
         # parse configuration
-        env_cfg: ManagerBasedRLEnvCfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
+        env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
         # create environment
-        env: ManagerBasedRLEnv = gym.make(task_name, cfg=env_cfg)
+        env = gym.make(task_name, cfg=env_cfg)
 
         # disable control on stop
         env.unwrapped.sim._app_control_on_stop_handle = None  # type: ignore
