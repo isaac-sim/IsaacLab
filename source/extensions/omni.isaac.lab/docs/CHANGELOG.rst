@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+0.22.11 (2024-09-10)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* introducing a properties get_jacobian_w, get_jacobian_b to differentiate between world and base frame jacobians
+  :class:`omni.isaac.lab.envs.mdp.actions.task_space_actions.DifferentialInverseKinematicsAction`
+* use base frame jacobian to in 
+  :meth:`omni.isaac.lab.envs.mdp.actions.task_space_actions.DifferentialInverseKinematicsAction._compute_frame_jacobian`
+
+
 0.22.10 (2024-09-09)
 ~~~~~~~~~~~~~~~~~~~~
 
