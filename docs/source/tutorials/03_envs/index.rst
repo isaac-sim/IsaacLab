@@ -15,3 +15,4 @@ different aspects of the framework to create a simulation environment for agent 
     create_direct_rl_env
     register_rl_env_gym
     run_rl_training
+    modify_direct_rl_env

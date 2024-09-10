@@ -1,3 +1,5 @@
+.. _tutorial-register-rl-env-gym:
+
 Registering an Environment
 ==========================
 
