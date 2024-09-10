@@ -74,7 +74,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: dict):
 
     # set the environment seed
     # note: certain randomizations occur in the environment initialization so we set the seed here
-    env_cfg.set_seed(agent_cfg["seed"])
+    env_cfg.seed = agent_cfg["seed"]
 
     # directory for logging into
     log_dir = os.path.join("logs", "sb3", args_cli.task, datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))

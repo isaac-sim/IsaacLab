@@ -85,9 +85,8 @@ class DirectRLEnv(gym.Env):
         self._is_closed = False
 
         # set the seed for the environment
-        seed = self.cfg.get_seed()
-        if seed is not None:
-            self.seed(seed)
+        if self.cfg.seed is not None:
+            self.seed(self.cfg.seed)
         else:
             carb.log_warn("Seed not set for the environment. The environment creation may not be deterministic.")
 
@@ -100,6 +99,7 @@ class DirectRLEnv(gym.Env):
         # print useful information
         print("[INFO]: Base environment:")
         print(f"\tEnvironment device    : {self.device}")
+        print(f"\tEnvironment seed      : {self.cfg.seed}")
         print(f"\tPhysics step-size     : {self.physics_dt}")
         print(f"\tRendering step-size   : {self.physics_dt * self.cfg.sim.render_interval}")
         print(f"\tEnvironment step-size : {self.step_dt}")

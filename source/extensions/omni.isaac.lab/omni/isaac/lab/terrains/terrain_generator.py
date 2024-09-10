@@ -71,8 +71,8 @@ class TerrainGenerator:
     .. attention::
 
         The terrain generation has its own seed parameter. This is set using the :attr:`TerrainGeneratorCfg.seed`
-        parameter. If the seed is not set and the caching is disabled, the terrain generation will not be
-        reproducible.
+        parameter. If the seed is not set and the caching is disabled, the terrain generation may not be
+        completely reproducible.
 
     """
 
@@ -124,10 +124,16 @@ class TerrainGenerator:
                 " Please set the seed in the terrain generator configuration to make the generation reproducible."
             )
 
+        # if the seed is not set, we assume there is a global seed set and use that.
+        # this ensures that the terrain is reproducible if the seed is set at the beginning of the program.
+        if self.cfg.seed is not None:
+            seed = self.cfg.seed
+        else:
+            seed = np.random.get_state()[1][0]
         # set the seed for reproducibility
         # note: we create a new random number generator to avoid affecting the global state
         #  in the other places where random numbers are used.
-        self.np_rng = np.random.default_rng(self.cfg.seed)
+        self.np_rng = np.random.default_rng(seed)
 
         # buffer for storing valid patches
         self.flat_patches = {}
