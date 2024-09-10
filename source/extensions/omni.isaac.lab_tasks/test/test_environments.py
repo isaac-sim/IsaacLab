@@ -21,6 +21,8 @@ import unittest
 import carb
 import omni.usd
 
+from omni.isaac.lab.envs import ManagerBasedRLEnvCfg
+
 import omni.isaac.lab_tasks  # noqa: F401
 from omni.isaac.lab_tasks.utils.parse_cfg import parse_env_cfg
 

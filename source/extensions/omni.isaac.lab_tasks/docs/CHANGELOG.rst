@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.10.4 (2024-09-10)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Repose-Cube-Shadow-Vision-Direct-v0`` environment with heterogeneous proprioception and vision observations.
+
+
 0.10.3 (2024-09-05)
 ~~~~~~~~~~~~~~~~~~~
 
