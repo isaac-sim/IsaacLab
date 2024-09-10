@@ -1079,21 +1079,17 @@ def convert_perspective_depth_image_to_orthogonal_depth_image(
 
     The function assumes that the width and height are both greater than 1.
 
-    Parameters:
-    -----------
-    perspective_depth : torch.Tensor
-        A tensor containing perspective depth images obtained with the distance_to_camera replicator.
-        The shape can be (H, W), (N, H, W), (H, W, 1), or (N, H, W, 1).
-
-    intrinsics : torch.Tensor
-        A tensor representing the intrinsics matrix of the standard camera.
-        The shape can be (3, 3) or (N, 3, 3).
+    Args:
+        depth: The depth measurement obtained with the distance_to_camera replicator.
+            Shape is (H, W) or or (H, W, 1) or (N, H, W) or (N, H, W, 1).
+        intrinsics: A tensor providing camera's calibration matrix. Shape is (3, 3) or (N, 3, 3).
 
     Returns:
-    --------
-    torch.Tensor
-        A tensor containing depth images as if captured by the distance_to_image_plane replicator.
-        The shape will match the input `perspective_depth` shape.
+        The depth image as if obtained by the distance_to_image_plane replicator
+
+    Raises:
+        ValueError: When depth is not of shape (H, W) or (H, W, 1) or (N, H, W) or (N, H, W, 1).
+        ValueError: When intrinsics is not of shape (3, 3) or (N, 3, 3).
     """
 
     # Clone inputs to avoid in-place modifications
