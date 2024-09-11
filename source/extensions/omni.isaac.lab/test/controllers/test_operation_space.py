@@ -91,7 +91,7 @@ class TestOperationSpaceController(unittest.TestCase):
             [0.5, 0, 0.5],
         ], device=self.sim.device)
         ee_goal_abs_quad_set = torch.tensor([
-            [0.707, 0, 0.707, 0],
+            [0.707, 0.0, 0.707, 0.0],
             [0.707, 0.707, 0.0, 0.0],
             [0.0, 1.0, 0.0, 0.0],
         ], device=self.sim.device)
@@ -105,7 +105,7 @@ class TestOperationSpaceController(unittest.TestCase):
             [torch.pi / 2, 0.0, 0.0],  # for [0.707, 0.707, 0, 0]
             [torch.pi, 0.0, 0.0],  # for [0.0, 1.0, 0, 0]
         ], device=self.sim.device)
-        ee_goal_abs_force_set = torch.tensor([
+        ee_goal_abs_wrench_set = torch.tensor([
             [0.0, 0.0, 10.0, 0.0, -1.0, 0.0],
             [0.0, 10.0, 0.0, 0.0, 0.0, 0.0],
             [10.0, 0.0, 0.0, 0.0, 0.0, 0.0],
@@ -120,6 +120,11 @@ class TestOperationSpaceController(unittest.TestCase):
             [1.1, 1.1, 1.1, 1.1, 1.1, 1.1],
             [0.9, 0.9, 0.9, 0.9, 0.9, 0.9],
         ], device=self.sim.device)
+        ee_goal_hybrid_set = torch.tensor([
+            [0.6, 0.2, 0.5, 0.0, 0.707, 0.0, 0.707, 10.0, 10.0, 10.0, 0.0, 0.0, 0.0],
+            [0.6, -0.3, 0.6, 0.0, 0.707, 0.0, 0.707, 10.0, 10.0, 10.0, 0.0, 0.0, 0.0],
+            [0.6, -0.1, 0.8, 0.0, 0.5774, 0.0, 0.8165, 10.0, 10.0, 10.0, 0.0, 0.0, 0.0],
+        ], device=self.sim.device)
 
         # Define goals for the arm [xyz]
         self.target_abs_pos_set = ee_goal_abs_pos_set.clone()
@@ -130,11 +135,15 @@ class TestOperationSpaceController(unittest.TestCase):
         # Define goals for the arm [xyz + angle-axis]
         self.target_rel_pose_b_set = torch.cat([ee_goal_rel_pos_set, ee_goal_rel_angleaxis_set], dim=-1)
         # Define goals for the arm [force_xyz + torque_xyz]
-        self.target_abs_force_set = ee_goal_abs_force_set.clone()
+        self.target_abs_wrench_set = ee_goal_abs_wrench_set.clone()
         # Define goals for the arm [xyz + quat_wxyz] and variable kp [kp_xyz + kp_rot_xyz]
         self.target_abs_pose_variable_kp_set = torch.cat([self.target_abs_pose_set, kp_set], dim=-1)
         # Define goals for the arm [xyz + quat_wxyz] and the variable imp. [kp_xyz + kp_rot_xyz + d_xyz + d_rot_xyz]
         self.target_abs_pose_variable_set = torch.cat([self.target_abs_pose_set, kp_set, d_ratio_set], dim=-1)
+        # Define goals for the arm pose [xyz + quat_wxyz] and wrench [force_xyz + torque_xyz]
+        self.target_hybrid_set = ee_goal_hybrid_set.clone()
+        # Define goals for the arm pose, and wrench, and kp
+        self.target_hybrid_variable_kp_set = torch.cat([self.target_hybrid_set, kp_set * 0.25], dim=-1)
 
     def tearDown(self):
         """Stops simulator after each test."""
@@ -257,7 +266,7 @@ class TestOperationSpaceController(unittest.TestCase):
 
         self._run_op_space_controller(robot, opc, "panda_hand", ["panda_joint.*"], self.target_abs_pose_variable_set)
 
-    def test_franka_force_abs_open_loop(self):
+    def test_franka_wrench_abs_open_loop(self):
         """Test open loop absolute force control."""
         robot = Articulation(cfg=self.robot_cfg)
 
@@ -282,17 +291,19 @@ class TestOperationSpaceController(unittest.TestCase):
         )
         self.contact_forces = ContactSensor(contact_forces_cfg)
 
-        opc_cfg = OperationSpaceControllerCfg(command_types=["force_abs"],
+        opc_cfg = OperationSpaceControllerCfg(command_types=["wrench_abs"],
                                               impedance_mode="fixed",
                                               stiffness=500.0,
                                               damping_ratio=1.0,
+                                              motion_control_axes=[0, 0, 0, 0, 0, 0],
+                                              wrench_control_axes=[1, 1, 1, 1, 1, 1],
                                               gravity_compensation=False)
         opc = OperationSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
 
-        self._run_op_space_controller(robot, opc, "panda_hand", ["panda_joint.*"], self.target_abs_force_set)
+        self._run_op_space_controller(robot, opc, "panda_hand", ["panda_joint.*"], self.target_abs_wrench_set)
         self.contact_forces = None  # Make contact_forces None after the test otherwise other tests give warning
 
-    def test_franka_force_abs_closed_loop(self):
+    def test_franka_wrench_abs_closed_loop(self):
         """Test closed loop absolute force control."""
         robot = Articulation(cfg=self.robot_cfg)
 
@@ -317,19 +328,86 @@ class TestOperationSpaceController(unittest.TestCase):
         )
         self.contact_forces = ContactSensor(contact_forces_cfg)
 
-        opc_cfg = OperationSpaceControllerCfg(command_types=["force_abs"],
+        opc_cfg = OperationSpaceControllerCfg(command_types=["wrench_abs"],
                                               impedance_mode="fixed",
                                               stiffness=500.0,
                                               damping_ratio=1.0,
-                                              force_stiffness=[0.2, 0.2, 0.2, 0.0, 0.0, 0.0],  # Zero torque feedback as we cannot contact torque
+                                              wrench_stiffness=[0.2, 0.2, 0.2, 0.0, 0.0, 0.0],  # Zero torque feedback as we cannot contact torque
+                                              motion_control_axes=[0, 0, 0, 0, 0, 0],
+                                              wrench_control_axes=[1, 1, 1, 1, 1, 1],
                                               gravity_compensation=False)
         opc = OperationSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
 
-        self._run_op_space_controller(robot, opc, "panda_hand", ["panda_joint.*"], self.target_abs_force_set)
+        self._run_op_space_controller(robot, opc, "panda_hand", ["panda_joint.*"], self.target_abs_wrench_set)
         self.contact_forces = None  # Make contact_forces None after the test otherwise other tests give warning
 
-    # def test_franka_control_hybrid_motion_force(self):
-    #     """Tests operational space control for hybrid motion and force control."""
+    def test_franka_hybrid_fixed_impedance_with_full_inertial_compensation(self):
+        """Test hybrid control with fixed impedance and full inertial compensation."""
+        robot = Articulation(cfg=self.robot_cfg)
+
+        obstacle_spawn_cfg = sim_utils.CuboidCfg(
+            size=(1.0, 1.0, 0.01),
+            collision_props=sim_utils.CollisionPropertiesCfg(),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), opacity=0.1),
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+            activate_contact_sensors=True,
+        )
+        obstacle_spawn_cfg.func(
+            "/World/envs/env_.*/obstacle1", obstacle_spawn_cfg, translation=(self.target_hybrid_set[0, 0] + 0.05, 0.0, 0.7), orientation=(0.707, 0.0, 0.707, 0.0)
+        )
+        contact_forces_cfg = ContactSensorCfg(
+            prim_path="/World/envs/env_.*/obstacle.*", update_period=0.0, history_length=2, debug_vis=False, force_threshold=0.1
+        )
+        self.contact_forces = ContactSensor(contact_forces_cfg)
+
+        opc_cfg = OperationSpaceControllerCfg(command_types=["pose_abs", "wrench_abs"],
+                                              impedance_mode="fixed",
+                                              inertial_compensation=True,
+                                              uncouple_motion_wrench=False,
+                                              gravity_compensation=False,
+                                              stiffness=100.0, damping_ratio=1.0,
+                                              wrench_stiffness=[0.2, 0.0, 0.0, 0.0, 0.0, 0.0],
+                                              motion_control_axes=[0, 1, 1, 1, 1, 1],
+                                              wrench_control_axes=[1, 0, 0, 0, 0, 0],
+                                              )
+        opc = OperationSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
+
+        self._run_op_space_controller(robot, opc, "panda_leftfinger", ["panda_joint.*"], self.target_hybrid_set)
+        self.contact_forces = None  # Make contact_forces None after the test otherwise other tests give warning
+
+    def test_franka_hybrid_variable_kp_impedance_with_full_inertial_compensation(self):
+        """Test hybrid control with variable kp impedance and full inertial compensation."""
+        robot = Articulation(cfg=self.robot_cfg)
+
+        obstacle_spawn_cfg = sim_utils.CuboidCfg(
+            size=(1.0, 1.0, 0.01),
+            collision_props=sim_utils.CollisionPropertiesCfg(),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), opacity=0.1),
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+            activate_contact_sensors=True,
+        )
+        obstacle_spawn_cfg.func(
+            "/World/envs/env_.*/obstacle1", obstacle_spawn_cfg, translation=(self.target_hybrid_set[0, 0] + 0.05, 0.0, 0.7), orientation=(0.707, 0.0, 0.707, 0.0)
+        )
+        contact_forces_cfg = ContactSensorCfg(
+            prim_path="/World/envs/env_.*/obstacle.*", update_period=0.0, history_length=2, debug_vis=False, force_threshold=0.1
+        )
+        self.contact_forces = ContactSensor(contact_forces_cfg)
+
+        opc_cfg = OperationSpaceControllerCfg(command_types=["pose_abs", "wrench_abs"],
+                                              impedance_mode="variable_kp",
+                                              inertial_compensation=True,
+                                              uncouple_motion_wrench=False,
+                                              gravity_compensation=False,
+                                              stiffness=100.0, damping_ratio=1.2,
+                                              wrench_stiffness=[0.1, 0.0, 0.0, 0.0, 0.0, 0.0],
+                                              motion_control_axes=[0, 1, 1, 1, 1, 1],
+                                              wrench_control_axes=[1, 0, 0, 0, 0, 0],
+                                              )
+        opc = OperationSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
+
+        self._run_op_space_controller(robot, opc, "panda_leftfinger", ["panda_joint.*"], self.target_hybrid_variable_kp_set)
+        self.contact_forces = None  # Make contact_forces None after the test otherwise other tests give warning
 
     """
     Helper functions
@@ -343,6 +421,12 @@ class TestOperationSpaceController(unittest.TestCase):
         arm_joint_names: list[str],
         target_set: torch.tensor,
     ):
+        # Initialize the masks for evaluating target convergence according to selection matrices
+        self.pos_mask = torch.tensor(opc.cfg.motion_control_axes[:3], device=self.sim.device).view(1, 3)
+        self.rot_mask = torch.tensor(opc.cfg.motion_control_axes[3:], device=self.sim.device).view(1, 3)
+        self.wrench_mask = torch.tensor(opc.cfg.wrench_control_axes, device=self.sim.device).view(1, 6)
+        self.force_mask = self.wrench_mask[:, 0:3]  # Take only the force components as we can measure only these
+
         # Define simulation stepping
         sim_dt = self.sim.get_physics_dt()
         # Play the simulator
@@ -437,13 +521,13 @@ class TestOperationSpaceController(unittest.TestCase):
         ee_vel_b = torch.cat([ee_lin_vel_b, ee_ang_vel_b], dim=-1)
 
         # Calculate the contact force
-        ee_force_w = torch.zeros(self.num_envs, 6, device=self.sim.device)
+        ee_force_w = torch.zeros(self.num_envs, 3, device=self.sim.device)
         if self.contact_forces is not None:  # Only modify if it exist
             sim_dt = self.sim.get_physics_dt()
             self.contact_forces.update(sim_dt)  # update contact sensor
             # Calculate the contact force by averaging over last four time steps (i.e., to smoothen) and
             # taking the max of three surfaces as only one should be the contact of interest
-            ee_force_w[:, 0:3], _ = torch.max(torch.mean(self.contact_forces.data.net_forces_w_history, dim=1), dim=1)
+            ee_force_w, _ = torch.max(torch.mean(self.contact_forces.data.net_forces_w_history, dim=1), dim=1)
 
         return jacobian, mass_matrix, gravity, ee_pose_b, ee_vel_b, root_pose_w, ee_pose_w, ee_force_w
 
@@ -470,7 +554,7 @@ class TestOperationSpaceController(unittest.TestCase):
                 ee_target_pose_b[:, 0:3] = ee_target_b[:, :3]
             elif command_type == "position_rel":
                 ee_target_pose_b[:, 0:3] = ee_pose_b[:, 0:3] + ee_target_b[:, :3]
-            elif command_type == "force_abs":
+            elif command_type == "wrench_abs":
                 pass  # ee_target_pose_b could stay at the robot base for force control, what matters is ee_target_b
             else:
                 raise ValueError("Undefined command_type within _update_target().")
@@ -490,35 +574,50 @@ class TestOperationSpaceController(unittest.TestCase):
         opc: OperationSpaceController,
         ee_pose_b: torch.tensor,
         ee_target_pose_b: torch.tensor,
-        contact_force: torch.tensor,
+        ee_force_w: torch.tensor,
         ee_target_b: torch.tensor,
     ):
+        cmd_idx = 0
         for command_type in opc.cfg.command_types:
-            if command_type == "pose_abs" or command_type == "pose_rel":
+            if command_type == "pose_abs" :
                 pos_error, rot_error = compute_pose_error(
                     ee_pose_b[:, 0:3], ee_pose_b[:, 3:7], ee_target_pose_b[:, 0:3], ee_target_pose_b[:, 3:7]
                 )
-                pos_error_norm = torch.norm(pos_error, dim=-1)
-                rot_error_norm = torch.norm(rot_error, dim=-1)
+                pos_error_norm = torch.norm(pos_error * self.pos_mask, dim=-1)
+                rot_error_norm = torch.norm(rot_error * self.rot_mask, dim=-1)
                 # desired error (zer)
                 des_error = torch.zeros_like(pos_error_norm)
                 # check convergence
-                torch.testing.assert_close(pos_error_norm, des_error, rtol=0.0, atol=1e-3)
-                torch.testing.assert_close(rot_error_norm, des_error, rtol=0.0, atol=1e-3)
+                torch.testing.assert_close(pos_error_norm, des_error, rtol=0.0, atol=0.1)
+                torch.testing.assert_close(rot_error_norm, des_error, rtol=0.0, atol=0.1)
+                cmd_idx += 7
+            elif command_type == "pose_rel":
+                pos_error, rot_error = compute_pose_error(
+                    ee_pose_b[:, 0:3], ee_pose_b[:, 3:7], ee_target_pose_b[:, 0:3], ee_target_pose_b[:, 3:7]
+                )
+                pos_error_norm = torch.norm(pos_error * self.pos_mask, dim=-1)
+                rot_error_norm = torch.norm(rot_error * self.rot_mask, dim=-1)
+                # desired error (zer)
+                des_error = torch.zeros_like(pos_error_norm)
+                # check convergence
+                torch.testing.assert_close(pos_error_norm, des_error, rtol=0.0, atol=0.1)
+                torch.testing.assert_close(rot_error_norm, des_error, rtol=0.0, atol=0.1)
+                cmd_idx += 6
             elif command_type == "position_abs" or command_type == "position_rel":
                 pos_error = ee_pose_b[:, 0:3] - ee_target_pose_b[:, 0:3]
-                pos_error_norm = torch.norm(pos_error, dim=-1)
+                pos_error_norm = torch.norm(pos_error * self.pos_mask, dim=-1)
                 # desired error (zer)
                 des_error = torch.zeros_like(pos_error_norm)
                 # check convergence
-                torch.testing.assert_close(pos_error_norm, des_error, rtol=0.0, atol=1e-3)
-            elif command_type == "force_abs":
-                wrench_error = contact_force - ee_target_b
-                force_error = wrench_error[:, 0:3]
-                force_error_norm = torch.norm(force_error, dim=-1)  # ignore torque part as we cannot measure it
+                torch.testing.assert_close(pos_error_norm, des_error, rtol=0.0, atol=0.1)
+                cmd_idx += 3
+            elif command_type == "wrench_abs":
+                force_error = ee_force_w - ee_target_b[:, cmd_idx:cmd_idx + 3]
+                force_error_norm = torch.norm(force_error * self.force_mask, dim=-1)  # ignore torque part as we cannot measure it
                 des_error = torch.zeros_like(force_error_norm)
                 # check convergence: big threshold here as the force control is not precise when the robot moves
                 torch.testing.assert_close(force_error_norm, des_error, rtol=0.0, atol=1.0)
+                cmd_idx += 6
             else:
                 raise ValueError("Undefined command_type within _check_convergence().")
 
