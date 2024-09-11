@@ -57,7 +57,7 @@
     <link rel="prev" title="How-to Guides" href="index.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Sep 10, 2024"/>
+    <meta name="docbuild:last-update" content="Sep 11, 2024"/>
   </head>
   
   
@@ -554,8 +554,12 @@ document.write(`
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#example-usage">Example Usage</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#using-mesh-importer">Using Mesh Importer</a><ul class="nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#using-mjcf-importer">Using MJCF Importer</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id1">Example Usage</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#using-mesh-importer">Using Mesh Importer</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id2">Example Usage</a></li>
 </ul>
 </li>
 </ul>
@@ -587,7 +591,7 @@ OBJ, FBX, STL, and glTF.</p></li>
 </ul>
 <p>The recommended workflow from NVIDIA is to use the above importers to convert
 the asset into its USD representation. Once the asset is in USD format, you can
-use the Omniverse Kit to edit the asset and export it to other file formats.</p>
+use the Omniverse Kit to edit the asset and export it to other file formats. Isaac Sim includes these importers by default. They can also be enabled manually in Omniverse Kit.</p>
 <p>An important note to use assets for large-scale simulation is to ensure that they
 are in <a class="reference external" href="https://openusd.org/dev/api/_usd__page__scenegraph_instancing.html">instanceable</a> format. This allows the asset to be efficiently loaded
 into memory and used multiple times in a scene. Otherwise, the asset will be
@@ -595,25 +599,20 @@ loaded into memory multiple times, which can cause performance issues.
 For more details on instanceable assets, please check the Isaac Sim <a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/isaac_lab_tutorials/tutorial_instanceable_assets.html">documentation</a>.</p>
 <section id="using-urdf-importer">
 <h2>Using URDF Importer<a class="headerlink" href="#using-urdf-importer" title="Permalink to this heading">#</a></h2>
-<p>Isaac Sim includes the URDF and MJCF importers by default. These importers support the
-option to import assets as instanceable assets. By selecting this option, the
-importer will create two USD files: one for all the mesh data and one for
-all the non-mesh data (e.g. joints, rigid bodies, etc.). The prims in the mesh data file are
-referenced in the non-mesh data file. This allows the mesh data (which is often bulky) to be
-loaded into memory only once and used multiple times in a scene.</p>
-<p>For using these importers from the GUI, please check the documentation for <a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/advanced_tutorials/tutorial_advanced_import_mjcf.html">MJCF importer</a> and
-<a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/advanced_tutorials/tutorial_advanced_import_urdf.html">URDF importer</a> respectively.</p>
-<p>For using the URDF importers from Python scripts, we include a utility tool called <code class="docutils literal notranslate"><span class="pre">convert_urdf.py</span></code>.
-Internally, this script creates an instance of <a class="reference internal" href="../api/lab/omni.isaac.lab.sim.converters.html#omni.isaac.lab.sim.converters.UrdfConverterCfg" title="omni.isaac.lab.sim.converters.UrdfConverterCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">UrdfConverterCfg</span></code></a> which
-is then passed to the <a class="reference internal" href="../api/lab/omni.isaac.lab.sim.converters.html#omni.isaac.lab.sim.converters.UrdfConverter" title="omni.isaac.lab.sim.converters.UrdfConverter"><code class="xref py py-class docutils literal notranslate"><span class="pre">UrdfConverter</span></code></a> class. The configuration class specifies
-the default values for the importer. The important settings are:</p>
+<p>For using the URDF importer in the GUI, please check the documentation at <a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/advanced_tutorials/tutorial_advanced_import_urdf.html">URDF importer</a>. For using the URDF importer from Python scripts, we include a utility tool called <code class="docutils literal notranslate"><span class="pre">convert_urdf.py</span></code>. This script creates an instance of <a class="reference internal" href="../api/lab/omni.isaac.lab.sim.converters.html#omni.isaac.lab.sim.converters.UrdfConverterCfg" title="omni.isaac.lab.sim.converters.UrdfConverterCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">UrdfConverterCfg</span></code></a> which
+is then passed to the <a class="reference internal" href="../api/lab/omni.isaac.lab.sim.converters.html#omni.isaac.lab.sim.converters.UrdfConverter" title="omni.isaac.lab.sim.converters.UrdfConverter"><code class="xref py py-class docutils literal notranslate"><span class="pre">UrdfConverter</span></code></a> class.</p>
+<p>The URDF importer has various configuration parameters that can be set to control the behavior of the importer.
+The default values for the importer’s configuration parameters are specified are in the <a class="reference internal" href="../api/lab/omni.isaac.lab.sim.converters.html#omni.isaac.lab.sim.converters.UrdfConverterCfg" title="omni.isaac.lab.sim.converters.UrdfConverterCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">UrdfConverterCfg</span></code></a> class, and they are listed below. We made a few commonly modified settings to be available as command-line arguments when calling the <code class="docutils literal notranslate"><span class="pre">convert_urdf.py</span></code>, and they are marked with <code class="docutils literal notranslate"><span class="pre">*`</span></code> in the list. For a comprehensive list of the configuration parameters, please check the the documentation at <a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/advanced_tutorials/tutorial_advanced_import_urdf.html">URDF importer</a>.</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="../api/lab/omni.isaac.lab.sim.converters.html#omni.isaac.lab.sim.converters.UrdfConverterCfg.fix_base" title="omni.isaac.lab.sim.converters.UrdfConverterCfg.fix_base"><code class="xref py py-attr docutils literal notranslate"><span class="pre">fix_base</span></code></a> - Whether to fix the base of the robot.
-This depends on whether you have a floating-base or fixed-base robot.</p></li>
-<li><p><a class="reference internal" href="../api/lab/omni.isaac.lab.sim.converters.html#omni.isaac.lab.sim.converters.UrdfConverterCfg.make_instanceable" title="omni.isaac.lab.sim.converters.UrdfConverterCfg.make_instanceable"><code class="xref py py-attr docutils literal notranslate"><span class="pre">make_instanceable</span></code></a> - Whether to create instanceable assets.
-Usually, this should be set to <code class="docutils literal notranslate"><span class="pre">True</span></code>.</p></li>
-<li><p><a class="reference internal" href="../api/lab/omni.isaac.lab.sim.converters.html#omni.isaac.lab.sim.converters.UrdfConverterCfg.merge_fixed_joints" title="omni.isaac.lab.sim.converters.UrdfConverterCfg.merge_fixed_joints"><code class="xref py py-attr docutils literal notranslate"><span class="pre">merge_fixed_joints</span></code></a> - Whether to merge the fixed joints.
-Usually, this should be set to <code class="docutils literal notranslate"><span class="pre">True</span></code> to reduce the asset complexity.</p></li>
+<li><p><code class="xref py py-attr docutils literal notranslate"><span class="pre">fix_base*</span></code> - Whether to fix the base of the robot.
+This depends on whether you have a floating-base or fixed-base robot. The command-line flag is
+<code class="docutils literal notranslate"><span class="pre">--fix-base</span></code> where when set, the importer will fix the base of the robot, otherwise it will default to floating-base.</p></li>
+<li><p><code class="xref py py-attr docutils literal notranslate"><span class="pre">make_instanceable*</span></code> - Whether to create instanceable assets.
+Usually, this should be set to <code class="docutils literal notranslate"><span class="pre">True</span></code>. The command-line flag is <code class="docutils literal notranslate"><span class="pre">--make-instanceable</span></code> where
+when set, the importer will create instanceable assets, otherwise it will default to non-instanceable.</p></li>
+<li><p><code class="xref py py-attr docutils literal notranslate"><span class="pre">merge_fixed_joints*</span></code> - Whether to merge the fixed joints.
+Usually, this should be set to <code class="docutils literal notranslate"><span class="pre">True</span></code> to reduce the asset complexity. The command-line flag is
+<code class="docutils literal notranslate"><span class="pre">--merge-joints</span></code> where when set, the importer will merge the fixed joints, otherwise it will default to not merging the fixed joints.</p></li>
 <li><p><a class="reference internal" href="../api/lab/omni.isaac.lab.sim.converters.html#omni.isaac.lab.sim.converters.UrdfConverterCfg.default_drive_type" title="omni.isaac.lab.sim.converters.UrdfConverterCfg.default_drive_type"><code class="xref py py-attr docutils literal notranslate"><span class="pre">default_drive_type</span></code></a> - The drive-type for the joints.
 We recommend this to always be <code class="docutils literal notranslate"><span class="pre">&quot;none&quot;</span></code>. This allows changing the drive configuration using the
 actuator models.</p></li>
@@ -623,6 +622,11 @@ actuator models.</p></li>
 <li><p><a class="reference internal" href="../api/lab/omni.isaac.lab.sim.converters.html#omni.isaac.lab.sim.converters.UrdfConverterCfg.default_drive_damping" title="omni.isaac.lab.sim.converters.UrdfConverterCfg.default_drive_damping"><code class="xref py py-attr docutils literal notranslate"><span class="pre">default_drive_damping</span></code></a> - The drive damping for the joints.
 Similar to the stiffness, we recommend this to always be <code class="docutils literal notranslate"><span class="pre">0.0</span></code>.</p></li>
 </ul>
+<p>Note that when instanceable option is selected, the
+importer will create two USD files: one for all the mesh data and one for
+all the non-mesh data (e.g. joints, rigid bodies, etc.). The prims in the mesh data file are
+referenced in the non-mesh data file. This allows the mesh data (which is often bulky) to be
+loaded into memory only once and used multiple times in a scene.</p>
 <section id="example-usage">
 <h3>Example Usage<a class="headerlink" href="#example-usage" title="Permalink to this heading">#</a></h3>
 <p>In this example, we use the pre-processed URDF file of the ANYmal-D robot. To check the
@@ -643,7 +647,7 @@ mkdir<span class="w"> </span>~/git<span class="w"> </span><span class="o">&amp;&
 <span class="c1"># clone a repository with URDF files</span>
 git<span class="w"> </span>clone<span class="w"> </span>git@github.com:isaac-orbit/anymal_d_simple_description.git
 
-<span class="c1"># go to top of the repository</span>
+<span class="c1"># go to top of the Isaac Lab repository</span>
 <span class="nb">cd</span><span class="w"> </span>IsaacLab
 <span class="c1"># run the converter</span>
 ./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/tools/convert_urdf.py<span class="w"> </span><span class="se">\</span>
@@ -665,11 +669,50 @@ git<span class="w"> </span>clone<span class="w"> </span>git@github.com:isaac-orb
 main asset file even if the <code class="docutils literal notranslate"><span class="pre">--make-instanceable</span></code> flag is set. This means that the
 <code class="docutils literal notranslate"><span class="pre">Props/instanceable_assets.usd</span></code> file is created but not used anymore.</p>
 </div>
-<p>You can press play on the opened window to see the asset in the scene. The asset should “collapse”
-if everything is working correctly. If it blows up, then it might be that you have self-collisions
-present in the URDF.</p>
 <p>To run the script headless, you can add the <code class="docutils literal notranslate"><span class="pre">--headless</span></code> flag. This will not open the GUI and
 exit the script after the conversion is complete.</p>
+<p>You can press play on the opened window to see the asset in the scene. The asset should fall under gravity. If it blows up, then it might be that you have self-collisions present in the URDF.</p>
+<figure class="align-center" style="width: 100%">
+<img alt="result of convert_urdf.py" src="../../_images/tutorial_convert_urdf.jpg" />
+</figure>
+</section>
+</section>
+<section id="using-mjcf-importer">
+<h2>Using MJCF Importer<a class="headerlink" href="#using-mjcf-importer" title="Permalink to this heading">#</a></h2>
+<p>Similar to the URDF Importer, the MJCF Importer also has a GUI interface. Please check the documentation at <a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/advanced_tutorials/tutorial_advanced_import_mjcf.html">MJCF importer</a> for more details. For using the MJCF importer from Python scripts, we include a utility tool called <code class="docutils literal notranslate"><span class="pre">convert_mjcf.py</span></code>. This script creates an instance of <code class="xref py py-class docutils literal notranslate"><span class="pre">MjcfConverterCfg</span></code> which is then passed to the <code class="xref py py-class docutils literal notranslate"><span class="pre">MjcfConverter</span></code> class.</p>
+<p>The default values for the importer’s configuration parameters are specified in the <code class="xref py py-class docutils literal notranslate"><span class="pre">MjcfConverterCfg</span></code> class. The configuration parameters are listed below. We made a few commonly modified settings to be available as command-line arguments when calling the <code class="docutils literal notranslate"><span class="pre">convert_mjcf.py</span></code>, and they are marked with <code class="docutils literal notranslate"><span class="pre">*</span></code> in the list. For a comprehensive list of the configuration parameters, please check the the documentation at <a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/advanced_tutorials/tutorial_advanced_import_mjcf.html">MJCF importer</a>.</p>
+<ul class="simple">
+<li><p><code class="xref py py-attr docutils literal notranslate"><span class="pre">fix_base*</span></code> - Whether to fix the base of the robot.
+This depends on whether you have a floating-base or fixed-base robot. The command-line flag is
+<code class="docutils literal notranslate"><span class="pre">--fix-base</span></code> where when set, the importer will fix the base of the robot, otherwise it will default to floating-base.</p></li>
+<li><p><code class="xref py py-attr docutils literal notranslate"><span class="pre">make_instanceable*</span></code> - Whether to create instanceable assets.
+Usually, this should be set to <code class="docutils literal notranslate"><span class="pre">True</span></code>. The command-line flag is <code class="docutils literal notranslate"><span class="pre">--make-instanceable</span></code> where
+when set, the importer will create instanceable assets, otherwise it will default to non-instanceable.</p></li>
+<li><p><code class="xref py py-attr docutils literal notranslate"><span class="pre">import_sites*</span></code> - Whether to parse the &lt;site&gt; tag in the MJCF.
+Usually, this should be set to <code class="docutils literal notranslate"><span class="pre">True</span></code>. The command-line flag is <code class="docutils literal notranslate"><span class="pre">--import-sites</span></code> where when set, the importer will parse the &lt;site&gt; tag, otherwise it will default to not parsing the &lt;site&gt; tag.</p></li>
+</ul>
+<section id="id1">
+<h3>Example Usage<a class="headerlink" href="#id1" title="Permalink to this heading">#</a></h3>
+<p>In this example, we use the MuJoCo model of the Unitree’s H1 humanoid robot in the <a class="reference external" href="https://github.com/google-deepmind/mujoco_menagerie/tree/main/unitree_h1">mujoco_menagerie</a>.</p>
+<p>The following shows the steps to clone the repository and run the converter:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># create a directory to clone</span>
+mkdir<span class="w"> </span>~/git<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>~/git
+<span class="c1"># clone a repository with URDF files</span>
+git<span class="w"> </span>clone<span class="w"> </span>git@github.com:git@github.com:google-deepmind/mujoco_menagerie.git
+
+<span class="c1"># go to top of the Isaac Lab repository</span>
+<span class="nb">cd</span><span class="w"> </span>IsaacLab
+<span class="c1"># run the converter</span>
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/tools/convert_mjcf.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>~/git/mujoco_menagerie/unitree_h1/h1.xml<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>source/extensions/omni.isaac.lab_assets/data/Robots/Unitree/h1.usd<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--import-sites<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--make-instanceable
+</pre></div>
+</div>
+<figure class="align-center" style="width: 100%">
+<img alt="result of convert_mjcf.py" src="../../_images/tutorial_convert_mjcf.jpg" />
+</figure>
 </section>
 </section>
 <section id="using-mesh-importer">
@@ -687,8 +730,8 @@ an instance of <a class="reference internal" href="../api/lab/omni.isaac.lab.sim
 information, the configuration class accepts different physics properties (such as mass, collision
 shape, etc.) as input. Please check the documentation for <a class="reference internal" href="../api/lab/omni.isaac.lab.sim.converters.html#omni.isaac.lab.sim.converters.MeshConverterCfg" title="omni.isaac.lab.sim.converters.MeshConverterCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">MeshConverterCfg</span></code></a>
 for more details.</p>
-<section id="id1">
-<h3>Example Usage<a class="headerlink" href="#id1" title="Permalink to this heading">#</a></h3>
+<section id="id2">
+<h3>Example Usage<a class="headerlink" href="#id2" title="Permalink to this heading">#</a></h3>
 <p>We use an OBJ file of a cube to demonstrate the usage of the mesh converter. The following shows
 the steps to clone the repository and run the converter:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># create a directory to clone</span>
@@ -696,7 +739,7 @@ mkdir<span class="w"> </span>~/git<span class="w"> </span><span class="o">&amp;&
 <span class="c1"># clone a repository with URDF files</span>
 git<span class="w"> </span>clone<span class="w"> </span>git@github.com:NVIDIA-Omniverse/IsaacGymEnvs.git
 
-<span class="c1"># go to top of the repository</span>
+<span class="c1"># go to top of the Isaac Lab repository</span>
 <span class="nb">cd</span><span class="w"> </span>IsaacLab
 <span class="c1"># run the converter</span>
 ./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/tools/convert_mesh.py<span class="w"> </span><span class="se">\</span>
@@ -707,7 +750,8 @@ git<span class="w"> </span>clone<span class="w"> </span>git@github.com:NVIDIA-Om
 <span class="w">  </span>--mass<span class="w"> </span><span class="m">1</span>.0
 </pre></div>
 </div>
-<p>Similar to the URDF converter, executing the above script will create two USD files inside the
+<p>You may need to press ‘F’ to zoom in on the asset after import.</p>
+<p>Similar to the URDF and MJCF converter, executing the above script will create two USD files inside the
 <code class="docutils literal notranslate"><span class="pre">source/extensions/omni.isaac.lab_assets/data/Props/CubeMultiColor/</span></code> directory. Additionally,
 if you press play on the opened window, you should see the asset fall down under the influence
 of gravity.</p>
@@ -717,6 +761,9 @@ It will be imported as a static asset.</p></li>
 <li><p>If you also do not set the <code class="docutils literal notranslate"><span class="pre">--collision-approximation</span></code> flag, then the asset will not have any collider
 properties as well and will be imported as a visual asset.</p></li>
 </ul>
+<figure class="align-center" style="width: 100%">
+<img alt="result of convert_mesh.py" src="../../_images/tutorial_convert_mesh.jpg" />
+</figure>
 </section>
 </section>
 </section>
@@ -770,8 +817,12 @@ properties as well and will be imported as a visual asset.</p></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#example-usage">Example Usage</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#using-mesh-importer">Using Mesh Importer</a><ul class="nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#using-mjcf-importer">Using MJCF Importer</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id1">Example Usage</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#using-mesh-importer">Using Mesh Importer</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id2">Example Usage</a></li>
 </ul>
 </li>
 </ul>
@@ -807,7 +858,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 10, 2024.
+  Last updated on Sep 11, 2024.
   <br/>
 </p>
   </div>
