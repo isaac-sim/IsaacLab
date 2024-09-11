@@ -33,6 +33,7 @@ parser = argparse.ArgumentParser(description="This script can help you benchmark
 
 
 def add_cli_args(parser):
+    """Add the benchmarking CLI args"""
     parser.add_argument(
         "--visualize",
         action="store_true",
@@ -42,14 +43,6 @@ def add_cli_args(parser):
             "Whether to visualize. Only switch to True if you don't care about the benchmarking results"
             " and are instead visually checking replicator output."
         ),
-    )
-
-    parser.add_argument(
-        "--save_clouds",
-        action="store_true",
-        default=False,
-        required=False,
-        help="Whether to save clouds as .npys in addition to figures (visualize should also be on)",
     )
 
     parser.add_argument(
@@ -107,6 +100,7 @@ def add_cli_args(parser):
         help=(
             "Enable undistorting from perspective view (distance to camera replicator)"
             "to orthogonal view (distance to plane replicator) for depth."
+            "This is currently needed to create undisorted depth images/point cloud."
         ),
     )
 
@@ -124,7 +118,7 @@ def add_cli_args(parser):
         "--height",
         type=int,
         default=120,
-        required=True,
+        required=False,
         help="Height in pixels of cameras",
     )
 
@@ -132,7 +126,7 @@ def add_cli_args(parser):
         "--width",
         type=int,
         default=140,
-        required=True,
+        required=False,
         help="Width in pixels of cameras",
     )
 

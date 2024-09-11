@@ -17,6 +17,7 @@ use Isaac Lab. If you are new to Isaac Lab, we recommend you start with the tuto
     write_articulation_cfg
     make_fixed_prim
     save_camera_output
+    estimate_how_many_cameras_can_run
     draw_markers
     wrap_rl_env
     add_own_library
