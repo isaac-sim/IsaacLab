@@ -662,12 +662,12 @@ document.write(`
 
         <span class="c1"># iterate over all the event terms</span>
         <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">term_cfg</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_mode_term_cfgs</span><span class="p">[</span><span class="n">mode</span><span class="p">]):</span>
-            <span class="c1"># resample interval if needed</span>
             <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="s2">&quot;interval&quot;</span><span class="p">:</span>
                 <span class="c1"># extract time left for this term</span>
                 <span class="n">time_left</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_interval_term_time_left</span><span class="p">[</span><span class="n">index</span><span class="p">]</span>
                 <span class="c1"># update the time left for each environment</span>
                 <span class="n">time_left</span> <span class="o">-=</span> <span class="n">dt</span>
+
                 <span class="c1"># check if the interval has passed and sample a new interval</span>
                 <span class="c1"># note: we compare with a small value to handle floating point errors</span>
                 <span class="k">if</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">is_global_time</span><span class="p">:</span>
@@ -675,19 +675,18 @@ document.write(`
                         <span class="n">lower</span><span class="p">,</span> <span class="n">upper</span> <span class="o">=</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">interval_range_s</span>
                         <span class="n">sampled_interval</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">upper</span> <span class="o">-</span> <span class="n">lower</span><span class="p">)</span> <span class="o">+</span> <span class="n">lower</span>
                         <span class="bp">self</span><span class="o">.</span><span class="n">_interval_term_time_left</span><span class="p">[</span><span class="n">index</span><span class="p">][:]</span> <span class="o">=</span> <span class="n">sampled_interval</span>
-                    <span class="k">else</span><span class="p">:</span>
-                        <span class="c1"># no need to call func to apply term</span>
-                        <span class="k">continue</span>
+
+                        <span class="c1"># call the event term (with None for env_ids)</span>
+                        <span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">params</span><span class="p">)</span>
                 <span class="k">else</span><span class="p">:</span>
-                    <span class="n">env_ids</span> <span class="o">=</span> <span class="p">(</span><span class="n">time_left</span> <span class="o">&lt;</span> <span class="mf">1e-6</span><span class="p">)</span><span class="o">.</span><span class="n">nonzero</span><span class="p">()</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
-                    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">valid_env_ids</span> <span class="o">=</span> <span class="p">(</span><span class="n">time_left</span> <span class="o">&lt;</span> <span class="mf">1e-6</span><span class="p">)</span><span class="o">.</span><span class="n">nonzero</span><span class="p">()</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+                    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">valid_env_ids</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
                         <span class="n">lower</span><span class="p">,</span> <span class="n">upper</span> <span class="o">=</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">interval_range_s</span>
-                        <span class="n">sampled_time</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">env_ids</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">upper</span> <span class="o">-</span> <span class="n">lower</span><span class="p">)</span> <span class="o">+</span> <span class="n">lower</span>
-                        <span class="bp">self</span><span class="o">.</span><span class="n">_interval_term_time_left</span><span class="p">[</span><span class="n">index</span><span class="p">][</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">sampled_time</span>
-                    <span class="k">else</span><span class="p">:</span>
-                        <span class="c1"># no need to call func to apply term</span>
-                        <span class="k">continue</span>
-            <span class="c1"># check for minimum frequency for reset</span>
+                        <span class="n">sampled_time</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">valid_env_ids</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">upper</span> <span class="o">-</span> <span class="n">lower</span><span class="p">)</span> <span class="o">+</span> <span class="n">lower</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_interval_term_time_left</span><span class="p">[</span><span class="n">index</span><span class="p">][</span><span class="n">valid_env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">sampled_time</span>
+
+                        <span class="c1"># call the event term</span>
+                        <span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="p">,</span> <span class="n">valid_env_ids</span><span class="p">,</span> <span class="o">**</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">params</span><span class="p">)</span>
             <span class="k">elif</span> <span class="n">mode</span> <span class="o">==</span> <span class="s2">&quot;reset&quot;</span><span class="p">:</span>
                 <span class="c1"># obtain the minimum step count between resets</span>
                 <span class="n">min_step_count</span> <span class="o">=</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">min_step_count_between_reset</span>
@@ -700,6 +699,9 @@ document.write(`
                 <span class="k">if</span> <span class="n">min_step_count</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">_reset_term_last_triggered_step_id</span><span class="p">[</span><span class="n">index</span><span class="p">][</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">global_env_step_count</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">_reset_term_last_triggered_once</span><span class="p">[</span><span class="n">index</span><span class="p">][</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+
+                    <span class="c1"># call the event term with the environment indices</span>
+                    <span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">,</span> <span class="o">**</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">params</span><span class="p">)</span>
                 <span class="k">else</span><span class="p">:</span>
                     <span class="c1"># extract last reset step for this term</span>
                     <span class="n">last_triggered_step</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reset_term_last_triggered_step_id</span><span class="p">[</span><span class="n">index</span><span class="p">][</span><span class="n">env_ids</span><span class="p">]</span>
@@ -723,12 +725,12 @@ document.write(`
                     <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">valid_env_ids</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
                         <span class="bp">self</span><span class="o">.</span><span class="n">_reset_term_last_triggered_once</span><span class="p">[</span><span class="n">index</span><span class="p">][</span><span class="n">valid_env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
                         <span class="bp">self</span><span class="o">.</span><span class="n">_reset_term_last_triggered_step_id</span><span class="p">[</span><span class="n">index</span><span class="p">][</span><span class="n">valid_env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">global_env_step_count</span>
+
                         <span class="c1"># call the event term</span>
                         <span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="p">,</span> <span class="n">valid_env_ids</span><span class="p">,</span> <span class="o">**</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">params</span><span class="p">)</span>
-                    <span class="c1"># no need to call func to apply term again</span>
-                    <span class="k">continue</span>
-            <span class="c1"># call the event term</span>
-            <span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">,</span> <span class="o">**</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">params</span><span class="p">)</span></div>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># call the event term</span>
+                <span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">,</span> <span class="o">**</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">params</span><span class="p">)</span></div>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Operations - Term settings.</span>
