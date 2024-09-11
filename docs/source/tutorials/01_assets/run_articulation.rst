@@ -49,7 +49,7 @@ an instance of the :class:`assets.Articulation` class by passing the configurati
 
 .. literalinclude:: ../../../../source/standalone/tutorials/01_assets/run_articulation.py
    :language: python
-   :start-at: # Create separate groups called "Origin1", "Origin2", "Origin3"
+   :start-at: # Create separate groups called "Origin1", "Origin2"
    :end-at: cartpole = Articulation(cfg=cartpole_cfg)
 
 
