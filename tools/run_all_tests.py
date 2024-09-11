@@ -77,7 +77,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def test_all(
-    test_dir: str,
+    test_dirs: list[str],
     tests_to_skip: list[str],
     log_path: str,
     timeout: float = DEFAULT_TIMEOUT,
@@ -89,7 +89,7 @@ def test_all(
     """Run all tests under the given directory.
 
     Args:
-        test_dir: Path to the directory containing the tests.
+        test_dirs: Path(s) to the directory containing the tests.
         tests_to_skip: List of tests to skip.
         log_path: Path to the log file to store the results in.
         timeout: Timeout for each test in seconds. Defaults to DEFAULT_TIMEOUT.
@@ -119,7 +119,8 @@ def test_all(
     logging.basicConfig(level=logging.INFO, format="%(message)s", handlers=logging_handlers)
 
     # Discover all tests under current directory
-    all_test_paths = [str(path) for path in Path(test_dir).resolve().rglob("*test_*.py")]
+    for test_dir in test_dirs:
+        all_test_paths = [str(path) for path in Path(test_dir).resolve().rglob("*test_*.py")]
     skipped_test_paths = []
     test_paths = []
     # Check that all tests to skip are actually in the tests
@@ -316,7 +317,7 @@ if __name__ == "__main__":
 
     # run all tests
     test_success = test_all(
-        test_dir=args.test_dir,
+        test_dirs=[args.test_dir],
         tests_to_skip=tests_to_skip,
         log_path=args.log_path,
         timeout=args.timeout,
