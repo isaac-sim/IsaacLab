@@ -211,7 +211,7 @@ class TestCamera(unittest.TestCase):
         cam_cfg_2.prim_path = "/World/Camera_2"
         cam_2 = Camera(cam_cfg_2)
         # -- camera 3
-        cam_cfg_3 = copy.deepcopy(self.camera_cfg)
+        cam_cfg_3 = self.camera_cfg.copy()
         cam_cfg_3.prim_path = "/World/Camera_3"
         cam_cfg_3.height = 240
         cam_cfg_3.width = 320
