@@ -105,8 +105,14 @@ class TerrainGeneratorCfg:
     """Configuration for the terrain generator."""
 
     seed: int | None = None
-    """The seed for the random number generator. Defaults to None,
-    in which case the seed is not set."""
+    """The seed for the random number generator. Defaults to None, in which case the seed from the
+    current NumPy's random state is used.
+
+    When the seed is set, the random number generator is initialized with the given seed. This ensures
+    that the generated terrains are deterministic across different runs. If the seed is not set, the
+    seed from the current NumPy's random state is used. This assumes that the seed is set elsewhere in
+    the code.
+    """
 
     curriculum: bool = False
     """Whether to use the curriculum mode. Defaults to False.

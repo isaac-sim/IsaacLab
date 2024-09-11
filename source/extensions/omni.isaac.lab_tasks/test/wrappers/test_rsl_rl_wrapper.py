@@ -20,8 +20,6 @@ import unittest
 
 import omni.usd
 
-from omni.isaac.lab.envs import ManagerBasedRLEnvCfg
-
 import omni.isaac.lab_tasks  # noqa: F401
 from omni.isaac.lab_tasks.utils.parse_cfg import load_cfg_from_registry, parse_env_cfg
 from omni.isaac.lab_tasks.utils.wrappers.rsl_rl import RslRlVecEnvWrapper
@@ -58,7 +56,7 @@ class TestRslRlVecEnvWrapper(unittest.TestCase):
                 # create a new stage
                 omni.usd.get_context().new_stage()
                 # parse configuration
-                env_cfg: ManagerBasedRLEnvCfg = parse_env_cfg(task_name, device=self.device, num_envs=self.num_envs)
+                env_cfg = parse_env_cfg(task_name, device=self.device, num_envs=self.num_envs)
                 agent_cfg = load_cfg_from_registry(task_name, "rsl_rl_cfg_entry_point")  # noqa: F841
                 # create environment
                 env = gym.make(task_name, cfg=env_cfg)
@@ -94,7 +92,7 @@ class TestRslRlVecEnvWrapper(unittest.TestCase):
                 # create a new stage
                 omni.usd.get_context().new_stage()
                 # parse configuration
-                env_cfg: ManagerBasedRLEnvCfg = parse_env_cfg(task_name, device=self.device, num_envs=self.num_envs)
+                env_cfg = parse_env_cfg(task_name, device=self.device, num_envs=self.num_envs)
                 # change to finite horizon
                 env_cfg.is_finite_horizon = True
 

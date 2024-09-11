@@ -146,6 +146,8 @@ class SimulationContext(_SimulationContext):
         # casting None to False if the flag doesn't exist
         # this flag is set from the AppLauncher class
         self._offscreen_render = bool(carb_settings_iface.get("/isaaclab/render/offscreen"))
+        # read flag for whether the default viewport should be enabled
+        self._render_viewport = bool(carb_settings_iface.get("/isaaclab/render/active_viewport"))
         # flag for whether any GUI will be rendered (local, livestreamed or viewport)
         self._has_gui = self._local_gui or self._livestream_gui
 
@@ -182,6 +184,14 @@ class SimulationContext(_SimulationContext):
             self._render_throttle_counter = 0
             # rendering frequency in terms of number of render calls
             self._render_throttle_period = 5
+
+        # check the case where we don't need to render the viewport
+        # since render_viewport can only be False in headless mode, we only need to check for offscreen_render
+        if not self._render_viewport and self._offscreen_render:
+            # disable the viewport if offscreen_render is enabled
+            from omni.kit.viewport.utility import get_active_viewport
+
+            get_active_viewport().updates_enabled = False
 
         # override enable scene querying if rendering is enabled
         # this is needed for some GUI features

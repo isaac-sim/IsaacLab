@@ -95,6 +95,16 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
                     )
                 if isinstance(obj_mem, tuple):
                     value = tuple(value)
+                else:
+                    set_obj = True
+                    # recursively call if iterable contains dictionaries
+                    for i in range(len(obj_mem)):
+                        if isinstance(value[i], dict):
+                            update_class_from_dict(obj_mem[i], value[i], _ns=key_ns)
+                            set_obj = False
+                    # do not set value to obj, otherwise it overwrites the cfg class with the dict
+                    if not set_obj:
+                        continue
             elif callable(obj_mem):
                 # update function name
                 value = string_to_callable(value)

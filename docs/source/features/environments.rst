@@ -24,16 +24,16 @@ Classic environments that are based on IsaacGymEnvs implementation of MuJoCo-sty
     +------------------+-----------------------------+-------------------------------------------------------------------------+
     | World            | Environment ID              | Description                                                             |
     +==================+=============================+=========================================================================+
-    | |humanoid|       | | |humanoid-link|           | Move towards a direction with the MuJoCo humanoid robot                 |
-    |                  | | |humanoid-direct-link|    |                                                                         |
+    | |humanoid|       | |humanoid-link|             | Move towards a direction with the MuJoCo humanoid robot                 |
+    |                  | |humanoid-direct-link|      |                                                                         |
     +------------------+-----------------------------+-------------------------------------------------------------------------+
-    | |ant|            | | |ant-link|                | Move towards a direction with the MuJoCo ant robot                      |
-    |                  | | |ant-direct-link|         |                                                                         |
+    | |ant|            | |ant-link|                  | Move towards a direction with the MuJoCo ant robot                      |
+    |                  | |ant-direct-link|           |                                                                         |
     +------------------+-----------------------------+-------------------------------------------------------------------------+
-    | |cartpole|       | | |cartpole-link|           | Move the cart to keep the pole upwards in the classic cartpole control  |
-    |                  | | |cartpole-direct-link|    |                                                                         |
-    |                  | | |cartpole-camera-rgb-link||                                                                         |
-    |                  | | |cartpole-camera-dpt-link||                                                                         |
+    | |cartpole|       | |cartpole-link|             | Move the cart to keep the pole upwards in the classic cartpole control  |
+    |                  | |cartpole-direct-link|      |                                                                         |
+    |                  | |cartpole-camera-rgb-link|  |                                                                         |
+    |                  | |cartpole-camera-dpt-link|  |                                                                         |
     +------------------+-----------------------------+-------------------------------------------------------------------------+
 
 .. |humanoid| image:: ../_static/tasks/classic/humanoid.jpg
@@ -77,12 +77,12 @@ for the reach environment:
     +----------------+---------------------------+-----------------------------------------------------------------------------+
     | |cabi-franka|  | |cabi-franka-link|        | Grasp the handle of a cabinet's drawer and open it with the Franka robot    |
     +----------------+---------------------------+-----------------------------------------------------------------------------+
-    | |cube-allegro| | | |cube-allegro-link|     | In-hand reorientation of a cube using Allegro hand                          |
-    |                | | |allegro-direct-link|   |                                                                             |
+    | |cube-allegro| | |cube-allegro-link|       | In-hand reorientation of a cube using Allegro hand                          |
+    |                | |allegro-direct-link|     |                                                                             |
     +----------------+---------------------------+-----------------------------------------------------------------------------+
-    | |cube-shadow|  | | |cube-shadow-link|      | In-hand reorientation of a cube using Shadow hand                           |
-    |                | | |cube-shadow-ff-link|   |                                                                             |
-    |                | | |cube-shadow-lstm-link| |                                                                             |
+    | |cube-shadow|  | |cube-shadow-link|        | In-hand reorientation of a cube using Shadow hand                           |
+    |                | |cube-shadow-ff-link|     |                                                                             |
+    |                | |cube-shadow-lstm-link|   |                                                                             |
     +----------------+---------------------------+-----------------------------------------------------------------------------+
 
 .. |reach-franka| image:: ../_static/tasks/manipulation/franka_reach.jpg
@@ -120,11 +120,11 @@ Environments based on legged locomotion tasks.
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+
     | |velocity-rough-anymal-b|    | |velocity-rough-anymal-b-link|               | Track a velocity command on rough terrain with the Anymal B robot            |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+
-    | |velocity-flat-anymal-c|     | | |velocity-flat-anymal-c-link|              | Track a velocity command on flat terrain with the Anymal C robot             |
-    |                              | | |velocity-flat-anymal-c-direct-link|       |                                                                              |
+    | |velocity-flat-anymal-c|     | |velocity-flat-anymal-c-link|                | Track a velocity command on flat terrain with the Anymal C robot             |
+    |                              | |velocity-flat-anymal-c-direct-link|         |                                                                              |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+
-    | |velocity-rough-anymal-c|    | | |velocity-rough-anymal-c-link|             | Track a velocity command on rough terrain with the Anymal C robot            |
-    |                              | | |velocity-rough-anymal-c-direct-link|      |                                                                              |
+    | |velocity-rough-anymal-c|    | |velocity-rough-anymal-c-link|               | Track a velocity command on rough terrain with the Anymal C robot            |
+    |                              | |velocity-rough-anymal-c-direct-link|        |                                                                              |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+
     | |velocity-flat-anymal-d|     | |velocity-flat-anymal-d-link|                | Track a velocity command on flat terrain with the Anymal D robot             |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+

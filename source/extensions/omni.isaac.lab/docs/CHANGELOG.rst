@@ -1,6 +1,120 @@
 Changelog
 ---------
 
+0.22.11 (2024-09-10)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added config class, support, and tests for MJCF conversion via standalone python scripts.
+
+
+0.22.10 (2024-09-09)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a seed parameter to the :attr:`omni.isaac.lab.envs.ManagerBasedEnvCfg` and :attr:`omni.isaac.lab.envs.DirectRLEnvCfg`
+  classes to set the seed for the environment. This seed is used to initialize the random number generator for the environment.
+* Adapted the workflow scripts to set the seed for the environment using the seed specified in the learning agent's configuration
+  file or the command line argument. This ensures that the simulation results are reproducible across different runs.
+
+
+0.22.9 (2024-09-08)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Modified:meth:`quat_rotate` and :meth:`quat_rotate_inverse` operations to use :meth:`torch.einsum`
+  for faster processing of high dimensional input tensors.
+
+
+0.22.8 (2024-09-06)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added support for property attributes in the :meth:``omni.isaac.lab.utils.configclass`` method.
+  Earlier, the configclass decorator failed to parse the property attributes correctly and made them
+  instance variables instead.
+
+
+0.22.7 (2024-09-05)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Adapted the ``A`` and ``D`` button bindings inside :meth:`omni.isaac.lab.device.Se3Keyboard` to make them now
+  more-intuitive to control the y-axis motion based on the right-hand rule.
+
+
+0.22.6 (2024-08-29)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added alternative data type "distance_to_camera" in :class:`omni.isaac.lab.sensors.TiledCamera` class to be
+  consistent with all other cameras (equal to type "depth").
+
+
+0.22.5 (2024-08-29)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added missing SI units to the documentation of :class:`omni.isaac.lab.sensors.Camera` and
+  :class:`omni.isaac.lab.sensors.RayCasterCamera`.
+* Added test to check :attr:`omni.isaac.lab.sensors.RayCasterCamera.set_intrinsic_matrices`
+
+
+0.22.4 (2024-08-29)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the support for class-bounded methods when creating a configclass
+  out of them. Earlier, these methods were being made as instance methods
+  which required initialization of the class to call the class-methods.
+
+
+0.22.3 (2024-08-28)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a class method to initialize camera configurations with an intrinsic matrix in the
+  :class:`omni.isaac.lab.sim.spawner.sensors.PinholeCameraCfg`
+  :class:`omni.isaac.lab.sensors.ray_caster.patterns_cfg.PinholeCameraPatternCfg` classes.
+
+Fixed
+^^^^^
+
+* Fixed the ray direction in :func:`omni.isaac.lab.sensors.ray_caster.patterns.patterns.pinhole_camera_pattern` to
+  point to the center of the pixel instead of the top-left corner.
+* Fixed the clipping of the "distance_to_image_plane" depth image obtained using the
+  :class:`omni.isaac.lab.sensors.ray_caster.RayCasterCamera` class. Earlier, the depth image was being clipped
+  before the depth image was generated. Now, the clipping is applied after the depth image is generated. This makes
+  the behavior equal to the USD Camera.
+
+
+0.22.2 (2024-08-21)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Disabled default viewport in certain headless scenarios for better performance.
+
+
 0.22.1 (2024-08-17)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -53,8 +167,7 @@ Added
 
   * ``cpu``: Use CPU.
   * ``cuda``: Use GPU with device ID ``0``.
-  * ``cuda:N``: Use GPU, where N is the device ID. For example, ``cuda:0``.
-  The default value is ``cuda:0``.
+  * ``cuda:N``: Use GPU, where N is the device ID. For example, ``cuda:0``. The default value is ``cuda:0``.
 
 Changed
 ^^^^^^^
