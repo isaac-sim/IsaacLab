@@ -6,7 +6,7 @@
 from dataclasses import MISSING
 
 import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
+from omni.isaac.lab.assets import ArticulationCfg, AssetBaseCfg, DeformableObjectCfg, RigidObjectCfg
 from omni.isaac.lab.envs import ManagerBasedRLEnvCfg
 from omni.isaac.lab.managers import CurriculumTermCfg as CurrTerm
 from omni.isaac.lab.managers import EventTermCfg as EventTerm
@@ -62,6 +62,49 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
     )
 
+    # stacked cube
+    stacked_cube = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/stacked_cube",
+        spawn=sim_utils.UsdFileCfg(
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
+            scale=(0.8, 0.8, 0.8),
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=False),
+            mass_props=sim_utils.MassPropertiesCfg(mass=0.8),
+            collision_props=sim_utils.CollisionPropertiesCfg(),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.4, 0.1, 0.02)),
+    )
+
+    # deformable object
+    deformable_cube = DeformableObjectCfg(
+        prim_path="{ENV_REGEX_NS}/deformable_cube",
+        spawn=sim_utils.MeshCuboidCfg(
+            size=(0.05, 0.05, 0.05),
+            deformable_props=sim_utils.DeformableBodyPropertiesCfg(rest_offset=0.0, contact_offset=0.001),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.1, 0.0)),
+            physics_material=sim_utils.DeformableBodyMaterialCfg(
+                poissons_ratio=0.1, youngs_modulus=1e5, dynamic_friction=500
+            ),
+        ),
+        init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.5, -0.1, 0.07)),
+        debug_vis=True,
+    )
+
+    # stacked deformable object
+    stacked_deformable_cube = DeformableObjectCfg(
+        prim_path="{ENV_REGEX_NS}/stacked_deformable_cube",
+        spawn=sim_utils.MeshCuboidCfg(
+            size=(0.07, 0.07, 0.05),
+            deformable_props=sim_utils.DeformableBodyPropertiesCfg(rest_offset=0.0, contact_offset=0.001),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.5, 0.0)),
+            physics_material=sim_utils.DeformableBodyMaterialCfg(
+                poissons_ratio=0.1, youngs_modulus=1e5, dynamic_friction=500
+            ),
+        ),
+        init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.5, -0.1, 0.02)),
+        debug_vis=True,
+    )
+
 
 ##
 # MDP settings
@@ -76,7 +119,7 @@ class CommandsCfg:
         asset_name="robot",
         body_name=MISSING,  # will be set by agent env cfg
         resampling_time_range=(5.0, 5.0),
-        debug_vis=True,
+        debug_vis=False,
         ranges=mdp.UniformPoseCommandCfg.Ranges(
             pos_x=(0.4, 0.6), pos_y=(-0.25, 0.25), pos_z=(0.25, 0.5), roll=(0.0, 0.0), pitch=(0.0, 0.0), yaw=(0.0, 0.0)
         ),
@@ -120,15 +163,15 @@ class EventCfg:
 
     reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
 
-    reset_object_position = EventTerm(
-        func=mdp.reset_root_state_uniform,
-        mode="reset",
-        params={
-            "pose_range": {"x": (-0.1, 0.1), "y": (-0.25, 0.25), "z": (0.0, 0.0)},
-            "velocity_range": {},
-            "asset_cfg": SceneEntityCfg("object", body_names="Object"),
-        },
-    )
+    # reset_object_position = EventTerm(
+    #     func=mdp.reset_root_state_uniform,
+    #     mode="reset",
+    #     params={
+    #         "pose_range": {"x": (-0.1, 0.1), "y": (-0.25, 0.25), "z": (0.0, 0.0)},
+    #         "velocity_range": {},
+    #         "asset_cfg": SceneEntityCfg("object", body_names="Object"),
+    #     },
+    # )
 
 
 @configclass
@@ -195,7 +238,9 @@ class LiftEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the lifting environment."""
 
     # Scene settings
-    scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=4096, env_spacing=2.5)
+    scene: ObjectTableSceneCfg = ObjectTableSceneCfg(
+        num_envs=4096, env_spacing=2.5, replicate_physics=False
+    )  # allows having deformable and rigid instances at the same time
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()

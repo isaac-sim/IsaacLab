@@ -13,6 +13,10 @@ It uses the `warp` library to run the state machine in parallel on the GPU.
 
     ./isaaclab.sh -p source/standalone/environments/state_machine/lift_cube_sm.py --num_envs 32
 
+    or
+
+    ./isaaclab.sh -p source/standalone/environments/state_machine/lift_cube_sm.py --num_envs 32 --stack_deformable True
+
 """
 
 """Launch Omniverse Toolkit first."""
@@ -27,6 +31,7 @@ parser.add_argument(
     "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
 )
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
+parser.add_argument("--stack_deformable", type=bool, default=False, help="Stack deformable objects.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -44,7 +49,7 @@ from collections.abc import Sequence
 
 import warp as wp
 
-from omni.isaac.lab.assets.rigid_object.rigid_object_data import RigidObjectData
+import omni.isaac.lab.utils.math as math_utils
 
 import omni.isaac.lab_tasks  # noqa: F401
 from omni.isaac.lab_tasks.manager_based.manipulation.lift.lift_env_cfg import LiftEnvCfg
@@ -69,6 +74,7 @@ class PickSmState:
     APPROACH_OBJECT = wp.constant(2)
     GRASP_OBJECT = wp.constant(3)
     LIFT_OBJECT = wp.constant(4)
+    RELEASE_OBJECT = wp.constant(5)
 
 
 class PickSmWaitTime:
@@ -77,8 +83,9 @@ class PickSmWaitTime:
     REST = wp.constant(0.2)
     APPROACH_ABOVE_OBJECT = wp.constant(0.5)
     APPROACH_OBJECT = wp.constant(0.6)
-    GRASP_OBJECT = wp.constant(0.3)
+    GRASP_OBJECT = wp.constant(0.5)
     LIFT_OBJECT = wp.constant(1.0)
+    RELEASE_OBJECT = wp.constant(0.3)
 
 
 @wp.kernel
@@ -133,13 +140,21 @@ def infer_state_machine(
             sm_state[tid] = PickSmState.LIFT_OBJECT
             sm_wait_time[tid] = 0.0
     elif state == PickSmState.LIFT_OBJECT:
-        des_ee_pose[tid] = des_object_pose[tid]
+        des_ee_pose[tid] = wp.transform_multiply(offset[tid], des_object_pose[tid])
         gripper_state[tid] = GripperState.CLOSE
         # TODO: error between current and desired ee pose below threshold
         # wait for a while
         if sm_wait_time[tid] >= PickSmWaitTime.LIFT_OBJECT:
             # move to next state and reset wait time
-            sm_state[tid] = PickSmState.LIFT_OBJECT
+            sm_state[tid] = PickSmState.RELEASE_OBJECT
+            sm_wait_time[tid] = 0.0
+    elif state == PickSmState.RELEASE_OBJECT:
+        des_ee_pose[tid] = wp.transform_multiply(offset[tid], des_object_pose[tid])
+        gripper_state[tid] = GripperState.OPEN
+        # wait for a while
+        if sm_wait_time[tid] >= PickSmWaitTime.RELEASE_OBJECT:
+            # move to next state and reset wait time
+            sm_state[tid] = PickSmState.RELEASE_OBJECT
             sm_wait_time[tid] = 0.0
     # increment wait time
     sm_wait_time[tid] = sm_wait_time[tid] + dt[tid]
@@ -157,7 +172,8 @@ class PickAndLiftSm:
     2. APPROACH_ABOVE_OBJECT: The robot moves above the object.
     3. APPROACH_OBJECT: The robot moves to the object.
     4. GRASP_OBJECT: The robot grasps the object.
-    5. LIFT_OBJECT: The robot lifts the object to the desired pose. This is the final state.
+    5. LIFT_OBJECT: The robot lifts the object to the pre-place pose.
+    6. RELEASE_OBJECT: The robot opens the gripper. This is the final state.
     """
 
     def __init__(self, dt: float, num_envs: int, device: torch.device | str = "cpu"):
@@ -181,7 +197,7 @@ class PickAndLiftSm:
         self.des_ee_pose = torch.zeros((self.num_envs, 7), device=self.device)
         self.des_gripper_state = torch.full((self.num_envs,), 0.0, device=self.device)
 
-        # approach above object offset
+        # approach above object offset and pre-place offset
         self.offset = torch.zeros((self.num_envs, 7), device=self.device)
         self.offset[:, 2] = 0.1
         self.offset[:, -1] = 1.0  # warp expects quaternion as (x, y, z, w)
@@ -259,6 +275,19 @@ def main():
     # create state machine
     pick_sm = PickAndLiftSm(env_cfg.sim.dt * env_cfg.decimation, env.unwrapped.num_envs, env.unwrapped.device)
 
+    # default states used for resetting
+    ranges = torch.tensor([0.1, 0.1, 0], device=env.unwrapped.device).repeat(env.unwrapped.num_envs, 1)
+    default_root_state = torch.zeros((env.unwrapped.num_envs, 13), device=env.unwrapped.device)
+    default_cube_pos = torch.tensor([0.8, -0.3, 0.021], device=env.unwrapped.device)
+    default_stacked_cube_pos = torch.tensor([0.8, -0.3, 0.07], device=env.unwrapped.device)
+    default_root_state[:, 3] = 1.0
+    default_offset = torch.tensor([0.3, -0.2, 0.0], device=env.unwrapped.device).repeat(env.unwrapped.num_envs, 1)
+    # objects in the scene
+    rigid_object = env.unwrapped.scene["object"]
+    stacked_object = env.unwrapped.scene["stacked_cube"]
+    deformable_cube = env.unwrapped.scene["deformable_cube"]
+    stacked_deformable_cube = env.unwrapped.scene["stacked_deformable_cube"]
+
     while simulation_app.is_running():
         # run everything in inference mode
         with torch.inference_mode():
@@ -270,22 +299,70 @@ def main():
             ee_frame_sensor = env.unwrapped.scene["ee_frame"]
             tcp_rest_position = ee_frame_sensor.data.target_pos_w[..., 0, :].clone() - env.unwrapped.scene.env_origins
             tcp_rest_orientation = ee_frame_sensor.data.target_quat_w[..., 0, :].clone()
-            # -- object frame
-            object_data: RigidObjectData = env.unwrapped.scene["object"].data
-            object_position = object_data.root_pos_w - env.unwrapped.scene.env_origins
+            # stack deformable object or rigid object
+            if args_cli.stack_deformable:
+                picked_object, target_object = deformable_cube, stacked_deformable_cube
+            else:
+                picked_object, target_object = rigid_object, stacked_object
+            # -- picked object frame
+            object_position = picked_object.data.root_pos_w - env.unwrapped.scene.env_origins
             # -- target object frame
-            desired_position = env.unwrapped.command_manager.get_command("object_pose")[..., :3]
+            target_position = target_object.data.root_pos_w - env.unwrapped.scene.env_origins
 
             # advance state machine
             actions = pick_sm.compute(
                 torch.cat([tcp_rest_position, tcp_rest_orientation], dim=-1),
                 torch.cat([object_position, desired_orientation], dim=-1),
-                torch.cat([desired_position, desired_orientation], dim=-1),
+                torch.cat([target_position, desired_orientation], dim=-1),
             )
 
-            # reset state machine
+            # reset state machine and apply random pos to the objects
             if dones.any():
                 pick_sm.reset_idx(dones.nonzero(as_tuple=False).squeeze(-1))
+                print("----------------------------------------")
+                print("[INFO]: Resetting object state...")
+                # sample the pos of the first object
+                pos_offset = math_utils.sample_uniform(
+                    lower=-ranges, upper=ranges, size=(env.unwrapped.num_envs, 3), device=env.unwrapped.device
+                )
+                # sample the pos of the second object to be in the circle of the first to avoid collision
+                pos_offset2 = math_utils.sample_cylinder(
+                    radius=0.15, h_range=(0.0, 0.0), size=(env.unwrapped.num_envs,), device=env.unwrapped.device
+                )
+                if args_cli.stack_deformable:
+                    # sample the pos of deformable objects
+                    nodal_state = deformable_cube.data.default_nodal_state_w.clone()
+                    nodal_state[..., :3] = deformable_cube.transform_nodal_pos(nodal_state[..., :3], pos_offset)
+                    deformable_cube.write_nodal_state_to_sim(nodal_state)
+                    nodal_state = stacked_deformable_cube.data.default_nodal_state_w.clone()
+                    nodal_state[..., :3] = deformable_cube.transform_nodal_pos(
+                        nodal_state[..., :3], pos_offset + pos_offset2
+                    )
+                    stacked_deformable_cube.write_nodal_state_to_sim(nodal_state)
+                    # set the rigid objects to default to avoid collision
+                    default_root_state[:, :3] = default_cube_pos
+                    default_root_state[:, :3] += env.unwrapped.scene.env_origins
+                    rigid_object.write_root_state_to_sim(default_root_state)
+                    default_root_state[:, :3] = default_stacked_cube_pos
+                    default_root_state[:, :3] += env.unwrapped.scene.env_origins
+                    stacked_object.write_root_state_to_sim(default_root_state)
+                else:
+                    # sample the pos of rigid objects
+                    default_root_state = rigid_object.data.default_root_state.clone()
+                    default_root_state[:, :3] += pos_offset
+                    default_root_state[:, :3] += env.unwrapped.scene.env_origins
+                    rigid_object.write_root_state_to_sim(default_root_state)
+                    default_root_state[:, :3] += pos_offset2
+                    stacked_object.write_root_state_to_sim(default_root_state)
+                    # set the deformable objects to default to avoid collision
+                    nodal_state = deformable_cube.data.default_nodal_state_w.clone()
+                    nodal_state[..., :3] = deformable_cube.transform_nodal_pos(nodal_state[..., :3], default_offset)
+                    deformable_cube.write_nodal_state_to_sim(nodal_state)
+                    nodal_state = stacked_deformable_cube.data.default_nodal_state_w.clone()
+                    nodal_state[..., :3] = stacked_deformable_cube.transform_nodal_pos(
+                        nodal_state[..., :3], default_offset
+                    )
+                    stacked_deformable_cube.write_nodal_state_to_sim(nodal_state)
 
     # close the environment
     env.close()

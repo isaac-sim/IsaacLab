@@ -81,6 +81,8 @@ FRANKA_PANDA_HIGH_PD_CFG.actuators["panda_shoulder"].stiffness = 400.0
 FRANKA_PANDA_HIGH_PD_CFG.actuators["panda_shoulder"].damping = 80.0
 FRANKA_PANDA_HIGH_PD_CFG.actuators["panda_forearm"].stiffness = 400.0
 FRANKA_PANDA_HIGH_PD_CFG.actuators["panda_forearm"].damping = 80.0
+FRANKA_PANDA_HIGH_PD_CFG.actuators["panda_hand"].stiffness = 200.0  # for soft objects picking
+FRANKA_PANDA_HIGH_PD_CFG.actuators["panda_hand"].damping = 25.0  # for soft objects picking
 """Configuration of Franka Emika Panda robot with stiffer PD control.
 
 This configuration is useful for task-space control using differential IK.
