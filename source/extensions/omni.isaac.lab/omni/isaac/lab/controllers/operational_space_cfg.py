@@ -26,7 +26,7 @@ class OperationSpaceControllerCfg:
         - type of command resolving: "abs" (absolute), "rel" (relative)
     """
 
-    impedance_mode: str = MISSING
+    impedance_mode: str = "fixed"
     """Type of gains for motion control: "fixed", "variable", "variable_kp"."""
 
     uncouple_motion_wrench: bool = False
@@ -43,10 +43,10 @@ class OperationSpaceControllerCfg:
     gravity_compensation: bool = False
     """Whether to perform gravity compensation."""
 
-    stiffness: float | Sequence[float] = MISSING
+    stiffness: float | Sequence[float] = (100.0, 100.0, 100.0, 100.0, 100.0, 100.0)
     """The positional gain for determining wrenches based on task-space pose error."""
 
-    damping_ratio: float | Sequence[float] | None = None
+    damping_ratio: float | Sequence[float] = (1.0, 1.0, 1.0, 1.0, 1.0, 1.0)
     """The damping ratio is used in-conjunction with positional gain to compute wrenches
     based on task-space velocity error.
 

@@ -182,7 +182,7 @@ class TestOperationSpaceController(unittest.TestCase):
         """Stops simulator after each test."""
         # stop simulation
         self.sim.stop()
-        self.sim.clear()  # FIXME: This hangs the test for some reason when LIVESTREAM is not enabled.
+        # self.sim.clear()  # FIXME: This hangs the test for some reason when LIVESTREAM is not enabled.
         self.sim.clear_all_callbacks()
         self.sim.clear_instance()
 
@@ -374,12 +374,8 @@ class TestOperationSpaceController(unittest.TestCase):
 
         opc_cfg = OperationSpaceControllerCfg(
             command_types=["wrench_abs"],
-            impedance_mode="fixed",
-            stiffness=500.0,
-            damping_ratio=1.0,
             motion_control_axes=[0, 0, 0, 0, 0, 0],
             wrench_control_axes=[1, 1, 1, 1, 1, 1],
-            gravity_compensation=False,
         )
         opc = OperationSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
 
@@ -426,13 +422,9 @@ class TestOperationSpaceController(unittest.TestCase):
 
         opc_cfg = OperationSpaceControllerCfg(
             command_types=["wrench_abs"],
-            impedance_mode="fixed",
-            stiffness=500.0,
-            damping_ratio=1.0,
             wrench_stiffness=[0.2, 0.2, 0.2, 0.0, 0.0, 0.0],  # Zero torque feedback as we cannot contact torque
             motion_control_axes=[0, 0, 0, 0, 0, 0],
             wrench_control_axes=[1, 1, 1, 1, 1, 1],
-            gravity_compensation=False,
         )
         opc = OperationSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
 
