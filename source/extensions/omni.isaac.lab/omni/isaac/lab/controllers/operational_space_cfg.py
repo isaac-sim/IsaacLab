@@ -22,7 +22,7 @@ class OperationSpaceControllerCfg:
     """Type of command.
 
     It has two sub-strings joined by underscore:
-        - type of command mode: "position", "pose", "force"
+        - type of command mode: "position", "pose", "wrench"
         - type of command resolving: "abs" (absolute), "rel" (relative)
     """
 
@@ -34,8 +34,8 @@ class OperationSpaceControllerCfg:
 
     motion_control_axes: Sequence[int] = (1, 1, 1, 1, 1, 1)
     """Motion direction to control. Mark as 0/1 for each axis."""
-    force_control_axes: Sequence[int] = (0, 0, 0, 0, 0, 0)
-    """Force direction to control. Mark as 0/1 for each axis."""
+    wrench_control_axes: Sequence[int] = (0, 0, 0, 0, 0, 0)
+    """Wrench direction to control. Mark as 0/1 for each axis."""
 
     inertial_compensation: bool = False
     """Whether to perform inertial compensation for motion control (inverse dynamics)."""
@@ -66,10 +66,13 @@ class OperationSpaceControllerCfg:
     Note: Used only when :obj:`impedance_mode` is "variable".
     """
 
-    force_stiffness: float | Sequence[float] = None
+    wrench_stiffness: float | Sequence[float] = None
     """The positional gain for determining wrenches for closed-loop force control.
 
-    If obj:`None`, then open-loop control of desired forces is performed.
+    If obj:`None`, then open-loop control of desired wrench is performed.
+
+    Note: since only the linear forces could be measured at the moment, 
+    only the first three elements are used.
     """
 
     position_command_scale: tuple[float, float, float] = (1.0, 1.0, 1.0)

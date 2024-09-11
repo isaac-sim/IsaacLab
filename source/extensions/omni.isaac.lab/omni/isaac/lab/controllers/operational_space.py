@@ -46,7 +46,7 @@ class OperationSpaceController:
                 self.target_list.append(6)
             elif command_type == "pose_abs":
                 self.target_list.append(7)
-            elif command_type == "force_abs":
+            elif command_type == "wrench_abs":
                 self.target_list.append(6)
             else:
                 raise ValueError(f"Invalid control command: {command_type}.")
@@ -58,14 +58,14 @@ class OperationSpaceController:
             torch.tensor(self.cfg.motion_control_axes, dtype=torch.float, device=self._device)
         )
         self._selection_matrix_force = torch.diag(
-            torch.tensor(self.cfg.force_control_axes, dtype=torch.float, device=self._device)
+            torch.tensor(self.cfg.wrench_control_axes, dtype=torch.float, device=self._device)
         )
         # -- commands
         self._task_space_target = torch.zeros(self.num_envs, self.target_dim, device=self._device)
         # -- buffers for motion/force control
         self.desired_ee_pos = None
         self.desired_ee_rot = None
-        self.desired_ee_force = None
+        self.desired_ee_wrench = None
         # -- scaling of command
         self._position_command_scale = torch.diag(torch.tensor(self.cfg.position_command_scale, device=self._device))
         self._rotation_command_scale = torch.diag(torch.tensor(self.cfg.rotation_command_scale, device=self._device))
@@ -74,9 +74,9 @@ class OperationSpaceController:
         self._p_gains[:] = torch.tensor(self.cfg.stiffness, device=self._device)
         self._d_gains = 2 * torch.sqrt(self._p_gains) * torch.tensor(self.cfg.damping_ratio, device=self._device)
         # -- force control gains
-        if self.cfg.force_stiffness is not None:
+        if self.cfg.wrench_stiffness is not None:
             self._p_wrench_gains = torch.zeros(self.num_envs, 6, device=self._device)
-            self._p_wrench_gains[:] = torch.tensor(self.cfg.force_stiffness, device=self._device)
+            self._p_wrench_gains[:] = torch.tensor(self.cfg.wrench_stiffness, device=self._device)
         else:
             self._p_wrench_gains = None
         # -- position gain limits
@@ -91,6 +91,8 @@ class OperationSpaceController:
             self.cfg.damping_ratio_limits[0],
             self.cfg.damping_ratio_limits[1],
         )
+        # -- end-effector contact wrench
+        self._ee_contact_wrench = torch.zeros(self.num_envs, 6, device=self._device)
 
     """
     Properties.
@@ -201,9 +203,9 @@ class OperationSpaceController:
                 # compute targets
                 self.desired_ee_pos = target[:, 0:3]
                 self.desired_ee_rot = target[:, 3:7]
-            elif command_type == "force_abs":
+            elif command_type == "wrench_abs":
                 # compute targets
-                self.desired_ee_force = target
+                self.desired_ee_wrench = target
             else:
                 raise ValueError(f"Invalid control command: {self.cfg.command_type}.")
 
@@ -289,17 +291,21 @@ class OperationSpaceController:
             joint_efforts += (jacobian.mT @ self._selection_matrix_motion @ des_motion_wrench.unsqueeze(-1)).squeeze(-1)
 
         # compute for force control
-        if self.desired_ee_force is not None:
+        if self.desired_ee_wrench is not None:
             # -- task-space wrench
-            if self.cfg.force_stiffness is not None:
+            if self.cfg.wrench_stiffness is not None:
                 # check input is provided
                 if ee_force is None:
                     raise ValueError("End-effector force is required for closed-loop force control.")
+                # We can only measure the force component at the contact, so only apply the feedback for only the force 
+                # component, keep the torque component open loop
+                self._ee_contact_wrench[:, 0:3] = ee_force
+                self._ee_contact_wrench[:, 3:6] = self.desired_ee_wrench[:, 3:6]
                 # closed-loop control
-                des_force_wrench = self.desired_ee_force + self._p_wrench_gains * (self.desired_ee_force - ee_force)
+                des_force_wrench = self.desired_ee_wrench + self._p_wrench_gains * (self.desired_ee_wrench - self._ee_contact_wrench)
             else:
                 # open-loop control
-                des_force_wrench = self.desired_ee_force
+                des_force_wrench = self.desired_ee_wrench
             # -- joint-space wrench
             joint_efforts += (jacobian.mT @ self._selection_matrix_force @ des_force_wrench.unsqueeze(-1)).squeeze(-1)
 
