@@ -42,6 +42,7 @@ Guidelines for modifications:
 * David Yang
 * Gary Lvov
 * HoJin Jeon
+* Jean Tampon
 * Jia Lin Yuan
 * Jingzhou Liu
 * Johnson Sun
@@ -61,6 +62,7 @@ Guidelines for modifications:
 * Xavier Nal
 * Zhengyu Zhang
 * Ziqi Fan
+* Qian Wan
 
 ## Acknowledgements
 
