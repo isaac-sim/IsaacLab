@@ -13,7 +13,7 @@ It uses the `warp` library to run the state machine in parallel on the GPU.
 
     ./isaaclab.sh -p source/standalone/environments/state_machine/lift_cube_sm.py --num_envs 32
 
-    or 
+    or
 
     ./isaaclab.sh -p source/standalone/environments/state_machine/lift_cube_sm.py --num_envs 32 --stack_deformable True
 
@@ -49,10 +49,9 @@ from collections.abc import Sequence
 
 import warp as wp
 
-from omni.isaac.lab.assets.rigid_object.rigid_object_data import RigidObjectData
+import omni.isaac.lab.utils.math as math_utils
 
 import omni.isaac.lab_tasks  # noqa: F401
-import omni.isaac.lab.utils.math as math_utils
 from omni.isaac.lab_tasks.manager_based.manipulation.lift.lift_env_cfg import LiftEnvCfg
 from omni.isaac.lab_tasks.utils.parse_cfg import parse_env_cfg
 
@@ -173,7 +172,7 @@ class PickAndLiftSm:
     2. APPROACH_ABOVE_OBJECT: The robot moves above the object.
     3. APPROACH_OBJECT: The robot moves to the object.
     4. GRASP_OBJECT: The robot grasps the object.
-    5. LIFT_OBJECT: The robot lifts the object to the pre-place pose. 
+    5. LIFT_OBJECT: The robot lifts the object to the pre-place pose.
     6. RELEASE_OBJECT: The robot opens the gripper. This is the final state.
     """
 
@@ -263,7 +262,7 @@ def main():
         use_fabric=not args_cli.disable_fabric,
     )
     # create environment
-    env = gym.make("Isaac-Lift-Cube-Franka-IK-Abs-v0", cfg=env_cfg) # SimulationContext(sim_cfg)?
+    env = gym.make("Isaac-Lift-Cube-Franka-IK-Abs-v0", cfg=env_cfg)
     # reset environment at start
     env.reset()
 
@@ -282,7 +281,7 @@ def main():
     default_cube_pos = torch.tensor([0.8, -0.3, 0.021], device=env.unwrapped.device)
     default_stacked_cube_pos = torch.tensor([0.8, -0.3, 0.07], device=env.unwrapped.device)
     default_root_state[:, 3] = 1.0
-    default_offset = torch.tensor([0.3, -0.2, .0], device=env.unwrapped.device).repeat(env.unwrapped.num_envs, 1)
+    default_offset = torch.tensor([0.3, -0.2, 0.0], device=env.unwrapped.device).repeat(env.unwrapped.num_envs, 1)
     # objects in the scene
     object = env.unwrapped.scene["object"]
     stacked_object = env.unwrapped.scene["stacked_cube"]
@@ -316,33 +315,31 @@ def main():
                 torch.cat([object_position, desired_orientation], dim=-1),
                 torch.cat([target_position, desired_orientation], dim=-1),
             )
-            
-            # reset state machine and apply random pose to the object
+
+            # reset state machine and apply random pos to the object
             if dones.any():
                 pick_sm.reset_idx(dones.nonzero(as_tuple=False).squeeze(-1))
-                # Sample the pos of the first object
+                print("----------------------------------------")
+                print("[INFO]: Resetting object state...")
+                # sample the pos of the first object
                 pos_offset = math_utils.sample_uniform(
-                    lower=-range, 
-                    upper=range, 
-                    size=(env.unwrapped.num_envs, 3), 
-                    device=env.unwrapped.device
+                    lower=-range, upper=range, size=(env.unwrapped.num_envs, 3), device=env.unwrapped.device
                 )
-                # Sample the pos of the second object to be in the circle of the first to avoid collision
+                # sample the pos of the second object to be in the circle of the first to avoid collision
                 pos_offset2 = math_utils.sample_cylinder(
-                    radius=0.15, 
-                    h_range=(0., 0.), 
-                    size=(env.unwrapped.num_envs, ), 
-                    device=env.unwrapped.device
+                    radius=0.15, h_range=(0.0, 0.0), size=(env.unwrapped.num_envs,), device=env.unwrapped.device
                 )
                 if args_cli.stack_deformable:
-                    # Sample the pos of deformable objects
+                    # sample the pos of deformable objects
                     nodal_state = deformable_cube.data.default_nodal_state_w.clone()
                     nodal_state[..., :3] = deformable_cube.transform_nodal_pos(nodal_state[..., :3], pos_offset)
                     deformable_cube.write_nodal_state_to_sim(nodal_state)
                     nodal_state = stacked_deformable_cube.data.default_nodal_state_w.clone()
-                    nodal_state[..., :3] = deformable_cube.transform_nodal_pos(nodal_state[..., :3], pos_offset + pos_offset2)
+                    nodal_state[..., :3] = deformable_cube.transform_nodal_pos(
+                        nodal_state[..., :3], pos_offset + pos_offset2
+                    )
                     stacked_deformable_cube.write_nodal_state_to_sim(nodal_state)
-                    # Set the rigid objects to default to avoid collision
+                    # set the rigid objects to default to avoid collision
                     default_root_state[:, :3] = default_cube_pos
                     default_root_state[:, :3] += env.unwrapped.scene.env_origins
                     object.write_root_state_to_sim(default_root_state)
@@ -350,22 +347,22 @@ def main():
                     default_root_state[:, :3] += env.unwrapped.scene.env_origins
                     stacked_object.write_root_state_to_sim(default_root_state)
                 else:
-                    # Sample the pos of rigid objects
+                    # sample the pos of rigid objects
                     default_root_state = object.data.default_root_state.clone()
                     default_root_state[:, :3] += pos_offset
                     default_root_state[:, :3] += env.unwrapped.scene.env_origins
                     object.write_root_state_to_sim(default_root_state)
                     default_root_state[:, :3] += pos_offset2
                     stacked_object.write_root_state_to_sim(default_root_state)
-                    # Set the deformable objects to default to avoid collision
+                    # set the deformable objects to default to avoid collision
                     nodal_state = deformable_cube.data.default_nodal_state_w.clone()
                     nodal_state[..., :3] = deformable_cube.transform_nodal_pos(nodal_state[..., :3], default_offset)
                     deformable_cube.write_nodal_state_to_sim(nodal_state)
                     nodal_state = stacked_deformable_cube.data.default_nodal_state_w.clone()
-                    nodal_state[..., :3] = stacked_deformable_cube.transform_nodal_pos(nodal_state[..., :3], default_offset)
+                    nodal_state[..., :3] = stacked_deformable_cube.transform_nodal_pos(
+                        nodal_state[..., :3], default_offset
+                    )
                     stacked_deformable_cube.write_nodal_state_to_sim(nodal_state)
-                print("----------------------------------------")
-                print("[INFO]: Resetting object state...")
 
     # close the environment
     env.close()

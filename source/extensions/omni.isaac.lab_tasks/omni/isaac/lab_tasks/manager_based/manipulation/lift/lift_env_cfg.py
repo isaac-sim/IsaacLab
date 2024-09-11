@@ -6,7 +6,7 @@
 from dataclasses import MISSING
 
 import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg, DeformableObjectCfg, DeformableObject
+from omni.isaac.lab.assets import ArticulationCfg, AssetBaseCfg, DeformableObjectCfg, RigidObjectCfg
 from omni.isaac.lab.envs import ManagerBasedRLEnvCfg
 from omni.isaac.lab.managers import CurriculumTermCfg as CurrTerm
 from omni.isaac.lab.managers import EventTermCfg as EventTerm
@@ -82,12 +82,13 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
             size=(0.05, 0.05, 0.05),
             deformable_props=sim_utils.DeformableBodyPropertiesCfg(rest_offset=0.0, contact_offset=0.001),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.1, 0.0)),
-            physics_material=sim_utils.DeformableBodyMaterialCfg(poissons_ratio=0.1, youngs_modulus=1e5, dynamic_friction=500),
+            physics_material=sim_utils.DeformableBodyMaterialCfg(
+                poissons_ratio=0.1, youngs_modulus=1e5, dynamic_friction=500
+            ),
         ),
         init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.5, -0.1, 0.07)),
         debug_vis=True,
     )
-    # # # deformable_cube = DeformableObject(cfg=deformable_cube)
 
     # stacked deformable object
     stacked_deformable_cube = DeformableObjectCfg(
@@ -96,11 +97,14 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
             size=(0.07, 0.07, 0.05),
             deformable_props=sim_utils.DeformableBodyPropertiesCfg(rest_offset=0.0, contact_offset=0.001),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.5, 0.0)),
-            physics_material=sim_utils.DeformableBodyMaterialCfg(poissons_ratio=0.1, youngs_modulus=1e5, dynamic_friction=500),
+            physics_material=sim_utils.DeformableBodyMaterialCfg(
+                poissons_ratio=0.1, youngs_modulus=1e5, dynamic_friction=500
+            ),
         ),
         init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.5, -0.1, 0.02)),
         debug_vis=True,
     )
+
 
 ##
 # MDP settings
@@ -234,7 +238,9 @@ class LiftEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the lifting environment."""
 
     # Scene settings
-    scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=4096, env_spacing=2.5, replicate_physics=False) # allows having deformable and rigid instances at the same time 
+    scene: ObjectTableSceneCfg = ObjectTableSceneCfg(
+        num_envs=4096, env_spacing=2.5, replicate_physics=False
+    )  # allows having deformable and rigid instances at the same time
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
