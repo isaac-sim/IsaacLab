@@ -276,14 +276,14 @@ def main():
     pick_sm = PickAndLiftSm(env_cfg.sim.dt * env_cfg.decimation, env.unwrapped.num_envs, env.unwrapped.device)
 
     # default states used for resetting
-    range = torch.tensor([0.1, 0.1, 0], device=env.unwrapped.device).repeat(env.unwrapped.num_envs, 1)
+    ranges = torch.tensor([0.1, 0.1, 0], device=env.unwrapped.device).repeat(env.unwrapped.num_envs, 1)
     default_root_state = torch.zeros((env.unwrapped.num_envs, 13), device=env.unwrapped.device)
     default_cube_pos = torch.tensor([0.8, -0.3, 0.021], device=env.unwrapped.device)
     default_stacked_cube_pos = torch.tensor([0.8, -0.3, 0.07], device=env.unwrapped.device)
     default_root_state[:, 3] = 1.0
     default_offset = torch.tensor([0.3, -0.2, 0.0], device=env.unwrapped.device).repeat(env.unwrapped.num_envs, 1)
     # objects in the scene
-    object = env.unwrapped.scene["object"]
+    rigid_object = env.unwrapped.scene["object"]
     stacked_object = env.unwrapped.scene["stacked_cube"]
     deformable_cube = env.unwrapped.scene["deformable_cube"]
     stacked_deformable_cube = env.unwrapped.scene["stacked_deformable_cube"]
@@ -303,7 +303,7 @@ def main():
             if args_cli.stack_deformable:
                 picked_object, target_object = deformable_cube, stacked_deformable_cube
             else:
-                picked_object, target_object = object, stacked_object
+                picked_object, target_object = rigid_object, stacked_object
             # -- picked object frame
             object_position = picked_object.data.root_pos_w - env.unwrapped.scene.env_origins
             # -- target object frame
@@ -316,14 +316,14 @@ def main():
                 torch.cat([target_position, desired_orientation], dim=-1),
             )
 
-            # reset state machine and apply random pos to the object
+            # reset state machine and apply random pos to the objects
             if dones.any():
                 pick_sm.reset_idx(dones.nonzero(as_tuple=False).squeeze(-1))
                 print("----------------------------------------")
                 print("[INFO]: Resetting object state...")
                 # sample the pos of the first object
                 pos_offset = math_utils.sample_uniform(
-                    lower=-range, upper=range, size=(env.unwrapped.num_envs, 3), device=env.unwrapped.device
+                    lower=-ranges, upper=ranges, size=(env.unwrapped.num_envs, 3), device=env.unwrapped.device
                 )
                 # sample the pos of the second object to be in the circle of the first to avoid collision
                 pos_offset2 = math_utils.sample_cylinder(
@@ -342,16 +342,16 @@ def main():
                     # set the rigid objects to default to avoid collision
                     default_root_state[:, :3] = default_cube_pos
                     default_root_state[:, :3] += env.unwrapped.scene.env_origins
-                    object.write_root_state_to_sim(default_root_state)
+                    rigid_object.write_root_state_to_sim(default_root_state)
                     default_root_state[:, :3] = default_stacked_cube_pos
                     default_root_state[:, :3] += env.unwrapped.scene.env_origins
                     stacked_object.write_root_state_to_sim(default_root_state)
                 else:
                     # sample the pos of rigid objects
-                    default_root_state = object.data.default_root_state.clone()
+                    default_root_state = rigid_object.data.default_root_state.clone()
                     default_root_state[:, :3] += pos_offset
                     default_root_state[:, :3] += env.unwrapped.scene.env_origins
-                    object.write_root_state_to_sim(default_root_state)
+                    rigid_object.write_root_state_to_sim(default_root_state)
                     default_root_state[:, :3] += pos_offset2
                     stacked_object.write_root_state_to_sim(default_root_state)
                     # set the deformable objects to default to avoid collision
