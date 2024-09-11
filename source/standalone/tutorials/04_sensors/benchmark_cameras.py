@@ -15,7 +15,7 @@ what the camera images and or point clouds output from the replicator looks like
     ./isaaclab.sh -p source/standalone/tutorials/04_sensors/benchmark_cameras.py -h
 
     # Usage with headless
-    ./isaaclab.sh -p source/standalone/tutorials/04_sensors/benchmark_cameras.py --headless
+    ./isaaclab.sh -p source/standalone/tutorials/04_sensors/benchmark_cameras.py -h --headless
 
 """
 
@@ -31,130 +31,133 @@ args_cli = argparse.Namespace()
 
 parser = argparse.ArgumentParser(description="This script can help you benchmark how many cameras you could run.")
 
-parser.add_argument(
-    "--visualize",
-    action="store_true",
-    default=False,
-    required=False,
-    help=(
-        "Whether to visualize. Only switch to True if you don't care about the benchmarking results"
-        " and are instead visually checking replicator output."
-    ),
-)
 
-parser.add_argument(
-    "--save_clouds",
-    action="store_true",
-    default=False,
-    required=False,
-    help="Whether to save clouds as .npys in addition to figures (visualize should also be on)",
-)
+def add_cli_args(parser):
+    parser.add_argument(
+        "--visualize",
+        action="store_true",
+        default=False,
+        required=False,
+        help=(
+            "Whether to visualize. Only switch to True if you don't care about the benchmarking results"
+            " and are instead visually checking replicator output."
+        ),
+    )
 
-parser.add_argument(
-    "--num_tiled_cameras",
-    type=int,
-    default=2,
-    required=False,
-    help="How many tiled cameras to create",
-)
+    parser.add_argument(
+        "--save_clouds",
+        action="store_true",
+        default=False,
+        required=False,
+        help="Whether to save clouds as .npys in addition to figures (visualize should also be on)",
+    )
 
-parser.add_argument(
-    "--num_standard_cameras", type=int, default=1, required=False, help="How many normal cameras to create"
-)
+    parser.add_argument(
+        "--num_tiled_cameras",
+        type=int,
+        default=2,
+        required=False,
+        help="How many tiled cameras to create",
+    )
 
-parser.add_argument(
-    "--num_ray_caster_cameras", type=int, default=1, required=False, help="How many normal cameras to create"
-)
+    parser.add_argument(
+        "--num_standard_cameras", type=int, default=1, required=False, help="How many normal cameras to create"
+    )
+
+    parser.add_argument(
+        "--num_ray_caster_cameras", type=int, default=1, required=False, help="How many normal cameras to create"
+    )
+
+    parser.add_argument(
+        "--tiled_camera_replicators",
+        nargs="+",
+        type=str,
+        default=["rgb", "depth"],
+        help="What replicators to use for the tiled camera",
+    )
+
+    parser.add_argument(
+        "--standard_camera_replicators",
+        nargs="+",
+        type=str,
+        default=["rgb", "distance_to_image_plane"],
+        help="What replicators to use for the usd camera",
+    )
+
+    parser.add_argument(
+        "--ray_caster_camera_replicators",
+        nargs="+",
+        type=str,
+        default=["distance_to_image_plane"],
+        help="What replicators to use for the ray caster camera",
+    )
+
+    parser.add_argument(
+        "--ray_caster_visible_mesh_prim_paths",
+        nargs="+",
+        type=str,
+        default=["/World/ground"],
+        help="WARNING: Ray Caster can currently only cast against a single, static, object",
+    )
+
+    parser.add_argument(
+        "--convert_depth_to_camera_to_image_plane",
+        action="store_true",
+        default=True,
+        help=(
+            "Enable undistorting from perspective view (distance to camera replicator)"
+            "to orthogonal view (distance to plane replicator) for depth."
+        ),
+    )
+
+    parser.add_argument(
+        "--keep_raw_depth",
+        dest="convert_depth_to_camera_to_image_plane",
+        action="store_false",
+        help=(
+            "Disable undistorting from perspective view (distance to camera)"
+            "to orthogonal view (distance to plane replicator) for depth."
+        ),
+    )
+
+    parser.add_argument(
+        "--height",
+        type=int,
+        default=120,
+        required=True,
+        help="Height in pixels of cameras",
+    )
+
+    parser.add_argument(
+        "--width",
+        type=int,
+        default=140,
+        required=True,
+        help="Width in pixels of cameras",
+    )
+
+    parser.add_argument(
+        "--warm_start_length",
+        type=int,
+        default=3,
+        required=False,
+        help="How many steps to run the sim before starting benchmark",
+    )
+
+    parser.add_argument(
+        "--num_objects", type=int, default=10, required=False, help="How many objects to spawn into the scene."
+    )
+
+    parser.add_argument(
+        "--experiment_length",
+        type=int,
+        default=30,
+        required=False,
+        help="How many steps to average over",
+    )
 
 
-parser.add_argument(
-    "--tiled_camera_replicators",
-    nargs="+",
-    type=str,
-    default=["rgb", "depth"],
-    help="What replicators to use for the tiled camera",
-)
-
-parser.add_argument(
-    "--standard_camera_replicators",
-    nargs="+",
-    type=str,
-    default=["rgb", "distance_to_image_plane"],
-    help="What replicators to use for the usd camera",
-)
-
-parser.add_argument(
-    "--ray_caster_camera_replicators",
-    nargs="+",
-    type=str,
-    default=["distance_to_image_plane"],
-    help="What replicators to use for the ray caster camera",
-)
-
-parser.add_argument(
-    "--ray_caster_visible_mesh_prim_paths",
-    nargs="+",
-    type=str,
-    default=["/World/ground"],
-    help="WARNING: Ray Caster can currently only cast against a single, static, object",
-)
-
-parser.add_argument(
-    "--convert_depth_to_camera_to_image_plane",
-    action="store_true",
-    default=True,
-    help=(
-        "Enable undistorting from perspective view (distance to camera replicator)"
-        "to orthogonal view (distance to plane replicator) for depth."
-    ),
-)
-
-parser.add_argument(
-    "--keep_raw_depth",
-    dest="convert_depth_to_camera_to_image_plane",
-    action="store_false",
-    help=(
-        "Disable undistorting from perspective view (distance to camera)"
-        "to orthogonal view (distance to plane replicator) for depth."
-    ),
-)
-
-parser.add_argument(
-    "--height",
-    type=int,
-    default=120,
-    required=False,
-    help="Height in pixels of cameras",
-)
-
-parser.add_argument(
-    "--width",
-    type=int,
-    default=140,
-    required=False,
-    help="Width in pixels of cameras",
-)
-
-parser.add_argument(
-    "--warm_start_length",
-    type=int,
-    default=3,
-    required=False,
-    help="How many steps to run the sim before starting benchmark",
-)
-
-parser.add_argument(
-    "--num_objects", type=int, default=10, required=False, help="How many objects to spawn into the scene."
-)
-
-parser.add_argument(
-    "--experiment_length",
-    type=int,
-    default=30,
-    required=False,
-    help="How many steps to average over",
-)
-
+add_cli_args(parser)
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 args_cli.enable_cameras = True
@@ -223,17 +226,30 @@ def create_camera_base(
 
 
 def create_tiled_cameras(
-    num_cams: int = 2, data_types: list[str] = ["rgb", "depth"], height: int = 100, width: int = 120
+    num_cams: int = 2, data_types: list[str] | None = None, height: int = 100, width: int = 120
 ) -> TiledCamera | None:
+    if data_types is None:
+        data_types = ["rgb", "depth"]
     """Defines the tiled camera sensor to add to the scene."""
-    return create_camera_base(TiledCamera, TiledCameraCfg, num_cams, data_types, height, width)
+    return create_camera_base(
+        camera_cls=TiledCamera,
+        camera_cfg=TiledCameraCfg,
+        num_cams=num_cams,
+        data_types=data_types,
+        height=height,
+        width=width,
+    )
 
 
 def create_cameras(
-    num_cams: int = 2, data_types: list[str] = ["rgb", "distance_to_image_plane"], height: int = 100, width: int = 120
+    num_cams: int = 2, data_types: list[str] | None = None, height: int = 100, width: int = 120
 ) -> Camera | None:
-    """Defines the camera sensor to add to the scene."""
-    return create_camera_base(Camera, CameraCfg, num_cams, data_types, height, width)
+    """Defines the USD/Standard cameras."""
+    if data_types is None:
+        data_types = ["rgb", "depth"]
+    return create_camera_base(
+        camera_cls=Camera, camera_cfg=CameraCfg, num_cams=num_cams, data_types=data_types, height=height, width=width
+    )
 
 
 def create_ray_caster_cameras(
@@ -243,6 +259,7 @@ def create_ray_caster_cameras(
     height: int = 100,
     width: int = 120,
 ) -> RayCasterCamera | None:
+    """Create the raycaster cameras; different configuration than USD/Tiled camera"""
     for idx in range(num_cams):
         prim_utils.create_prim(f"/World/RayCasterCamera_{idx:02d}/RayCaster", "Xform")
 
@@ -271,15 +288,22 @@ def design_scene(
     num_tiled_cams: int = 2,
     num_standard_cams: int = 0,
     num_ray_caster_cams: int = 0,
-    standard_camera_replicators: list[str] = ["rgb"],
-    tiled_camera_replicators: list[str] = ["rgb"],
-    ray_caster_camera_replicators: list[str] = ["rgb"],
+    tiled_camera_replicators: list[str] | None = None,
+    standard_camera_replicators: list[str] | None = None,
+    ray_caster_camera_replicators: list[str] | None = None,
     height: int = 100,
     width: int = 200,
     num_objects: int = 20,
     mesh_prim_paths: list[str] = ["/World/ground"],
 ) -> dict:
     """Design the scene."""
+    if tiled_camera_replicators is None:
+        tiled_camera_replicators = ["rgb"]
+    if standard_camera_replicators is None:
+        standard_camera_replicators = ["rgb"]
+    if ray_caster_camera_replicators is None:
+        ray_caster_camera_replicators = ["rgb"]
+
     # Populate scene
     # -- Ground-plane
     cfg = sim_utils.GroundPlaneCfg()
@@ -347,7 +371,8 @@ def design_scene(
     return scene_entities
 
 
-def numpy_to_pcd(xyz):
+def numpy_to_pcd(xyz: np.ndarray) -> o3d.geometry.PointCloud:
+    """Convert a NumPy Nx3 pointcloud to an Open3d Nx3 pointcloud for easy plotting"""
     pcd = o3d.geometry.PointCloud()
     pcd.points = o3d.utility.Vector3dVector(xyz)
     return pcd
@@ -358,16 +383,22 @@ def run_simulator(
     scene_entities: dict,
     warm_start_length: int = 10,
     experiment_length: int = 100,
-    tiled_camera_replicators: list[str] = ["rgb"],
-    standard_camera_replicators: list[str] = ["rgb"],
-    ray_caster_camera_replicators: list[str] = ["rgb"],
+    tiled_camera_replicators: list[str] | None = None,
+    standard_camera_replicators: list[str] | None = None,
+    ray_caster_camera_replicators: list[str] | None = None,
     depth_predicate: Callable = lambda x: "to" in x or x == "depth",
     perspective_depth_predicate: Callable = lambda x: x == "depth" or x == "depth_to_camera",
     convert_depth_to_camera_to_image_plane: bool = True,
     visualize: bool = False,
 ) -> dict:
-    """Run the simulator and return timing analytics."""
+    """Run the simulator with all cameras, and return timing analytics. Visualize if desired."""
 
+    if tiled_camera_replicators is None:
+        tiled_camera_replicators = ["rgb"]
+    if standard_camera_replicators is None:
+        standard_camera_replicators = ["rgb"]
+    if ray_caster_camera_replicators is None:
+        ray_caster_camera_replicators = ["rgb"]
     # Extract entities for simplified notation
     num_tiled_cameras = 0
     tiled_camera = None
@@ -396,8 +427,6 @@ def run_simulator(
             positions = torch.tensor([[2.5, 2.5, 2.5]], device=sim.device).repeat(num, 1)
             targets = torch.tensor([[0.0, 0.0, 0.0]], device=sim.device).repeat(num, 1)
             camera.set_world_poses_from_view(positions, targets)
-    if num_standard_cameras + num_tiled_cameras + num_ray_caster_cameras <= 0:
-        raise ValueError("You must select at least one camera.")
 
     # Initialize timing variables
     timestep = 0
@@ -503,6 +532,15 @@ def run_simulator(
 def plot_images(
     images: dict, cols: int = 4, cmap: str = "gray", title_prefix: str = "Image", save_name: str | None = None
 ):
+    """Plot the provided images in a grid, labelling each one with the relevant info
+
+    Args:
+        images: the images, where their label is key, and the image is value
+        cols: how many columns to use in the grid. Defaults to 4.
+        cmap: what color map to use. Defaults to "gray".
+        title_prefix: what prefix to prepend to image titles. Defaults to "Image".
+        save_name: Filename to save the image to. Defaults to None.
+    """
     total_images = sum(image_tensor.shape[0] for image_tensor in images.values())
 
     # Determine the grid size (rows and columns)
@@ -530,7 +568,19 @@ def plot_images(
         plt.close()  # Close the figure to free up memory
 
 
-def plot_point_clouds(clouds: dict, viewpoints=None, cols: int = 4, save_name: str | None = None, timestep: int = 0):
+def plot_point_clouds(
+    clouds: dict, viewpoints: list | None = None, cols: int = 4, save_name: str | None = None, timestep: int = 0
+):
+    """Plot pointclouds together from different views, and save it if a save_name is provided
+
+    Args:
+        clouds: the pointclouds to plot, where the key is the label and the value
+            is the Open3D PointCloud
+        viewpoints: from what Elivs and Azims to view clouds from. Defaults to None.
+        cols: how many columns to use. Defaults to 4.
+        save_name: _description_. Defaults to None.
+        timestep: _description_. Defaults to 0.
+    """
     if viewpoints is None:
         viewpoints = [
             {"elev": 30, "azim": 45},
@@ -584,6 +634,9 @@ def main():
     sim.set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
     # design the scene
     print("[INFO]: Designing the scene")
+
+    if args_cli.num_tiled_cameras + args_cli.num_standard_cameras + args_cli.num_ray_caster_cameras <= 0:
+        raise ValueError("You must select at least one camera.")
     scene_entities = design_scene(
         num_tiled_cams=args_cli.num_tiled_cameras,
         num_standard_cams=args_cli.num_standard_cameras,
