@@ -76,7 +76,7 @@ camera outputs.
 
 This should save several images in the same directory that the script is run, showing the labelled output
 of the cameras. If depth is enabled, point clouds are generated from depth, and the rendered point cloud
-result is saved as an image as well.
+result is saved as an image as well. After the simulations stops it can be closed with CTRL C.
 
 Compare Camera Type and Performance Under Different Parameters By Benchmarking
 ------------------------------------------------------------------------------
@@ -101,6 +101,8 @@ an idea of how many resources rendering the desired camera requires. In Ubuntu, 
 to live monitor resources while running this script, and in Windows, you can use the Task Manager.
 
 If your system has a hard time handling the desired cameras, you can try the following
+   - Switch to headless mode (supply ``--headless``)
+   - Ensure you are using the GPU pipeline not CPU!
    - If you aren't using Tiled Cameras, switch to Tiled Cameras
    - Decrease camera resolution
    - Decrease how many replicators there are for each camera.
@@ -108,3 +110,4 @@ If your system has a hard time handling the desired cameras, you can try the fol
    - Decrease the number of objects in the scene
 
 If your system is able to handle the amount of cameras, then the time statistics will be printed to the terminal.
+After the simulations stops it can be closed with CTRL C.
