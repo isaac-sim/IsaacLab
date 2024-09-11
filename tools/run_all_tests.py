@@ -89,7 +89,7 @@ def test_all(
     """Run all tests under the given directory.
 
     Args:
-        test_dirs: Path(s) to the directory containing the tests.
+        test_dirs: Path(s) to the directory(s) containing the tests.
         tests_to_skip: List of tests to skip.
         log_path: Path to the log file to store the results in.
         timeout: Timeout for each test in seconds. Defaults to DEFAULT_TIMEOUT.
@@ -119,8 +119,9 @@ def test_all(
     logging.basicConfig(level=logging.INFO, format="%(message)s", handlers=logging_handlers)
 
     # Discover all tests under current directory
+    all_test_paths = []
     for test_dir in test_dirs:
-        all_test_paths = [str(path) for path in Path(test_dir).resolve().rglob("*test_*.py")]
+        all_test_paths += [str(path) for path in Path(test_dir).resolve().rglob("*test_*.py")]
     skipped_test_paths = []
     test_paths = []
     # Check that all tests to skip are actually in the tests
