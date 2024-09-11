@@ -1063,8 +1063,7 @@ def unproject_depth(depth: torch.Tensor, intrinsics: torch.Tensor) -> torch.Tens
 def convert_perspective_depth_image_to_orthogonal_depth_image(
     perspective_depth: torch.Tensor, intrinsics: torch.Tensor
 ) -> torch.Tensor:
-    """
-    Converts depth images captured by the distance_to_camera replicator
+    r"""Converts depth images captured by the distance_to_camera replicator
     to depth images as if captured by the distance_to_image_plane replicator.
 
     Provided a depth image where depth is provided as the distance to the principal
@@ -1133,7 +1132,7 @@ def convert_perspective_depth_image_to_orthogonal_depth_image(
     # Create meshgrid of pixel coordinates
     u_grid = torch.arange(im_width, device=perspective_depth.device, dtype=perspective_depth.dtype)
     v_grid = torch.arange(im_height, device=perspective_depth.device, dtype=perspective_depth.dtype)
-    u_grid, v_grid = torch.meshgrid(u_grid, v_grid, indexing="xy")  # v_grid first, then u_grid
+    u_grid, v_grid = torch.meshgrid(u_grid, v_grid, indexing="xy")
 
     # Expand the grids for batch processing
     u_grid = u_grid.unsqueeze(0).expand(perspective_depth_batch.shape[0], -1, -1)
