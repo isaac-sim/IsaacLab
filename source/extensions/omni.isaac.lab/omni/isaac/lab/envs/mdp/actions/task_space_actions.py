@@ -14,7 +14,7 @@ import carb
 import omni.isaac.lab.utils.math as math_utils
 from omni.isaac.lab.assets.articulation import Articulation
 from omni.isaac.lab.controllers.differential_ik import DifferentialIKController
-from omni.isaac.lab.controllers.operation_space_controller import OperationSpaceController
+from omni.isaac.lab.controllers.operational_space import OperationSpaceController
 from omni.isaac.lab.managers.action_manager import ActionTerm
 
 if TYPE_CHECKING:
