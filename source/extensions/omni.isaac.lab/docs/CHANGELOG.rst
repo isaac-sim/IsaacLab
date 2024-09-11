@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.22.10 (2024-09-11)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`convert_perspective_depth_image_to_orthogonal_depth_image` to be able to convert depth_to_camera
+  to depth_to_image_plane if desired (so that :meth:`unproject_depth` can be used with correctly
+  with the depth_to_camera replicator, just has to be converted first using the newly added method)
+
 0.22.10 (2024-09-09)
 ~~~~~~~~~~~~~~~~~~~~
 
