@@ -1084,7 +1084,8 @@ def convert_perspective_depth_image_to_orthogonal_depth_image(
         intrinsics: A tensor providing camera's calibration matrix. Shape is (3, 3) or (N, 3, 3).
 
     Returns:
-        The depth image as if obtained by the distance_to_image_plane replicator
+        The depth image as if obtained by the distance_to_image_plane replicator. Shape
+            matches the input shape of depth
 
     Raises:
         ValueError: When depth is not of shape (H, W) or (H, W, 1) or (N, H, W) or (N, H, W, 1).
