@@ -163,7 +163,9 @@ class OperationSpaceController:
             task_space_command, stiffness, damping_ratio = torch.split(command, (self.target_dim, 6, 6), dim=-1)
             # format command
             stiffness = stiffness.clip_(min=self._p_gains_limits[..., 0], max=self._p_gains_limits[..., 1])
-            damping_ratio = damping_ratio.clip_(min=self._damping_ratio_limits[..., 0], max=self._damping_ratio_limits[..., 1])
+            damping_ratio = damping_ratio.clip_(
+                min=self._damping_ratio_limits[..., 0], max=self._damping_ratio_limits[..., 1]
+            )
             # joint positions + stiffness + damping
             self._task_space_target[:] = task_space_command
             self._p_gains[:] = stiffness
@@ -256,9 +258,15 @@ class OperationSpaceController:
             if ee_pose is None or ee_vel is None:
                 raise ValueError("End-effector pose and velocity are required for motion control.")
             # -- end-effector tracking error
-            pose_error = torch.cat(compute_pose_error(
-                ee_pose[:, :3], ee_pose[:, 3:], self.desired_ee_pos, self.desired_ee_rot, rot_error_type="axis_angle"),
-                dim=-1
+            pose_error = torch.cat(
+                compute_pose_error(
+                    ee_pose[:, :3],
+                    ee_pose[:, 3:],
+                    self.desired_ee_pos,
+                    self.desired_ee_rot,
+                    rot_error_type="axis_angle",
+                ),
+                dim=-1,
             )
             velocity_error = -ee_vel  # zero target velocity
             # -- desired end-effector acceleration (spring damped system)
@@ -297,12 +305,14 @@ class OperationSpaceController:
                 # check input is provided
                 if ee_force is None:
                     raise ValueError("End-effector force is required for closed-loop force control.")
-                # We can only measure the force component at the contact, so only apply the feedback for only the force 
+                # We can only measure the force component at the contact, so only apply the feedback for only the force
                 # component, keep the torque component open loop
                 self._ee_contact_wrench[:, 0:3] = ee_force
                 self._ee_contact_wrench[:, 3:6] = self.desired_ee_wrench[:, 3:6]
                 # closed-loop control
-                des_force_wrench = self.desired_ee_wrench + self._p_wrench_gains * (self.desired_ee_wrench - self._ee_contact_wrench)
+                des_force_wrench = self.desired_ee_wrench + self._p_wrench_gains * (
+                    self.desired_ee_wrench - self._ee_contact_wrench
+                )
             else:
                 # open-loop control
                 des_force_wrench = self.desired_ee_wrench

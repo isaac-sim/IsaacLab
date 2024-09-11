@@ -22,11 +22,16 @@ from omni.isaac.cloner import GridCloner
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.assets import Articulation
 from omni.isaac.lab.controllers import OperationSpaceController, OperationSpaceControllerCfg
-from omni.isaac.lab.utils.math import compute_pose_error, subtract_frame_transforms, \
-    quat_rotate_inverse, combine_frame_transforms, apply_delta_pose
 from omni.isaac.lab.markers import VisualizationMarkers
 from omni.isaac.lab.markers.config import FRAME_MARKER_CFG
-from omni.isaac.lab.sensors import ContactSensorCfg, ContactSensor
+from omni.isaac.lab.sensors import ContactSensor, ContactSensorCfg
+from omni.isaac.lab.utils.math import (
+    apply_delta_pose,
+    combine_frame_transforms,
+    compute_pose_error,
+    quat_rotate_inverse,
+    subtract_frame_transforms,
+)
 
 ##
 # Pre-defined configs
@@ -60,7 +65,11 @@ class TestOperationSpaceController(unittest.TestCase):
         self.goal_marker = VisualizationMarkers(frame_marker_cfg.replace(prim_path="/Visuals/ee_goal"))
 
         light_cfg = sim_utils.DistantLightCfg(intensity=5.0, exposure=10.0)
-        light_cfg.func("/Light", light_cfg, translation=[0, 0, 1],)
+        light_cfg.func(
+            "/Light",
+            light_cfg,
+            translation=[0, 0, 1],
+        )
 
         # Create interface to clone the scene
         cloner = GridCloner(spacing=2.0)
@@ -85,46 +94,70 @@ class TestOperationSpaceController(unittest.TestCase):
         # Define the ContactSensor
         self.contact_forces = None
 
-        ee_goal_abs_pos_set = torch.tensor([
-            [0.5, 0.5, 0.7],
-            [0.5, -0.4, 0.6],
-            [0.5, 0, 0.5],
-        ], device=self.sim.device)
-        ee_goal_abs_quad_set = torch.tensor([
-            [0.707, 0.0, 0.707, 0.0],
-            [0.707, 0.707, 0.0, 0.0],
-            [0.0, 1.0, 0.0, 0.0],
-        ], device=self.sim.device)
-        ee_goal_rel_pos_set = torch.tensor([
-            [0.2, 0.0, 0.0],
-            [0.2, 0.2, 0.0],
-            [0.2, 0.2, -0.2],
-        ], device=self.sim.device)
-        ee_goal_rel_angleaxis_set = torch.tensor([
-            [0.0, torch.pi / 2, 0.0],  # for [0.707, 0, 0.707, 0]
-            [torch.pi / 2, 0.0, 0.0],  # for [0.707, 0.707, 0, 0]
-            [torch.pi, 0.0, 0.0],  # for [0.0, 1.0, 0, 0]
-        ], device=self.sim.device)
-        ee_goal_abs_wrench_set = torch.tensor([
-            [0.0, 0.0, 10.0, 0.0, -1.0, 0.0],
-            [0.0, 10.0, 0.0, 0.0, 0.0, 0.0],
-            [10.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-        ], device=self.sim.device)
-        kp_set = torch.tensor([
-            [500.0, 500.0, 500.0, 500.0, 500.0, 500.0],
-            [600.0, 600.0, 600.0, 600.0, 600.0, 600.0],
-            [400.0, 400.0, 400.0, 400.0, 400.0, 400.0],
-        ], device=self.sim.device)
-        d_ratio_set = torch.tensor([
-            [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
-            [1.1, 1.1, 1.1, 1.1, 1.1, 1.1],
-            [0.9, 0.9, 0.9, 0.9, 0.9, 0.9],
-        ], device=self.sim.device)
-        ee_goal_hybrid_set = torch.tensor([
-            [0.6, 0.2, 0.5, 0.0, 0.707, 0.0, 0.707, 10.0, 10.0, 10.0, 0.0, 0.0, 0.0],
-            [0.6, -0.3, 0.6, 0.0, 0.707, 0.0, 0.707, 10.0, 10.0, 10.0, 0.0, 0.0, 0.0],
-            [0.6, -0.1, 0.8, 0.0, 0.5774, 0.0, 0.8165, 10.0, 10.0, 10.0, 0.0, 0.0, 0.0],
-        ], device=self.sim.device)
+        ee_goal_abs_pos_set = torch.tensor(
+            [
+                [0.5, 0.5, 0.7],
+                [0.5, -0.4, 0.6],
+                [0.5, 0, 0.5],
+            ],
+            device=self.sim.device,
+        )
+        ee_goal_abs_quad_set = torch.tensor(
+            [
+                [0.707, 0.0, 0.707, 0.0],
+                [0.707, 0.707, 0.0, 0.0],
+                [0.0, 1.0, 0.0, 0.0],
+            ],
+            device=self.sim.device,
+        )
+        ee_goal_rel_pos_set = torch.tensor(
+            [
+                [0.2, 0.0, 0.0],
+                [0.2, 0.2, 0.0],
+                [0.2, 0.2, -0.2],
+            ],
+            device=self.sim.device,
+        )
+        ee_goal_rel_angleaxis_set = torch.tensor(
+            [
+                [0.0, torch.pi / 2, 0.0],  # for [0.707, 0, 0.707, 0]
+                [torch.pi / 2, 0.0, 0.0],  # for [0.707, 0.707, 0, 0]
+                [torch.pi, 0.0, 0.0],  # for [0.0, 1.0, 0, 0]
+            ],
+            device=self.sim.device,
+        )
+        ee_goal_abs_wrench_set = torch.tensor(
+            [
+                [0.0, 0.0, 10.0, 0.0, -1.0, 0.0],
+                [0.0, 10.0, 0.0, 0.0, 0.0, 0.0],
+                [10.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            ],
+            device=self.sim.device,
+        )
+        kp_set = torch.tensor(
+            [
+                [500.0, 500.0, 500.0, 500.0, 500.0, 500.0],
+                [600.0, 600.0, 600.0, 600.0, 600.0, 600.0],
+                [400.0, 400.0, 400.0, 400.0, 400.0, 400.0],
+            ],
+            device=self.sim.device,
+        )
+        d_ratio_set = torch.tensor(
+            [
+                [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                [1.1, 1.1, 1.1, 1.1, 1.1, 1.1],
+                [0.9, 0.9, 0.9, 0.9, 0.9, 0.9],
+            ],
+            device=self.sim.device,
+        )
+        ee_goal_hybrid_set = torch.tensor(
+            [
+                [0.6, 0.2, 0.5, 0.0, 0.707, 0.0, 0.707, 10.0, 10.0, 10.0, 0.0, 0.0, 0.0],
+                [0.6, -0.3, 0.6, 0.0, 0.707, 0.0, 0.707, 10.0, 10.0, 10.0, 0.0, 0.0, 0.0],
+                [0.6, -0.1, 0.8, 0.0, 0.5774, 0.0, 0.8165, 10.0, 10.0, 10.0, 0.0, 0.0, 0.0],
+            ],
+            device=self.sim.device,
+        )
 
         # Define goals for the arm [xyz]
         self.target_abs_pos_set = ee_goal_abs_pos_set.clone()
@@ -160,11 +193,14 @@ class TestOperationSpaceController(unittest.TestCase):
     def test_franka_pose_abs_fixed_impedance_without_inertial_compensation(self):
         """Test absolute pose control with fixed impedance and without inertial compensation."""
         robot = Articulation(cfg=self.robot_cfg)
-        opc_cfg = OperationSpaceControllerCfg(command_types=["pose_abs"], impedance_mode="fixed",
-                                              inertial_compensation=False,
-                                              gravity_compensation=False,
-                                              stiffness=[400.0, 400.0, 400.0, 100.0, 100.0, 100.0],
-                                              damping_ratio=[5.0, 5.0, 5.0, 0.001, 0.001, 0.001])
+        opc_cfg = OperationSpaceControllerCfg(
+            command_types=["pose_abs"],
+            impedance_mode="fixed",
+            inertial_compensation=False,
+            gravity_compensation=False,
+            stiffness=[400.0, 400.0, 400.0, 100.0, 100.0, 100.0],
+            damping_ratio=[5.0, 5.0, 5.0, 0.001, 0.001, 0.001],
+        )
         opc = OperationSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
 
         self._run_op_space_controller(robot, opc, "panda_hand", ["panda_joint.*"], self.target_abs_pose_set)
@@ -172,11 +208,15 @@ class TestOperationSpaceController(unittest.TestCase):
     def test_franka_pose_abs_fixed_impedance_with_decoupled_inertial_compensation(self):
         """Test absolute pose control with fixed impedance and decoupled inertial compensation."""
         robot = Articulation(cfg=self.robot_cfg)
-        opc_cfg = OperationSpaceControllerCfg(command_types=["pose_abs"], impedance_mode="fixed",
-                                              inertial_compensation=True,
-                                              uncouple_motion_wrench=True,
-                                              gravity_compensation=False,
-                                              stiffness=1000.0, damping_ratio=1.0)
+        opc_cfg = OperationSpaceControllerCfg(
+            command_types=["pose_abs"],
+            impedance_mode="fixed",
+            inertial_compensation=True,
+            uncouple_motion_wrench=True,
+            gravity_compensation=False,
+            stiffness=1000.0,
+            damping_ratio=1.0,
+        )
         opc = OperationSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
 
         self._run_op_space_controller(robot, opc, "panda_hand", ["panda_joint.*"], self.target_abs_pose_set)
@@ -185,11 +225,15 @@ class TestOperationSpaceController(unittest.TestCase):
         """Test absolute pose control with fixed impedance, full inertial and gravity compensation."""
         self.robot_cfg.spawn.rigid_props.disable_gravity = False
         robot = Articulation(cfg=self.robot_cfg)
-        opc_cfg = OperationSpaceControllerCfg(command_types=["pose_abs"], impedance_mode="fixed",
-                                              inertial_compensation=True,
-                                              uncouple_motion_wrench=False,
-                                              gravity_compensation=True,
-                                              stiffness=500.0, damping_ratio=1.0)
+        opc_cfg = OperationSpaceControllerCfg(
+            command_types=["pose_abs"],
+            impedance_mode="fixed",
+            inertial_compensation=True,
+            uncouple_motion_wrench=False,
+            gravity_compensation=True,
+            stiffness=500.0,
+            damping_ratio=1.0,
+        )
         opc = OperationSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
 
         self._run_op_space_controller(robot, opc, "panda_hand", ["panda_joint.*"], self.target_abs_pose_set)
@@ -197,11 +241,15 @@ class TestOperationSpaceController(unittest.TestCase):
     def test_franka_pose_abs_fixed_impedance_with_full_inertial_compensation(self):
         """Test absolute pose control with fixed impedance and full inertial compensation."""
         robot = Articulation(cfg=self.robot_cfg)
-        opc_cfg = OperationSpaceControllerCfg(command_types=["pose_abs"], impedance_mode="fixed",
-                                              inertial_compensation=True,
-                                              uncouple_motion_wrench=False,
-                                              gravity_compensation=False,
-                                              stiffness=500.0, damping_ratio=1.0)
+        opc_cfg = OperationSpaceControllerCfg(
+            command_types=["pose_abs"],
+            impedance_mode="fixed",
+            inertial_compensation=True,
+            uncouple_motion_wrench=False,
+            gravity_compensation=False,
+            stiffness=500.0,
+            damping_ratio=1.0,
+        )
         opc = OperationSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
 
         self._run_op_space_controller(robot, opc, "panda_hand", ["panda_joint.*"], self.target_abs_pose_set)
@@ -209,11 +257,15 @@ class TestOperationSpaceController(unittest.TestCase):
     def test_franka_pose_rel_fixed_impedance_with_full_inertial_compensation(self):
         """Test relative pose control with fixed impedance and full inertial compensation."""
         robot = Articulation(cfg=self.robot_cfg)
-        opc_cfg = OperationSpaceControllerCfg(command_types=["pose_rel"], impedance_mode="fixed",
-                                              inertial_compensation=True,
-                                              uncouple_motion_wrench=False,
-                                              gravity_compensation=False,
-                                              stiffness=500.0, damping_ratio=1.0)
+        opc_cfg = OperationSpaceControllerCfg(
+            command_types=["pose_rel"],
+            impedance_mode="fixed",
+            inertial_compensation=True,
+            uncouple_motion_wrench=False,
+            gravity_compensation=False,
+            stiffness=500.0,
+            damping_ratio=1.0,
+        )
         opc = OperationSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
 
         self._run_op_space_controller(robot, opc, "panda_hand", ["panda_joint.*"], self.target_rel_pose_b_set)
@@ -221,11 +273,15 @@ class TestOperationSpaceController(unittest.TestCase):
     def test_franka_position_abs_fixed_impedance_with_full_inertial_compensation(self):
         """Test absolute position control with fixed impedance and full inertial compensation."""
         robot = Articulation(cfg=self.robot_cfg)
-        opc_cfg = OperationSpaceControllerCfg(command_types=["position_abs"], impedance_mode="fixed",
-                                              inertial_compensation=True,
-                                              uncouple_motion_wrench=False,
-                                              gravity_compensation=False,
-                                              stiffness=500.0, damping_ratio=1.0)
+        opc_cfg = OperationSpaceControllerCfg(
+            command_types=["position_abs"],
+            impedance_mode="fixed",
+            inertial_compensation=True,
+            uncouple_motion_wrench=False,
+            gravity_compensation=False,
+            stiffness=500.0,
+            damping_ratio=1.0,
+        )
         opc = OperationSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
 
         self._run_op_space_controller(robot, opc, "panda_hand", ["panda_joint.*"], self.target_abs_pos_set)
@@ -233,11 +289,15 @@ class TestOperationSpaceController(unittest.TestCase):
     def test_franka_position_rel_fixed_impedance_with_full_inertial_compensation(self):
         """Test relative position control with fixed impedance and full inertial compensation."""
         robot = Articulation(cfg=self.robot_cfg)
-        opc_cfg = OperationSpaceControllerCfg(command_types=["position_rel"], impedance_mode="fixed",
-                                              inertial_compensation=True,
-                                              uncouple_motion_wrench=False,
-                                              gravity_compensation=False,
-                                              stiffness=500.0, damping_ratio=1.0)
+        opc_cfg = OperationSpaceControllerCfg(
+            command_types=["position_rel"],
+            impedance_mode="fixed",
+            inertial_compensation=True,
+            uncouple_motion_wrench=False,
+            gravity_compensation=False,
+            stiffness=500.0,
+            damping_ratio=1.0,
+        )
         opc = OperationSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
 
         self._run_op_space_controller(robot, opc, "panda_hand", ["panda_joint.*"], self.target_rel_pos_set)
@@ -245,11 +305,15 @@ class TestOperationSpaceController(unittest.TestCase):
     def test_franka_pose_abs_variable_kp_impedance_with_full_inertial_compensation(self):
         """Test absolute pose control with variable kp impedance and full inertial compensation."""
         robot = Articulation(cfg=self.robot_cfg)
-        opc_cfg = OperationSpaceControllerCfg(command_types=["pose_abs"], impedance_mode="variable_kp",
-                                              inertial_compensation=True,
-                                              uncouple_motion_wrench=False,
-                                              gravity_compensation=False,
-                                              stiffness=500.0, damping_ratio=1.0)
+        opc_cfg = OperationSpaceControllerCfg(
+            command_types=["pose_abs"],
+            impedance_mode="variable_kp",
+            inertial_compensation=True,
+            uncouple_motion_wrench=False,
+            gravity_compensation=False,
+            stiffness=500.0,
+            damping_ratio=1.0,
+        )
         opc = OperationSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
 
         self._run_op_space_controller(robot, opc, "panda_hand", ["panda_joint.*"], self.target_abs_pose_variable_kp_set)
@@ -257,11 +321,15 @@ class TestOperationSpaceController(unittest.TestCase):
     def test_franka_pose_abs_variable_impedance_with_full_inertial_compensation(self):
         """Test absolute pose control with variable impedance and full inertial compensation."""
         robot = Articulation(cfg=self.robot_cfg)
-        opc_cfg = OperationSpaceControllerCfg(command_types=["pose_abs"], impedance_mode="variable",
-                                              inertial_compensation=True,
-                                              uncouple_motion_wrench=False,
-                                              gravity_compensation=False,
-                                              stiffness=500.0, damping_ratio=1.0)
+        opc_cfg = OperationSpaceControllerCfg(
+            command_types=["pose_abs"],
+            impedance_mode="variable",
+            inertial_compensation=True,
+            uncouple_motion_wrench=False,
+            gravity_compensation=False,
+            stiffness=500.0,
+            damping_ratio=1.0,
+        )
         opc = OperationSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
 
         self._run_op_space_controller(robot, opc, "panda_hand", ["panda_joint.*"], self.target_abs_pose_variable_set)
@@ -278,26 +346,41 @@ class TestOperationSpaceController(unittest.TestCase):
             activate_contact_sensors=True,
         )
         obstacle_spawn_cfg.func(
-            "/World/envs/env_.*/obstacle1", obstacle_spawn_cfg, translation=(0.2, 0.0, 0.93), orientation=(0.9848, 0.0, -0.1736, 0.0)
+            "/World/envs/env_.*/obstacle1",
+            obstacle_spawn_cfg,
+            translation=(0.2, 0.0, 0.93),
+            orientation=(0.9848, 0.0, -0.1736, 0.0),
         )
         obstacle_spawn_cfg.func(
-            "/World/envs/env_.*/obstacle2", obstacle_spawn_cfg, translation=(0.2, 0.35, 0.7), orientation=(0.707, 0.707, 0.0, 0.0)
+            "/World/envs/env_.*/obstacle2",
+            obstacle_spawn_cfg,
+            translation=(0.2, 0.35, 0.7),
+            orientation=(0.707, 0.707, 0.0, 0.0),
         )
         obstacle_spawn_cfg.func(
-            "/World/envs/env_.*/obstacle3", obstacle_spawn_cfg, translation=(0.55, 0.0, 0.7), orientation=(0.707, 0.0, 0.707, 0.0)
+            "/World/envs/env_.*/obstacle3",
+            obstacle_spawn_cfg,
+            translation=(0.55, 0.0, 0.7),
+            orientation=(0.707, 0.0, 0.707, 0.0),
         )
         contact_forces_cfg = ContactSensorCfg(
-            prim_path="/World/envs/env_.*/obstacle.*", update_period=0.0, history_length=50, debug_vis=False, force_threshold=0.1
+            prim_path="/World/envs/env_.*/obstacle.*",
+            update_period=0.0,
+            history_length=50,
+            debug_vis=False,
+            force_threshold=0.1,
         )
         self.contact_forces = ContactSensor(contact_forces_cfg)
 
-        opc_cfg = OperationSpaceControllerCfg(command_types=["wrench_abs"],
-                                              impedance_mode="fixed",
-                                              stiffness=500.0,
-                                              damping_ratio=1.0,
-                                              motion_control_axes=[0, 0, 0, 0, 0, 0],
-                                              wrench_control_axes=[1, 1, 1, 1, 1, 1],
-                                              gravity_compensation=False)
+        opc_cfg = OperationSpaceControllerCfg(
+            command_types=["wrench_abs"],
+            impedance_mode="fixed",
+            stiffness=500.0,
+            damping_ratio=1.0,
+            motion_control_axes=[0, 0, 0, 0, 0, 0],
+            wrench_control_axes=[1, 1, 1, 1, 1, 1],
+            gravity_compensation=False,
+        )
         opc = OperationSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
 
         self._run_op_space_controller(robot, opc, "panda_hand", ["panda_joint.*"], self.target_abs_wrench_set)
@@ -315,27 +398,42 @@ class TestOperationSpaceController(unittest.TestCase):
             activate_contact_sensors=True,
         )
         obstacle_spawn_cfg.func(
-            "/World/envs/env_.*/obstacle1", obstacle_spawn_cfg, translation=(0.2, 0.0, 0.93), orientation=(0.9848, 0.0, -0.1736, 0.0)
+            "/World/envs/env_.*/obstacle1",
+            obstacle_spawn_cfg,
+            translation=(0.2, 0.0, 0.93),
+            orientation=(0.9848, 0.0, -0.1736, 0.0),
         )
         obstacle_spawn_cfg.func(
-            "/World/envs/env_.*/obstacle2", obstacle_spawn_cfg, translation=(0.2, 0.35, 0.7), orientation=(0.707, 0.707, 0.0, 0.0)
+            "/World/envs/env_.*/obstacle2",
+            obstacle_spawn_cfg,
+            translation=(0.2, 0.35, 0.7),
+            orientation=(0.707, 0.707, 0.0, 0.0),
         )
         obstacle_spawn_cfg.func(
-            "/World/envs/env_.*/obstacle3", obstacle_spawn_cfg, translation=(0.55, 0.0, 0.7), orientation=(0.707, 0.0, 0.707, 0.0)
+            "/World/envs/env_.*/obstacle3",
+            obstacle_spawn_cfg,
+            translation=(0.55, 0.0, 0.7),
+            orientation=(0.707, 0.0, 0.707, 0.0),
         )
         contact_forces_cfg = ContactSensorCfg(
-            prim_path="/World/envs/env_.*/obstacle.*", update_period=0.0, history_length=2, debug_vis=False, force_threshold=0.1
+            prim_path="/World/envs/env_.*/obstacle.*",
+            update_period=0.0,
+            history_length=2,
+            debug_vis=False,
+            force_threshold=0.1,
         )
         self.contact_forces = ContactSensor(contact_forces_cfg)
 
-        opc_cfg = OperationSpaceControllerCfg(command_types=["wrench_abs"],
-                                              impedance_mode="fixed",
-                                              stiffness=500.0,
-                                              damping_ratio=1.0,
-                                              wrench_stiffness=[0.2, 0.2, 0.2, 0.0, 0.0, 0.0],  # Zero torque feedback as we cannot contact torque
-                                              motion_control_axes=[0, 0, 0, 0, 0, 0],
-                                              wrench_control_axes=[1, 1, 1, 1, 1, 1],
-                                              gravity_compensation=False)
+        opc_cfg = OperationSpaceControllerCfg(
+            command_types=["wrench_abs"],
+            impedance_mode="fixed",
+            stiffness=500.0,
+            damping_ratio=1.0,
+            wrench_stiffness=[0.2, 0.2, 0.2, 0.0, 0.0, 0.0],  # Zero torque feedback as we cannot contact torque
+            motion_control_axes=[0, 0, 0, 0, 0, 0],
+            wrench_control_axes=[1, 1, 1, 1, 1, 1],
+            gravity_compensation=False,
+        )
         opc = OperationSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
 
         self._run_op_space_controller(robot, opc, "panda_hand", ["panda_joint.*"], self.target_abs_wrench_set)
@@ -353,23 +451,32 @@ class TestOperationSpaceController(unittest.TestCase):
             activate_contact_sensors=True,
         )
         obstacle_spawn_cfg.func(
-            "/World/envs/env_.*/obstacle1", obstacle_spawn_cfg, translation=(self.target_hybrid_set[0, 0] + 0.05, 0.0, 0.7), orientation=(0.707, 0.0, 0.707, 0.0)
+            "/World/envs/env_.*/obstacle1",
+            obstacle_spawn_cfg,
+            translation=(self.target_hybrid_set[0, 0] + 0.05, 0.0, 0.7),
+            orientation=(0.707, 0.0, 0.707, 0.0),
         )
         contact_forces_cfg = ContactSensorCfg(
-            prim_path="/World/envs/env_.*/obstacle.*", update_period=0.0, history_length=2, debug_vis=False, force_threshold=0.1
+            prim_path="/World/envs/env_.*/obstacle.*",
+            update_period=0.0,
+            history_length=2,
+            debug_vis=False,
+            force_threshold=0.1,
         )
         self.contact_forces = ContactSensor(contact_forces_cfg)
 
-        opc_cfg = OperationSpaceControllerCfg(command_types=["pose_abs", "wrench_abs"],
-                                              impedance_mode="fixed",
-                                              inertial_compensation=True,
-                                              uncouple_motion_wrench=False,
-                                              gravity_compensation=False,
-                                              stiffness=100.0, damping_ratio=1.0,
-                                              wrench_stiffness=[0.2, 0.0, 0.0, 0.0, 0.0, 0.0],
-                                              motion_control_axes=[0, 1, 1, 1, 1, 1],
-                                              wrench_control_axes=[1, 0, 0, 0, 0, 0],
-                                              )
+        opc_cfg = OperationSpaceControllerCfg(
+            command_types=["pose_abs", "wrench_abs"],
+            impedance_mode="fixed",
+            inertial_compensation=True,
+            uncouple_motion_wrench=False,
+            gravity_compensation=False,
+            stiffness=100.0,
+            damping_ratio=1.0,
+            wrench_stiffness=[0.2, 0.0, 0.0, 0.0, 0.0, 0.0],
+            motion_control_axes=[0, 1, 1, 1, 1, 1],
+            wrench_control_axes=[1, 0, 0, 0, 0, 0],
+        )
         opc = OperationSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
 
         self._run_op_space_controller(robot, opc, "panda_leftfinger", ["panda_joint.*"], self.target_hybrid_set)
@@ -387,26 +494,37 @@ class TestOperationSpaceController(unittest.TestCase):
             activate_contact_sensors=True,
         )
         obstacle_spawn_cfg.func(
-            "/World/envs/env_.*/obstacle1", obstacle_spawn_cfg, translation=(self.target_hybrid_set[0, 0] + 0.05, 0.0, 0.7), orientation=(0.707, 0.0, 0.707, 0.0)
+            "/World/envs/env_.*/obstacle1",
+            obstacle_spawn_cfg,
+            translation=(self.target_hybrid_set[0, 0] + 0.05, 0.0, 0.7),
+            orientation=(0.707, 0.0, 0.707, 0.0),
         )
         contact_forces_cfg = ContactSensorCfg(
-            prim_path="/World/envs/env_.*/obstacle.*", update_period=0.0, history_length=2, debug_vis=False, force_threshold=0.1
+            prim_path="/World/envs/env_.*/obstacle.*",
+            update_period=0.0,
+            history_length=2,
+            debug_vis=False,
+            force_threshold=0.1,
         )
         self.contact_forces = ContactSensor(contact_forces_cfg)
 
-        opc_cfg = OperationSpaceControllerCfg(command_types=["pose_abs", "wrench_abs"],
-                                              impedance_mode="variable_kp",
-                                              inertial_compensation=True,
-                                              uncouple_motion_wrench=False,
-                                              gravity_compensation=False,
-                                              stiffness=100.0, damping_ratio=1.2,
-                                              wrench_stiffness=[0.1, 0.0, 0.0, 0.0, 0.0, 0.0],
-                                              motion_control_axes=[0, 1, 1, 1, 1, 1],
-                                              wrench_control_axes=[1, 0, 0, 0, 0, 0],
-                                              )
+        opc_cfg = OperationSpaceControllerCfg(
+            command_types=["pose_abs", "wrench_abs"],
+            impedance_mode="variable_kp",
+            inertial_compensation=True,
+            uncouple_motion_wrench=False,
+            gravity_compensation=False,
+            stiffness=100.0,
+            damping_ratio=1.2,
+            wrench_stiffness=[0.1, 0.0, 0.0, 0.0, 0.0, 0.0],
+            motion_control_axes=[0, 1, 1, 1, 1, 1],
+            wrench_control_axes=[1, 0, 0, 0, 0, 0],
+        )
         opc = OperationSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
 
-        self._run_op_space_controller(robot, opc, "panda_leftfinger", ["panda_joint.*"], self.target_hybrid_variable_kp_set)
+        self._run_op_space_controller(
+            robot, opc, "panda_leftfinger", ["panda_joint.*"], self.target_hybrid_variable_kp_set
+        )
         self.contact_forces = None  # Make contact_forces None after the test otherwise other tests give warning
 
     """
@@ -442,13 +560,19 @@ class TestOperationSpaceController(unittest.TestCase):
         robot.update(dt=sim_dt)
 
         # get the updated states
-        jacobian, mass_matrix, gravity, ee_pose_b, ee_vel_b, root_pose_w, ee_pose_w, ee_force_w = self._update_states(robot, ee_frame_idx, arm_joint_ids)
+        jacobian, mass_matrix, gravity, ee_pose_b, ee_vel_b, root_pose_w, ee_pose_w, ee_force_w = self._update_states(
+            robot, ee_frame_idx, arm_joint_ids
+        )
 
         # Track the given target command
         current_goal_idx = 0  # Current goal index for the arm
-        ee_target_b = torch.zeros(self.num_envs, opc.action_dim, device=self.sim.device)  # Generic target command, which can be pose, position, force, etc.
+        ee_target_b = torch.zeros(
+            self.num_envs, opc.action_dim, device=self.sim.device
+        )  # Generic target command, which can be pose, position, force, etc.
         ee_target_pose_b = torch.zeros(self.num_envs, 7, device=self.sim.device)  # Target pose in the body frame
-        ee_target_pose_w = torch.zeros(self.num_envs, 7, device=self.sim.device)  # Target pose in the world frame (for marker)
+        ee_target_pose_w = torch.zeros(
+            self.num_envs, 7, device=self.sim.device
+        )  # Target pose in the world frame (for marker)
 
         # Set joint efforts to zero
         zero_joint_efforts = torch.zeros(self.num_envs, robot.num_joints, device=self.sim.device)
@@ -470,16 +594,29 @@ class TestOperationSpaceController(unittest.TestCase):
                 robot.reset()
                 # reset target pose
                 robot.update(sim_dt)
-                _, _, _, ee_pose_b, _, _, _, _ = self._update_states(robot, ee_frame_idx, arm_joint_ids)  # at reset, the jacobians are not updated to the latest state
-                ee_target_b, ee_target_pose_b, ee_target_pose_w, current_goal_idx = self._update_target(opc, root_pose_w, ee_pose_b, target_set, current_goal_idx)
+                _, _, _, ee_pose_b, _, _, _, _ = self._update_states(
+                    robot, ee_frame_idx, arm_joint_ids
+                )  # at reset, the jacobians are not updated to the latest state
+                ee_target_b, ee_target_pose_b, ee_target_pose_w, current_goal_idx = self._update_target(
+                    opc, root_pose_w, ee_pose_b, target_set, current_goal_idx
+                )
                 # set the opc command
                 opc.reset()
                 opc.set_command(ee_target_b, ee_pose_b)
             else:
                 # get the updated states
-                jacobian, mass_matrix, gravity, ee_pose_b, ee_vel_b, root_pose_w, ee_pose_w, ee_force_w = self._update_states(robot, ee_frame_idx, arm_joint_ids)
+                jacobian, mass_matrix, gravity, ee_pose_b, ee_vel_b, root_pose_w, ee_pose_w, ee_force_w = (
+                    self._update_states(robot, ee_frame_idx, arm_joint_ids)
+                )
                 # compute the joint commands
-                joint_efforts = opc.compute(jacobian=jacobian, ee_pose=ee_pose_b, ee_vel=ee_vel_b, ee_force=ee_force_w, mass_matrix=mass_matrix, gravity=gravity)
+                joint_efforts = opc.compute(
+                    jacobian=jacobian,
+                    ee_pose=ee_pose_b,
+                    ee_vel=ee_vel_b,
+                    ee_force=ee_force_w,
+                    mass_matrix=mass_matrix,
+                    gravity=gravity,
+                )
                 robot.set_joint_effort_target(joint_efforts, joint_ids=arm_joint_ids)
                 robot.write_data_to_sim()
 
@@ -549,7 +686,9 @@ class TestOperationSpaceController(unittest.TestCase):
             if command_type == "pose_abs":
                 ee_target_pose_b[:] = ee_target_b[:, :7]
             elif command_type == "pose_rel":
-                ee_target_pose_b[:, 0:3], ee_target_pose_b[:, 3:7] = apply_delta_pose(ee_pose_b[:, :3], ee_pose_b[:, 3:], ee_target_b[:, :7])
+                ee_target_pose_b[:, 0:3], ee_target_pose_b[:, 3:7] = apply_delta_pose(
+                    ee_pose_b[:, :3], ee_pose_b[:, 3:], ee_target_b[:, :7]
+                )
             elif command_type == "position_abs":
                 ee_target_pose_b[:, 0:3] = ee_target_b[:, :3]
             elif command_type == "position_rel":
@@ -579,7 +718,7 @@ class TestOperationSpaceController(unittest.TestCase):
     ):
         cmd_idx = 0
         for command_type in opc.cfg.command_types:
-            if command_type == "pose_abs" :
+            if command_type == "pose_abs":
                 pos_error, rot_error = compute_pose_error(
                     ee_pose_b[:, 0:3], ee_pose_b[:, 3:7], ee_target_pose_b[:, 0:3], ee_target_pose_b[:, 3:7]
                 )
@@ -612,8 +751,10 @@ class TestOperationSpaceController(unittest.TestCase):
                 torch.testing.assert_close(pos_error_norm, des_error, rtol=0.0, atol=0.1)
                 cmd_idx += 3
             elif command_type == "wrench_abs":
-                force_error = ee_force_w - ee_target_b[:, cmd_idx:cmd_idx + 3]
-                force_error_norm = torch.norm(force_error * self.force_mask, dim=-1)  # ignore torque part as we cannot measure it
+                force_error = ee_force_w - ee_target_b[:, cmd_idx : cmd_idx + 3]
+                force_error_norm = torch.norm(
+                    force_error * self.force_mask, dim=-1
+                )  # ignore torque part as we cannot measure it
                 des_error = torch.zeros_like(force_error_norm)
                 # check convergence: big threshold here as the force control is not precise when the robot moves
                 torch.testing.assert_close(force_error_norm, des_error, rtol=0.0, atol=1.0)

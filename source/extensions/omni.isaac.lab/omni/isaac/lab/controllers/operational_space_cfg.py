@@ -3,8 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING
 from collections.abc import Sequence
+from dataclasses import MISSING
 
 from omni.isaac.lab.utils import configclass
 
@@ -71,7 +71,7 @@ class OperationSpaceControllerCfg:
 
     If obj:`None`, then open-loop control of desired wrench is performed.
 
-    Note: since only the linear forces could be measured at the moment, 
+    Note: since only the linear forces could be measured at the moment,
     only the first three elements are used.
     """
 

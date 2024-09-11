@@ -193,8 +193,6 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         return jacobian
 
 
-
-
 class OperationSpaceControllerAction(ActionTerm):
     r"""Operation space controller action term.
 
@@ -247,7 +245,7 @@ class OperationSpaceControllerAction(ActionTerm):
             self._joint_ids = slice(None)
 
         # create the operation space controller
-        self._ik_controller = OperationSpaceController( #FIXME Change to correct arguments
+        self._ik_controller = OperationSpaceController(  # FIXME Change to correct arguments
             cfg=self.cfg.controller, num_envs=self.num_envs, device=self.device
         )
 
@@ -306,7 +304,7 @@ class OperationSpaceControllerAction(ActionTerm):
         else:
             joint_pos_des = joint_pos.clone()
         # set the joint position command
-        # self._asset.set_joint_position_target(joint_pos_des, self._joint_ids)
+        self._asset.set_joint_position_target(joint_pos_des, self._joint_ids)
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         self._raw_actions[env_ids] = 0.0
