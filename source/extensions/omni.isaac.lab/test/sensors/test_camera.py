@@ -243,6 +243,7 @@ class TestCamera(unittest.TestCase):
         cam_cfg_2.height = 240
         cam_cfg_2.width = 320
         cam_2 = Camera(cam_cfg_2)
+
         # play sim
         self.sim.reset()
 
