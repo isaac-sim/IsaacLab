@@ -231,8 +231,8 @@ class TestCamera(unittest.TestCase):
                 for im_data in cam.data.output.to_dict().values():
                     self.assertEqual(im_data.shape, (1, self.camera_cfg.height, self.camera_cfg.width))
 
-    def test_multi_camera_resolution(self):
-        """Test multi-camera initialization."""
+    def test_multi_camera_with_different_resolution(self):
+        """Test multi-camera initialization with cameras having different image resolutions."""
         # create two cameras with different prim paths
         # -- camera 1
         cam_cfg_1 = copy.deepcopy(self.camera_cfg)
