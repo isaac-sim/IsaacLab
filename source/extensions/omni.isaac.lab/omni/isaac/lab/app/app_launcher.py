@@ -492,9 +492,9 @@ class AppLauncher:
 
         if "distributed" in launcher_args and launcher_args["distributed"]:
             # local rank (GPU id) in a current multi-gpu mode
-            self.local_rank = int(os.getenv("LOCAL_RANK", "0"))
+            self.local_rank = int(os.getenv("LOCAL_RANK", "0")) + int(os.getenv("JAX_LOCAL_RANK", "0"))
             # global rank (GPU id) in multi-gpu multi-node mode
-            self.global_rank = int(os.getenv("RANK", "0"))
+            self.global_rank = int(os.getenv("RANK", "0")) + int(os.getenv("JAX_RANK", "0"))
 
             self.device_id = self.local_rank
             launcher_args["multi_gpu"] = False

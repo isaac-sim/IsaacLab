@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.10.5 (2024-09-11)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated the skrl RL library integration to the latest release (skrl-v1.3.0)
+
+
 0.10.4 (2024-09-10)
 ~~~~~~~~~~~~~~~~~~~
 

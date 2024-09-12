@@ -11,11 +11,11 @@ models:
     clip_log_std: True
     min_log_std: -20.0
     max_log_std: 2.0
-    initial_log_std: 0.0
+    initial_log_std: -0.6931471805599453
     network:
       - name: net
         input: STATES
-        layers: [512, 256, 128]
+        layers: [128, 128]
         activations: elu
     output: ACTIONS
   value:  # see deterministic_model parameters
@@ -24,7 +24,7 @@ models:
     network:
       - name: net
         input: STATES
-        layers: [512, 256, 128]
+        layers: [128, 128]
         activations: elu
     output: ONE
 
@@ -40,7 +40,7 @@ memory:
 # https://skrl.readthedocs.io/en/latest/api/agents/ppo.html
 agent:
   class: PPO
-  rollouts: 24
+  rollouts: 8
   learning_epochs: 5
   mini_batches: 4
   discount_factor: 0.99
@@ -59,14 +59,14 @@ agent:
   ratio_clip: 0.2
   value_clip: 0.2
   clip_predicted_values: True
-  entropy_loss_scale: 0.01
+  entropy_loss_scale: 0.005
   value_loss_scale: 1.0
   kl_threshold: 0.0
   rewards_shaper_scale: 1.0
   time_limit_bootstrap: False
   # logging and checkpoint
   experiment:
-    directory: "cassie_rough"
+    directory: "anymal_c_navigation"
     experiment_name: ""
     write_interval: auto
     checkpoint_interval: auto
@@ -76,5 +76,5 @@ agent:
 # https://skrl.readthedocs.io/en/latest/api/trainers/sequential.html
 trainer:
   class: SequentialTrainer
-  timesteps: 36000
+  timesteps: 12000
   environment_info: log

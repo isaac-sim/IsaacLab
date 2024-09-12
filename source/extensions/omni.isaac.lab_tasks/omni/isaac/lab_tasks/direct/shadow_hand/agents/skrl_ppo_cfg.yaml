@@ -15,7 +15,7 @@ models:
     network:
       - name: net
         input: STATES
-        layers: [512, 256, 128]
+        layers: [512, 512, 256, 128]
         activations: elu
     output: ACTIONS
   value:  # see deterministic_model parameters
@@ -24,7 +24,7 @@ models:
     network:
       - name: net
         input: STATES
-        layers: [512, 256, 128]
+        layers: [512, 512, 256, 128]
         activations: elu
     output: ONE
 
@@ -40,18 +40,18 @@ memory:
 # https://skrl.readthedocs.io/en/latest/api/agents/ppo.html
 agent:
   class: PPO
-  rollouts: 24
+  rollouts: 16
   learning_epochs: 5
   mini_batches: 4
   discount_factor: 0.99
   lambda: 0.95
-  learning_rate: 1.0e-03
+  learning_rate: 5.0e-04
   learning_rate_scheduler: KLAdaptiveLR
   learning_rate_scheduler_kwargs:
-    kl_threshold: 0.01
-  state_preprocessor: null
+    kl_threshold: 0.016
+  state_preprocessor: RunningStandardScaler
   state_preprocessor_kwargs: null
-  value_preprocessor: null
+  value_preprocessor: RunningStandardScaler
   value_preprocessor_kwargs: null
   random_timesteps: 0
   learning_starts: 0
@@ -59,14 +59,14 @@ agent:
   ratio_clip: 0.2
   value_clip: 0.2
   clip_predicted_values: True
-  entropy_loss_scale: 0.01
-  value_loss_scale: 1.0
+  entropy_loss_scale: 0.0
+  value_loss_scale: 2.0
   kl_threshold: 0.0
-  rewards_shaper_scale: 1.0
+  rewards_shaper_scale: 0.01
   time_limit_bootstrap: False
   # logging and checkpoint
   experiment:
-    directory: "cassie_rough"
+    directory: "shadow_hand"
     experiment_name: ""
     write_interval: auto
     checkpoint_interval: auto
@@ -76,5 +76,5 @@ agent:
 # https://skrl.readthedocs.io/en/latest/api/trainers/sequential.html
 trainer:
   class: SequentialTrainer
-  timesteps: 36000
+  timesteps: 80000
   environment_info: log

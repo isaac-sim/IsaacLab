@@ -102,10 +102,9 @@ Table of Contents
    source/migration/migrating_from_orbit
 
 .. toctree::
-   :maxdepth: 3
+   :maxdepth: 2
    :caption: Features
 
-   source/features/task_workflows
    source/features/hydra
    source/features/multi_gpu
    source/features/tiled_rendering

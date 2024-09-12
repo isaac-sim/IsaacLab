@@ -284,111 +284,214 @@ Environments based on fixed-arm manipulation tasks.
 Comprehensive List of Environments
 ==================================
 
-.. table::
-    :widths: 33 33 19 25
+.. list-table::
+    :widths: 33 25 19 25
 
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Task Name                                      | Inference Task Name                            | Workflow      |          RL Library         |
-    +================================================+================================================+===============+=============================+
-    | Isaac-Repose-Cube-Allegro-Direct-v0            |                                                | Direct        | rsl_rl, rl_games            |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Ant-Direct-v0                            |                                                | Direct        | rsl_rl, rl_games, skrl      |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Velocity-Flat-Anymal-C-Direct-v0         |                                                | Direct        | rsl_rl, rl_games, skrl      |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Velocity-Rough-Anymal-C-Direct-v0        |                                                | Direct        | rsl_rl, rl_games, skrl      |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Cart-Double-Pendulum-Direct-v0           |                                                | Direct        | rl_games, skrl              |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Cartpole-Direct-v0                       |                                                | Direct        | rsl_rl, rl_games, skrl, sb3 |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Cartpole-RGB-Camera-Direct-v0            |                                                | Direct        | rl_games                    |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Cartpole-Depth-Camera-Direct-v0          |                                                | Direct        | rl_games                    |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Franka-Cabinet-Direct-v0                 |                                                | Direct        | rsl_rl, rl_games, skrl      |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Humanoid-Direct-v0                       |                                                | Direct        | rsl_rl, rl_games, skrl      |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Quadcopter-Direct-v0                     |                                                | Direct        | rsl_rl, rl_games, skrl      |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Repose-Cube-Shadow-Direct-v0             |                                                | Direct        | rsl_rl, rl_games            |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Repose-Cube-Shadow-OpenAI-FF-Direct-v0   |                                                | Direct        | rsl_rl, rl_games            |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Repose-Cube-Shadow-OpenAI-LSTM-Direct-v0 |                                                | Direct        | rl_games                    |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Repose-Cube-Shadow-Vision-Direct-v0      | Isaac-Repose-Cube-Shadow-Vision-Direct-Play-v0 | Direct        | rsl_rl, rl_games            |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Shadow-Hand-Over-Direct-v0               |                                                | Direct        | rl_games, skrl              |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Humanoid-v0                              |                                                | Manager Based | rsl_rl, rl_games, skrl, sb3 |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Ant-v0                                   |                                                | Manager Based | rsl_rl, rl_games, skrl, sb3 |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Cartpole-v0                              |                                                | Manager Based | rsl_rl, rl_games, skrl, sb3 |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Velocity-Flat-Unitree-A1-v0              | Isaac-Velocity-Flat-Unitree-A1-Play-v0         | Manager Based | rsl_rl, skrl                |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Velocity-Rough-Unitree-A1-v0             | Isaac-Velocity-Rough-Unitree-A1-Play-v0        | Manager Based | rsl_rl, skrl                |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Velocity-Flat-Anymal-B-v0                | Isaac-Velocity-Flat-Anymal-B-Play-v0           | Manager Based | rsl_rl, skrl                |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Velocity-Rough-Anymal-B-v0               | Isaac-Velocity-Rough-Anymal-B-Play-v0          | Manager Based | rsl_rl, skrl                |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Velocity-Flat-Anymal-C-v0                | Isaac-Velocity-Flat-Anymal-C-Play-v0           | Manager Based | rsl_rl, rl_games, skrl      |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Velocity-Rough-Anymal-C-v0               | Isaac-Velocity-Rough-Anymal-C-Play-v0          | Manager Based | rsl_rl, rl_games, skrl      |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Velocity-Flat-Anymal-D-v0                | Isaac-Velocity-Flat-Anymal-D-Play-v0           | Manager Based | rsl_rl, skrl                |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Velocity-Rough-Anymal-D-v0               | Isaac-Velocity-Rough-Anymal-D-Play-v0          | Manager Based | rsl_rl, skrl                |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Velocity-Flat-Cassie-v0                  | Isaac-Velocity-Flat-Cassie-Play-v0             | Manager Based | rsl_rl, skrl                |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Velocity-Rough-Cassie-v0                 | Isaac-Velocity-Rough-Cassie-Play-v0            | Manager Based | rsl_rl, skrl                |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Velocity-Rough-G1-v0                     | Isaac-Velocity-Rough-G1-Play-v0                | Manager Based | rsl_rl                      |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Velocity-Flat-G1-v0                      | Isaac-Velocity-Flat-G1-Play-v0                 | Manager Based | rsl_rl                      |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Velocity-Flat-Unitree-Go1-v0             | Isaac-Velocity-Flat-Unitree-Go1-Play-v0        | Manager Based | rsl_rl, skrl                |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Velocity-Rough-Unitree-Go1-v0            | Isaac-Velocity-Rough-Unitree-Go1-Play-v0       | Manager Based | rsl_rl, skrl                |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Velocity-Flat-Unitree-Go2-v0             | Isaac-Velocity-Flat-Unitree-Go2-Play-v0        | Manager Based | rsl_rl, skrl                |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Velocity-Rough-Unitree-Go2-v0            | Isaac-Velocity-Rough-Unitree-Go2-Play-v0       | Manager Based | rsl_rl, skrl                |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Velocity-Rough-H1-v0                     | Isaac-Velocity-Rough-H1-Play-v0                | Manager Based | rsl_rl                      |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Velocity-Flat-H1-v0                      | Isaac-Velocity-Flat-H1-Play-v0                 | Manager Based | rsl_rl                      |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Velocity-Flat-Spot-v0                    | Isaac-Velocity-Flat-Spot-Play-v0               | Manager Based | rsl_rl                      |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Open-Drawer-Franka-v0                    | Isaac-Open-Drawer-Franka-Play-v0               | Manager Based | rsl_rl, rl_games, skrl      |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Open-Drawer-Franka-IK-Abs-v0             |                                                | Manager Based |                             |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Open-Drawer-Franka-IK-Rel-v0             |                                                | Manager Based |                             |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Repose-Cube-Allegro-v0                   | Isaac-Repose-Cube-Allegro-Play-v0              | Manager Based | rsl_rl, rl_games, skrl      |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Repose-Cube-Allegro-NoVelObs-v0          | Isaac-Repose-Cube-Allegro-NoVelObs-Play-v0     | Manager Based | rsl_rl, rl_games, skrl      |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Lift-Cube-Franka-v0                      | Isaac-Lift-Cube-Franka-Play-v0                 | Manager Based | rsl_rl, rl_games, skrl      |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Lift-Cube-Franka-IK-Abs-v0               |                                                | Manager Based |                             |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Lift-Cube-Franka-IK-Rel-v0               |                                                | Manager Based |                             |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Reach-Franka-v0                          | Isaac-Reach-Franka-Play-v0                     | Manager Based | rsl_rl, rl_games, skrl      |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Reach-Franka-IK-Abs-v0                   |                                                | Manager Based |                             |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Reach-Franka-IK-Rel-v0                   |                                                | Manager Based |                             |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Reach-UR10-v0                            | Isaac-Reach-UR10-Play-v0                       | Manager Based | rsl_rl, rl_games, skrl      |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
-    | Isaac-Navigation-Flat-Anymal-C-v0              | Isaac-Navigation-Flat-Anymal-C-Play-v0         | Manager Based | rsl_rl                      |
-    +------------------------------------------------+------------------------------------------------+---------------+-----------------------------+
+    * - **Task Name**
+      - **Inference Task Name**
+      - **Workflow**
+      - **RL Library**
+    * - Isaac-Ant-Direct-v0
+      -
+      - Direct
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
+    * - Isaac-Ant-v0
+      -
+      - Manager Based
+      - **rsl_rl** (PPO), **rl_games** (PPO), **skrl** (PPO), **sb3** (PPO)
+    * - Isaac-Cart-Double-Pendulum-Direct-v0
+      -
+      - Direct
+      - **rl_games** (PPO), **skrl** (IPPO, MAPPO, PPO)
+    * - Isaac-Cartpole-Depth-Camera-Direct-v0
+      -
+      - Direct
+      - **rl_games** (PPO), **skrl** (PPO)
+    * - Isaac-Cartpole-Direct-v0
+      -
+      - Direct
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
+    * - Isaac-Cartpole-RGB-Camera-Direct-v0
+      -
+      - Direct
+      - **rl_games** (PPO), **skrl** (PPO)
+    * - Isaac-Cartpole-v0
+      -
+      - Manager Based
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
+    * - Isaac-Franka-Cabinet-Direct-v0
+      -
+      - Direct
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
+    * - Isaac-Humanoid-Direct-v0
+      -
+      - Direct
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
+    * - Isaac-Humanoid-v0
+      -
+      - Manager Based
+      - **rsl_rl** (PPO), **rl_games** (PPO), **skrl** (PPO), **sb3** (PPO)
+    * - Isaac-Lift-Cube-Franka-IK-Abs-v0
+      -
+      - Manager Based
+      -
+    * - Isaac-Lift-Cube-Franka-IK-Rel-v0
+      -
+      - Manager Based
+      -
+    * - Isaac-Lift-Cube-Franka-v0
+      - Isaac-Lift-Cube-Franka-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO), **skrl** (PPO), **rl_games** (PPO)
+    * - Isaac-Navigation-Flat-Anymal-C-v0
+      - Isaac-Navigation-Flat-Anymal-C-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO), **skrl** (PPO)
+    * - Isaac-Open-Drawer-Franka-IK-Abs-v0
+      -
+      - Manager Based
+      -
+    * - Isaac-Open-Drawer-Franka-IK-Rel-v0
+      -
+      - Manager Based
+      -
+    * - Isaac-Open-Drawer-Franka-v0
+      - Isaac-Open-Drawer-Franka-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO), **rl_games** (PPO), **skrl** (PPO)
+    * - Isaac-Quadcopter-Direct-v0
+      -
+      - Direct
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
+    * - Isaac-Reach-Franka-IK-Abs-v0
+      -
+      - Manager Based
+      -
+    * - Isaac-Reach-Franka-IK-Rel-v0
+      -
+      - Manager Based
+      -
+    * - Isaac-Reach-Franka-v0
+      - Isaac-Reach-Franka-Play-v0
+      - Manager Based
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
+    * - Isaac-Reach-UR10-v0
+      - Isaac-Reach-UR10-Play-v0
+      - Manager Based
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
+    * - Isaac-Repose-Cube-Allegro-Direct-v0
+      -
+      - Direct
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
+    * - Isaac-Repose-Cube-Allegro-NoVelObs-v0
+      - Isaac-Repose-Cube-Allegro-NoVelObs-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO), **rl_games** (PPO), **skrl** (PPO)
+    * - Isaac-Repose-Cube-Allegro-v0
+      - Isaac-Repose-Cube-Allegro-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO), **rl_games** (PPO), **skrl** (PPO)
+    * - Isaac-Repose-Cube-Shadow-Direct-v0
+      -
+      - Direct
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
+    * - Isaac-Repose-Cube-Shadow-OpenAI-FF-Direct-v0
+      -
+      - Direct
+      - **rl_games** (FF), **rsl_rl** (PPO), **skrl** (PPO)
+    * - Isaac-Repose-Cube-Shadow-OpenAI-LSTM-Direct-v0
+      -
+      - Direct
+      - **rl_games** (LSTM)
+    * - Isaac-Repose-Cube-Shadow-Vision-Direct-v0
+      - Isaac-Repose-Cube-Shadow-Vision-Direct-Play-v0
+      - Direct
+      - **rsl_rl** (PPO), **rl_games** (VISION)
+    * - Isaac-Shadow-Hand-Over-Direct-v0
+      -
+      - Direct
+      - **rl_games** (PPO), **skrl** (IPPO, MAPPO, PPO)
+    * - Isaac-Velocity-Flat-Anymal-B-v0
+      - Isaac-Velocity-Flat-Anymal-B-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO), **skrl** (PPO)
+    * - Isaac-Velocity-Flat-Anymal-C-Direct-v0
+      -
+      - Direct
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
+    * - Isaac-Velocity-Flat-Anymal-C-v0
+      - Isaac-Velocity-Flat-Anymal-C-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO), **rl_games** (PPO), **skrl** (PPO)
+    * - Isaac-Velocity-Flat-Anymal-D-v0
+      - Isaac-Velocity-Flat-Anymal-D-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO), **skrl** (PPO)
+    * - Isaac-Velocity-Flat-Cassie-v0
+      - Isaac-Velocity-Flat-Cassie-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO), **skrl** (PPO)
+    * - Isaac-Velocity-Flat-G1-v0
+      - Isaac-Velocity-Flat-G1-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO), **skrl** (PPO)
+    * - Isaac-Velocity-Flat-H1-v0
+      - Isaac-Velocity-Flat-H1-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO), **skrl** (PPO)
+    * - Isaac-Velocity-Flat-Spot-v0
+      - Isaac-Velocity-Flat-Spot-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO), **skrl** (PPO)
+    * - Isaac-Velocity-Flat-Unitree-A1-v0
+      - Isaac-Velocity-Flat-Unitree-A1-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO), **skrl** (PPO)
+    * - Isaac-Velocity-Flat-Unitree-Go1-v0
+      - Isaac-Velocity-Flat-Unitree-Go1-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO), **skrl** (PPO)
+    * - Isaac-Velocity-Flat-Unitree-Go2-v0
+      - Isaac-Velocity-Flat-Unitree-Go2-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO), **skrl** (PPO)
+    * - Isaac-Velocity-Rough-Anymal-B-v0
+      - Isaac-Velocity-Rough-Anymal-B-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO), **skrl** (PPO)
+    * - Isaac-Velocity-Rough-Anymal-C-Direct-v0
+      -
+      - Direct
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
+    * - Isaac-Velocity-Rough-Anymal-C-v0
+      - Isaac-Velocity-Rough-Anymal-C-Play-v0
+      - Manager Based
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
+    * - Isaac-Velocity-Rough-Anymal-D-v0
+      - Isaac-Velocity-Rough-Anymal-D-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO), **skrl** (PPO)
+    * - Isaac-Velocity-Rough-Cassie-v0
+      - Isaac-Velocity-Rough-Cassie-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO), **skrl** (PPO)
+    * - Isaac-Velocity-Rough-G1-v0
+      - Isaac-Velocity-Rough-G1-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO), **skrl** (PPO)
+    * - Isaac-Velocity-Rough-H1-v0
+      - Isaac-Velocity-Rough-H1-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO), **skrl** (PPO)
+    * - Isaac-Velocity-Rough-Unitree-A1-v0
+      - Isaac-Velocity-Rough-Unitree-A1-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO), **skrl** (PPO)
+    * - Isaac-Velocity-Rough-Unitree-Go1-v0
+      - Isaac-Velocity-Rough-Unitree-Go1-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO), **skrl** (PPO)
+    * - Isaac-Velocity-Rough-Unitree-Go2-v0
+      - Isaac-Velocity-Rough-Unitree-Go2-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO), **skrl** (PPO)

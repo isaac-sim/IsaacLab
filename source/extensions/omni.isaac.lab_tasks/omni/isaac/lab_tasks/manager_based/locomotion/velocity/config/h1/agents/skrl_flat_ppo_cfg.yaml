@@ -15,7 +15,7 @@ models:
     network:
       - name: net
         input: STATES
-        layers: [512, 256, 128]
+        layers: [128, 128, 128]
         activations: elu
     output: ACTIONS
   value:  # see deterministic_model parameters
@@ -24,7 +24,7 @@ models:
     network:
       - name: net
         input: STATES
-        layers: [512, 256, 128]
+        layers: [128, 128, 128]
         activations: elu
     output: ONE
 
@@ -66,7 +66,7 @@ agent:
   time_limit_bootstrap: False
   # logging and checkpoint
   experiment:
-    directory: "cassie_rough"
+    directory: "h1_flat"
     experiment_name: ""
     write_interval: auto
     checkpoint_interval: auto
@@ -76,5 +76,5 @@ agent:
 # https://skrl.readthedocs.io/en/latest/api/trainers/sequential.html
 trainer:
   class: SequentialTrainer
-  timesteps: 36000
+  timesteps: 24000
   environment_info: log

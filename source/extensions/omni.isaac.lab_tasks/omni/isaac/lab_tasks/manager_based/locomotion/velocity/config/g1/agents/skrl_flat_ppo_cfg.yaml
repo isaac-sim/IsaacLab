@@ -15,7 +15,7 @@ models:
     network:
       - name: net
         input: STATES
-        layers: [512, 256, 128]
+        layers: [256, 128, 128]
         activations: elu
     output: ACTIONS
   value:  # see deterministic_model parameters
@@ -24,7 +24,7 @@ models:
     network:
       - name: net
         input: STATES
-        layers: [512, 256, 128]
+        layers: [256, 128, 128]
         activations: elu
     output: ONE
 
@@ -59,14 +59,14 @@ agent:
   ratio_clip: 0.2
   value_clip: 0.2
   clip_predicted_values: True
-  entropy_loss_scale: 0.01
+  entropy_loss_scale: 0.008
   value_loss_scale: 1.0
   kl_threshold: 0.0
   rewards_shaper_scale: 1.0
   time_limit_bootstrap: False
   # logging and checkpoint
   experiment:
-    directory: "cassie_rough"
+    directory: "g1_flat"
     experiment_name: ""
     write_interval: auto
     checkpoint_interval: auto

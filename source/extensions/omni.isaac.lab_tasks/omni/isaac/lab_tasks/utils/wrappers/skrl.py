@@ -39,7 +39,7 @@ Vectorized environment wrapper.
 def SkrlVecEnvWrapper(
     env: ManagerBasedRLEnv | DirectRLEnv | DirectMARLEnv,
     ml_framework: Literal["torch", "jax", "jax-numpy"] = "torch",
-    wrapper: Literal["auto", "isaaclab", "isaaclab-single-agent", "isaaclab-multi-agent"] = "auto",
+    wrapper: Literal["auto", "isaaclab", "isaaclab-single-agent", "isaaclab-multi-agent"] = "isaaclab",
 ):
     """Wraps around Isaac Lab environment for skrl.
 
@@ -51,7 +51,7 @@ def SkrlVecEnvWrapper(
     Args:
         env: The environment to wrap around.
         ml_framework: The ML framework to use for the wrapper. Defaults to "torch".
-        wrapper: The wrapper to use. Defaults to "auto": leave it to skrl to determine if the environment
+        wrapper: The wrapper to use. Defaults to "isaaclab": leave it to skrl to determine if the environment
             will be wrapped as single-agent or multi-agent.
 
     Raises:

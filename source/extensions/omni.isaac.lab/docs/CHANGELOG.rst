@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+
+0.24.11 (2024-09-11)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added skrl's JAX environment variables to :class:`~omni.isaac.lab.app.AppLauncher`
+  to support distributed multi-GPU and multi-node training using JAX
+
+
 0.24.10 (2024-09-10)
 ~~~~~~~~~~~~~~~~~~~~
 
