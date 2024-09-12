@@ -210,6 +210,7 @@ class TestCamera(unittest.TestCase):
         cam_cfg_2 = copy.deepcopy(self.camera_cfg)
         cam_cfg_2.prim_path = "/World/Camera_2"
         cam_2 = Camera(cam_cfg_2)
+
         # play sim
         self.sim.reset()
 
