@@ -71,8 +71,7 @@ class ArticulationData:
         self._joint_vel = TimestampedBuffer()
 
         # Link com
-        com_pos_b, _ = self._root_physx_view.get_coms().to(self.device).split([3, 4], dim=-1)
-        self._com_pos_b = torch.tensor(com_pos_b, device=self.device)
+        self._com_pos_b, _ = self._root_physx_view.get_coms().to(self.device).split([3, 4], dim=-1)
 
     def update(self, dt: float):
         # update the simulation timestamp
