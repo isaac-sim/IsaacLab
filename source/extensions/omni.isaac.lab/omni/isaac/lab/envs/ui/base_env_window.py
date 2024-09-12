@@ -241,8 +241,13 @@ class BaseEnvWindow:
                     if elem is not None:
                         self._create_debug_vis_ui_element(name, elem)
 
-    def _visualize_manager(self, title: str, class_name: str):
-        """Checks if the attribute with the name 'class_name' can be visualized. If yes, create vis interface."""
+    def _visualize_manager(self, title: str, class_name: str) -> None:
+        """Checks if the attribute with the name 'class_name' can be visualized. If yes, create vis interface.
+        
+        Args:
+            title: The title of the manager visualization frame.
+            class_name: The name of the manager to visualize.
+        """
 
         if hasattr(self.env, class_name) and class_name in self.env.manager_visualizers:
             manager = self.env.manager_visualizers[class_name]

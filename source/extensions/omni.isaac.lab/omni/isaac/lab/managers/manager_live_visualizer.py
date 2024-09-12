@@ -22,15 +22,33 @@ from omni.isaac.lab.utils import configclass
 
 @configclass
 class ManagerLiveVisualizerCfg:
+    "Configuration for ManagerLiveVisualizer"
     debug_vis: bool = False
+    """Flag used to set status of the live visualizers on startup. Defaults to closed."""
     manager_name: str = MISSING
+    """Manager name that corresponds to the manager of interest in the ManagerBasedEnv and ManagerBasedRLEnv"""
     term_names: list[str] | None = None
+    """Specific term names specified in a Manager config that are chosen to be plotted. If None all terms will be 
+    plotted.
+    """
     group_name: str | None = None
+    """Specific groups of terms specified in a manager config that are chosen to be plotted. If None all groups 
+    will be plotted. This is only used in the case of ObservationsGroups. 
+    """
 
 
 class ManagerLiveVisualizer(UiVisualizerMixin):
-    def __init__(self, manager, cfg: ManagerLiveVisualizerCfg = ManagerLiveVisualizerCfg()):
-        """"""
+    """A interface object used to transfer data from a manager to a UI widget. This class handles the creation of UI 
+    Widgets for selected terms given a ManagerLiveVisualizerCfg.
+    """
+    def __init__(self, manager: ManagerBase, cfg: ManagerLiveVisualizerCfg = ManagerLiveVisualizerCfg()):
+        """Intialize ManagerLiveVisualizer.
+        
+        Args:
+            manager: The manager with terms to be plotted. The manager must have a get_active_iterable_terms method.
+            cfg: The configuration file used to select desired manager terms to be plotted.
+        """
+        
         self._manager = manager
         self.debug_vis = cfg.debug_vis
         self._env_idx: int = 0
@@ -54,17 +72,19 @@ class ManagerLiveVisualizer(UiVisualizerMixin):
 
     @property
     def get_vis_frame(self) -> Frame:
+        """Getter for the UI Frame object tied to this visualizer."""
         return self._vis_frame
 
     @property
     def get_vis_window(self) -> Window:
+        """Getter for the UI Window object tied to this visualizer."""
         return self._vis_window
 
     #
     # Setters
     #
 
-    def set_debug_vis(self, debug_vis: bool):
+    def set_debug_vis(self, debug_vis: bool) -> None:
         """Set the debug visualization external facing function.
 
         Args:
@@ -76,8 +96,9 @@ class ManagerLiveVisualizer(UiVisualizerMixin):
     # Implementations
     #
 
-    def _set_env_selection_impl(self, env_idx: int):
+    def _set_env_selection_impl(self, env_idx: int) -> None:
         """Update the index of the selected environment to display.
+
         Args:
             env_idx: The index of the selected environment.
         """
@@ -86,14 +107,15 @@ class ManagerLiveVisualizer(UiVisualizerMixin):
         else:
             carb.log_warn(f"Environment index is out of range (0,{self._manager.num_envs})")
 
-    def _set_vis_frame_impl(self, frame: Frame):
+    def _set_vis_frame_impl(self, frame: Frame) -> None:
         """Updates the assigned frame that can be used for visualizations.
+
         Args:
             frame: The debug visualization frame.
         """
         self._vis_frame = frame
 
-    def _debug_vis_callback(self, event):
+    def _debug_vis_callback(self, event) -> None:
         """Callback for the debug visualization event."""
 
         if not SimulationContext.instance().is_playing():
@@ -108,8 +130,9 @@ class ManagerLiveVisualizer(UiVisualizerMixin):
             elif isinstance(vis,ImagePlot):
                 vis.update_image(numpy.array(term))
 
-    def _set_debug_vis_impl(self, debug_vis: bool):
+    def _set_debug_vis_impl(self, debug_vis: bool) -> None:
         """Set the debug visualization implementation.
+
         Args:
             debug_vis: Whether to enable or disable debug visualization.
         """
@@ -170,12 +193,14 @@ class ManagerLiveVisualizer(UiVisualizerMixin):
 
 @configclass
 class DefaultManagerBasedEnvLiveVisCfg():
+    """Default configutation to use for the ManagerBasedEnv. Each chosen manager assumes all terms will be plotted."""
     action_live_vis = ManagerLiveVisualizerCfg(manager_name="action_manager")
     observation_live_vis = ManagerLiveVisualizerCfg(manager_name="observation_manager")
 
 
 @configclass
 class DefaultManagerBasedRLEnvLiveVisCfg(DefaultManagerBasedEnvLiveVisCfg):
+    """Default configuration to use for the ManagerBasedRLEnv. Each chosen manager assumes all terms will be plotted."""
     curriculum_live_vis = ManagerLiveVisualizerCfg(manager_name="curriculum_manager")
     command_live_vis = ManagerLiveVisualizerCfg(manager_name="command_manager")
     reward_live_vis = ManagerLiveVisualizerCfg(manager_name="command_manager")
@@ -183,7 +208,14 @@ class DefaultManagerBasedRLEnvLiveVisCfg(DefaultManagerBasedEnvLiveVisCfg):
 
 
 class EnvLiveVisualizer:
+    """A class to handle all ManagerLiveVisualizers used in an Environment. """
     def __init__(self, cfg: object, managers: dict[str,ManagerBase]):
+        """Initialize the EnvLiveVisualizer.
+        
+        Args: 
+            cfg: The configuration file containing terms of ManagerLiveVisualizers.
+            managers: A dictionary of labeled managers. i.e. {"manager_name",manager}.
+        """
         self.cfg = cfg
         self.managers = managers
         self._prepare_terms()
@@ -210,5 +242,6 @@ class EnvLiveVisualizer:
                 self._manager_visualizers[term_cfg.manager_name] = ManagerLiveVisualizer(manager=manager,cfg=term_cfg)
 
     @property
-    def manager_visualizers(self):
+    def manager_visualizers(self) -> dict[str,ManagerLiveVisualizer]:
+        """A dictionary of labeled ManagerLiveVisualizers associated manager name as key."""
         return self._manager_visualizers
