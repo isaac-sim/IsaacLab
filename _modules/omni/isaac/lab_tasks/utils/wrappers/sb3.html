@@ -54,7 +54,7 @@
     <link rel="search" title="Search" href="../../../../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Sep 11, 2024"/>
+    <meta name="docbuild:last-update" content="Sep 12, 2024"/>
   </head>
   
   
@@ -694,6 +694,9 @@ document.write(`
 
     <span class="k">def</span> <span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">VecEnvObs</span><span class="p">:</span>  <span class="c1"># noqa: D102</span>
         <span class="n">obs_dict</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+        <span class="c1"># reset episodic information buffers</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ep_rew_buf</span><span class="o">.</span><span class="n">zero_</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ep_len_buf</span><span class="o">.</span><span class="n">zero_</span><span class="p">()</span>
         <span class="c1"># convert data types to numpy depending on backend</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_process_obs</span><span class="p">(</span><span class="n">obs_dict</span><span class="p">)</span>
 
@@ -879,7 +882,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 11, 2024.
+  Last updated on Sep 12, 2024.
   <br/>
 </p>
   </div>
