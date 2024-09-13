@@ -95,3 +95,9 @@ class ManagerBasedEnvCfg:
 
     Please refer to the :class:`omni.isaac.lab.managers.EventManager` class for more details.
     """
+
+    action_bounds: list[float] = [-100, 100]
+    """Max action bounds for this environment.
+
+    All actions are clipped to this range before being applied to the environment.
+    """

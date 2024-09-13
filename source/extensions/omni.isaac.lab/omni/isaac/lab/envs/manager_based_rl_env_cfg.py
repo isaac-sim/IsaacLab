@@ -78,9 +78,3 @@ class ManagerBasedRLEnvCfg(ManagerBasedEnvCfg):
 
     Please refer to the :class:`omni.isaac.lab.managers.CommandManager` class for more details.
     """
-
-    action_bounds = [-100, 100]
-    """Max action bounds for this environment.
-
-    All actions are clipped to this range before being applied to the environment.
-    """

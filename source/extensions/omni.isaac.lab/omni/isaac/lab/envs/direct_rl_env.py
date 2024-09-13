@@ -297,6 +297,9 @@ class DirectRLEnv(gym.Env):
         Returns:
             A tuple containing the observations, rewards, resets (terminated and truncated) and extras.
         """
+        # hard clip the actions
+        action = torch.clamp(action, self.cfg.action_bounds[0], self.cfg.action_bounds[1])
+
         action = action.to(self.device)
         # add action noise
         if self.cfg.action_noise_model:
