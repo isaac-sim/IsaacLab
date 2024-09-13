@@ -152,6 +152,9 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         Returns:
             A tuple containing the observations, rewards, resets (terminated and truncated) and extras.
         """
+        # hard clip the actions
+        action = torch.clamp(action, self.cfg.action_bounds[0], self.cfg.action_bounds[1])
+
         # process actions
         self.action_manager.process_action(action)
 
