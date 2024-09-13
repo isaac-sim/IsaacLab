@@ -268,7 +268,7 @@ class ActionManager(ManagerBase):
             idx += term.action_dim
         return terms
 
-    def set_debug_vis(self, debug_vis: bool):
+    def set_debug_vis(self, debug_vis: bool) -> bool:
         """Sets whether to visualize the action data.
         Args:
             debug_vis: Whether to visualize the action data.
