@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import carb
 import inspect
 import torch
 import weakref
@@ -16,6 +15,7 @@ from collections.abc import Sequence
 from prettytable import PrettyTable
 from typing import TYPE_CHECKING
 
+import carb
 import omni.kit.app
 
 from omni.isaac.lab.assets import AssetBase

@@ -243,7 +243,7 @@ class BaseEnvWindow:
 
     def _visualize_manager(self, title: str, class_name: str) -> None:
         """Checks if the attribute with the name 'class_name' can be visualized. If yes, create vis interface.
-        
+
         Args:
             title: The title of the manager visualization frame.
             class_name: The name of the manager to visualize.
@@ -422,7 +422,7 @@ class BaseEnvWindow:
         if isinstance(elem, ManagerLiveVisualizer):
             self.ui_window_elements[f"{name}_panel"] = omni.ui.Frame(width=omni.ui.Fraction(1))
             if not elem.set_vis_frame(self.ui_window_elements[f"{name}_panel"]):
-                print(f"Frame failed to set for ManagerLiveVisualizer: {name}")                
+                print(f"Frame failed to set for ManagerLiveVisualizer: {name}")
 
         # Add listener for environment selection changes
         if isinstance(elem, ManagerLiveVisualizer):

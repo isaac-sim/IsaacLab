@@ -33,8 +33,6 @@ simulation_app = app_launcher.app
 import math
 import torch
 
-
-import omni.isaac.lab.sim as sim_utils
 import omni.isaac.lab.envs.mdp as mdp
 from omni.isaac.lab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
 from omni.isaac.lab.managers import EventTermCfg as EventTerm
@@ -42,8 +40,6 @@ from omni.isaac.lab.managers import ObservationGroupCfg as ObsGroup
 from omni.isaac.lab.managers import ObservationTermCfg as ObsTerm
 from omni.isaac.lab.managers import SceneEntityCfg
 from omni.isaac.lab.utils import configclass
-from omni.isaac.lab.sensors import CameraCfg
-
 
 from omni.isaac.lab_tasks.manager_based.classic.cartpole.cartpole_env_cfg import CartpoleSceneCfg
 
@@ -66,7 +62,7 @@ class ObservationsCfg:
         # observation terms (order preserved)
         joint_pos_rel = ObsTerm(func=mdp.joint_pos_rel)
         joint_vel_rel = ObsTerm(func=mdp.joint_vel_rel)
-    
+
         def __post_init__(self) -> None:
             self.enable_corruption = False
             self.concatenate_terms = True
@@ -74,7 +70,8 @@ class ObservationsCfg:
     @configclass
     class PerceptionCfg(ObsGroup):
         """Observation for perception group."""
-        rgb_image = ObsTerm(func=mdp.camera_rgb_image,params={"sensor_cfg":SceneEntityCfg("camera")})
+
+        depth_image = ObsTerm(func=mdp.camera_depth_image, params={"sensor_cfg": SceneEntityCfg("camera")})
 
     # observation groups
     policy: PolicyCfg = PolicyCfg()
@@ -138,7 +135,6 @@ class CartpoleEnvCfg(ManagerBasedEnvCfg):
         self.decimation = 4  # env step every 4 sim steps: 200Hz / 4 = 50Hz
         # simulation settings
         self.sim.dt = 0.005  # sim step every 5ms: 200Hz
-
 
 
 def main():

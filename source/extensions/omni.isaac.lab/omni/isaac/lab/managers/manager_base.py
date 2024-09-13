@@ -199,7 +199,7 @@ class ManagerBase(ABC):
             The active terms.
         """
         raise NotImplementedError
-    
+
     """
     Implementation specific.
     """

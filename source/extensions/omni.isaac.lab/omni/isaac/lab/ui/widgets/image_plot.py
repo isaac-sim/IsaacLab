@@ -53,7 +53,7 @@ class ImagePlot(UIWidgetWrapper):
     def update_image(self, image: np.ndarray):
         if not self._enabled:
             return
-        
+
         height, width = image.shape[:2]
 
         # convert image to 4-channel RGBA

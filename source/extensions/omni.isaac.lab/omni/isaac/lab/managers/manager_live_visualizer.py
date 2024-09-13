@@ -5,50 +5,49 @@
 
 from __future__ import annotations
 
+import numpy
 import weakref
 from dataclasses import MISSING
 
 import carb
-import numpy
-
 import omni.kit.app
 from omni.isaac.core.simulation_context import SimulationContext
 from omni.ui import CollapsableFrame, Frame, VStack, Window
+
 from omni.isaac.lab.managers import ManagerBase
 from omni.isaac.lab.ui.widgets import ImagePlot, LiveLinePlot, UiVisualizerMixin
 from omni.isaac.lab.utils import configclass
 
 
-
 @configclass
 class ManagerLiveVisualizerCfg:
     "Configuration for ManagerLiveVisualizer"
+
     debug_vis: bool = False
     """Flag used to set status of the live visualizers on startup. Defaults to closed."""
     manager_name: str = MISSING
     """Manager name that corresponds to the manager of interest in the ManagerBasedEnv and ManagerBasedRLEnv"""
-    term_names: list[str] | None = None
-    """Specific term names specified in a Manager config that are chosen to be plotted. If None all terms will be 
-    plotted.
-    """
-    group_name: str | None = None
-    """Specific groups of terms specified in a manager config that are chosen to be plotted. If None all groups 
-    will be plotted. This is only used in the case of ObservationsGroups. 
+    term_names: list[str] | dict[str, list[str]] | None = None
+    """Specific term names specified in a Manager config that are chosen to be plotted. Defaults to None.
+
+    If None all terms will be plotted. For managers that utilize Groups (i.e. ObservationGroup) use a dictionary of
+    {group_names: [term_names]}.
     """
 
 
 class ManagerLiveVisualizer(UiVisualizerMixin):
-    """A interface object used to transfer data from a manager to a UI widget. This class handles the creation of UI 
+    """A interface object used to transfer data from a manager to a UI widget. This class handles the creation of UI
     Widgets for selected terms given a ManagerLiveVisualizerCfg.
     """
+
     def __init__(self, manager: ManagerBase, cfg: ManagerLiveVisualizerCfg = ManagerLiveVisualizerCfg()):
-        """Intialize ManagerLiveVisualizer.
-        
+        """Initialize ManagerLiveVisualizer.
+
         Args:
             manager: The manager with terms to be plotted. The manager must have a get_active_iterable_terms method.
             cfg: The configuration file used to select desired manager terms to be plotted.
         """
-        
+
         self._manager = manager
         self.debug_vis = cfg.debug_vis
         self._env_idx: int = 0
@@ -57,14 +56,45 @@ class ManagerLiveVisualizer(UiVisualizerMixin):
         self._vis_frame: Frame
         self._vis_window: Window
 
-        # check provided config
+        # evaluate chosen terms if no terms provided use all available.
         self.term_names = []
+
         if self.cfg.term_names is not None:
-            for term_name in self.cfg.term_names:
-                if not term_name in self._manager.active_terms:
-                    carb.log_warn(f"ManagerVisualizer Failure: ManagerTerm ({term_name}) does not exist in Manager({self.cfg.manager_name})")
+            # extract chosen terms
+            if isinstance(self.cfg.term_names, list):
+                for term_name in self.cfg.term_names:
+                    if term_name in self._manager.active_terms:
+                        self.term_names.append(term_name)
+                    else:
+                        carb.log_err(
+                            f"ManagerVisualizer Failure: ManagerTerm ({term_name}) does not exist in"
+                            f" Manager({self.cfg.manager_name})"
+                        )
+
+            # extract chosen group-terms
+            elif isinstance(self.cfg.term_names, dict):
+                # if manager is using groups and terms are saved as a dictionary
+                if isinstance(self._manager.active_terms, dict):
+                    for group, terms in self.cfg.term_names:
+                        if group in self._manager.active_terms.keys():
+                            for term_name in terms:
+                                if term_name in self._manager.active_terms[group]:
+                                    self.term_names.append(f"{group}-{term_name}")
+                                else:
+                                    carb.log_err(
+                                        f"ManagerVisualizer Failure: ManagerTerm ({term_name}) does not exist in"
+                                        f" Group({group})"
+                                    )
+                        else:
+                            carb.log_err(
+                                f"ManagerVisualizer Failure: Group ({group}) does not exist in"
+                                f" Manager({self.cfg.manager_name})"
+                            )
                 else:
-                    self.term_names.append(term_name)
+                    carb.log_err(
+                        f"ManagerVisualizer Failure: Manager({self.cfg.manager_name}) does not utilize grouping of"
+                        " terms."
+                    )
 
     #
     # Implementation checks
@@ -121,13 +151,14 @@ class ManagerLiveVisualizer(UiVisualizerMixin):
         if not SimulationContext.instance().is_playing():
             # Visualizers have not been created yet.
             return
-        # update the visualization
+
+        # get updated data and update visualization
         for (_, term), vis in zip(
             self._manager.get_active_iterable_terms(env_idx=self._env_idx), self._term_visualizers
         ):
-            if isinstance(vis,LiveLinePlot):
+            if isinstance(vis, LiveLinePlot):
                 vis.add_datapoint(term)
-            elif isinstance(vis,ImagePlot):
+            elif isinstance(vis, ImagePlot):
                 vis.update_image(numpy.array(term))
 
     def _set_debug_vis_impl(self, debug_vis: bool) -> None:
@@ -145,14 +176,14 @@ class ManagerLiveVisualizer(UiVisualizerMixin):
         self._vis_frame.clear()
 
         if debug_vis:
-            # create a subscriber for the post update event if it doesn't exist
+            # if enabled create a subscriber for the post update event if it doesn't exist
             if not hasattr(self, "_debug_vis_handle") or self._debug_vis_handle is None:
                 app_interface = omni.kit.app.get_app_interface()
                 self._debug_vis_handle = app_interface.get_post_update_event_stream().create_subscription_to_pop(
                     lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)
                 )
         else:
-            # remove the subscriber if it exists
+            # if disabled remove the subscriber if it exists
             if self._debug_vis_handle is not None:
                 self._debug_vis_handle.unsubscribe()
                 self._debug_vis_handle = None
@@ -164,15 +195,16 @@ class ManagerLiveVisualizer(UiVisualizerMixin):
 
         with self._vis_frame:
             with VStack():
-                # Add a plot in a collapsible frame for each term
+                # Add a plot in a collapsible frame for each term available
                 for name, term in self._manager.get_active_iterable_terms(env_idx=self._env_idx):
-                    if name in self.term_names or len(self.term_names)==0:
+                    if name in self.term_names or len(self.term_names) == 0:
                         frame = CollapsableFrame(
                             name,
                             collapsed=False,
                             style={"border_color": 0xFF8A8777, "padding": 4},
                         )
                         with frame:
+                            # create line plot for single or multivariable signals
                             if len(term) <= 2:
                                 plot = LiveLinePlot(
                                     y_data=[[elem] for elem in term],
@@ -180,6 +212,7 @@ class ManagerLiveVisualizer(UiVisualizerMixin):
                                     show_legend=True,
                                 )
                                 self._term_visualizers.append(plot)
+                            # create an image plot for 2d and greater data (i.e. mono and rgb images)
                             elif len(term) > 2:
                                 image = ImagePlot(
                                     image=numpy.array(term),
@@ -192,8 +225,9 @@ class ManagerLiveVisualizer(UiVisualizerMixin):
 
 
 @configclass
-class DefaultManagerBasedEnvLiveVisCfg():
-    """Default configutation to use for the ManagerBasedEnv. Each chosen manager assumes all terms will be plotted."""
+class DefaultManagerBasedEnvLiveVisCfg:
+    """Default configuration to use for the ManagerBasedEnv. Each chosen manager assumes all terms will be plotted."""
+
     action_live_vis = ManagerLiveVisualizerCfg(manager_name="action_manager")
     observation_live_vis = ManagerLiveVisualizerCfg(manager_name="observation_manager")
 
@@ -201,6 +235,7 @@ class DefaultManagerBasedEnvLiveVisCfg():
 @configclass
 class DefaultManagerBasedRLEnvLiveVisCfg(DefaultManagerBasedEnvLiveVisCfg):
     """Default configuration to use for the ManagerBasedRLEnv. Each chosen manager assumes all terms will be plotted."""
+
     curriculum_live_vis = ManagerLiveVisualizerCfg(manager_name="curriculum_manager")
     command_live_vis = ManagerLiveVisualizerCfg(manager_name="command_manager")
     reward_live_vis = ManagerLiveVisualizerCfg(manager_name="command_manager")
@@ -208,20 +243,21 @@ class DefaultManagerBasedRLEnvLiveVisCfg(DefaultManagerBasedEnvLiveVisCfg):
 
 
 class EnvLiveVisualizer:
-    """A class to handle all ManagerLiveVisualizers used in an Environment. """
-    def __init__(self, cfg: object, managers: dict[str,ManagerBase]):
+    """A class to handle all ManagerLiveVisualizers used in an Environment."""
+
+    def __init__(self, cfg: object, managers: dict[str, ManagerBase]):
         """Initialize the EnvLiveVisualizer.
-        
-        Args: 
+
+        Args:
             cfg: The configuration file containing terms of ManagerLiveVisualizers.
             managers: A dictionary of labeled managers. i.e. {"manager_name",manager}.
         """
         self.cfg = cfg
         self.managers = managers
         self._prepare_terms()
-        
+
     def _prepare_terms(self):
-        self._manager_visualizers: dict[str,ManagerLiveVisualizer] = dict()
+        self._manager_visualizers: dict[str, ManagerLiveVisualizer] = dict()
 
         # check if config is dict already
         if isinstance(self.cfg, dict):
@@ -234,14 +270,16 @@ class EnvLiveVisualizer:
             if term_cfg is None:
                 continue
             # check if term config is viable
-            if not isinstance(term_cfg,ManagerLiveVisualizerCfg):
-                raise TypeError(f"Provided EnvLiveVisualizer term: '{term_name}' is not of type ManagerLiveVisualizerCfg")
-            else:
+            if isinstance(term_cfg, ManagerLiveVisualizerCfg):
                 # find appropriate manager name
                 manager = self.managers[term_cfg.manager_name]
-                self._manager_visualizers[term_cfg.manager_name] = ManagerLiveVisualizer(manager=manager,cfg=term_cfg)
+                self._manager_visualizers[term_cfg.manager_name] = ManagerLiveVisualizer(manager=manager, cfg=term_cfg)
+            else:
+                raise TypeError(
+                    f"Provided EnvLiveVisualizer term: '{term_name}' is not of type ManagerLiveVisualizerCfg"
+                )
 
     @property
-    def manager_visualizers(self) -> dict[str,ManagerLiveVisualizer]:
+    def manager_visualizers(self) -> dict[str, ManagerLiveVisualizer]:
         """A dictionary of labeled ManagerLiveVisualizers associated manager name as key."""
         return self._manager_visualizers

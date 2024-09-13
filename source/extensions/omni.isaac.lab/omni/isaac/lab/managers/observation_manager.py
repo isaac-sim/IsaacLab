@@ -138,7 +138,7 @@ class ObservationManager(ManagerBase):
                 for name, term in obs_buffer[group_name].items():
                     terms.append((group_name + "-" + name, term[env_idx].cpu().tolist()))
                 continue
-            
+
             idx = 0
             # add info for each term
             data = obs_buffer[group_name]

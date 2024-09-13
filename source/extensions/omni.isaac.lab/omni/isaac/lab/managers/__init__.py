@@ -16,10 +16,10 @@ from .curriculum_manager import CurriculumManager
 from .event_manager import EventManager
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_live_visualizer import (
+    DefaultManagerBasedEnvLiveVisCfg,
+    DefaultManagerBasedRLEnvLiveVisCfg,
+    EnvLiveVisualizer,
     ManagerLiveVisualizer,
-    EnvLiveVisualizer, 
-    DefaultManagerBasedEnvLiveVisCfg, 
-    DefaultManagerBasedRLEnvLiveVisCfg
 )
 from .manager_term_cfg import (
     ActionTermCfg,
