@@ -15,7 +15,6 @@ from collections.abc import Sequence
 from prettytable import PrettyTable
 from typing import TYPE_CHECKING
 
-import carb
 import omni.kit.app
 
 from omni.isaac.lab.assets import AssetBase
@@ -87,7 +86,7 @@ class ActionTerm(ManagerTermBase):
 
     @property
     def has_debug_vis_implementation(self) -> bool:
-        """Whether the acta"""
+        """Whether the action term has a debug visualization implemented."""
         # check if function raises NotImplementedError
         source_code = inspect.getsource(self._set_debug_vis_impl)
         return "NotImplementedError" not in source_code
@@ -106,7 +105,6 @@ class ActionTerm(ManagerTermBase):
         """
         # check if debug visualization is supported
         if not self.has_debug_vis_implementation:
-            carb.log_warn("Debug visualization is not supported for ActionTerm.")
             return False
 
         # toggle debug visualization objects
@@ -154,13 +152,13 @@ class ActionTerm(ManagerTermBase):
         and input ``debug_vis`` is True. If the visualization objects exist, the function should
         set their visibility into the stage.
         """
-        pass
+        raise NotImplementedError(f"Debug visualization is not implemented for {self.__class__.__name__}.")
 
     def _debug_vis_callback(self, event):
         """Callback for debug visualization.
         This function calls the visualization objects and sets the data to visualize into them.
         """
-        pass
+        raise NotImplementedError(f"Debug visualization is not implemented for {self.__class__.__name__}.")
 
 
 class ActionManager(ManagerBase):
@@ -270,7 +268,7 @@ class ActionManager(ManagerBase):
             idx += term.action_dim
         return terms
 
-    def set_debug_vis(self, debug_vis: bool) -> bool:
+    def set_debug_vis(self, debug_vis: bool):
         """Sets whether to visualize the action data.
         Args:
             debug_vis: Whether to visualize the action data.
@@ -278,12 +276,8 @@ class ActionManager(ManagerBase):
             Whether the debug visualization was successfully set. False if the action
             does not support debug visualization.
         """
-
         for term in self._terms.values():
             term.set_debug_vis(debug_vis)
-
-        self._set_debug_vis_impl(debug_vis)
-        return True
 
     def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, torch.Tensor]:
         """Resets the action history.
