@@ -228,7 +228,7 @@ class FrameTransformer(SensorBase):
 
                 Args:
                     item: The item to extract the environment number from. Assumes item is of the form
-                        `/World/env_1/blah` or `/World/env_11/blah`.
+                        `/World/envs/env_1/blah` or `/World/envs/env_11/blah`.
                 Returns:
                     The environment number and the prim_path.
                 """
