@@ -138,13 +138,16 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
     def setup_manager_visualizers(self):
         self.env_vis_manager = EnvLiveVisualizer(
             cfg=self.cfg.live_visualizer,
-            managers={"action_manager": self.action_manager, 
-                        "observation_manager": self.observation_manager,
-                        "command_manager" : self.command_manager,
-                        "termination_manager" : self.termination_manager,
-                        "reward_manager" : self.reward_manager,
-                        "curriculum_manager" : self.curriculum_manager},
+            managers={
+                "action_manager": self.action_manager,
+                "observation_manager": self.observation_manager,
+                "command_manager": self.command_manager,
+                "termination_manager": self.termination_manager,
+                "reward_manager": self.reward_manager,
+                "curriculum_manager": self.curriculum_manager,
+            },
         )
+
     """
     Operations - MDP
     """

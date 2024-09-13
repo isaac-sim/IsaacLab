@@ -5,9 +5,9 @@
 
 from dataclasses import MISSING
 
+from omni.isaac.lab.managers import DefaultManagerBasedRLEnvLiveVisCfg
 from omni.isaac.lab.utils import configclass
 
-from omni.isaac.lab.managers import DefaultManagerBasedRLEnvLiveVisCfg
 from .manager_based_env_cfg import ManagerBasedEnvCfg
 from .ui import ManagerBasedRLEnvWindow
 
@@ -82,5 +82,5 @@ class ManagerBasedRLEnvCfg(ManagerBasedEnvCfg):
 
     live_visualizer: object = DefaultManagerBasedRLEnvLiveVisCfg()
     """Live visualization settings. Defaults to showing all available actiona and observation terms.
-    
-    Please refere tot he :class:`omni.isaac.lab.managers.EnvLiveVisualizer`"""
+
+    Please refer tot he :class:`omni.isaac.lab.managers.EnvLiveVisualizer`"""

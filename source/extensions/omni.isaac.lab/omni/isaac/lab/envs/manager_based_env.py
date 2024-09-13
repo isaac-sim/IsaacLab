@@ -139,7 +139,6 @@ class ManagerBasedEnv:
             self.setup_manager_visualizers()
             self._window = self.cfg.ui_window_class_type(self, window_name="IsaacLab")
             # setup live visualizers
-            
 
         else:
             # if no window, then we don't need to store the window
@@ -227,8 +226,7 @@ class ManagerBasedEnv:
     def setup_manager_visualizers(self):
         self.env_vis_manager = EnvLiveVisualizer(
             cfg=self.cfg.live_visualizer,
-            managers={"action_manager": self.action_manager, 
-                        "observation_manager": self.observation_manager},
+            managers={"action_manager": self.action_manager, "observation_manager": self.observation_manager},
         )
 
     """
