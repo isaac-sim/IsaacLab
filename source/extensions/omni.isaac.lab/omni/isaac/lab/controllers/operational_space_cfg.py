@@ -18,12 +18,12 @@ class OperationSpaceControllerCfg:
     class_type: type = OperationSpaceController
     """The associated controller class."""
 
-    command_types: Sequence[str] = MISSING
-    """Type of command.
+    target_types: Sequence[str] = MISSING
+    """Type of task-space targets.
 
     It has two sub-strings joined by underscore:
-        - type of command mode: "position", "pose", "wrench"
-        - type of command resolving: "abs" (absolute), "rel" (relative)
+        - type of task-space target: "pose", "wrench"
+        - reference for the task-space targets: "abs" (absolute), "rel" (relative, only for pose)
     """
 
     impedance_mode: str = "fixed"
@@ -74,8 +74,3 @@ class OperationSpaceControllerCfg:
     Note: since only the linear forces could be measured at the moment,
     only the first three elements are used.
     """
-
-    position_command_scale: tuple[float, float, float] = (1.0, 1.0, 1.0)
-    """Scaling of the position command received. Used only in relative mode."""
-    rotation_command_scale: tuple[float, float, float] = (1.0, 1.0, 1.0)
-    """Scaling of the rotation command received. Used only in relative mode."""
