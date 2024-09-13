@@ -114,8 +114,7 @@ class OperationSpaceController:
     """
 
     def reset(self):
-        """Reset the internals.
-        """
+        """Reset the internals."""
         self.desired_ee_pos = None
         self.desired_ee_rot = None
         self.desired_ee_wrench = None
@@ -191,7 +190,9 @@ class OperationSpaceController:
                 if current_ee_pose is None:
                     raise ValueError("Current pose is required for 'pose_rel' command.")
                 # compute targets
-                self.desired_ee_pos, self.desired_ee_rot = apply_delta_pose(current_ee_pose[:, :3], current_ee_pose[:, 3:], target)
+                self.desired_ee_pos, self.desired_ee_rot = apply_delta_pose(
+                    current_ee_pose[:, :3], current_ee_pose[:, 3:], target
+                )
             elif command_type == "pose_abs":
                 # compute targets
                 self.desired_ee_pos = target[:, 0:3]

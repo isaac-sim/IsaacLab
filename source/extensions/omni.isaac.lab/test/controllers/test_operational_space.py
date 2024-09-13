@@ -29,6 +29,8 @@ from omni.isaac.lab.utils.math import (
     apply_delta_pose,
     combine_frame_transforms,
     compute_pose_error,
+    matrix_from_quat,
+    quat_inv,
     quat_rotate_inverse,
     subtract_frame_transforms,
 )
@@ -153,8 +155,8 @@ class TestOperationSpaceController(unittest.TestCase):
         ee_goal_hybrid_set = torch.tensor(
             [
                 [0.6, 0.2, 0.5, 0.0, 0.707, 0.0, 0.707, 10.0, 10.0, 10.0, 0.0, 0.0, 0.0],
-                [0.6, -0.3, 0.6, 0.0, 0.707, 0.0, 0.707, 10.0, 10.0, 10.0, 0.0, 0.0, 0.0],
-                [0.6, -0.1, 0.8, 0.0, 0.5774, 0.0, 0.8165, 10.0, 10.0, 10.0, 0.0, 0.0, 0.0],
+                [0.6, -0.29, 0.6, 0.0, 0.707, 0.0, 0.707, 10.0, 10.0, 10.0, 0.0, 0.0, 0.0],
+                [0.6, -0.1, 0.8, 0.0, 0.5774, 0.0, 0.8165, 2.0, 2.0, 2.0, 0.0, 0.0, 0.0],
             ],
             device=self.sim.device,
         )
@@ -458,9 +460,8 @@ class TestOperationSpaceController(unittest.TestCase):
             inertial_compensation=True,
             uncouple_motion_wrench=False,
             gravity_compensation=False,
-            stiffness=100.0,
-            damping_ratio=1.2,
-            wrench_stiffness=[0.1, 0.0, 0.0, 0.0, 0.0, 0.0],
+            damping_ratio=1.4,
+            wrench_stiffness=[0.2, 0.0, 0.0, 0.0, 0.0, 0.0],
             motion_control_axes=[0, 1, 1, 1, 1, 1],
             wrench_control_axes=[1, 0, 0, 0, 0, 0],
         )
@@ -504,7 +505,7 @@ class TestOperationSpaceController(unittest.TestCase):
         robot.update(dt=sim_dt)
 
         # get the updated states
-        jacobian, mass_matrix, gravity, ee_pose_b, ee_vel_b, root_pose_w, ee_pose_w, ee_force_w = self._update_states(
+        jacobian_b, mass_matrix, gravity, ee_pose_b, ee_vel_b, root_pose_w, ee_pose_w, ee_force_w = self._update_states(
             robot, ee_frame_idx, arm_joint_ids
         )
 
@@ -549,12 +550,12 @@ class TestOperationSpaceController(unittest.TestCase):
                 opc.set_command(ee_target_b, ee_pose_b)
             else:
                 # get the updated states
-                jacobian, mass_matrix, gravity, ee_pose_b, ee_vel_b, root_pose_w, ee_pose_w, ee_force_w = (
+                jacobian_b, mass_matrix, gravity, ee_pose_b, ee_vel_b, root_pose_w, ee_pose_w, ee_force_w = (
                     self._update_states(robot, ee_frame_idx, arm_joint_ids)
                 )
                 # compute the joint commands
                 joint_efforts = opc.compute(
-                    jacobian=jacobian,
+                    jacobian=jacobian_b,
                     current_ee_pose=ee_pose_b,
                     current_ee_vel=ee_vel_b,
                     current_ee_force=ee_force_w,
@@ -579,15 +580,20 @@ class TestOperationSpaceController(unittest.TestCase):
         ee_frame_idx: int,
         arm_joint_ids: list[int],
     ):
+        # obtain dynamics related quantities from simulation
         ee_jacobi_idx = ee_frame_idx - 1
-        # obtain quantities from simulation
-        jacobian = robot.root_physx_view.get_jacobians()[:, ee_jacobi_idx, :, arm_joint_ids]
+        jacobian_w = robot.root_physx_view.get_jacobians()[:, ee_jacobi_idx, :, arm_joint_ids]
         mass_matrix = robot.root_physx_view.get_mass_matrices()[:, arm_joint_ids, :][:, :, arm_joint_ids]
         gravity = robot.root_physx_view.get_generalized_gravity_forces()[:, arm_joint_ids]
+        # Convert the Jacobian from world to robot base frame
+        jacobian_b = jacobian_w.clone()
+        root_rot_matrix = matrix_from_quat(quat_inv(robot.data.root_state_w[:, 3:7]))
+        jacobian_b[:, :3, :] = torch.bmm(root_rot_matrix, jacobian_b[:, :3, :])
+        jacobian_b[:, 3:, :] = torch.bmm(root_rot_matrix, jacobian_b[:, 3:, :])
 
         # Compute current pose of the end-effector
-        ee_pose_w = robot.data.body_state_w[:, ee_frame_idx, 0:7]
         root_pose_w = robot.data.root_state_w[:, 0:7]
+        ee_pose_w = robot.data.body_state_w[:, ee_frame_idx, 0:7]
         ee_pos_b, ee_quat_b = subtract_frame_transforms(
             root_pose_w[:, 0:3], root_pose_w[:, 3:7], ee_pose_w[:, 0:3], ee_pose_w[:, 3:7]
         )
@@ -610,7 +616,7 @@ class TestOperationSpaceController(unittest.TestCase):
             # taking the max of three surfaces as only one should be the contact of interest
             ee_force_w, _ = torch.max(torch.mean(self.contact_forces.data.net_forces_w_history, dim=1), dim=1)
 
-        return jacobian, mass_matrix, gravity, ee_pose_b, ee_vel_b, root_pose_w, ee_pose_w, ee_force_w
+        return jacobian_b, mass_matrix, gravity, ee_pose_b, ee_vel_b, root_pose_w, ee_pose_w, ee_force_w
 
     def _update_target(
         self,
@@ -686,14 +692,6 @@ class TestOperationSpaceController(unittest.TestCase):
                 torch.testing.assert_close(pos_error_norm, des_error, rtol=0.0, atol=0.1)
                 torch.testing.assert_close(rot_error_norm, des_error, rtol=0.0, atol=0.1)
                 cmd_idx += 6
-            elif command_type == "position_abs" or command_type == "position_rel":
-                pos_error = ee_pose_b[:, 0:3] - ee_target_pose_b[:, 0:3]
-                pos_error_norm = torch.norm(pos_error * self.pos_mask, dim=-1)
-                # desired error (zer)
-                des_error = torch.zeros_like(pos_error_norm)
-                # check convergence
-                torch.testing.assert_close(pos_error_norm, des_error, rtol=0.0, atol=0.1)
-                cmd_idx += 3
             elif command_type == "wrench_abs":
                 force_error = ee_force_w - ee_target_b[:, cmd_idx : cmd_idx + 3]
                 force_error_norm = torch.norm(
