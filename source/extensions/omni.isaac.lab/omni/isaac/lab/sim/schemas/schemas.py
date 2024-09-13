@@ -743,7 +743,7 @@ def modify_deformable_body_properties(
 
     .. caution::
         The deformable body schema is still under development by the Omniverse team. The current implementation
-        works with the PhysX schemas shipped with Isaac Sim 4.0.0. It may change in future releases.
+        works with the PhysX schemas shipped with Isaac Sim 4.0.0 and 4.1.0. It may change in future releases.
 
     .. note::
         This function is decorated with :func:`apply_nested` that sets the properties to all the prims
@@ -809,7 +809,7 @@ def modify_deformable_body_properties(
 
     # set into PhysX API
     for attr_name, value in cfg.items():
-        if attr_name in ["rest_offset", "collision_offset"]:
+        if attr_name in ["rest_offset", "contact_offset"]:
             safe_set_attribute_on_usd_schema(physx_collision_api, attr_name, value, camel_case=True)
         else:
             safe_set_attribute_on_usd_schema(physx_deformable_api, attr_name, value, camel_case=True)

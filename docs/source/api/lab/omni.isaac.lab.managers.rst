@@ -94,21 +94,6 @@ Event Manager
     :members:
     :exclude-members: __init__
 
-Randomization Manager
----------------------
-
-.. deprecated:: v0.3
-    The Randomization Manager is deprecated and will be removed in v0.4.
-    Please use the :class:`EventManager` class instead.
-
-.. autoclass:: RandomizationManager
-    :members:
-    :inherited-members:
-    :show-inheritance:
-
-.. autoclass:: RandomizationTermCfg
-    :members:
-    :exclude-members: __init__
 
 Command Manager
 ---------------

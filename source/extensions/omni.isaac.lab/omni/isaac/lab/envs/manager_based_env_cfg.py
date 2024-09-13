@@ -56,6 +56,14 @@ class ManagerBasedEnvCfg:
     """
 
     # general settings
+    seed: int | None = None
+    """The seed for the random number generator. Defaults to None, in which case the seed is not set.
+
+    Note:
+      The seed is set at the beginning of the environment initialization. This ensures that the environment
+      creation is deterministic and behaves similarly across different runs.
+    """
+
     decimation: int = MISSING
     """Number of control action updates @ sim dt per policy dt.
 
@@ -86,13 +94,4 @@ class ManagerBasedEnvCfg:
     """Event settings. Defaults to the basic configuration that resets the scene to its default state.
 
     Please refer to the :class:`omni.isaac.lab.managers.EventManager` class for more details.
-    """
-
-    randomization: object | None = None
-    """Randomization settings. Default is None.
-
-    .. deprecated:: 0.3.0
-        This attribute is deprecated and will be removed in v0.4.0. Please use the :attr:`events`
-        attribute to configure the randomization settings.
-
     """

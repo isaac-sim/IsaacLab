@@ -20,7 +20,7 @@ import unittest
 from collections import namedtuple
 
 from omni.isaac.lab.managers import ManagerTermBase, ObservationGroupCfg, ObservationManager, ObservationTermCfg
-from omni.isaac.lab.utils import configclass
+from omni.isaac.lab.utils import configclass, modifiers
 
 
 def grilled_chicken(env):
@@ -41,6 +41,10 @@ def grilled_chicken_with_yoghurt(env, hot: bool, bland: float):
 
 def grilled_chicken_with_yoghurt_and_bbq(env, hot: bool, bland: float, bbq: bool = False):
     return hot * bland * bbq * torch.ones(env.num_envs, 3, device=env.device)
+
+
+def grilled_chicken_image(env, bland: float, channel: int = 1):
+    return bland * torch.ones(env.num_envs, 128, 256, channel, device=env.device)
 
 
 class complex_function_class(ManagerTermBase):
@@ -91,11 +95,12 @@ class TestObservationManager(unittest.TestCase):
 
     def setUp(self) -> None:
         # set up the environment
+        self.dt = 0.01
         self.num_envs = 20
         self.device = "cuda:0"
         # create dummy environment
-        self.env = namedtuple("ManagerBasedEnv", ["num_envs", "device", "data"])(
-            self.num_envs, self.device, MyDataClass(self.num_envs, self.device)
+        self.env = namedtuple("ManagerBasedEnv", ["num_envs", "device", "data", "dt"])(
+            self.num_envs, self.device, MyDataClass(self.num_envs, self.device), self.dt
         )
 
     def test_str(self):
@@ -201,8 +206,24 @@ class TestObservationManager(unittest.TestCase):
                 term_1 = ObservationTermCfg(func=grilled_chicken, scale=10)
                 term_2 = ObservationTermCfg(func=grilled_chicken_with_curry, scale=0.0, params={"hot": False})
 
+            @configclass
+            class SampleMixedGroupCfg(ObservationGroupCfg):
+                """Test config class for policy observation group with a mix of vector and matrix terms."""
+
+                concatenate_terms = False
+                term_1 = ObservationTermCfg(func=grilled_chicken, scale=2.0)
+                term_2 = ObservationTermCfg(func=grilled_chicken_image, scale=1.5, params={"bland": 0.5})
+
+            @configclass
+            class SampleImageGroupCfg(ObservationGroupCfg):
+
+                term_1 = ObservationTermCfg(func=grilled_chicken_image, scale=1.5, params={"bland": 0.5, "channel": 1})
+                term_2 = ObservationTermCfg(func=grilled_chicken_image, scale=0.5, params={"bland": 0.1, "channel": 3})
+
             policy: ObservationGroupCfg = SampleGroupCfg()
             critic: ObservationGroupCfg = SampleGroupCfg(term_2=None)
+            mixed: ObservationGroupCfg = SampleMixedGroupCfg()
+            image: ObservationGroupCfg = SampleImageGroupCfg()
 
         # create observation manager
         cfg = MyObservationManagerCfg()
@@ -210,6 +231,15 @@ class TestObservationManager(unittest.TestCase):
 
         self.assertEqual(len(self.obs_man.active_terms["policy"]), 2)
         self.assertEqual(len(self.obs_man.active_terms["critic"]), 1)
+        self.assertEqual(len(self.obs_man.active_terms["mixed"]), 2)
+        self.assertEqual(len(self.obs_man.active_terms["image"]), 2)
+
+        # create a new obs manager but where mixed group has invalid config
+        cfg = MyObservationManagerCfg()
+        cfg.mixed.concatenate_terms = True
+
+        with self.assertRaises(RuntimeError):
+            ObservationManager(cfg, self.env)
 
     def test_compute(self):
         """Test the observation computation."""
@@ -234,8 +264,15 @@ class TestObservationManager(unittest.TestCase):
                 term_3 = ObservationTermCfg(func=pos_w_data, scale=2.0)
                 term_4 = ObservationTermCfg(func=lin_vel_w_data, scale=1.5)
 
+            @configclass
+            class ImageCfg(ObservationGroupCfg):
+
+                term_1 = ObservationTermCfg(func=grilled_chicken_image, scale=1.5, params={"bland": 0.5, "channel": 1})
+                term_2 = ObservationTermCfg(func=grilled_chicken_image, scale=0.5, params={"bland": 0.1, "channel": 3})
+
             policy: ObservationGroupCfg = PolicyCfg()
             critic: ObservationGroupCfg = CriticCfg()
+            image: ObservationGroupCfg = ImageCfg()
 
         # create observation manager
         cfg = MyObservationManagerCfg()
@@ -246,10 +283,12 @@ class TestObservationManager(unittest.TestCase):
         # obtain the group observations
         obs_policy: torch.Tensor = observations["policy"]
         obs_critic: torch.Tensor = observations["critic"]
+        obs_image: torch.Tensor = observations["image"]
 
         # check the observation shape
         self.assertEqual((self.env.num_envs, 11), obs_policy.shape)
         self.assertEqual((self.env.num_envs, 12), obs_critic.shape)
+        self.assertEqual((self.env.num_envs, 128, 256, 4), obs_image.shape)
         # make sure that the data are the same for same terms
         # -- within group
         torch.testing.assert_close(obs_critic[:, 0:3], obs_critic[:, 6:9])
@@ -337,6 +376,81 @@ class TestObservationManager(unittest.TestCase):
         cfg = MyObservationManagerCfg()
         # create observation manager
         with self.assertRaises(NotImplementedError):
+            self.obs_man = ObservationManager(cfg, self.env)
+
+    def test_modifier_compute(self):
+        """Test the observation computation with modifiers."""
+
+        modifier_1 = modifiers.ModifierCfg(func=modifiers.bias, params={"value": 1.0})
+        modifier_2 = modifiers.ModifierCfg(func=modifiers.scale, params={"multiplier": 2.0})
+        modifier_3 = modifiers.ModifierCfg(func=modifiers.clip, params={"bounds": (-0.5, 0.5)})
+        modifier_4 = modifiers.IntegratorCfg(dt=self.env.dt)
+
+        @configclass
+        class MyObservationManagerCfg:
+            """Test config class for observation manager."""
+
+            @configclass
+            class PolicyCfg(ObservationGroupCfg):
+                """Test config class for policy observation group."""
+
+                concatenate_terms = False
+                term_1 = ObservationTermCfg(func=pos_w_data, modifiers=[])
+                term_2 = ObservationTermCfg(func=pos_w_data, modifiers=[modifier_1])
+                term_3 = ObservationTermCfg(func=pos_w_data, modifiers=[modifier_1, modifier_4])
+
+            @configclass
+            class CriticCfg(ObservationGroupCfg):
+                """Test config class for critic observation group"""
+
+                concatenate_terms = False
+                term_1 = ObservationTermCfg(func=pos_w_data, modifiers=[])
+                term_2 = ObservationTermCfg(func=pos_w_data, modifiers=[modifier_1])
+                term_3 = ObservationTermCfg(func=pos_w_data, modifiers=[modifier_1, modifier_2])
+                term_4 = ObservationTermCfg(func=pos_w_data, modifiers=[modifier_1, modifier_2, modifier_3])
+
+            policy: ObservationGroupCfg = PolicyCfg()
+            critic: ObservationGroupCfg = CriticCfg()
+
+        # create observation manager
+        cfg = MyObservationManagerCfg()
+        self.obs_man = ObservationManager(cfg, self.env)
+        # compute observation using manager
+        observations = self.obs_man.compute()
+
+        # obtain the group observations
+        obs_policy: dict[str, torch.Tensor] = observations["policy"]
+        obs_critic: dict[str, torch.Tensor] = observations["critic"]
+
+        # check correct application of modifications
+        torch.testing.assert_close(obs_policy["term_1"] + 1.0, obs_policy["term_2"])
+        torch.testing.assert_close(obs_critic["term_1"] + 1.0, obs_critic["term_2"])
+        torch.testing.assert_close(2.0 * (obs_critic["term_1"] + 1.0), obs_critic["term_3"])
+        self.assertTrue(torch.min(obs_critic["term_4"]) >= -0.5)
+        self.assertTrue(torch.max(obs_critic["term_4"]) <= 0.5)
+
+    def test_modifier_invalid_config(self):
+        """Test modifier initialization with invalid config."""
+
+        modifier = modifiers.ModifierCfg(func=modifiers.clip, params={"min": -0.5, "max": 0.5})
+
+        @configclass
+        class MyObservationManagerCfg:
+            """Test config class for observation manager."""
+
+            @configclass
+            class PolicyCfg(ObservationGroupCfg):
+                """Test config class for policy observation group."""
+
+                concatenate_terms = False
+                term_1 = ObservationTermCfg(func=pos_w_data, modifiers=[modifier])
+
+            policy: ObservationGroupCfg = PolicyCfg()
+
+        # create observation manager
+        cfg = MyObservationManagerCfg()
+
+        with self.assertRaises(ValueError):
             self.obs_man = ObservationManager(cfg, self.env)
 
 

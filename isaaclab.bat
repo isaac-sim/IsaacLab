@@ -14,26 +14,19 @@ rem Helper functions
 
 rem extract Isaac Sim directory
 :extract_isaacsim_path
-rem check if conda environment is activated and isaacsim package is installed
-if not "%CONDA_PREFIX%"=="" (
-    rem use conda python
-    set python_exe=%CONDA_PREFIX%\python
-    call !python_exe! -m pip show isaacsim-rl > nul 2>&1
-    if errorlevel 1 (
-        rem Use the sym-link path to Isaac Sim directory
-        set isaac_path=%ISAACLAB_PATH%\_isaac_sim
-    ) else (
-        rem retrieve the isaacsim path from the installed package
-        set "isaac_path="
-        for /f "delims=" %%i in ('!python_exe! -c "import isaacsim; import os; print(os.environ['ISAAC_PATH'])"') do (
-            if not defined isaac_path (
-                set "isaac_path=%%i"
-            )
+rem Use the sym-link path to Isaac Sim directory
+set isaac_path=%ISAACLAB_PATH%\_isaac_sim
+rem Check if directory exists
+if not exist "%isaac_path%" (
+    rem Find the Python executable
+    call :extract_python_exe
+    rem retrieve the isaacsim path from the installed package
+    set "isaac_path="
+    for /f "delims=" %%i in ('!python_exe! -c "import isaacsim; import os; print(os.environ['ISAAC_PATH'])"') do (
+        if not defined isaac_path (
+            set "isaac_path=%%i"
         )
     )
-) else (
-    rem Use the sym-link path to Isaac Sim directory
-    set isaac_path=%ISAACLAB_PATH%\_isaac_sim
 )
 rem Check if the directory exists
 if not exist "%isaac_path%" (
@@ -50,16 +43,25 @@ rem extract the python from isaacsim
 rem check if using conda
 if not "%CONDA_PREFIX%"=="" (
     rem use conda python
-    set python_exe=%CONDA_PREFIX%\python
+    set python_exe=%CONDA_PREFIX%\python.exe
 ) else (
-    rem obtain isaacsim path
-    call :extract_isaacsim_path
-    rem use python from kit if Isaac Sim not installed from pip
-    set python_exe=!isaac_path!\python.bat
+    rem use kit python
+    set python_exe=%ISAACLAB_PATH%\_isaac_sim\python.bat
 )
-rem check if there is a python path available
-if "%python_exe%"=="" (
-    echo [ERROR] Unable to find any Python executable at path: %isaac_path%
+rem check for if isaac sim was installed to system python
+if not exist "%python_exe%" (
+    set "python_exe="
+    python -m pip show isaacsim-rl > nul 2>&1
+    if %ERRORLEVEL% equ 0 (
+        for /f "delims=" %%i in ('where python') do (
+            if not defined python_exe (
+                set "python_exe=%%i"
+            )
+        )
+    )
+)
+if not exist "%python_exe%" (
+    echo [ERROR] Unable to find any Python executable at path: %python_exe%
     echo %tab%This could be due to the following reasons:
     echo %tab%1. Conda environment is not activated.
     echo %tab%2. Python executable is not available at the default path: %ISAACLAB_PATH%\_isaac_sim\python.bat
@@ -83,7 +85,7 @@ if errorlevel 1 (
 )
 rem check if there is a python path available
 if not exist "%isaacsim_exe%" (
-    echo [ERROR] No isaac-sim executable found at path: !isaac_path!
+    echo [ERROR] No isaac-sim executable found at path: %isaacsim_exe%
     exit /b 1
 )
 goto :eof
@@ -135,27 +137,42 @@ mkdir "%CONDA_PREFIX%\etc\conda\deactivate.d" 2>nul
 
 rem obtain isaacsim path
 call :extract_isaacsim_path
-
-rem add variables to environment during activation
-(
-    echo @echo off
-    echo rem for isaac-sim
-    echo set "RESOURCE_NAME=IsaacSim"
-    echo set CARB_APP_PATH=!isaac_path!\kit
-    echo set EXP_PATH=!isaac_path!\apps
-    echo set ISAAC_PATH=!isaac_path!
-    echo set PYTHONPATH=%PYTHONPATH%;!isaac_path!\site
-    echo.
-    echo rem for isaac-lab
-    echo doskey isaaclab=isaaclab.bat $*
-) > "%CONDA_PREFIX%\etc\conda\activate.d\env_vars.bat"
-(
-    echo $env:CARB_APP_PATH="!isaac_path!\kit"
-    echo $env:EXP_PATH="!isaac_path!\apps"
-    echo $env:ISAAC_PATH="!isaac_path!"
-    echo $env:PYTHONPATH="%PYTHONPATH%;!isaac_path!\site"
-    echo $env:RESOURCE_NAME="IsaacSim"
-) > "%CONDA_PREFIX%\etc\conda\activate.d\env_vars.ps1"
+if exist "%isaac_path%" (
+    rem add variables to environment during activation
+    (
+        echo @echo off
+        echo rem for isaac-sim
+        echo set "RESOURCE_NAME=IsaacSim"
+        echo set CARB_APP_PATH=!isaac_path!\kit
+        echo set EXP_PATH=!isaac_path!\apps
+        echo set ISAAC_PATH=!isaac_path!
+        echo set PYTHONPATH=%PYTHONPATH%;!isaac_path!\site
+        echo.
+        echo rem for isaac-lab
+        echo doskey isaaclab=isaaclab.bat $*
+    ) > "%CONDA_PREFIX%\etc\conda\activate.d\env_vars.bat"
+    (
+        echo $env:CARB_APP_PATH="!isaac_path!\kit"
+        echo $env:EXP_PATH="!isaac_path!\apps"
+        echo $env:ISAAC_PATH="!isaac_path!"
+        echo $env:PYTHONPATH="%PYTHONPATH%;!isaac_path!\site"
+        echo $env:RESOURCE_NAME="IsaacSim"
+    ) > "%CONDA_PREFIX%\etc\conda\activate.d\env_vars.ps1"
+) else (
+    rem assume isaac sim will be installed from pip
+    rem add variables to environment during activation
+    (
+        echo @echo off
+        echo rem for isaac-sim
+        echo set "RESOURCE_NAME=IsaacSim"
+        echo.
+        echo rem for isaac-lab
+        echo doskey isaaclab=isaaclab.bat $*
+    ) > "%CONDA_PREFIX%\etc\conda\activate.d\env_vars.bat"
+    (
+        echo $env:RESOURCE_NAME="IsaacSim"
+    ) > "%CONDA_PREFIX%\etc\conda\activate.d\env_vars.ps1"
+)
 
 rem reactivate the environment to load the variables
 call conda activate %env_name%

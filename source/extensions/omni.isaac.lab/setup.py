@@ -18,7 +18,7 @@ EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extensio
 # Minimum dependencies required prior to installation
 INSTALL_REQUIRES = [
     # generic
-    "numpy",
+    "numpy<2",
     "torch==2.2.2",
     "prettytable==3.3.0",
     "tensordict",
@@ -52,8 +52,8 @@ setup(
     classifiers=[
         "Natural Language :: English",
         "Programming Language :: Python :: 3.10",
+        "Isaac Sim :: 4.1.0",
         "Isaac Sim :: 4.0.0",
-        "Isaac Sim :: 2023.1.1",
     ],
     zip_safe=False,
 )

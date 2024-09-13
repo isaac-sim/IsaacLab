@@ -1,6 +1,312 @@
 Changelog
 ---------
 
+0.22.11 (2024-09-10)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added config class, support, and tests for MJCF conversion via standalone python scripts.
+
+
+0.22.10 (2024-09-09)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a seed parameter to the :attr:`omni.isaac.lab.envs.ManagerBasedEnvCfg` and :attr:`omni.isaac.lab.envs.DirectRLEnvCfg`
+  classes to set the seed for the environment. This seed is used to initialize the random number generator for the environment.
+* Adapted the workflow scripts to set the seed for the environment using the seed specified in the learning agent's configuration
+  file or the command line argument. This ensures that the simulation results are reproducible across different runs.
+
+
+0.22.9 (2024-09-08)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Modified:meth:`quat_rotate` and :meth:`quat_rotate_inverse` operations to use :meth:`torch.einsum`
+  for faster processing of high dimensional input tensors.
+
+
+0.22.8 (2024-09-06)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added support for property attributes in the :meth:``omni.isaac.lab.utils.configclass`` method.
+  Earlier, the configclass decorator failed to parse the property attributes correctly and made them
+  instance variables instead.
+
+
+0.22.7 (2024-09-05)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Adapted the ``A`` and ``D`` button bindings inside :meth:`omni.isaac.lab.device.Se3Keyboard` to make them now
+  more-intuitive to control the y-axis motion based on the right-hand rule.
+
+
+0.22.6 (2024-08-29)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added alternative data type "distance_to_camera" in :class:`omni.isaac.lab.sensors.TiledCamera` class to be
+  consistent with all other cameras (equal to type "depth").
+
+
+0.22.5 (2024-08-29)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added missing SI units to the documentation of :class:`omni.isaac.lab.sensors.Camera` and
+  :class:`omni.isaac.lab.sensors.RayCasterCamera`.
+* Added test to check :attr:`omni.isaac.lab.sensors.RayCasterCamera.set_intrinsic_matrices`
+
+
+0.22.4 (2024-08-29)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the support for class-bounded methods when creating a configclass
+  out of them. Earlier, these methods were being made as instance methods
+  which required initialization of the class to call the class-methods.
+
+
+0.22.3 (2024-08-28)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a class method to initialize camera configurations with an intrinsic matrix in the
+  :class:`omni.isaac.lab.sim.spawner.sensors.PinholeCameraCfg`
+  :class:`omni.isaac.lab.sensors.ray_caster.patterns_cfg.PinholeCameraPatternCfg` classes.
+
+Fixed
+^^^^^
+
+* Fixed the ray direction in :func:`omni.isaac.lab.sensors.ray_caster.patterns.patterns.pinhole_camera_pattern` to
+  point to the center of the pixel instead of the top-left corner.
+* Fixed the clipping of the "distance_to_image_plane" depth image obtained using the
+  :class:`omni.isaac.lab.sensors.ray_caster.RayCasterCamera` class. Earlier, the depth image was being clipped
+  before the depth image was generated. Now, the clipping is applied after the depth image is generated. This makes
+  the behavior equal to the USD Camera.
+
+
+0.22.2 (2024-08-21)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Disabled default viewport in certain headless scenarios for better performance.
+
+
+0.22.1 (2024-08-17)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added APIs to interact with the physics simulation of deformable objects. This includes setting the
+  material properties, setting kinematic targets, and getting the state of the deformable object.
+  For more information, please refer to the :mod:`omni.isaac.lab.assets.DeformableObject` class.
+
+
+0.22.0 (2024-08-14)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^^^
+
+* Added :mod:`~omni.isaac.lab.utils.modifiers` module to provide framework for configurable and custom
+  observation data modifiers.
+* Adapted the :class:`~omni.isaac.lab.managers.ObservationManager` class to support custom modifiers.
+  These are applied to the observation data before applying any noise or scaling operations.
+
+
+0.21.2 (2024-08-13)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Moved event mode-based checks in the :meth:`omni.isaac.lab.managers.EventManager.apply` method outside
+  the loop that iterates over the event terms. This prevents unnecessary checks and improves readability.
+* Fixed the logic for global and per environment interval times when using the "interval" mode inside the
+  event manager. Earlier, the internal lists for these times were of unequal lengths which led to wrong indexing
+  inside the loop that iterates over the event terms.
+
+
+0.21.1 (2024-08-06)
+~~~~~~~~~~~~~~~~~~~
+
+* Added a flag to preserve joint ordering inside the :class:`omni.isaac.lab.envs.mdp.JointAction` action term.
+
+
+0.21.0 (2024-08-05)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the command line argument ``--device`` in :class:`~omni.isaac.lab.app.AppLauncher`. Valid options are:
+
+  * ``cpu``: Use CPU.
+  * ``cuda``: Use GPU with device ID ``0``.
+  * ``cuda:N``: Use GPU, where N is the device ID. For example, ``cuda:0``. The default value is ``cuda:0``.
+
+Changed
+^^^^^^^
+
+* Simplified setting the device throughout the code by relying on :attr:`omni.isaac.lab.sim.SimulationCfg.device`
+  to activate gpu/cpu pipelines.
+
+Removed
+^^^^^^^
+
+* Removed the parameter :attr:`omni.isaac.lab.sim.SimulationCfg.use_gpu_pipeline`. This is now directly inferred from
+  :attr:`omni.isaac.lab.sim.SimulationCfg.device`.
+* Removed the command line input argument ``--device_id`` in :class:`~omni.isaac.lab.app.AppLauncher`. The device id can
+  now be set using the ``--device`` argument, for example with ``--device cuda:0``.
+
+
+0.20.8 (2024-08-02)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the handling of observation terms with different shapes in the
+  :class:`~omni.isaac.lab.managers.ObservationManager` class. Earlier, the constructor would throw an error if the
+  shapes of the observation terms were different. Now, this operation only happens when the terms in an observation
+  group are being concatenated. Otherwise, the terms are stored as a dictionary of tensors.
+* Improved the error message when the observation terms are not of the same shape in the
+  :class:`~omni.isaac.lab.managers.ObservationManager` class and the terms are being concatenated.
+
+
+0.20.7 (2024-08-02)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Performance improvements for material randomization in events.
+
+Added
+^^^^^
+
+* Added minimum randomization frequency for reset mode randomizations.
+
+
+0.20.6 (2024-08-02)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Removed the hierarchy from :class:`~omni.isaac.lab.assets.RigidObject` class to
+  :class:`~omni.isaac.lab.assets.Articulation` class. Previously, the articulation class overrode  almost
+  all the functions of the rigid object class making the hierarchy redundant. Now, the articulation class
+  is a standalone class that does not inherit from the rigid object class. This does add some code
+  duplication but the simplicity and clarity of the code is improved.
+
+
+0.20.5 (2024-08-02)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`omni.isaac.lab.terrain.TerrainGeneratorCfg.border_height` to set the height of the border
+  around the terrain.
+
+
+0.20.4 (2024-08-02)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the caching of terrains when using the :class:`omni.isaac.lab.terrains.TerrainGenerator` class.
+  Earlier, the random sampling of the difficulty levels led to different hash values for the same terrain
+  configuration. This caused the terrains to be re-generated even when the same configuration was used.
+  Now, the numpy random generator is seeded with the same seed to ensure that the difficulty levels are
+  sampled in the same order between different runs.
+
+
+0.20.3 (2024-08-02)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the setting of translation and orientation when spawning a mesh prim. Earlier, the translation
+  and orientation was being applied both on the parent Xform and the mesh prim. This was causing the
+  mesh prim to be offset by the translation and orientation of the parent Xform, which is not the intended
+  behavior.
+
+
+0.20.2 (2024-08-02)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Modified the computation of body acceleration for rigid body data to use PhysX APIs instead of
+  numerical finite-differencing. This removes the need for computation of body acceleration at
+  every update call of the data buffer.
+
+
+0.20.1 (2024-07-30)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the :meth:`omni.isaac.lab.utils.math.wrap_to_pi` method to handle the wrapping of angles correctly.
+  Earlier, the method was not wrapping the angles to the range [-pi, pi] correctly when the angles were outside
+  the range [-2*pi, 2*pi].
+
+
+0.20.0 (2024-07-26)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Support for the Isaac Sim 4.1.0 release.
+
+Removed
+^^^^^^^
+
+* The ``mdp.add_body_mass`` method in the events. Please use the
+  :meth:`omni.isaac.lab.envs.mdp.randomize_rigid_body_mass` method instead.
+* The classes ``managers.RandomizationManager`` and ``managers.RandomizationTermCfg`` are replaced with
+  :class:`omni.isaac.lab.managers.EventManager` and :class:`omni.isaac.lab.managers.EventTermCfg` classes.
+* The following properties in :class:`omni.isaac.lab.sensors.FrameTransformerData`:
+
+  * ``target_rot_source`` --> :attr:`~omni.isaac.lab.sensors.FrameTransformerData.target_quat_w`
+  * ``target_rot_w`` --> :attr:`~omni.isaac.lab.sensors.FrameTransformerData.target_quat_source`
+  * ``source_rot_w`` --> :attr:`~omni.isaac.lab.sensors.FrameTransformerData.source_quat_w`
+
+* The kit experience file ``isaaclab.backwards.compatible.kit``. This is followed by dropping the support for
+  Isaac Sim 2023.1.1 completely.
+
+
 0.19.4 (2024-07-13)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -81,7 +387,7 @@ Fixed
 Fixed
 ^^^^^
 
-* Fixed the gravity vector direction used inside the :class:`omni.isaac.lab.assets.RigidObjectData`class.
+* Fixed the gravity vector direction used inside the :class:`omni.isaac.lab.assets.RigidObjectData` class.
   Earlier, the gravity direction was hard-coded as (0, 0, -1) which may be different from the actual
   gravity direction in the simulation. Now, the gravity direction is obtained from the simulation context
   and used to compute the projection of the gravity vector on the object.

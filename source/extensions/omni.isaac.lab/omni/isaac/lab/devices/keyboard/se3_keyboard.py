@@ -8,7 +8,7 @@
 import numpy as np
 import weakref
 from collections.abc import Callable
-from scipy.spatial.transform.rotation import Rotation
+from scipy.spatial.transform import Rotation
 
 import carb
 import omni
@@ -170,9 +170,9 @@ class Se3Keyboard(DeviceBase):
             # x-axis (forward)
             "W": np.asarray([1.0, 0.0, 0.0]) * self.pos_sensitivity,
             "S": np.asarray([-1.0, 0.0, 0.0]) * self.pos_sensitivity,
-            # y-axis (right-left)
-            "D": np.asarray([0.0, 1.0, 0.0]) * self.pos_sensitivity,
-            "A": np.asarray([0.0, -1.0, 0.0]) * self.pos_sensitivity,
+            # y-axis (left-right)
+            "A": np.asarray([0.0, 1.0, 0.0]) * self.pos_sensitivity,
+            "D": np.asarray([0.0, -1.0, 0.0]) * self.pos_sensitivity,
             # z-axis (up-down)
             "Q": np.asarray([0.0, 0.0, 1.0]) * self.pos_sensitivity,
             "E": np.asarray([0.0, 0.0, -1.0]) * self.pos_sensitivity,

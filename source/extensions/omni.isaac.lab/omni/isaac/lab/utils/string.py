@@ -58,6 +58,32 @@ def to_snake_case(camel_str: str) -> str:
     return re.sub("([a-z0-9])([A-Z])", r"\1_\2", camel_str).lower()
 
 
+def string_to_slice(s: str):
+    """Convert a string representation of a slice to a slice object.
+
+    Args:
+        s: The string representation of the slice.
+
+    Returns:
+        The slice object.
+    """
+    # extract the content inside the slice()
+    match = re.match(r"slice\((.*),(.*),(.*)\)", s)
+    if not match:
+        raise ValueError(f"Invalid slice string format: {s}")
+
+    # extract start, stop, and step values
+    start_str, stop_str, step_str = match.groups()
+
+    # convert 'None' to None and other strings to integers
+    start = None if start_str == "None" else int(start_str)
+    stop = None if stop_str == "None" else int(stop_str)
+    step = None if step_str == "None" else int(step_str)
+
+    # create and return the slice object
+    return slice(start, stop, step)
+
+
 """
 String <-> Callable operations.
 """
@@ -96,7 +122,11 @@ def callable_to_string(value: Callable) -> str:
         raise ValueError(f"The input argument is not callable: {value}.")
     # check if lambda function
     if value.__name__ == "<lambda>":
-        return f"lambda {inspect.getsourcelines(value)[0][0].strip().split('lambda')[1].strip().split(',')[0]}"
+        # we resolve the lambda expression by checking the source code and extracting the line with lambda expression
+        # we also remove any comments from the line
+        lambda_line = inspect.getsourcelines(value)[0][0].strip().split("lambda")[1].strip().split(",")[0]
+        lambda_line = re.sub(r"#.*$", "", lambda_line).rstrip()
+        return f"lambda {lambda_line}"
     else:
         # get the module and function name
         module_name = value.__module__

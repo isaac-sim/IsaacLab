@@ -8,7 +8,7 @@
 import numpy as np
 import weakref
 from collections.abc import Callable
-from scipy.spatial.transform.rotation import Rotation
+from scipy.spatial.transform import Rotation
 
 import carb
 import omni

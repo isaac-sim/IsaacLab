@@ -205,6 +205,9 @@ class Sb3VecEnvWrapper(VecEnv):
 
     def reset(self) -> VecEnvObs:  # noqa: D102
         obs_dict, _ = self.env.reset()
+        # reset episodic information buffers
+        self._ep_rew_buf.zero_()
+        self._ep_len_buf.zero_()
         # convert data types to numpy depending on backend
         return self._process_obs(obs_dict)
 

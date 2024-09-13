@@ -231,6 +231,57 @@ class TestCamera(unittest.TestCase):
                 for im_data in cam.data.output.to_dict().values():
                     self.assertEqual(im_data.shape, (1, self.camera_cfg.height, self.camera_cfg.width))
 
+    def test_camera_init_intrinsic_matrix(self):
+        """Test camera initialization from intrinsic matrix."""
+        # get the first camera
+        camera_1 = Camera(cfg=self.camera_cfg)
+        # get intrinsic matrix
+        self.sim.reset()
+        intrinsic_matrix = camera_1.data.intrinsic_matrices[0].cpu().flatten().tolist()
+        self.tearDown()
+        # reinit the first camera
+        self.setUp()
+        camera_1 = Camera(cfg=self.camera_cfg)
+        # initialize from intrinsic matrix
+        intrinsic_camera_cfg = CameraCfg(
+            height=128,
+            width=128,
+            prim_path="/World/Camera_2",
+            update_period=0,
+            data_types=["distance_to_image_plane"],
+            spawn=sim_utils.PinholeCameraCfg.from_intrinsic_matrix(
+                intrinsic_matrix=intrinsic_matrix,
+                width=128,
+                height=128,
+                focal_length=24.0,
+                focus_distance=400.0,
+                clipping_range=(0.1, 1.0e5),
+            ),
+        )
+        camera_2 = Camera(cfg=intrinsic_camera_cfg)
+
+        # play sim
+        self.sim.reset()
+
+        # update cameras
+        camera_1.update(self.dt)
+        camera_2.update(self.dt)
+
+        # check image data
+        torch.testing.assert_close(
+            camera_1.data.output["distance_to_image_plane"],
+            camera_2.data.output["distance_to_image_plane"],
+            rtol=5e-3,
+            atol=1e-4,
+        )
+        # check that both intrinsic matrices are the same
+        torch.testing.assert_close(
+            camera_1.data.intrinsic_matrices[0],
+            camera_2.data.intrinsic_matrices[0],
+            rtol=5e-3,
+            atol=1e-4,
+        )
+
     def test_camera_set_world_poses(self):
         """Test camera function to set specific world pose."""
         camera = Camera(self.camera_cfg)
@@ -443,22 +494,13 @@ class TestCamera(unittest.TestCase):
             # Save images
             with Timer(f"Time taken for writing data with shape {camera.image_shape}   "):
                 # Pack data back into replicator format to save them using its writer
-                if self.sim.get_version()[0] == 4:
-                    rep_output = {"annotators": {}}
-                    camera_data = convert_dict_to_backend(camera.data.output[0].to_dict(), backend="numpy")
-                    for key, data, info in zip(camera_data.keys(), camera_data.values(), camera.data.info[0].values()):
-                        if info is not None:
-                            rep_output["annotators"][key] = {"render_product": {"data": data, **info}}
-                        else:
-                            rep_output["annotators"][key] = {"render_product": {"data": data}}
-                else:
-                    rep_output = dict()
-                    camera_data = convert_dict_to_backend(camera.data.output[0].to_dict(), backend="numpy")
-                    for key, data, info in zip(camera_data.keys(), camera_data.values(), camera.data.info[0].values()):
-                        if info is not None:
-                            rep_output[key] = {"data": data, "info": info}
-                        else:
-                            rep_output[key] = data
+                rep_output = {"annotators": {}}
+                camera_data = convert_dict_to_backend(camera.data.output[0].to_dict(), backend="numpy")
+                for key, data, info in zip(camera_data.keys(), camera_data.values(), camera.data.info[0].values()):
+                    if info is not None:
+                        rep_output["annotators"][key] = {"render_product": {"data": data, **info}}
+                    else:
+                        rep_output["annotators"][key] = {"render_product": {"data": data}}
                 # Save images
                 rep_output["trigger_outputs"] = {"on_time": camera.frame[0]}
                 rep_writer.write(rep_output)

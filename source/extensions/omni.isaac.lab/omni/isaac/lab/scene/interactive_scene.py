@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import builtins
 import torch
 from collections.abc import Sequence
 from typing import Any
@@ -12,11 +11,18 @@ import carb
 import omni.usd
 from omni.isaac.cloner import GridCloner
 from omni.isaac.core.prims import XFormPrimView
-from omni.isaac.version import get_version
 from pxr import PhysxSchema
 
 import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.assets import Articulation, ArticulationCfg, AssetBaseCfg, RigidObject, RigidObjectCfg
+from omni.isaac.lab.assets import (
+    Articulation,
+    ArticulationCfg,
+    AssetBaseCfg,
+    DeformableObject,
+    DeformableObjectCfg,
+    RigidObject,
+    RigidObjectCfg,
+)
 from omni.isaac.lab.sensors import ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg
 from omni.isaac.lab.terrains import TerrainImporter, TerrainImporterCfg
 
@@ -103,6 +109,7 @@ class InteractiveScene:
         # initialize scene elements
         self._terrain = None
         self._articulations = dict()
+        self._deformable_objects = dict()
         self._rigid_objects = dict()
         self._sensors = dict()
         self._extras = dict()
@@ -150,10 +157,6 @@ class InteractiveScene:
                 )
 
             self.filter_collisions(self._global_prim_paths)
-
-        # read isaac sim version (this includes build tag, release tag etc.)
-        # note: we do it once here because it reads the VERSION file from disk and is not expected to change.
-        self._isaac_sim_version = int(get_version()[0][0])
 
     def clone_environments(self, copy_from_source: bool = False):
         """Creates clones of the environment ``/World/envs/env_0``.
@@ -284,6 +287,11 @@ class InteractiveScene:
         return self._articulations
 
     @property
+    def deformable_objects(self) -> dict[str, DeformableObject]:
+        """A dictionary of deformable objects in the scene."""
+        return self._deformable_objects
+
+    @property
     def rigid_objects(self) -> dict[str, RigidObject]:
         """A dictionary of rigid objects in the scene."""
         return self._rigid_objects
@@ -326,33 +334,23 @@ class InteractiveScene:
         # -- assets
         for articulation in self._articulations.values():
             articulation.reset(env_ids)
+        for deformable_object in self._deformable_objects.values():
+            deformable_object.reset(env_ids)
         for rigid_object in self._rigid_objects.values():
             rigid_object.reset(env_ids)
         # -- sensors
         for sensor in self._sensors.values():
             sensor.reset(env_ids)
-        if builtins.ISAAC_LAUNCHED_FROM_TERMINAL and self._isaac_sim_version < 4:
-            # -- flush physics sim view if called in extension mode and Isaac Sim version is < 4.0
-            # this is needed when using PhysX GPU pipeline since the data needs to be sent to the underlying
-            # PhysX buffers that might live on a separate device
-            # note: In standalone mode, this method is called in the `step()` method of the simulation context.
-            #   So we only need to flush when running in extension mode.
-            sim_utils.SimulationContext.instance().physics_sim_view.flush()  # pyright: ignore [reportOptionalMemberAccess]
 
     def write_data_to_sim(self):
         """Writes the data of the scene entities to the simulation."""
         # -- assets
         for articulation in self._articulations.values():
             articulation.write_data_to_sim()
+        for deformable_object in self._deformable_objects.values():
+            deformable_object.write_data_to_sim()
         for rigid_object in self._rigid_objects.values():
             rigid_object.write_data_to_sim()
-        if builtins.ISAAC_LAUNCHED_FROM_TERMINAL and self._isaac_sim_version < 4:
-            # -- flush physics sim view if called in extension mode and Isaac Sim version is < 4.0
-            # this is needed when using PhysX GPU pipeline since the data needs to be sent to the underlying
-            # PhysX buffers that might live on a separate device
-            # note: In standalone mode, this method is called in the `step()` method of the simulation context.
-            #   So we only need to flush when running in extension mode.
-            sim_utils.SimulationContext.instance().physics_sim_view.flush()  # pyright: ignore [reportOptionalMemberAccess]
 
     def update(self, dt: float) -> None:
         """Update the scene entities.
@@ -363,6 +361,8 @@ class InteractiveScene:
         # -- assets
         for articulation in self._articulations.values():
             articulation.update(dt)
+        for deformable_object in self._deformable_objects.values():
+            deformable_object.update(dt)
         for rigid_object in self._rigid_objects.values():
             rigid_object.update(dt)
         # -- sensors
@@ -380,7 +380,13 @@ class InteractiveScene:
             The keys of the scene entities.
         """
         all_keys = ["terrain"]
-        for asset_family in [self._articulations, self._rigid_objects, self._sensors, self._extras]:
+        for asset_family in [
+            self._articulations,
+            self._deformable_objects,
+            self._rigid_objects,
+            self._sensors,
+            self._extras,
+        ]:
             all_keys += list(asset_family.keys())
         return all_keys
 
@@ -399,7 +405,13 @@ class InteractiveScene:
 
         all_keys = ["terrain"]
         # check if it is in other dictionaries
-        for asset_family in [self._articulations, self._rigid_objects, self._sensors, self._extras]:
+        for asset_family in [
+            self._articulations,
+            self._deformable_objects,
+            self._rigid_objects,
+            self._sensors,
+            self._extras,
+        ]:
             out = asset_family.get(key)
             # if found, return
             if out is not None:
@@ -438,6 +450,8 @@ class InteractiveScene:
                 self._terrain = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, ArticulationCfg):
                 self._articulations[asset_name] = asset_cfg.class_type(asset_cfg)
+            elif isinstance(asset_cfg, DeformableObjectCfg):
+                self._deformable_objects[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, RigidObjectCfg):
                 self._rigid_objects[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, SensorBaseCfg):

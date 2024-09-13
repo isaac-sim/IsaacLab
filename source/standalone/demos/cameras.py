@@ -63,8 +63,6 @@ class SensorsSceneCfg(InteractiveSceneCfg):
 
     # ground plane
     ground = TerrainImporterCfg(
-        num_envs=2048,
-        env_spacing=3.0,
         prim_path="/World/ground",
         max_init_terrain_level=None,
         terrain_type="generator",
@@ -98,7 +96,7 @@ class SensorsSceneCfg(InteractiveSceneCfg):
         update_period=0.1,
         height=480,
         width=640,
-        data_types=["rgb", "depth"],
+        data_types=["rgb", "distance_to_camera"],
         spawn=None,  # the camera is already spawned in the scene
         offset=TiledCameraCfg.OffsetCfg(pos=(0.510, 0.0, 0.015), rot=(0.5, -0.5, 0.5, -0.5), convention="ros"),
     )
@@ -223,7 +221,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
         print("-------------------------------")
         print(scene["tiled_camera"])
         print("Received shape of rgb   image: ", scene["tiled_camera"].data.output["rgb"].shape)
-        print("Received shape of depth image: ", scene["tiled_camera"].data.output["depth"].shape)
+        print("Received shape of depth image: ", scene["tiled_camera"].data.output["distance_to_camera"].shape)
         print("-------------------------------")
         print(scene["raycast_camera"])
         print("Received shape of depth: ", scene["raycast_camera"].data.output["distance_to_image_plane"].shape)
@@ -244,7 +242,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             # compare generated Depth images across different cameras
             depth_images = [
                 scene["camera"].data.output["distance_to_image_plane"][0],
-                scene["tiled_camera"].data.output["depth"][0, ..., 0],
+                scene["tiled_camera"].data.output["distance_to_camera"][0, ..., 0],
                 scene["raycast_camera"].data.output["distance_to_image_plane"][0],
             ]
             save_images_grid(
@@ -252,7 +250,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
                 cmap="turbo",
                 subtitles=["Camera", "TiledCamera", "RaycasterCamera"],
                 title="Depth Image: Cam0",
-                filename=os.path.join(output_dir, "depth", f"{count:04d}.jpg"),
+                filename=os.path.join(output_dir, "distance_to_camera", f"{count:04d}.jpg"),
             )
 
             # save all tiled RGB images
@@ -284,8 +282,6 @@ def main():
     if args_cli.disable_fabric:
         sim_cfg.use_fabric = False
         sim_cfg.device = "cpu"
-        sim_cfg.use_gpu_pipeline = False
-        sim_cfg.physx.use_gpu = False
 
     # Initialize the simulation context
     sim = sim_utils.SimulationContext(sim_cfg)

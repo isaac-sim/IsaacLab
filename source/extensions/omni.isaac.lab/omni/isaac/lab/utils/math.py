@@ -93,18 +93,27 @@ def normalize(x: torch.Tensor, eps: float = 1e-9) -> torch.Tensor:
 
 @torch.jit.script
 def wrap_to_pi(angles: torch.Tensor) -> torch.Tensor:
-    """Wraps input angles (in radians) to the range [-pi, pi].
+    r"""Wraps input angles (in radians) to the range :math:`[-\pi, \pi]`.
+
+    This function wraps angles in radians to the range :math:`[-\pi, \pi]`, such that
+    :math:`\pi` maps to :math:`\pi`, and :math:`-\pi` maps to :math:`-\pi`. In general,
+    odd positive multiples of :math:`\pi` are mapped to :math:`\pi`, and odd negative
+    multiples of :math:`\pi` are mapped to :math:`-\pi`.
+
+    The function behaves similar to MATLAB's `wrapToPi <https://www.mathworks.com/help/map/ref/wraptopi.html>`_
+    function.
 
     Args:
         angles: Input angles of any shape.
 
     Returns:
-        Angles in the range [-pi, pi].
+        Angles in the range :math:`[-\pi, \pi]`.
     """
-    angles = angles.clone()
-    angles %= 2 * torch.pi
-    angles -= 2 * torch.pi * (angles > torch.pi)
-    return angles
+    # wrap to [0, 2*pi)
+    wrapped_angle = (angles + torch.pi) % (2 * torch.pi)
+    # map to [-pi, pi]
+    # we check for zero in wrapped angle to make it go to pi when input angle is odd multiple of pi
+    return torch.where((wrapped_angle == 0) & (angles > 0), torch.pi, wrapped_angle - torch.pi)
 
 
 @torch.jit.script
@@ -121,8 +130,8 @@ def copysign(mag: float, other: torch.Tensor) -> torch.Tensor:
     Returns:
         The output tensor.
     """
-    mag = torch.tensor(mag, device=other.device, dtype=torch.float).repeat(other.shape[0])
-    return torch.abs(mag) * torch.sign(other)
+    mag_torch = torch.tensor(mag, device=other.device, dtype=torch.float).repeat(other.shape[0])
+    return torch.abs(mag_torch) * torch.sign(other)
 
 
 """
@@ -571,41 +580,47 @@ def quat_apply_yaw(quat: torch.Tensor, vec: torch.Tensor) -> torch.Tensor:
 
 @torch.jit.script
 def quat_rotate(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
-    """Rotate a vector by a quaternion.
+    """Rotate a vector by a quaternion along the last dimension of q and v.
 
     Args:
-        q: The quaternion in (w, x, y, z). Shape is (N, 4).
-        v: The vector in (x, y, z). Shape is (N, 3).
+        q: The quaternion in (w, x, y, z). Shape is (..., 4).
+        v: The vector in (x, y, z). Shape is (..., 3).
 
     Returns:
-        The rotated vector in (x, y, z). Shape is (N, 3).
+        The rotated vector in (x, y, z). Shape is (..., 3).
     """
-    shape = q.shape
-    q_w = q[:, 0]
-    q_vec = q[:, 1:]
+    q_w = q[..., 0]
+    q_vec = q[..., 1:]
     a = v * (2.0 * q_w**2 - 1.0).unsqueeze(-1)
     b = torch.cross(q_vec, v, dim=-1) * q_w.unsqueeze(-1) * 2.0
-    c = q_vec * torch.bmm(q_vec.view(shape[0], 1, 3), v.view(shape[0], 3, 1)).squeeze(-1) * 2.0
+    # for two-dimensional tensors, bmm is faster than einsum
+    if q_vec.dim() == 2:
+        c = q_vec * torch.bmm(q_vec.view(q.shape[0], 1, 3), v.view(q.shape[0], 3, 1)).squeeze(-1) * 2.0
+    else:
+        c = q_vec * torch.einsum("...i,...i->...", q_vec, v).unsqueeze(-1) * 2.0
     return a + b + c
 
 
 @torch.jit.script
 def quat_rotate_inverse(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
-    """Rotate a vector by the inverse of a quaternion.
+    """Rotate a vector by the inverse of a quaternion along the last dimension of q and v.
 
     Args:
-        q: The quaternion in (w, x, y, z). Shape is (N, 4).
-        v: The vector in (x, y, z). Shape is (N, 3).
+        q: The quaternion in (w, x, y, z). Shape is (..., 4).
+        v: The vector in (x, y, z). Shape is (..., 3).
 
     Returns:
-        The rotated vector in (x, y, z). Shape is (N, 3).
+        The rotated vector in (x, y, z). Shape is (..., 3).
     """
-    shape = q.shape
-    q_w = q[:, 0]
-    q_vec = q[:, 1:]
+    q_w = q[..., 0]
+    q_vec = q[..., 1:]
     a = v * (2.0 * q_w**2 - 1.0).unsqueeze(-1)
     b = torch.cross(q_vec, v, dim=-1) * q_w.unsqueeze(-1) * 2.0
-    c = q_vec * torch.bmm(q_vec.view(shape[0], 1, 3), v.view(shape[0], 3, 1)).squeeze(-1) * 2.0
+    # for two-dimensional tensors, bmm is faster than einsum
+    if q_vec.dim() == 2:
+        c = q_vec * torch.bmm(q_vec.view(q.shape[0], 1, 3), v.view(q.shape[0], 3, 1)).squeeze(-1) * 2.0
+    else:
+        c = q_vec * torch.einsum("...i,...i->...", q_vec, v).unsqueeze(-1) * 2.0
     return a - b + c
 
 

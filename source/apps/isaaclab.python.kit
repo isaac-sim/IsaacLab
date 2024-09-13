@@ -5,7 +5,7 @@
 [package]
 title = "Isaac Lab Python"
 description = "An app for running Isaac Lab"
-version = "1.0.0"
+version = "1.1.0"
 
 # That makes it browsable in UI with "experience" filter
 keywords = ["experience", "app", "usd"]
@@ -62,6 +62,7 @@ keywords = ["experience", "app", "usd"]
 "omni.kit.viewport.menubar.render" = {}
 "omni.kit.viewport.menubar.camera" = {}
 "omni.kit.viewport.menubar.display" = {}
+"omni.kit.viewport.menubar.lighting" = {}
 
 "omni.kit.viewport.rtx" = {}
 "omni.kit.widget.cache_indicator" = {}
@@ -182,6 +183,9 @@ rtx.newDenoiser.enabled = true
 # Enable Iray and pxr by setting this to "rtx,iray,pxr"
 renderer.enabled = "rtx"
 
+# Avoids unnecessary GPU context initialization
+renderer.multiGpu.maxGpuCount=1
+
 ### async rendering settings
 omni.replicator.asyncRendering = false
 app.asyncRendering = false
@@ -217,7 +221,7 @@ app.vulkan = true
 app.versionFile = "${exe-path}/VERSION"
 app.folder = "${exe-path}/"
 app.name = "Isaac-Sim"
-app.version = "4.0.0"
+app.version = "4.1.0"
 
 # hide NonToggleable Exts
 exts."omni.kit.window.extensions".hideNonToggleableExts = true
