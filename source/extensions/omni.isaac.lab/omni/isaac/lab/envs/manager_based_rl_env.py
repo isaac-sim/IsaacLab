@@ -18,7 +18,7 @@ from omni.isaac.version import get_version
 from omni.isaac.lab.managers import (
     CommandManager,
     CurriculumManager,
-    ManagerLiveVisualizer,
+    EnvLiveVisualizer,
     RewardManager,
     TerminationManager,
 )
@@ -128,11 +128,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         self.curriculum_manager = CurriculumManager(self.cfg.curriculum, self)
         print("[INFO] Curriculum Manager: ", self.curriculum_manager)
 
-        # setup live visualizers
-        self._manager_visualizers["termination_manager"] = ManagerLiveVisualizer(manager=self.termination_manager)
-        self._manager_visualizers["reward_manager"] = ManagerLiveVisualizer(manager=self.reward_manager)
-        self._manager_visualizers["curriculum_manager"] = ManagerLiveVisualizer(manager=self.curriculum_manager)
-
         # setup the action and observation spaces for Gym
         self._configure_gym_env_spaces()
 
@@ -140,6 +135,16 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         if "startup" in self.event_manager.available_modes:
             self.event_manager.apply(mode="startup")
 
+    def setup_manager_visualizers(self):
+        self.env_vis_manager = EnvLiveVisualizer(
+            cfg=self.cfg.live_visualizer,
+            managers={"action_manager": self.action_manager, 
+                        "observation_manager": self.observation_manager,
+                        "command_manager" : self.command_manager,
+                        "termination_manager" : self.termination_manager,
+                        "reward_manager" : self.reward_manager,
+                        "curriculum_manager" : self.curriculum_manager},
+        )
     """
     Operations - MDP
     """

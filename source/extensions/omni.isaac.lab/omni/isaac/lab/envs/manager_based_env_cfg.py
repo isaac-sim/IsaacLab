@@ -90,3 +90,6 @@ class ManagerBasedEnvCfg:
     """
 
     live_visualizer: object = DefaultManagerBasedEnvLiveVisCfg()
+    """Live visualization settings. Defaults to showing all available actiona and observation terms.
+    
+    Please refere tot he :class:`omni.isaac.lab.managers.EnvLiveVisualizer`"""
