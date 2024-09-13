@@ -1118,7 +1118,9 @@ class Articulation(AssetBase):
             actuator: ActuatorBase = actuator_cfg.class_type(
                 cfg=actuator_cfg,
                 joint_names=joint_names,
-                joint_ids=slice(None) if len(joint_names) == self.num_joints else joint_ids,
+                joint_ids=(
+                    slice(None) if len(joint_names) == self.num_joints else torch.tensor(joint_ids, device=self.device)
+                ),
                 num_envs=self.num_instances,
                 device=self.device,
                 stiffness=usd_stiffness[:, joint_ids],
