@@ -639,10 +639,6 @@ class TestOperationSpaceController(unittest.TestCase):
                 ee_target_pose_b[:, 0:3], ee_target_pose_b[:, 3:7] = apply_delta_pose(
                     ee_pose_b[:, :3], ee_pose_b[:, 3:], ee_target_b[:, :7]
                 )
-            elif command_type == "position_abs":
-                ee_target_pose_b[:, 0:3] = ee_target_b[:, :3]
-            elif command_type == "position_rel":
-                ee_target_pose_b[:, 0:3] = ee_pose_b[:, 0:3] + ee_target_b[:, :3]
             elif command_type == "wrench_abs":
                 pass  # ee_target_pose_b could stay at the robot base for force control, what matters is ee_target_b
             else:
