@@ -505,7 +505,7 @@ class TestOperationalSpaceController(unittest.TestCase):
         robot.update(dt=sim_dt)
 
         # get the updated states
-        jacobian_b, mass_matrix, gravity, ee_pose_b, ee_vel_b, root_pose_w, ee_pose_w, ee_force_w = self._update_states(
+        jacobian_b, mass_matrix, gravity, ee_pose_b, ee_vel_b, root_pose_w, ee_pose_w, ee_force_b = self._update_states(
             robot, ee_frame_idx, arm_joint_ids
         )
 
@@ -529,7 +529,7 @@ class TestOperationalSpaceController(unittest.TestCase):
             if count % 500 == 0:
                 # check that we converged to the goal
                 if count > 0:
-                    self._check_convergence(opc, ee_pose_b, ee_target_pose_b, ee_force_w, ee_target_b)
+                    self._check_convergence(opc, ee_pose_b, ee_target_pose_b, ee_force_b, ee_target_b)
                 # reset joint state to default
                 default_joint_pos = robot.data.default_joint_pos.clone()
                 default_joint_vel = robot.data.default_joint_vel.clone()
@@ -550,7 +550,7 @@ class TestOperationalSpaceController(unittest.TestCase):
                 opc.set_command(ee_target_b, ee_pose_b)
             else:
                 # get the updated states
-                jacobian_b, mass_matrix, gravity, ee_pose_b, ee_vel_b, root_pose_w, ee_pose_w, ee_force_w = (
+                jacobian_b, mass_matrix, gravity, ee_pose_b, ee_vel_b, root_pose_w, ee_pose_w, ee_force_b = (
                     self._update_states(robot, ee_frame_idx, arm_joint_ids)
                 )
                 # compute the joint commands
@@ -558,7 +558,7 @@ class TestOperationalSpaceController(unittest.TestCase):
                     jacobian=jacobian_b,
                     current_ee_pose=ee_pose_b,
                     current_ee_vel=ee_vel_b,
-                    current_ee_force=ee_force_w,
+                    current_ee_force=ee_force_b,
                     mass_matrix=mass_matrix,
                     gravity=gravity,
                 )
@@ -616,7 +616,10 @@ class TestOperationalSpaceController(unittest.TestCase):
             # taking the max of three surfaces as only one should be the contact of interest
             ee_force_w, _ = torch.max(torch.mean(self.contact_forces.data.net_forces_w_history, dim=1), dim=1)
 
-        return jacobian_b, mass_matrix, gravity, ee_pose_b, ee_vel_b, root_pose_w, ee_pose_w, ee_force_w
+        # This is a simplification, only for the sake of testing.
+        ee_force_b = ee_force_w
+
+        return jacobian_b, mass_matrix, gravity, ee_pose_b, ee_vel_b, root_pose_w, ee_pose_w, ee_force_b
 
     def _update_target(
         self,
@@ -659,7 +662,7 @@ class TestOperationalSpaceController(unittest.TestCase):
         opc: OperationalSpaceController,
         ee_pose_b: torch.tensor,
         ee_target_pose_b: torch.tensor,
-        ee_force_w: torch.tensor,
+        ee_force_b: torch.tensor,
         ee_target_b: torch.tensor,
     ):
         cmd_idx = 0
@@ -689,7 +692,7 @@ class TestOperationalSpaceController(unittest.TestCase):
                 torch.testing.assert_close(rot_error_norm, des_error, rtol=0.0, atol=0.1)
                 cmd_idx += 6
             elif command_type == "wrench_abs":
-                force_error = ee_force_w - ee_target_b[:, cmd_idx : cmd_idx + 3]
+                force_error = ee_force_b - ee_target_b[:, cmd_idx : cmd_idx + 3]
                 force_error_norm = torch.norm(
                     force_error * self.force_mask, dim=-1
                 )  # ignore torque part as we cannot measure it

@@ -216,11 +216,11 @@ class OperationalSpaceController:
 
         Args:
             jacobian: The Jacobian matrix of the end-effector.
-            current_ee_pose: The current end-effector pose. It is a tensor of shape
+            current_ee_pose: The current end-effector pose in robot base frame. It is a tensor of shape
                 (num_robots, 7), which contains the position and quaternion (w, x, y, z). Defaults to None.
-            current_ee_vel: The current end-effector velocity. It is a tensor of shape
+            current_ee_vel: The current end-effector velocity in robot base frame. It is a tensor of shape
                 (num_robots, 6), which contains the linear and angular velocities. Defaults to None.
-            current_ee_force: The current external force on the end-effector.
+            current_ee_force: The current external force on the end-effector in robot base frame.
                 It is a tensor of shape (num_robots, 3), which contains the linear force. Defaults to None.
             mass_matrix: The joint-space inertial matrix. Defaults to None.
             gravity: The joint-space gravity vector. Defaults to None.
@@ -238,9 +238,9 @@ class OperationalSpaceController:
         """
 
         # deduce number of DoF
-        nDoF = jacobian.shape[2]
+        num_DoF = jacobian.shape[2]
         # create joint effort vector
-        joint_efforts = torch.zeros(self.num_envs, nDoF, device=self._device)
+        joint_efforts = torch.zeros(self.num_envs, num_DoF, device=self._device)
 
         # compute for motion-control
         if self.desired_ee_pos is not None:
