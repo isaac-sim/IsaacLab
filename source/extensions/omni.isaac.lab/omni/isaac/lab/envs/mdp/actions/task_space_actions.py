@@ -14,7 +14,7 @@ import carb
 import omni.isaac.lab.utils.math as math_utils
 from omni.isaac.lab.assets.articulation import Articulation
 from omni.isaac.lab.controllers.differential_ik import DifferentialIKController
-from omni.isaac.lab.controllers.operational_space import OperationSpaceController
+from omni.isaac.lab.controllers.operational_space import OperationalSpaceController
 from omni.isaac.lab.managers.action_manager import ActionTerm
 
 if TYPE_CHECKING:
@@ -193,22 +193,22 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         return jacobian
 
 
-class OperationSpaceControllerAction(ActionTerm):
-    r"""Operation space controller action term.
+class OperationalSpaceControllerAction(ActionTerm):
+    r"""Operational space controller action term.
 
     This action term performs pre-processing of the raw actions.
 
     TODO To be added
     """
 
-    cfg: actions_cfg.OperationSpaceControllerActionCfg
+    cfg: actions_cfg.OperationalSpaceControllerActionCfg
     """The configuration of the action term."""
     _asset: Articulation
     """The articulation asset on which the action term is applied."""
     _scale: torch.Tensor
     """The scaling factor applied to the input action. Shape is (1, action_dim)."""
 
-    def __init__(self, cfg: actions_cfg.OperationSpaceControllerActionCfg, env: ManagerBasedEnv):
+    def __init__(self, cfg: actions_cfg.OperationalSpaceControllerActionCfg, env: ManagerBasedEnv):
         # initialize the action term
         super().__init__(cfg, env)
 
@@ -244,8 +244,8 @@ class OperationSpaceControllerAction(ActionTerm):
         if self._num_joints == self._asset.num_joints:
             self._joint_ids = slice(None)
 
-        # create the operation space controller
-        self._ik_controller = OperationSpaceController(  # FIXME Change to correct arguments
+        # create the operational space controller
+        self._ik_controller = OperationalSpaceController(  # FIXME Change to correct arguments
             cfg=self.cfg.controller, num_envs=self.num_envs, device=self.device
         )
 

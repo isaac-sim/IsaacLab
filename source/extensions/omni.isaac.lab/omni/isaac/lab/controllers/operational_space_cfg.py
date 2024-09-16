@@ -8,14 +8,14 @@ from dataclasses import MISSING
 
 from omni.isaac.lab.utils import configclass
 
-from .operational_space import OperationSpaceController
+from .operational_space import OperationalSpaceController
 
 
 @configclass
-class OperationSpaceControllerCfg:
-    """Configuration for operation-space controller."""
+class OperationalSpaceControllerCfg:
+    """Configuration for operational-space controller."""
 
-    class_type: type = OperationSpaceController
+    class_type: type = OperationalSpaceController
     """The associated controller class."""
 
     target_types: Sequence[str] = MISSING

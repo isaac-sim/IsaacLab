@@ -21,7 +21,7 @@ from omni.isaac.cloner import GridCloner
 
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.assets import Articulation
-from omni.isaac.lab.controllers import OperationSpaceController, OperationSpaceControllerCfg
+from omni.isaac.lab.controllers import OperationalSpaceController, OperationalSpaceControllerCfg
 from omni.isaac.lab.markers import VisualizationMarkers
 from omni.isaac.lab.markers.config import FRAME_MARKER_CFG
 from omni.isaac.lab.sensors import ContactSensor, ContactSensorCfg
@@ -41,7 +41,7 @@ from omni.isaac.lab.utils.math import (
 from omni.isaac.lab_assets import FRANKA_PANDA_CFG  # isort:skip
 
 
-class TestOperationSpaceController(unittest.TestCase):
+class TestOperationalSpaceController(unittest.TestCase):
     """Test fixture for checking that differential IK controller tracks commands properly."""
 
     def setUp(self):
@@ -195,7 +195,7 @@ class TestOperationSpaceController(unittest.TestCase):
     def test_franka_pose_abs_fixed_impedance_without_inertial_compensation(self):
         """Test absolute pose control with fixed impedance and without inertial compensation."""
         robot = Articulation(cfg=self.robot_cfg)
-        opc_cfg = OperationSpaceControllerCfg(
+        opc_cfg = OperationalSpaceControllerCfg(
             target_types=["pose_abs"],
             impedance_mode="fixed",
             inertial_compensation=False,
@@ -203,14 +203,14 @@ class TestOperationSpaceController(unittest.TestCase):
             stiffness=[400.0, 400.0, 400.0, 100.0, 100.0, 100.0],
             damping_ratio=[5.0, 5.0, 5.0, 0.001, 0.001, 0.001],
         )
-        opc = OperationSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
+        opc = OperationalSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
 
         self._run_op_space_controller(robot, opc, "panda_hand", ["panda_joint.*"], self.target_abs_pose_set)
 
     def test_franka_pose_abs_fixed_impedance_with_decoupled_inertial_compensation(self):
         """Test absolute pose control with fixed impedance and decoupled inertial compensation."""
         robot = Articulation(cfg=self.robot_cfg)
-        opc_cfg = OperationSpaceControllerCfg(
+        opc_cfg = OperationalSpaceControllerCfg(
             target_types=["pose_abs"],
             impedance_mode="fixed",
             inertial_compensation=True,
@@ -219,7 +219,7 @@ class TestOperationSpaceController(unittest.TestCase):
             stiffness=1000.0,
             damping_ratio=1.0,
         )
-        opc = OperationSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
+        opc = OperationalSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
 
         self._run_op_space_controller(robot, opc, "panda_hand", ["panda_joint.*"], self.target_abs_pose_set)
 
@@ -227,7 +227,7 @@ class TestOperationSpaceController(unittest.TestCase):
         """Test absolute pose control with fixed impedance, full inertial and gravity compensation."""
         self.robot_cfg.spawn.rigid_props.disable_gravity = False
         robot = Articulation(cfg=self.robot_cfg)
-        opc_cfg = OperationSpaceControllerCfg(
+        opc_cfg = OperationalSpaceControllerCfg(
             target_types=["pose_abs"],
             impedance_mode="fixed",
             inertial_compensation=True,
@@ -236,14 +236,14 @@ class TestOperationSpaceController(unittest.TestCase):
             stiffness=500.0,
             damping_ratio=1.0,
         )
-        opc = OperationSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
+        opc = OperationalSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
 
         self._run_op_space_controller(robot, opc, "panda_hand", ["panda_joint.*"], self.target_abs_pose_set)
 
     def test_franka_pose_abs_fixed_impedance_with_full_inertial_compensation(self):
         """Test absolute pose control with fixed impedance and full inertial compensation."""
         robot = Articulation(cfg=self.robot_cfg)
-        opc_cfg = OperationSpaceControllerCfg(
+        opc_cfg = OperationalSpaceControllerCfg(
             target_types=["pose_abs"],
             impedance_mode="fixed",
             inertial_compensation=True,
@@ -252,14 +252,14 @@ class TestOperationSpaceController(unittest.TestCase):
             stiffness=500.0,
             damping_ratio=1.0,
         )
-        opc = OperationSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
+        opc = OperationalSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
 
         self._run_op_space_controller(robot, opc, "panda_hand", ["panda_joint.*"], self.target_abs_pose_set)
 
     def test_franka_pose_rel_fixed_impedance_with_full_inertial_compensation(self):
         """Test relative pose control with fixed impedance and full inertial compensation."""
         robot = Articulation(cfg=self.robot_cfg)
-        opc_cfg = OperationSpaceControllerCfg(
+        opc_cfg = OperationalSpaceControllerCfg(
             target_types=["pose_rel"],
             impedance_mode="fixed",
             inertial_compensation=True,
@@ -268,14 +268,14 @@ class TestOperationSpaceController(unittest.TestCase):
             stiffness=500.0,
             damping_ratio=1.0,
         )
-        opc = OperationSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
+        opc = OperationalSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
 
         self._run_op_space_controller(robot, opc, "panda_hand", ["panda_joint.*"], self.target_rel_pose_b_set)
 
     def test_franka_pose_abs_variable_impedance_with_full_inertial_compensation(self):
         """Test absolute pose control with variable impedance and full inertial compensation."""
         robot = Articulation(cfg=self.robot_cfg)
-        opc_cfg = OperationSpaceControllerCfg(
+        opc_cfg = OperationalSpaceControllerCfg(
             target_types=["pose_abs"],
             impedance_mode="variable",
             inertial_compensation=True,
@@ -284,7 +284,7 @@ class TestOperationSpaceController(unittest.TestCase):
             stiffness=500.0,
             damping_ratio=1.0,
         )
-        opc = OperationSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
+        opc = OperationalSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
 
         self._run_op_space_controller(robot, opc, "panda_hand", ["panda_joint.*"], self.target_abs_pose_variable_set)
 
@@ -326,12 +326,12 @@ class TestOperationSpaceController(unittest.TestCase):
         )
         self.contact_forces = ContactSensor(contact_forces_cfg)
 
-        opc_cfg = OperationSpaceControllerCfg(
+        opc_cfg = OperationalSpaceControllerCfg(
             target_types=["wrench_abs"],
             motion_control_axes=[0, 0, 0, 0, 0, 0],
             wrench_control_axes=[1, 1, 1, 1, 1, 1],
         )
-        opc = OperationSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
+        opc = OperationalSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
 
         self._run_op_space_controller(robot, opc, "panda_hand", ["panda_joint.*"], self.target_abs_wrench_set)
         self.contact_forces = None  # Make contact_forces None after the test otherwise other tests give warning
@@ -374,13 +374,13 @@ class TestOperationSpaceController(unittest.TestCase):
         )
         self.contact_forces = ContactSensor(contact_forces_cfg)
 
-        opc_cfg = OperationSpaceControllerCfg(
+        opc_cfg = OperationalSpaceControllerCfg(
             target_types=["wrench_abs"],
             wrench_stiffness=[0.2, 0.2, 0.2, 0.0, 0.0, 0.0],  # Zero torque feedback as we cannot contact torque
             motion_control_axes=[0, 0, 0, 0, 0, 0],
             wrench_control_axes=[1, 1, 1, 1, 1, 1],
         )
-        opc = OperationSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
+        opc = OperationalSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
 
         self._run_op_space_controller(robot, opc, "panda_hand", ["panda_joint.*"], self.target_abs_wrench_set)
         self.contact_forces = None  # Make contact_forces None after the test otherwise other tests give warning
@@ -411,7 +411,7 @@ class TestOperationSpaceController(unittest.TestCase):
         )
         self.contact_forces = ContactSensor(contact_forces_cfg)
 
-        opc_cfg = OperationSpaceControllerCfg(
+        opc_cfg = OperationalSpaceControllerCfg(
             target_types=["pose_abs", "wrench_abs"],
             impedance_mode="fixed",
             inertial_compensation=True,
@@ -423,7 +423,7 @@ class TestOperationSpaceController(unittest.TestCase):
             motion_control_axes=[0, 1, 1, 1, 1, 1],
             wrench_control_axes=[1, 0, 0, 0, 0, 0],
         )
-        opc = OperationSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
+        opc = OperationalSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
 
         self._run_op_space_controller(robot, opc, "panda_leftfinger", ["panda_joint.*"], self.target_hybrid_set)
         self.contact_forces = None  # Make contact_forces None after the test otherwise other tests give warning
@@ -454,7 +454,7 @@ class TestOperationSpaceController(unittest.TestCase):
         )
         self.contact_forces = ContactSensor(contact_forces_cfg)
 
-        opc_cfg = OperationSpaceControllerCfg(
+        opc_cfg = OperationalSpaceControllerCfg(
             target_types=["pose_abs", "wrench_abs"],
             impedance_mode="variable_kp",
             inertial_compensation=True,
@@ -465,7 +465,7 @@ class TestOperationSpaceController(unittest.TestCase):
             motion_control_axes=[0, 1, 1, 1, 1, 1],
             wrench_control_axes=[1, 0, 0, 0, 0, 0],
         )
-        opc = OperationSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
+        opc = OperationalSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
 
         self._run_op_space_controller(
             robot, opc, "panda_leftfinger", ["panda_joint.*"], self.target_hybrid_variable_kp_set
@@ -479,7 +479,7 @@ class TestOperationSpaceController(unittest.TestCase):
     def _run_op_space_controller(
         self,
         robot: Articulation,
-        opc: OperationSpaceController,
+        opc: OperationalSpaceController,
         ee_frame_name: str,
         arm_joint_names: list[str],
         target_set: torch.tensor,
@@ -620,7 +620,7 @@ class TestOperationSpaceController(unittest.TestCase):
 
     def _update_target(
         self,
-        opc: OperationSpaceController,
+        opc: OperationalSpaceController,
         root_pose_w: torch.tensor,
         ee_pose_b: torch.tensor,
         target_set: torch.tensor,
@@ -656,7 +656,7 @@ class TestOperationSpaceController(unittest.TestCase):
 
     def _check_convergence(
         self,
-        opc: OperationSpaceController,
+        opc: OperationalSpaceController,
         ee_pose_b: torch.tensor,
         ee_target_pose_b: torch.tensor,
         ee_force_w: torch.tensor,

@@ -11,21 +11,21 @@ from typing import TYPE_CHECKING
 from omni.isaac.lab.utils.math import apply_delta_pose, compute_pose_error
 
 if TYPE_CHECKING:
-    from .operational_space_cfg import OperationSpaceControllerCfg
+    from .operational_space_cfg import OperationalSpaceControllerCfg
 
 
-class OperationSpaceController:
-    """Operation-space controller.
+class OperationalSpaceController:
+    """Operational-space controller.
 
     Reference:
         [1] https://ethz.ch/content/dam/ethz/special-interest/mavt/robotics-n-intelligent-systems/rsl-dam/documents/RobotDynamics2017/RD_HS2017script.pdf
     """
 
-    def __init__(self, cfg: OperationSpaceControllerCfg, num_envs: int, device: str):
-        """Initialize operation-space controller.
+    def __init__(self, cfg: OperationalSpaceControllerCfg, num_envs: int, device: str):
+        """Initialize operational-space controller.
 
         Args:
-            cfg: The configuration for operation-space controller.
+            cfg: The configuration for operational-space controller.
             num_envs: The number of environments.
             device: The device to use for computations.
 

@@ -5,7 +5,7 @@
 
 from dataclasses import MISSING
 
-from omni.isaac.lab.controllers import DifferentialIKControllerCfg, OperationSpaceControllerCfg
+from omni.isaac.lab.controllers import DifferentialIKControllerCfg, OperationalSpaceControllerCfg
 from omni.isaac.lab.managers.action_manager import ActionTerm, ActionTermCfg
 from omni.isaac.lab.utils import configclass
 
@@ -251,10 +251,10 @@ class DifferentialInverseKinematicsActionCfg(ActionTermCfg):
 
 
 @configclass
-class OperationSpaceControllerActionCfg(ActionTermCfg):
-    """Configuration for operation space controller action term.
+class OperationalSpaceControllerActionCfg(ActionTermCfg):
+    """Configuration for operational space controller action term.
 
-    See :class:`OperationSpaceControllerAction` for more details.
+    See :class:`OperationalSpaceControllerAction` for more details.
     """
 
     @configclass
@@ -272,7 +272,7 @@ class OperationSpaceControllerActionCfg(ActionTermCfg):
         rot: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
         """Quaternion rotation ``(w, x, y, z)`` w.r.t. the parent frame. Defaults to (1.0, 0.0, 0.0, 0.0)."""
 
-    class_type: type[ActionTerm] = task_space_actions.OperationSpaceControllerAction
+    class_type: type[ActionTerm] = task_space_actions.OperationalSpaceControllerAction
 
     joint_names: list[str] = MISSING
     """List of joint names or regex expressions that the action will be mapped to."""
@@ -282,5 +282,5 @@ class OperationSpaceControllerActionCfg(ActionTermCfg):
     """Offset of target frame w.r.t. to the body frame. Defaults to None, in which case no offset is applied."""
     scale: float | tuple[float, ...] = 1.0
     """Scale factor for the action. Defaults to 1.0."""
-    controller: OperationSpaceControllerCfg = MISSING
-    """The configuration for the operation space controller."""
+    controller: OperationalSpaceControllerCfg = MISSING
+    """The configuration for the operational space controller."""
