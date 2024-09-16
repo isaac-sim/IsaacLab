@@ -132,11 +132,17 @@ def randomize_rigid_body_mass(
     mass_distribution_params: tuple[float, float],
     operation: Literal["add", "scale", "abs"],
     distribution: Literal["uniform", "log_uniform", "gaussian"] = "uniform",
+    recompute_inertia: bool = True,
 ):
     """Randomize the mass of the bodies by adding, scaling, or setting random values.
 
     This function allows randomizing the mass of the bodies of the asset. The function samples random values from the
     given distribution parameters and adds, scales, or sets the values into the physics simulation based on the operation.
+
+    If the ``recompute_inertia`` flag is set to ``True``, the function recomputes the inertia tensor of the bodies
+    after setting the mass. This is useful when the mass is changed significantly, as the inertia tensor depends
+    on the mass. It assumers the body is a uniform density object. If the body is not a uniform density object,
+    the inertia tensor may not be accurate.
 
     .. tip::
         This function uses CPU tensors to assign the body masses. It is recommended to use this function
@@ -159,8 +165,16 @@ def randomize_rigid_body_mass(
 
     # get the current masses of the bodies (num_assets, num_bodies)
     masses = asset.root_physx_view.get_masses()
+
     # apply randomization on default values
+    # this is to make sure when calling the function multiple times, the randomization is applied on the
+    # default values and not the previously randomized values
     masses[env_ids[:, None], body_ids] = asset.data.default_mass[env_ids[:, None], body_ids].clone()
+
+    # obtain initial masses and inertia tensors
+    if recompute_inertia:
+        initial_masses = masses.clone()
+        initial_inertia_tensors = asset.root_physx_view.get_inertia_tensors()
 
     # sample from the given range
     # note: we modify the masses in-place for all environments
@@ -171,6 +185,12 @@ def randomize_rigid_body_mass(
 
     # set the mass into the physics simulation
     asset.root_physx_view.set_masses(masses, env_ids)
+
+    # recompute inertia tensors if needed
+    if recompute_inertia:
+        ratios = masses / initial_masses
+        inertia_tensors = initial_inertia_tensors * ratios[:, :, None]
+        asset.root_physx_view.set_inertia_tensors(inertia_tensors, env_ids)
 
 
 def randomize_physics_scene_gravity(
