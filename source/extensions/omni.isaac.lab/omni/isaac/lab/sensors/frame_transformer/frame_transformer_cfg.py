@@ -35,8 +35,8 @@ class FrameTransformerCfg(SensorBaseCfg):
 
         This can be a regex pattern to match multiple prims. For example, "/Robot/.*" will match all prims under "/Robot".
 
-        This means that if the source `prim_path` is "/Robot/base", and the target `prim_path` is "/Robot/.*",
-        then the FrameTransformer will track the pose of all prims under "/Robot" in the source frame,
+        This means that if the source :attr:`FrameTransformerCfg.prim_path` is "/Robot/base", and the target :attr:`FrameTransformerCfg.FrameCfg.prim_path` is "/Robot/.*",
+        then the frame transformer will track the poses of all the prims under "/Robot",
         including "/Robot/base" (even though this will result in an identity pose w.r.t. the source frame).
         """
         
