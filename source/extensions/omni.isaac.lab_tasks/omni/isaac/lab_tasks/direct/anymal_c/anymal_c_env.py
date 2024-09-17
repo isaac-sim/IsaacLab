@@ -185,7 +185,7 @@ class AnymalCEnv(DirectRLEnv):
         # Get specific body indices
         self._base_id, _ = self._contact_sensor.find_bodies("base")
         self._feet_ids, _ = self._contact_sensor.find_bodies(".*FOOT")
-        self._underisred_contact_body_ids, _ = self._contact_sensor.find_bodies(".*THIGH")
+        self._undesired_contact_body_ids, _ = self._contact_sensor.find_bodies(".*THIGH")
 
     def _setup_scene(self):
         self._robot = Articulation(self.cfg.robot)
@@ -266,7 +266,7 @@ class AnymalCEnv(DirectRLEnv):
         # undersired contacts
         net_contact_forces = self._contact_sensor.data.net_forces_w_history
         is_contact = (
-            torch.max(torch.norm(net_contact_forces[:, :, self._underisred_contact_body_ids], dim=-1), dim=1)[0] > 1.0
+            torch.max(torch.norm(net_contact_forces[:, :, self._undesired_contact_body_ids], dim=-1), dim=1)[0] > 1.0
         )
         contacts = torch.sum(is_contact, dim=1)
         # flat orientation
