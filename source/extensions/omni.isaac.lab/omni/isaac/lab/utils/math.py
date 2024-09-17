@@ -1068,7 +1068,7 @@ def unproject_depth(depth: torch.Tensor, intrinsics: torch.Tensor) -> torch.Tens
 def convert_perspective_depth_to_orthogonal_depth(
     perspective_depth: torch.Tensor, intrinsics: torch.Tensor
 ) -> torch.Tensor:
-    r"""Provided a depth image where depth is provided as the distance to the principal
+    r"""Provided depth image(s) where depth is provided as the distance to the principal
     point of the camera (perspective depth), this function converts it so that depth
     is provided as the distance to the camera's image plane (orthogonal depth).
 
