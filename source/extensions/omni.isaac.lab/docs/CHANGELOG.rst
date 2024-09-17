@@ -11,7 +11,7 @@ Added
   with the depth_to_camera replicator, just has to be converted first using the newly added method)
 
 
-0.22.11 (2024-09-11)
+0.22.11 (2024-09-10)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
