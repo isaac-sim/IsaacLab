@@ -59,6 +59,18 @@ SKRL
             # run script for recording video of a trained agent (requires installing `ffmpeg`)
             ./isaaclab.sh -p source/standalone/workflows/skrl/play.py --task Isaac-Reach-Franka-v0 --headless --ml_framework jax --video --video_length 200
 
+   - Training the multi-agent environment ``Isaac-Shadow-Hand-Over-Direct-v0`` with skrl:
+
+   .. code:: bash
+
+      # install python module (for skrl)
+      ./isaaclab.sh -i skrl
+      # run script for training with the MAPPO algorithm (IPPO is also supported)
+      ./isaaclab.sh -p source/standalone/workflows/skrl/train.py --task Isaac-Shadow-Hand-Over-Direct-v0 --headless --algorithm MAPPO
+      # run script for playing with 32 environments with the MAPPO algorithm (IPPO is also supported)
+      ./isaaclab.sh -p source/standalone/workflows/skrl/play.py --task Isaac-Shadow-Hand-Over-Direct-v0 --num_envs 32 --algorithm MAPPO --checkpoint /PATH/TO/model.pt
+
+
 RL-Games
 --------
 

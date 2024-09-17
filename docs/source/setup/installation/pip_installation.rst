@@ -20,6 +20,10 @@ compatibility issues with some Linux distributions. If you encounter any issues,
    by default. If you encounter compatibility issues, we recommend following the
    :ref:`Isaac Sim Binaries Installation <isaacsim-binaries-installation>` approach.
 
+.. attention::
+
+      On Windows with CUDA 12, the GPU driver version 552.86 is required.
+
 -  To use the pip installation approach for Isaac Sim, we recommend first creating a virtual environment.
    Ensure that the python version of the virtual environment is **Python 3.10**.
 
