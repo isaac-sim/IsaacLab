@@ -49,6 +49,7 @@ Guidelines for modifications:
 * Johnson Sun
 * Kaixi Bao
 * Kourosh Darvish
+* Lionel Gulich
 * Lorenz Wellhausen
 * Masoud Moghani
 * Michael Gussert
