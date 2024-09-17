@@ -60,6 +60,7 @@ Guidelines for modifications:
 * Shafeef Omar
 * Vladimir Fokow
 * Xavier Nal
+* Yang Jin
 * Zhengyu Zhang
 * Ziqi Fan
 * Qian Wan
