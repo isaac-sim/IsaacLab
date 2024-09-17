@@ -32,126 +32,123 @@ args_cli = argparse.Namespace()
 parser = argparse.ArgumentParser(description="This script can help you benchmark how many cameras you could run.")
 
 
-def add_cli_args(parser):
-    """Add the benchmarking CLI args"""
-    parser.add_argument(
-        "--visualize",
-        action="store_true",
-        default=False,
-        required=False,
-        help=(
-            "Whether to visualize. Only switch to True if you don't care about the benchmarking results"
-            " and are instead visually checking replicator output."
-        ),
-    )
+parser.add_argument(
+    "--visualize",
+    action="store_true",
+    default=False,
+    required=False,
+    help=(
+        "Supply this argument to visualize. Only supply if you don't care about the benchmarking results"
+        " and are instead visually checking camera output."
+    ),
+)
 
-    parser.add_argument(
-        "--num_tiled_cameras",
-        type=int,
-        default=2,
-        required=False,
-        help="How many tiled cameras to create",
-    )
+parser.add_argument(
+    "--num_tiled_cameras",
+    type=int,
+    default=2,
+    required=False,
+    help="Number of tiled cameras to create",
+)
 
-    parser.add_argument(
-        "--num_standard_cameras", type=int, default=1, required=False, help="How many normal cameras to create"
-    )
+parser.add_argument(
+    "--num_standard_cameras", type=int, default=1, required=False, help="Number of standard cameras to create"
+)
 
-    parser.add_argument(
-        "--num_ray_caster_cameras", type=int, default=1, required=False, help="How many normal cameras to create"
-    )
+parser.add_argument(
+    "--num_ray_caster_cameras", type=int, default=1, required=False, help="Number of ray caster cameras to create"
+)
 
-    parser.add_argument(
-        "--tiled_camera_replicators",
-        nargs="+",
-        type=str,
-        default=["rgb", "depth"],
-        help="What replicators to use for the tiled camera",
-    )
+parser.add_argument(
+    "--tiled_camera_replicators",
+    nargs="+",
+    type=str,
+    default=["rgb", "depth"],
+    help="The data types rendered by the tiled camera",
+)
 
-    parser.add_argument(
-        "--standard_camera_replicators",
-        nargs="+",
-        type=str,
-        default=["rgb", "distance_to_image_plane"],
-        help="The data types rendered by the usd camera",
-    )
+parser.add_argument(
+    "--standard_camera_replicators",
+    nargs="+",
+    type=str,
+    default=["rgb", "distance_to_image_plane"],
+    help="The data types rendered by the standard camera",
+)
 
-    parser.add_argument(
-        "--ray_caster_camera_replicators",
-        nargs="+",
-        type=str,
-        default=["distance_to_image_plane"],
-        help="What replicators to use for the ray caster camera",
-    )
+parser.add_argument(
+    "--ray_caster_camera_replicators",
+    nargs="+",
+    type=str,
+    default=["distance_to_image_plane"],
+    help="The data types rendered by the ray caster camera.",
+)
 
-    parser.add_argument(
-        "--ray_caster_visible_mesh_prim_paths",
-        nargs="+",
-        type=str,
-        default=["/World/ground"],
-        help="WARNING: Ray Caster can currently only cast against a single, static, object",
-    )
+parser.add_argument(
+    "--ray_caster_visible_mesh_prim_paths",
+    nargs="+",
+    type=str,
+    default=["/World/ground"],
+    help="WARNING: Ray Caster can currently only cast against a single, static, object",
+)
 
-    parser.add_argument(
-        "--convert_depth_to_camera_to_image_plane",
-        action="store_true",
-        default=True,
-        help=(
-            "Enable undistorting from perspective view (distance to camera replicator)"
-            "to orthogonal view (distance to plane replicator) for depth."
-            "This is currently needed to create undisorted depth images/point cloud."
-        ),
-    )
+parser.add_argument(
+    "--convert_depth_to_camera_to_image_plane",
+    action="store_true",
+    default=True,
+    help=(
+        "Enable undistorting from perspective view (distance to camera replicator)"
+        "to orthogonal view (distance to plane replicator) for depth."
+        "This is currently needed to create undisorted depth images/point cloud."
+    ),
+)
 
-    parser.add_argument(
-        "--keep_raw_depth",
-        dest="convert_depth_to_camera_to_image_plane",
-        action="store_false",
-        help=(
-            "Disable undistorting from perspective view (distance to camera)"
-            "to orthogonal view (distance to plane replicator) for depth."
-        ),
-    )
+parser.add_argument(
+    "--keep_raw_depth",
+    dest="convert_depth_to_camera_to_image_plane",
+    action="store_false",
+    help=(
+        "Disable undistorting from perspective view (distance to camera)"
+        "to orthogonal view (distance to plane replicator) for depth."
+    ),
+)
 
-    parser.add_argument(
-        "--height",
-        type=int,
-        default=120,
-        required=False,
-        help="Height in pixels of cameras",
-    )
+parser.add_argument(
+    "--height",
+    type=int,
+    default=120,
+    required=False,
+    help="Height in pixels of cameras",
+)
 
-    parser.add_argument(
-        "--width",
-        type=int,
-        default=140,
-        required=False,
-        help="Width in pixels of cameras",
-    )
+parser.add_argument(
+    "--width",
+    type=int,
+    default=140,
+    required=False,
+    help="Width in pixels of cameras",
+)
 
-    parser.add_argument(
-        "--warm_start_length",
-        type=int,
-        default=3,
-        required=False,
-        help="How many steps to run the sim before starting benchmark",
-    )
+parser.add_argument(
+    "--warm_start_length",
+    type=int,
+    default=3,
+    required=False,
+    help=("Number of steps to run the sim before starting benchmark"
+    "Need to avoid blank images at the start of the simulation."),
+)
 
-    parser.add_argument(
-        "--num_objects", type=int, default=10, required=False, help="How many objects to spawn into the scene."
-    )
+parser.add_argument(
+    "--num_objects", type=int, default=10, required=False, help="Number of objects to spawn into the scene."
+)
 
-    parser.add_argument(
-        "--experiment_length",
-        type=int,
-        default=30,
-        required=False,
-        help="How many steps to average over",
-    )
+parser.add_argument(
+    "--experiment_length",
+    type=int,
+    default=30,
+    required=False,
+    help="Number of steps to average over",
+)
 
-
-add_cli_args(parser)
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 args_cli.enable_cameras = True
@@ -171,7 +168,6 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import numpy as np
-import open3d as o3d
 import random
 import time
 import torch
@@ -187,7 +183,6 @@ from omni.isaac.lab.utils.math import convert_perspective_depth_image_to_orthogo
 
 
 def create_camera_base(
-    camera_cls: type[Camera | TiledCamera],
     camera_cfg: type[CameraCfg | TiledCameraCfg],
     num_cams: int,
     data_types: list[str],
@@ -196,7 +191,7 @@ def create_camera_base(
 ) -> Camera | TiledCamera | None:
     """Generalized function to create a camera or tiled camera sensor."""
     # Determine prim prefix based on the camera class
-    name = camera_cls.__name__
+    name = camera_cfg.class_type.__name__
 
     # Create the necessary prims
     for idx in range(num_cams):
@@ -214,7 +209,7 @@ def create_camera_base(
                 focal_length=24, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1e4)
             ),
         )
-        return camera_cls(cfg=cfg)
+        return camera_cfg.class_type(cfg=cfg)
     else:
         return None
 
@@ -226,7 +221,6 @@ def create_tiled_cameras(
         data_types = ["rgb", "depth"]
     """Defines the tiled camera sensor to add to the scene."""
     return create_camera_base(
-        camera_cls=TiledCamera,
         camera_cfg=TiledCameraCfg,
         num_cams=num_cams,
         data_types=data_types,
@@ -238,11 +232,11 @@ def create_tiled_cameras(
 def create_cameras(
     num_cams: int = 2, data_types: list[str] | None = None, height: int = 100, width: int = 120
 ) -> Camera | None:
-    """Defines the USD/Standard cameras."""
+    """Defines the Standard cameras."""
     if data_types is None:
         data_types = ["rgb", "depth"]
     return create_camera_base(
-        camera_cls=Camera, camera_cfg=CameraCfg, num_cams=num_cams, data_types=data_types, height=height, width=width
+        camera_cfg=CameraCfg, num_cams=num_cams, data_types=data_types, height=height, width=width
     )
 
 
@@ -253,7 +247,7 @@ def create_ray_caster_cameras(
     height: int = 100,
     width: int = 120,
 ) -> RayCasterCamera | None:
-    """Create the raycaster cameras; different configuration than USD/Tiled camera"""
+    """Create the raycaster cameras; different configuration than Standard/Tiled camera"""
     for idx in range(num_cams):
         prim_utils.create_prim(f"/World/RayCasterCamera_{idx:02d}/RayCaster", "Xform")
 
@@ -365,11 +359,100 @@ def design_scene(
     return scene_entities
 
 
-def numpy_to_pcd(xyz: np.ndarray) -> o3d.geometry.PointCloud:
-    """Convert a NumPy Nx3 pointcloud to an Open3d Nx3 pointcloud for easy plotting"""
-    pcd = o3d.geometry.PointCloud()
-    pcd.points = o3d.utility.Vector3dVector(xyz)
-    return pcd
+def plot_images(
+    images: dict, cols: int = 4, cmap: str = "gray", title_prefix: str = "Image", save_name: str | None = None
+):
+    """Plot the provided images in a grid, labelling each one with the relevant info
+
+    Args:
+        images: the images, where their label is key, and the image is value
+        cols: how many columns to use in the grid. Defaults to 4.
+        cmap: what color map to use. Defaults to "gray".
+        title_prefix: what prefix to prepend to image titles. Defaults to "Image".
+        save_name: Filename to save the image to. Defaults to None.
+    """
+    total_images = sum(image_tensor.shape[0] for image_tensor in images.values())
+
+    # Determine the grid size (rows and columns)
+    cols = min(total_images, cols)
+    rows = (total_images + cols - 1) // cols
+
+    fig, axs = plt.subplots(rows, cols, figsize=(5 * cols, 5 * rows))
+    axs = axs.flatten()  # Flatten the 2D array of axes for easier iteration
+
+    img_idx = 0
+    for key, image_tensor in images.items():
+        for idx, image in enumerate(image_tensor):
+            ax = axs[img_idx]
+            ax.imshow(image.cpu().numpy(), cmap=cmap)
+            ax.set_title(f"{key} - {title_prefix} {idx}")
+            ax.axis("off")  # Hide axis for cleaner visualization
+            img_idx += 1
+
+    # Hide any remaining empty subplots
+    for ax in axs[img_idx:]:
+        ax.axis("off")
+
+    if save_name:
+        plt.savefig(save_name)
+        plt.close()  # Close the figure to free up memory
+
+
+def plot_point_clouds(
+    clouds: dict, viewpoints: list | None = None, cols: int = 4, save_name: str | None = None, timestep: int = 0
+):
+    """Plot pointclouds together from different views, and save it if a save_name is provided
+
+    Args:
+        clouds: the pointclouds to plot, where the key is the label and the value
+            is the Open3D PointCloud
+        viewpoints: from what Elivs and Azims to view clouds from. Defaults to None.
+        cols: how many columns to use. Defaults to 4.
+        save_name: _description_. Defaults to None.
+        timestep: _description_. Defaults to 0.
+    """
+    if viewpoints is None:
+        viewpoints = [
+            {"elev": 30, "azim": 45},
+            {"elev": 210, "azim": 315},
+        ]
+
+    num_views = len(viewpoints)
+    rows = (num_views + cols - 1) // cols
+
+    fig, axs = plt.subplots(rows, cols, figsize=(6 * cols, 6 * rows))
+    axs = axs.flatten()  # Flatten the 2D array of axes for easier iteration
+
+    for i, ax in enumerate(axs):
+        if i < num_views:
+            viewpoint = viewpoints[i]
+            ax = fig.add_subplot(rows, cols, i + 1, projection="3d")
+
+            for key, cloud in clouds.items():
+                for idx, single_cloud in enumerate(cloud):
+                    points = single_cloud.cpu()
+
+                    # Plot the point cloud with a random color
+                    ax.scatter(
+                        points[:, 0],
+                        points[:, 1],
+                        points[:, 2],
+                        color=np.random.rand(3),
+                        label=key + f"_cloud{idx}",
+                        s=1,
+                    )
+
+            # Set the viewpoint
+            ax.view_init(elev=viewpoint["elev"], azim=viewpoint["azim"])
+            ax.set_title(f"Cloud {timestep} | View: elev: {viewpoint['elev']}, azim: {viewpoint['azim']}")
+            ax.axis("off")  # Hide axes for cleaner visualization
+            ax.legend()
+        else:
+            ax.axis("off")  # Hide any extra subplots that aren't needed
+
+    if save_name:
+        plt.savefig(save_name, dpi=300)
+        plt.close()  # Close the figure to free up memory
 
 
 def run_simulator(
@@ -521,102 +604,6 @@ def run_simulator(
     print(f"Average vision processing duration: {avg_vision_processing_duration:.6f} seconds")
 
     return timing_analytics
-
-
-def plot_images(
-    images: dict, cols: int = 4, cmap: str = "gray", title_prefix: str = "Image", save_name: str | None = None
-):
-    """Plot the provided images in a grid, labelling each one with the relevant info
-
-    Args:
-        images: the images, where their label is key, and the image is value
-        cols: how many columns to use in the grid. Defaults to 4.
-        cmap: what color map to use. Defaults to "gray".
-        title_prefix: what prefix to prepend to image titles. Defaults to "Image".
-        save_name: Filename to save the image to. Defaults to None.
-    """
-    total_images = sum(image_tensor.shape[0] for image_tensor in images.values())
-
-    # Determine the grid size (rows and columns)
-    cols = min(total_images, cols)
-    rows = (total_images + cols - 1) // cols
-
-    fig, axs = plt.subplots(rows, cols, figsize=(5 * cols, 5 * rows))
-    axs = axs.flatten()  # Flatten the 2D array of axes for easier iteration
-
-    img_idx = 0
-    for key, image_tensor in images.items():
-        for idx, image in enumerate(image_tensor):
-            ax = axs[img_idx]
-            ax.imshow(image.cpu().numpy(), cmap=cmap)
-            ax.set_title(f"{key} - {title_prefix} {idx}")
-            ax.axis("off")  # Hide axis for cleaner visualization
-            img_idx += 1
-
-    # Hide any remaining empty subplots
-    for ax in axs[img_idx:]:
-        ax.axis("off")
-
-    if save_name:
-        plt.savefig(save_name)
-        plt.close()  # Close the figure to free up memory
-
-
-def plot_point_clouds(
-    clouds: dict, viewpoints: list | None = None, cols: int = 4, save_name: str | None = None, timestep: int = 0
-):
-    """Plot pointclouds together from different views, and save it if a save_name is provided
-
-    Args:
-        clouds: the pointclouds to plot, where the key is the label and the value
-            is the Open3D PointCloud
-        viewpoints: from what Elivs and Azims to view clouds from. Defaults to None.
-        cols: how many columns to use. Defaults to 4.
-        save_name: _description_. Defaults to None.
-        timestep: _description_. Defaults to 0.
-    """
-    if viewpoints is None:
-        viewpoints = [
-            {"elev": 30, "azim": 45},
-            {"elev": 210, "azim": 315},
-        ]
-
-    num_views = len(viewpoints)
-    rows = (num_views + cols - 1) // cols
-
-    fig, axs = plt.subplots(rows, cols, figsize=(6 * cols, 6 * rows))
-    axs = axs.flatten()  # Flatten the 2D array of axes for easier iteration
-
-    for i, ax in enumerate(axs):
-        if i < num_views:
-            viewpoint = viewpoints[i]
-            ax = fig.add_subplot(rows, cols, i + 1, projection="3d")
-
-            for key, cloud in clouds.items():
-                for idx, single_cloud in enumerate(cloud):
-                    points = single_cloud.cpu()
-
-                    # Plot the point cloud with a random color
-                    ax.scatter(
-                        points[:, 0],
-                        points[:, 1],
-                        points[:, 2],
-                        color=np.random.rand(3),
-                        label=key + f"_cloud{idx}",
-                        s=1,
-                    )
-
-            # Set the viewpoint
-            ax.view_init(elev=viewpoint["elev"], azim=viewpoint["azim"])
-            ax.set_title(f"Cloud {timestep} | View: elev: {viewpoint['elev']}, azim: {viewpoint['azim']}")
-            ax.axis("off")  # Hide axes for cleaner visualization
-            ax.legend()
-        else:
-            ax.axis("off")  # Hide any extra subplots that aren't needed
-
-    if save_name:
-        plt.savefig(save_name, dpi=300)
-        plt.close()  # Close the figure to free up memory
 
 
 def main():
