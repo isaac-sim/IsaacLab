@@ -133,8 +133,10 @@ parser.add_argument(
     type=int,
     default=3,
     required=False,
-    help=("Number of steps to run the sim before starting benchmark"
-    "Need to avoid blank images at the start of the simulation."),
+    help=(
+        "Number of steps to run the sim before starting benchmark"
+        "Need to avoid blank images at the start of the simulation."
+    ),
 )
 
 parser.add_argument(
@@ -179,7 +181,7 @@ import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.assets import RigidObject, RigidObjectCfg
 from omni.isaac.lab.sensors.camera import Camera, CameraCfg, TiledCamera, TiledCameraCfg
 from omni.isaac.lab.sensors.ray_caster import RayCasterCamera, RayCasterCameraCfg, patterns
-from omni.isaac.lab.utils.math import convert_perspective_depth_image_to_orthogonal_depth_image, unproject_depth
+from omni.isaac.lab.utils.math import convert_perspective_depth_to_orthogonal_depth, unproject_depth
 
 
 def create_camera_base(
@@ -539,7 +541,7 @@ def run_simulator(
                             depth = camera.data.output[replicator]
                             depth_images[data_label + "_raw"] = depth
                             if perspective_depth_predicate(replicator) and convert_depth_to_camera_to_image_plane:
-                                depth = convert_perspective_depth_image_to_orthogonal_depth_image(
+                                depth = convert_perspective_depth_to_orthogonal_depth(
                                     perspective_depth=camera.data.output[replicator],
                                     intrinsics=camera.data.intrinsic_matrices,
                                 )
