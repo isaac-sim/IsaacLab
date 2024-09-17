@@ -277,10 +277,12 @@ class OperationalSpaceControllerActionCfg(ActionTermCfg):
     joint_names: list[str] = MISSING
     """List of joint names or regex expressions that the action will be mapped to."""
     body_name: str = MISSING
-    """Name of the body or frame for which IK is performed."""
+    """Name of the body or frame for which motion/force control is performed."""
     body_offset: OffsetCfg | None = None
     """Offset of target frame w.r.t. to the body frame. Defaults to None, in which case no offset is applied."""
-    scale: float | tuple[float, ...] = 1.0
-    """Scale factor for the action. Defaults to 1.0."""
-    controller: OperationalSpaceControllerCfg = MISSING
+    rel_position_scale: float | tuple[float, ...] = 1.0
+    """Scale factor for the relative position targets. Defaults to 1.0."""
+    rel_rotation_scale: float | tuple[float, ...] = 1.0
+    """Scale factor for the relative rotation (axis-angle) targets. Defaults to 1.0."""
+    controller_cfg: OperationalSpaceControllerCfg = MISSING
     """The configuration for the operational space controller."""
