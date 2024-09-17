@@ -1,0 +1,59 @@
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+from omni.isaac.lab.controllers.operational_space_cfg import OperationalSpaceControllerCfg
+from omni.isaac.lab.envs.mdp.actions.actions_cfg import OperationalSpaceControllerActionCfg
+from omni.isaac.lab.utils import configclass
+
+from . import joint_pos_env_cfg
+
+##
+# Pre-defined configs
+##
+from omni.isaac.lab_assets.franka import FRANKA_PANDA_CFG  # isort: skip
+
+
+@configclass
+class FrankaReachEnvCfg(joint_pos_env_cfg.FrankaReachEnvCfg):
+    def __post_init__(self):
+        # post init of parent
+        super().__post_init__()
+
+        # Set Franka as robot
+        # We switch here to a stiffer PD controller for IK tracking to be better.
+        self.scene.robot = FRANKA_PANDA_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot.actuators["panda_shoulder"].stiffness = 0.0
+        self.scene.robot.actuators["panda_shoulder"].damping = 0.0
+        self.scene.robot.actuators["panda_forearm"].stiffness = 0.0
+        self.scene.robot.actuators["panda_forearm"].damping = 0.0
+        self.scene.robot.spawn.rigid_props.disable_gravity = True
+
+        # Set actions for the specific robot type (franka)
+        self.actions.arm_action = OperationalSpaceControllerActionCfg(
+            asset_name="robot",
+            joint_names=["panda_joint.*"],
+            body_name="panda_hand",
+            controller_cfg=OperationalSpaceControllerCfg(
+                target_types=["pose_abs"],
+                impedance_mode="fixed",
+                inertial_compensation=True,
+                uncouple_motion_wrench=False,
+                gravity_compensation=False,
+                stiffness=100.0,
+                damping_ratio=1.0,
+            ),
+        )
+
+
+@configclass
+class FrankaReachEnvCfg_PLAY(FrankaReachEnvCfg):
+    def __post_init__(self):
+        # post init of parent
+        super().__post_init__()
+        # make a smaller scene for play
+        self.scene.num_envs = 16
+        self.scene.env_spacing = 2.5
+        # disable randomization for play
+        self.observations.policy.enable_corruption = False
