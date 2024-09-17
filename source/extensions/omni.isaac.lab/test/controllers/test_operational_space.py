@@ -120,7 +120,7 @@ class TestOperationalSpaceController(unittest.TestCase):
             ],
             device=self.sim.device,
         )
-        ee_goal_rel_angleaxis_set = torch.tensor(
+        ee_goal_rel_axisangle_set = torch.tensor(
             [
                 [0.0, torch.pi / 2, 0.0],  # for [0.707, 0, 0.707, 0]
                 [torch.pi / 2, 0.0, 0.0],  # for [0.707, 0.707, 0, 0]
@@ -167,8 +167,8 @@ class TestOperationalSpaceController(unittest.TestCase):
         self.target_abs_pose_set = torch.cat([ee_goal_abs_pos_set, ee_goal_abs_quad_set], dim=-1)
         # Define goals for the arm [xyz]
         self.target_rel_pos_set = ee_goal_rel_pos_set.clone()
-        # Define goals for the arm [xyz + angle-axis]
-        self.target_rel_pose_b_set = torch.cat([ee_goal_rel_pos_set, ee_goal_rel_angleaxis_set], dim=-1)
+        # Define goals for the arm [xyz + axis-angle]
+        self.target_rel_pose_b_set = torch.cat([ee_goal_rel_pos_set, ee_goal_rel_axisangle_set], dim=-1)
         # Define goals for the arm [force_xyz + torque_xyz]
         self.target_abs_wrench_set = ee_goal_abs_wrench_set.clone()
         # Define goals for the arm [xyz + quat_wxyz] and variable kp [kp_xyz + kp_rot_xyz]
@@ -635,17 +635,17 @@ class TestOperationalSpaceController(unittest.TestCase):
 
         # update the ee desired pose
         ee_target_pose_b = torch.zeros(self.num_envs, 7, device=self.sim.device)
-        for command_type in opc.cfg.target_types:
-            if command_type == "pose_abs":
+        for target_type in opc.cfg.target_types:
+            if target_type == "pose_abs":
                 ee_target_pose_b[:] = ee_target_b[:, :7]
-            elif command_type == "pose_rel":
+            elif target_type == "pose_rel":
                 ee_target_pose_b[:, 0:3], ee_target_pose_b[:, 3:7] = apply_delta_pose(
                     ee_pose_b[:, :3], ee_pose_b[:, 3:], ee_target_b[:, :7]
                 )
-            elif command_type == "wrench_abs":
+            elif target_type == "wrench_abs":
                 pass  # ee_target_pose_b could stay at the robot base for force control, what matters is ee_target_b
             else:
-                raise ValueError("Undefined command_type within _update_target().")
+                raise ValueError("Undefined target_type within _update_target().")
 
         # update the target desired pose in world frame (for marker)
         ee_target_pos_w, ee_target_quat_w = combine_frame_transforms(
@@ -666,8 +666,8 @@ class TestOperationalSpaceController(unittest.TestCase):
         ee_target_b: torch.tensor,
     ):
         cmd_idx = 0
-        for command_type in opc.cfg.target_types:
-            if command_type == "pose_abs":
+        for target_type in opc.cfg.target_types:
+            if target_type == "pose_abs":
                 pos_error, rot_error = compute_pose_error(
                     ee_pose_b[:, 0:3], ee_pose_b[:, 3:7], ee_target_pose_b[:, 0:3], ee_target_pose_b[:, 3:7]
                 )
@@ -679,7 +679,7 @@ class TestOperationalSpaceController(unittest.TestCase):
                 torch.testing.assert_close(pos_error_norm, des_error, rtol=0.0, atol=0.1)
                 torch.testing.assert_close(rot_error_norm, des_error, rtol=0.0, atol=0.1)
                 cmd_idx += 7
-            elif command_type == "pose_rel":
+            elif target_type == "pose_rel":
                 pos_error, rot_error = compute_pose_error(
                     ee_pose_b[:, 0:3], ee_pose_b[:, 3:7], ee_target_pose_b[:, 0:3], ee_target_pose_b[:, 3:7]
                 )
@@ -691,7 +691,7 @@ class TestOperationalSpaceController(unittest.TestCase):
                 torch.testing.assert_close(pos_error_norm, des_error, rtol=0.0, atol=0.1)
                 torch.testing.assert_close(rot_error_norm, des_error, rtol=0.0, atol=0.1)
                 cmd_idx += 6
-            elif command_type == "wrench_abs":
+            elif target_type == "wrench_abs":
                 force_error = ee_force_b - ee_target_b[:, cmd_idx : cmd_idx + 3]
                 force_error_norm = torch.norm(
                     force_error * self.force_mask, dim=-1
@@ -701,7 +701,7 @@ class TestOperationalSpaceController(unittest.TestCase):
                 torch.testing.assert_close(force_error_norm, des_error, rtol=0.0, atol=1.0)
                 cmd_idx += 6
             else:
-                raise ValueError("Undefined command_type within _check_convergence().")
+                raise ValueError("Undefined target_type within _check_convergence().")
 
 
 if __name__ == "__main__":
