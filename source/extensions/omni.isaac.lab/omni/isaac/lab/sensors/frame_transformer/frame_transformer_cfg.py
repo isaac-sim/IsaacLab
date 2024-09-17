@@ -39,6 +39,7 @@ class FrameTransformerCfg(SensorBaseCfg):
         then the FrameTransformer will track the pose of all prims under "/Robot" in the source frame,
         including "/Robot/base" (even though this will result in an identity pose w.r.t. the source frame).
         """
+        
         name: str | None = None
         """User-defined name for the new coordinate frame. Defaults to None.
 
