@@ -74,7 +74,7 @@ def add_cli_args(parser):
         nargs="+",
         type=str,
         default=["rgb", "distance_to_image_plane"],
-        help="What replicators to use for the usd camera",
+        help="The data types rendered by the usd camera",
     )
 
     parser.add_argument(
