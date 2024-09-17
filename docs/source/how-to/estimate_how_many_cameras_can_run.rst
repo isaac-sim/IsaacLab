@@ -101,6 +101,7 @@ an idea of how many resources rendering the desired camera requires. In Ubuntu, 
 to live monitor resources while running this script, and in Windows, you can use the Task Manager.
 
 If your system has a hard time handling the desired cameras, you can try the following
+
    - Switch to headless mode (supply ``--headless``)
    - Ensure you are using the GPU pipeline not CPU!
    - If you aren't using Tiled Cameras, switch to Tiled Cameras
