@@ -1082,7 +1082,7 @@ def convert_perspective_depth_image_to_orthogonal_depth_image(
     The function assumes that the width and height are both greater than 1.
 
     Args:
-        depth: The depth measurement obtained with the distance_to_camera replicator.
+        perspective_depth: The depth measurement obtained with the distance_to_camera replicator.
             Shape is (H, W) or or (H, W, 1) or (N, H, W) or (N, H, W, 1).
         intrinsics: A tensor providing camera's calibration matrix. Shape is (3, 3) or (N, 3, 3).
 
