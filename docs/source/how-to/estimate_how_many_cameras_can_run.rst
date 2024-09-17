@@ -13,7 +13,7 @@ at different parameters such as camera quantity, image dimensions, and replicato
 
 This utility is provided so that one easily can find the camera type/parameters that are the most performant
 while meeting the requirements of the user's scenario. This utility also helps estimate
-the maximum number of cameras one can realistically could run, assuming that one wants to maximize the number
+the maximum number of cameras one can realistically run, assuming that one wants to maximize the number
 of environments while minimizing step time.
 
 This guide accompanies the ``benchmark_cameras.py`` script in the ``IsaacLab/source/standalone/tutorials/04_sensors``
