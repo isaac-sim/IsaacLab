@@ -988,10 +988,12 @@ Projection operations.
 
 @torch.jit.script
 def unproject_depth(depth: torch.Tensor, intrinsics: torch.Tensor) -> torch.Tensor:
-    r"""Unproject depth image into a pointcloud. If the depth image originates
-    from the distance_to_camera replicator, is recommended to call
-    :meth:`convert_perspective_depth_image_to_orthogonal_depth_image` on your depth
-    image prior to calling this method as otherwise the point cloud will be distorted.
+    r"""Unproject depth image into a pointcloud. This method assumes that depth
+    is provided orthagonally relative to the image plane, as opposed to absolutely relative to the camera's
+    principal point (perspective depth). To unproject a perspective depth image, use
+    :meth:`convert_perspective_depth_image_to_orthogonal_depth_image` to convert
+    to an orthogonal depth image prior to calling this method as otherwise the
+    created point cloud will be distorted, especially around the edges.
 
     This function converts depth images into points given the calibration matrix of the camera.
 
@@ -1066,10 +1068,7 @@ def unproject_depth(depth: torch.Tensor, intrinsics: torch.Tensor) -> torch.Tens
 def convert_perspective_depth_image_to_orthogonal_depth_image(
     perspective_depth: torch.Tensor, intrinsics: torch.Tensor
 ) -> torch.Tensor:
-    r"""Converts depth images captured by the distance_to_camera replicator
-    to depth images as if captured by the distance_to_image_plane replicator.
-
-    Provided a depth image where depth is provided as the distance to the principal
+    r"""Provided a depth image where depth is provided as the distance to the principal
     point of the camera (perspective depth), this function converts it so that depth
     is provided as the distance to the camera's image plane (orthogonal depth).
 
