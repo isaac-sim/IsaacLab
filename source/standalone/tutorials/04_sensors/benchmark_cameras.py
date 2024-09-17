@@ -620,6 +620,16 @@ def main():
 
     if args_cli.num_tiled_cameras + args_cli.num_standard_cameras + args_cli.num_ray_caster_cameras <= 0:
         raise ValueError("You must select at least one camera.")
+    if (args_cli.num_tiled_cameras > 0 and args_cli.num_standard_cameras > 0) or (
+        args_cli.num_ray_caster_cameras > 0 and args_cli.num_standard_cameras > 0
+    ):
+        print("[WARNING]: You have elected to use more than one camera type.")
+        print("[WARNING]: For a benchmark to be meaningful, use ONLY ONE camera type at a time.")
+        print(
+            "[WARNING]: For example, if num_tiled_cameras=100, for a meaningful benchmark,"
+            "num_standard_cameras should be 0, and num_ray_caster_cameras should be 0"
+        )
+        print("[INFO]: You can use more than one camera when doing a sanity check visualization.")
     scene_entities = design_scene(
         num_tiled_cams=args_cli.num_tiled_cameras,
         num_standard_cams=args_cli.num_standard_cameras,
