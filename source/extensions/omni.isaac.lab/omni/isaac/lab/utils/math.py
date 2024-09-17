@@ -1103,13 +1103,17 @@ def convert_perspective_depth_to_orthogonal_depth(
         perspective_depth_batch.dim() == 3 and perspective_depth_batch.shape[-1] != 1
     )
 
-    # Make sure inputs are correctly shaped
+    # Track whether the last dimension was singleton
+    add_last_dim = False
+    if perspective_depth_batch.dim() == 4 and perspective_depth_batch.shape[-1] == 1:
+        add_last_dim = True
+        perspective_depth_batch = perspective_depth_batch.squeeze(dim=3)  # (N, H, W, 1) -> (N, H, W)
     if perspective_depth_batch.dim() == 3 and perspective_depth_batch.shape[-1] == 1:
+        add_last_dim = True
         perspective_depth_batch = perspective_depth_batch.squeeze(dim=2)  # (H, W, 1) -> (H, W)
+
     if perspective_depth_batch.dim() == 2:
         perspective_depth_batch = perspective_depth_batch[None]  # (H, W) -> (1, H, W)
-    if perspective_depth_batch.dim() == 4 and perspective_depth_batch.shape[-1] == 1:
-        perspective_depth_batch = perspective_depth_batch.squeeze(dim=3)  # (N, H, W, 1) -> (N, H, W)
 
     if intrinsics_batch.dim() == 2:
         intrinsics_batch = intrinsics_batch[None]  # (3, 3) -> (1, 3, 3)
@@ -1147,6 +1151,10 @@ def convert_perspective_depth_to_orthogonal_depth(
 
     # Calculate the orthogonal (normal) depth
     normal_depth = perspective_depth_batch / torch.sqrt(1 + x_term + y_term)
+
+    # Restore the last dimension if it was present in the input
+    if add_last_dim:
+        normal_depth = normal_depth.unsqueeze(-1)
 
     # Return to original shape if input was not batched
     if not is_batched:
