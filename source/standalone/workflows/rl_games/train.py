@@ -88,6 +88,10 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: dict):
         # update env config device
         env_cfg.sim.device = f"cuda:{app_launcher.local_rank}"
 
+    # set the environment seed (after multi-gpu config for updated rank from agent seed)
+    # note: certain randomizations occur in the environment initialization so we set the seed here
+    env_cfg.seed = agent_cfg["params"]["seed"]
+
     # specify directory for logging experiments
     log_root_path = os.path.join("logs", "rl_games", agent_cfg["params"]["config"]["name"])
     log_root_path = os.path.abspath(log_root_path)
@@ -139,8 +143,6 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: dict):
     runner = Runner(IsaacAlgoObserver())
     runner.load(agent_cfg)
 
-    # set seed of the env
-    env.seed(agent_cfg["params"]["seed"])
     # reset the agent and env
     runner.reset()
     # train the agent

@@ -24,16 +24,16 @@ Classic environments that are based on IsaacGymEnvs implementation of MuJoCo-sty
     +------------------+-----------------------------+-------------------------------------------------------------------------+
     | World            | Environment ID              | Description                                                             |
     +==================+=============================+=========================================================================+
-    | |humanoid|       | | |humanoid-link|           | Move towards a direction with the MuJoCo humanoid robot                 |
-    |                  | | |humanoid-direct-link|    |                                                                         |
+    | |humanoid|       | |humanoid-link|             | Move towards a direction with the MuJoCo humanoid robot                 |
+    |                  | |humanoid-direct-link|      |                                                                         |
     +------------------+-----------------------------+-------------------------------------------------------------------------+
-    | |ant|            | | |ant-link|                | Move towards a direction with the MuJoCo ant robot                      |
-    |                  | | |ant-direct-link|         |                                                                         |
+    | |ant|            | |ant-link|                  | Move towards a direction with the MuJoCo ant robot                      |
+    |                  | |ant-direct-link|           |                                                                         |
     +------------------+-----------------------------+-------------------------------------------------------------------------+
-    | |cartpole|       | | |cartpole-link|           | Move the cart to keep the pole upwards in the classic cartpole control  |
-    |                  | | |cartpole-direct-link|    |                                                                         |
-    |                  | | |cartpole-camera-rgb-link||                                                                         |
-    |                  | | |cartpole-camera-dpt-link||                                                                         |
+    | |cartpole|       | |cartpole-link|             | Move the cart to keep the pole upwards in the classic cartpole control  |
+    |                  | |cartpole-direct-link|      |                                                                         |
+    |                  | |cartpole-camera-rgb-link|  |                                                                         |
+    |                  | |cartpole-camera-dpt-link|  |                                                                         |
     +------------------+-----------------------------+-------------------------------------------------------------------------+
 
 .. |humanoid| image:: ../_static/tasks/classic/humanoid.jpg
@@ -77,12 +77,12 @@ for the reach environment:
     +----------------+---------------------------+-----------------------------------------------------------------------------+
     | |cabi-franka|  | |cabi-franka-link|        | Grasp the handle of a cabinet's drawer and open it with the Franka robot    |
     +----------------+---------------------------+-----------------------------------------------------------------------------+
-    | |cube-allegro| | | |cube-allegro-link|     | In-hand reorientation of a cube using Allegro hand                          |
-    |                | | |allegro-direct-link|   |                                                                             |
+    | |cube-allegro| | |cube-allegro-link|       | In-hand reorientation of a cube using Allegro hand                          |
+    |                | |allegro-direct-link|     |                                                                             |
     +----------------+---------------------------+-----------------------------------------------------------------------------+
-    | |cube-shadow|  | | |cube-shadow-link|      | In-hand reorientation of a cube using Shadow hand                           |
-    |                | | |cube-shadow-ff-link|   |                                                                             |
-    |                | | |cube-shadow-lstm-link| |                                                                             |
+    | |cube-shadow|  | |cube-shadow-link|        | In-hand reorientation of a cube using Shadow hand                           |
+    |                | |cube-shadow-ff-link|     |                                                                             |
+    |                | |cube-shadow-lstm-link|   |                                                                             |
     +----------------+---------------------------+-----------------------------------------------------------------------------+
 
 .. |reach-franka| image:: ../_static/tasks/manipulation/franka_reach.jpg
@@ -120,11 +120,11 @@ Environments based on legged locomotion tasks.
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+
     | |velocity-rough-anymal-b|    | |velocity-rough-anymal-b-link|               | Track a velocity command on rough terrain with the Anymal B robot            |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+
-    | |velocity-flat-anymal-c|     | | |velocity-flat-anymal-c-link|              | Track a velocity command on flat terrain with the Anymal C robot             |
-    |                              | | |velocity-flat-anymal-c-direct-link|       |                                                                              |
+    | |velocity-flat-anymal-c|     | |velocity-flat-anymal-c-link|                | Track a velocity command on flat terrain with the Anymal C robot             |
+    |                              | |velocity-flat-anymal-c-direct-link|         |                                                                              |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+
-    | |velocity-rough-anymal-c|    | | |velocity-rough-anymal-c-link|             | Track a velocity command on rough terrain with the Anymal C robot            |
-    |                              | | |velocity-rough-anymal-c-direct-link|      |                                                                              |
+    | |velocity-rough-anymal-c|    | |velocity-rough-anymal-c-link|               | Track a velocity command on rough terrain with the Anymal C robot            |
+    |                              | |velocity-rough-anymal-c-direct-link|        |                                                                              |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+
     | |velocity-flat-anymal-d|     | |velocity-flat-anymal-d-link|                | Track a velocity command on flat terrain with the Anymal D robot             |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+
@@ -165,14 +165,14 @@ Environments based on legged locomotion tasks.
 .. |velocity-flat-anymal-d-link| replace:: `Isaac-Velocity-Flat-Anymal-D-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/locomotion/velocity/config/anymal_d/flat_env_cfg.py>`__
 .. |velocity-rough-anymal-d-link| replace:: `Isaac-Velocity-Rough-Anymal-D-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/locomotion/velocity/config/anymal_d/rough_env_cfg.py>`__
 
-.. |velocity-flat-unitree-a1-link| replace:: `Isaac-Velocity-Flat-Unitree-A1-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/locomotion/velocity/config/unitree_a1/flat_env_cfg.py>`__
-.. |velocity-rough-unitree-a1-link| replace:: `Isaac-Velocity-Rough-Unitree-A1-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/locomotion/velocity/config/unitree_a1/rough_env_cfg.py>`__
+.. |velocity-flat-unitree-a1-link| replace:: `Isaac-Velocity-Flat-Unitree-A1-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/locomotion/velocity/config/a1/flat_env_cfg.py>`__
+.. |velocity-rough-unitree-a1-link| replace:: `Isaac-Velocity-Rough-Unitree-A1-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/locomotion/velocity/config/a1/rough_env_cfg.py>`__
 
-.. |velocity-flat-unitree-go1-link| replace:: `Isaac-Velocity-Flat-Unitree-Go1-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/locomotion/velocity/config/unitree_go1/flat_env_cfg.py>`__
-.. |velocity-rough-unitree-go1-link| replace:: `Isaac-Velocity-Rough-Unitree-Go1-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/locomotion/velocity/config/unitree_go1/rough_env_cfg.py>`__
+.. |velocity-flat-unitree-go1-link| replace:: `Isaac-Velocity-Flat-Unitree-Go1-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/locomotion/velocity/config/go1/flat_env_cfg.py>`__
+.. |velocity-rough-unitree-go1-link| replace:: `Isaac-Velocity-Rough-Unitree-Go1-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/locomotion/velocity/config/go1/rough_env_cfg.py>`__
 
-.. |velocity-flat-unitree-go2-link| replace:: `Isaac-Velocity-Flat-Unitree-Go2-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/locomotion/velocity/config/unitree_go2/flat_env_cfg.py>`__
-.. |velocity-rough-unitree-go2-link| replace:: `Isaac-Velocity-Rough-Unitree-Go2-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/locomotion/velocity/config/unitree_go2/rough_env_cfg.py>`__
+.. |velocity-flat-unitree-go2-link| replace:: `Isaac-Velocity-Flat-Unitree-Go2-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/locomotion/velocity/config/go2/flat_env_cfg.py>`__
+.. |velocity-rough-unitree-go2-link| replace:: `Isaac-Velocity-Rough-Unitree-Go2-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/locomotion/velocity/config/go2/rough_env_cfg.py>`__
 
 .. |velocity-flat-spot-link| replace:: `Isaac-Velocity-Flat-Spot-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/locomotion/velocity/config/spot/flat_env_cfg.py>`__
 
