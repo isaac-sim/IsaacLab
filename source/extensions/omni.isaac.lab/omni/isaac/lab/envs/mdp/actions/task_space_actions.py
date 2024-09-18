@@ -283,10 +283,11 @@ class OperationalSpaceControllerAction(ActionTerm):
         self._joint_efforts = torch.zeros(self.num_envs, self._num_DoF, device=self.device)
 
         # save the scale as tensors
-        self._rel_position_scale = torch.zeros((self.num_envs, 3), device=self.device)
-        self._rel_position_scale[:] = torch.tensor(self.cfg.rel_position_scale, device=self.device)
-        self._rel_rotation_scale = torch.zeros((self.num_envs, 3), device=self.device)
-        self._rel_rotation_scale[:] = torch.tensor(self.cfg.rel_rotation_scale, device=self.device)
+        self._position_scale = torch.tensor(self.cfg.position_scale, device=self.device)
+        self._orientation_scale = torch.tensor(self.cfg.orientation_scale, device=self.device)
+        self._wrench_scale = torch.tensor(self.cfg.wrench_scale, device=self.device)
+        self._stiffness_scale = torch.tensor(self.cfg.stiffness_scale, device=self.device)
+        self._damping_ratio_scale = torch.tensor(self.cfg.damping_ratio_scale, device=self.device)
 
         # convert the fixed offsets to torch tensors of batched shape
         if self.cfg.body_offset is not None:
@@ -294,6 +295,14 @@ class OperationalSpaceControllerAction(ActionTerm):
             self._offset_rot = torch.tensor(self.cfg.body_offset.rot, device=self.device).repeat(self.num_envs, 1)
         else:
             self._offset_pos, self._offset_rot = None, None
+
+        # indexes for the various command elements (e.g., pose_rel, stifness, etc.) within the command tensor
+        self._pose_abs_idx = None
+        self._pose_rel_idx = None
+        self._wrench_abs_idx = None
+        self._stiffness_idx = None
+        self._damping_ratio_idx = None
+        self._resolve_command_indexes()
 
     """
     Properties.
@@ -325,24 +334,34 @@ class OperationalSpaceControllerAction(ActionTerm):
         # (in the order of the target_types), and possibly the impedance parameters depending on impedance_mode.
         self._raw_actions[:] = actions
 
-        # Initialize the processed actions as the raw actions.
-        self._processed_actions[:] = self.raw_actions
+        # Initialize the processed actions with raw actions.
+        self._processed_actions[:] = self._raw_actions
 
-        # Go through the actions and apply the scaling only to the relative task space targets. Going though the
-        # pose_abs and wrench_abs are not necessary as pose_rel has to the the first target type if given. However,
-        # it is left here for future profing (e.g., if it would be allowed to provide wrench_abs first).
-        cmd_idx = 0
-        for target_type in self.cfg.controller_cfg.target_types:
-            if target_type == "pose_abs":
-                cmd_idx += 7
-            elif target_type == "pose_rel":
-                self._processed_actions[:, cmd_idx : cmd_idx + 3] *= self._rel_position_scale
-                self._processed_actions[:, cmd_idx + 3 : cmd_idx + 6] *= self._rel_rotation_scale
-                cmd_idx += 6
-            elif target_type == "wrench_abs":
-                cmd_idx += 6
-            else:
-                raise ValueError("Undefined target_type for OPC within OperationalSpaceControllerAction.")
+        # Go through the command types one by one, and apply the pre-processing if needed.
+        if self._pose_abs_idx is not None:
+            self._processed_actions[:, self._pose_abs_idx : self._pose_abs_idx + 3] *= self._position_scale
+            self._processed_actions[:, self._pose_abs_idx + 3 : self._pose_abs_idx + 7] *= self._orientation_scale
+        if self._pose_rel_idx is not None:
+            self._processed_actions[:, self._pose_rel_idx : self._pose_rel_idx + 3] *= self._position_scale
+            self._processed_actions[:, self._pose_rel_idx + 3 : self._pose_rel_idx + 6] *= self._orientation_scale
+        if self._wrench_abs_idx is not None:
+            self._processed_actions[:, self._wrench_abs_idx : self._wrench_abs_idx + 6] *= self._wrench_scale
+        if self._stiffness_idx is not None:
+            self._processed_actions[:, self._stiffness_idx : self._stiffness_idx + 6] *= self._stiffness_scale
+            self._processed_actions[:, self._stiffness_idx : self._stiffness_idx + 6] = torch.clamp(
+                self._processed_actions[:, self._stiffness_idx : self._stiffness_idx + 6],
+                min=self.cfg.controller_cfg.stiffness_limits[0],
+                max=self.cfg.controller_cfg.stiffness_limits[1],
+            )
+        if self._damping_ratio_idx is not None:
+            self._processed_actions[
+                :, self._damping_ratio_idx : self._damping_ratio_idx + 6
+            ] *= self._damping_ratio_scale
+            self._processed_actions[:, self._damping_ratio_idx : self._damping_ratio_idx + 6] = torch.clamp(
+                self._processed_actions[:, self._damping_ratio_idx : self._damping_ratio_idx + 6],
+                min=self.cfg.controller_cfg.damping_ratio_limits[0],
+                max=self.cfg.controller_cfg.damping_ratio_limits[1],
+            )
 
         # set command into controller
         self._opc.set_command(command=self._processed_actions, current_ee_pose=self._ee_pose_b)
@@ -373,6 +392,37 @@ class OperationalSpaceControllerAction(ActionTerm):
     Helper functions.
 
     """
+
+    def _resolve_command_indexes(self):
+        """Resolves the indexes for the various command elements within the command tensor."""
+        # First iterate over the target types to find the indexes of the different command elements
+        cmd_idx = 0
+        for target_type in self.cfg.controller_cfg.target_types:
+            if target_type == "pose_abs":
+                self._pose_abs_idx = cmd_idx
+                cmd_idx += 7
+            elif target_type == "pose_rel":
+                self._pose_rel_idx = cmd_idx
+                cmd_idx += 6
+            elif target_type == "wrench_abs":
+                self._wrench_abs_idx = cmd_idx
+                cmd_idx += 6
+            else:
+                raise ValueError("Undefined target_type for OPC within OperationalSpaceControllerAction.")
+        # Then iterate over the impedance parameters depending on the impedance mode
+        if (
+            self.cfg.controller_cfg.impedance_mode == "variable_kp"
+            or self.cfg.controller_cfg.impedance_mode == "variable"
+        ):
+            self._stiffness_idx = cmd_idx
+            cmd_idx += 6
+            if self.cfg.controller_cfg.impedance_mode == "variable":
+                self._damping_ratio_idx = cmd_idx
+                cmd_idx += 6
+
+        # Check if any command is left unresolved
+        if self.action_dim != cmd_idx:
+            raise ValueError("Not all command indexes have been resolved.")
 
     def _compute_dynamic_quantities(self):
         """Computes the dynamic quantities for operational space control."""
