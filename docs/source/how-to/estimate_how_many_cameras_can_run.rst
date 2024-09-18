@@ -57,7 +57,7 @@ should choose a different replicator.)
 
 
 WARNING: If the ``distance_to_camera`` replicator is used to generate depth images, then they should be
-converted with ``convert_perspective_depth_image_to_orthogonal_depth_image`` from ``isaac.lab.utils.math``
+converted with ``convert_perspective_depth_to_orthogonal_depth`` from ``isaac.lab.utils.math``
 prior to creating any Point Cloud, as the ``unproject_depth`` from ``isaac.lab.utils.math`` currently assumes
 orthogonal depth.
 
