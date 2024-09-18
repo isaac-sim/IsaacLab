@@ -238,7 +238,7 @@ class TestCamera(unittest.TestCase):
         cam_cfg_1 = copy.deepcopy(self.camera_cfg)
         cam_cfg_1.prim_path = "/World/Camera_1"
         cam_1 = Camera(cam_cfg_1)
-        # -- camera 3
+        # -- camera 2
         cam_cfg_2 = copy.deepcopy(self.camera_cfg)
         cam_cfg_2.prim_path = "/World/Camera_2"
         cam_cfg_2.height = 240
@@ -262,7 +262,7 @@ class TestCamera(unittest.TestCase):
         self.assertEqual(
             cam_1.data.output["distance_to_image_plane"].shape, (1, self.camera_cfg.height, self.camera_cfg.width)
         )
-        self.assertEqual(cam_2.data.output["distance_to_image_plane"].shape, (1, 240, 320))
+        self.assertEqual(cam_2.data.output["distance_to_image_plane"].shape, (1, cam_cfg_2.height, cam_cfg_2.width))
 
     def test_camera_init_intrinsic_matrix(self):
         """Test camera initialization from intrinsic matrix."""
