@@ -179,7 +179,15 @@ import omni.isaac.core.utils.prims as prim_utils
 
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.assets import RigidObject, RigidObjectCfg
-from omni.isaac.lab.sensors import Camera, CameraCfg, TiledCamera, TiledCameraCfg, RayCasterCamera, RayCasterCameraCfg, patterns
+from omni.isaac.lab.sensors import (
+    Camera,
+    CameraCfg,
+    RayCasterCamera,
+    RayCasterCameraCfg,
+    TiledCamera,
+    TiledCameraCfg,
+    patterns,
+)
 from omni.isaac.lab.utils.math import convert_perspective_depth_to_orthogonal_depth, unproject_depth
 
 
@@ -291,7 +299,7 @@ def design_scene(
     if standard_camera_replicators is None:
         standard_camera_replicators = ["rgb"]
     if ray_caster_camera_replicators is None:
-        ray_caster_camera_replicators = ["rgb"]
+        ray_caster_camera_replicators = ["distance_to_image_plane"]
 
     # Populate scene
     # -- Ground-plane
@@ -476,7 +484,7 @@ def run_simulator(
     if standard_camera_replicators is None:
         standard_camera_replicators = ["rgb"]
     if ray_caster_camera_replicators is None:
-        ray_caster_camera_replicators = ["rgb"]
+        ray_caster_camera_replicators = ["distance_to_image_plane"]
     # Extract entities for simplified notation
     num_tiled_cameras = 0
     tiled_camera = None
