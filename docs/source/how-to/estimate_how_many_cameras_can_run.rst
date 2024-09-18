@@ -39,7 +39,7 @@ First, run
 
 to see all possible parameters you can vary with this utility.
 
-Possible replicators to try are as follows:
+Possible data types to try are as follows:
 
 (Note: the standard camera supports all replicators, while tiled camera and ray caster camera
 support subsets of this list. If a replicator isn't supported by the tiled or ray caster camera,
