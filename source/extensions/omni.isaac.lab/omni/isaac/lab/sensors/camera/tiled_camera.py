@@ -12,6 +12,7 @@ from collections.abc import Sequence
 from tensordict import TensorDict
 from typing import TYPE_CHECKING, Any
 
+import carb
 import omni.usd
 import warp as wp
 from omni.isaac.core.prims import XFormPrimView
@@ -146,12 +147,14 @@ class TiledCamera(Camera):
             RuntimeError: If the number of camera prims in the view does not match the number of environments.
             RuntimeError: If replicator was not found.
         """
-        try:
-            import omni.replicator.core as rep
-        except ModuleNotFoundError:
+        carb_settings_iface = carb.settings.get_settings()
+        if not carb_settings_iface.get("/isaaclab/cameras_enabled"):
             raise RuntimeError(
-                "Replicator was not found for rendering. Please use --enable_cameras to enable rendering."
+                "A camera was spawned without the --enable_cameras flag. Please use --enable_cameras to enable"
+                " rendering."
             )
+
+        import omni.replicator.core as rep
 
         # Initialize parent class
         SensorBase._initialize_impl(self)

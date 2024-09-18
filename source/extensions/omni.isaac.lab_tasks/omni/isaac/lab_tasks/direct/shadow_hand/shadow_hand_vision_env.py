@@ -43,7 +43,7 @@ class ShadowHandVisionEnvCfg(ShadowHandEnvCfg):
     feature_extractor = FeatureExtractorCfg()
 
     # env
-    num_observations = 188 + 27  # state observation + vision CNN embedding
+    num_observations = 164 + 27  # state observation + vision CNN embedding
     num_states = 187 + 27  # asymettric states + vision CNN embedding
 
 

@@ -9,7 +9,7 @@
 [package]
 title = "Isaac Lab Python Headless Camera"
 description = "An app for running Isaac Lab headlessly with rendering enabled"
-version = "1.1.0"
+version = "1.2.0"
 
 # That makes it browsable in UI with "experience" filter
 keywords = ["experience", "app", "isaaclab", "python", "camera", "minimal"]
@@ -23,6 +23,10 @@ keywords = ["experience", "app", "isaaclab", "python", "camera", "minimal"]
 # Rendering
 "omni.kit.material.library" = {}
 "omni.kit.viewport.rtx" = {}
+
+[settings.isaaclab]
+# This is used to check that this experience file is loaded when using cameras
+cameras_enabled = true
 
 [settings]
 # Note: This path was adapted to be respective to the kit-exe file location

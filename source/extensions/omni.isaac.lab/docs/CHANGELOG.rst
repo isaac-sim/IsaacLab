@@ -2,6 +2,19 @@ Changelog
 ---------
 
 
+0.24.12 (2024-09-18)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed outdated fetching of articulation data by using the method ``update_articulations_kinematic`` in
+  :class:`omni.isaac.lab.assets.ArticulationData`. Before if an articulation was moved during a reset, the pose of the
+  links were outdated if fetched before the next physics step. Adding this method ensures that the pose of the links
+  is always up-to-date. Similarly ``update_articulations_kinematic`` was added before any render step to ensure that the
+  articulation displays correctly after a reset.
+
+
 0.24.11 (2024-09-11)
 ~~~~~~~~~~~~~~~~~~~~
 

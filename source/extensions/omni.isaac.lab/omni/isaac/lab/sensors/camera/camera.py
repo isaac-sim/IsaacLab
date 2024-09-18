@@ -378,12 +378,14 @@ class Camera(SensorBase):
             RuntimeError: If the number of camera prims in the view does not match the number of environments.
             RuntimeError: If replicator was not found.
         """
-        try:
-            import omni.replicator.core as rep
-        except ModuleNotFoundError:
+        carb_settings_iface = carb.settings.get_settings()
+        if not carb_settings_iface.get("/isaaclab/cameras_enabled"):
             raise RuntimeError(
-                "Replicator was not found for rendering. Please use --enable_cameras to enable rendering."
+                "A camera was spawned without the --enable_cameras flag. Please use --enable_cameras to enable"
+                " rendering."
             )
+
+        import omni.replicator.core as rep
         from omni.syntheticdata.scripts.SyntheticData import SyntheticData
 
         # Initialize parent class
