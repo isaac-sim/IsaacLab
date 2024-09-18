@@ -179,8 +179,7 @@ import omni.isaac.core.utils.prims as prim_utils
 
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.assets import RigidObject, RigidObjectCfg
-from omni.isaac.lab.sensors.camera import Camera, CameraCfg, TiledCamera, TiledCameraCfg
-from omni.isaac.lab.sensors.ray_caster import RayCasterCamera, RayCasterCameraCfg, patterns
+from omni.isaac.lab.sensors import Camera, CameraCfg, TiledCamera, TiledCameraCfg, RayCasterCamera, RayCasterCameraCfg, patterns
 from omni.isaac.lab.utils.math import convert_perspective_depth_to_orthogonal_depth, unproject_depth
 
 
