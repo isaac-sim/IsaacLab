@@ -63,10 +63,9 @@ orthogonal depth.
 
 Compare Camera Type Output Through Visualization
 ------------------------------------------------
-It is possible to visualize the result of the camera(s) replicators. However,
+As a sanity check, you can visualize the result of the camera(s). However,
 when visualizing, the benchmark results are not meaningful due to rendering
-and the GPU to CPU conversion. Regardless, this provides a way to easily and quickly sanity check
-camera outputs.
+and the GPU to CPU conversion.
 
 .. code-block:: bash
 
