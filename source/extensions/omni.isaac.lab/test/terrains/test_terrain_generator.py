@@ -18,6 +18,8 @@ import shutil
 import torch
 import unittest
 
+import omni.isaac.core.utils.torch as torch_utils
+
 from omni.isaac.lab.terrains import FlatPatchSamplingCfg, TerrainGenerator, TerrainGeneratorCfg
 from omni.isaac.lab.terrains.config.rough import ROUGH_TERRAINS_CFG
 
@@ -50,6 +52,44 @@ class TestTerrainGenerator(unittest.TestCase):
         self.assertAlmostEqual(actualSize[0], expectedSizeX)
         self.assertAlmostEqual(actualSize[1], expectedSizeY)
 
+    def test_generation_reproducibility(self):
+        """Generates assorted terrains and tests that the resulting mesh is reproducible.
+
+        We check both scenarios where the seed is set globally only and when it is set both globally and locally.
+        Setting only locally is not tested as it is not supported.
+        """
+        for use_global_seed in [True, False]:
+            for seed in [20, 40, 80]:
+                with self.subTest(seed=seed):
+                    # set initial seed
+                    torch_utils.set_seed(seed)
+
+                    # create terrain generator
+                    cfg = ROUGH_TERRAINS_CFG.copy()
+                    cfg.use_cache = False
+                    cfg.seed = seed if use_global_seed else None
+                    terrain_generator = TerrainGenerator(cfg=cfg)
+
+                    # keep a copy of the generated terrain mesh
+                    terrain_mesh_1 = terrain_generator.terrain_mesh.copy()
+
+                    # set seed again
+                    torch_utils.set_seed(seed)
+
+                    # create terrain generator
+                    terrain_generator = TerrainGenerator(cfg=cfg)
+
+                    # keep a copy of the generated terrain mesh
+                    terrain_mesh_2 = terrain_generator.terrain_mesh.copy()
+
+                    # check if the meshes are equal
+                    np.testing.assert_allclose(
+                        terrain_mesh_1.vertices, terrain_mesh_2.vertices, atol=1e-5, err_msg="Vertices are not equal"
+                    )
+                    np.testing.assert_allclose(
+                        terrain_mesh_1.faces, terrain_mesh_2.faces, atol=1e-5, err_msg="Faces are not equal"
+                    )
+
     def test_generation_cache(self):
         """Generate the terrain and check that caching works.
 
@@ -79,9 +119,7 @@ class TestTerrainGenerator(unittest.TestCase):
 
                 # set a random seed to disturb the process
                 # this is to ensure that the seed inside the terrain generator makes deterministic results
-                np.random.seed(12456)
-                torch.manual_seed(12456)
-                torch.cuda.manual_seed_all(12456)
+                torch_utils.set_seed(12456)
 
                 # create terrain generator with cache enabled
                 terrain_generator = TerrainGenerator(cfg=cfg)

@@ -13,11 +13,10 @@ import os
 import re
 import yaml
 
-from omni.isaac.lab.envs import ManagerBasedRLEnvCfg
-from omni.isaac.lab.utils import update_class_from_dict, update_dict
+from omni.isaac.lab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
 
 
-def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | ManagerBasedRLEnvCfg:
+def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | object:
     """Load default configuration given its entry point from the gym registry.
 
     This function loads the configuration object from the gym registry for the given task name.
@@ -46,7 +45,8 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | Manag
         entry_point_key: The entry point key to resolve the configuration file.
 
     Returns:
-        The parsed configuration object. This is either a dictionary or a class object.
+        The parsed configuration object. If the entry point is a YAML file, it is parsed into a dictionary.
+        If the entry point is a Python class, it is instantiated and returned.
 
     Raises:
         ValueError: If the entry point key is not available in the gym registry for the task.
@@ -98,7 +98,7 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | Manag
 
 def parse_env_cfg(
     task_name: str, device: str = "cuda:0", num_envs: int | None = None, use_fabric: bool | None = None
-) -> dict | ManagerBasedRLEnvCfg:
+) -> ManagerBasedRLEnvCfg | DirectRLEnvCfg:
     """Parse configuration for an environment and override based on inputs.
 
     Args:
@@ -110,35 +110,28 @@ def parse_env_cfg(
             Defaults to None, in which case it is left unchanged.
 
     Returns:
-        The parsed configuration object. This is either a dictionary or a class object.
+        The parsed configuration object.
 
     Raises:
-        ValueError: If the task name is not provided, i.e. None.
+        RuntimeError: If the configuration for the task is not a class. We assume users always use a class for the
+            environment configuration.
     """
-    # check if a task name is provided
-    if task_name is None:
-        raise ValueError("Please provide a valid task name. Hint: Use --task <task_name>.")
-    # create a dictionary to update from
-    args_cfg = {"sim": {"physx": dict()}, "scene": dict()}
-
-    # simulation device
-    args_cfg["sim"]["device"] = device
-
-    # disable fabric to read/write through USD
-    if use_fabric is not None:
-        args_cfg["sim"]["use_fabric"] = use_fabric
-
-    # number of environments
-    if num_envs is not None:
-        args_cfg["scene"]["num_envs"] = num_envs
-
     # load the default configuration
     cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
-    # update the main configuration
+
+    # check that it is not a dict
+    # we assume users always use a class for the configuration
     if isinstance(cfg, dict):
-        cfg = update_dict(cfg, args_cfg)
-    else:
-        update_class_from_dict(cfg, args_cfg)
+        raise RuntimeError(f"Configuration for the task: '{task_name}' is not a class. Please provide a class.")
+
+    # simulation device
+    cfg.sim.device = device
+    # disable fabric to read/write through USD
+    if use_fabric is not None:
+        cfg.sim.use_fabric = use_fabric
+    # number of environments
+    if num_envs is not None:
+        cfg.scene.num_envs = num_envs
 
     return cfg
 
@@ -165,12 +158,13 @@ def get_checkpoint_path(
         sort_alpha: Whether to sort the runs by alphabetical order. Defaults to True.
             If False, the folders in :attr:`run_dir` are sorted by the last modified time.
 
+    Returns:
+        The path to the model checkpoint.
+
     Raises:
         ValueError: When no runs are found in the input directory.
         ValueError: When no checkpoints are found in the input directory.
 
-    Returns:
-        The path to the model checkpoint.
     """
     # check if runs present in directory
     try:
