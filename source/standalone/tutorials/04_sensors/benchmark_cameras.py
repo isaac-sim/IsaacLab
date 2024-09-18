@@ -32,19 +32,26 @@ args_cli = argparse.Namespace()
 parser = argparse.ArgumentParser(description="This script can help you benchmark how many cameras you could run.")
 
 parser.add_argument(
+    "--task",
+    type=str,
+    default=None,
+    required=False,
+    help="Supply this argument to spawn cameras within an known task environment.",
+)
+parser.add_argument(
     "--num_tiled_cameras",
     type=int,
-    default=2,
+    default=10,
     required=False,
     help="Number of tiled cameras to create",
 )
 
 parser.add_argument(
-    "--num_standard_cameras", type=int, default=1, required=False, help="Number of standard cameras to create"
+    "--num_standard_cameras", type=int, default=0, required=False, help="Number of standard cameras to create"
 )
 
 parser.add_argument(
-    "--num_ray_caster_cameras", type=int, default=1, required=False, help="Number of ray caster cameras to create"
+    "--num_ray_caster_cameras", type=int, default=0, required=False, help="Number of ray caster cameras to create"
 )
 
 parser.add_argument(
@@ -160,6 +167,7 @@ import omni.isaac.core.utils.prims as prim_utils
 
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.assets import RigidObject, RigidObjectCfg
+from omni.isaac.lab.scene.interactive_scene import InteractiveScene
 from omni.isaac.lab.sensors import (
     Camera,
     CameraCfg,
@@ -170,6 +178,8 @@ from omni.isaac.lab.sensors import (
     patterns,
 )
 from omni.isaac.lab.utils.math import convert_perspective_depth_to_orthogonal_depth, unproject_depth
+
+from omni.isaac.lab_tasks.utils import load_cfg_from_registry
 
 
 def create_camera_base(
@@ -349,6 +359,18 @@ def design_scene(
     return scene_entities
 
 
+class CameraInjectedInteractiveScene(InteractiveScene):
+    def __init__(self, cfg):
+        pass
+
+
+def inject_cameras_into_scene(task: str, num_envs: int, width: int, height: int, spacing: int = 20) -> dict:
+    scene_cfg = load_cfg_from_registry(task, "env_cfg_entry_point").scene
+    print(scene_cfg)
+
+    return scene_cfg
+
+
 def run_simulator(
     sim: sim_utils.SimulationContext,
     scene_entities: dict,
@@ -493,8 +515,10 @@ def main():
 
     if args_cli.num_tiled_cameras + args_cli.num_standard_cameras + args_cli.num_ray_caster_cameras <= 0:
         raise ValueError("You must select at least one camera.")
-    if (args_cli.num_tiled_cameras > 0 and args_cli.num_standard_cameras > 0) or (
-        args_cli.num_ray_caster_cameras > 0 and args_cli.num_standard_cameras > 0
+    if (
+        (args_cli.num_tiled_cameras > 0 and args_cli.num_standard_cameras > 0)
+        or (args_cli.num_ray_caster_cameras > 0 and args_cli.num_standard_cameras > 0)
+        or (args_cli.num_ray_caster_cameras > 0 and args_cli.num_tiled_cameras > 0)
     ):
         print("[WARNING]: You have elected to use more than one camera type.")
         print("[WARNING]: For a benchmark to be meaningful, use ONLY ONE camera type at a time.")
@@ -502,19 +526,29 @@ def main():
             "[WARNING]: For example, if num_tiled_cameras=100, for a meaningful benchmark,"
             "num_standard_cameras should be 0, and num_ray_caster_cameras should be 0"
         )
-        print("[INFO]: You can use more than one camera when doing a sanity check visualization.")
-    scene_entities = design_scene(
-        num_tiled_cams=args_cli.num_tiled_cameras,
-        num_standard_cams=args_cli.num_standard_cameras,
-        num_ray_caster_cams=args_cli.num_ray_caster_cameras,
-        tiled_camera_replicators=args_cli.tiled_camera_replicators,
-        standard_camera_replicators=args_cli.standard_camera_replicators,
-        ray_caster_camera_replicators=args_cli.ray_caster_camera_replicators,
-        height=args_cli.height,
-        width=args_cli.width,
-        num_objects=args_cli.num_objects,
-        mesh_prim_paths=args_cli.ray_caster_visible_mesh_prim_paths,
-    )
+
+    if args_cli.task is None:
+        print("[INFO]: No task environment provided, creating random scene.")
+        scene_entities = design_scene(
+            num_tiled_cams=args_cli.num_tiled_cameras,
+            num_standard_cams=args_cli.num_standard_cameras,
+            num_ray_caster_cams=args_cli.num_ray_caster_cameras,
+            tiled_camera_replicators=args_cli.tiled_camera_replicators,
+            standard_camera_replicators=args_cli.standard_camera_replicators,
+            ray_caster_camera_replicators=args_cli.ray_caster_camera_replicators,
+            height=args_cli.height,
+            width=args_cli.width,
+            num_objects=args_cli.num_objects,
+            mesh_prim_paths=args_cli.ray_caster_visible_mesh_prim_paths,
+        )
+    else:
+        print("[INFO]: Using known task environment instead. This must be manager based.")
+        scene_entities = inject_cameras_into_scene(
+            args_cli.task,
+            max(args_cli.num_tiled_cameras, args_cli.num_standard_cameras, args_cli.num_ray_caster_cameras),
+            args_cli.width,
+            args_cli.height,
+        )
     # Play simulator
     sim.reset()
     # Now we are ready!

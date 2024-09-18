@@ -40,22 +40,6 @@ First, run
 to see all possible parameters you can vary with this utility.
 
 
-Compare Camera Type Output Through Visualization
-------------------------------------------------
-As a sanity check, you can visualize the result of the camera(s). However,
-when visualizing, the benchmark results are not meaningful due to rendering
-and the GPU to CPU conversion.
-
-.. code-block:: bash
-
-   ./isaaclab.sh -p source/standalone/tutorials/04_sensors/benchmark_cameras.py \
-   --height 100 --width 100 --num_tiled_cameras 1 --num_standard_cameras 1 \
-   --num_ray_caster_cameras 1 --visualize
-
-This should save several images in the same directory that the script is run, showing the labelled output
-of the cameras. If depth is enabled, point clouds are generated from depth, and the rendered point cloud
-result is saved as an image as well. After the simulations stops it can be closed with CTRL C.
-
 Compare Camera Type and Performance Under Different Parameters By Benchmarking
 ------------------------------------------------------------------------------
 
@@ -67,8 +51,11 @@ with 1000 objects, try
 .. code-block:: bash
 
    ./isaaclab.sh -p source/standalone/tutorials/04_sensors/benchmark_cameras.py \
-   --height 100 --width 100 --num_tiled_cameras 1000 --num_standard_cameras 0 \
-   --num_ray_caster_cameras 0 --tiled_camera_replicators depth --num_objects 1000
+   --height 100 --width 100 --num_tiled_cameras 1000 \
+   --tiled_camera_replicators depth --num_objects 1000
+
+
+You can also try supplying a registered task to spawn cameras in.
 
 If your system cannot handle this due to performance reasons, then the process will be killed.
 It's recommended to monitor CPU/RAM utilization and GPU utilization while running this script, to get
