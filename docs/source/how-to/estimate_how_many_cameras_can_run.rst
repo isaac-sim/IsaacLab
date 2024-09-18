@@ -39,27 +39,6 @@ First, run
 
 to see all possible parameters you can vary with this utility.
 
-Possible data types to try are as follows:
-
-(Note: the standard camera supports all replicators, while tiled camera and ray caster camera
-support subsets of this list. If a replicator isn't supported by the tiled or ray caster camera,
-and it is supplied, then the script should throw an error related to this, and you
-should choose a different replicator.)
-
-   - ``"rgb"``: A rendered color image.
-   - ``"distance_to_camera"``: An image containing the distance to camera optical center.
-   - ``"distance_to_image_plane"``: An image containing distances of 3D points from camera plane along camera's z-axis.
-   - ``"normals"``: An image containing the local surface normal vectors at each pixel.
-   - ``"motion_vectors"``: An image containing the motion vector data at each pixel.
-   - ``"semantic_segmentation"``: The semantic segmentation data.
-   - ``"instance_segmentation_fast"``: The instance segmentation data.
-   - ``"instance_id_segmentation_fast"``: The instance id segmentation data.
-
-
-WARNING: If the ``distance_to_camera`` replicator is used to generate depth images, then they should be
-converted with ``convert_perspective_depth_to_orthogonal_depth`` from ``isaac.lab.utils.math``
-prior to creating any Point Cloud, as the ``unproject_depth`` from ``isaac.lab.utils.math`` currently assumes
-orthogonal depth.
 
 Compare Camera Type Output Through Visualization
 ------------------------------------------------
@@ -79,9 +58,6 @@ result is saved as an image as well. After the simulations stops it can be close
 
 Compare Camera Type and Performance Under Different Parameters By Benchmarking
 ------------------------------------------------------------------------------
-
-If one doesn't supply the ``--visualize`` flag, then ``benchmark_cameras.py``
-can be used to estimate average rendering time for the number of desired cameras.
 
 Currently, tiled cameras are the most performant camera that can handle multiple dynamic objects.
 
