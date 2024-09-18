@@ -6,9 +6,10 @@ Changelog
 
 Added
 ^^^^^
-* Added :meth:`convert_perspective_depth_to_orthogonal_depth` to be able to convert depth_to_camera
-  to depth_to_image_plane if desired (so that :meth:`unproject_depth` can be used with correctly
-  with the depth_to_camera replicator, just has to be converted first using the newly added method)
+* Added :meth:`convert_perspective_depth_to_orthogonal_depth`. :meth:`unproject_depth` assumes
+that the input depth image is orthogonal. The new :meth:`convert_perspective_depth_to_orthogonal_depth`
+can be used to convert a perspective depth image into an orthogonal depth image, so that the point cloud
+can be unprojected correctly with :meth:`unproject_depth`.
 
 
 0.22.11 (2024-09-10)
