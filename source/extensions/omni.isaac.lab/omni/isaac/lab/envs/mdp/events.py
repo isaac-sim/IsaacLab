@@ -171,11 +171,6 @@ def randomize_rigid_body_mass(
     # default values and not the previously randomized values
     masses[env_ids[:, None], body_ids] = asset.data.default_mass[env_ids[:, None], body_ids].clone()
 
-    # obtain initial masses and inertia tensors
-    if recompute_inertia:
-        initial_masses = masses.clone()
-        initial_inertia_tensors = asset.root_physx_view.get_inertia_tensors()
-
     # sample from the given range
     # note: we modify the masses in-place for all environments
     #   however, the setter takes care that only the masses of the specified environments are modified
@@ -188,9 +183,21 @@ def randomize_rigid_body_mass(
 
     # recompute inertia tensors if needed
     if recompute_inertia:
-        ratios = masses / initial_masses
-        inertia_tensors = initial_inertia_tensors * ratios[:, :, None]
-        asset.root_physx_view.set_inertia_tensors(inertia_tensors, env_ids)
+        # compute the ratios of the new masses to the initial masses
+        ratios = masses[env_ids[:, None], body_ids] / asset.data.default_mass[env_ids[:, None], body_ids]
+        # scale the inertia tensors by the the ratios
+        # since mass randomization is done on default values, we can use the default inertia tensors
+        inertias = asset.root_physx_view.get_inertias()
+        if isinstance(asset, Articulation):
+            # inertia has shape: (num_envs, num_bodies, 9) for articulation
+            inertias[env_ids[:, None], body_ids] = (
+                asset.data.default_inertia[env_ids[:, None], body_ids] * ratios[..., None]
+            )
+        else:
+            # inertia has shape: (num_envs, 9) for rigid object
+            inertias[env_ids] = asset.data.default_inertia[env_ids] * ratios
+        # set the inertia tensors into the physics simulation
+        asset.root_physx_view.set_inertias(inertias, env_ids)
 
 
 def randomize_physics_scene_gravity(
