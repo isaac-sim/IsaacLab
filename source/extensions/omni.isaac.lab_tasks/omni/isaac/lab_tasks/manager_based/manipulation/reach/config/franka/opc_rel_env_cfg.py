@@ -22,7 +22,7 @@ class FrankaReachEnvCfg(joint_pos_env_cfg.FrankaReachEnvCfg):
         super().__post_init__()
 
         # Set Franka as robot
-        # We switch here to a stiffer PD controller for IK tracking to be better.
+        # We remove stiffness and damping for the shoulder and forearm joints for effort control
         self.scene.robot = FRANKA_PANDA_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.robot.actuators["panda_shoulder"].stiffness = 0.0
         self.scene.robot.actuators["panda_shoulder"].damping = 0.0
@@ -36,14 +36,18 @@ class FrankaReachEnvCfg(joint_pos_env_cfg.FrankaReachEnvCfg):
             joint_names=["panda_joint.*"],
             body_name="panda_hand",
             controller_cfg=OperationalSpaceControllerCfg(
-                target_types=["pose_abs"],
-                impedance_mode="fixed",
+                target_types=["pose_rel"],
+                impedance_mode="variable_kp",
                 inertial_compensation=True,
                 uncouple_motion_wrench=False,
                 gravity_compensation=False,
                 stiffness=100.0,
                 damping_ratio=1.0,
+                stiffness_limits=(50.0, 200.0),
             ),
+            position_scale=0.5,
+            orientation_scale=0.5,
+            stiffness_scale=100.0,
         )
 
 
