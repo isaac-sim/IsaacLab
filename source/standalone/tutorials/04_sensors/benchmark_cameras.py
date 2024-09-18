@@ -31,18 +31,6 @@ args_cli = argparse.Namespace()
 
 parser = argparse.ArgumentParser(description="This script can help you benchmark how many cameras you could run.")
 
-
-parser.add_argument(
-    "--visualize",
-    action="store_true",
-    default=False,
-    required=False,
-    help=(
-        "Supply this argument to visualize. Only supply if you don't care about the benchmarking results"
-        " and are instead visually checking camera output."
-    ),
-)
-
 parser.add_argument(
     "--num_tiled_cameras",
     type=int,
@@ -155,12 +143,6 @@ AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 args_cli.enable_cameras = True
 
-if args_cli.visualize:
-    print("[WARNING]: You have selected to visualize. which means your benchmark results will not be meaningful.")
-    import matplotlib
-
-    matplotlib.use("Agg")  # Use a non-interactive backend
-
 if len(args_cli.ray_caster_visible_mesh_prim_paths) > 1:
     print("[WARNING]: Ray Casting is only currently supported for a single, static object")
 # launch omniverse app
@@ -173,7 +155,6 @@ import numpy as np
 import random
 import time
 import torch
-from matplotlib import pyplot as plt
 
 import omni.isaac.core.utils.prims as prim_utils
 
@@ -368,102 +349,6 @@ def design_scene(
     return scene_entities
 
 
-def plot_images(
-    images: dict, cols: int = 4, cmap: str = "gray", title_prefix: str = "Image", save_name: str | None = None
-):
-    """Plot the provided images in a grid, labelling each one with the relevant info
-
-    Args:
-        images: the images, where their label is key, and the image is value
-        cols: how many columns to use in the grid. Defaults to 4.
-        cmap: what color map to use. Defaults to "gray".
-        title_prefix: what prefix to prepend to image titles. Defaults to "Image".
-        save_name: Filename to save the image to. Defaults to None.
-    """
-    total_images = sum(image_tensor.shape[0] for image_tensor in images.values())
-
-    # Determine the grid size (rows and columns)
-    cols = min(total_images, cols)
-    rows = (total_images + cols - 1) // cols
-
-    fig, axs = plt.subplots(rows, cols, figsize=(5 * cols, 5 * rows))
-    axs = axs.flatten()  # Flatten the 2D array of axes for easier iteration
-
-    img_idx = 0
-    for key, image_tensor in images.items():
-        for idx, image in enumerate(image_tensor):
-            ax = axs[img_idx]
-            ax.imshow(image.cpu().numpy(), cmap=cmap)
-            ax.set_title(f"{key} - {title_prefix} {idx}")
-            ax.axis("off")  # Hide axis for cleaner visualization
-            img_idx += 1
-
-    # Hide any remaining empty subplots
-    for ax in axs[img_idx:]:
-        ax.axis("off")
-
-    if save_name:
-        plt.savefig(save_name)
-        plt.close()  # Close the figure to free up memory
-
-
-def plot_point_clouds(
-    clouds: dict, viewpoints: list | None = None, cols: int = 4, save_name: str | None = None, timestep: int = 0
-):
-    """Plot pointclouds together from different views, and save it if a save_name is provided
-
-    Args:
-        clouds: the pointclouds to plot, where the key is the label and the value
-            is the Open3D PointCloud
-        viewpoints: from what Elivs and Azims to view clouds from. Defaults to None.
-        cols: how many columns to use. Defaults to 4.
-        save_name: _description_. Defaults to None.
-        timestep: _description_. Defaults to 0.
-    """
-    if viewpoints is None:
-        viewpoints = [
-            {"elev": 30, "azim": 45},
-            {"elev": 210, "azim": 315},
-        ]
-
-    num_views = len(viewpoints)
-    rows = (num_views + cols - 1) // cols
-
-    fig, axs = plt.subplots(rows, cols, figsize=(6 * cols, 6 * rows))
-    axs = axs.flatten()  # Flatten the 2D array of axes for easier iteration
-
-    for i, ax in enumerate(axs):
-        if i < num_views:
-            viewpoint = viewpoints[i]
-            ax = fig.add_subplot(rows, cols, i + 1, projection="3d")
-
-            for key, cloud in clouds.items():
-                for idx, single_cloud in enumerate(cloud):
-                    points = single_cloud.cpu()
-
-                    # Plot the point cloud with a random color
-                    ax.scatter(
-                        points[:, 0],
-                        points[:, 1],
-                        points[:, 2],
-                        color=np.random.rand(3),
-                        label=key + f"_cloud{idx}",
-                        s=1,
-                    )
-
-            # Set the viewpoint
-            ax.view_init(elev=viewpoint["elev"], azim=viewpoint["azim"])
-            ax.set_title(f"Cloud {timestep} | View: elev: {viewpoint['elev']}, azim: {viewpoint['azim']}")
-            ax.axis("off")  # Hide axes for cleaner visualization
-            ax.legend()
-        else:
-            ax.axis("off")  # Hide any extra subplots that aren't needed
-
-    if save_name:
-        plt.savefig(save_name, dpi=300)
-        plt.close()  # Close the figure to free up memory
-
-
 def run_simulator(
     sim: sim_utils.SimulationContext,
     scene_entities: dict,
@@ -562,25 +447,6 @@ def run_simulator(
 
             vision_end_time = time.time()
             vision_processing_time += vision_end_time - vision_start_time
-
-            if visualize:
-                plot_point_clouds(clouds=clouds, save_name=f"saved_clouds_timestep_{timestep}.png")
-                if images:
-                    plot_images(
-                        images,
-                        cols=4,
-                        cmap="gray",
-                        title_prefix="Image",
-                        save_name=f"saved_images_timestep_{timestep}.png",
-                    )
-                if depth_images:
-                    plot_images(
-                        depth_images,
-                        cols=4,
-                        cmap="viridis",
-                        title_prefix="Depth Image",
-                        save_name=f"saved_depth_images_timestep_{timestep}.png",
-                    )
 
             total_time += vision_end_time - vision_start_time
             valid_timesteps += 1
