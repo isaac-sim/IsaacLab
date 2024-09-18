@@ -9,7 +9,7 @@ Find How Many/What Cameras You Should Train With
 Currently in Isaac Lab, there are several camera types; USD Cameras (standard), Tiled Cameras,
 and Ray Caster cameras. These camera types differ in functionality and performance. The ``benchmark_cameras.py``
 script can be used to understand the difference in cameras types, as well to characterize their relative performance
-at different parameters such as camera quantity, image dimensions, and replicator types.
+at different parameters such as camera quantity, image dimensions, and data types.
 
 This utility is provided so that one easily can find the camera type/parameters that are the most performant
 while meeting the requirements of the user's scenario. This utility also helps estimate
