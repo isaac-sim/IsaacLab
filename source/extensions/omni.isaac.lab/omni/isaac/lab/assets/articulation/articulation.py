@@ -954,6 +954,7 @@ class Articulation(AssetBase):
 
         # -- bodies
         self._data.default_mass = self.root_physx_view.get_masses().clone()
+        self._data.default_inertia = self.root_physx_view.get_inertias().clone()
 
         # -- default joint state
         self._data.default_joint_pos = torch.zeros(self.num_instances, self.num_joints, device=self.device)

@@ -104,6 +104,13 @@ class ArticulationData:
     default_mass: torch.Tensor = None
     """Default mass read from the simulation. Shape is (num_instances, num_bodies)."""
 
+    default_inertia: torch.Tensor = None
+    """Default inertia read from the simulation. Shape is (num_instances, num_bodies, 9).
+
+    The inertia is the inertia tensor relative to the center of mass frame. The values are stored in
+    the order :math:`[I_{xx}, I_{xy}, I_{xz}, I_{yx}, I_{yy}, I_{yz}, I_{zx}, I_{zy}, I_{zz}]`.
+    """
+
     default_joint_pos: torch.Tensor = None
     """Default joint positions of all joints. Shape is (num_instances, num_joints)."""
 
