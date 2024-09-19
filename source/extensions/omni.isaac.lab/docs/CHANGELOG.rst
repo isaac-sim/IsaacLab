@@ -1,14 +1,45 @@
 Changelog
 ---------
 
-0.22.9 (2024-09-09)
-~~~~~~~~~~~~~~~~~~~
+0.22.12 (2024-09-08)
+~~~~~~~~~~~~~~~~~~~~
 
 Changed
 ^^^^^^^
 
 * Moved the configuration of visualization markers for the command terms to their respective configuration classes.
   This allows users to modify the markers for the command terms without having to modify the command term classes.
+
+
+0.22.11 (2024-09-10)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added config class, support, and tests for MJCF conversion via standalone python scripts.
+
+
+0.22.10 (2024-09-09)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a seed parameter to the :attr:`omni.isaac.lab.envs.ManagerBasedEnvCfg` and :attr:`omni.isaac.lab.envs.DirectRLEnvCfg`
+  classes to set the seed for the environment. This seed is used to initialize the random number generator for the environment.
+* Adapted the workflow scripts to set the seed for the environment using the seed specified in the learning agent's configuration
+  file or the command line argument. This ensures that the simulation results are reproducible across different runs.
+
+
+0.22.9 (2024-09-08)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Modified:meth:`quat_rotate` and :meth:`quat_rotate_inverse` operations to use :meth:`torch.einsum`
+  for faster processing of high dimensional input tensors.
 
 
 0.22.8 (2024-09-06)

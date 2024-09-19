@@ -56,6 +56,14 @@ class ManagerBasedEnvCfg:
     """
 
     # general settings
+    seed: int | None = None
+    """The seed for the random number generator. Defaults to None, in which case the seed is not set.
+
+    Note:
+      The seed is set at the beginning of the environment initialization. This ensures that the environment
+      creation is deterministic and behaves similarly across different runs.
+    """
+
     decimation: int = MISSING
     """Number of control action updates @ sim dt per policy dt.
 
