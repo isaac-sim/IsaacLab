@@ -30,7 +30,7 @@
 
     <link rel="stylesheet" type="text/css" href="../../../../../../_static/pygments.css" />
     <link rel="stylesheet" href="../../../../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
-    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.10.14/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.10.15/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
     <link rel="stylesheet" type="text/css" href="../../../../../../_static/copybutton.css" />
     <link rel="stylesheet" type="text/css" href="../../../../../../_static/custom.css" />
     <link rel="stylesheet" type="text/css" href="../../../../../../_static/sphinx-design.4cbf315f70debaebd550c87a6162cf0f.min.css" />
@@ -43,7 +43,7 @@
     <script data-url_root="../../../../../../" id="documentation_options" src="../../../../../../_static/documentation_options.js"></script>
     <script src="../../../../../../_static/doctools.js"></script>
     <script src="../../../../../../_static/sphinx_highlight.js"></script>
-    <script src="/opt/hostedtoolcache/Python/3.10.14/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.10.15/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
     <script src="../../../../../../_static/clipboard.min.js"></script>
     <script src="../../../../../../_static/copybutton.js"></script>
     <script src="../../../../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
@@ -54,7 +54,7 @@
     <link rel="search" title="Search" href="../../../../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Sep 16, 2024"/>
+    <meta name="docbuild:last-update" content="Sep 19, 2024"/>
   </head>
   
   
@@ -621,11 +621,17 @@ document.write(`
     <span class="n">mass_distribution_params</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
     <span class="n">operation</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;add&quot;</span><span class="p">,</span> <span class="s2">&quot;scale&quot;</span><span class="p">,</span> <span class="s2">&quot;abs&quot;</span><span class="p">],</span>
     <span class="n">distribution</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;uniform&quot;</span><span class="p">,</span> <span class="s2">&quot;log_uniform&quot;</span><span class="p">,</span> <span class="s2">&quot;gaussian&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;uniform&quot;</span><span class="p">,</span>
+    <span class="n">recompute_inertia</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
 <span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Randomize the mass of the bodies by adding, scaling, or setting random values.</span>
 
 <span class="sd">    This function allows randomizing the mass of the bodies of the asset. The function samples random values from the</span>
 <span class="sd">    given distribution parameters and adds, scales, or sets the values into the physics simulation based on the operation.</span>
+
+<span class="sd">    If the ``recompute_inertia`` flag is set to ``True``, the function recomputes the inertia tensor of the bodies</span>
+<span class="sd">    after setting the mass. This is useful when the mass is changed significantly, as the inertia tensor depends</span>
+<span class="sd">    on the mass. It assumes the body is a uniform density object. If the body is not a uniform density object,</span>
+<span class="sd">    the inertia tensor may not be accurate.</span>
 
 <span class="sd">    .. tip::</span>
 <span class="sd">        This function uses CPU tensors to assign the body masses. It is recommended to use this function</span>
@@ -648,7 +654,10 @@ document.write(`
 
     <span class="c1"># get the current masses of the bodies (num_assets, num_bodies)</span>
     <span class="n">masses</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">get_masses</span><span class="p">()</span>
+
     <span class="c1"># apply randomization on default values</span>
+    <span class="c1"># this is to make sure when calling the function multiple times, the randomization is applied on the</span>
+    <span class="c1"># default values and not the previously randomized values</span>
     <span class="n">masses</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">body_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_mass</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">body_ids</span><span class="p">]</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
 
     <span class="c1"># sample from the given range</span>
@@ -659,7 +668,25 @@ document.write(`
     <span class="p">)</span>
 
     <span class="c1"># set the mass into the physics simulation</span>
-    <span class="n">asset</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">set_masses</span><span class="p">(</span><span class="n">masses</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span></div>
+    <span class="n">asset</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">set_masses</span><span class="p">(</span><span class="n">masses</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span>
+
+    <span class="c1"># recompute inertia tensors if needed</span>
+    <span class="k">if</span> <span class="n">recompute_inertia</span><span class="p">:</span>
+        <span class="c1"># compute the ratios of the new masses to the initial masses</span>
+        <span class="n">ratios</span> <span class="o">=</span> <span class="n">masses</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">body_ids</span><span class="p">]</span> <span class="o">/</span> <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_mass</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">body_ids</span><span class="p">]</span>
+        <span class="c1"># scale the inertia tensors by the the ratios</span>
+        <span class="c1"># since mass randomization is done on default values, we can use the default inertia tensors</span>
+        <span class="n">inertias</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">get_inertias</span><span class="p">()</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="n">Articulation</span><span class="p">):</span>
+            <span class="c1"># inertia has shape: (num_envs, num_bodies, 9) for articulation</span>
+            <span class="n">inertias</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">body_ids</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_inertia</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">body_ids</span><span class="p">]</span> <span class="o">*</span> <span class="n">ratios</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># inertia has shape: (num_envs, 9) for rigid object</span>
+            <span class="n">inertias</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_inertia</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">*</span> <span class="n">ratios</span>
+        <span class="c1"># set the inertia tensors into the physics simulation</span>
+        <span class="n">asset</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">set_inertias</span><span class="p">(</span><span class="n">inertias</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="randomize_physics_scene_gravity"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.randomize_physics_scene_gravity">[docs]</a><span class="k">def</span> <span class="nf">randomize_physics_scene_gravity</span><span class="p">(</span>
@@ -1423,7 +1450,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 16, 2024.
+  Last updated on Sep 19, 2024.
   <br/>
 </p>
   </div>
