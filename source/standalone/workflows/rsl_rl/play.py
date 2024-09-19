@@ -101,7 +101,18 @@ def main():
         ppo_runner.alg.actor_critic, ppo_runner.obs_normalizer, path=export_model_dir, filename="policy.pt"
     )
     export_policy_as_onnx(
-        ppo_runner.alg.actor_critic, normalizer=ppo_runner.obs_normalizer, path=export_model_dir, filename="policy.onnx"
+        ppo_runner.alg.actor_critic, 
+        normalizer=ppo_runner.obs_normalizer, 
+        path=export_model_dir, 
+        filename="policy.onnx"
+        metadata=
+            {"obs": dict(zip(
+                env.unwrapped.observation_manager.active_terms['policy'], 
+                env.unwrapped.observation_manager.group_obs_term_dim['policy'])),
+            "action": dict(zip(
+                env.unwrapped.action_manager.active_terms, 
+                env.unwrapped.action_manager.action_term_dim))
+            }
     )
 
     # reset environment

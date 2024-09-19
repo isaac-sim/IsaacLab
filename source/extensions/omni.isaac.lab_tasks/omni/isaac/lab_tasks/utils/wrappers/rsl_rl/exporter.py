@@ -6,6 +6,8 @@
 import copy
 import os
 import torch
+import json
+import onnx
 
 
 def export_policy_as_jit(actor_critic: object, normalizer: object | None, path: str, filename="policy.pt"):
@@ -22,7 +24,7 @@ def export_policy_as_jit(actor_critic: object, normalizer: object | None, path: 
 
 
 def export_policy_as_onnx(
-    actor_critic: object, path: str, normalizer: object | None = None, filename="policy.onnx", verbose=False
+    actor_critic: object, path: str, normalizer: object | None = None, filename="policy.onnx", verbose=False, metadata=None
 ):
     """Export policy into a Torch ONNX file.
 
@@ -36,7 +38,7 @@ def export_policy_as_onnx(
     if not os.path.exists(path):
         os.makedirs(path, exist_ok=True)
     policy_exporter = _OnnxPolicyExporter(actor_critic, normalizer, verbose)
-    policy_exporter.export(path, filename)
+    policy_exporter.export(path, filename, metadata)
 
 
 """
@@ -118,8 +120,9 @@ class _OnnxPolicyExporter(torch.nn.Module):
     def forward(self, x):
         return self.actor(self.normalizer(x))
 
-    def export(self, path, filename):
+    def export(self, path, filename, metadata=None):
         self.to("cpu")
+        file_path = os.path.join(path, filename)
         if self.is_recurrent:
             obs = torch.zeros(1, self.rnn.input_size)
             h_in = torch.zeros(self.rnn.num_layers, 1, self.rnn.hidden_size)
@@ -128,7 +131,7 @@ class _OnnxPolicyExporter(torch.nn.Module):
             torch.onnx.export(
                 self,
                 (obs, h_in, c_in),
-                os.path.join(path, filename),
+                f=file_path,
                 export_params=True,
                 opset_version=11,
                 verbose=self.verbose,
@@ -141,7 +144,7 @@ class _OnnxPolicyExporter(torch.nn.Module):
             torch.onnx.export(
                 self,
                 obs,
-                os.path.join(path, filename),
+                f=file_path,
                 export_params=True,
                 opset_version=11,
                 verbose=self.verbose,
@@ -149,3 +152,14 @@ class _OnnxPolicyExporter(torch.nn.Module):
                 output_names=["actions"],
                 dynamic_axes={},
             )
+        if metadata is not None:
+            model = onnx.load(file_path)
+            for key, value in metadata.items():
+                metadata_props = model.metadata_props.add()
+                metadata_props.key = key
+                if isinstance(value, dict):
+                    metadata_props.value = json.dumps(value)
+                else:
+                    metadata_props.value = str(value)
+            onnx.save(model, file_path)
+
