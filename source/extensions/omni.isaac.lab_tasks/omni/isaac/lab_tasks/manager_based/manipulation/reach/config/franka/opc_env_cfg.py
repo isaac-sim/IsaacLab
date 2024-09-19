@@ -29,6 +29,7 @@ class FrankaReachEnvCfg(joint_pos_env_cfg.FrankaReachEnvCfg):
         self.scene.robot.actuators["panda_forearm"].stiffness = 0.0
         self.scene.robot.actuators["panda_forearm"].damping = 0.0
         self.scene.robot.spawn.rigid_props.disable_gravity = True
+        # self.scene.robot.spawn.activate_contact_sensors = True
 
         # Set actions for the specific robot type (franka)
         self.actions.arm_action = OperationalSpaceControllerActionCfg(

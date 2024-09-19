@@ -264,8 +264,8 @@ class OperationalSpaceControllerAction(ActionTerm):
         self._ee_pose_b_no_offset = torch.zeros(self.num_envs, 7, device=self.device)  # The original ee without offset
         self._ee_vel_w = torch.zeros(self.num_envs, 6, device=self.device)
         self._ee_vel_b = torch.zeros(self.num_envs, 6, device=self.device)
-        self._ee_force_w = torch.zeros(self.num_envs, 6, device=self.device)
-        self._ee_force_b = torch.zeros(self.num_envs, 6, device=self.device)
+        self._ee_force_w = torch.zeros(self.num_envs, 3, device=self.device)  # Only the forces are used for now
+        self._ee_force_b = torch.zeros(self.num_envs, 3, device=self.device)  # Only the forces are used for now
 
         # create contact sensor if and of the command is wrench_abs anf if stiffness is provided
         if (
@@ -274,6 +274,9 @@ class OperationalSpaceControllerAction(ActionTerm):
         ):
             self._contact_sensor_cfg = ContactSensorCfg(prim_path=self._asset.cfg.prim_path + "/" + self._ee_body_name)
             self._contact_sensor = ContactSensor(self._contact_sensor_cfg)
+            if not self._contact_sensor.is_initialized:
+                self._contact_sensor._initialize_impl()
+                self._contact_sensor._is_initialized = True
         else:
             self._contact_sensor_cfg = None
             self._contact_sensor = None
@@ -386,6 +389,8 @@ class OperationalSpaceControllerAction(ActionTerm):
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         self._raw_actions[env_ids] = 0.0
+        if self._contact_sensor is not None:
+            self._contact_sensor.reset(env_ids)
 
     """
     Helper functions.
@@ -500,20 +505,6 @@ class OperationalSpaceControllerAction(ActionTerm):
         # Obtain contact forces only if the contact sensor is available
         if self._contact_sensor is not None:
             self._contact_sensor.update(self._sim_dt)
-            self._ee_force_w[:] = self._contact_sensor.data.net_forces_w[:, self._ee_body_idx, :]  # type: ignore
-
+            self._ee_force_w[:] = self._contact_sensor.data.net_forces_w[:, 0, :]  # type: ignore
             # Rotate forces and torques into the root (base) frame
-            self._ee_force_b[:, 0:3] = math_utils.quat_rotate_inverse(
-                self._asset.data.root_quat_w, self._ee_force_w[:, 0:3]
-            )
-            self._ee_force_b[:, 3:6] = math_utils.quat_rotate_inverse(
-                self._asset.data.root_quat_w, self._ee_force_w[:, 3:6]
-            )
-
-            # Account for the body offset
-            if self.cfg.body_offset is not None:
-                # Compute offset vector in root frame
-                r_offset_b = math_utils.quat_rotate(self._ee_pose_b_no_offset[:, 3:7], self._offset_pos)
-                # Adjust the torques to account for the offset
-                self._ee_force_b[:, 3:6] += torch.cross(r_offset_b, self._ee_force_b[:, 0:3], dim=-1)
-                # Linear force is not affected by the offset
+            self._ee_force_b[:] = math_utils.quat_rotate_inverse(self._asset.data.root_quat_w, self._ee_force_w)
