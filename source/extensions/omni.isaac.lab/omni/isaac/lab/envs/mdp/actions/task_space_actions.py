@@ -258,11 +258,10 @@ class OperationalSpaceControllerAction(ActionTerm):
         self._mass_matrix = torch.zeros(self.num_envs, self._num_DoF, self._num_DoF, device=self.device)
         self._gravity = torch.zeros(self.num_envs, self._num_DoF, device=self.device)
 
-        # create tensors for the kinematic-related quantities
-        self._root_pose_w = torch.zeros(self.num_envs, 7, device=self.device)
+        # create tensors for the ee states
         self._ee_pose_w = torch.zeros(self.num_envs, 7, device=self.device)
         self._ee_pose_b = torch.zeros(self.num_envs, 7, device=self.device)
-        self._root_vel_w = torch.zeros(self.num_envs, 6, device=self.device)
+        self._ee_pose_b_no_offset = torch.zeros(self.num_envs, 7, device=self.device)  # The original ee without offset
         self._ee_vel_w = torch.zeros(self.num_envs, 6, device=self.device)
         self._ee_vel_b = torch.zeros(self.num_envs, 6, device=self.device)
         self._ee_force_w = torch.zeros(self.num_envs, 6, device=self.device)
@@ -463,45 +462,58 @@ class OperationalSpaceControllerAction(ActionTerm):
 
     def _compute_ee_pose(self):
         """Computes the pose of the ee frame in the root frame."""
-        # obtain quantities from simulation
-        self._root_pose_w[:] = self._asset.data.root_state_w[:, :7]
+        # Obtain quantities from simulation
         self._ee_pose_w[:] = self._asset.data.body_state_w[:, self._ee_body_idx, :7]
-        # compute the pose of the body in the root frame
-        ee_pose_b, ee_quat_b = math_utils.subtract_frame_transforms(
-            self._root_pose_w[:, 0:3], self._root_pose_w[:, 3:7], self._ee_pose_w[:, 0:3], self._ee_pose_w[:, 3:7]
+        # Compute the pose of the ee body in the root frame
+        self._ee_pose_b_no_offset[:, 0:3], self._ee_pose_b_no_offset[:, 3:7] = math_utils.subtract_frame_transforms(
+            self._asset.data.root_pos_w, self._asset.data.root_quat_w, self._ee_pose_w[:, 0:3], self._ee_pose_w[:, 3:7]
         )
-        # account for the offset
+        # Account for the offset
         if self.cfg.body_offset is not None:
-            ee_pose_b, ee_quat_b = math_utils.combine_frame_transforms(
-                ee_pose_b, ee_quat_b, self._offset_pos, self._offset_rot
+            self._ee_pose_b[:, 0:3], self._ee_pose_b[:, 3:7] = math_utils.combine_frame_transforms(
+                self._ee_pose_b_no_offset[:, 0:3], self._ee_pose_b_no_offset[:, 3:7], self._offset_pos, self._offset_rot
             )
-        # fill in the pose tensor
-        self._ee_pose_b[:, 0:3] = ee_pose_b
-        self._ee_pose_b[:, 3:7] = ee_quat_b
+        else:
+            self._ee_pose_b[:] = self._ee_pose_b_no_offset
 
     def _compute_ee_velocity(self):
         """Computes the velocity of the ee frame in the root frame."""
-        self._root_vel_w[:] = self._asset.data.root_vel_w  # Extract root velocity in the world frame
-        self._ee_vel_w[:] = self._asset.data.body_vel_w[
-            :, self._ee_body_idx, :
-        ]  # Extract end-effector velocity in the world frame
-        relative_vel_w = self._ee_vel_w - self._root_vel_w  # Compute the relative velocity in the world frame
-        ee_lin_vel_b = math_utils.quat_rotate_inverse(
-            self._asset.data.root_quat_w, relative_vel_w[:, 0:3]
-        )  # From world to root frame
-        ee_ang_vel_b = math_utils.quat_rotate_inverse(self._asset.data.root_quat_w, relative_vel_w[:, 3:6])
-        # fill in the velocity tensor
-        self._ee_vel_b[:, 0:3] = ee_lin_vel_b
-        self._ee_vel_b[:, 3:6] = ee_ang_vel_b
+        # Extract end-effector velocity in the world frame
+        self._ee_vel_w[:] = self._asset.data.body_vel_w[:, self._ee_body_idx, :]
+        # Compute the relative velocity in the world frame
+        relative_vel_w = self._ee_vel_w - self._asset.data.root_vel_w
 
-        # FIXME Account for the body offset
+        # Convert ee velocities from world to root frame
+        self._ee_vel_b[:, 0:3] = math_utils.quat_rotate_inverse(self._asset.data.root_quat_w, relative_vel_w[:, 0:3])
+        self._ee_vel_b[:, 3:6] = math_utils.quat_rotate_inverse(self._asset.data.root_quat_w, relative_vel_w[:, 3:6])
+
+        # Account for the offset
+        if self.cfg.body_offset is not None:
+            # Compute offset vector in root frame
+            r_offset_b = math_utils.quat_rotate(self._ee_pose_b_no_offset[:, 3:7], self._offset_pos)
+            # Adjust the linear velocity to account for the offset
+            self._ee_vel_b[:, :3] += torch.cross(self._ee_vel_b[:, 3:], r_offset_b, dim=-1)
+            # Angular velocity is not affected by the offset
 
     def _compute_ee_force(self):
         """Computes the contact forces on the ee frame in the root frame."""
+        # Obtain contact forces only if the contact sensor is available
         if self._contact_sensor is not None:
             self._contact_sensor.update(self._sim_dt)
             self._ee_force_w[:] = self._contact_sensor.data.net_forces_w[:, self._ee_body_idx, :]  # type: ignore
 
-            self._ee_force_b[:] = (
-                self._ee_force_w
-            )  # FIXME: Rotate the vector to body frame and account for the body offset
+            # Rotate forces and torques into the root (base) frame
+            self._ee_force_b[:, 0:3] = math_utils.quat_rotate_inverse(
+                self._asset.data.root_quat_w, self._ee_force_w[:, 0:3]
+            )
+            self._ee_force_b[:, 3:6] = math_utils.quat_rotate_inverse(
+                self._asset.data.root_quat_w, self._ee_force_w[:, 3:6]
+            )
+
+            # Account for the body offset
+            if self.cfg.body_offset is not None:
+                # Compute offset vector in root frame
+                r_offset_b = math_utils.quat_rotate(self._ee_pose_b_no_offset[:, 3:7], self._offset_pos)
+                # Adjust the torques to account for the offset
+                self._ee_force_b[:, 3:6] += torch.cross(r_offset_b, self._ee_force_b[:, 0:3], dim=-1)
+                # Linear force is not affected by the offset
