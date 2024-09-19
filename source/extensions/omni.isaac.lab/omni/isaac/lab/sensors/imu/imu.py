@@ -25,10 +25,17 @@ if TYPE_CHECKING:
 
 
 class Imu(SensorBase):
-    """The inertia measurement unit sensor.
+    """The Inertia Measurement Unit (IMU) sensor.
 
-    The sensor can be attached to any :class:`RigidObject` or :class:`Articulation` in the scene. The sensor provides the linear acceleration and angular
-    velocity of the object in the body frame. The sensor also provides the orientation of the object in the world frame.
+    The sensor can be attached to any :class:`RigidObject` in the scene. It provides the linear and angular
+    acceleration as well as the angular velocity of the object in the body frame.
+
+    .. note::
+
+        We are computing the accelerations using numerical differentiation from the velocities. Consequently, the
+        IMU sensor accuracy depends on the chosen phsyx timestep. For a sufficient accuracy, we recommend to keep the
+        timestep at least as 200Hz.
+
     """
 
     cfg: ImuCfg
