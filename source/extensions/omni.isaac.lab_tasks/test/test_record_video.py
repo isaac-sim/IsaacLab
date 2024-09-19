@@ -20,8 +20,6 @@ import unittest
 
 import omni.usd
 
-from omni.isaac.lab.envs import ManagerBasedRLEnvCfg
-
 import omni.isaac.lab_tasks  # noqa: F401
 from omni.isaac.lab_tasks.utils import parse_env_cfg
 
@@ -60,7 +58,7 @@ class TestRecordVideoWrapper(unittest.TestCase):
                 omni.usd.get_context().new_stage()
 
                 # parse configuration
-                env_cfg: ManagerBasedRLEnvCfg = parse_env_cfg(task_name, device=self.device, num_envs=self.num_envs)
+                env_cfg = parse_env_cfg(task_name, device=self.device, num_envs=self.num_envs)
 
                 # create environment
                 env = gym.make(task_name, cfg=env_cfg, render_mode="rgb_array")

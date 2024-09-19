@@ -152,6 +152,13 @@ Now that we have gone through the code, let's run the script and see the result:
 This should open a stage with everything similar to the :ref:`tutorial-create-manager-rl-env` tutorial.
 To stop the simulation, you can either close the window, or press ``Ctrl+C`` in the terminal.
 
+
+.. figure:: ../../_static/tutorials/tutorial_register_environment.jpg
+    :align: center
+    :figwidth: 100%
+    :alt: result of random_agent.py
+
+
 In addition, you can also change the simulation device from GPU to CPU by setting the value of the ``--device`` flag explicitly:
 
 .. code-block:: bash

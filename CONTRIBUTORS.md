@@ -24,7 +24,7 @@ Guidelines for modifications:
 * Hunter Hansen
 * James Smith
 * James Tigue
-* Kelly Guo
+* Kelly (Yunrong) Guo
 * Mayank Mittal
 * Nikita Rudin
 * Pascal Roth
@@ -39,13 +39,16 @@ Guidelines for modifications:
 * Brayden Zhang
 * Calvin Yu
 * Chenyu Yang
+* David Yang
 * HoJin Jeon
+* Jean Tampon
 * Jia Lin Yuan
 * Jingzhou Liu
 * Johnson Sun
 * Kourosh Darvish
 * Lorenz Wellhausen
 * Masoud Moghani
+* Michael Gussert
 * Muhong Guo
 * Nuralem Abizov
 * Özhan Özen
@@ -56,8 +59,10 @@ Guidelines for modifications:
 * Shafeef Omar
 * Vladimir Fokow
 * Xavier Nal
+* Yang Jin
 * Zhengyu Zhang
 * Ziqi Fan
+* Qian Wan
 
 ## Acknowledgements
 
@@ -67,4 +72,3 @@ Guidelines for modifications:
 * Gavriel State
 * Hammad Mazhar
 * Marco Hutter
-* Yunrong Guo

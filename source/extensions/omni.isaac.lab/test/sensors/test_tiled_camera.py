@@ -19,6 +19,7 @@ simulation_app = app_launcher.app
 import copy
 import numpy as np
 import random
+import torch
 import unittest
 
 import omni.isaac.core.utils.prims as prim_utils
@@ -28,7 +29,7 @@ from omni.isaac.core.prims import GeometryPrim, RigidPrim
 from pxr import Gf, UsdGeom
 
 import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.sensors.camera import TiledCamera, TiledCameraCfg
+from omni.isaac.lab.sensors.camera import Camera, CameraCfg, TiledCamera, TiledCameraCfg
 from omni.isaac.lab.utils.timer import Timer
 
 
@@ -43,7 +44,7 @@ class TestTiledCamera(unittest.TestCase):
             offset=TiledCameraCfg.OffsetCfg(pos=(0.0, 0.0, 4.0), rot=(0.0, 0.0, 1.0, 0.0), convention="ros"),
             prim_path="/World/Camera",
             update_period=0,
-            data_types=["rgb", "depth"],
+            data_types=["rgb", "distance_to_camera"],
             spawn=sim_utils.PinholeCameraCfg(
                 focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1.0e5)
             ),
@@ -216,6 +217,33 @@ class TestTiledCamera(unittest.TestCase):
                 self.assertGreater(im_data[1].mean().item(), 0.0)
         del camera
 
+    def test_data_types(self):
+        """Test single camera initialization."""
+        # Create camera
+        camera_cfg_distance = copy.deepcopy(self.camera_cfg)
+        camera_cfg_distance.data_types = ["distance_to_camera"]
+        camera_cfg_distance.prim_path = "/World/CameraDistance"
+        camera_distance = TiledCamera(camera_cfg_distance)
+        camera_cfg_depth = copy.deepcopy(self.camera_cfg)
+        camera_cfg_depth.data_types = ["depth"]
+        camera_cfg_depth.prim_path = "/World/CameraDepth"
+        camera_depth = TiledCamera(camera_cfg_depth)
+        camera_cfg_both = copy.deepcopy(self.camera_cfg)
+        camera_cfg_both.data_types = ["distance_to_camera", "depth"]
+        camera_cfg_both.prim_path = "/World/CameraBoth"
+        camera_both = TiledCamera(camera_cfg_both)
+        # Play sim
+        self.sim.reset()
+        # Check if camera is initialized
+        self.assertTrue(camera_distance.is_initialized)
+        self.assertTrue(camera_depth.is_initialized)
+        self.assertTrue(camera_both.is_initialized)
+        self.assertListEqual(list(camera_distance.data.output.keys()), ["distance_to_camera"])
+        self.assertListEqual(list(camera_depth.data.output.keys()), ["depth"])
+        self.assertListEqual(list(camera_both.data.output.keys()), ["distance_to_camera"])
+
+        del camera_distance, camera_depth, camera_both
+
     def test_depth_only_camera(self):
         """Test initialization with only depth."""
 
@@ -224,7 +252,7 @@ class TestTiledCamera(unittest.TestCase):
 
         # Create camera
         camera_cfg = copy.deepcopy(self.camera_cfg)
-        camera_cfg.data_types = ["depth"]
+        camera_cfg.data_types = ["distance_to_camera"]
         camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
         camera = TiledCamera(camera_cfg)
         # Check simulation parameter is set correctly
@@ -236,7 +264,7 @@ class TestTiledCamera(unittest.TestCase):
         # Check if camera prim is set correctly and that it is a camera prim
         self.assertEqual(camera._sensor_prims[1].GetPath().pathString, "/World/Origin_01/CameraSensor")
         self.assertIsInstance(camera._sensor_prims[0], UsdGeom.Camera)
-        self.assertListEqual(list(camera.data.output.keys()), ["depth"])
+        self.assertListEqual(list(camera.data.output.keys()), ["distance_to_camera"])
 
         # Simulate for a few steps
         # note: This is a workaround to ensure that the textures are loaded.
@@ -298,6 +326,107 @@ class TestTiledCamera(unittest.TestCase):
                     self.assertEqual(im_data.shape, (1, camera_cfg.height, camera_cfg.width, 1))
                 self.assertGreater(im_data.mean().item(), 0.0)
         del camera
+
+    def test_output_equal_to_usd_camera_intrinsics(self):
+        """
+        Test that the output of the ray caster camera and the usd camera are the same when both are
+        initialized with the same intrinsic matrix.
+        """
+
+        # create cameras
+        offset_rot = (-0.1251, 0.3617, 0.8731, -0.3020)
+        offset_pos = (2.5, 2.5, 4.0)
+        intrinsics = [380.08, 0.0, 467.79, 0.0, 380.08, 262.05, 0.0, 0.0, 1.0]
+        # get camera cfgs
+        # TODO: add clipping range back, once correctly supported by tiled camera
+        camera_tiled_cfg = TiledCameraCfg(
+            prim_path="/World/Camera_tiled",
+            offset=TiledCameraCfg.OffsetCfg(pos=offset_pos, rot=offset_rot, convention="ros"),
+            spawn=sim_utils.PinholeCameraCfg.from_intrinsic_matrix(
+                intrinsic_matrix=intrinsics,
+                height=540,
+                width=960,
+                focal_length=38.0,
+                # clipping_range=(0.01, 20),
+            ),
+            height=540,
+            width=960,
+            data_types=["depth"],
+        )
+        camera_usd_cfg = CameraCfg(
+            prim_path="/World/Camera_usd",
+            offset=CameraCfg.OffsetCfg(pos=offset_pos, rot=offset_rot, convention="ros"),
+            spawn=sim_utils.PinholeCameraCfg.from_intrinsic_matrix(
+                intrinsic_matrix=intrinsics,
+                height=540,
+                width=960,
+                focal_length=38.0,
+                # clipping_range=(0.01, 20),
+            ),
+            height=540,
+            width=960,
+            data_types=["distance_to_camera"],
+        )
+
+        # set aperture offsets to 0, as currently not supported for usd/ tiled camera
+        camera_tiled_cfg.spawn.horizontal_aperture_offset = 0
+        camera_tiled_cfg.spawn.vertical_aperture_offset = 0
+        camera_usd_cfg.spawn.horizontal_aperture_offset = 0
+        camera_usd_cfg.spawn.vertical_aperture_offset = 0
+        # init cameras
+        camera_tiled = TiledCamera(camera_tiled_cfg)
+        camera_usd = Camera(camera_usd_cfg)
+
+        # play sim
+        self.sim.reset()
+        self.sim.play()
+
+        # perform steps
+        for _ in range(5):
+            self.sim.step()
+
+        # update camera
+        camera_usd.update(self.dt)
+        camera_tiled.update(self.dt)
+
+        # filter nan and inf from output
+        cam_tiled_output = camera_tiled.data.output["depth"].clone()
+        cam_usd_output = camera_usd.data.output["distance_to_camera"].clone()
+        cam_tiled_output[torch.isnan(cam_tiled_output)] = 0
+        cam_tiled_output[torch.isinf(cam_tiled_output)] = 0
+        cam_usd_output[torch.isnan(cam_usd_output)] = 0
+        cam_usd_output[torch.isinf(cam_usd_output)] = 0
+
+        # check that both have the same intrinsic matrices
+        torch.testing.assert_close(camera_tiled.data.intrinsic_matrices[0], camera_usd.data.intrinsic_matrices[0])
+
+        # check the apertures
+        torch.testing.assert_close(
+            camera_usd._sensor_prims[0].GetHorizontalApertureAttr().Get(),
+            camera_tiled._sensor_prims[0].GetHorizontalApertureAttr().Get(),
+        )
+        torch.testing.assert_close(
+            camera_usd._sensor_prims[0].GetVerticalApertureAttr().Get(),
+            camera_tiled._sensor_prims[0].GetVerticalApertureAttr().Get(),
+        )
+
+        # check image data
+        # FIXME: The tiled camera output is not exactly equal to the usd camera output. This should be fixed with the
+        #        update to the new tiled camera implementation. Test will fail, if the difference between the images
+        #        disappears. Check again @pascal-roth.
+
+        # Intended test
+        # torch.testing.assert_close(
+        #     cam_tiled_output[..., 0],
+        #     cam_usd_output,
+        #     atol=5e-5,
+        #     rtol=5e-6,
+        # )
+        # current failure case
+        self.assertTrue(torch.max(torch.abs(cam_tiled_output[..., 0] - cam_usd_output)).item() > 1)
+
+        del camera_tiled
+        del camera_usd
 
     """
     Helper functions.

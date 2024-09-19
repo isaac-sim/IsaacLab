@@ -94,7 +94,14 @@ class RigidObjectData:
     """
 
     default_mass: torch.Tensor = None
-    """Default mass read from the simulation. Shape is (num_instances, num_bodies)."""
+    """Default mass read from the simulation. Shape is (num_instances, 1)."""
+
+    default_inertia: torch.Tensor = None
+    """Default inertia tensor read from the simulation. Shape is (num_instances, 9).
+
+    The inertia is the inertia tensor relative to the center of mass frame. The values are stored in
+    the order :math:`[I_{xx}, I_{xy}, I_{xz}, I_{yx}, I_{yy}, I_{yz}, I_{zx}, I_{zy}, I_{zz}]`.
+    """
 
     ##
     # Properties.
@@ -218,7 +225,7 @@ class RigidObjectData:
 
     @property
     def body_pos_w(self) -> torch.Tensor:
-        """Positions of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
+        """Positions of all bodies in simulation world frame. Shape is (num_instances, 1, 3).
 
         This quantity is the position of the rigid bodies' actor frame.
         """
@@ -226,7 +233,7 @@ class RigidObjectData:
 
     @property
     def body_quat_w(self) -> torch.Tensor:
-        """Orientation (w, x, y, z) of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 4).
+        """Orientation (w, x, y, z) of all bodies in simulation world frame. Shape is (num_instances, 1, 4).
 
         This quantity is the orientation of the rigid bodies' actor frame.
         """
@@ -234,7 +241,7 @@ class RigidObjectData:
 
     @property
     def body_vel_w(self) -> torch.Tensor:
-        """Velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 6).
+        """Velocity of all bodies in simulation world frame. Shape is (num_instances, 1, 6).
 
         This quantity contains the linear and angular velocities of the rigid bodies' center of mass frame.
         """
@@ -242,7 +249,7 @@ class RigidObjectData:
 
     @property
     def body_lin_vel_w(self) -> torch.Tensor:
-        """Linear velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
+        """Linear velocity of all bodies in simulation world frame. Shape is (num_instances, 1, 3).
 
         This quantity is the linear velocity of the rigid bodies' center of mass frame.
         """
@@ -250,7 +257,7 @@ class RigidObjectData:
 
     @property
     def body_ang_vel_w(self) -> torch.Tensor:
-        """Angular velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
+        """Angular velocity of all bodies in simulation world frame. Shape is (num_instances, 1, 3).
 
         This quantity is the angular velocity of the rigid bodies' center of mass frame.
         """
@@ -258,7 +265,7 @@ class RigidObjectData:
 
     @property
     def body_lin_acc_w(self) -> torch.Tensor:
-        """Linear acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
+        """Linear acceleration of all bodies in simulation world frame. Shape is (num_instances, 1, 3).
 
         This quantity is the linear acceleration of the rigid bodies' center of mass frame.
         """
@@ -266,7 +273,7 @@ class RigidObjectData:
 
     @property
     def body_ang_acc_w(self) -> torch.Tensor:
-        """Angular acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
+        """Angular acceleration of all bodies in simulation world frame. Shape is (num_instances, 1, 3).
 
         This quantity is the angular acceleration of the rigid bodies' center of mass frame.
         """
