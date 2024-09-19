@@ -2,8 +2,8 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+
 import gymnasium as gym
-import os
 
 from . import agents, ik_abs_env_cfg, ik_rel_env_cfg, joint_pos_env_cfg
 
@@ -62,7 +62,6 @@ gym.register(
     entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": ik_rel_env_cfg.FrankaDeformableCubeLiftEnvCfg,
-        "robomimic_bc_cfg_entry_point": os.path.join(agents.__path__[0], "robomimic/bc.json"),
     },
     disable_env_checker=True,
 )
