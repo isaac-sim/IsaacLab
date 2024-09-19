@@ -231,6 +231,39 @@ class TestCamera(unittest.TestCase):
                 for im_data in cam.data.output.to_dict().values():
                     self.assertEqual(im_data.shape, (1, self.camera_cfg.height, self.camera_cfg.width))
 
+    def test_multi_camera_with_different_resolution(self):
+        """Test multi-camera initialization with cameras having different image resolutions."""
+        # create two cameras with different prim paths
+        # -- camera 1
+        cam_cfg_1 = copy.deepcopy(self.camera_cfg)
+        cam_cfg_1.prim_path = "/World/Camera_1"
+        cam_1 = Camera(cam_cfg_1)
+        # -- camera 2
+        cam_cfg_2 = copy.deepcopy(self.camera_cfg)
+        cam_cfg_2.prim_path = "/World/Camera_2"
+        cam_cfg_2.height = 240
+        cam_cfg_2.width = 320
+        cam_2 = Camera(cam_cfg_2)
+
+        # play sim
+        self.sim.reset()
+
+        # Simulate for a few steps
+        # note: This is a workaround to ensure that the textures are loaded.
+        #   Check "Known Issues" section in the documentation for more details.
+        for _ in range(5):
+            self.sim.step()
+        # perform rendering
+        self.sim.step()
+        # update camera
+        cam_1.update(self.dt)
+        cam_2.update(self.dt)
+        # check image sizes
+        self.assertEqual(
+            cam_1.data.output["distance_to_image_plane"].shape, (1, self.camera_cfg.height, self.camera_cfg.width)
+        )
+        self.assertEqual(cam_2.data.output["distance_to_image_plane"].shape, (1, cam_cfg_2.height, cam_cfg_2.width))
+
     def test_camera_init_intrinsic_matrix(self):
         """Test camera initialization from intrinsic matrix."""
         # get the first camera
