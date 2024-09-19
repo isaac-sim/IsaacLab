@@ -143,10 +143,9 @@ class ManagerBasedEnv:
         # we need to do this here after all the managers are initialized
         # this is because they dictate the sensors and commands right now
         if self.sim.has_gui() and self.cfg.ui_window_class_type is not None:
+            # setup live visualizers
             self.setup_manager_visualizers()
             self._window = self.cfg.ui_window_class_type(self, window_name="IsaacLab")
-            # setup live visualizers
-
         else:
             # if no window, then we don't need to store the window
             self._window = None
@@ -224,17 +223,16 @@ class ManagerBasedEnv:
         # when all the other managers are created
         if self.__class__ == ManagerBasedEnv and "startup" in self.event_manager.available_modes:
             self.event_manager.apply(mode="startup")
-            # setup live visualizers
+
+    def setup_manager_visualizers(self):
+        """Creates live visualizers for manager terms if provided by config."""
+        if self.cfg.live_visualizer is not None:
             self.env_vis_manager = EnvLiveVisualizer(
                 cfg=self.cfg.live_visualizer,
                 managers={"action_manager": self.action_manager, "observation_manager": self.observation_manager},
             )
-
-    def setup_manager_visualizers(self):
-        self.env_vis_manager = EnvLiveVisualizer(
-            cfg=self.cfg.live_visualizer,
-            managers={"action_manager": self.action_manager, "observation_manager": self.observation_manager},
-        )
+        else:
+            self.env_vis_manager = None
 
     """
     Operations - MDP.
@@ -383,6 +381,3 @@ class ManagerBasedEnv:
         info = self.event_manager.reset(env_ids)
         self.extras["log"].update(info)
 
-    @property
-    def manager_visualizers(self):
-        return self.env_vis_manager.manager_visualizers

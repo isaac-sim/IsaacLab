@@ -80,7 +80,9 @@ class ManagerBasedRLEnvCfg(ManagerBasedEnvCfg):
     Please refer to the :class:`omni.isaac.lab.managers.CommandManager` class for more details.
     """
 
-    live_visualizer: object = DefaultManagerBasedRLEnvLiveVisCfg()
-    """Live visualization settings. Defaults to showing all available actiona and observation terms.
+    live_visualizer: object = None
+    """Live visualization configuration settings. Defaults to no visualizers.
 
-    Please refer tot he :class:`omni.isaac.lab.managers.EnvLiveVisualizer`"""
+    See an example configuration at :class:`omni.isaac.lab.managers.DefaultManagerBasedRLEnvLiveVisCfg`
+
+    Please refer to the :class:`omni.isaac.lab.managers.EnvLiveVisualizer`"""
