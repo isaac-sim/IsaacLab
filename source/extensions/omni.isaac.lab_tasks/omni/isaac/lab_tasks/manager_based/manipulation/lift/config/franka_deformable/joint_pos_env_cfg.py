@@ -3,19 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.assets import DeformableObjectCfg
 from omni.isaac.lab.managers import EventTermCfg as EventTerm
 from omni.isaac.lab.managers import SceneEntityCfg
-import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.utils import configclass
 
 from omni.isaac.lab_tasks.manager_based.manipulation.lift import mdp
 from omni.isaac.lab_tasks.manager_based.manipulation.lift.config.franka import joint_pos_env_cfg
-
-##
-# Pre-defined configs
-##
-from omni.isaac.lab_assets.franka import FRANKA_PANDA_CFG  # isort: skip
 
 
 @configclass
@@ -24,14 +19,19 @@ class FrankaDeformableCubeLiftEnvCfg(joint_pos_env_cfg.FrankaCubeLiftEnvCfg):
         # post init of parent
         super().__post_init__()
 
+        # Reduce the number of environments for training with deformables
+        self.scene.num_envs = 1024
+        # Disable replicator physics since deformable objects are not supported
         self.scene.replicate_physics = False
 
-        FRANKA_PANDA_CFG.actuators["panda_hand"].effort_limit = 2.0
+        # Reduce the PD for the hand to make the gripper less stiff
+        self.scene.robot.actuators["panda_hand"].stiffness = 200.0
+        self.scene.robot.actuators["panda_hand"].damping = 5.0
 
         # Set Deformable Cube as object
         self.scene.object = DeformableObjectCfg(
             prim_path="{ENV_REGEX_NS}/Object",
-            init_state=DeformableObjectCfg.InitialStateCfg(pos=[0.5, 0, 0.05], rot=[1, 0, 0, 0]),
+            init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 0.05)),
             spawn=sim_utils.MeshCuboidCfg(
                 size=(0.06, 0.06, 0.06),
                 deformable_props=sim_utils.DeformableBodyPropertiesCfg(
@@ -52,14 +52,15 @@ class FrankaDeformableCubeLiftEnvCfg(joint_pos_env_cfg.FrankaCubeLiftEnvCfg):
             ),
         )
 
+        # Set events for the specific object type (deformable cube)
         self.events.reset_object_position = EventTerm(
-        func=mdp.reset_nodal_state_uniform,
-        mode="reset",
-        params={
-            "position_range": {"x": (-0.1, 0.1), "y": (-0.25, 0.25), "z": (0.0, 0.0)},
-            "velocity_range": {},
-            "asset_cfg": SceneEntityCfg("object"),
-        },
+            func=mdp.reset_nodal_state_uniform,
+            mode="reset",
+            params={
+                "position_range": {"x": (-0.1, 0.1), "y": (-0.25, 0.25), "z": (0.0, 0.0)},
+                "velocity_range": {},
+                "asset_cfg": SceneEntityCfg("object"),
+            },
         )
 
 
