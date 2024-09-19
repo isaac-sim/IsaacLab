@@ -5,7 +5,7 @@
 
 import gymnasium as gym
 
-from . import agents, ik_abs_env_cfg, ik_rel_env_cfg, joint_pos_env_cfg, opc_rel_env_cfg
+from . import agents, ik_abs_env_cfg, ik_rel_env_cfg, joint_pos_env_cfg, opc_env_cfg
 
 ##
 # Register Gym environments.
@@ -67,15 +67,15 @@ gym.register(
 )
 
 ##
-# Operational Space Control - Relative pose control with variable stiffness
+# Operational Space Control
 ##
 
 gym.register(
-    id="Isaac-Reach-Franka-OPC-PoseRel-VarKp-v0",
+    id="Isaac-Reach-Franka-OPC-v0",
     entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": opc_rel_env_cfg.FrankaReachEnvCfg,
+        "env_cfg_entry_point": opc_env_cfg.FrankaReachEnvCfg,
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:FrankaReachPPORunnerCfg",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg.yaml",
@@ -83,11 +83,11 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Reach-Franka-Play-OPC-PoseRel-VarKp-v0",
+    id="Isaac-Reach-Franka-Play-OPC-v0",
     entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": opc_rel_env_cfg.FrankaReachEnvCfg_PLAY,
+        "env_cfg_entry_point": opc_env_cfg.FrankaReachEnvCfg_PLAY,
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:FrankaReachPPORunnerCfg",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg.yaml",

@@ -36,7 +36,7 @@ class FrankaReachEnvCfg(joint_pos_env_cfg.FrankaReachEnvCfg):
             joint_names=["panda_joint.*"],
             body_name="panda_hand",
             controller_cfg=OperationalSpaceControllerCfg(
-                target_types=["pose_rel"],
+                target_types=["pose_abs"],
                 impedance_mode="variable_kp",
                 inertial_compensation=True,
                 uncouple_motion_wrench=False,
@@ -45,10 +45,13 @@ class FrankaReachEnvCfg(joint_pos_env_cfg.FrankaReachEnvCfg):
                 damping_ratio=1.0,
                 stiffness_limits=(50.0, 200.0),
             ),
-            position_scale=0.5,
-            orientation_scale=0.5,
+            position_scale=1.0,
+            orientation_scale=1.0,
             stiffness_scale=100.0,
         )
+        # Removing these observations as they are not needed and we want to avoid learning redundancy space
+        self.observations.policy.joint_pos = None
+        self.observations.policy.joint_vel = None
 
 
 @configclass
