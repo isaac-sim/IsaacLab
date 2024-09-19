@@ -96,6 +96,13 @@ class RigidObjectData:
     default_mass: torch.Tensor = None
     """Default mass read from the simulation. Shape is (num_instances, 1)."""
 
+    default_inertia: torch.Tensor = None
+    """Default inertia tensor read from the simulation. Shape is (num_instances, 9).
+
+    The inertia is the inertia tensor relative to the center of mass frame. The values are stored in
+    the order :math:`[I_{xx}, I_{xy}, I_{xz}, I_{yx}, I_{yy}, I_{yz}, I_{zx}, I_{zy}, I_{zz}]`.
+    """
+
     ##
     # Properties.
     ##
