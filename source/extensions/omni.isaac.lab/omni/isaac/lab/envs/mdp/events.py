@@ -141,7 +141,7 @@ def randomize_rigid_body_mass(
 
     If the ``recompute_inertia`` flag is set to ``True``, the function recomputes the inertia tensor of the bodies
     after setting the mass. This is useful when the mass is changed significantly, as the inertia tensor depends
-    on the mass. It assumers the body is a uniform density object. If the body is not a uniform density object,
+    on the mass. It assumes the body is a uniform density object. If the body is not a uniform density object,
     the inertia tensor may not be accurate.
 
     .. tip::
