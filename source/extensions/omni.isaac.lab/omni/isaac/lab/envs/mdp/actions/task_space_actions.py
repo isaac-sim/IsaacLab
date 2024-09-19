@@ -246,7 +246,7 @@ class OperationalSpaceControllerAction(ActionTerm):
             self._joint_ids = slice(None)
 
         # create the operational space controller
-        self._opc = OperationalSpaceController(cfg=self.cfg.controller_cfg, num_envs=self.num_envs, device=self.device)
+        self._osc = OperationalSpaceController(cfg=self.cfg.controller_cfg, num_envs=self.num_envs, device=self.device)
 
         # create tensors for raw and processed actions
         self._raw_actions = torch.zeros(self.num_envs, self.action_dim, device=self.device)
@@ -312,7 +312,7 @@ class OperationalSpaceControllerAction(ActionTerm):
 
     @property
     def action_dim(self) -> int:
-        return self._opc.action_dim
+        return self._osc.action_dim
 
     @property
     def raw_actions(self) -> torch.Tensor:
@@ -366,7 +366,7 @@ class OperationalSpaceControllerAction(ActionTerm):
             )
 
         # set command into controller
-        self._opc.set_command(command=self._processed_actions, current_ee_pose=self._ee_pose_b)
+        self._osc.set_command(command=self._processed_actions, current_ee_pose=self._ee_pose_b)
 
     def apply_actions(self):
 
@@ -377,7 +377,7 @@ class OperationalSpaceControllerAction(ActionTerm):
         self._compute_ee_velocity()
         self._compute_ee_force()
         # Calculate the joint efforts
-        self._joint_efforts[:] = self._opc.compute(
+        self._joint_efforts[:] = self._osc.compute(
             jacobian=self._jacobian_b,
             current_ee_pose=self._ee_pose_b,
             current_ee_vel=self._ee_vel_b,
@@ -412,7 +412,7 @@ class OperationalSpaceControllerAction(ActionTerm):
                 self._wrench_abs_idx = cmd_idx
                 cmd_idx += 6
             else:
-                raise ValueError("Undefined target_type for OPC within OperationalSpaceControllerAction.")
+                raise ValueError("Undefined target_type for OSC within OperationalSpaceControllerAction.")
         # Then iterate over the impedance parameters depending on the impedance mode
         if (
             self.cfg.controller_cfg.impedance_mode == "variable_kp"
