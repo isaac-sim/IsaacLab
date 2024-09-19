@@ -829,12 +829,12 @@ def reset_nodal_state_uniform(
 ):
     """
     Reset the asset nodal state to a random position and velocity uniformly within the given ranges.
-    
+
     This function randomizes the nodal position and velocity of the asset.
     * It samples the root position from the given ranges and adds them to the default nodal position, before setting
       them into the physics simulation.
     * It samples the root velocity from the given ranges and sets them into the physics simulation.
-    
+
     The function takes a dictionary of position and velocity ranges for each axis. The keys of the
     dictionary are ``x``, ``y``, ``z``. The values are tuples of the form ``(min, max)``.
     If the dictionary does not contain a key, the position or velocity is set to zero for that axis.
