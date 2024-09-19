@@ -50,7 +50,7 @@ from omni.isaac.lab.utils import configclass
 ##
 # Pre-defined configs
 ##
-from omni.isaac.lab_assets.anymal import ANYMAL_C_CFG  # isort: skip
+from omni.isaac.lab_assets.robots.anymal import ANYMAL_C_CFG  # isort: skip
 
 
 @configclass

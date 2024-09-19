@@ -18,7 +18,7 @@ from omni.isaac.lab_tasks.manager_based.manipulation.lift.lift_env_cfg import Li
 # Pre-defined configs
 ##
 from omni.isaac.lab.markers.config import FRAME_MARKER_CFG  # isort: skip
-from omni.isaac.lab_assets.franka import FRANKA_PANDA_CFG  # isort: skip
+from omni.isaac.lab_assets.robots.franka import FRANKA_PANDA_CFG  # isort: skip
 
 
 @configclass

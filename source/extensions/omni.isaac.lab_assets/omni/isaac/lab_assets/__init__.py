@@ -26,16 +26,5 @@ __version__ = ISAACLAB_ASSETS_METADATA["package"]["version"]
 # Configuration for different assets.
 ##
 
-from .allegro import *
-from .ant import *
-from .anymal import *
-from .cartpole import *
-from .franka import *
-from .humanoid import *
-from .kinova import *
-from .quadcopter import *
-from .ridgeback_franka import *
-from .sawyer import *
-from .shadow_hand import *
-from .unitree import *
-from .universal_robots import *
+from .robots import *
+from .sensors import *

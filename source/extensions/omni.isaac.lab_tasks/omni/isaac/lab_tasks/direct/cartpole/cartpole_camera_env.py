@@ -11,7 +11,7 @@ import numpy as np
 import torch
 from collections.abc import Sequence
 
-from omni.isaac.lab_assets.cartpole import CARTPOLE_CFG
+from omni.isaac.lab_assets.robots.cartpole import CARTPOLE_CFG
 
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.assets import Articulation, ArticulationCfg

@@ -21,7 +21,7 @@ import omni.isaac.lab_tasks.manager_based.classic.humanoid.mdp as mdp
 ##
 # Pre-defined configs
 ##
-from omni.isaac.lab_assets.ant import ANT_CFG  # isort: skip
+from omni.isaac.lab_assets.robots.ant import ANT_CFG  # isort: skip
 
 
 @configclass

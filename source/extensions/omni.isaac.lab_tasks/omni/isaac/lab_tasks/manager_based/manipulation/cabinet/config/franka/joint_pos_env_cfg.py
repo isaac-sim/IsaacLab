@@ -17,7 +17,7 @@ from omni.isaac.lab_tasks.manager_based.manipulation.cabinet.cabinet_env_cfg imp
 ##
 # Pre-defined configs
 ##
-from omni.isaac.lab_assets.franka import FRANKA_PANDA_CFG  # isort: skip
+from omni.isaac.lab_assets.robots.franka import FRANKA_PANDA_CFG  # isort: skip
 
 
 @configclass

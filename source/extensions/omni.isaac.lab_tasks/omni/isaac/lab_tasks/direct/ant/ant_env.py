@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from omni.isaac.lab_assets.ant import ANT_CFG
+from omni.isaac.lab_assets.robots.ant import ANT_CFG
 
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.assets import ArticulationCfg

@@ -42,7 +42,7 @@ from omni.isaac.lab.assets import Articulation
 ##
 # Pre-defined configs
 ##
-from omni.isaac.lab_assets.ridgeback_franka import RIDGEBACK_FRANKA_PANDA_CFG  # isort:skip
+from omni.isaac.lab_assets.robots.ridgeback_franka import RIDGEBACK_FRANKA_PANDA_CFG  # isort:skip
 
 
 def design_scene():
