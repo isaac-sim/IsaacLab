@@ -70,7 +70,7 @@ class ArticulationData:
         self._joint_acc = TimestampedBuffer()
         self._joint_vel = TimestampedBuffer()
 
-        # Link com
+        # Link center of mass
         self._com_pos_b, _ = self._root_physx_view.get_coms().to(self.device).split([3, 4], dim=-1)
 
     def update(self, dt: float):
@@ -259,28 +259,55 @@ class ArticulationData:
     def root_state_w(self):
         """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).
 
-        The position and quaternion are of the articulation root's actor frame relative to the world.
+        The position and quaternion are of the articulation root's actor frame relative to the world. Meanwhile, 
+        the linear and angular velocities are of the articulation root's center of mass frame.
         """
         if self._root_state_w.timestamp < self._sim_timestamp:
             # read data from simulation
             pose = self._root_physx_view.get_root_transforms().clone()
             pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
             velocity = self._root_physx_view.get_root_velocities()
-            velocity[:, :3] += torch.linalg.cross(
-                velocity[:, 3:], math_utils.quat_rotate(pose[:, 3:7], -self._com_pos_b[:, 0, :]), dim=-1
-            )
-
+            
             # set the buffer data and timestamp
             self._root_state_w.data = torch.cat((pose, velocity), dim=-1)
             self._root_state_w.timestamp = self._sim_timestamp
         return self._root_state_w.data
 
     @property
+    def root_state_link_w(self):
+        """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).
+
+        The position, quaternion, and linear/angular velocity are of the articulation root's actor frame relative to the world.
+        """
+        state = self.root_state_w
+        quat = state[:, 3:7]
+        # adjust linear velocity to link
+        state[:, 7:10] += torch.linalg.cross(
+            state[:, 7:10], math_utils.quat_rotate(quat, -self._com_pos_b[:, 0, :]), dim=-1
+        )
+        return state
+
+
+    @property
+    def root_state_com_w(self):
+        """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).
+
+        The position, quaternion, and linear/angular velocity are of the articulation root link's center of mass frame relative to the world.
+        Center of mass frame is assumed to be the same orientation as the link rather than the orientation of the principle inertia.
+        """
+        state = self.root_state_w
+        quat = state[:, 3:7]
+        # adjust position to center of mass
+        state[:,:3] += math_utils.quat_rotate(quat, self._com_pos_b[:, 0, :])
+        return state
+
+    @property
     def body_state_w(self):
         """State of all bodies `[pos, quat, lin_vel, ang_vel]` in simulation world frame.
         Shape is (num_instances, num_bodies, 13).
 
-        The position and quaternion are of all the articulation links's actor frame relative to the world.
+        The position and quaternion are of all the articulation links's actor frame. Meanwhile, the linear and angular
+        velocities are of the articulation links's center of mass frame.
         """
         if self._body_state_w.timestamp < self._sim_timestamp:
             # read data from simulation
@@ -297,24 +324,61 @@ class ArticulationData:
         return self._body_state_w.data
 
     @property
+    def body_state_link_w(self):
+        """State of all bodies `[pos, quat, lin_vel, ang_vel]` in simulation world frame.
+        Shape is (num_instances, num_bodies, 13).
+
+        The position, quaternion, and linear/angular velocity are of the body's link frame relative to the world.
+        """
+        state = self.body_state_w
+        quat = state[..., 3:7]
+        # adjust linear velocity to link
+        state[..., 7:10] += torch.linalg.cross(
+            state[..., 7:10], math_utils.quat_rotate(quat, -self._com_pos_b), dim=-1
+        )
+        return state
+
+    @property
+    def body_state_com_w(self):
+        """State of all bodies `[pos, quat, lin_vel, ang_vel]` in simulation world frame.
+        Shape is (num_instances, num_bodies, 13).
+
+        The position, quaternion, and linear/angular velocity are of the body's center of mass frame relative to the world.
+        """
+        state = self.body_state_w
+        quat = state[..., 3:7]
+        # adjust position to center of mass
+        state[...,:3] += math_utils.quat_rotate(quat, self._com_pos_b)
+        return state
+    
+    @property
     def body_acc_w(self):
-        """Acceleration of all bodies. Shape is (num_instances, num_bodies, 6).
+        """Acceleration of all bodies (center of mass). Shape is (num_instances, num_bodies, 6).
 
         All values are relative to the world.
         """
         if self._body_acc_w.timestamp < self._sim_timestamp:
             # read data from simulation and set the buffer data and timestamp
             self._body_acc_w.data = self._root_physx_view.get_link_accelerations()
-            # move linear acceleration to link frame
-            ang_acc_w = self._body_acc_w.data[..., 3:]
-            ang_vel_w = self.body_state_w[..., 7:10]
-            com_pos_w = math_utils.quat_rotate(self.body_state_w[..., 3:7], -self._com_pos_b)
-            self._body_acc_w.data[..., :3] += torch.linalg.cross(ang_acc_w, com_pos_w, dim=-1) + torch.linalg.cross(
-                ang_vel_w, torch.linalg.cross(ang_vel_w, com_pos_w, dim=-1), dim=-1
-            )
+            
             self._body_acc_w.timestamp = self._sim_timestamp
         return self._body_acc_w.data
 
+    @property
+    def body_acc_link_w(self):
+        """Acceleration of all bodies link frame. Shape is (num_instances, num_bodies, 6).
+        
+        All values are relative to the world."""
+        body_acc_w = self.body_acc_w
+        # move linear acceleration to link frame
+        ang_acc_w = self.body_acc_w[..., 3:]
+        ang_vel_w = self.body_state_w[..., 10:14]
+        com_pos_w = body_state_com_w[...,:3]
+        body_acc_w[..., :3] += torch.linalg.cross(ang_acc_w, com_pos_w, dim=-1) + torch.linalg.cross(
+            ang_vel_w, torch.linalg.cross(ang_vel_w, com_pos_w, dim=-1), dim=-1
+        )
+        return body_acc_w
+    
     @property
     def projected_gravity_b(self):
         """Projection of the gravity direction on base frame. Shape is (num_instances, 3)."""

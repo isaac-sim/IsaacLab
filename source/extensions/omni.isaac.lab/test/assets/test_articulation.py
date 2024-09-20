@@ -339,7 +339,7 @@ class TestArticulation(unittest.TestCase):
                         articulation_cfg = generate_articulation_cfg(articulation_type="shadow_hand")
                         articulation, _ = generate_articulation(articulation_cfg, num_articulations, device)
 
-                        # Check that boundedness of articulation is correct
+                        # Check that boundedness of arlinkticulation is correct
                         self.assertEqual(ctypes.c_long.from_address(id(articulation)).value, 1)
 
                         # Play sim
@@ -793,6 +793,50 @@ class TestArticulation(unittest.TestCase):
                         # are not properly tuned
                         assert not torch.allclose(articulation.data.joint_pos, joint_pos)
 
+    def test_body_root_state_link_w_no_com_offset(self):
+        """Test for the root_state_link_w property"""
+        for num_articulations in (1, 2):
+            for device in ("cuda:0", "cpu"):
+                with self.subTest(num_articulations=num_articulations, device=device):
+                    with build_simulation_context(device=device, add_ground_plane=False, auto_add_lighting=True) as sim:
+                        articulation_cfg = generate_articulation_cfg(articulation_type="single_joint")
+                        articulation, translations = generate_articulation(articulation_cfg, num_articulations, device)
+
+                        # Check that boundedness of articulation is correct
+                        self.assertEqual(ctypes.c_long.from_address(id(articulation)).value, 1)
+
+                        # Play sim
+                        sim.reset()
+                        # Check if articulation is initialized
+                        self.assertTrue(articulation.is_initialized)
+                        # Check that fixed base
+                        self.assertTrue(articulation.is_fixed_base)
+
+                        # # reset dof state
+                        # joint_pos = articulation.data.default_joint_pos
+
+                        # # apply action to the articulation
+                        # articulation.set_joint_position_target(joint_pos)
+                        # articulation.write_data_to_sim()
+
+                        for _ in range(100):
+                            # perform step
+                            sim.step()
+                            # update buffers
+                            articulation.update(sim.cfg.dt)
+
+                            root_state_w = articulation.data.root_state_w
+                            root_state_link_w = articulation.data.root_state_link_w
+                            root_state_com_w = articulation.data.root_state_com_w
+                            body_state_w = articulation.data.body_state_w
+                            body_state_link_w = articulation.data.body_state_link_w
+                            body_state_com_w = articulation.data.body_state_com_w
+
+                            # single joint center of mass is at link frame so they should be equivalent
+                            torch.testing.assert_close(root_state_w,root_state_link_w) 
+                            torch.testing.assert_close(root_state_w,root_state_com_w) 
+                            torch.testing.assert_close(body_state_w,body_state_link_w) 
+                            torch.testing.assert_close(body_state_w,body_state_com_w) 
 
 if __name__ == "__main__":
     run_tests()
