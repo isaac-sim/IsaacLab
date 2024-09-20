@@ -196,7 +196,6 @@ def grab_images(
         replicator: The data type to pull from the desired camera. Defaults to "rgb".
         convert_perspective_to_orthogonal: Whether to convert perspective
             depth images to orthogonal depth images. Defaults to True.
-        triplicate
 
     Returns:
         The images produced at the last timestep
