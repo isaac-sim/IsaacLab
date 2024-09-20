@@ -1,15 +1,27 @@
 Changelog
 ---------
 
-0.22.12 (2024-09-11)
+
+0.22.13 (2024-09-19)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
+
 * Added :meth:`convert_perspective_depth_to_orthogonal_depth`. :meth:`unproject_depth` assumes
 that the input depth image is orthogonal. The new :meth:`convert_perspective_depth_to_orthogonal_depth`
 can be used to convert a perspective depth image into an orthogonal depth image, so that the point cloud
 can be unprojected correctly with :meth:`unproject_depth`.
+
+
+0.22.12 (2024-09-08)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Moved the configuration of visualization markers for the command terms to their respective configuration classes.
+  This allows users to modify the markers for the command terms without having to modify the command term classes.
 
 
 0.22.11 (2024-09-10)
