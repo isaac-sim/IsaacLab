@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 import omni.isaac.lab.utils.math as math_utils
 from omni.isaac.lab.assets import Articulation, RigidObject
 from omni.isaac.lab.managers import SceneEntityCfg
-from omni.isaac.lab.sensors import RayCaster
+from omni.isaac.lab.sensors import Camera, RayCaster, RayCasterCamera, TiledCamera
 
 if TYPE_CHECKING:
     from omni.isaac.lab.envs import ManagerBasedEnv, ManagerBasedRLEnv
@@ -180,6 +180,32 @@ def body_incoming_wrench(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg) -> tor
     # obtain the link incoming forces in world frame
     link_incoming_forces = asset.root_physx_view.get_link_incoming_joint_force()[:, asset_cfg.body_ids]
     return link_incoming_forces.view(env.num_envs, -1)
+
+
+def grab_images(
+    env: ManagerBasedEnv,
+    sensor_cfg: SceneEntityCfg = SceneEntityCfg("tiled_camera"),
+    replicator: str = "rgb",
+    convert_perspective_to_orthogonal: bool = True,
+) -> torch.Tensor:
+    """Grab all of the images of a specific datatype produced by a specific camera at the last timestep.
+
+    Args:
+        env: The environment the cameras are placed within.
+        sensor_cfg: The desired sensor to take . Defaults to SceneEntityCfg("tiled_camera").
+        replicator: The data type to pull from the desired camera. Defaults to "rgb".
+        convert_perspective_to_orthogonal: Whether to convert perspective
+            depth images to orthogonal depth images. Defaults to True.
+        triplicate
+
+    Returns:
+        The images produced at the last timestep
+    """
+    sensor: TiledCamera | Camera | RayCasterCamera = env.scene.sensors[sensor_cfg.name]
+    images = sensor.data.output[replicator]
+    if (replicator == "distance_to_camera" or replicator == "depth") and convert_perspective_to_orthogonal:
+        images = math_utils.convert_perspective_depth_to_orthogonal_depth(images, sensor.data.intrinsic_matrices)
+    return images
 
 
 """

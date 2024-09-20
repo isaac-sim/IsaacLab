@@ -1,5 +1,14 @@
 Changelog
 ---------
+
+0.22.13 (2024-09-17)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`grab_images` to be able to use image as part of the observation space for manager based environments
+
 0.22.12 (2024-09-11)
 ~~~~~~~~~~~~~~~~~~~~
 

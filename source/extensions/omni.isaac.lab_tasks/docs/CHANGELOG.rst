@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+0.11.0 (2024-09-17)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added Manager Based Cartpole Vision Envs
+
 0.10.0 (2024-08-14)
 ~~~~~~~~~~~~~~~~~~~
 
