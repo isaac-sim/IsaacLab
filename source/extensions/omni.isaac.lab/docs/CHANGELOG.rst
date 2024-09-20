@@ -1,7 +1,8 @@
 Changelog
 ---------
 
-0.22.13 (2024-09-17)
+
+0.22.14 (2024-09-20)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -9,14 +10,27 @@ Added
 
 * Added :meth:`grab_images` to be able to use image as part of the observation space for manager based environments
 
-0.22.12 (2024-09-11)
+
+0.22.13 (2024-09-19)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
-* Added :meth:`convert_perspective_depth_to_orthogonal_depth` to be able to convert depth_to_camera
-  to depth_to_image_plane if desired (so that :meth:`unproject_depth` can be used with correctly
-  with the depth_to_camera replicator, just has to be converted first using the newly added method)
+
+* Added :meth:`convert_perspective_depth_to_orthogonal_depth`. :meth:`unproject_depth` assumes
+that the input depth image is orthogonal. The new :meth:`convert_perspective_depth_to_orthogonal_depth`
+can be used to convert a perspective depth image into an orthogonal depth image, so that the point cloud
+can be unprojected correctly with :meth:`unproject_depth`.
+
+
+0.22.12 (2024-09-08)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Moved the configuration of visualization markers for the command terms to their respective configuration classes.
+  This allows users to modify the markers for the command terms without having to modify the command term classes.
 
 
 0.22.11 (2024-09-10)
