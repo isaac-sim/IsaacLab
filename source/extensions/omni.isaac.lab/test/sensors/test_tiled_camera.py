@@ -247,7 +247,7 @@ class TestTiledCamera(unittest.TestCase):
         self.assertTrue(camera_both.is_initialized)
         self.assertListEqual(list(camera_distance.data.output.keys()), ["distance_to_camera"])
         self.assertListEqual(list(camera_depth.data.output.keys()), ["depth"])
-        self.assertListEqual(list(camera_both.data.output.keys()), ["distance_to_camera"])
+        self.assertListEqual(list(camera_both.data.output.keys()), ["depth", "distance_to_camera"])
 
         del camera_distance, camera_depth, camera_both
 
@@ -272,7 +272,7 @@ class TestTiledCamera(unittest.TestCase):
         # Check if camera prim is set correctly and that it is a camera prim
         self.assertEqual(camera._sensor_prims[1].GetPath().pathString, "/World/Origin_1/CameraSensor")
         self.assertIsInstance(camera._sensor_prims[0], UsdGeom.Camera)
-        self.assertListEqual(sorted(camera.data.output.keys()), sorted(["depth", "distance_to_image_plane"]))
+        self.assertListEqual(sorted(camera.data.output.keys()), ["distance_to_camera"])
 
         # Simulate for a few steps
         # note: This is a workaround to ensure that the textures are loaded.
@@ -295,12 +295,12 @@ class TestTiledCamera(unittest.TestCase):
             # update camera
             camera.update(self.dt)
             # check image data
-            im_data = camera.data.output["depth"]
+            im_data = camera.data.output["distance_to_camera"]
             self.assertEqual(im_data.shape, (num_cameras, self.camera_cfg.height, self.camera_cfg.width, 1))
             for i in range(4):
                 self.assertGreater((im_data[i]).mean().item(), 0.0)
         # Check data type of image
-        self.assertEqual(camera.data.output["depth"].dtype, torch.float)
+        self.assertEqual(camera.data.output["distance_to_camera"].dtype, torch.float)
         del camera
 
     def test_rgba_only_camera(self):

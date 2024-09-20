@@ -4,7 +4,7 @@ phases:
   pre_build:
     commands:
       - echo "Launching EC2 instance to run tests"
-      - INSTANCE_ID=$(aws ec2 run-instances --image-id ami-05c519412a83cc291 --count 1 --instance-type g5.2xlarge --key-name production/ssh/isaaclab --security-group-ids sg-02617e4b8916794c4 --subnet-id subnet-0907ceaeb40fd9eac --block-device-mappings 'DeviceName=/dev/sda1,Ebs={VolumeSize=500}' --output text --query 'Instances[0].InstanceId')
+      - INSTANCE_ID=$(aws ec2 run-instances --image-id ami-064d9f428f75cebb1 --count 1 --instance-type g5.2xlarge --key-name production/ssh/isaaclab --security-group-ids sg-02617e4b8916794c4 --subnet-id subnet-0907ceaeb40fd9eac --block-device-mappings 'DeviceName=/dev/sda1,Ebs={VolumeSize=500}' --output text --query 'Instances[0].InstanceId')
       - aws ec2 wait instance-running --instance-ids $INSTANCE_ID
       - EC2_INSTANCE_IP=$(aws ec2 describe-instances --filters "Name=instance-state-name,Values=running" "Name=instance-id,Values=$INSTANCE_ID" --query 'Reservations[*].Instances[*].[PrivateIpAddress]' --output text)
       - mkdir -p ~/.ssh
@@ -41,7 +41,7 @@ phases:
         '
       - ssh ubuntu@$EC2_INSTANCE_IP "docker login -u \\\$oauthtoken -p $NGC_TOKEN nvcr.io"
       - ssh ubuntu@$EC2_INSTANCE_IP "cd $SRC_DIR;
-          docker build -t isaac-lab-dev --build-arg ISAACSIM_VERSION_ARG=4.1.0 --build-arg ISAACSIM_ROOT_PATH_ARG=/isaac-sim --build-arg ISAACLAB_PATH_ARG=/workspace/isaaclab --build-arg DOCKER_USER_HOME_ARG=/root -f docker/Dockerfile.base . ;
+          docker build -t isaac-lab-dev --build-arg ISAACSIM_VERSION_ARG=4.2.0 --build-arg ISAACSIM_ROOT_PATH_ARG=/isaac-sim --build-arg ISAACLAB_PATH_ARG=/workspace/isaaclab --build-arg DOCKER_USER_HOME_ARG=/root -f docker/Dockerfile.base . ;
           docker run --rm --entrypoint bash --gpus all --network=host --name isaac-lab-test isaac-lab-dev ./isaaclab.sh -t &&
           exit $?"
   post_build:

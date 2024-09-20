@@ -42,7 +42,7 @@ class TiledCamera(Camera):
     - ``"rgba"``: A 4-channel rendered color image with alpha channel.
     - ``"distance_to_camera"``: An image containing the distance to camera optical center.
     - ``"distance_to_image_plane"``: An image containing distances of 3D points from camera plane along camera's z-axis.
-    - ``"depth"``: The same as ``"distance_to_image_plane"``.
+    - ``"depth"``: Alias for ``"distance_to_image_plane"``.
     - ``"normals"``: An image containing the local surface normal vectors at each pixel.
     - ``"motion_vectors"``: An image containing the motion vector data at each pixel.
     - ``"semantic_segmentation"``: The semantic segmentation data.
@@ -207,7 +207,7 @@ class TiledCamera(Camera):
                 annotator = rep.AnnotatorRegistry.get_annotator(
                     "distance_to_image_plane", device=self.device, do_array_copy=False
                 )
-                self._annotators["distance_to_image_plane"] = annotator
+                self._annotators[annotator_type] = annotator
             # note: we are verbose here to make it easier to understand the code.
             #   if colorize is true, the data is mapped to colors and a uint8 4 channel image is returned.
             #   if colorize is false, the data is returned as a uint32 image with ids as values.
@@ -279,9 +279,6 @@ class TiledCamera(Camera):
             # alias rgb as first 3 channels of rgba
             if data_type == "rgba" and "rgb" in self.cfg.data_types:
                 self._data.output["rgb"] = self._data.output["rgba"][..., :3]
-            # alias depth as distance_to_image_plane
-            elif data_type == "distance_to_image_plane" and "depth" in self.cfg.data_types:
-                self._data.output["depth"] = self._data.output["distance_to_image_plane"]
 
     """
     Private Helpers
@@ -327,13 +324,14 @@ class TiledCamera(Camera):
         if "rgb" in self.cfg.data_types:
             # RGB is the first 3 channels of RGBA
             data_dict["rgb"] = data_dict["rgba"][..., :3]
-        if "depth" in self.cfg.data_types or "distance_to_image_plane" in self.cfg.data_types:
+        if "distance_to_image_plane" in self.cfg.data_types:
             data_dict["distance_to_image_plane"] = torch.zeros(
                 (self._view.count, self.cfg.height, self.cfg.width, 1), device=self.device, dtype=torch.float32
             ).contiguous()
         if "depth" in self.cfg.data_types:
-            # assume distance_to_image_plane if depth is included in data types
-            data_dict["depth"] = data_dict["distance_to_image_plane"]
+            data_dict["depth"] = torch.zeros(
+                (self._view.count, self.cfg.height, self.cfg.width, 1), device=self.device, dtype=torch.float32
+            ).contiguous()
         if "distance_to_camera" in self.cfg.data_types:
             data_dict["distance_to_camera"] = torch.zeros(
                 (self._view.count, self.cfg.height, self.cfg.width, 1), device=self.device, dtype=torch.float32
