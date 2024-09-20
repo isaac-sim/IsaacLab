@@ -260,9 +260,9 @@ class TestCamera(unittest.TestCase):
         cam_2.update(self.dt)
         # check image sizes
         self.assertEqual(
-            cam_1.data.output["distance_to_image_plane"].shape, (1, self.camera_cfg.height, self.camera_cfg.width)
+            cam_1.data.output["distance_to_image_plane"].shape, (1, self.camera_cfg.height, self.camera_cfg.width, 1)
         )
-        self.assertEqual(cam_2.data.output["distance_to_image_plane"].shape, (1, cam_cfg_2.height, cam_cfg_2.width))
+        self.assertEqual(cam_2.data.output["distance_to_image_plane"].shape, (1, cam_cfg_2.height, cam_cfg_2.width, 1))
 
     def test_camera_init_intrinsic_matrix(self):
         """Test camera initialization from intrinsic matrix."""
