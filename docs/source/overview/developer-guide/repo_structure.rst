@@ -8,7 +8,10 @@ The ``Isaac Lab`` repository is structured as follows:
    IsaacLab
    ├── .vscode
    ├── .flake8
+   ├── CONTRIBUTING.md
+   ├── CONTRIBUTORS.md
    ├── LICENSE
+   ├── isaaclab.bat
    ├── isaaclab.sh
    ├── pyproject.toml
    ├── README.md

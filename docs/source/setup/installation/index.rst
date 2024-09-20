@@ -39,7 +39,6 @@ the launcher. Therefore, there are two ways to install Isaac Lab:
 .. toctree::
     :maxdepth: 2
 
-    Installation using Isaac Sim pip (experimental) <pip_installation>
-    binaries_installation
-    verifying_installation
+    Option 1: Installation using Isaac Sim pip <pip_installation>
+    Option 2: Installation using Isaac Sim binaries <binaries_installation>
     cloud_installation

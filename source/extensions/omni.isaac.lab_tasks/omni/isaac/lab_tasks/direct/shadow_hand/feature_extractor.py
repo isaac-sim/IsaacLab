@@ -170,7 +170,7 @@ class FeatureExtractor:
                     img_input = torch.cat((rgb_img, depth_img, segmentation_img), dim=-1)
                     self.optimizer.zero_grad()
 
-                    predicted_pose = self.feature_extractor(img_input).squeeze()
+                    predicted_pose = self.feature_extractor(img_input)
                     pose_loss = self.l2_loss(predicted_pose, gt_pose.clone()) * 100
 
                     pose_loss.backward()
@@ -187,5 +187,5 @@ class FeatureExtractor:
                     return pose_loss, predicted_pose
         else:
             img_input = torch.cat((rgb_img, depth_img, segmentation_img), dim=-1)
-            predicted_pose = self.feature_extractor(img_input).squeeze()
+            predicted_pose = self.feature_extractor(img_input)
             return None, predicted_pose

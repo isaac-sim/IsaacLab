@@ -2,6 +2,16 @@ Changelog
 ---------
 
 
+0.24.13 (2024-09-08)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Moved the configuration of visualization markers for the command terms to their respective configuration classes.
+  This allows users to modify the markers for the command terms without having to modify the command term classes.
+
+
 0.24.12 (2024-09-18)
 ~~~~~~~~~~~~~~~~~~~~
 

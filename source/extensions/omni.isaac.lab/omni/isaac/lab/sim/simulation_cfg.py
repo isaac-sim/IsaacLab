@@ -30,7 +30,7 @@ class PhysxCfg:
     simulation will fail with errors and lead to adverse behaviors. The buffer sizes can be adjusted through the
     ``gpu_*`` parameters.
 
-    .. _PhysX 5 SDK documentation: https://nvidia-omniverse.github.io/PhysX/physx/5.3.1/_api_build/class_px_scene_desc.html
+    .. _PhysX 5 SDK documentation: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/_api_build/classPxSceneDesc.html
 
     """
 
@@ -95,7 +95,7 @@ class PhysxCfg:
 
     For more information on PhysX determinism, please check `here`_.
 
-    .. _here: https://nvidia-omniverse.github.io/PhysX/physx/5.3.1/docs/RigidBodyDynamics.html#enhanced-determinism
+    .. _here: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/docs/RigidBodyDynamics.html#enhanced-determinism
     """
 
     bounce_threshold_velocity: float = 0.5

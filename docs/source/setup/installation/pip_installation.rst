@@ -3,6 +3,9 @@
 Installation using Isaac Sim pip
 ================================
 
+.. note::
+
+   If you use Conda, we recommend using `Miniconda <https://docs.anaconda.com/miniconda/miniconda-other-installer-links/>`_.
 
 Installing Isaac Sim
 --------------------
@@ -90,6 +93,55 @@ compatibility issues with some Linux distributions. If you encounter any issues,
    .. code-block:: bash
 
       pip install isaacsim-rl isaacsim-replicator isaacsim-extscache-physics isaacsim-extscache-kit-sdk isaacsim-extscache-kit isaacsim-app --extra-index-url https://pypi.nvidia.com
+
+
+Verifying the Isaac Sim installation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+-  Make sure that your virtual environment is activated (if applicable)
+
+
+-  Check that the simulator runs as expected:
+
+   .. code:: bash
+
+      # note: you can pass the argument "--help" to see all arguments possible.
+      isaacsim
+
+   By default, this will launch an empty mini Kit window.
+
+-  To run with a specific experience file, run:
+
+   .. code:: bash
+
+      # experience files can be absolute path, or relative path searched in isaacsim/apps or omni/apps
+      isaacsim omni.isaac.sim.python.kit
+
+
+.. attention::
+
+   When running Isaac Sim for the first time, all dependent extensions will be pulled from the registry.
+   This process can take upwards of 10 minutes and is required on the first run of each experience file.
+   Once the extensions are pulled, consecutive runs using the same experience file will use the cached extensions.
+
+   In addition, the first run will prompt users to accept the Nvidia Omniverse License Agreement.
+   To accept the EULA, reply ``Yes`` when prompted with the below message:
+
+   .. code:: bash
+
+      By installing or using Isaac Sim, I agree to the terms of NVIDIA OMNIVERSE LICENSE AGREEMENT (EULA)
+      in https://docs.omniverse.nvidia.com/isaacsim/latest/common/NVIDIA_Omniverse_License_Agreement.html
+
+      Do you accept the EULA? (Yes/No): Yes
+
+
+If the simulator does not run or crashes while following the above
+instructions, it means that something is incorrectly configured. To
+debug and troubleshoot, please check Isaac Sim
+`documentation <https://docs.omniverse.nvidia.com/dev-guide/latest/linux-troubleshooting.html>`__
+and the
+`forums <https://docs.omniverse.nvidia.com/isaacsim/latest/isaac_sim_forums.html>`__.
+
 
 
 Installing Isaac Lab
@@ -222,3 +274,44 @@ Installation
             isaaclab.bat --install rl_games :: or "isaaclab.bat -i rl_games"
 
    The valid options are ``rl_games``, ``rsl_rl``, ``sb3``, ``skrl``, ``robomimic``, ``none``.
+
+Verifying the Isaac Lab installation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+To verify that the installation was successful, run the following command from the
+top of the repository:
+
+.. tab-set::
+   :sync-group: os
+
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
+
+      .. code:: bash
+
+         # Option 1: Using the isaaclab.sh executable
+         # note: this works for both the bundled python and the virtual environment
+         ./isaaclab.sh -p source/standalone/tutorials/00_sim/create_empty.py
+
+         # Option 2: Using python in your virtual environment
+         python source/standalone/tutorials/00_sim/create_empty.py
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. code:: batch
+
+         :: Option 1: Using the isaaclab.bat executable
+         :: note: this works for both the bundled python and the virtual environment
+         isaaclab.bat -p source\standalone\tutorials\00_sim\create_empty.py
+
+         :: Option 2: Using python in your virtual environment
+         python source\standalone\tutorials\00_sim\create_empty.py
+
+
+The above command should launch the simulator and display a window with a black
+ground plane. You can exit the script by pressing ``Ctrl+C`` on your terminal.
+On Windows machines, please terminate the process from Command Prompt using
+``Ctrl+Break`` or ``Ctrl+fn+B``.
+
+If you see this, then the installation was successful! |:tada:|

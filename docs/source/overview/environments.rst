@@ -1,13 +1,28 @@
-Environments
-============
+.. _environments:
+
+Available Environments
+======================
 
 The following lists comprises of all the RL tasks implementations that are available in Isaac Lab.
 While we try to keep this list up-to-date, you can always get the latest list of environments by
 running the following command:
 
-.. code-block:: bash
+.. tab-set::
+   :sync-group: os
 
-    ./isaaclab.sh -p source/standalone/environments/list_envs.py
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
+
+      .. code:: bash
+
+         ./isaaclab.sh -p source/standalone/environments/list_envs.py
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. code:: batch
+
+         isaaclab.bat -p source\standalone\environments\list_envs.py
 
 We are actively working on adding more environments to the list. If you have any environments that
 you would like to add to Isaac Lab, please feel free to open a pull request!
@@ -27,14 +42,19 @@ Classic environments that are based on IsaacGymEnvs implementation of MuJoCo-sty
     | World            | Environment ID              | Description                                                             |
     +==================+=============================+=========================================================================+
     | |humanoid|       | |humanoid-link|             | Move towards a direction with the MuJoCo humanoid robot                 |
+    |                  |                             |                                                                         |
     |                  | |humanoid-direct-link|      |                                                                         |
     +------------------+-----------------------------+-------------------------------------------------------------------------+
     | |ant|            | |ant-link|                  | Move towards a direction with the MuJoCo ant robot                      |
+    |                  |                             |                                                                         |
     |                  | |ant-direct-link|           |                                                                         |
     +------------------+-----------------------------+-------------------------------------------------------------------------+
     | |cartpole|       | |cartpole-link|             | Move the cart to keep the pole upwards in the classic cartpole control  |
+    |                  |                             |                                                                         |
     |                  | |cartpole-direct-link|      |                                                                         |
-    |                  | |cartpole-camera-rgb-link|  |                                                                         |
+    +------------------+-----------------------------+-------------------------------------------------------------------------+
+    | |cartpole|       | |cartpole-camera-rgb-link|  | Move the cart to keep the pole upwards in the classic cartpole control  |
+    |                  |                             | and perceptive inputs                                                   |
     |                  | |cartpole-camera-dpt-link|  |                                                                         |
     +------------------+-----------------------------+-------------------------------------------------------------------------+
 
@@ -68,26 +88,31 @@ for the reach environment:
 .. table::
     :widths: 33 37 30
 
-    +----------------+---------------------------+-----------------------------------------------------------------------------+
-    | World          | Environment ID            | Description                                                                 |
-    +================+===========================+=============================================================================+
-    | |reach-franka| | |reach-franka-link|       | Move the end-effector to a sampled target pose with the Franka robot        |
-    +----------------+---------------------------+-----------------------------------------------------------------------------+
-    | |reach-ur10|   | |reach-ur10-link|         | Move the end-effector to a sampled target pose with the UR10 robot          |
-    +----------------+---------------------------+-----------------------------------------------------------------------------+
-    | |lift-cube|    | |lift-cube-link|          | Pick a cube and bring it to a sampled target position with the Franka robot |
-    +----------------+---------------------------+-----------------------------------------------------------------------------+
-    | |cabi-franka|  | | |cabi-franka-link|      | Grasp the handle of a cabinet's drawer and open it with the Franka robot    |
-    |                | | |franka-direct-link|    |                                                                             |
-    +----------------+---------------------------+-----------------------------------------------------------------------------+
-    | |cube-allegro| | |cube-allegro-link|       | In-hand reorientation of a cube using Allegro hand                          |
-    |                | |allegro-direct-link|     |                                                                             |
-    +----------------+---------------------------+-----------------------------------------------------------------------------+
-    | |cube-shadow|  | | |cube-shadow-link|      | In-hand reorientation of a cube using Shadow hand                           |
-    |                | | |cube-shadow-ff-link|   |                                                                             |
-    |                | | |cube-shadow-lstm-link| |                                                                             |
-    |                | | |cube-shadow-vis-link|  |                                                                             |
-    +----------------+---------------------------+-----------------------------------------------------------------------------+
+    +--------------------+-------------------------+-----------------------------------------------------------------------------+
+    | World              | Environment ID          | Description                                                                 |
+    +====================+=========================+=============================================================================+
+    | |reach-franka|     | |reach-franka-link|     | Move the end-effector to a sampled target pose with the Franka robot        |
+    +--------------------+-------------------------+-----------------------------------------------------------------------------+
+    | |reach-ur10|       | |reach-ur10-link|       | Move the end-effector to a sampled target pose with the UR10 robot          |
+    +--------------------+-------------------------+-----------------------------------------------------------------------------+
+    | |lift-cube|        | |lift-cube-link|        | Pick a cube and bring it to a sampled target position with the Franka robot |
+    +--------------------+-------------------------+-----------------------------------------------------------------------------+
+    | |cabi-franka|      | |cabi-franka-link|      | Grasp the handle of a cabinet's drawer and open it with the Franka robot    |
+    |                    |                         |                                                                             |
+    |                    | |franka-direct-link|    |                                                                             |
+    +--------------------+-------------------------+-----------------------------------------------------------------------------+
+    | |cube-allegro|     | |cube-allegro-link|     | In-hand reorientation of a cube using Allegro hand                          |
+    |                    |                         |                                                                             |
+    |                    | |allegro-direct-link|   |                                                                             |
+    +--------------------+-------------------------+-----------------------------------------------------------------------------+
+    | |cube-shadow|      | |cube-shadow-link|      | In-hand reorientation of a cube using Shadow hand                           |
+    |                    |                         |                                                                             |
+    |                    | |cube-shadow-ff-link|   |                                                                             |
+    |                    |                         |                                                                             |
+    |                    | |cube-shadow-lstm-link| |                                                                             |
+    +--------------------+-------------------------+-----------------------------------------------------------------------------+
+    | |cube-shadow|      | |cube-shadow-vis-link|  | In-hand reorientation of a cube using Shadow hand and perceptive inputs     |
+    +--------------------+-------------------------+-----------------------------------------------------------------------------+
 
 .. |reach-franka| image:: ../_static/tasks/manipulation/franka_reach.jpg
 .. |reach-ur10| image:: ../_static/tasks/manipulation/ur10_reach.jpg
@@ -127,9 +152,11 @@ Environments based on legged locomotion tasks.
     | |velocity-rough-anymal-b|    | |velocity-rough-anymal-b-link|               | Track a velocity command on rough terrain with the Anymal B robot            |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+
     | |velocity-flat-anymal-c|     | |velocity-flat-anymal-c-link|                | Track a velocity command on flat terrain with the Anymal C robot             |
+    |                              |                                              |                                                                              |
     |                              | |velocity-flat-anymal-c-direct-link|         |                                                                              |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+
     | |velocity-rough-anymal-c|    | |velocity-rough-anymal-c-link|               | Track a velocity command on rough terrain with the Anymal C robot            |
+    |                              |                                              |                                                                              |
     |                              | |velocity-rough-anymal-c-direct-link|        |                                                                              |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+
     | |velocity-flat-anymal-d|     | |velocity-flat-anymal-d-link|                | Track a velocity command on flat terrain with the Anymal D robot             |
