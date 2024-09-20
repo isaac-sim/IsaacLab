@@ -21,6 +21,8 @@ import unittest
 import carb
 import omni.usd
 
+from omni.isaac.lab.envs import ManagerBasedRLEnvCfg
+
 import omni.isaac.lab_tasks  # noqa: F401
 from omni.isaac.lab_tasks.utils.parse_cfg import parse_env_cfg
 
@@ -86,7 +88,13 @@ class TestEnvironments(unittest.TestCase):
         # create a new stage
         omni.usd.get_context().new_stage()
         # parse configuration
-        env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
+        env_cfg: ManagerBasedRLEnvCfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
+
+        # skip test if the environment is a multi-agent task
+        if hasattr(env_cfg, "possible_agents"):
+            print(f"[INFO]: Skipping {task_name} as it is a multi-agent task")
+            return
+
         # create environment
         env = gym.make(task_name, cfg=env_cfg)
 
