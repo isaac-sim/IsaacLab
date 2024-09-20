@@ -54,7 +54,7 @@
     <link rel="search" title="Search" href="search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Sep 19, 2024"/>
+    <meta name="docbuild:last-update" content="Sep 20, 2024"/>
   </head>
   
   
@@ -176,7 +176,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.1-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -212,62 +212,66 @@
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1 has-children"><a class="reference internal" href="source/setup/installation/index.html">Installation Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2"><a class="reference internal" href="source/setup/installation/pip_installation.html">Installation using Isaac Sim pip (experimental)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/setup/installation/binaries_installation.html">Installation using Isaac Sim Binaries</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/setup/installation/verifying_installation.html">Verifying the Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/setup/installation/pip_installation.html">Option 1: Installation using Isaac Sim pip</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/setup/installation/binaries_installation.html">Option 2: Installation using Isaac Sim binaries</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
 </ul>
 </details></li>
-<li class="toctree-l1"><a class="reference internal" href="source/setup/developer.html">Developer’s Guide</a></li>
-<li class="toctree-l1"><a class="reference internal" href="source/setup/sample.html">Running Existing Scripts</a></li>
-<li class="toctree-l1"><a class="reference internal" href="source/setup/template.html">Building your Own Project</a></li>
 <li class="toctree-l1"><a class="reference internal" href="source/setup/faq.html">Frequently Asked Questions</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Overview</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="source/overview/developer-guide/index.html">Developer’s Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="source/overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
+
+<li class="toctree-l2"><a class="reference internal" href="source/overview/developer-guide/repo_structure.html">Repository organization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/overview/developer-guide/extensions.html">Extensions</a></li>
+
+<li class="toctree-l2"><a class="reference internal" href="source/overview/developer-guide/template.html">Building your Own Project</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="source/overview/core-concepts/index.html">Core Concepts</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="source/overview/core-concepts/task_workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/overview/core-concepts/actuators.html">Actuators</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="source/overview/environments.html">Available Environments</a></li>
+
+<li class="toctree-l1 has-children"><a class="reference internal" href="source/overview/reinforcement-learning/index.html">Reinforcement Learning</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="source/overview/reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Wrappers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/overview/reinforcement-learning/rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/overview/reinforcement-learning/performance_benchmarks.html">Performance Benchmarks</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="source/overview/teleop_imitation.html">Teleoperation and Imitation Learning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="source/overview/showroom.html">Showroom Demos</a></li>
+<li class="toctree-l1"><a class="reference internal" href="source/overview/basic_agents.html">Simple Agents</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="source/features/task_workflows.html">Task Design Workflows</a></li>
 <li class="toctree-l1"><a class="reference internal" href="source/features/hydra.html">Hydra Configuration System</a></li>
 <li class="toctree-l1"><a class="reference internal" href="source/features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
-<li class="toctree-l1"><a class="reference internal" href="source/features/tiled_rendering.html">Tiled Rendering and Recording</a></li>
-<li class="toctree-l1"><a class="reference internal" href="source/features/environments.html">Environments</a></li>
-<li class="toctree-l1"><a class="reference internal" href="source/features/actuators.html">Actuators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="source/features/tiled_rendering.html">Tiled-Camera Rendering</a></li>
 <li class="toctree-l1"><a class="reference internal" href="source/features/reproducibility.html">Reproducibility and Determinism</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1 has-children"><a class="reference internal" href="source/tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2 has-children"><a class="reference internal" href="source/tutorials/00_sim/index.html">Setting up a Simple Simulation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l3"><a class="reference internal" href="source/tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
-<li class="toctree-l3"><a class="reference internal" href="source/tutorials/00_sim/spawn_prims.html">Spawning prims into the scene</a></li>
-<li class="toctree-l3"><a class="reference internal" href="source/tutorials/00_sim/launch_app.html">Deep-dive into AppLauncher</a></li>
-</ul>
-</details></li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="source/tutorials/01_assets/index.html">Interacting with Assets</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l3"><a class="reference internal" href="source/tutorials/01_assets/run_rigid_object.html">Interacting with a rigid object</a></li>
-<li class="toctree-l3"><a class="reference internal" href="source/tutorials/01_assets/run_articulation.html">Interacting with an articulation</a></li>
-<li class="toctree-l3"><a class="reference internal" href="source/tutorials/01_assets/run_deformable_object.html">Interacting with a deformable object</a></li>
-</ul>
-</details></li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="source/tutorials/02_scene/index.html">Creating a Scene</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l3"><a class="reference internal" href="source/tutorials/02_scene/create_scene.html">Using the Interactive Scene</a></li>
-</ul>
-</details></li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="source/tutorials/03_envs/index.html">Designing an Environment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l3"><a class="reference internal" href="source/tutorials/03_envs/create_manager_base_env.html">Creating a Manager-Based Base Environment</a></li>
-<li class="toctree-l3"><a class="reference internal" href="source/tutorials/03_envs/create_manager_rl_env.html">Creating a Manager-Based RL Environment</a></li>
-<li class="toctree-l3"><a class="reference internal" href="source/tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
-<li class="toctree-l3"><a class="reference internal" href="source/tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
-<li class="toctree-l3"><a class="reference internal" href="source/tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
-</ul>
-</details></li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="source/tutorials/04_sensors/index.html">Integrating Sensors</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l3"><a class="reference internal" href="source/tutorials/04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
-</ul>
-</details></li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="source/tutorials/05_controllers/index.html">Using Motion Generators</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l3"><a class="reference internal" href="source/tutorials/05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
-</ul>
-</details></li>
+<li class="toctree-l2"><a class="reference internal" href="source/tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/tutorials/00_sim/spawn_prims.html">Spawning prims into the scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/tutorials/00_sim/launch_app.html">Deep-dive into AppLauncher</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/tutorials/01_assets/run_rigid_object.html">Interacting with a rigid object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/tutorials/01_assets/run_articulation.html">Interacting with an articulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/tutorials/01_assets/run_deformable_object.html">Interacting with a deformable object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/tutorials/02_scene/create_scene.html">Using the Interactive Scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/tutorials/03_envs/create_manager_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/tutorials/03_envs/create_manager_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/tutorials/03_envs/modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/tutorials/04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/tutorials/05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="source/how-to/index.html">How-to Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -278,8 +282,9 @@
 <li class="toctree-l2"><a class="reference internal" href="source/how-to/draw_markers.html">Creating Visualization Markers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/how-to/wrap_rl_env.html">Wrapping environments</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/how-to/add_own_library.html">Adding your own learning library</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/how-to/record_animation.html">Recording Animations of Simulations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/how-to/record_video.html">Recording video clips during training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="source/deployment/index.html">Container Deployment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -288,6 +293,12 @@
 <li class="toctree-l2"><a class="reference internal" href="source/deployment/run_docker_example.html">Running an example with Docker</a></li>
 </ul>
 </details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Migration Guides</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="source/migration/migrating_from_isaacgymenvs.html">From IsaacGymEnvs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="source/migration/migrating_from_omniisaacgymenvs.html">From OmniIsaacGymEnvs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="source/migration/migrating_from_orbit.html">From Orbit</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Source API</span></p>
 <ul class="nav bd-sidenav">
@@ -317,14 +328,9 @@
 </ul>
 </details></li>
 </ul>
-<p aria-level="2" class="caption" role="heading"><span class="caption-text">Migration Guides</span></p>
-<ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="source/migration/migrating_from_isaacgymenvs.html">From IsaacGymEnvs</a></li>
-<li class="toctree-l1"><a class="reference internal" href="source/migration/migrating_from_omniisaacgymenvs.html">From OmniIsaacGymEnvs</a></li>
-<li class="toctree-l1"><a class="reference internal" href="source/migration/migrating_from_orbit.html">From Orbit</a></li>
-</ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="source/refs/additional_resources.html">Additional Resources</a></li>
 <li class="toctree-l1"><a class="reference internal" href="source/refs/contributing.html">Contribution Guidelines</a></li>
 <li class="toctree-l1"><a class="reference internal" href="source/refs/troubleshooting.html">Tricks and Troubleshooting</a></li>
 <li class="toctree-l1"><a class="reference internal" href="source/refs/issues.html">Known Issues</a></li>
@@ -336,7 +342,7 @@
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/index.html">NVIDIA Isaac Sim</a></li>
-<li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/index.html">NVIDIA PhysX</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/index.html">NVIDIA PhysX</a></li>
 </ul>
 
     </div>
@@ -573,6 +579,8 @@ document.write(`
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.devices.html#omni.isaac.lab.devices.Se3SpaceMouse.__init__">(omni.isaac.lab.devices.Se3SpaceMouse method)</a>
 </li>
+        <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectMARLEnv.__init__">(omni.isaac.lab.envs.DirectMARLEnv method)</a>
+</li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnv.__init__">(omni.isaac.lab.envs.DirectRLEnv method)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnv.__init__">(omni.isaac.lab.envs.ManagerBasedEnv method)</a>
@@ -686,8 +694,12 @@ document.write(`
       </ul></li>
       <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.action_l2">action_l2() (in module omni.isaac.lab.envs.mdp.rewards)</a>
 </li>
-      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnvCfg.action_noise_model">action_noise_model (omni.isaac.lab.envs.DirectRLEnvCfg attribute)</a>
+      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectMARLEnvCfg.action_noise_model">action_noise_model (omni.isaac.lab.envs.DirectMARLEnvCfg attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnvCfg.action_noise_model">(omni.isaac.lab.envs.DirectRLEnvCfg attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.action_rate_l2">action_rate_l2() (in module omni.isaac.lab.envs.mdp.rewards)</a>
 </li>
       <li><a href="source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.rl_games.RlGamesVecEnvWrapper.action_space">action_space (omni.isaac.lab_tasks.utils.wrappers.rl_games.RlGamesVecEnvWrapper property)</a>
@@ -696,6 +708,8 @@ document.write(`
         <li><a href="source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.rsl_rl.RslRlVecEnvWrapper.action_space">(omni.isaac.lab_tasks.utils.wrappers.rsl_rl.RslRlVecEnvWrapper property)</a>
 </li>
       </ul></li>
+      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectMARLEnv.action_space">action_space() (omni.isaac.lab.envs.DirectMARLEnv method)</a>
+</li>
       <li><a href="source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ActionManager.action_term_dim">action_term_dim (omni.isaac.lab.managers.ActionManager property)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ActionManager">ActionManager (class in omni.isaac.lab.managers)</a>
@@ -850,6 +864,8 @@ document.write(`
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher">AppLauncher (class in omni.isaac.lab.app)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.ActuatorBase.applied_effort">applied_effort (omni.isaac.lab.actuators.ActuatorBase attribute)</a>
 
       <ul>
@@ -868,8 +884,6 @@ document.write(`
         <li><a href="source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.RemotizedPDActuator.applied_effort">(omni.isaac.lab.actuators.RemotizedPDActuator attribute)</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.ArticulationData.applied_torque">applied_torque (omni.isaac.lab.assets.ArticulationData attribute)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.applied_torque_limits">applied_torque_limits() (in module omni.isaac.lab.envs.mdp.rewards)</a>
@@ -1316,9 +1330,11 @@ document.write(`
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.scene.html#omni.isaac.lab.scene.InteractiveScene.clone_environments">clone_environments() (omni.isaac.lab.scene.InteractiveScene method)</a>
 </li>
-      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnv.close">close() (omni.isaac.lab.envs.DirectRLEnv method)</a>
+      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectMARLEnv.close">close() (omni.isaac.lab.envs.DirectMARLEnv method)</a>
 
       <ul>
+        <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnv.close">(omni.isaac.lab.envs.DirectRLEnv method)</a>
+</li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnv.close">(omni.isaac.lab.envs.ManagerBasedEnv method)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnv.close">(omni.isaac.lab.envs.ManagerBasedRLEnv method)</a>
@@ -1437,15 +1453,27 @@ document.write(`
 </li>
       </ul></li>
       <li><a href="source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.CameraCfg.colorize_instance_id_segmentation">colorize_instance_id_segmentation (omni.isaac.lab.sensors.CameraCfg attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.TiledCameraCfg.colorize_instance_id_segmentation">(omni.isaac.lab.sensors.TiledCameraCfg attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.CameraCfg.colorize_instance_segmentation">colorize_instance_segmentation (omni.isaac.lab.sensors.CameraCfg attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.TiledCameraCfg.colorize_instance_segmentation">(omni.isaac.lab.sensors.TiledCameraCfg attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.CameraCfg.colorize_semantic_segmentation">colorize_semantic_segmentation (omni.isaac.lab.sensors.CameraCfg attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.TiledCameraCfg.colorize_semantic_segmentation">(omni.isaac.lab.sensors.TiledCameraCfg attribute)</a>
 </li>
-      <li><a href="source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.math.combine_frame_transforms">combine_frame_transforms() (in module omni.isaac.lab.utils.math)</a>
-</li>
+      </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.math.combine_frame_transforms">combine_frame_transforms() (in module omni.isaac.lab.utils.math)</a>
+</li>
       <li><a href="source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.CommandTerm.command">command (omni.isaac.lab.managers.CommandTerm property)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.terminations.command_resample">command_resample() (in module omni.isaac.lab.envs.mdp.terminations)</a>
@@ -1822,9 +1850,11 @@ document.write(`
         <li><a href="source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.TerrainImporterCfg.debug_vis">(omni.isaac.lab.terrains.TerrainImporterCfg attribute)</a>
 </li>
       </ul></li>
-      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnvCfg.decimation">decimation (omni.isaac.lab.envs.DirectRLEnvCfg attribute)</a>
+      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectMARLEnvCfg.decimation">decimation (omni.isaac.lab.envs.DirectMARLEnvCfg attribute)</a>
 
       <ul>
+        <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnvCfg.decimation">(omni.isaac.lab.envs.DirectRLEnvCfg attribute)</a>
+</li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnvCfg.decimation">(omni.isaac.lab.envs.ManagerBasedEnvCfg attribute)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.decimation">(omni.isaac.lab.envs.ManagerBasedRLEnvCfg attribute)</a>
@@ -1890,14 +1920,14 @@ document.write(`
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.math.default_orientation">default_orientation() (in module omni.isaac.lab.utils.math)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.ArticulationData.default_root_state">default_root_state (omni.isaac.lab.assets.ArticulationData attribute)</a>
 
       <ul>
         <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObjectData.default_root_state">(omni.isaac.lab.assets.RigidObjectData attribute)</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.define_articulation_root_properties">define_articulation_root_properties() (in module omni.isaac.lab.sim.schemas)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.define_collision_properties">define_collision_properties() (in module omni.isaac.lab.sim.schemas)</a>
@@ -1979,6 +2009,8 @@ document.write(`
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObject.device">(omni.isaac.lab.assets.RigidObject property)</a>
 </li>
+        <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectMARLEnv.device">(omni.isaac.lab.envs.DirectMARLEnv property)</a>
+</li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnv.device">(omni.isaac.lab.envs.DirectRLEnv property)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnv.device">(omni.isaac.lab.envs.ManagerBasedEnv property)</a>
@@ -2051,6 +2083,10 @@ document.write(`
       <li><a href="source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.modifiers.DigitalFilterCfg">DigitalFilterCfg (class in omni.isaac.lab.utils.modifiers)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.sensors.patterns.html#omni.isaac.lab.sensors.patterns.GridPatternCfg.direction">direction (omni.isaac.lab.sensors.patterns.GridPatternCfg attribute)</a>
+</li>
+      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectMARLEnv">DirectMARLEnv (class in omni.isaac.lab.envs)</a>
+</li>
+      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectMARLEnvCfg">DirectMARLEnvCfg (class in omni.isaac.lab.envs)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnv">DirectRLEnv (class in omni.isaac.lab.envs)</a>
 </li>
@@ -2172,10 +2208,10 @@ document.write(`
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationCfg.enable_scene_query_support">enable_scene_query_support (omni.isaac.lab.sim.SimulationCfg attribute)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.PhysxCfg.enable_stabilization">enable_stabilization (omni.isaac.lab.sim.PhysxCfg attribute)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.ArticulationRootPropertiesCfg.enabled_self_collisions">enabled_self_collisions (omni.isaac.lab.sim.schemas.ArticulationRootPropertiesCfg attribute)</a>
 </li>
       <li><a href="source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.rsl_rl.RslRlPpoAlgorithmCfg.entropy_coef">entropy_coef (omni.isaac.lab_tasks.utils.wrappers.rsl_rl.RslRlPpoAlgorithmCfg attribute)</a>
@@ -2200,9 +2236,11 @@ document.write(`
       </ul></li>
       <li><a href="source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.rsl_rl.RslRlVecEnvWrapper.episode_length_buf">episode_length_buf (omni.isaac.lab_tasks.utils.wrappers.rsl_rl.RslRlVecEnvWrapper property)</a>
 </li>
-      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnvCfg.episode_length_s">episode_length_s (omni.isaac.lab.envs.DirectRLEnvCfg attribute)</a>
+      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectMARLEnvCfg.episode_length_s">episode_length_s (omni.isaac.lab.envs.DirectMARLEnvCfg attribute)</a>
 
       <ul>
+        <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnvCfg.episode_length_s">(omni.isaac.lab.envs.DirectRLEnvCfg attribute)</a>
+</li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.episode_length_s">(omni.isaac.lab.envs.ManagerBasedRLEnvCfg attribute)</a>
 </li>
       </ul></li>
@@ -2210,9 +2248,11 @@ document.write(`
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.EventManager">EventManager (class in omni.isaac.lab.managers)</a>
 </li>
-      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnvCfg.events">events (omni.isaac.lab.envs.DirectRLEnvCfg attribute)</a>
+      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectMARLEnvCfg.events">events (omni.isaac.lab.envs.DirectMARLEnvCfg attribute)</a>
 
       <ul>
+        <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnvCfg.events">(omni.isaac.lab.envs.DirectRLEnvCfg attribute)</a>
+</li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnvCfg.events">(omni.isaac.lab.envs.ManagerBasedEnvCfg attribute)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.events">(omni.isaac.lab.envs.ManagerBasedRLEnvCfg attribute)</a>
@@ -2982,9 +3022,11 @@ document.write(`
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext.is_fabric_enabled">is_fabric_enabled() (omni.isaac.lab.sim.SimulationContext method)</a>
 </li>
-      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnvCfg.is_finite_horizon">is_finite_horizon (omni.isaac.lab.envs.DirectRLEnvCfg attribute)</a>
+      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectMARLEnvCfg.is_finite_horizon">is_finite_horizon (omni.isaac.lab.envs.DirectMARLEnvCfg attribute)</a>
 
       <ul>
+        <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnvCfg.is_finite_horizon">(omni.isaac.lab.envs.DirectRLEnvCfg attribute)</a>
+</li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.is_finite_horizon">(omni.isaac.lab.envs.ManagerBasedRLEnvCfg attribute)</a>
 </li>
       </ul></li>
@@ -3414,15 +3456,19 @@ document.write(`
         <li><a href="source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.RayCasterCfg.max_distance">(omni.isaac.lab.sensors.RayCasterCfg attribute)</a>
 </li>
       </ul></li>
-      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnv.max_episode_length">max_episode_length (omni.isaac.lab.envs.DirectRLEnv property)</a>
+      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectMARLEnv.max_episode_length">max_episode_length (omni.isaac.lab.envs.DirectMARLEnv property)</a>
 
       <ul>
+        <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnv.max_episode_length">(omni.isaac.lab.envs.DirectRLEnv property)</a>
+</li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnv.max_episode_length">(omni.isaac.lab.envs.ManagerBasedRLEnv property)</a>
 </li>
       </ul></li>
-      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnv.max_episode_length_s">max_episode_length_s (omni.isaac.lab.envs.DirectRLEnv property)</a>
+      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectMARLEnv.max_episode_length_s">max_episode_length_s (omni.isaac.lab.envs.DirectMARLEnv property)</a>
 
       <ul>
+        <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnv.max_episode_length_s">(omni.isaac.lab.envs.DirectRLEnv property)</a>
+</li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnv.max_episode_length_s">(omni.isaac.lab.envs.ManagerBasedRLEnv property)</a>
 </li>
       </ul></li>
@@ -3445,6 +3491,8 @@ document.write(`
       <li><a href="source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.buffers.CircularBuffer.max_length">max_length (omni.isaac.lab.utils.buffers.CircularBuffer property)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.RigidBodyPropertiesCfg.max_linear_velocity">max_linear_velocity (omni.isaac.lab.sim.schemas.RigidBodyPropertiesCfg attribute)</a>
+</li>
+      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectMARLEnv.max_num_agents">max_num_agents (omni.isaac.lab.envs.DirectMARLEnv property)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.PhysxCfg.max_position_iteration_count">max_position_iteration_count (omni.isaac.lab.sim.PhysxCfg attribute)</a>
 </li>
@@ -3520,10 +3568,10 @@ document.write(`
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshPitTerrainCfg">MeshPitTerrainCfg (class in omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg)</a>
 </li>
-      <li><a href="source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshPlaneTerrainCfg">MeshPlaneTerrainCfg (class in omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshPlaneTerrainCfg">MeshPlaneTerrainCfg (class in omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg)</a>
+</li>
       <li><a href="source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshPyramidStairsTerrainCfg">MeshPyramidStairsTerrainCfg (class in omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRailsTerrainCfg">MeshRailsTerrainCfg (class in omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg)</a>
@@ -3550,9 +3598,11 @@ document.write(`
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshStarTerrainCfg">MeshStarTerrainCfg (class in omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg)</a>
 </li>
-      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnv.metadata">metadata (omni.isaac.lab.envs.DirectRLEnv attribute)</a>
+      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectMARLEnv.metadata">metadata (omni.isaac.lab.envs.DirectMARLEnv attribute)</a>
 
       <ul>
+        <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnv.metadata">(omni.isaac.lab.envs.DirectRLEnv attribute)</a>
+</li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnv.metadata">(omni.isaac.lab.envs.ManagerBasedRLEnv attribute)</a>
 </li>
       </ul></li>
@@ -3813,7 +3863,13 @@ document.write(`
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.commands.commands_cfg.NullCommandCfg">NullCommandCfg (class in omni.isaac.lab.envs.mdp.commands.commands_cfg)</a>
 </li>
-      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnvCfg.num_actions">num_actions (omni.isaac.lab.envs.DirectRLEnvCfg attribute)</a>
+      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectMARLEnvCfg.num_actions">num_actions (omni.isaac.lab.envs.DirectMARLEnvCfg attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnvCfg.num_actions">(omni.isaac.lab.envs.DirectRLEnvCfg attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectMARLEnv.num_agents">num_agents (omni.isaac.lab.envs.DirectMARLEnv property)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshStarTerrainCfg.num_bars">num_bars (omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshStarTerrainCfg attribute)</a>
 </li>
@@ -3829,9 +3885,11 @@ document.write(`
       </ul></li>
       <li><a href="source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.TerrainGeneratorCfg.num_cols">num_cols (omni.isaac.lab.terrains.TerrainGeneratorCfg attribute)</a>
 </li>
-      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnv.num_envs">num_envs (omni.isaac.lab.envs.DirectRLEnv property)</a>
+      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectMARLEnv.num_envs">num_envs (omni.isaac.lab.envs.DirectMARLEnv property)</a>
 
       <ul>
+        <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnv.num_envs">(omni.isaac.lab.envs.DirectRLEnv property)</a>
+</li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnv.num_envs">(omni.isaac.lab.envs.ManagerBasedEnv property)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnv.num_envs">(omni.isaac.lab.envs.ManagerBasedRLEnv property)</a>
@@ -3925,16 +3983,24 @@ document.write(`
         <li><a href="source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedPyramidsTerrainCfg.ObjectCfg.num_objects">(omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedPyramidsTerrainCfg.ObjectCfg attribute)</a>
 </li>
       </ul></li>
-      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnvCfg.num_observations">num_observations (omni.isaac.lab.envs.DirectRLEnvCfg attribute)</a>
+      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectMARLEnvCfg.num_observations">num_observations (omni.isaac.lab.envs.DirectMARLEnvCfg attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnvCfg.num_observations">(omni.isaac.lab.envs.DirectRLEnvCfg attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfDiscreteObstaclesTerrainCfg.num_obstacles">num_obstacles (omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfDiscreteObstaclesTerrainCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.markers.html#omni.isaac.lab.markers.VisualizationMarkers.num_prototypes">num_prototypes (omni.isaac.lab.markers.VisualizationMarkers property)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.TerrainGeneratorCfg.num_rows">num_rows (omni.isaac.lab.terrains.TerrainGeneratorCfg attribute)</a>
 </li>
-      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnvCfg.num_states">num_states (omni.isaac.lab.envs.DirectRLEnvCfg attribute)</a>
+      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectMARLEnvCfg.num_states">num_states (omni.isaac.lab.envs.DirectMARLEnvCfg attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnvCfg.num_states">(omni.isaac.lab.envs.DirectRLEnvCfg attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.rsl_rl.RslRlOnPolicyRunnerCfg.num_steps_per_env">num_steps_per_env (omni.isaac.lab_tasks.utils.wrappers.rsl_rl.RslRlOnPolicyRunnerCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfWaveTerrainCfg.num_waves">num_waves (omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfWaveTerrainCfg attribute)</a>
@@ -3977,14 +4043,20 @@ document.write(`
         <li><a href="source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedPyramidsTerrainCfg.object_type">(omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedPyramidsTerrainCfg attribute)</a>
 </li>
       </ul></li>
-      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnvCfg.observation_noise_model">observation_noise_model (omni.isaac.lab.envs.DirectRLEnvCfg attribute)</a>
+      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectMARLEnvCfg.observation_noise_model">observation_noise_model (omni.isaac.lab.envs.DirectMARLEnvCfg attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnvCfg.observation_noise_model">(omni.isaac.lab.envs.DirectRLEnvCfg attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.rl_games.RlGamesVecEnvWrapper.observation_space">observation_space (omni.isaac.lab_tasks.utils.wrappers.rl_games.RlGamesVecEnvWrapper property)</a>
 
       <ul>
         <li><a href="source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.rsl_rl.RslRlVecEnvWrapper.observation_space">(omni.isaac.lab_tasks.utils.wrappers.rsl_rl.RslRlVecEnvWrapper property)</a>
 </li>
       </ul></li>
+      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectMARLEnv.observation_space">observation_space() (omni.isaac.lab.envs.DirectMARLEnv method)</a>
+</li>
       <li><a href="source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ObservationGroupCfg">ObservationGroupCfg (class in omni.isaac.lab.managers)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ObservationManager">ObservationManager (class in omni.isaac.lab.managers)</a>
@@ -4507,9 +4579,11 @@ document.write(`
       </ul></li>
       <li><a href="source/api/lab/omni.isaac.lab.sensors.patterns.html#omni.isaac.lab.sensors.patterns.PatternBaseCfg">PatternBaseCfg (class in omni.isaac.lab.sensors.patterns)</a>
 </li>
-      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnv.physics_dt">physics_dt (omni.isaac.lab.envs.DirectRLEnv property)</a>
+      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectMARLEnv.physics_dt">physics_dt (omni.isaac.lab.envs.DirectMARLEnv property)</a>
 
       <ul>
+        <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnv.physics_dt">(omni.isaac.lab.envs.DirectRLEnv property)</a>
+</li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnv.physics_dt">(omni.isaac.lab.envs.ManagerBasedEnv property)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnv.physics_dt">(omni.isaac.lab.envs.ManagerBasedRLEnv property)</a>
@@ -4677,6 +4751,8 @@ document.write(`
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPose2dCommandCfg.Ranges.pos_y">pos_y (omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPose2dCommandCfg.Ranges attribute)</a>
 </li>
+      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectMARLEnvCfg.possible_agents">possible_agents (omni.isaac.lab.envs.DirectMARLEnvCfg attribute)</a>
+</li>
       <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.JointActionCfg.preserve_order">preserve_order (omni.isaac.lab.envs.mdp.actions.actions_cfg.JointActionCfg attribute)</a>
 
       <ul>
@@ -4746,8 +4822,6 @@ document.write(`
       <li><a href="source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ActionTerm.process_actions">process_actions() (omni.isaac.lab.managers.ActionTerm method)</a>
 </li>
       <li><a href="source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.sb3.process_sb3_cfg">process_sb3_cfg() (in module omni.isaac.lab_tasks.utils.wrappers.sb3)</a>
-</li>
-      <li><a href="source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.skrl.process_skrl_cfg">process_skrl_cfg() (in module omni.isaac.lab_tasks.utils.wrappers.skrl)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ActionTerm.processed_actions">processed_actions (omni.isaac.lab.managers.ActionTerm property)</a>
 </li>
@@ -4987,9 +5061,11 @@ document.write(`
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.RemotizedPDActuatorCfg">RemotizedPDActuatorCfg (class in omni.isaac.lab.actuators)</a>
 </li>
-      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnv.render">render() (omni.isaac.lab.envs.DirectRLEnv method)</a>
+      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectMARLEnv.render">render() (omni.isaac.lab.envs.DirectMARLEnv method)</a>
 
       <ul>
+        <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnv.render">(omni.isaac.lab.envs.DirectRLEnv method)</a>
+</li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnv.render">(omni.isaac.lab.envs.ManagerBasedRLEnv method)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext.render">(omni.isaac.lab.sim.SimulationContext method)</a>
@@ -5017,6 +5093,14 @@ document.write(`
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.scene.html#omni.isaac.lab.scene.InteractiveSceneCfg.replicate_physics">replicate_physics (omni.isaac.lab.scene.InteractiveSceneCfg attribute)</a>
 </li>
+      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnvCfg.rerender_on_reset">rerender_on_reset (omni.isaac.lab.envs.DirectRLEnvCfg attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnvCfg.rerender_on_reset">(omni.isaac.lab.envs.ManagerBasedEnvCfg attribute)</a>
+</li>
+        <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.rerender_on_reset">(omni.isaac.lab.envs.ManagerBasedRLEnvCfg attribute)</a>
+</li>
+      </ul></li>
       <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.resampling_time_range">resampling_time_range (omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg attribute)</a>
 
       <ul>
@@ -5079,6 +5163,8 @@ document.write(`
         <li><a href="source/api/lab/omni.isaac.lab.devices.html#omni.isaac.lab.devices.Se3Keyboard.reset">(omni.isaac.lab.devices.Se3Keyboard method)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.devices.html#omni.isaac.lab.devices.Se3SpaceMouse.reset">(omni.isaac.lab.devices.Se3SpaceMouse method)</a>
+</li>
+        <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectMARLEnv.reset">(omni.isaac.lab.envs.DirectMARLEnv method)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnv.reset">(omni.isaac.lab.envs.DirectRLEnv method)</a>
 </li>
@@ -5425,9 +5511,11 @@ document.write(`
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.math.scale_transform">scale_transform() (in module omni.isaac.lab.utils.math)</a>
 </li>
-      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnvCfg.scene">scene (omni.isaac.lab.envs.DirectRLEnvCfg attribute)</a>
+      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectMARLEnvCfg.scene">scene (omni.isaac.lab.envs.DirectMARLEnvCfg attribute)</a>
 
       <ul>
+        <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnvCfg.scene">(omni.isaac.lab.envs.DirectRLEnvCfg attribute)</a>
+</li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnvCfg.scene">(omni.isaac.lab.envs.ManagerBasedEnvCfg attribute)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.scene">(omni.isaac.lab.envs.ManagerBasedRLEnvCfg attribute)</a>
@@ -5461,9 +5549,11 @@ document.write(`
         <li><a href="source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.rsl_rl.RslRlOnPolicyRunnerCfg.seed">(omni.isaac.lab_tasks.utils.wrappers.rsl_rl.RslRlOnPolicyRunnerCfg attribute)</a>
 </li>
       </ul></li>
-      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnv.seed">seed() (omni.isaac.lab.envs.DirectRLEnv static method)</a>
+      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectMARLEnv.seed">seed() (omni.isaac.lab.envs.DirectMARLEnv static method)</a>
 
       <ul>
+        <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnv.seed">(omni.isaac.lab.envs.DirectRLEnv static method)</a>
+</li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnv.seed">(omni.isaac.lab.envs.ManagerBasedEnv static method)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnv.seed">(omni.isaac.lab.envs.ManagerBasedRLEnv static method)</a>
@@ -5482,7 +5572,11 @@ document.write(`
       <li><a href="source/api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.self_collision_filter_distance">self_collision_filter_distance (omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.CameraCfg.semantic_filter">semantic_filter (omni.isaac.lab.sensors.CameraCfg attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.TiledCameraCfg.semantic_filter">(omni.isaac.lab.sensors.TiledCameraCfg attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.DeformableObjectSpawnerCfg.semantic_tags">semantic_tags (omni.isaac.lab.sim.spawners.DeformableObjectSpawnerCfg attribute)</a>
 
       <ul>
@@ -5555,6 +5649,8 @@ document.write(`
         <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.DeformableObject.set_debug_vis">(omni.isaac.lab.assets.DeformableObject method)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObject.set_debug_vis">(omni.isaac.lab.assets.RigidObject method)</a>
+</li>
+        <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectMARLEnv.set_debug_vis">(omni.isaac.lab.envs.DirectMARLEnv method)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnv.set_debug_vis">(omni.isaac.lab.envs.DirectRLEnv method)</a>
 </li>
@@ -5653,9 +5749,11 @@ document.write(`
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.shapes.ShapeCfg">ShapeCfg (class in omni.isaac.lab.sim.spawners.shapes)</a>
 </li>
-      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnvCfg.sim">sim (omni.isaac.lab.envs.DirectRLEnvCfg attribute)</a>
+      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectMARLEnvCfg.sim">sim (omni.isaac.lab.envs.DirectMARLEnvCfg attribute)</a>
 
       <ul>
+        <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnvCfg.sim">(omni.isaac.lab.envs.DirectRLEnvCfg attribute)</a>
+</li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnvCfg.sim">(omni.isaac.lab.envs.ManagerBasedEnvCfg attribute)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.sim">(omni.isaac.lab.envs.ManagerBasedRLEnvCfg attribute)</a>
@@ -5675,10 +5773,10 @@ document.write(`
       </ul></li>
       <li><a href="source/api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.simulation_hexahedral_resolution">simulation_hexahedral_resolution (omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg attribute)</a>
 </li>
-      <li><a href="source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationCfg">SimulationCfg (class in omni.isaac.lab.sim)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationCfg">SimulationCfg (class in omni.isaac.lab.sim)</a>
+</li>
       <li><a href="source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext">SimulationContext (class in omni.isaac.lab.sim)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext.RenderMode">SimulationContext.RenderMode (class in omni.isaac.lab.sim)</a>
@@ -5883,6 +5981,8 @@ document.write(`
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.timer.Timer.start">start() (omni.isaac.lab.utils.timer.Timer method)</a>
 </li>
+      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectMARLEnv.state">state() (omni.isaac.lab.envs.DirectMARLEnv method)</a>
+</li>
       <li><a href="source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.rl_games.RlGamesVecEnvWrapper.state_space">state_space (omni.isaac.lab_tasks.utils.wrappers.rl_games.RlGamesVecEnvWrapper property)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.materials.RigidBodyMaterialCfg.static_friction">static_friction (omni.isaac.lab.sim.spawners.materials.RigidBodyMaterialCfg attribute)</a>
@@ -5891,9 +5991,11 @@ document.write(`
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.Ranges.std_vel">std_vel (omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.Ranges attribute)</a>
 </li>
-      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnv.step">step() (omni.isaac.lab.envs.DirectRLEnv method)</a>
+      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectMARLEnv.step">step() (omni.isaac.lab.envs.DirectMARLEnv method)</a>
 
       <ul>
+        <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnv.step">(omni.isaac.lab.envs.DirectRLEnv method)</a>
+</li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnv.step">(omni.isaac.lab.envs.ManagerBasedEnv method)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnv.step">(omni.isaac.lab.envs.ManagerBasedRLEnv method)</a>
@@ -5901,9 +6003,11 @@ document.write(`
         <li><a href="source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext.step">(omni.isaac.lab.sim.SimulationContext method)</a>
 </li>
       </ul></li>
-      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnv.step_dt">step_dt (omni.isaac.lab.envs.DirectRLEnv property)</a>
+      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectMARLEnv.step_dt">step_dt (omni.isaac.lab.envs.DirectMARLEnv property)</a>
 
       <ul>
+        <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnv.step_dt">(omni.isaac.lab.envs.DirectRLEnv property)</a>
+</li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnv.step_dt">(omni.isaac.lab.envs.ManagerBasedEnv property)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnv.step_dt">(omni.isaac.lab.envs.ManagerBasedRLEnv property)</a>
@@ -5984,8 +6088,6 @@ document.write(`
       <li><a href="source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.SubTerrainBaseCfg">SubTerrainBaseCfg (class in omni.isaac.lab.terrains)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.math.subtract_frame_transforms">subtract_frame_transforms() (in module omni.isaac.lab.utils.math)</a>
-</li>
-      <li><a href="source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.TiledCamera.SUPPORTED_TYPES">SUPPORTED_TYPES (omni.isaac.lab.sensors.TiledCamera attribute)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -6119,9 +6221,11 @@ document.write(`
 <h2 id="U">U</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnvCfg.ui_window_class_type">ui_window_class_type (omni.isaac.lab.envs.DirectRLEnvCfg attribute)</a>
+      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectMARLEnvCfg.ui_window_class_type">ui_window_class_type (omni.isaac.lab.envs.DirectMARLEnvCfg attribute)</a>
 
       <ul>
+        <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnvCfg.ui_window_class_type">(omni.isaac.lab.envs.DirectRLEnvCfg attribute)</a>
+</li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnvCfg.ui_window_class_type">(omni.isaac.lab.envs.ManagerBasedEnvCfg attribute)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.ui_window_class_type">(omni.isaac.lab.envs.ManagerBasedRLEnvCfg attribute)</a>
@@ -6157,9 +6261,11 @@ document.write(`
         <li><a href="source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.TiledCamera.UNSUPPORTED_TYPES">(omni.isaac.lab.sensors.TiledCamera attribute)</a>
 </li>
       </ul></li>
-      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnv.unwrapped">unwrapped (omni.isaac.lab.envs.DirectRLEnv property)</a>
+      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectMARLEnv.unwrapped">unwrapped (omni.isaac.lab.envs.DirectMARLEnv property)</a>
 
       <ul>
+        <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnv.unwrapped">(omni.isaac.lab.envs.DirectRLEnv property)</a>
+</li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnv.unwrapped">(omni.isaac.lab.envs.ManagerBasedRLEnv property)</a>
 </li>
         <li><a href="source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.rl_games.RlGamesVecEnvWrapper.unwrapped">(omni.isaac.lab_tasks.utils.wrappers.rl_games.RlGamesVecEnvWrapper property)</a>
@@ -6385,9 +6491,11 @@ document.write(`
         <li><a href="source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.TerrainGeneratorCfg.vertical_scale">(omni.isaac.lab.terrains.TerrainGeneratorCfg attribute)</a>
 </li>
       </ul></li>
-      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnvCfg.viewer">viewer (omni.isaac.lab.envs.DirectRLEnvCfg attribute)</a>
+      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectMARLEnvCfg.viewer">viewer (omni.isaac.lab.envs.DirectMARLEnvCfg attribute)</a>
 
       <ul>
+        <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnvCfg.viewer">(omni.isaac.lab.envs.DirectRLEnvCfg attribute)</a>
+</li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnvCfg.viewer">(omni.isaac.lab.envs.ManagerBasedEnvCfg attribute)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.viewer">(omni.isaac.lab.envs.ManagerBasedRLEnvCfg attribute)</a>
@@ -6697,7 +6805,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 19, 2024.
+  Last updated on Sep 20, 2024.
   <br/>
 </p>
   </div>

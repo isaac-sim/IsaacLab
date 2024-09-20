@@ -9,7 +9,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
-    <title>Tiled Rendering and Recording &#8212; Isaac Lab documentation</title>
+    <title>Tiled-Camera Rendering &#8212; Isaac Lab documentation</title>
   
   
   
@@ -53,11 +53,11 @@
     <link rel="icon" href="../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
-    <link rel="next" title="Environments" href="environments.html" />
+    <link rel="next" title="Reproducibility and Determinism" href="reproducibility.html" />
     <link rel="prev" title="Multi-GPU and Multi-Node Training" href="multi_gpu.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Sep 19, 2024"/>
+    <meta name="docbuild:last-update" content="Sep 20, 2024"/>
   </head>
   
   
@@ -177,7 +177,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.1-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -213,62 +213,66 @@
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1 has-children"><a class="reference internal" href="../setup/installation/index.html">Installation Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2"><a class="reference internal" href="../setup/installation/pip_installation.html">Installation using Isaac Sim pip (experimental)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../setup/installation/binaries_installation.html">Installation using Isaac Sim Binaries</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../setup/installation/verifying_installation.html">Verifying the Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../setup/installation/pip_installation.html">Option 1: Installation using Isaac Sim pip</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../setup/installation/binaries_installation.html">Option 2: Installation using Isaac Sim binaries</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
 </ul>
 </details></li>
-<li class="toctree-l1"><a class="reference internal" href="../setup/developer.html">Developer’s Guide</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../setup/sample.html">Running Existing Scripts</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../setup/template.html">Building your Own Project</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../setup/faq.html">Frequently Asked Questions</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Overview</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../overview/developer-guide/index.html">Developer’s Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
+
+<li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/repo_structure.html">Repository organization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/extensions.html">Extensions</a></li>
+
+<li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/template.html">Building your Own Project</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../overview/core-concepts/index.html">Core Concepts</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../overview/core-concepts/task_workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/core-concepts/actuators.html">Actuators</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../overview/environments.html">Available Environments</a></li>
+
+<li class="toctree-l1 has-children"><a class="reference internal" href="../overview/reinforcement-learning/index.html">Reinforcement Learning</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../overview/reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Wrappers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/reinforcement-learning/rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/reinforcement-learning/performance_benchmarks.html">Performance Benchmarks</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../overview/teleop_imitation.html">Teleoperation and Imitation Learning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../overview/showroom.html">Showroom Demos</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../overview/basic_agents.html">Simple Agents</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="current nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="task_workflows.html">Task Design Workflows</a></li>
 <li class="toctree-l1"><a class="reference internal" href="hydra.html">Hydra Configuration System</a></li>
 <li class="toctree-l1"><a class="reference internal" href="multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
-<li class="toctree-l1 current active"><a class="current reference internal" href="#">Tiled Rendering and Recording</a></li>
-<li class="toctree-l1"><a class="reference internal" href="environments.html">Environments</a></li>
-<li class="toctree-l1"><a class="reference internal" href="actuators.html">Actuators</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Tiled-Camera Rendering</a></li>
 <li class="toctree-l1"><a class="reference internal" href="reproducibility.html">Reproducibility and Determinism</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1 has-children"><a class="reference internal" href="../tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2 has-children"><a class="reference internal" href="../tutorials/00_sim/index.html">Setting up a Simple Simulation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l3"><a class="reference internal" href="../tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../tutorials/00_sim/spawn_prims.html">Spawning prims into the scene</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../tutorials/00_sim/launch_app.html">Deep-dive into AppLauncher</a></li>
-</ul>
-</details></li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="../tutorials/01_assets/index.html">Interacting with Assets</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l3"><a class="reference internal" href="../tutorials/01_assets/run_rigid_object.html">Interacting with a rigid object</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../tutorials/01_assets/run_articulation.html">Interacting with an articulation</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../tutorials/01_assets/run_deformable_object.html">Interacting with a deformable object</a></li>
-</ul>
-</details></li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="../tutorials/02_scene/index.html">Creating a Scene</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l3"><a class="reference internal" href="../tutorials/02_scene/create_scene.html">Using the Interactive Scene</a></li>
-</ul>
-</details></li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="../tutorials/03_envs/index.html">Designing an Environment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l3"><a class="reference internal" href="../tutorials/03_envs/create_manager_base_env.html">Creating a Manager-Based Base Environment</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../tutorials/03_envs/create_manager_rl_env.html">Creating a Manager-Based RL Environment</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
-</ul>
-</details></li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="../tutorials/04_sensors/index.html">Integrating Sensors</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l3"><a class="reference internal" href="../tutorials/04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
-</ul>
-</details></li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="../tutorials/05_controllers/index.html">Using Motion Generators</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l3"><a class="reference internal" href="../tutorials/05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
-</ul>
-</details></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/00_sim/spawn_prims.html">Spawning prims into the scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/00_sim/launch_app.html">Deep-dive into AppLauncher</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/01_assets/run_rigid_object.html">Interacting with a rigid object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/01_assets/run_articulation.html">Interacting with an articulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/01_assets/run_deformable_object.html">Interacting with a deformable object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/02_scene/create_scene.html">Using the Interactive Scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/create_manager_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/create_manager_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../how-to/index.html">How-to Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -279,8 +283,9 @@
 <li class="toctree-l2"><a class="reference internal" href="../how-to/draw_markers.html">Creating Visualization Markers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../how-to/wrap_rl_env.html">Wrapping environments</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../how-to/add_own_library.html">Adding your own learning library</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../how-to/record_animation.html">Recording Animations of Simulations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/record_video.html">Recording video clips during training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../deployment/index.html">Container Deployment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -289,6 +294,12 @@
 <li class="toctree-l2"><a class="reference internal" href="../deployment/run_docker_example.html">Running an example with Docker</a></li>
 </ul>
 </details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Migration Guides</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../migration/migrating_from_isaacgymenvs.html">From IsaacGymEnvs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../migration/migrating_from_omniisaacgymenvs.html">From OmniIsaacGymEnvs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../migration/migrating_from_orbit.html">From Orbit</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Source API</span></p>
 <ul class="nav bd-sidenav">
@@ -318,14 +329,9 @@
 </ul>
 </details></li>
 </ul>
-<p aria-level="2" class="caption" role="heading"><span class="caption-text">Migration Guides</span></p>
-<ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../migration/migrating_from_isaacgymenvs.html">From IsaacGymEnvs</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../migration/migrating_from_omniisaacgymenvs.html">From OmniIsaacGymEnvs</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../migration/migrating_from_orbit.html">From Orbit</a></li>
-</ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../refs/additional_resources.html">Additional Resources</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../refs/contributing.html">Contribution Guidelines</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../refs/troubleshooting.html">Tricks and Troubleshooting</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../refs/issues.html">Known Issues</a></li>
@@ -337,7 +343,7 @@
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/index.html">NVIDIA Isaac Sim</a></li>
-<li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/index.html">NVIDIA PhysX</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/index.html">NVIDIA PhysX</a></li>
 </ul>
 
     </div>
@@ -540,7 +546,7 @@ document.write(`
               
 
 <div id="jb-print-docs-body" class="onlyprint">
-    <h1>Tiled Rendering and Recording</h1>
+    <h1>Tiled-Camera Rendering</h1>
     <!-- Table of contents -->
     <div id="print-main-content">
         <div id="jb-print-toc">
@@ -550,8 +556,18 @@ document.write(`
             </div>
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#tiled-rendering">Tiled Rendering</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#recording-during-training">Recording during training</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#annotators-and-data-types">Annotators and Data Types</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#rgb-and-rgba">RGB and RGBA</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#depth-and-distances">Depth and Distances</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#normals">Normals</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#motion-vectors">Motion Vectors</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#semantic-segmentation">Semantic Segmentation</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#instance-id-segmentation">Instance ID Segmentation</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#instance-segmentation">Instance Segmentation</a></li>
+</ul>
+</li>
+</ul>
+</li>
 </ul>
             </nav>
         </div>
@@ -563,14 +579,13 @@ document.write(`
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="tiled-rendering-and-recording">
-<h1>Tiled Rendering and Recording<a class="headerlink" href="#tiled-rendering-and-recording" title="Permalink to this heading">#</a></h1>
-<section id="tiled-rendering">
-<h2>Tiled Rendering<a class="headerlink" href="#tiled-rendering" title="Permalink to this heading">#</a></h2>
+  <section id="tiled-camera-rendering">
+<h1>Tiled-Camera Rendering<a class="headerlink" href="#tiled-camera-rendering" title="Permalink to this heading">#</a></h1>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>This feature is only available from Isaac Sim version 4.0.0 onwards.</p>
-<p>Tiled rendering requires heavy memory resources. We recommend running at most 256 cameras in the scene.</p>
+<p>This feature is only available from Isaac Sim version 4.2.0 onwards.</p>
+<p>Tiled rendering in combination with image processing networks require heavy memory resources, especially
+at larger resolutions. We recommend running at 512 cameras in the scene on RTX 4090 GPUs or similar.</p>
 </div>
 <p>Tiled rendering APIs provide a vectorized interface for collecting data from camera sensors.
 This is useful for reinforcement learning environments requiring vision in the loop.
@@ -578,7 +593,7 @@ Tiled rendering works by concatenating camera outputs from multiple cameras and 
 one single large image instead of multiple smaller images that would have been produced
 by each individual camera. This reduces the amount of time required for rendering and
 provides a more efficient API for working with vision data.</p>
-<p>Isaac Lab provides tiled rendering APIs for RGB and depth data through the <a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.TiledCamera" title="omni.isaac.lab.sensors.TiledCamera"><code class="xref py py-class docutils literal notranslate"><span class="pre">TiledCamera</span></code></a>
+<p>Isaac Lab provides tiled rendering APIs for RGB, depth, along with other annotators through the <a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.TiledCamera" title="omni.isaac.lab.sensors.TiledCamera"><code class="xref py py-class docutils literal notranslate"><span class="pre">TiledCamera</span></code></a>
 class. Configurations for the tiled rendering APIs can be defined through the <a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.TiledCameraCfg" title="omni.isaac.lab.sensors.TiledCameraCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">TiledCameraCfg</span></code></a>
 class, specifying parameters such as the regex expression for all camera paths, the transform
 for the cameras, the desired data type, the type of cameras to add to the scene, and the camera
@@ -609,23 +624,66 @@ environment. For example:</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>source/standalone/workflows/rl_games/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-RGB-Camera-Direct-v0<span class="w"> </span>--headless<span class="w"> </span>--enable_cameras
 </pre></div>
 </div>
-</section>
-<section id="recording-during-training">
-<h2>Recording during training<a class="headerlink" href="#recording-during-training" title="Permalink to this heading">#</a></h2>
-<p>Isaac Lab supports recording video clips during training using the <a class="reference external" href="https://gymnasium.farama.org/main/_modules/gymnasium/wrappers/record_video/">gymnasium.wrappers.RecordVideo</a> class.</p>
-<p>This feature can be enabled by installing <code class="docutils literal notranslate"><span class="pre">ffmpeg</span></code> and using the following command line arguments with the training script:</p>
+<section id="annotators-and-data-types">
+<h2>Annotators and Data Types<a class="headerlink" href="#annotators-and-data-types" title="Permalink to this heading">#</a></h2>
+<p>Both <a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.TiledCamera" title="omni.isaac.lab.sensors.TiledCamera"><code class="xref py py-class docutils literal notranslate"><span class="pre">TiledCamera</span></code></a> and <a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.Camera" title="omni.isaac.lab.sensors.Camera"><code class="xref py py-class docutils literal notranslate"><span class="pre">Camera</span></code></a> classes provide APIs for retrieving various types annotator data from replicator:</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">--video</span></code> - enables video recording during training</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">--video_length</span></code> - length of each recorded video (in steps)</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">--video_interval</span></code> - interval between each video recording (in steps)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&quot;rgb&quot;</span></code>: A 3-channel rendered color image.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&quot;rgba&quot;</span></code>: A 4-channel rendered color image with alpha channel.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&quot;distance_to_camera&quot;</span></code>: An image containing the distance to camera optical center.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&quot;distance_to_image_plane&quot;</span></code>: An image containing distances of 3D points from camera plane along camera’s z-axis.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&quot;depth&quot;</span></code>: The same as <code class="docutils literal notranslate"><span class="pre">&quot;distance_to_image_plane&quot;</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&quot;normals&quot;</span></code>: An image containing the local surface normal vectors at each pixel.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&quot;motion_vectors&quot;</span></code>: An image containing the motion vector data at each pixel.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&quot;semantic_segmentation&quot;</span></code>: The semantic segmentation data.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&quot;instance_segmentation_fast&quot;</span></code>: The instance segmentation data.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&quot;instance_id_segmentation_fast&quot;</span></code>: The instance id segmentation data.</p></li>
 </ul>
-<p>Make sure to also add the <code class="docutils literal notranslate"><span class="pre">--enable_cameras</span></code> argument when running headless.
-Note that enabling recording is equivalent to enabling rendering during training, which will slow down both startup and runtime performance.</p>
-<p>Example usage:</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>source/standalone/workflows/rl_games/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>--video<span class="w"> </span>--video_length<span class="w"> </span><span class="m">100</span><span class="w"> </span>--video_interval<span class="w"> </span><span class="m">500</span>
-</pre></div>
-</div>
-<p>Recorded videos will be saved in the same directory as the training checkpoints, under <code class="docutils literal notranslate"><span class="pre">IsaacLab/logs/&lt;rl_workflow&gt;/&lt;task&gt;/&lt;run&gt;/videos/train</span></code>.</p>
+<section id="rgb-and-rgba">
+<h3>RGB and RGBA<a class="headerlink" href="#rgb-and-rgba" title="Permalink to this heading">#</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">rgb</span></code> data type returns a 3-channel RGB colored image of type <code class="docutils literal notranslate"><span class="pre">torch.uint8</span></code>, with dimension (B, H, W, 3).</p>
+<p><code class="docutils literal notranslate"><span class="pre">rgba</span></code> data type returns a 4-channel RGBA colored image of type <code class="docutils literal notranslate"><span class="pre">torch.uint8</span></code>, with dimension (B, H, W, 4).</p>
+<p>To convert the <code class="docutils literal notranslate"><span class="pre">torch.uint8</span></code> data to <code class="docutils literal notranslate"><span class="pre">torch.float32</span></code>, divide the buffer by 255.0 to obtain a <code class="docutils literal notranslate"><span class="pre">torch.float32</span></code> buffer containing data from 0 to 1.</p>
+</section>
+<section id="depth-and-distances">
+<h3>Depth and Distances<a class="headerlink" href="#depth-and-distances" title="Permalink to this heading">#</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">distance_to_camera</span></code> returns a single-channel depth image with distance to the camera optical center. The dimension for this annotator is (B, H, W, 1) and has type <code class="docutils literal notranslate"><span class="pre">torch.float32</span></code>.</p>
+<p><code class="docutils literal notranslate"><span class="pre">distance_to_image_plane</span></code> returns a single-channel depth image with distances of 3D points from the camera plane along the camera’s Z-axis. The dimension for this annotator is (B, H, W, 1) and has type <code class="docutils literal notranslate"><span class="pre">torch.float32</span></code>.</p>
+<p><code class="docutils literal notranslate"><span class="pre">depth</span></code> is provided as an alias for <code class="docutils literal notranslate"><span class="pre">distance_to_image_plane</span></code> and will return the same data as the <code class="docutils literal notranslate"><span class="pre">distance_to_image_plane</span></code> annotator, with dimension (B, H, W, 1) and type <code class="docutils literal notranslate"><span class="pre">torch.float32</span></code>.</p>
+</section>
+<section id="normals">
+<h3>Normals<a class="headerlink" href="#normals" title="Permalink to this heading">#</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">normals</span></code> returns an image containing the local surface normal vectors at each pixel. The buffer has dimension (B, H, W, 3), containing the (x, y, z) information for each vector, and has data type <code class="docutils literal notranslate"><span class="pre">torch.float32</span></code>.</p>
+</section>
+<section id="motion-vectors">
+<h3>Motion Vectors<a class="headerlink" href="#motion-vectors" title="Permalink to this heading">#</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">motion_vectors</span></code> returns the per-pixel motion vectors in image space, with a 2D array of motion vectors representing the relative motion of a pixel in the camera’s viewport between frames. The buffer has dimension (B, H, W, 2), representing x - the motion distance in the horizontal axis (image width) with movement to the left of the image being positive and movement to the right being negative and y - motion distance in the vertical axis (image height) with movement towards the top of the image being positive and movement to the bottom being negative. The data type is <code class="docutils literal notranslate"><span class="pre">torch.float32</span></code>.</p>
+</section>
+<section id="semantic-segmentation">
+<h3>Semantic Segmentation<a class="headerlink" href="#semantic-segmentation" title="Permalink to this heading">#</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">semantic_segmentation</span></code> outputs semantic segmentation of each entity in the camera’s viewport that has semantic labels. In addition to the image buffer, an <code class="docutils literal notranslate"><span class="pre">info</span></code> dictionary can be retrieved with <code class="docutils literal notranslate"><span class="pre">tiled_camera.data.info['semantic_segmentation']</span></code> containing ID to labels information.</p>
+<ul class="simple">
+<li><p>If <code class="docutils literal notranslate"><span class="pre">colorize_semantic_segmentation=True</span></code> in the camera config, a 4-channel RGBA image will be returned with dimension (B, H, W, 4) and type <code class="docutils literal notranslate"><span class="pre">torch.uint8</span></code>. The info <code class="docutils literal notranslate"><span class="pre">idToLabels</span></code> dictionary will be the mapping from color to semantic labels.</p></li>
+<li><p>If <code class="docutils literal notranslate"><span class="pre">colorize_semantic_segmentation=False</span></code>, a buffer of dimension (B, H, W, 1) of type <code class="docutils literal notranslate"><span class="pre">torch.int32</span></code> will be returned, containing the semantic ID of each pixel. The info <code class="docutils literal notranslate"><span class="pre">idToLabels</span></code> dictionary will be the mapping from semantic ID to semantic labels.</p></li>
+</ul>
+</section>
+<section id="instance-id-segmentation">
+<h3>Instance ID Segmentation<a class="headerlink" href="#instance-id-segmentation" title="Permalink to this heading">#</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">instance_id_segmentation_fast</span></code> outputs instance ID segmentation of each entity in the camera’s viewport. The instance ID is unique for each prim in the scene with different paths. In addition to the image buffer, an <code class="docutils literal notranslate"><span class="pre">info</span></code> dictionary can be retrieved with <code class="docutils literal notranslate"><span class="pre">tiled_camera.data.info['instance_id_segmentation_fast']</span></code> containing ID to labels information.</p>
+<p>The main difference between <code class="docutils literal notranslate"><span class="pre">instance_id_segmentation_fast</span></code> and <code class="docutils literal notranslate"><span class="pre">instance_segmentation_fast</span></code> are that instance segmentation annotator goes down the hierarchy to the lowest level prim which has semantic labels, where instance ID segmentation always goes down to the leaf prim.</p>
+<ul class="simple">
+<li><p>If <code class="docutils literal notranslate"><span class="pre">colorize_instance_id_segmentation=True</span></code> in the camera config, a 4-channel RGBA image will be returned with dimension (B, H, W, 4) and type <code class="docutils literal notranslate"><span class="pre">torch.uint8</span></code>. The info <code class="docutils literal notranslate"><span class="pre">idToLabels</span></code> dictionary will be the mapping from color to USD prim path of that entity.</p></li>
+<li><p>If <code class="docutils literal notranslate"><span class="pre">colorize_instance_id_segmentation=False</span></code>, a buffer of dimension (B, H, W, 1) of type <code class="docutils literal notranslate"><span class="pre">torch.int32</span></code> will be returned, containing the instance ID of each pixel. The info <code class="docutils literal notranslate"><span class="pre">idToLabels</span></code> dictionary will be the mapping from instance ID to USD prim path of that entity.</p></li>
+</ul>
+<section id="instance-segmentation">
+<h4>Instance Segmentation<a class="headerlink" href="#instance-segmentation" title="Permalink to this heading">#</a></h4>
+<p><code class="docutils literal notranslate"><span class="pre">instance_segmentation_fast</span></code> outputs instance segmentation of each entity in the camera’s viewport. In addition to the image buffer, an <code class="docutils literal notranslate"><span class="pre">info</span></code> dictionary can be retrieved with <code class="docutils literal notranslate"><span class="pre">tiled_camera.data.info['instance_segmentation_fast']</span></code> containing ID to labels and ID to semantic information.</p>
+<ul class="simple">
+<li><p>If <code class="docutils literal notranslate"><span class="pre">colorize_instance_segmentation=True</span></code> in the camera config, a 4-channel RGBA image will be returned with dimension (B, H, W, 4) and type <code class="docutils literal notranslate"><span class="pre">torch.uint8</span></code>. The info <code class="docutils literal notranslate"><span class="pre">idToLabels</span></code> dictionary will be the mapping from color to USD prim path of that semantic entity. The info <code class="docutils literal notranslate"><span class="pre">idToSemantics</span></code> dictionary will be the mapping from color to semantic labels of that semantic entity.</p></li>
+<li><p>If <code class="docutils literal notranslate"><span class="pre">colorize_instance_segmentation=False</span></code>, a buffer of dimension (B, H, W, 1) of type <code class="docutils literal notranslate"><span class="pre">torch.int32</span></code> will be returned, containing the instance ID of each pixel. The info <code class="docutils literal notranslate"><span class="pre">idToLabels</span></code> dictionary will be the mapping from instance ID to USD prim path of that semantic entity. The info <code class="docutils literal notranslate"><span class="pre">idToSemantics</span></code> dictionary will be the mapping from instance ID to semantic labels of that semantic entity.</p></li>
+</ul>
+</section>
+</section>
 </section>
 </section>
 
@@ -650,11 +708,11 @@ Note that enabling recording is equivalent to enabling rendering during training
       </div>
     </a>
     <a class="right-next"
-       href="environments.html"
+       href="reproducibility.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Environments</p>
+        <p class="prev-next-title">Reproducibility and Determinism</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -674,8 +732,18 @@ Note that enabling recording is equivalent to enabling rendering during training
   </div>
   <nav class="bd-toc-nav page-toc">
     <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#tiled-rendering">Tiled Rendering</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#recording-during-training">Recording during training</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#annotators-and-data-types">Annotators and Data Types</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#rgb-and-rgba">RGB and RGBA</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#depth-and-distances">Depth and Distances</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#normals">Normals</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#motion-vectors">Motion Vectors</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#semantic-segmentation">Semantic Segmentation</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#instance-id-segmentation">Instance ID Segmentation</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#instance-segmentation">Instance Segmentation</a></li>
+</ul>
+</li>
+</ul>
+</li>
 </ul>
   </nav></div>
 
@@ -709,7 +777,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 19, 2024.
+  Last updated on Sep 20, 2024.
   <br/>
 </p>
   </div>

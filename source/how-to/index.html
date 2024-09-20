@@ -57,7 +57,7 @@
     <link rel="prev" title="Using a task-space controller" href="../tutorials/05_controllers/run_diff_ik.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Sep 19, 2024"/>
+    <meta name="docbuild:last-update" content="Sep 20, 2024"/>
   </head>
   
   
@@ -177,7 +177,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.1-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -213,62 +213,66 @@
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1 has-children"><a class="reference internal" href="../setup/installation/index.html">Installation Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2"><a class="reference internal" href="../setup/installation/pip_installation.html">Installation using Isaac Sim pip (experimental)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../setup/installation/binaries_installation.html">Installation using Isaac Sim Binaries</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../setup/installation/verifying_installation.html">Verifying the Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../setup/installation/pip_installation.html">Option 1: Installation using Isaac Sim pip</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../setup/installation/binaries_installation.html">Option 2: Installation using Isaac Sim binaries</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
 </ul>
 </details></li>
-<li class="toctree-l1"><a class="reference internal" href="../setup/developer.html">Developer’s Guide</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../setup/sample.html">Running Existing Scripts</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../setup/template.html">Building your Own Project</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../setup/faq.html">Frequently Asked Questions</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Overview</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../overview/developer-guide/index.html">Developer’s Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
+
+<li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/repo_structure.html">Repository organization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/extensions.html">Extensions</a></li>
+
+<li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/template.html">Building your Own Project</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../overview/core-concepts/index.html">Core Concepts</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../overview/core-concepts/task_workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/core-concepts/actuators.html">Actuators</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../overview/environments.html">Available Environments</a></li>
+
+<li class="toctree-l1 has-children"><a class="reference internal" href="../overview/reinforcement-learning/index.html">Reinforcement Learning</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../overview/reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Wrappers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/reinforcement-learning/rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/reinforcement-learning/performance_benchmarks.html">Performance Benchmarks</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../overview/teleop_imitation.html">Teleoperation and Imitation Learning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../overview/showroom.html">Showroom Demos</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../overview/basic_agents.html">Simple Agents</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../features/task_workflows.html">Task Design Workflows</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../features/hydra.html">Hydra Configuration System</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../features/tiled_rendering.html">Tiled Rendering and Recording</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../features/environments.html">Environments</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../features/actuators.html">Actuators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../features/tiled_rendering.html">Tiled-Camera Rendering</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../features/reproducibility.html">Reproducibility and Determinism</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="current nav bd-sidenav">
 <li class="toctree-l1 has-children"><a class="reference internal" href="../tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2 has-children"><a class="reference internal" href="../tutorials/00_sim/index.html">Setting up a Simple Simulation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l3"><a class="reference internal" href="../tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../tutorials/00_sim/spawn_prims.html">Spawning prims into the scene</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../tutorials/00_sim/launch_app.html">Deep-dive into AppLauncher</a></li>
-</ul>
-</details></li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="../tutorials/01_assets/index.html">Interacting with Assets</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l3"><a class="reference internal" href="../tutorials/01_assets/run_rigid_object.html">Interacting with a rigid object</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../tutorials/01_assets/run_articulation.html">Interacting with an articulation</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../tutorials/01_assets/run_deformable_object.html">Interacting with a deformable object</a></li>
-</ul>
-</details></li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="../tutorials/02_scene/index.html">Creating a Scene</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l3"><a class="reference internal" href="../tutorials/02_scene/create_scene.html">Using the Interactive Scene</a></li>
-</ul>
-</details></li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="../tutorials/03_envs/index.html">Designing an Environment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l3"><a class="reference internal" href="../tutorials/03_envs/create_manager_base_env.html">Creating a Manager-Based Base Environment</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../tutorials/03_envs/create_manager_rl_env.html">Creating a Manager-Based RL Environment</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
-</ul>
-</details></li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="../tutorials/04_sensors/index.html">Integrating Sensors</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l3"><a class="reference internal" href="../tutorials/04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
-</ul>
-</details></li>
-<li class="toctree-l2 has-children"><a class="reference internal" href="../tutorials/05_controllers/index.html">Using Motion Generators</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l3"><a class="reference internal" href="../tutorials/05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
-</ul>
-</details></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/00_sim/spawn_prims.html">Spawning prims into the scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/00_sim/launch_app.html">Deep-dive into AppLauncher</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/01_assets/run_rigid_object.html">Interacting with a rigid object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/01_assets/run_articulation.html">Interacting with an articulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/01_assets/run_deformable_object.html">Interacting with a deformable object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/02_scene/create_scene.html">Using the Interactive Scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/create_manager_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/create_manager_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1 current active has-children"><a class="current reference internal" href="#">How-to Guides</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -279,8 +283,9 @@
 <li class="toctree-l2"><a class="reference internal" href="draw_markers.html">Creating Visualization Markers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="wrap_rl_env.html">Wrapping environments</a></li>
 <li class="toctree-l2"><a class="reference internal" href="add_own_library.html">Adding your own learning library</a></li>
-<li class="toctree-l2"><a class="reference internal" href="master_omniverse.html">Mastering Omniverse for Robotics</a></li>
 <li class="toctree-l2"><a class="reference internal" href="record_animation.html">Recording Animations of Simulations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="record_video.html">Recording video clips during training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="master_omniverse.html">Mastering Omniverse for Robotics</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../deployment/index.html">Container Deployment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -289,6 +294,12 @@
 <li class="toctree-l2"><a class="reference internal" href="../deployment/run_docker_example.html">Running an example with Docker</a></li>
 </ul>
 </details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Migration Guides</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../migration/migrating_from_isaacgymenvs.html">From IsaacGymEnvs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../migration/migrating_from_omniisaacgymenvs.html">From OmniIsaacGymEnvs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../migration/migrating_from_orbit.html">From Orbit</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Source API</span></p>
 <ul class="nav bd-sidenav">
@@ -318,14 +329,9 @@
 </ul>
 </details></li>
 </ul>
-<p aria-level="2" class="caption" role="heading"><span class="caption-text">Migration Guides</span></p>
-<ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../migration/migrating_from_isaacgymenvs.html">From IsaacGymEnvs</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../migration/migrating_from_omniisaacgymenvs.html">From OmniIsaacGymEnvs</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../migration/migrating_from_orbit.html">From Orbit</a></li>
-</ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../refs/additional_resources.html">Additional Resources</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../refs/contributing.html">Contribution Guidelines</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../refs/troubleshooting.html">Tricks and Troubleshooting</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../refs/issues.html">Known Issues</a></li>
@@ -337,7 +343,7 @@
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/index.html">NVIDIA Isaac Sim</a></li>
-<li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/index.html">NVIDIA PhysX</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/index.html">NVIDIA PhysX</a></li>
 </ul>
 
     </div>
@@ -527,7 +533,9 @@ document.write(`
   </button>
 `);
 </script>
-
+<label class="sidebar-toggle secondary-toggle btn btn-sm" for="__secondary"title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</label>
 </div></div>
       
     </div>
@@ -543,6 +551,20 @@ document.write(`
     <div id="print-main-content">
         <div id="jb-print-toc">
             
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#importing-a-new-asset">Importing a New Asset</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#creating-a-fixed-asset">Creating a Fixed Asset</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#saving-camera-output">Saving Camera Output</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#drawing-markers">Drawing Markers</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#interfacing-with-environments">Interfacing with Environments</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#recording-an-animation-and-video">Recording an Animation and Video</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mastering-omniverse">Mastering Omniverse</a></li>
+</ul>
+            </nav>
         </div>
     </div>
 </div>
@@ -553,7 +575,7 @@ document.write(`
                 <article class="bd-article">
                   
   <section id="how-to-guides">
-<h1>How-to Guides<a class="headerlink" href="#how-to-guides" title="Permalink to this heading">#</a></h1>
+<span id="how-to"></span><h1>How-to Guides<a class="headerlink" href="#how-to-guides" title="Permalink to this heading">#</a></h1>
 <p>This section includes guides that help you use Isaac Lab. These are intended for users who
 have already worked through the tutorials and are looking for more information on how to
 use Isaac Lab. If you are new to Isaac Lab, we recommend you start with the tutorials.</p>
@@ -562,19 +584,77 @@ use Isaac Lab. If you are new to Isaac Lab, we recommend you start with the tuto
 <p>This section is a work in progress. If you have a question that is not answered here,
 please open an issue on our <a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub page</a>.</p>
 </div>
+<section id="importing-a-new-asset">
+<h2>Importing a New Asset<a class="headerlink" href="#importing-a-new-asset" title="Permalink to this heading">#</a></h2>
+<p>Importing an asset into Isaac Lab is a common task. It contains two steps: importing the asset into
+a USD format and then setting up the configuration object for the asset. The following guide explains
+how to import a new asset into Isaac Lab.</p>
 <div class="toctree-wrapper compound">
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="import_new_asset.html">Importing a New Asset</a></li>
 <li class="toctree-l1"><a class="reference internal" href="write_articulation_cfg.html">Writing an Asset Configuration</a></li>
-<li class="toctree-l1"><a class="reference internal" href="make_fixed_prim.html">Making a physics prim fixed in the simulation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="save_camera_output.html">Saving rendered images and 3D re-projection</a></li>
-<li class="toctree-l1"><a class="reference internal" href="draw_markers.html">Creating Visualization Markers</a></li>
-<li class="toctree-l1"><a class="reference internal" href="wrap_rl_env.html">Wrapping environments</a></li>
-<li class="toctree-l1"><a class="reference internal" href="add_own_library.html">Adding your own learning library</a></li>
-<li class="toctree-l1"><a class="reference internal" href="master_omniverse.html">Mastering Omniverse for Robotics</a></li>
-<li class="toctree-l1"><a class="reference internal" href="record_animation.html">Recording Animations of Simulations</a></li>
 </ul>
 </div>
+</section>
+<section id="creating-a-fixed-asset">
+<h2>Creating a Fixed Asset<a class="headerlink" href="#creating-a-fixed-asset" title="Permalink to this heading">#</a></h2>
+<p>Often you may want to create a fixed asset in your scene. For instance, making a floating base robot
+a fixed base robot. This guide goes over the various considerations and steps to create a fixed asset.</p>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="make_fixed_prim.html">Making a physics prim fixed in the simulation</a></li>
+</ul>
+</div>
+</section>
+<section id="saving-camera-output">
+<h2>Saving Camera Output<a class="headerlink" href="#saving-camera-output" title="Permalink to this heading">#</a></h2>
+<p>This guide explains how to save the camera output in Isaac Lab.</p>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="save_camera_output.html">Saving rendered images and 3D re-projection</a></li>
+</ul>
+</div>
+</section>
+<section id="drawing-markers">
+<h2>Drawing Markers<a class="headerlink" href="#drawing-markers" title="Permalink to this heading">#</a></h2>
+<p>This guide explains how to use the <a class="reference internal" href="../api/lab/omni.isaac.lab.markers.html#omni.isaac.lab.markers.VisualizationMarkers" title="omni.isaac.lab.markers.VisualizationMarkers"><code class="xref py py-class docutils literal notranslate"><span class="pre">VisualizationMarkers</span></code></a> class to draw markers in
+Isaac Lab.</p>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="draw_markers.html">Creating Visualization Markers</a></li>
+</ul>
+</div>
+</section>
+<section id="interfacing-with-environments">
+<h2>Interfacing with Environments<a class="headerlink" href="#interfacing-with-environments" title="Permalink to this heading">#</a></h2>
+<p>These guides explain how to interface with reinforcement learning environments in Isaac Lab.</p>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="wrap_rl_env.html">Wrapping environments</a></li>
+<li class="toctree-l1"><a class="reference internal" href="add_own_library.html">Adding your own learning library</a></li>
+</ul>
+</div>
+</section>
+<section id="recording-an-animation-and-video">
+<h2>Recording an Animation and Video<a class="headerlink" href="#recording-an-animation-and-video" title="Permalink to this heading">#</a></h2>
+<p>This guide explains how to record an animation and video in Isaac Lab.</p>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="record_animation.html">Recording Animations of Simulations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="record_video.html">Recording video clips during training</a></li>
+</ul>
+</div>
+</section>
+<section id="mastering-omniverse">
+<h2>Mastering Omniverse<a class="headerlink" href="#mastering-omniverse" title="Permalink to this heading">#</a></h2>
+<p>Omniverse is a powerful platform that provides a wide range of features. This guide links to
+additional resources that help you use Omniverse features in Isaac Lab.</p>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="master_omniverse.html">Mastering Omniverse for Robotics</a></li>
+</ul>
+</div>
+</section>
 </section>
 
 
@@ -613,6 +693,27 @@ please open an issue on our <a class="reference external" href="https://github.c
             
             
               
+                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#importing-a-new-asset">Importing a New Asset</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#creating-a-fixed-asset">Creating a Fixed Asset</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#saving-camera-output">Saving Camera Output</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#drawing-markers">Drawing Markers</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#interfacing-with-environments">Interfacing with Environments</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#recording-an-animation-and-video">Recording an Animation and Video</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mastering-omniverse">Mastering Omniverse</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
             
           </div>
           <footer class="bd-footer-content">
@@ -641,7 +742,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Sep 19, 2024.
+  Last updated on Sep 20, 2024.
   <br/>
 </p>
   </div>
