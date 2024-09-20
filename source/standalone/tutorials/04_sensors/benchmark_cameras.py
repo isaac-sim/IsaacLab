@@ -5,9 +5,10 @@
 
 """
 This script might help you determine how many cameras your system can realistically run
-at different desired settings. This script can also be used to sanity check visually
-what the camera images and or point clouds output from the replicator looks like.
-
+at different desired settings. You can supply different task environments
+to inject cameras into, or just test a sample scene. Additionally,
+you can automatically find the maximum amount of cameras you can run a task with through the
+autotune functionality.
 
 .. code-block:: bash
 
@@ -31,6 +32,11 @@ args_cli = argparse.Namespace()
 
 parser = argparse.ArgumentParser(description="This script can help you benchmark how many cameras you could run.")
 
+"""
+The following arguments only need to be supplied for when one wishes
+to try injecting cameras into their environment, and automatically determining
+the maximum camera count.
+"""
 parser.add_argument(
     "--task",
     type=str,
@@ -46,6 +52,7 @@ parser.add_argument(
     help=(
         "Autotuning is only supported for provided task environments."
         " Supply this argument to increase the number of environments until a desired threshold is reached."
+        "Install pynvml in your environment; ./isaaclab.sh -m pip install pynvml"
     ),
 )
 
@@ -57,16 +64,21 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--use_fabric", action="store_true", default=False, help="Enable fabric and use USD I/O operations."
+)
+
+parser.add_argument(
     "--autotune_max_percentage_util",
     nargs="+",
     type=float,
-    default=[100.0, 80.0, 80.0],
+    default=[100.0, 80.0, 80.0, 80.0],
     required=False,
     help=(
         "The system utilization percentage thresholds to reach before an autotune is finished. "
         "If any one of these limits are hit, the autotune stops."
         "Thresholds are, in order, maximum CPU percentage utilization,"
-        "maximum RAM percentage utilization, and maximum GPU percent utilization. "
+        "maximum RAM percentage utilization, maximum GPU compute percent utilization, "
+        "amd maximum GPU memory utilization."
     ),
 )
 
@@ -83,6 +95,11 @@ parser.add_argument(
         " falls within permitted system resource utilization limits."
     ),
 )
+
+"""
+The following arguments are shared for when injecting cameras into a task environment,
+as well as when creating cameras independent of a task environment.
+"""
 
 parser.add_argument(
     "--num_tiled_cameras",
@@ -109,7 +126,7 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--tiled_camera_replicators",
+    "--tiled_camera_data_types",
     nargs="+",
     type=str,
     default=["rgb", "depth"],
@@ -117,7 +134,7 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--standard_camera_replicators",
+    "--standard_camera_data_types",
     nargs="+",
     type=str,
     default=["rgb", "distance_to_image_plane", "distance_to_camera"],
@@ -125,7 +142,7 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--ray_caster_camera_replicators",
+    "--ray_caster_camera_data_types",
     nargs="+",
     type=str,
     default=["distance_to_image_plane"],
@@ -145,8 +162,8 @@ parser.add_argument(
     action="store_true",
     default=True,
     help=(
-        "Enable undistorting from perspective view (distance to camera replicator)"
-        "to orthogonal view (distance to plane replicator) for depth."
+        "Enable undistorting from perspective view (distance to camera data_type)"
+        "to orthogonal view (distance to plane data_type) for depth."
         "This is currently needed to create undisorted depth images/point cloud."
     ),
 )
@@ -157,7 +174,7 @@ parser.add_argument(
     action="store_false",
     help=(
         "Disable undistorting from perspective view (distance to camera)"
-        "to orthogonal view (distance to plane replicator) for depth."
+        "to orthogonal view (distance to plane data_type) for depth."
     ),
 )
 
@@ -189,6 +206,15 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--experiment_length",
+    type=int,
+    default=15,
+    required=False,
+    help="Number of steps to average over",
+)
+
+# This argument is only used when a task is not provided.
+parser.add_argument(
     "--num_objects",
     type=int,
     default=10,
@@ -196,17 +222,13 @@ parser.add_argument(
     help="Number of objects to spawn into the scene when not using a known task.",
 )
 
-parser.add_argument(
-    "--experiment_length",
-    type=int,
-    default=30,
-    required=False,
-    help="Number of steps to average over",
-)
 
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 args_cli.enable_cameras = True
+
+if args_cli.autotune:
+    import pynvml
 
 if len(args_cli.ray_caster_visible_mesh_prim_paths) > 1:
     print("[WARNING]: Ray Casting is only currently supported for a single, static object")
@@ -216,6 +238,7 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
+import gymnasium as gym
 import numpy as np
 import random
 import time
@@ -240,6 +263,10 @@ from omni.isaac.lab.sensors import (
 from omni.isaac.lab.utils.math import convert_perspective_depth_to_orthogonal_depth, unproject_depth
 
 from omni.isaac.lab_tasks.utils import load_cfg_from_registry
+
+"""
+Camera Creation
+"""
 
 
 def create_camera_base(
@@ -344,25 +371,67 @@ def create_ray_caster_cameras(
         return None
 
 
+def create_tiled_camera_cfg(prim_path: str) -> TiledCameraCfg:
+    """Grab a simple tiled camera config for injecting into task environments."""
+    return create_camera_base(
+        TiledCameraCfg,
+        num_cams=args_cli.num_tiled_cameras,
+        data_types=args_cli.tiled_camera_data_types,
+        width=args_cli.width,
+        height=args_cli.height,
+        prim_path="{ENV_REGEX_NS}/" + prim_path,
+        instantiate=False,
+    )
+
+
+def create_standard_camera_cfg(prim_path: str) -> CameraCfg:
+    """Grab a simple standard camera config for injecting into task environments."""
+    return create_camera_base(
+        CameraCfg,
+        num_cams=args_cli.num_standard_cameras,
+        data_types=args_cli.standard_camera_data_types,
+        width=args_cli.width,
+        height=args_cli.height,
+        prim_path="{ENV_REGEX_NS}/" + prim_path,
+        instantiate=False,
+    )
+
+
+def create_ray_caster_camera_cfg(prim_path: str) -> RayCasterCameraCfg:
+    """Grab a simple ray caster config for injecting into task environments."""
+    return create_ray_caster_cameras(
+        num_cams=args_cli.num_ray_caster_cameras,
+        data_types=args_cli.ray_caster_camera_data_types,
+        width=args_cli.width,
+        height=args_cli.height,
+        prim_path="{ENV_REGEX_NS}/" + prim_path,
+    )
+
+
+"""
+Scene Creation
+"""
+
+
 def design_scene(
     num_tiled_cams: int = 2,
     num_standard_cams: int = 0,
     num_ray_caster_cams: int = 0,
-    tiled_camera_replicators: list[str] | None = None,
-    standard_camera_replicators: list[str] | None = None,
-    ray_caster_camera_replicators: list[str] | None = None,
+    tiled_camera_data_types: list[str] | None = None,
+    standard_camera_data_types: list[str] | None = None,
+    ray_caster_camera_data_types: list[str] | None = None,
     height: int = 100,
     width: int = 200,
     num_objects: int = 20,
     mesh_prim_paths: list[str] = ["/World/ground"],
 ) -> dict:
     """Design the scene."""
-    if tiled_camera_replicators is None:
-        tiled_camera_replicators = ["rgb"]
-    if standard_camera_replicators is None:
-        standard_camera_replicators = ["rgb"]
-    if ray_caster_camera_replicators is None:
-        ray_caster_camera_replicators = ["distance_to_image_plane"]
+    if tiled_camera_data_types is None:
+        tiled_camera_data_types = ["rgb"]
+    if standard_camera_data_types is None:
+        standard_camera_data_types = ["rgb"]
+    if ray_caster_camera_data_types is None:
+        ray_caster_camera_data_types = ["distance_to_image_plane"]
 
     # Populate scene
     # -- Ground-plane
@@ -409,14 +478,14 @@ def design_scene(
 
     # Sensors
     standard_camera = create_cameras(
-        num_cams=num_standard_cams, data_types=standard_camera_replicators, height=height, width=width
+        num_cams=num_standard_cams, data_types=standard_camera_data_types, height=height, width=width
     )
     tiled_camera = create_tiled_cameras(
-        num_cams=num_tiled_cams, data_types=tiled_camera_replicators, height=height, width=width
+        num_cams=num_tiled_cams, data_types=tiled_camera_data_types, height=height, width=width
     )
     ray_caster_camera = create_ray_caster_cameras(
         num_cams=num_ray_caster_cams,
-        data_types=ray_caster_camera_replicators,
+        data_types=ray_caster_camera_data_types,
         mesh_prim_paths=mesh_prim_paths,
         height=height,
         width=width,
@@ -431,82 +500,18 @@ def design_scene(
     return scene_entities
 
 
-def inject_cameras_into_scene(
+def inject_cameras_into_task(
     task: str,
-    num_tiled_cameras: int = 1,
-    num_standard_cameras: int = 0,
-    num_ray_caster_cameras: int = 0,
-    tiled_camera_replicators: list[str] | None = None,
-    standard_camera_replicators: list[str] | None = None,
-    ray_caster_camera_replicators: list[str] | None = None,
+    num_cams: int,
+    camera_name_prefix: str,
+    camera_creation_callable: Callable,
     num_cameras_per_env: int = 1,
-    width: int = 80,
-    height: int = 80,
-) -> InteractiveScene:
-
-    if tiled_camera_replicators is None:
-        tiled_camera_replicators = ["rgb"]
-    if standard_camera_replicators is None:
-        standard_camera_replicators = ["rgb"]
-    if ray_caster_camera_replicators is None:
-        ray_caster_camera_replicators = ["distance_to_image_plane"]
-
-    scene_cfg = load_cfg_from_registry(task, "env_cfg_entry_point").scene
-    print(scene_cfg)
-    print("----")
-
-    # Function definitions for camera creation
-    def create_tiled_camera_cfg(prim_path: str) -> TiledCameraCfg:
-        return create_camera_base(
-            TiledCameraCfg,
-            num_cams=num_tiled_cameras,
-            data_types=tiled_camera_replicators,
-            width=width,
-            height=height,
-            prim_path="{ENV_REGEX_NS}/" + prim_path,
-            instantiate=False,
-        )
-
-    def create_standard_camera_cfg(prim_path: str) -> CameraCfg:
-        return create_camera_base(
-            CameraCfg,
-            num_cams=num_standard_cameras,  # gets cloned by scene
-            data_types=standard_camera_replicators,
-            width=width,
-            height=height,
-            prim_path="{ENV_REGEX_NS}/" + prim_path,
-            instantiate=False,
-        )
-
-    def create_ray_caster_camera_cfg(prim_path: str) -> RayCasterCameraCfg:
-        return create_ray_caster_cameras(
-            num_cams=num_ray_caster_cameras,  # gets cloned by scene
-            data_types=ray_caster_camera_replicators,
-            width=width,
-            height=height,
-            prim_path="{ENV_REGEX_NS}/" + prim_path,
-        )
-
-    # Creating camera configurations by calling the functions
-    tiled_camera_cfg = create_tiled_camera_cfg("tiled_camera")
-    standard_camera_cfg = create_standard_camera_cfg("standard_camera")
-    ray_caster_camera_cfg = create_ray_caster_camera_cfg("ray_caster_camera")
-
-    camera_name_prefix = ""
-    camera_creation_callable = None
-    num_cams = 0
-    if tiled_camera_cfg is not None:
-        camera_name_prefix = "tiled_camera"
-        camera_creation_callable = create_tiled_camera_cfg
-        num_cams = num_tiled_cameras
-    elif standard_camera_cfg is not None:
-        camera_name_prefix = "standard_camera"
-        camera_creation_callable = create_standard_camera_cfg
-        num_cams = num_standard_cameras
-    elif ray_caster_camera_cfg is not None:
-        camera_name_prefix = "ray_caster_camera"
-        camera_creation_callable = create_ray_caster_camera_cfg
-        num_cams = num_ray_caster_cameras
+) -> gym.Env:
+    """Loads the task, sticks cameras into the config, and creates the environment."""
+    cfg = load_cfg_from_registry(task, "env_cfg_entry_point")
+    cfg.sim.device = args_cli.device
+    cfg.sim.use_fabric = args_cli.use_fabric
+    scene_cfg = cfg.scene
 
     num_envs = int(num_cams / num_cameras_per_env)
     scene_cfg.num_envs = num_envs
@@ -515,15 +520,21 @@ def inject_cameras_into_scene(
         suffix = "" if idx == 0 else str(idx)
         name = camera_name_prefix + suffix
         setattr(scene_cfg, name, camera_creation_callable(name))
-    print(scene_cfg)
-    return InteractiveScene(scene_cfg)
+    cfg.scene = scene_cfg
+    env = gym.make(task, cfg=cfg)
+    return env
 
 
-def get_utilization_percentages(reset=False, max_values=[0, 0, 0]):
-    # max_values = [max_cpu_usage, max_ram_usage, max_gpu_usage]
+"""
+System diagnosis
+"""
 
+
+def get_utilization_percentages(reset: bool = False, max_values: list[float] = [0.0, 0.0, 0.0, 0.0]) -> list[float]:
+    """Get the maximum CPU, RAM, GPU utilization (processing), and
+    GPU memory usage percentages since the last time reset was true."""
     if reset:
-        max_values[:] = [0, 0, 0]  # Reset the max values
+        max_values[:] = [0, 0, 0, 0]  # Reset the max values
 
     # CPU utilization
     cpu_usage = psutil.cpu_percent(interval=0.1)
@@ -534,47 +545,60 @@ def get_utilization_percentages(reset=False, max_values=[0, 0, 0]):
     ram_usage = memory_info.percent
     max_values[1] = max(max_values[1], ram_usage)
 
-    # Cumulative GPU utilization using PyTorch
+    # GPU utilization using pynvml
     if torch.cuda.is_available():
-        total_gpu_memory = 0
-        total_gpu_memory_used = 0
-        for i in range(torch.cuda.device_count()):
-            gpu_memory_total = torch.cuda.get_device_properties(i).total_memory
-            gpu_memory_used = torch.cuda.memory_allocated(i)
 
-            total_gpu_memory += gpu_memory_total
-            total_gpu_memory_used += gpu_memory_used
+        if args_cli.autotune:
+            pynvml.nvmlInit()  # Initialize NVML
+            for i in range(torch.cuda.device_count()):
+                handle = pynvml.nvmlDeviceGetHandleByIndex(i)
 
-        # Calculate cumulative GPU percentage
-        gpu_memory_percent = (total_gpu_memory_used / total_gpu_memory) * 100 if total_gpu_memory > 0 else 0
-        max_values[2] = max(max_values[2], gpu_memory_percent)
+                # GPU Utilization
+                gpu_utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
+                gpu_processing_utilization_percent = gpu_utilization.gpu  # GPU core utilization
+                max_values[2] = max(max_values[2], gpu_processing_utilization_percent)
+
+                # GPU Memory Usage
+                memory_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
+                gpu_memory_total = memory_info.total
+                gpu_memory_used = memory_info.used
+                gpu_memory_utilization_percent = (gpu_memory_used / gpu_memory_total) * 100
+                max_values[3] = max(max_values[3], gpu_memory_utilization_percent)
+
+            pynvml.nvmlShutdown()  # Shutdown NVML after usage
     else:
-        gpu_memory_percent = None
+        gpu_processing_utilization_percent = None
+        gpu_memory_utilization_percent = None
+    return max_values
 
-    return [max_values[0], max_values[1], max_values[2]]
+
+"""
+Experiment
+"""
 
 
 def run_simulator(
-    sim: sim_utils.SimulationContext,
+    sim: sim_utils.SimulationContext | None,
     scene_entities: dict | InteractiveScene,
     warm_start_length: int = 10,
     experiment_length: int = 100,
-    tiled_camera_replicators: list[str] | None = None,
-    standard_camera_replicators: list[str] | None = None,
-    ray_caster_camera_replicators: list[str] | None = None,
+    tiled_camera_data_types: list[str] | None = None,
+    standard_camera_data_types: list[str] | None = None,
+    ray_caster_camera_data_types: list[str] | None = None,
     depth_predicate: Callable = lambda x: "to" in x or x == "depth",
     perspective_depth_predicate: Callable = lambda x: x == "depth" or x == "distance_to_camera",
     convert_depth_to_camera_to_image_plane: bool = True,
     max_cameras_per_env: int = 1,
+    env: gym.Env | None = None,
 ) -> dict:
     """Run the simulator with all cameras, and return timing analytics. Visualize if desired."""
 
-    if tiled_camera_replicators is None:
-        tiled_camera_replicators = ["rgb"]
-    if standard_camera_replicators is None:
-        standard_camera_replicators = ["rgb"]
-    if ray_caster_camera_replicators is None:
-        ray_caster_camera_replicators = ["distance_to_image_plane"]
+    if tiled_camera_data_types is None:
+        tiled_camera_data_types = ["rgb"]
+    if standard_camera_data_types is None:
+        standard_camera_data_types = ["rgb"]
+    if ray_caster_camera_data_types is None:
+        ray_caster_camera_data_types = ["distance_to_image_plane"]
 
     # Initialize camera lists
     tiled_cameras = []
@@ -588,7 +612,7 @@ def run_simulator(
         standard_camera_key = f"standard_camera{i}" if i > 0 else "standard_camera"
         ray_caster_camera_key = f"ray_caster_camera{i}" if i > 0 else "ray_caster_camera"
 
-        try:  # if instead you checked ... if key is in scene_entites... # errors out always even if key present
+        try:  # if instead you checked ... if key is in scene_entities... # errors out always even if key present
             tiled_cameras.append(scene_entities[tiled_camera_key])
             standard_cameras.append(scene_entities[standard_camera_key])
             ray_caster_cameras.append(scene_entities[ray_caster_camera_key])
@@ -597,16 +621,17 @@ def run_simulator(
 
     # Initialize camera counts
     camera_lists = [tiled_cameras, standard_cameras, ray_caster_cameras]
-    camera_replicators = [tiled_camera_replicators, standard_camera_replicators, ray_caster_camera_replicators]
+    camera_data_types = [tiled_camera_data_types, standard_camera_data_types, ray_caster_camera_data_types]
     labels = ["tiled", "standard", "ray_caster"]
 
-    # Set camera world poses
-    for camera_list in camera_lists:
-        for camera in camera_list:
-            num_cameras = camera.data.intrinsic_matrices.size(0)
-            positions = torch.tensor([[2.5, 2.5, 2.5]], device=sim.device).repeat(num_cameras, 1)
-            targets = torch.tensor([[0.0, 0.0, 0.0]], device=sim.device).repeat(num_cameras, 1)
-            camera.set_world_poses_from_view(positions, targets)
+    if sim is not None:
+        # Set camera world poses
+        for camera_list in camera_lists:
+            for camera in camera_list:
+                num_cameras = camera.data.intrinsic_matrices.size(0)
+                positions = torch.tensor([[2.5, 2.5, 2.5]], device=sim.device).repeat(num_cameras, 1)
+                targets = torch.tensor([[0.0, 0.0, 0.0]], device=sim.device).repeat(num_cameras, 1)
+                camera.set_world_poses_from_view(positions, targets)
 
     # Initialize timing variables
     timestep = 0
@@ -621,33 +646,38 @@ def run_simulator(
         # Measure the total simulation step time
         step_start_time = time.time()
 
-        sim.step()
+        if sim is not None:
+            sim.step()
 
-        if isinstance(scene_entities, InteractiveScene):
-            scene_entities.update(dt=sim.get_physics_dt())
-            print("Detected interactive scene")
+        if env is not None:
+            with torch.inference_mode():
+                # compute zero actions
+                actions = torch.zeros(env.action_space.shape, device=env.unwrapped.device)
+                # apply actions
+                env.step(actions)
 
         # Update cameras and process vision data within the simulation step
         clouds = {}
         images = {}
         depth_images = {}
 
-        # Loop through all camera lists and their replicators
-        for camera_list, replicators, label in zip(camera_lists, camera_replicators, labels):
+        # Loop through all camera lists and their data_types
+        for camera_list, data_types, label in zip(camera_lists, camera_data_types, labels):
             for cam_idx, camera in enumerate(camera_list):
 
-                if not isinstance(scene_entities, InteractiveScene):
+                if env is None:  # No env, need to step cams manually
                     # Only update the camera if it hasn't been updated as part of scene_entities.update ...
                     camera.update(dt=sim.get_physics_dt())
-                for replicator in replicators:
-                    data_label = f"{label}_{cam_idx}_{replicator}"
 
-                    if depth_predicate(replicator):  # is a depth image, want to create cloud
-                        depth = camera.data.output[replicator]
+                for data_type in data_types:
+                    data_label = f"{label}_{cam_idx}_{data_type}"
+
+                    if depth_predicate(data_type):  # is a depth image, want to create cloud
+                        depth = camera.data.output[data_type]
                         depth_images[data_label + "_raw"] = depth
-                        if perspective_depth_predicate(replicator) and convert_depth_to_camera_to_image_plane:
+                        if perspective_depth_predicate(data_type) and convert_depth_to_camera_to_image_plane:
                             depth = convert_perspective_depth_to_orthogonal_depth(
-                                perspective_depth=camera.data.output[replicator],
+                                perspective_depth=camera.data.output[data_type],
                                 intrinsics=camera.data.intrinsic_matrices,
                             )
                             depth_images[data_label + "_undistorted"] = depth
@@ -655,7 +685,7 @@ def run_simulator(
                         pointcloud = unproject_depth(depth=depth, intrinsics=camera.data.intrinsic_matrices)
                         clouds[data_label] = pointcloud
                     else:  # rgb image, just save it
-                        image = camera.data.output[replicator]
+                        image = camera.data.output[data_type]
                         images[data_label] = image
 
         # End timing for the step
@@ -693,7 +723,10 @@ def run_simulator(
     print(f"Total simulation time: {sim_step_time:.6f} seconds")
     print("\nSystem Utilization Statistics:")
     print(
-        f"CPU:{system_utilization_analytics[0]} RAM:{system_utilization_analytics[1]} GPU:{system_utilization_analytics[2]} "
+        f"| CPU:{system_utilization_analytics[0]}% | "
+        f"RAM:{system_utilization_analytics[1]}% | "
+        f"GPU Compute:{system_utilization_analytics[2]}% | "
+        f" GPU Memory: {system_utilization_analytics[3]:.2f}% |"
     )
 
     return {"timing_analytics": timing_analytics, "system_utilization_analytics": system_utilization_analytics}
@@ -716,23 +749,21 @@ def main():
             "num_standard_cameras should be 0, and num_ray_caster_cameras should be 0"
         )
         raise ValueError("Benchmark one camera at a time.")
+
     print("[INFO]: Designing the scene")
-
-    sim_cfg = sim_utils.SimulationCfg(device="cpu" if args_cli.cpu else "cuda")
-    sim = sim_utils.SimulationContext(sim_cfg)
-    # Set main camera
-    sim.set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
-    # design the scene
-
     if args_cli.task is None:
         print("[INFO]: No task environment provided, creating random scene.")
+        sim_cfg = sim_utils.SimulationCfg(device="cpu" if args_cli.cpu else "cuda")
+        sim = sim_utils.SimulationContext(sim_cfg)
+        # Set main camera
+        sim.set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
         scene_entities = design_scene(
             num_tiled_cams=args_cli.num_tiled_cameras,
             num_standard_cams=args_cli.num_standard_cameras,
             num_ray_caster_cams=args_cli.num_ray_caster_cameras,
-            tiled_camera_replicators=args_cli.tiled_camera_replicators,
-            standard_camera_replicators=args_cli.standard_camera_replicators,
-            ray_caster_camera_replicators=args_cli.ray_caster_camera_replicators,
+            tiled_camera_data_types=args_cli.tiled_camera_data_types,
+            standard_camera_data_types=args_cli.standard_camera_data_types,
+            ray_caster_camera_data_types=args_cli.ray_caster_camera_data_types,
             height=args_cli.height,
             width=args_cli.width,
             num_objects=args_cli.num_objects,
@@ -748,13 +779,13 @@ def main():
             scene_entities=scene_entities,
             warm_start_length=args_cli.warm_start_length,
             experiment_length=args_cli.experiment_length,
-            tiled_camera_replicators=args_cli.tiled_camera_replicators,
-            standard_camera_replicators=args_cli.standard_camera_replicators,
-            ray_caster_camera_replicators=args_cli.ray_caster_camera_replicators,
+            tiled_camera_data_types=args_cli.tiled_camera_data_types,
+            standard_camera_data_types=args_cli.standard_camera_data_types,
+            ray_caster_camera_data_types=args_cli.ray_caster_camera_data_types,
             convert_depth_to_camera_to_image_plane=args_cli.convert_depth_to_camera_to_image_plane,
         )
     else:
-        print("[INFO]: Using known task environment instead. This must be manager based.")
+        print("[INFO]: Using known task environment, injecting cameras.")
         autotune_iter = 0
         max_sys_util_thresh = [0.0, 0.0, 0.0]
         max_num_cams = max(args_cli.num_tiled_cameras, args_cli.num_standard_cameras, args_cli.num_ray_caster_cameras)
@@ -765,64 +796,69 @@ def main():
         if args_cli.autotune:
             max_sys_util_thresh = args_cli.autotune_max_percentage_util
             max_num_cams = args_cli.autotune_max_camera_count
+            print("[INFO]: Auto tuning until any of the following threshold are met")
+            print(f"|CPU: {max_sys_util_thresh[0]}% | RAM{ max_sys_util_thresh[1]}% | GPU: {max_sys_util_thresh[2]}% |")
+            print(f"[INFO]: Maximum number of cameras allowed: {max_num_cams}")
+        # Determine which camera is being tested...
+        tiled_camera_cfg = create_tiled_camera_cfg("tiled_camera")
+        standard_camera_cfg = create_standard_camera_cfg("standard_camera")
+        ray_caster_camera_cfg = create_ray_caster_camera_cfg("ray_caster_camera")
+        camera_name_prefix = ""
+        camera_creation_callable = None
+        num_cams = 0
+        if tiled_camera_cfg is not None:
+            camera_name_prefix = "tiled_camera"
+            camera_creation_callable = create_tiled_camera_cfg
+            num_cams = args_cli.num_tiled_cameras
+        elif standard_camera_cfg is not None:
+            camera_name_prefix = "standard_camera"
+            camera_creation_callable = create_standard_camera_cfg
+            num_cams = args_cli.num_standard_cameras
+        elif ray_caster_camera_cfg is not None:
+            camera_name_prefix = "ray_caster_camera"
+            camera_creation_callable = create_ray_caster_camera_cfg
+            num_cams = args_cli.num_ray_caster_cameras
 
         while (
             all(cur <= max_thresh for cur, max_thresh in zip(cur_sys_util, max_sys_util_thresh))
             and cur_num_cams <= max_num_cams
         ):
-
-            num_tiled = args_cli.num_tiled_cameras + autotune_iter * interval
-            num_standard = args_cli.num_standard_cameras + autotune_iter * interval
-            num_ray_caster = args_cli.num_ray_caster_cameras + autotune_iter * interval
-            cur_num_cams += args_cli.autotune_camera_count_interval
+            cur_num_cams = num_cams + interval * autotune_iter
             autotune_iter += 1
 
-            scene_entities = inject_cameras_into_scene(
+            env = inject_cameras_into_task(
                 task=args_cli.task,
-                num_tiled_cameras=num_tiled,
-                num_standard_cameras=num_standard,
-                num_ray_caster_cameras=num_ray_caster,
-                tiled_camera_replicators=args_cli.tiled_camera_replicators,
-                standard_camera_replicators=args_cli.standard_camera_replicators,
-                ray_caster_camera_replicators=args_cli.ray_caster_camera_replicators,
+                num_cams=cur_num_cams,
+                camera_name_prefix=camera_name_prefix,
+                camera_creation_callable=camera_creation_callable,
                 num_cameras_per_env=args_cli.task_num_cameras_per_env,
-                width=args_cli.width,
-                height=args_cli.height,
             )
-            # scene_entities.reset()
-            print(
-                f"Testing with {num_tiled} tiled cameras, {num_standard} standard"
-                f" cameras, and {num_ray_caster} ray caster cameras."
-            )
-            sim.reset()
+            env.reset()
+            print(f"Testing with {cur_num_cams} {camera_name_prefix}")
             analysis = run_simulator(
-                sim=sim,
-                scene_entities=scene_entities,
+                sim=None,
+                scene_entities=env.unwrapped.scene,
                 warm_start_length=args_cli.warm_start_length,
                 experiment_length=args_cli.experiment_length,
-                tiled_camera_replicators=args_cli.tiled_camera_replicators,
-                standard_camera_replicators=args_cli.standard_camera_replicators,
-                ray_caster_camera_replicators=args_cli.ray_caster_camera_replicators,
+                tiled_camera_data_types=args_cli.tiled_camera_data_types,
+                standard_camera_data_types=args_cli.standard_camera_data_types,
+                ray_caster_camera_data_types=args_cli.ray_caster_camera_data_types,
                 convert_depth_to_camera_to_image_plane=args_cli.convert_depth_to_camera_to_image_plane,
                 max_cameras_per_env=args_cli.task_num_cameras_per_env,
+                env=env,
             )
 
             cur_sys_util = analysis["system_utilization_analytics"]
-            print("Deleting old stage....")
-            del scene_entities  # want to increase camera count for next iteration
-            # print("Clearing callbacks...")
-            # sim.pause()
-            # sim.clear_all_callbacks()
-            # sim.clear_instance()
-            # sim = sim_utils.SimulationContext(sim_cfg)
+            print("Triggering reset...")
+            env.close()
             create_new_stage()
-            # sim.reset()
-            # sim.play()
-            # simulation_app.close()
-            # app_launcher = AppLauncher(args_cli)
-            # simulation_app = app_launcher.app
-            # sim_cfg = sim_utils.SimulationCfg(device="cpu" if args_cli.cpu else "cuda")
-            # sim = sim_utils.SimulationContext(sim_cfg)
+        print("[INFO]: DONE! Feel free to CTRL + C Me ")
+        print(f"[INFO]: If you've made it this far, you can likely simulate {cur_num_cams} {camera_name_prefix}")
+        print("Keep in mind, this is without any training running on the GPU.")
+        print("Set lower utilization thresholds to account for training.")
+
+        if not args_cli.autotune:
+            print("[WARNING]: GPU Util Statistics only correct while autotuning, ignore above.")
 
 
 if __name__ == "__main__":
