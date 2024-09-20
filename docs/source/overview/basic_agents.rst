@@ -1,5 +1,5 @@
-Basic Agents
-============
+Simple Agents
+=============
 
 Workflows
 ---------
@@ -28,7 +28,7 @@ The list of environments available registered with OpenAI Gym can be found by ru
 
          isaaclab.bat -p source\standalone\environments\list_envs.py
 
-Basic agents
+Dummy agents
 ~~~~~~~~~~~~
 
 These include basic agents that output zero or random agents. They are

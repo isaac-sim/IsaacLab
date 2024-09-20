@@ -87,8 +87,8 @@ Table of Contents
    source/overview/environments
    source/overview/reinforcement-learning/index
    source/overview/teleop_imitation
+   source/overview/showroom
    source/overview/basic_agents
-   source/overview/sample_scripts
 
 .. toctree::
    :maxdepth: 2
