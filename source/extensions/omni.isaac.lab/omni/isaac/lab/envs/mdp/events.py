@@ -295,23 +295,22 @@ def randomize_actuator_gains(
         )
         # Randomize stiffness
         if stiffness_distribution_params is not None:
-            if operation != "abs":
-                stiffness = asset.data.default_joint_stiffness.to(asset.device).clone()
-                actuator.stiffness = randomize(stiffness, stiffness_distribution_params)
-            else:  # No copy needed for absolute operation
-                randomize(actuator.stiffness, stiffness_distribution_params)
+            if operation != "abs":  # No copy needed for absolute operation
+                actuator.stiffness = asset.data.default_joint_stiffness.to(asset.device).clone()
+            randomize(actuator.stiffness, stiffness_distribution_params)
+            # Write to internal buffer as ref
+            asset._data.joint_stiffness[env_ids, target_joint_indices] = actuator.stiffness  # type: ignore
         # Randomize damping
         if damping_distribution_params is not None:
             if operation != "abs":
-                damping = asset.data.default_joint_damping.to(asset.device).clone()
-                actuator.damping = randomize(damping, damping_distribution_params)
-            else:  # No copy needed for absolute operation
-                randomize(actuator.damping, damping_distribution_params)
-        if isinstance(actuator, ImplicitActuator):  # Randomize explicit actuators
+                actuator.damping = asset.data.default_joint_damping.to(asset.device).clone()
+            randomize(actuator.damping, damping_distribution_params)
+            asset._data.joint_damping[env_ids, target_joint_indices] = actuator.damping  # type: ignore
+        if isinstance(actuator, ImplicitActuator):  # Only write Implicit actuators to tne sim
             if damping_distribution_params is not None:
-                asset.write_joint_stiffness_to_sim(stiffness, joint_ids=target_joint_indices, env_ids=env_ids)
+                asset.write_joint_stiffness_to_sim(actuator.stiffness, joint_ids=target_joint_indices, env_ids=env_ids)
             if stiffness_distribution_params is not None:
-                asset.write_joint_damping_to_sim(damping, joint_ids=target_joint_indices, env_ids=env_ids)
+                asset.write_joint_damping_to_sim(actuator.damping, joint_ids=target_joint_indices, env_ids=env_ids)
 
 
 def randomize_joint_parameters(
