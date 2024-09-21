@@ -586,7 +586,7 @@ def run_simulator(
     standard_camera_data_types: list[str] | None = None,
     ray_caster_camera_data_types: list[str] | None = None,
     depth_predicate: Callable = lambda x: "to" in x or x == "depth",
-    perspective_depth_predicate: Callable = lambda x: x == "depth" or x == "distance_to_camera",
+    perspective_depth_predicate: Callable = lambda x: x == "distance_to_camera",
     convert_depth_to_camera_to_image_plane: bool = True,
     max_cameras_per_env: int = 1,
     env: gym.Env | None = None,
