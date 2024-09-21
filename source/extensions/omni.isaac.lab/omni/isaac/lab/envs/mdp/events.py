@@ -296,20 +296,24 @@ def randomize_actuator_gains(
             broadcast_env_ids = env_ids[:, None]  # broadcast env_ids if needed to allow double indexing
         else:
             broadcast_env_ids = env_ids
+        
+        all_envs = torch.arange(env.scene.num_envs, device=asset.device)
         # Randomize stiffness
         if stiffness_distribution_params is not None:
             actuator.stiffness = asset.data.default_joint_stiffness.to(asset.device).clone()
-            randomize(actuator.stiffness, stiffness_distribution_params)
-            actuator.stiffness = actuator.stiffness[broadcast_env_ids, target_joint_indices]
+            x = randomize(actuator.stiffness, stiffness_distribution_params)
+            actuator.stiffness = actuator.stiffness[all_envs[:, None], target_joint_indices]
             if isinstance(actuator, ImplicitActuator):
-                asset.write_joint_stiffness_to_sim(actuator.stiffness, joint_ids=target_joint_indices, env_ids=env_ids)
+                # TODO: Figure out an efficient way to avoid writing to all envs.
+                asset.write_joint_stiffness_to_sim(actuator.stiffness, joint_ids=target_joint_indices, env_ids=all_envs)
         # Randomize damping
         if damping_distribution_params is not None:
             actuator.damping = asset.data.default_joint_damping.to(asset.device).clone()
             randomize(actuator.damping, damping_distribution_params)
-            actuator.damping = actuator.damping[broadcast_env_ids, target_joint_indices]
+            actuator.damping = actuator.damping[all_envs[:, None], target_joint_indices]
             if isinstance(actuator, ImplicitActuator):
-                asset.write_joint_damping_to_sim(actuator.damping, joint_ids=target_joint_indices, env_ids=env_ids)
+                asset.write_joint_damping_to_sim(actuator.damping, joint_ids=target_joint_indices, env_ids=all_envs)
+
 
 
 def randomize_joint_parameters(
