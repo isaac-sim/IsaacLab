@@ -208,27 +208,32 @@ class ActuatorBase(ABC):
             TypeError: If the default value is not of the expected type.
             ValueError: If the parameter value is None and no default value is provided.
         """
-        # create parameter buffer
-        param = torch.zeros(self._num_envs, self.num_joints, device=self._device)
-        # parse the parameter
+
+        # Parse configuration value first
         if cfg_value is not None:
             if isinstance(cfg_value, (float, int)):
-                # if float, then use the same value for all joints
-                param[:] = float(cfg_value)
+                # Single value, create a tensor filled with this value
+                param = torch.full((self._num_envs, self.num_joints), float(cfg_value), device=self._device)
             elif isinstance(cfg_value, dict):
-                # if dict, then parse the regular expression
+                # Create a tensor of zeros and update specific indices
+                param = torch.zeros(self._num_envs, self.num_joints, device=self._device)
                 indices, _, values = string_utils.resolve_matching_names_values(cfg_value, self.joint_names)
-                # note: need to specify type to be safe (e.g. values are ints, but we want floats)
+                # Assign values at specific indices
                 param[:, indices] = torch.tensor(values, dtype=torch.float, device=self._device)
             else:
                 raise TypeError(f"Invalid type for parameter value: {type(cfg_value)}. Expected float or dict.")
+
         elif default_value is not None:
             if isinstance(default_value, (float, int)):
-                # if float, then use the same value for all joints
-                param[:] = float(default_value)
+                # If it's a float or int, create a tensor filled with this value
+                param = torch.full((self._num_envs, self.num_joints), float(default_value), device=self._device)
             elif isinstance(default_value, torch.Tensor):
-                # if tensor, then use the same tensor for all joints
-                param[:] = default_value.float()
+                # Use the default tensor directly if shapes match, or copy values otherwise
+                if default_value.shape == (self._num_envs, self.num_joints):
+                    param = default_value.float()
+                else:
+                    param = torch.zeros(self._num_envs, self.num_joints, device=self._device)
+                    param[:] = default_value.float()
             else:
                 raise TypeError(f"Invalid type for default value: {type(default_value)}. Expected float or Tensor.")
         else:
