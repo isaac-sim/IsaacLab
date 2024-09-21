@@ -1124,8 +1124,8 @@ class Articulation(AssetBase):
                 damping=self._data.default_joint_damping[:, joint_ids],
                 armature=self._data.default_joint_armature[:, joint_ids],
                 friction=self._data.default_joint_friction[:, joint_ids],
-                effort_limit=self.root_physx_view.get_dof_max_forces().clone()[:, joint_ids],
-                velocity_limit=self.root_physx_view.get_dof_max_velocities().clone()[:, joint_ids],
+                effort_limit=self.root_physx_view.get_dof_max_forces().to(self.device).clone()[:, joint_ids],
+                velocity_limit=self.root_physx_view.get_dof_max_velocities().to(self.device).clone()[:, joint_ids],
             )
             # log information on actuator groups
             carb.log_info(
@@ -1151,8 +1151,8 @@ class Articulation(AssetBase):
                 self.write_joint_effort_limit_to_sim(1.0e9, joint_ids=actuator.joint_indices)
                 self.write_joint_armature_to_sim(actuator.armature, joint_ids=actuator.joint_indices)
                 self.write_joint_friction_to_sim(actuator.friction, joint_ids=actuator.joint_indices)
-                # Store the actual default stiffness and damping values for explicit actuators (not writen the sim)
-                self._data.default_joint_stiffness = actuator.stiffness
+                # Store the actual default stiffness and damping values for explicit actuators (not written the sim)
+                self._data.default_joint_stiffness[:, actuator.joint_indices] = actuator.stiffness
                 self._data.default_joint_damping[:, actuator.joint_indices] = actuator.damping
 
         # perform some sanity checks to ensure actuators are prepared correctly
