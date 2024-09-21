@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.10.6 (2024-09-20)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Cartpole-RGB-Camera-v0`` and ``Isaac-Cartpole-Depth-Camera-v0`` 
+  manager based camera cartpole environments.
+
+
 0.10.5 (2024-09-11)
 ~~~~~~~~~~~~~~~~~~~
 
