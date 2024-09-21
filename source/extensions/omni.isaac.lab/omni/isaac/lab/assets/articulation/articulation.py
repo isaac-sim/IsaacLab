@@ -1094,10 +1094,10 @@ class Articulation(AssetBase):
         self._has_implicit_actuators = False
 
         # cache the values coming from the usd
-        self._data.default_joint_stiffness = self.root_physx_view.get_dof_stiffnesses().clone()
-        self._data.default_joint_damping = self.root_physx_view.get_dof_dampings().clone()
-        self._data.default_joint_armature = self.root_physx_view.get_dof_armatures().clone()
-        self._data.default_joint_friction = self.root_physx_view.get_dof_friction_coefficients().clone()
+        self._data.default_joint_stiffness = self.root_physx_view.get_dof_stiffnesses().to(self.device).clone()
+        self._data.default_joint_damping = self.root_physx_view.get_dof_dampings().to(self.device).clone()
+        self._data.default_joint_armature = self.root_physx_view.get_dof_armatures().to(self.device).clone()
+        self._data.default_joint_friction = self.root_physx_view.get_dof_friction_coefficients().to(self.device).clone()
 
         # iterate over all actuator configurations
         for actuator_name, actuator_cfg in self.cfg.actuators.items():
@@ -1105,6 +1105,7 @@ class Articulation(AssetBase):
             actuator_cfg: ActuatorBaseCfg
             # create actuator group
             joint_ids, joint_names = self.find_joints(actuator_cfg.joint_names_expr)
+            joint_ids = slice(None) if len(joint_ids) == self.num_joints else joint_ids  # Optimization
             # check if any joints are found
             if len(joint_names) == 0:
                 raise ValueError(
@@ -1116,7 +1117,7 @@ class Articulation(AssetBase):
             actuator: ActuatorBase = actuator_cfg.class_type(
                 cfg=actuator_cfg,
                 joint_names=joint_names,
-                joint_ids=slice(None) if len(joint_names) == self.num_joints else joint_ids,
+                joint_ids=joint_ids,
                 num_envs=self.num_instances,
                 device=self.device,
                 stiffness=self._data.default_joint_stiffness[:, joint_ids],
@@ -1151,12 +1152,8 @@ class Articulation(AssetBase):
                 self.write_joint_armature_to_sim(actuator.armature, joint_ids=actuator.joint_indices)
                 self.write_joint_friction_to_sim(actuator.friction, joint_ids=actuator.joint_indices)
                 # Store the actual default stiffness and damping values for explicit actuators (not writen the sim)
-                self._data.default_joint_stiffness[:, actuator.joint_indices] = actuator._parse_joint_parameter(
-                    actuator.cfg.stiffness, actuator.stiffness
-                )
-                self._data.default_joint_damping[:, actuator.joint_indices] = actuator._parse_joint_parameter(
-                    actuator.cfg.damping, actuator.damping
-                )
+                self._data.default_joint_stiffness = actuator.stiffness
+                self._data.default_joint_damping[:, actuator.joint_indices] = actuator.damping
 
         # perform some sanity checks to ensure actuators are prepared correctly
         total_act_joints = sum(actuator.num_joints for actuator in self.actuators.values())

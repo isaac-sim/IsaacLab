@@ -274,8 +274,9 @@ def randomize_actuator_gains(
     # Resolve environment ids
     if env_ids is None:
         env_ids = torch.arange(env.scene.num_envs, device=asset.device)
+    else:
+        env_ids
 
-    # Resolve joint indices
     joint_ids_list = list(range(asset.num_joints)) if isinstance(asset_cfg.joint_ids, slice) else asset_cfg.joint_ids
 
     def randomize(data: torch.Tensor, params: tuple[float, float]) -> torch.Tensor:
@@ -286,32 +287,35 @@ def randomize_actuator_gains(
     # Loop through actuators and randomize gains
     for actuator in asset.actuators.values():
         # Resolve joint indices for each actuator
-        target_joint_indices = (
-            slice(None)
-            if isinstance(actuator.joint_indices, slice)
-            else torch.tensor(
+        if isinstance(actuator.joint_indices, slice):  # All joints in this actuator
+            target_joint_indices = torch.arange(asset.num_joints, dtype=torch.int, device=asset.device)
+        else:   # Create joint indices using intersection
+            target_joint_indices = torch.tensor(
                 list(set(actuator.joint_indices).intersection(joint_ids_list)), dtype=torch.int, device=asset.device
             )
-        )
+
+        if env_ids != slice(None) and target_joint_indices != slice(None):
+            broadcast_env_ids = env_ids[:, None]  # broadcast env_ids if needed to allow double indexing
+        else:
+            broadcast_env_ids = env_ids
         # Randomize stiffness
         if stiffness_distribution_params is not None:
             if operation != "abs":  # No copy needed for absolute operation
                 actuator.stiffness = asset.data.default_joint_stiffness.to(asset.device).clone()
             randomize(actuator.stiffness, stiffness_distribution_params)
-            # Write to internal buffer as ref
-            asset._data.joint_stiffness[env_ids, target_joint_indices] = actuator.stiffness  # type: ignore
+            if isinstance(actuator, ImplicitActuator):
+                asset.write_joint_stiffness_to_sim(actuator.stiffness, joint_ids=target_joint_indices, env_ids=env_ids)
+            else:
+                asset._data.joint_stiffness[broadcast_env_ids, target_joint_indices] = actuator.stiffness  # type: ignore
         # Randomize damping
         if damping_distribution_params is not None:
             if operation != "abs":
                 actuator.damping = asset.data.default_joint_damping.to(asset.device).clone()
             randomize(actuator.damping, damping_distribution_params)
-            asset._data.joint_damping[env_ids, target_joint_indices] = actuator.damping  # type: ignore
-        if isinstance(actuator, ImplicitActuator):  # Only write Implicit actuators to tne sim
-            if damping_distribution_params is not None:
-                asset.write_joint_stiffness_to_sim(actuator.stiffness, joint_ids=target_joint_indices, env_ids=env_ids)
-            if stiffness_distribution_params is not None:
+            if isinstance(actuator, ImplicitActuator):
                 asset.write_joint_damping_to_sim(actuator.damping, joint_ids=target_joint_indices, env_ids=env_ids)
-
+            else:
+                asset._data.joint_damping[broadcast_env_ids, target_joint_indices] = actuator.damping  # type: ignore
 
 def randomize_joint_parameters(
     env: ManagerBasedEnv,
@@ -343,10 +347,12 @@ def randomize_joint_parameters(
     # resolve environment ids
     if env_ids is None:
         env_ids = torch.arange(env.scene.num_envs, device=asset.device)
+    else:
+        env_ids = env_ids
 
     # resolve joint indices
     if asset_cfg.joint_ids == slice(None):
-        joint_ids = slice(None)  # for optimization purposes
+        joint_ids = torch.arange(asset.num_joints, dtype=torch.int, device=asset.device)
     else:
         joint_ids = torch.tensor(asset_cfg.joint_ids, dtype=torch.int, device=asset.device)
 
