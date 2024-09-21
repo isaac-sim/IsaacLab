@@ -263,6 +263,10 @@ def randomize_actuator_gains(
     .. tip::
         For implicit actuators, this function uses CPU tensors to assign the actuator gains into the simulation.
         In such cases, it is recommended to use this function only during the initialization of the environment.
+
+    .. tip::
+        The "abs" operation avoids creating a copy by directly setting values, making it more memory-efficient
+        than "add" or "scale", which require copying tensors.
     """
     # Extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
@@ -291,12 +295,18 @@ def randomize_actuator_gains(
         )
         # Randomize stiffness
         if stiffness_distribution_params is not None:
-            stiffness = asset.data.default_joint_stiffness.to(asset.device).clone()
-            actuator.stiffness = randomize(stiffness, stiffness_distribution_params)
+            if operation != "abs":
+                stiffness = asset.data.default_joint_stiffness.to(asset.device).clone()
+                actuator.stiffness = randomize(stiffness, stiffness_distribution_params)
+            else:  # No copy needed for absolute operation
+                randomize(actuator.stiffness, stiffness_distribution_params)
         # Randomize damping
         if damping_distribution_params is not None:
-            damping = asset.data.default_joint_damping.to(asset.device).clone()
-            actuator.damping = randomize(damping, damping_distribution_params)
+            if operation != "abs":
+                damping = asset.data.default_joint_damping.to(asset.device).clone()
+                actuator.damping = randomize(damping, damping_distribution_params)
+            else:  # No copy needed for absolute operation
+                randomize(actuator.damping, damping_distribution_params)
         if isinstance(actuator, ImplicitActuator):  # Randomize explicit actuators
             if damping_distribution_params is not None:
                 asset.write_joint_stiffness_to_sim(stiffness, joint_ids=target_joint_indices, env_ids=env_ids)
