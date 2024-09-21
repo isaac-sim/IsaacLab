@@ -63,6 +63,7 @@ Guidelines for modifications:
 * Zhengyu Zhang
 * Ziqi Fan
 * Qian Wan
+* Ryley McCarroll
 
 ## Acknowledgements
 
