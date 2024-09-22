@@ -4,6 +4,9 @@
 Installation using Isaac Sim Binaries
 =====================================
 
+.. note::
+
+   If you use Conda, we recommend using `Miniconda <https://docs.anaconda.com/miniconda/miniconda-other-installer-links/>`_.
 
 Installing Isaac Sim
 --------------------
@@ -35,7 +38,117 @@ To check the minimum system requirements,refer to the documentation
          :sync: windows
 
          On Windows systems, by default,Isaac Sim is installed in the directory
-         ``C:\Users\user\AppData\Local\ov\pkg\isaac_sim-*``, with ``*`` corresponding to the Isaac Sim version.
+         ``C:\Users\%USERPROFILE%\AppData\Local\ov\pkg\isaac_sim-*``, with ``*`` corresponding to the Isaac Sim version.
+
+Verifying the Isaac Sim installation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+To avoid the overhead of finding and locating the Isaac Sim installation
+directory every time, we recommend exporting the following environment
+variables to your terminal for the remaining of the installation instructions:
+
+.. tab-set::
+   :sync-group: os
+
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
+
+      .. code:: bash
+
+         # Isaac Sim root directory
+         export ISAACSIM_PATH="${HOME}/.local/share/ov/pkg/isaac-sim-4.2.0"
+         # Isaac Sim python executable
+         export ISAACSIM_PYTHON_EXE="${ISAACSIM_PATH}/python.sh"
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. code:: batch
+
+         :: Isaac Sim root directory
+         set ISAACSIM_PATH="C:\Users\%USERPROFILE%\AppData\Local\ov\pkg\isaac-sim-4.2.0"
+         :: Isaac Sim python executable
+         set ISAACSIM_PYTHON_EXE="%ISAACSIM_PATH:"=%\python.bat"
+
+
+For more information on common paths, please check the Isaac Sim
+`documentation <https://docs.omniverse.nvidia.com/isaacsim/latest/installation/install_faq.html#common-path-locations>`__.
+
+
+-  Check that the simulator runs as expected:
+
+   .. tab-set::
+      :sync-group: os
+
+      .. tab-item:: :icon:`fa-brands fa-linux` Linux
+         :sync: linux
+
+         .. code:: bash
+
+            # note: you can pass the argument "--help" to see all arguments possible.
+            ${ISAACSIM_PATH}/isaac-sim.sh
+
+      .. tab-item:: :icon:`fa-brands fa-windows` Windows
+         :sync: windows
+
+         .. code:: batch
+
+            :: note: you can pass the argument "--help" to see all arguments possible.
+            %ISAACSIM_PATH%\isaac-sim.bat
+
+
+-  Check that the simulator runs from a standalone python script:
+
+   .. tab-set::
+      :sync-group: os
+
+      .. tab-item:: :icon:`fa-brands fa-linux` Linux
+         :sync: linux
+
+         .. code:: bash
+
+            # checks that python path is set correctly
+            ${ISAACSIM_PYTHON_EXE} -c "print('Isaac Sim configuration is now complete.')"
+            # checks that Isaac Sim can be launched from python
+            ${ISAACSIM_PYTHON_EXE} ${ISAACSIM_PATH}/standalone_examples/api/omni.isaac.core/add_cubes.py
+
+      .. tab-item:: :icon:`fa-brands fa-windows` Windows
+         :sync: windows
+
+         .. code:: batch
+
+            :: checks that python path is set correctly
+            %ISAACSIM_PYTHON_EXE% -c "print('Isaac Sim configuration is now complete.')"
+            :: checks that Isaac Sim can be launched from python
+            %ISAACSIM_PYTHON_EXE% %ISAACSIM_PATH%\standalone_examples\api\omni.isaac.core\add_cubes.py
+
+
+.. caution::
+
+   If you have been using a previous version of Isaac Sim, you need to run the following command for the *first*
+   time after installation to remove all the old user data and cached variables:
+
+   .. tab-set::
+
+      .. tab-item:: :icon:`fa-brands fa-linux` Linux
+
+      	.. code:: bash
+
+      		${ISAACSIM_PATH}/isaac-sim.sh --reset-user
+
+      .. tab-item:: :icon:`fa-brands fa-windows` Windows
+
+         .. code:: batch
+
+            %ISAACSIM_PATH%\isaac-sim.bat --reset-user
+
+
+If the simulator does not run or crashes while following the above
+instructions, it means that something is incorrectly configured. To
+debug and troubleshoot, please check Isaac Sim
+`documentation <https://docs.omniverse.nvidia.com/dev-guide/latest/linux-troubleshooting.html>`__
+and the
+`forums <https://docs.omniverse.nvidia.com/isaacsim/latest/isaac_sim_forums.html>`__.
 
 
 Installing Isaac Lab
@@ -136,7 +249,7 @@ to index the python modules and look for extensions shipped with Isaac Sim.
          cd IsaacLab
          # create a symbolic link
          ln -s path_to_isaac_sim _isaac_sim
-         # For example: ln -s /home/nvidia/.local/share/ov/pkg/isaac-sim-4.1.0 _isaac_sim
+         # For example: ln -s /home/nvidia/.local/share/ov/pkg/isaac-sim-4.2.0 _isaac_sim
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -147,7 +260,7 @@ to index the python modules and look for extensions shipped with Isaac Sim.
          cd IsaacLab
          :: create a symbolic link - requires launching Command Prompt with Administrator access
          mklink /D _isaac_sim path_to_isaac_sim
-         :: For example: mklink /D _isaac_sim C:/Users/nvidia/AppData/Local/ov/pkg/isaac-sim-4.1.0
+         :: For example: mklink /D _isaac_sim C:/Users/nvidia/AppData/Local/ov/pkg/isaac-sim-4.2.0
 
 
 Setting up the conda environment (optional)
@@ -258,3 +371,44 @@ Installation
             isaaclab.bat --install rl_games :: or "isaaclab.bat -i rl_games"
 
    The valid options are ``rl_games``, ``rsl_rl``, ``sb3``, ``skrl``, ``robomimic``, ``none``.
+
+Verifying the Isaac Lab installation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+To verify that the installation was successful, run the following command from the
+top of the repository:
+
+.. tab-set::
+   :sync-group: os
+
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
+
+      .. code:: bash
+
+         # Option 1: Using the isaaclab.sh executable
+         # note: this works for both the bundled python and the virtual environment
+         ./isaaclab.sh -p source/standalone/tutorials/00_sim/create_empty.py
+
+         # Option 2: Using python in your virtual environment
+         python source/standalone/tutorials/00_sim/create_empty.py
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. code:: batch
+
+         :: Option 1: Using the isaaclab.bat executable
+         :: note: this works for both the bundled python and the virtual environment
+         isaaclab.bat -p source\standalone\tutorials\00_sim\create_empty.py
+
+         :: Option 2: Using python in your virtual environment
+         python source\standalone\tutorials\00_sim\create_empty.py
+
+
+The above command should launch the simulator and display a window with a black
+ground plane. You can exit the script by pressing ``Ctrl+C`` on your terminal.
+On Windows machines, please terminate the process from Command Prompt using
+``Ctrl+Break`` or ``Ctrl+fn+B``.
+
+If you see this, then the installation was successful! |:tada:|

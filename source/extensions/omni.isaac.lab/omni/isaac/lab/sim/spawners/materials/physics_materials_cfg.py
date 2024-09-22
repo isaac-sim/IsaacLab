@@ -19,7 +19,7 @@ class PhysicsMaterialCfg:
     Physics material are PhysX schemas that can be applied to a USD material prim to define the
     physical properties related to the material. For example, the friction coefficient, restitution
     coefficient, etc. For more information on physics material, please refer to the
-    `PhysX documentation <https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/_build/physx/latest/class_px_base_material.html>`__.
+    `PhysX documentation <https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/_api_build/classPxBaseMaterial.html>`__.
     """
 
     func: Callable = MISSING
@@ -58,7 +58,7 @@ class RigidBodyMaterialCfg(PhysicsMaterialCfg):
 
         When two physics materials with different combine modes collide, the combine mode with the higher
         priority will be used. The priority order is provided `here
-        <https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/_build/physx/latest/struct_px_combine_mode.html#pxcombinemode>`__.
+        <https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/_api_build/structPxCombineMode.html>`__.
     """
 
     restitution_combine_mode: Literal["average", "min", "multiply", "max"] = "average"
@@ -68,7 +68,7 @@ class RigidBodyMaterialCfg(PhysicsMaterialCfg):
 
         When two physics materials with different combine modes collide, the combine mode with the higher
         priority will be used. The priority order is provided `here
-        <https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/_build/physx/latest/struct_px_combine_mode.html#pxcombinemode>`__.
+        <https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/_api_build/structPxCombineMode.html>`__.
     """
 
     compliant_contact_stiffness: float = 0.0

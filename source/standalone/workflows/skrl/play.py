@@ -12,7 +12,6 @@ a more user-friendly way.
 
 """Launch Isaac Sim Simulator first."""
 
-
 import argparse
 
 from omni.isaac.lab.app import AppLauncher
@@ -34,10 +33,16 @@ parser.add_argument(
     choices=["torch", "jax", "jax-numpy"],
     help="The ML framework used for training the skrl agent.",
 )
+parser.add_argument(
+    "--algorithm",
+    type=str,
+    default="PPO",
+    choices=["PPO", "IPPO", "MAPPO"],
+    help="The RL algorithm used for training the skrl agent.",
+)
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
-# parse the arguments
 args_cli = parser.parse_args()
 # always enable cameras to record video
 if args_cli.video:
@@ -54,19 +59,31 @@ import os
 import torch
 
 import skrl
+from packaging import version
+
+# check for minimum supported skrl version
+SKRL_VERSION = "1.3.0"
+if version.parse(skrl.__version__) < version.parse(SKRL_VERSION):
+    skrl.logger.error(
+        f"Unsupported skrl version: {skrl.__version__}. "
+        f"Install supported version using 'pip install skrl>={SKRL_VERSION}'"
+    )
+    exit()
 
 if args_cli.ml_framework.startswith("torch"):
-    from skrl.agents.torch.ppo import PPO, PPO_DEFAULT_CONFIG
-    from skrl.utils.model_instantiators.torch import deterministic_model, gaussian_model, shared_model
+    from skrl.utils.runner.torch import Runner
 elif args_cli.ml_framework.startswith("jax"):
-    from skrl.agents.jax.ppo import PPO, PPO_DEFAULT_CONFIG
-    from skrl.utils.model_instantiators.jax import deterministic_model, gaussian_model
+    from skrl.utils.runner.jax import Runner
 
+from omni.isaac.lab.envs import DirectMARLEnv, multi_agent_to_single_agent
 from omni.isaac.lab.utils.dict import print_dict
 
 import omni.isaac.lab_tasks  # noqa: F401
 from omni.isaac.lab_tasks.utils import get_checkpoint_path, load_cfg_from_registry, parse_env_cfg
-from omni.isaac.lab_tasks.utils.wrappers.skrl import SkrlVecEnvWrapper, process_skrl_cfg
+from omni.isaac.lab_tasks.utils.wrappers.skrl import SkrlVecEnvWrapper
+
+# config shortcuts
+algorithm = args_cli.algorithm.lower()
 
 
 def main():
@@ -74,11 +91,15 @@ def main():
     # configure the ML framework into the global skrl variable
     if args_cli.ml_framework.startswith("jax"):
         skrl.config.jax.backend = "jax" if args_cli.ml_framework == "jax" else "numpy"
+
     # parse configuration
     env_cfg = parse_env_cfg(
         args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric
     )
-    experiment_cfg = load_cfg_from_registry(args_cli.task, "skrl_cfg_entry_point")
+    try:
+        experiment_cfg = load_cfg_from_registry(args_cli.task, f"skrl_{algorithm}_cfg_entry_point")
+    except ValueError:
+        experiment_cfg = load_cfg_from_registry(args_cli.task, "skrl_cfg_entry_point")
 
     # specify directory for logging experiments (load checkpoint)
     log_root_path = os.path.join("logs", "skrl", experiment_cfg["agent"]["experiment"]["directory"])
@@ -88,7 +109,9 @@ def main():
     if args_cli.checkpoint:
         resume_path = os.path.abspath(args_cli.checkpoint)
     else:
-        resume_path = get_checkpoint_path(log_root_path, other_dirs=["checkpoints"])
+        resume_path = get_checkpoint_path(
+            log_root_path, run_dir=f".*_{algorithm}_{args_cli.ml_framework}", other_dirs=["checkpoints"]
+        )
     log_dir = os.path.dirname(os.path.dirname(resume_path))
 
     # create isaac environment
@@ -104,73 +127,25 @@ def main():
         print("[INFO] Recording videos during training.")
         print_dict(video_kwargs, nesting=4)
         env = gym.wrappers.RecordVideo(env, **video_kwargs)
+
+    # convert to single-agent instance if required by the RL algorithm
+    if isinstance(env.unwrapped, DirectMARLEnv) and algorithm in ["ppo"]:
+        env = multi_agent_to_single_agent(env)
+
     # wrap around environment for skrl
-    env = SkrlVecEnvWrapper(env, ml_framework=args_cli.ml_framework)  # same as: `wrap_env(env, wrapper="isaaclab")`
+    env = SkrlVecEnvWrapper(env, ml_framework=args_cli.ml_framework)  # same as: `wrap_env(env, wrapper="auto")`
 
-    # instantiate models using skrl model instantiator utility
-    # https://skrl.readthedocs.io/en/latest/api/utils/model_instantiators.html
-    models = {}
-    if args_cli.ml_framework.startswith("jax"):
-        experiment_cfg["models"]["separate"] = True  # shared model is not supported in JAX
-    # non-shared models
-    if experiment_cfg["models"]["separate"]:
-        models["policy"] = gaussian_model(
-            observation_space=env.observation_space,
-            action_space=env.action_space,
-            device=env.device,
-            **process_skrl_cfg(experiment_cfg["models"]["policy"], ml_framework=args_cli.ml_framework),
-        )
-        models["value"] = deterministic_model(
-            observation_space=env.observation_space,
-            action_space=env.action_space,
-            device=env.device,
-            **process_skrl_cfg(experiment_cfg["models"]["value"], ml_framework=args_cli.ml_framework),
-        )
-    # shared models
-    else:
-        models["policy"] = shared_model(
-            observation_space=env.observation_space,
-            action_space=env.action_space,
-            device=env.device,
-            structure=None,
-            roles=["policy", "value"],
-            parameters=[
-                process_skrl_cfg(experiment_cfg["models"]["policy"], ml_framework=args_cli.ml_framework),
-                process_skrl_cfg(experiment_cfg["models"]["value"], ml_framework=args_cli.ml_framework),
-            ],
-        )
-        models["value"] = models["policy"]
-    # instantiate models' state dict
-    if args_cli.ml_framework.startswith("jax"):
-        for role, model in models.items():
-            model.init_state_dict(role)
+    # configure and instantiate the skrl runner
+    # https://skrl.readthedocs.io/en/latest/api/utils/runner.html
+    experiment_cfg["trainer"]["close_environment_at_exit"] = False
+    experiment_cfg["agent"]["experiment"]["write_interval"] = 0  # don't log to TensorBoard
+    experiment_cfg["agent"]["experiment"]["checkpoint_interval"] = 0  # don't generate checkpoints
+    runner = Runner(env, experiment_cfg)
 
-    # configure and instantiate PPO agent
-    # https://skrl.readthedocs.io/en/latest/api/agents/ppo.html
-    agent_cfg = PPO_DEFAULT_CONFIG.copy()
-    experiment_cfg["agent"]["rewards_shaper"] = None  # avoid 'dictionary changed size during iteration'
-    agent_cfg.update(process_skrl_cfg(experiment_cfg["agent"], ml_framework=args_cli.ml_framework))
-
-    agent_cfg["state_preprocessor_kwargs"].update({"size": env.observation_space, "device": env.device})
-    agent_cfg["value_preprocessor_kwargs"].update({"size": 1, "device": env.device})
-    agent_cfg["experiment"]["write_interval"] = 0  # don't log to Tensorboard
-    agent_cfg["experiment"]["checkpoint_interval"] = 0  # don't generate checkpoints
-
-    agent = PPO(
-        models=models,
-        memory=None,  # memory is optional during evaluation
-        cfg=agent_cfg,
-        observation_space=env.observation_space,
-        action_space=env.action_space,
-        device=env.device,
-    )
-
-    # initialize agent
-    agent.init()
     print(f"[INFO] Loading model checkpoint from: {resume_path}")
-    agent.load(resume_path)
+    runner.agent.load(resume_path)
     # set agent to evaluation mode
-    agent.set_running_mode("eval")
+    runner.agent.set_running_mode("eval")
 
     # reset environment
     obs, _ = env.reset()
@@ -180,7 +155,7 @@ def main():
         # run everything in inference mode
         with torch.inference_mode():
             # agent stepping
-            actions = agent.act(obs, timestep=0, timesteps=0)[0]
+            actions = runner.agent.act(obs, timestep=0, timesteps=0)[0]
             # env stepping
             obs, _, _, _, _ = env.step(actions)
         if args_cli.video:

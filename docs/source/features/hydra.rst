@@ -111,7 +111,7 @@ Setting parameters to None
 
 To set parameters to None, use the ``null`` keyword, which is a special keyword in Hydra that is automatically converted to None.
 In the above example, we could also disable the ``joint_pos_rel`` observation by setting it to None with
-``env.observations.policy.joint_pos_rel.func=null``.
+``env.observations.policy.joint_pos_rel=null``.
 
 Dictionaries
 ^^^^^^^^^^^^

@@ -15,7 +15,6 @@ import omni.isaac.lab.utils.math as math_utils
 from omni.isaac.lab.assets import Articulation
 from omni.isaac.lab.managers import CommandTerm
 from omni.isaac.lab.markers import VisualizationMarkers
-from omni.isaac.lab.markers.config import BLUE_ARROW_X_MARKER_CFG, GREEN_ARROW_X_MARKER_CFG
 
 if TYPE_CHECKING:
     from omni.isaac.lab.envs import ManagerBasedEnv
@@ -148,24 +147,18 @@ class UniformVelocityCommand(CommandTerm):
         # note: parent only deals with callbacks. not their visibility
         if debug_vis:
             # create markers if necessary for the first tome
-            if not hasattr(self, "base_vel_goal_visualizer"):
+            if not hasattr(self, "goal_vel_visualizer"):
                 # -- goal
-                marker_cfg = GREEN_ARROW_X_MARKER_CFG.copy()
-                marker_cfg.prim_path = "/Visuals/Command/velocity_goal"
-                marker_cfg.markers["arrow"].scale = (0.5, 0.5, 0.5)
-                self.base_vel_goal_visualizer = VisualizationMarkers(marker_cfg)
+                self.goal_vel_visualizer = VisualizationMarkers(self.cfg.goal_vel_visualizer_cfg)
                 # -- current
-                marker_cfg = BLUE_ARROW_X_MARKER_CFG.copy()
-                marker_cfg.prim_path = "/Visuals/Command/velocity_current"
-                marker_cfg.markers["arrow"].scale = (0.5, 0.5, 0.5)
-                self.base_vel_visualizer = VisualizationMarkers(marker_cfg)
+                self.current_vel_visualizer = VisualizationMarkers(self.cfg.current_vel_visualizer_cfg)
             # set their visibility to true
-            self.base_vel_goal_visualizer.set_visibility(True)
-            self.base_vel_visualizer.set_visibility(True)
+            self.goal_vel_visualizer.set_visibility(True)
+            self.current_vel_visualizer.set_visibility(True)
         else:
-            if hasattr(self, "base_vel_goal_visualizer"):
-                self.base_vel_goal_visualizer.set_visibility(False)
-                self.base_vel_visualizer.set_visibility(False)
+            if hasattr(self, "goal_vel_visualizer"):
+                self.goal_vel_visualizer.set_visibility(False)
+                self.current_vel_visualizer.set_visibility(False)
 
     def _debug_vis_callback(self, event):
         # check if robot is initialized
@@ -180,8 +173,8 @@ class UniformVelocityCommand(CommandTerm):
         vel_des_arrow_scale, vel_des_arrow_quat = self._resolve_xy_velocity_to_arrow(self.command[:, :2])
         vel_arrow_scale, vel_arrow_quat = self._resolve_xy_velocity_to_arrow(self.robot.data.root_lin_vel_b[:, :2])
         # display markers
-        self.base_vel_goal_visualizer.visualize(base_pos_w, vel_des_arrow_quat, vel_des_arrow_scale)
-        self.base_vel_visualizer.visualize(base_pos_w, vel_arrow_quat, vel_arrow_scale)
+        self.goal_vel_visualizer.visualize(base_pos_w, vel_des_arrow_quat, vel_des_arrow_scale)
+        self.current_vel_visualizer.visualize(base_pos_w, vel_arrow_quat, vel_arrow_scale)
 
     """
     Internal helpers.
@@ -190,7 +183,7 @@ class UniformVelocityCommand(CommandTerm):
     def _resolve_xy_velocity_to_arrow(self, xy_velocity: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """Converts the XY base velocity command to arrow direction rotation."""
         # obtain default scale of the marker
-        default_scale = self.base_vel_goal_visualizer.cfg.markers["arrow"].scale
+        default_scale = self.goal_vel_visualizer.cfg.markers["arrow"].scale
         # arrow-scale
         arrow_scale = torch.tensor(default_scale, device=self.device).repeat(xy_velocity.shape[0], 1)
         arrow_scale[:, 0] *= torch.linalg.norm(xy_velocity, dim=1) * 3.0

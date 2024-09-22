@@ -37,6 +37,7 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": CartpoleRGBCameraEnvCfg,
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
+        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_camera_ppo_cfg.yaml",
     },
 )
 
@@ -47,5 +48,6 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": CartpoleDepthCameraEnvCfg,
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
+        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_camera_ppo_cfg.yaml",
     },
 )

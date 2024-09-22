@@ -23,7 +23,7 @@ def spawn_rigid_body_material(prim_path: str, cfg: physics_materials_cfg.RigidBo
 
     Rigid body materials are used to define the physical properties to meshes of a rigid body. These
     include the friction, restitution, and their respective combination modes. For more information on
-    rigid body material, please refer to the `documentation on PxMaterial <https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/_build/physx/latest/class_px_material.html>`_.
+    rigid body material, please refer to the `documentation on PxMaterial <https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/_api_build/classPxBaseMaterial.html>`_.
 
     .. note::
         This function is decorated with :func:`clone` that resolves prim path into list of paths
@@ -97,7 +97,7 @@ def spawn_deformable_body_material(prim_path: str, cfg: physics_materials_cfg.De
     Raises:
         ValueError:  When a prim already exists at the specified prim path and is not a material.
 
-    .. _PxFEMSoftBodyMaterial: https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/_api_build/class_px_f_e_m_soft_body_material.html
+    .. _PxFEMSoftBodyMaterial: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/_api_build/structPxFEMSoftBodyMaterialModel.html
     """
     # create material prim if no prim exists
     if not prim_utils.is_prim_path_valid(prim_path):

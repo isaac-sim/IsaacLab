@@ -21,8 +21,8 @@ class AllegroHandPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     empirical_normalization = True
     policy = RslRlPpoActorCriticCfg(
         init_noise_std=1.0,
-        actor_hidden_dims=[512, 512, 256, 128],
-        critic_hidden_dims=[512, 512, 256, 128],
+        actor_hidden_dims=[1024, 512, 256, 128],
+        critic_hidden_dims=[1024, 512, 256, 128],
         activation="elu",
     )
     algorithm = RslRlPpoAlgorithmCfg(

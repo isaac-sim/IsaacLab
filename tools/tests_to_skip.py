@@ -14,4 +14,5 @@ TESTS_TO_SKIP = [
     # lab_tasks
     "test_data_collector.py",  # Failing
     "test_record_video.py",  # Failing
+    "test_tiled_camera_env.py",  # Need to improve the logic
 ]

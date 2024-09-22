@@ -52,6 +52,14 @@ gym.register(
     disable_env_checker=True,
 )
 
+gym.register(
+    id="Isaac-Lift-Teddy-Bear-Franka-IK-Abs-v0",
+    entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": ik_abs_env_cfg.FrankaTeddyBearLiftEnvCfg,
+    },
+    disable_env_checker=True,
+)
 
 ##
 # Inverse Kinematics - Relative Pose Control

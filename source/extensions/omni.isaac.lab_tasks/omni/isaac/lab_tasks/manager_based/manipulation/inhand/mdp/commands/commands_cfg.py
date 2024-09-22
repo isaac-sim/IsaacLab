@@ -55,7 +55,7 @@ class InHandReOrientationCommandCfg(CommandTermCfg):
     Otherwise, the marker may occlude the object in the visualization.
     """
 
-    visualizer_cfg: VisualizationMarkersCfg = VisualizationMarkersCfg(
+    goal_pose_visualizer_cfg: VisualizationMarkersCfg = VisualizationMarkersCfg(
         prim_path="/Visuals/Command/goal_marker",
         markers={
             "goal": sim_utils.UsdFileCfg(
@@ -64,4 +64,4 @@ class InHandReOrientationCommandCfg(CommandTermCfg):
             ),
         },
     )
-    """Configuration for the visualization markers. Default is a cube marker."""
+    """The configuration for the goal pose visualization marker. Defaults to a DexCube marker."""

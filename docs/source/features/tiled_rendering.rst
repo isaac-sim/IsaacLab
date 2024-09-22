@@ -1,17 +1,15 @@
-Tiled Rendering and Recording
-=============================
+Tiled-Camera Rendering
+======================
 
 .. currentmodule:: omni.isaac.lab
 
-
-Tiled Rendering
----------------
-
 .. note::
 
-    This feature is only available from Isaac Sim version 4.0.0 onwards.
+    This feature is only available from Isaac Sim version 4.2.0 onwards.
 
-    Tiled rendering requires heavy memory resources. We recommend running at most 256 cameras in the scene.
+    Tiled rendering in combination with image processing networks require heavy memory resources, especially
+    at larger resolutions. We recommend running at 512 cameras in the scene on RTX 4090 GPUs or similar.
+
 
 Tiled rendering APIs provide a vectorized interface for collecting data from camera sensors.
 This is useful for reinforcement learning environments requiring vision in the loop.
@@ -20,7 +18,7 @@ one single large image instead of multiple smaller images that would have been p
 by each individual camera. This reduces the amount of time required for rendering and
 provides a more efficient API for working with vision data.
 
-Isaac Lab provides tiled rendering APIs for RGB and depth data through the :class:`~sensors.TiledCamera`
+Isaac Lab provides tiled rendering APIs for RGB, depth, along with other annotators through the :class:`~sensors.TiledCamera`
 class. Configurations for the tiled rendering APIs can be defined through the :class:`~sensors.TiledCameraCfg`
 class, specifying parameters such as the regex expression for all camera paths, the transform
 for the cameras, the desired data type, the type of cameras to add to the scene, and the camera
@@ -59,24 +57,75 @@ environment. For example:
     python source/standalone/workflows/rl_games/train.py --task=Isaac-Cartpole-RGB-Camera-Direct-v0 --headless --enable_cameras
 
 
-Recording during training
+Annotators and Data Types
 -------------------------
 
-Isaac Lab supports recording video clips during training using the `gymnasium.wrappers.RecordVideo <https://gymnasium.farama.org/main/_modules/gymnasium/wrappers/record_video/>`_ class.
+Both :class:`~sensors.TiledCamera` and :class:`~sensors.Camera` classes provide APIs for retrieving various types annotator data from replicator:
 
-This feature can be enabled by installing ``ffmpeg`` and using the following command line arguments with the training script:
+* ``"rgb"``: A 3-channel rendered color image.
+* ``"rgba"``: A 4-channel rendered color image with alpha channel.
+* ``"distance_to_camera"``: An image containing the distance to camera optical center.
+* ``"distance_to_image_plane"``: An image containing distances of 3D points from camera plane along camera's z-axis.
+* ``"depth"``: The same as ``"distance_to_image_plane"``.
+* ``"normals"``: An image containing the local surface normal vectors at each pixel.
+* ``"motion_vectors"``: An image containing the motion vector data at each pixel.
+* ``"semantic_segmentation"``: The semantic segmentation data.
+* ``"instance_segmentation_fast"``: The instance segmentation data.
+* ``"instance_id_segmentation_fast"``: The instance id segmentation data.
 
-* ``--video`` - enables video recording during training
-* ``--video_length`` - length of each recorded video (in steps)
-* ``--video_interval`` - interval between each video recording (in steps)
+RGB and RGBA
+~~~~~~~~~~~~
 
-Make sure to also add the ``--enable_cameras`` argument when running headless.
-Note that enabling recording is equivalent to enabling rendering during training, which will slow down both startup and runtime performance.
+``rgb`` data type returns a 3-channel RGB colored image of type ``torch.uint8``, with dimension (B, H, W, 3).
 
-Example usage:
+``rgba`` data type returns a 4-channel RGBA colored image of type ``torch.uint8``, with dimension (B, H, W, 4).
 
-.. code-block:: shell
+To convert the ``torch.uint8`` data to ``torch.float32``, divide the buffer by 255.0 to obtain a ``torch.float32`` buffer containing data from 0 to 1.
 
-    python source/standalone/workflows/rl_games/train.py --task=Isaac-Cartpole-v0 --headless --video --video_length 100 --video_interval 500
+Depth and Distances
+~~~~~~~~~~~~~~~~~~~
 
-Recorded videos will be saved in the same directory as the training checkpoints, under ``IsaacLab/logs/<rl_workflow>/<task>/<run>/videos/train``.
+``distance_to_camera`` returns a single-channel depth image with distance to the camera optical center. The dimension for this annotator is (B, H, W, 1) and has type ``torch.float32``.
+
+``distance_to_image_plane`` returns a single-channel depth image with distances of 3D points from the camera plane along the camera's Z-axis. The dimension for this annotator is (B, H, W, 1) and has type ``torch.float32``.
+
+``depth`` is provided as an alias for ``distance_to_image_plane`` and will return the same data as the ``distance_to_image_plane`` annotator, with dimension (B, H, W, 1) and type ``torch.float32``.
+
+Normals
+~~~~~~~
+
+``normals`` returns an image containing the local surface normal vectors at each pixel. The buffer has dimension (B, H, W, 3), containing the (x, y, z) information for each vector, and has data type ``torch.float32``.
+
+Motion Vectors
+~~~~~~~~~~~~~~
+
+``motion_vectors`` returns the per-pixel motion vectors in image space, with a 2D array of motion vectors representing the relative motion of a pixel in the camera’s viewport between frames. The buffer has dimension (B, H, W, 2), representing x - the motion distance in the horizontal axis (image width) with movement to the left of the image being positive and movement to the right being negative and y - motion distance in the vertical axis (image height) with movement towards the top of the image being positive and movement to the bottom being negative. The data type is ``torch.float32``.
+
+Semantic Segmentation
+~~~~~~~~~~~~~~~~~~~~~
+
+``semantic_segmentation`` outputs semantic segmentation of each entity in the camera’s viewport that has semantic labels. In addition to the image buffer, an ``info`` dictionary can be retrieved with ``tiled_camera.data.info['semantic_segmentation']`` containing ID to labels information.
+
+- If ``colorize_semantic_segmentation=True`` in the camera config, a 4-channel RGBA image will be returned with dimension (B, H, W, 4) and type ``torch.uint8``. The info ``idToLabels`` dictionary will be the mapping from color to semantic labels.
+
+- If ``colorize_semantic_segmentation=False``, a buffer of dimension (B, H, W, 1) of type ``torch.int32`` will be returned, containing the semantic ID of each pixel. The info ``idToLabels`` dictionary will be the mapping from semantic ID to semantic labels.
+
+Instance ID Segmentation
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+``instance_id_segmentation_fast`` outputs instance ID segmentation of each entity in the camera’s viewport. The instance ID is unique for each prim in the scene with different paths. In addition to the image buffer, an ``info`` dictionary can be retrieved with ``tiled_camera.data.info['instance_id_segmentation_fast']`` containing ID to labels information.
+
+The main difference between ``instance_id_segmentation_fast`` and ``instance_segmentation_fast`` are that instance segmentation annotator goes down the hierarchy to the lowest level prim which has semantic labels, where instance ID segmentation always goes down to the leaf prim.
+
+- If ``colorize_instance_id_segmentation=True`` in the camera config, a 4-channel RGBA image will be returned with dimension (B, H, W, 4) and type ``torch.uint8``. The info ``idToLabels`` dictionary will be the mapping from color to USD prim path of that entity.
+
+- If ``colorize_instance_id_segmentation=False``, a buffer of dimension (B, H, W, 1) of type ``torch.int32`` will be returned, containing the instance ID of each pixel. The info ``idToLabels`` dictionary will be the mapping from instance ID to USD prim path of that entity.
+
+Instance Segmentation
+"""""""""""""""""""""
+
+``instance_segmentation_fast`` outputs instance segmentation of each entity in the camera’s viewport. In addition to the image buffer, an ``info`` dictionary can be retrieved with ``tiled_camera.data.info['instance_segmentation_fast']`` containing ID to labels and ID to semantic information.
+
+- If ``colorize_instance_segmentation=True`` in the camera config, a 4-channel RGBA image will be returned with dimension (B, H, W, 4) and type ``torch.uint8``. The info ``idToLabels`` dictionary will be the mapping from color to USD prim path of that semantic entity. The info ``idToSemantics`` dictionary will be the mapping from color to semantic labels of that semantic entity.
+
+- If ``colorize_instance_segmentation=False``, a buffer of dimension (B, H, W, 1) of type ``torch.int32`` will be returned, containing the instance ID of each pixel. The info ``idToLabels`` dictionary will be the mapping from instance ID to USD prim path of that semantic entity. The info ``idToSemantics`` dictionary will be the mapping from instance ID to semantic labels of that semantic entity.

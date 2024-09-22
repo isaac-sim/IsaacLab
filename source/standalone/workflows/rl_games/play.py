@@ -50,6 +50,7 @@ from rl_games.common import env_configurations, vecenv
 from rl_games.common.player import BasePlayer
 from rl_games.torch_runner import Runner
 
+from omni.isaac.lab.envs import DirectMARLEnv, multi_agent_to_single_agent
 from omni.isaac.lab.utils.assets import retrieve_file_path
 from omni.isaac.lab.utils.dict import print_dict
 
@@ -104,6 +105,11 @@ def main():
         print("[INFO] Recording videos during training.")
         print_dict(video_kwargs, nesting=4)
         env = gym.wrappers.RecordVideo(env, **video_kwargs)
+
+    # convert to single-agent instance if required by the RL algorithm
+    if isinstance(env.unwrapped, DirectMARLEnv):
+        env = multi_agent_to_single_agent(env)
+
     # wrap around environment for rl-games
     env = RlGamesVecEnvWrapper(env, rl_device, clip_obs, clip_actions)
 

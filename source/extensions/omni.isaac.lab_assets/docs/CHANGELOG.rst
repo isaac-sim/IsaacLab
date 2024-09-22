@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.1.4 (2024-08-21)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added configuration for the Inverted Double Pendulum on a Cart robot.
+
+
 0.1.2 (2024-04-03)
 ~~~~~~~~~~~~~~~~~~
 

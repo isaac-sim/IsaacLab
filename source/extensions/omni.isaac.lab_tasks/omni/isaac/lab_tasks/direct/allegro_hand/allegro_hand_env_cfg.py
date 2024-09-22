@@ -112,7 +112,7 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
     fall_penalty = 0
     fall_dist = 0.24
     vel_obs_scale = 0.2
-    success_tolerance = 0.1
+    success_tolerance = 0.2
     max_consecutive_success = 0
     av_factor = 0.1
     act_moving_average = 1.0

@@ -19,13 +19,14 @@ EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extensio
 INSTALL_REQUIRES = [
     # generic
     "numpy<2",
-    "torch==2.2.2",
+    "torch==2.4.0",
+    "onnx==1.16.1",  # 1.16.2 throws access violation on Windows
     "prettytable==3.3.0",
     "tensordict",
     "toml",
     # devices
     "hidapi",
-    # gym
+    # reinforcement learning
     "gymnasium==0.29.0",
     # procedural-generation
     "trimesh",
@@ -52,8 +53,8 @@ setup(
     classifiers=[
         "Natural Language :: English",
         "Programming Language :: Python :: 3.10",
+        "Isaac Sim :: 4.2.0",
         "Isaac Sim :: 4.1.0",
-        "Isaac Sim :: 4.0.0",
     ],
     zip_safe=False,
 )

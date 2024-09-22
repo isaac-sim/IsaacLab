@@ -199,6 +199,12 @@ class TestArticulation(unittest.TestCase):
                         self.assertEqual(articulation.data.root_pos_w.shape, (num_articulations, 3))
                         self.assertEqual(articulation.data.root_quat_w.shape, (num_articulations, 4))
                         self.assertEqual(articulation.data.joint_pos.shape, (num_articulations, 12))
+                        self.assertEqual(
+                            articulation.data.default_mass.shape, (num_articulations, articulation.num_bodies)
+                        )
+                        self.assertEqual(
+                            articulation.data.default_inertia.shape, (num_articulations, articulation.num_bodies, 9)
+                        )
 
                         # Check some internal physx data for debugging
                         # -- joint related
@@ -246,6 +252,12 @@ class TestArticulation(unittest.TestCase):
                         self.assertEqual(articulation.data.root_pos_w.shape, (num_articulations, 3))
                         self.assertEqual(articulation.data.root_quat_w.shape, (num_articulations, 4))
                         self.assertEqual(articulation.data.joint_pos.shape, (num_articulations, 9))
+                        self.assertEqual(
+                            articulation.data.default_mass.shape, (num_articulations, articulation.num_bodies)
+                        )
+                        self.assertEqual(
+                            articulation.data.default_inertia.shape, (num_articulations, articulation.num_bodies, 9)
+                        )
 
                         # Check some internal physx data for debugging
                         # -- joint related
@@ -299,6 +311,12 @@ class TestArticulation(unittest.TestCase):
                         self.assertEqual(articulation.data.root_pos_w.shape, (num_articulations, 3))
                         self.assertEqual(articulation.data.root_quat_w.shape, (num_articulations, 4))
                         self.assertEqual(articulation.data.joint_pos.shape, (num_articulations, 1))
+                        self.assertEqual(
+                            articulation.data.default_mass.shape, (num_articulations, articulation.num_bodies)
+                        )
+                        self.assertEqual(
+                            articulation.data.default_inertia.shape, (num_articulations, articulation.num_bodies, 9)
+                        )
 
                         # Check some internal physx data for debugging
                         # -- joint related
@@ -352,6 +370,12 @@ class TestArticulation(unittest.TestCase):
                         self.assertTrue(articulation.data.root_pos_w.shape == (num_articulations, 3))
                         self.assertTrue(articulation.data.root_quat_w.shape == (num_articulations, 4))
                         self.assertTrue(articulation.data.joint_pos.shape == (num_articulations, 24))
+                        self.assertEqual(
+                            articulation.data.default_mass.shape, (num_articulations, articulation.num_bodies)
+                        )
+                        self.assertEqual(
+                            articulation.data.default_inertia.shape, (num_articulations, articulation.num_bodies, 9)
+                        )
 
                         # Check some internal physx data for debugging
                         # -- joint related

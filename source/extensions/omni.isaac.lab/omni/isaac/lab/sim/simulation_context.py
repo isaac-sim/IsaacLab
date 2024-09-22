@@ -133,7 +133,7 @@ class SimulationContext(_SimulationContext):
             carb_settings_iface.set_bool("/physics/disableContactProcessing", True)
         # enable custom geometry for cylinder and cone collision shapes to allow contact reporting for them
         # reason: cylinders and cones aren't natively supported by PhysX so we need to use custom geometry flags
-        # reference: https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/docs/Geometry.html?highlight=capsule#geometry
+        # reference: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/docs/Geometry.html?highlight=capsule#geometry
         carb_settings_iface.set_bool("/physics/collisionConeCustomGeometry", False)
         carb_settings_iface.set_bool("/physics/collisionCylinderCustomGeometry", False)
         # note: we read this once since it is not expected to change during runtime
@@ -462,7 +462,10 @@ class SimulationContext(_SimulationContext):
         else:
             # manually flush the fabric data to update Hydra textures
             if self._fabric_iface is not None:
-                self._fabric_iface.update(0.0, 0.0)
+                if self.physics_sim_view is not None and self.is_playing():
+                    # Update the articulations' link's poses before rendering
+                    self.physics_sim_view.update_articulations_kinematic()
+                self._update_fabric(0.0, 0.0)
             # render the simulation
             # note: we don't call super().render() anymore because they do above operation inside
             #  and we don't want to do it twice. We may remove it once we drop support for Isaac Sim 2022.2.
@@ -532,7 +535,7 @@ class SimulationContext(_SimulationContext):
             raise RuntimeError("Physics scene API is None! Please create the scene first.")
         # set parameters not directly supported by the constructor
         # -- Continuous Collision Detection (CCD)
-        # ref: https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/docs/AdvancedCollisionDetection.html?highlight=ccd#continuous-collision-detection
+        # ref: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/docs/AdvancedCollisionDetection.html?highlight=ccd#continuous-collision-detection
         self._physics_context.enable_ccd(self.cfg.physx.enable_ccd)
         # -- GPU collision stack size
         physx_scene_api.CreateGpuCollisionStackSizeAttr(self.cfg.physx.gpu_collision_stack_size)
@@ -576,6 +579,15 @@ class SimulationContext(_SimulationContext):
 
             # acquire fabric interface
             self._fabric_iface = get_physx_fabric_interface()
+            if hasattr(self._fabric_iface, "force_update"):
+                # The update method in the fabric interface only performs an update if a physics step has occurred.
+                # However, for rendering, we need to force an update since any element of the scene might have been
+                # modified in a reset (which occurs after the physics step) and we want the renderer to be aware of
+                # these changes.
+                self._update_fabric = self._fabric_iface.force_update
+            else:
+                # Needed for backward compatibility with older Isaac Sim versions
+                self._update_fabric = self._fabric_iface.update
 
     """
     Callbacks.

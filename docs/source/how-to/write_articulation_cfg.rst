@@ -84,7 +84,7 @@ Actuators are a crucial component of an articulation. Through this configuration
 to define the type of actuator model to use. We can use the internal actuator model provided by
 the physics engine (i.e. the implicit actuator model), or use a custom actuator model which is
 governed by a user-defined system of equations (i.e. the explicit actuator model).
-For more details on actuators, see :ref:`feature-actuators`.
+For more details on actuators, see :ref:`overview-actuators`.
 
 The cartpole's articulation has two actuators, one corresponding to its each joint:
 ``cart_to_pole`` and ``slider_to_cart``. We use two different actuator models for these actuators as
