@@ -27,8 +27,8 @@ class CartpoleRGBCameraSceneCfg(CartpoleSceneCfg):
         spawn=sim_utils.PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
         ),
-        width=80,
-        height=80,
+        width=40,
+        height=40,
     )
 
 
@@ -41,8 +41,8 @@ class CartpoleDepthCameraSceneCfg(CartpoleSceneCfg):
         spawn=sim_utils.PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
         ),
-        width=80,
-        height=80,
+        width=40,
+        height=40,
     )
 
 
@@ -54,7 +54,7 @@ class ObservationsCfg:
     class RGBCameraPolicyCfg(ObsGroup):
         """Observations for policy group."""
 
-        image = ObsTerm(func=grab_images, params={"sensor_cfg": SceneEntityCfg("tiled_camera"), "replicator": "rgb"})
+        image = ObsTerm(func=grab_images, params={"sensor_cfg": SceneEntityCfg("tiled_camera"), "data_type": "rgb"})
 
         def __post_init__(self) -> None:
             self.enable_corruption = False
@@ -63,7 +63,7 @@ class ObservationsCfg:
     @configclass
     class DepthCameraPolicyCfg(RGBCameraPolicyCfg):
         image = ObsTerm(
-            func=grab_images, params={"sensor_cfg": SceneEntityCfg("tiled_camera"), "replicator": "distance_to_camera"}
+            func=grab_images, params={"sensor_cfg": SceneEntityCfg("tiled_camera"), "data_type": "distance_to_camera"}
         )
 
         def __post_init__(self) -> None:
@@ -76,12 +76,12 @@ class ObservationsCfg:
 
 @configclass
 class CartpoleRGBCameraEnvCfg(CartpoleEnvCfg):
-    scene: CartpoleSceneCfg = CartpoleRGBCameraSceneCfg(num_envs=256, env_spacing=20)
+    scene: CartpoleSceneCfg = CartpoleRGBCameraSceneCfg(num_envs=1024, env_spacing=20)
     observations: ObservationsCfg = ObservationsCfg()
 
 
 @configclass
 class CartpoleDepthCameraEnvCfg(CartpoleEnvCfg):
-    scene: CartpoleSceneCfg = CartpoleDepthCameraSceneCfg(num_envs=256, env_spacing=20)
+    scene: CartpoleSceneCfg = CartpoleDepthCameraSceneCfg(num_envs=1024, env_spacing=20)
     observations: ObservationsCfg = ObservationsCfg()
     observations.policy = ObservationsCfg.DepthCameraPolicyCfg()

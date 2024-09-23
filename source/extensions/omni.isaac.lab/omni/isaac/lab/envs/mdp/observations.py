@@ -185,26 +185,36 @@ def body_incoming_wrench(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg) -> tor
 def grab_images(
     env: ManagerBasedEnv,
     sensor_cfg: SceneEntityCfg = SceneEntityCfg("tiled_camera"),
-    replicator: str = "rgb",
+    data_type: str = "rgb",
     convert_perspective_to_orthogonal: bool = True,
+    normalize: bool = True,
 ) -> torch.Tensor:
     """Grab all of the images of a specific datatype produced by a specific camera at the last timestep.
 
     Args:
         env: The environment the cameras are placed within.
         sensor_cfg: The desired sensor to take . Defaults to SceneEntityCfg("tiled_camera").
-        replicator: The data type to pull from the desired camera. Defaults to "rgb".
+        data_type: The data type to pull from the desired camera. Defaults to "rgb".
         convert_perspective_to_orthogonal: Whether to convert perspective
             depth images to orthogonal depth images. Defaults to True.
+        normalize: Set to true normalize images. Highly recommended for training performance.
 
     Returns:
         The images produced at the last timestep
     """
     sensor: TiledCamera | Camera | RayCasterCamera = env.scene.sensors[sensor_cfg.name]
-    images = sensor.data.output[replicator]
-    if (replicator == "distance_to_camera") and convert_perspective_to_orthogonal:
+    images = sensor.data.output[data_type]
+    if (data_type == "distance_to_camera") and convert_perspective_to_orthogonal:
         images = math_utils.convert_perspective_depth_to_orthogonal_depth(images, sensor.data.intrinsic_matrices)
-    return images
+
+    if normalize:
+        if data_type == "rgb":
+            images = images / 255
+            mean_tensor = torch.mean(images, dim=(1, 2), keepdim=True)
+            images -= mean_tensor
+        elif "distance_to" in data_type or "depth" in data_type:
+            images[images == float("inf")] = 0
+    return images.clone()
 
 
 """
