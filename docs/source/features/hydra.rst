@@ -12,7 +12,7 @@ Similarly, the agent's parameters can be modified by using the ``agent`` prefix,
 
 The way these command line arguments are set follow the exact structure of the configuration files. Since the different
 RL frameworks use different conventions, there might be differences in the way the parameters are set. For example,
-with `rl_games` the seed will be set with ``agent.params.seed``, while with `rsl_rl`, `skrl` and `sb3` it will be set with
+with *rl_games* the seed will be set with ``agent.params.seed``, while with *rsl_rl*, *skrl* and *sb3* it will be set with
 ``agent.seed``.
 
 As a result, training with hydra arguments can be run with the following syntax:
