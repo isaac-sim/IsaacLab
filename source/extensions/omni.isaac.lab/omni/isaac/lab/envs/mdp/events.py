@@ -302,7 +302,7 @@ def randomize_actuator_gains(
         if stiffness_distribution_params is not None:
             actuator.stiffness = asset.data.default_joint_stiffness.to(asset.device).clone()
             x = randomize(actuator.stiffness, stiffness_distribution_params)
-            actuator.stiffness = actuator.stiffness[all_envs[:, None], target_joint_indices]
+            actuator.stiffness = actuator.stiffness[all_envs[:, None], joint_ids_list]
             if isinstance(actuator, ImplicitActuator):
                 # TODO: Figure out an efficient way to avoid writing to all envs.
                 asset.write_joint_stiffness_to_sim(actuator.stiffness, joint_ids=target_joint_indices, env_ids=all_envs)
@@ -310,7 +310,7 @@ def randomize_actuator_gains(
         if damping_distribution_params is not None:
             actuator.damping = asset.data.default_joint_damping.to(asset.device).clone()
             randomize(actuator.damping, damping_distribution_params)
-            actuator.damping = actuator.damping[all_envs[:, None], target_joint_indices]
+            actuator.damping = actuator.damping[all_envs[:, None], joint_ids_list]
             if isinstance(actuator, ImplicitActuator):
                 asset.write_joint_damping_to_sim(actuator.damping, joint_ids=target_joint_indices, env_ids=all_envs)
 
