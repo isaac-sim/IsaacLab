@@ -1,3 +1,6 @@
+Application Development
+=======================
+
 Extensions
 ~~~~~~~~~~
 
@@ -8,9 +11,7 @@ standalone applications. A folder is recognized as an extension if it contains
 an ``extension.toml`` file in the ``config`` directory. More information on extensions can be found in the
 `Omniverse documentation <https://docs.omniverse.nvidia.com/kit/docs/kit-manual/latest/guide/extensions_basic.html>`__.
 
-Isaac Lab in itself provides extensions for robot learning. These are written into the
-``source/extensions`` directory. Each extension is written as a python package and
-follows the following structure:
+Each extension in Isaac Lab is written as a python package and follows the following structure:
 
 .. code:: bash
 
@@ -79,8 +80,8 @@ important to note that Omniverse also provides a similar
 However, it requires going through the build process and does not support testing of the python module in
 standalone applications.
 
-Extension Dependency Management
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Custom Extension Dependency Management
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Certain extensions may have dependencies which require installation of additional packages before the extension
 can be used. While Python dependencies are handled by the `setuptools <https://setuptools.readthedocs.io/en/latest/>`__
@@ -129,12 +130,15 @@ Standalone applications
 
 In a typical Omniverse workflow, the simulator is launched first, after which the extensions are
 enabled that load the python module and run the python application. While this is a recommended
-workflow, it is not always possible to use this workflow. For example, for robot learning, it is
-essential to have complete control over simulation stepping and all the other functionalities
-instead of asynchronously waiting for the simulator to step. In such cases, it is necessary to
-write a standalone application that launches the simulator using :class:`~omni.isaac.lab.app.AppLauncher`
-and allows complete control over the simulation through the :class:`~omni.isaac.lab.sim.SimulationContext`
-class.
+workflow, it is not always possible to use this workflow.
+
+For example, for robot learning, it is essential to have complete control over simulation stepping
+and all the other functionalities instead of asynchronously waiting for the simulator to step. In
+such cases, it is necessary to write a standalone application that launches the simulator using
+:class:`~omni.isaac.lab.app.AppLauncher` and allows complete control over the simulation through
+the :class:`~omni.isaac.lab.sim.SimulationContext` class.
+
+The following snippet shows how to write a standalone application:
 
 .. code:: python
 
@@ -165,14 +169,8 @@ class.
       simulation_app.close()
 
 
-The ``source/standalone`` directory contains various standalone applications designed using the extensions
-provided by ``Isaac Lab``. These applications are written in python and are structured as follows:
-
-* **demos**: Contains various demo applications that showcase the core framework ``omni.isaac.lab``.
-* **environments**: Contains applications for running environments defined in ``omni.isaac.lab_tasks`` with different agents.
-  These include a random policy, zero-action policy, teleoperation or scripted state machines.
-* **tools**: Contains applications for using the tools provided by the framework. These include converting assets, generating
-  datasets, etc.
-* **tutorials**: Contains step-by-step tutorials for using the APIs provided by the framework.
-* **workflows**: Contains applications for using environments with various learning-based frameworks. These include different
-  reinforcement learning or imitation learning libraries.
+It is necessary to launch the simulator before running any other code because extensions are hot-loaded
+when the simulator starts. Many Omniverse modules become available only after the simulator is launched.
+To do this, use the :class:~omni.isaac.lab.app.AppLauncher class to start the simulator. After that,
+the :class:~omni.isaac.lab.sim.SimulationContext class can be used to control the simulation. For further
+details, we recommend exploring the Isaac Lab tutorials.
