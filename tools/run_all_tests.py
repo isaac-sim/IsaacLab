@@ -326,7 +326,8 @@ def warm_start_app():
     if len(warm_start_output.stderr) > 0:
         logging.error(f"Error warm starting the app: {str(warm_start_output.stderr)}")
         exit(1)
-    # Headless experience with rendering
+
+    # headless experience with rendering
     warm_start_rendering_output = subprocess.run(
         [
             sys.executable,
@@ -341,6 +342,7 @@ def warm_start_app():
     if len(warm_start_rendering_output.stderr) > 0:
         logging.error(f"Error warm starting the app with rendering: {str(warm_start_rendering_output.stderr)}")
         exit(1)
+
     after = time.time()
     time_elapsed = after - before
     print(f"[INFO] Warm start completed successfully in {time_elapsed:.2f} s")
@@ -352,6 +354,7 @@ if __name__ == "__main__":
 
     # warm start the app
     warm_start_app()
+
     # add tests to skip to the list of tests to skip
     tests_to_skip = TESTS_TO_SKIP
     tests_to_skip += args.skip_tests
