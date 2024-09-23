@@ -259,7 +259,7 @@ class RigidObject(AssetBase):
             self.has_external_wrench = False
 
     """
-    Internal helper.
+    Implementation.
     """
 
     def _initialize_impl(self):
@@ -314,6 +314,15 @@ class RigidObject(AssetBase):
         # update the rigid body data
         self.update(0.0)
 
+    def _invalidate_initialize_impl(self):
+        # set all existing views to None to invalidate them
+        self._physics_sim_view = None
+        self._root_physx_view = None
+
+    """
+    Internal helper - Buffers.
+    """
+
     def _create_buffers(self):
         """Create buffers for storing data."""
         # constants
@@ -342,15 +351,3 @@ class RigidObject(AssetBase):
         )
         default_root_state = torch.tensor(default_root_state, dtype=torch.float, device=self.device)
         self._data.default_root_state = default_root_state.repeat(self.num_instances, 1)
-
-    """
-    Internal simulation callbacks.
-    """
-
-    def _invalidate_initialize_callback(self, event):
-        """Invalidates the scene elements."""
-        # call parent
-        super()._invalidate_initialize_callback(event)
-        # set all existing views to None to invalidate them
-        self._physics_sim_view = None
-        self._root_physx_view = None

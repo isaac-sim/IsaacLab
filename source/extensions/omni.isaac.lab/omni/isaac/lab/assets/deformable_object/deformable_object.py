@@ -257,7 +257,7 @@ class DeformableObject(AssetBase):
         return math_utils.transform_points(nodal_pos, pos, quat) + mean_nodal_pos
 
     """
-    Internal helper.
+    Implementation.
     """
 
     def _initialize_impl(self):
@@ -358,6 +358,15 @@ class DeformableObject(AssetBase):
         # update the deformable body data
         self.update(0.0)
 
+    def _invalidate_initialize_impl(self):
+        # set all existing views to None to invalidate them
+        self._physics_sim_view = None
+        self._root_physx_view = None
+
+    """
+    Internal helper - Buffers.
+    """
+
     def _create_buffers(self):
         """Create buffers for storing data."""
         # constants
@@ -403,11 +412,3 @@ class DeformableObject(AssetBase):
             positions = self.data.nodal_kinematic_target[targets_enabled][..., :3]
         # show target visualizer
         self.target_visualizer.visualize(positions)
-
-    def _invalidate_initialize_callback(self, event):
-        """Invalidates the scene elements."""
-        # call parent
-        super()._invalidate_initialize_callback(event)
-        # set all existing views to None to invalidate them
-        self._physics_sim_view = None
-        self._root_physx_view = None

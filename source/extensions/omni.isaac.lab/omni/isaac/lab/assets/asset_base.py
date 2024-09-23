@@ -225,6 +225,11 @@ class AssetBase(ABC):
         """Initializes the PhysX handles and internal buffers."""
         raise NotImplementedError
 
+    @abstractmethod
+    def _invalidate_initialize_impl(self):
+        """Invalidates the PhysX handles and internal buffers."""
+        raise NotImplementedError
+
     def _set_debug_vis_impl(self, debug_vis: bool):
         """Set debug visualization into visualization objects.
 
@@ -267,3 +272,5 @@ class AssetBase(ABC):
     def _invalidate_initialize_callback(self, event):
         """Invalidates the scene elements."""
         self._is_initialized = False
+        # invalidate the asset
+        self._invalidate_initialize_impl()

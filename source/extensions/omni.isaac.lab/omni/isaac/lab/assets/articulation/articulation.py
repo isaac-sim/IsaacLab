@@ -878,7 +878,7 @@ class Articulation(AssetBase):
         )
 
     """
-    Internal helper.
+    Implementation.
     """
 
     def _initialize_impl(self):
@@ -941,6 +941,15 @@ class Articulation(AssetBase):
         self.update(0.0)
         # log joint information
         self._log_articulation_joint_info()
+
+    def _invalidate_initialize_impl(self):
+        # set all existing views to None to invalidate them
+        self._physics_sim_view = None
+        self._root_physx_view = None
+
+    """
+    Internal Helpers - Buffers.
+    """
 
     def _create_buffers(self):
         # constants
@@ -1072,22 +1081,6 @@ class Articulation(AssetBase):
         # -- joint limits
         self._data.default_joint_limits = self.root_physx_view.get_dof_limits().to(device=self.device).clone()
         self._data.joint_limits = self._data.default_joint_limits.clone()
-
-    """
-    Internal simulation callbacks.
-    """
-
-    def _invalidate_initialize_callback(self, event):
-        """Invalidates the scene elements."""
-        # call parent
-        super()._invalidate_initialize_callback(event)
-        # set all existing views to None to invalidate them
-        self._physics_sim_view = None
-        self._root_physx_view = None
-
-    """
-    Internal helpers -- Actuators.
-    """
 
     def _process_actuators_cfg(self):
         """Process and apply articulation joint properties."""
