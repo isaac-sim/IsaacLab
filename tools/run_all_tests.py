@@ -309,7 +309,7 @@ def test_all(
 
 def warm_start_app():
     """Warm start the app to compile shaders before running the tests."""
-    print(f"[INFO] Warm starting the simulation app before running tests.")
+    print("[INFO] Warm starting the simulation app before running tests.")
     before = time.time()
     # headless experience
     warm_start_output = subprocess.run(
