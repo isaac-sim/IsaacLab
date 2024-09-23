@@ -266,7 +266,7 @@ class ArticulationData:
             # read data from simulation
             pose = self._root_physx_view.get_root_transforms().clone()
             pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
-            velocity = self._root_physx_view.get_root_velocities()
+            velocity = self._root_physx_view.get_root_velocities().clone()
             
             # set the buffer data and timestamp
             self._root_state_w.data = torch.cat((pose, velocity), dim=-1)
@@ -279,7 +279,7 @@ class ArticulationData:
 
         The position, quaternion, and linear/angular velocity are of the articulation root's actor frame relative to the world.
         """
-        state = self.root_state_w
+        state = self.root_state_w.clone()
         quat = state[:, 3:7]
         # adjust linear velocity to link
         state[:, 7:10] += torch.linalg.cross(
@@ -295,7 +295,7 @@ class ArticulationData:
         The position, quaternion, and linear/angular velocity are of the articulation root link's center of mass frame relative to the world.
         Center of mass frame is assumed to be the same orientation as the link rather than the orientation of the principle inertia.
         """
-        state = self.root_state_w
+        state = self.root_state_w.clone()
         quat = state[:, 3:7]
         # adjust position to center of mass
         state[:,:3] += math_utils.quat_rotate(quat, self._com_pos_b[:, 0, :])
@@ -314,9 +314,6 @@ class ArticulationData:
             poses = self._root_physx_view.get_link_transforms().clone()
             poses[..., 3:7] = math_utils.convert_quat(poses[..., 3:7], to="wxyz")
             velocities = self._root_physx_view.get_link_velocities()
-            velocities[..., :3] += torch.linalg.cross(
-                velocities[..., 3:], math_utils.quat_rotate(poses[..., 3:7], -self._com_pos_b), dim=-1
-            )
 
             # set the buffer data and timestamp
             self._body_state_w.data = torch.cat((poses, velocities), dim=-1)
@@ -330,11 +327,11 @@ class ArticulationData:
 
         The position, quaternion, and linear/angular velocity are of the body's link frame relative to the world.
         """
-        state = self.body_state_w
+        state = self.body_state_w.clone()
         quat = state[..., 3:7]
         # adjust linear velocity to link
         state[..., 7:10] += torch.linalg.cross(
-            state[..., 7:10], math_utils.quat_rotate(quat, -self._com_pos_b), dim=-1
+            state[..., 10:13], math_utils.quat_rotate(quat, -self._com_pos_b), dim=-1
         )
         return state
 
@@ -345,10 +342,10 @@ class ArticulationData:
 
         The position, quaternion, and linear/angular velocity are of the body's center of mass frame relative to the world.
         """
-        state = self.body_state_w
+        state = self.body_state_w.clone()
         quat = state[..., 3:7]
         # adjust position to center of mass
-        state[...,:3] += math_utils.quat_rotate(quat, self._com_pos_b)
+        state[...,:3] -= math_utils.quat_rotate(quat, self._com_pos_b)
         return state
     
     @property
@@ -369,11 +366,12 @@ class ArticulationData:
         """Acceleration of all bodies link frame. Shape is (num_instances, num_bodies, 6).
         
         All values are relative to the world."""
-        body_acc_w = self.body_acc_w
+        
+        body_acc_w = self.body_acc_w.clone()
         # move linear acceleration to link frame
-        ang_acc_w = self.body_acc_w[..., 3:]
-        ang_vel_w = self.body_state_w[..., 10:14]
-        com_pos_w = body_state_com_w[...,:3]
+        ang_acc_w = self.body_acc_w[..., 3:].clone()
+        ang_vel_w = self.body_state_w[..., 10:14].clone()
+        com_pos_w = body_state_com_w[...,:3].clone()
         body_acc_w[..., :3] += torch.linalg.cross(ang_acc_w, com_pos_w, dim=-1) + torch.linalg.cross(
             ang_vel_w, torch.linalg.cross(ang_vel_w, com_pos_w, dim=-1), dim=-1
         )
