@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.24.14 (2024-09-23)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Made a separate invalidate function inside asset and sensor base classes. This avoids the need to call the
+  parent's invalidate callback within the child class' callback function. Earlier, this behavior led to
+  PhysX error on subscription cannot be changed during the event call.
+
 
 0.24.13 (2024-09-08)
 ~~~~~~~~~~~~~~~~~~~~
