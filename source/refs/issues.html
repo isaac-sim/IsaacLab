@@ -226,8 +226,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
 
 <li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/repo_structure.html">Repository organization</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/extensions.html">Extensions</a></li>
-
+<li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/development.html">Application Development</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/template.html">Building your Own Project</a></li>
 </ul>
 </details></li>
@@ -246,7 +245,7 @@
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../overview/teleop_imitation.html">Teleoperation and Imitation Learning</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../overview/showroom.html">Showroom Demos</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../overview/basic_agents.html">Simple Agents</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../overview/simple_agents.html">Simple Agents</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="nav bd-sidenav">
@@ -601,10 +600,17 @@ and does not affect the performance that critically.</p>
 <p>We have made a feature request to the respective Omniverse teams to have complete control
 over stepping different parts of the simulation app. However, at this point, there is no set
 timeline for this feature request.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>With Isaac Lab 1.2, we have introduced a PhysX kinematic update call inside the
+<a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.ArticulationData.body_state_w" title="omni.isaac.lab.assets.ArticulationData.body_state_w"><code class="xref py py-attr docutils literal notranslate"><span class="pre">body_state_w</span></code></a> attribute. This workaround
+ensures that the states of the links are updated when the root state or joint state
+of an articulation is set.</p>
+</div>
 </section>
 <section id="blank-initial-frames-from-the-camera">
 <h2>Blank initial frames from the camera<a class="headerlink" href="#blank-initial-frames-from-the-camera" title="Permalink to this heading">#</a></h2>
-<p>When using the <a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.Camera" title="omni.isaac.lab.sensors.Camera"><code class="xref py py-class docutils literal notranslate"><span class="pre">omni.isaac.lab.sensors.Camera</span></code></a> sensor in standalone scripts, the first few frames
+<p>When using the <a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.Camera" title="omni.isaac.lab.sensors.Camera"><code class="xref py py-class docutils literal notranslate"><span class="pre">Camera</span></code></a> sensor in standalone scripts, the first few frames
 may be blank. This is a known issue with the simulator where it needs a few steps to load the material
 textures properly and fill up the render targets.</p>
 <p>A hack to work around this is to add the following after initializing the camera sensor and setting
@@ -631,7 +637,7 @@ are stored in the instanceable asset’s USD file and not in its stage reference
 <section id="exiting-the-process">
 <h2>Exiting the process<a class="headerlink" href="#exiting-the-process" title="Permalink to this heading">#</a></h2>
 <p>When exiting a process with <code class="docutils literal notranslate"><span class="pre">Ctrl+C</span></code>, occasionally the below error may appear:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">[</span>Error<span class="o">]</span><span class="w"> </span><span class="o">[</span>omni.physx.plugin<span class="o">]</span><span class="w"> </span>Subscribtion<span class="w"> </span>cannot<span class="w"> </span>be<span class="w"> </span>changed<span class="w"> </span>during<span class="w"> </span>the<span class="w"> </span>event<span class="w"> </span>call.
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">[</span>Error<span class="o">]</span><span class="w"> </span><span class="o">[</span>omni.physx.plugin<span class="o">]</span><span class="w"> </span>Subscription<span class="w"> </span>cannot<span class="w"> </span>be<span class="w"> </span>changed<span class="w"> </span>during<span class="w"> </span>the<span class="w"> </span>event<span class="w"> </span>call.
 </pre></div>
 </div>
 <p>This is due to the termination occurring in the middle of a physics event call and

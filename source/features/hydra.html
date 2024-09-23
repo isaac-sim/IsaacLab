@@ -54,7 +54,7 @@
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
     <link rel="next" title="Multi-GPU and Multi-Node Training" href="multi_gpu.html" />
-    <link rel="prev" title="Simple Agents" href="../overview/basic_agents.html" />
+    <link rel="prev" title="Simple Agents" href="../overview/simple_agents.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
     <meta name="docbuild:last-update" content="Sep 23, 2024"/>
@@ -226,8 +226,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
 
 <li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/repo_structure.html">Repository organization</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/extensions.html">Extensions</a></li>
-
+<li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/development.html">Application Development</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/template.html">Building your Own Project</a></li>
 </ul>
 </details></li>
@@ -246,7 +245,7 @@
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../overview/teleop_imitation.html">Teleoperation and Imitation Learning</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../overview/showroom.html">Showroom Demos</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../overview/basic_agents.html">Simple Agents</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../overview/simple_agents.html">Simple Agents</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="current nav bd-sidenav">
@@ -562,6 +561,7 @@ document.write(`
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dictionaries">Dictionaries</a></li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#modifying-inter-dependent-parameters">Modifying inter-dependent parameters</a></li>
 </ul>
             </nav>
         </div>
@@ -580,13 +580,10 @@ configuration using command line arguments, which can be useful to automate expe
 <p>Any parameter of the environment can be modified by adding one or multiple elements of the form <code class="docutils literal notranslate"><span class="pre">env.a.b.param1=value</span></code>
 to the command line input, where <code class="docutils literal notranslate"><span class="pre">a.b.param1</span></code> reflects the parameter’s hierarchy, for example <code class="docutils literal notranslate"><span class="pre">env.actions.joint_effort.scale=10.0</span></code>.
 Similarly, the agent’s parameters can be modified by using the <code class="docutils literal notranslate"><span class="pre">agent</span></code> prefix, for example <code class="docutils literal notranslate"><span class="pre">agent.seed=2024</span></code>.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
 <p>The way these command line arguments are set follow the exact structure of the configuration files. Since the different
 RL frameworks use different conventions, there might be differences in the way the parameters are set. For example,
-with <cite>rl_games</cite> the seed will be set with <code class="docutils literal notranslate"><span class="pre">agent.params.seed</span></code>, while with <cite>rsl_rl</cite>, <cite>skrl</cite> and <cite>sb3</cite> it will be set with
+with <em>rl_games</em> the seed will be set with <code class="docutils literal notranslate"><span class="pre">agent.params.seed</span></code>, while with <em>rsl_rl</em>, <em>skrl</em> and <em>sb3</em> it will be set with
 <code class="docutils literal notranslate"><span class="pre">agent.seed</span></code>.</p>
-</div>
 <p>As a result, training with hydra arguments can be run with the following syntax:</p>
 <div class="sd-tab-set docutils">
 <input checked="checked" id="sd-tab-item-0" name="sd-tab-set-0" type="radio">
@@ -626,8 +623,68 @@ sb3</label><div class="sd-tab-content docutils">
 of the form <code class="docutils literal notranslate"><span class="pre">--param</span></code>, for example <code class="docutils literal notranslate"><span class="pre">--num_envs</span></code>, <code class="docutils literal notranslate"><span class="pre">--seed</span></code>, <code class="docutils literal notranslate"><span class="pre">--max_iterations</span></code>. These arguments have precedence
 over the hydra arguments, and will overwrite the values set by the hydra arguments.</p>
 </div>
-<div class="admonition attention">
-<p class="admonition-title">Attention</p>
+<section id="modifying-advanced-parameters">
+<h2>Modifying advanced parameters<a class="headerlink" href="#modifying-advanced-parameters" title="Permalink to this heading">#</a></h2>
+<section id="callables">
+<h3>Callables<a class="headerlink" href="#callables" title="Permalink to this heading">#</a></h3>
+<p>It is possible to modify functions and classes in the configuration files by using the syntax <code class="docutils literal notranslate"><span class="pre">module:attribute_name</span></code>.
+For example, in the Cartpole environment:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">ObservationsCfg</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Observation specifications for the MDP.&quot;&quot;&quot;</span>
+
+    <span class="nd">@configclass</span>
+    <span class="k">class</span> <span class="nc">PolicyCfg</span><span class="p">(</span><span class="n">ObsGroup</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Observations for policy group.&quot;&quot;&quot;</span>
+
+        <span class="c1"># observation terms (order preserved)</span>
+<span class="hll">        <span class="n">joint_pos_rel</span> <span class="o">=</span> <span class="n">ObsTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_pos_rel</span><span class="p">)</span>
+</span>        <span class="n">joint_vel_rel</span> <span class="o">=</span> <span class="n">ObsTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_vel_rel</span><span class="p">)</span>
+
+        <span class="k">def</span> <span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">enable_corruption</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">concatenate_terms</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="c1"># observation groups</span>
+    <span class="n">policy</span><span class="p">:</span> <span class="n">PolicyCfg</span> <span class="o">=</span> <span class="n">PolicyCfg</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>we could modify <code class="docutils literal notranslate"><span class="pre">joint_pos_rel</span></code> to compute absolute positions instead of relative positions with
+<code class="docutils literal notranslate"><span class="pre">env.observations.policy.joint_pos_rel.func=omni.isaac.lab.envs.mdp:joint_pos</span></code>.</p>
+</section>
+<section id="setting-parameters-to-none">
+<h3>Setting parameters to None<a class="headerlink" href="#setting-parameters-to-none" title="Permalink to this heading">#</a></h3>
+<p>To set parameters to None, use the <code class="docutils literal notranslate"><span class="pre">null</span></code> keyword, which is a special keyword in Hydra that is automatically converted to None.
+In the above example, we could also disable the <code class="docutils literal notranslate"><span class="pre">joint_pos_rel</span></code> observation by setting it to None with
+<code class="docutils literal notranslate"><span class="pre">env.observations.policy.joint_pos_rel=null</span></code>.</p>
+</section>
+<section id="dictionaries">
+<h3>Dictionaries<a class="headerlink" href="#dictionaries" title="Permalink to this heading">#</a></h3>
+<p>Elements in dictionaries are handled as a parameters in the hierarchy. For example, in the Cartpole environment:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">EventCfg</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for events.&quot;&quot;&quot;</span>
+
+    <span class="c1"># reset</span>
+    <span class="n">reset_cart_position</span> <span class="o">=</span> <span class="n">EventTerm</span><span class="p">(</span>
+        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">reset_joints_by_offset</span><span class="p">,</span>
+        <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;reset&quot;</span><span class="p">,</span>
+        <span class="n">params</span><span class="o">=</span><span class="p">{</span>
+            <span class="s2">&quot;asset_cfg&quot;</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;slider_to_cart&quot;</span><span class="p">]),</span>
+<span class="hll">            <span class="s2">&quot;position_range&quot;</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">),</span>
+</span>            <span class="s2">&quot;velocity_range&quot;</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">),</span>
+        <span class="p">},</span>
+    <span class="p">)</span>
+</pre></div>
+</div>
+<p>the <code class="docutils literal notranslate"><span class="pre">position_range</span></code> parameter can be modified with <code class="docutils literal notranslate"><span class="pre">env.events.reset_cart_position.params.position_range=&quot;[-2.0,</span> <span class="pre">2.0]&quot;</span></code>.
+This example shows two noteworthy points:</p>
+<ul class="simple">
+<li><p>The parameter we set has a space, so it must be enclosed in quotes.</p></li>
+<li><p>The parameter is a list while it is a tuple in the config. This is due to the fact that Hydra does not support tuples.</p></li>
+</ul>
+</section>
+</section>
+<section id="modifying-inter-dependent-parameters">
+<h2>Modifying inter-dependent parameters<a class="headerlink" href="#modifying-inter-dependent-parameters" title="Permalink to this heading">#</a></h2>
 <p>Particular care should be taken when modifying the parameters using command line arguments. Some of the configurations
 perform intermediate computations based on other parameters. These computations will not be updated when the parameters
 are modified.</p>
@@ -696,68 +753,8 @@ the post init update is as follows:</p>
                 <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">terrain</span><span class="o">.</span><span class="n">terrain_generator</span><span class="o">.</span><span class="n">curriculum</span> <span class="o">=</span> <span class="kc">False</span>
 </pre></div>
 </div>
-<p>Here, when modifying <code class="docutils literal notranslate"><span class="pre">env.decimation</span></code> or <code class="docutils literal notranslate"><span class="pre">env.sim.dt</span></code>, the user would have to give the updated <code class="docutils literal notranslate"><span class="pre">env.sim.render_interval</span></code>,
+<p>Here, when modifying <code class="docutils literal notranslate"><span class="pre">env.decimation</span></code> or <code class="docutils literal notranslate"><span class="pre">env.sim.dt</span></code>, the user needs to give the updated <code class="docutils literal notranslate"><span class="pre">env.sim.render_interval</span></code>,
 <code class="docutils literal notranslate"><span class="pre">env.scene.height_scanner.update_period</span></code>, and <code class="docutils literal notranslate"><span class="pre">env.scene.contact_forces.update_period</span></code> as input as well.</p>
-</div>
-<section id="modifying-advanced-parameters">
-<h2>Modifying advanced parameters<a class="headerlink" href="#modifying-advanced-parameters" title="Permalink to this heading">#</a></h2>
-<section id="callables">
-<h3>Callables<a class="headerlink" href="#callables" title="Permalink to this heading">#</a></h3>
-<p>It is possible to modify functions and classes in the configuration files by using the syntax <code class="docutils literal notranslate"><span class="pre">module:attribute_name</span></code>.
-For example, in the Cartpole environment:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">ObservationsCfg</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Observation specifications for the MDP.&quot;&quot;&quot;</span>
-
-    <span class="nd">@configclass</span>
-    <span class="k">class</span> <span class="nc">PolicyCfg</span><span class="p">(</span><span class="n">ObsGroup</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Observations for policy group.&quot;&quot;&quot;</span>
-
-        <span class="c1"># observation terms (order preserved)</span>
-<span class="hll">        <span class="n">joint_pos_rel</span> <span class="o">=</span> <span class="n">ObsTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_pos_rel</span><span class="p">)</span>
-</span>        <span class="n">joint_vel_rel</span> <span class="o">=</span> <span class="n">ObsTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_vel_rel</span><span class="p">)</span>
-
-        <span class="k">def</span> <span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">enable_corruption</span> <span class="o">=</span> <span class="kc">False</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">concatenate_terms</span> <span class="o">=</span> <span class="kc">True</span>
-
-    <span class="c1"># observation groups</span>
-    <span class="n">policy</span><span class="p">:</span> <span class="n">PolicyCfg</span> <span class="o">=</span> <span class="n">PolicyCfg</span><span class="p">()</span>
-</pre></div>
-</div>
-<p>we could modify <code class="docutils literal notranslate"><span class="pre">joint_pos_rel</span></code> to compute absolute positions instead of relative positions with
-<code class="docutils literal notranslate"><span class="pre">env.observations.policy.joint_pos_rel.func=omni.isaac.lab.envs.mdp:joint_pos</span></code>.</p>
-</section>
-<section id="setting-parameters-to-none">
-<h3>Setting parameters to None<a class="headerlink" href="#setting-parameters-to-none" title="Permalink to this heading">#</a></h3>
-<p>To set parameters to None, use the <code class="docutils literal notranslate"><span class="pre">null</span></code> keyword, which is a special keyword in Hydra that is automatically converted to None.
-In the above example, we could also disable the <code class="docutils literal notranslate"><span class="pre">joint_pos_rel</span></code> observation by setting it to None with
-<code class="docutils literal notranslate"><span class="pre">env.observations.policy.joint_pos_rel=null</span></code>.</p>
-</section>
-<section id="dictionaries">
-<h3>Dictionaries<a class="headerlink" href="#dictionaries" title="Permalink to this heading">#</a></h3>
-<p>Elements in dictionaries are handled as a parameters in the hierarchy. For example, in the Cartpole environment:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">EventCfg</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for events.&quot;&quot;&quot;</span>
-
-    <span class="c1"># reset</span>
-    <span class="n">reset_cart_position</span> <span class="o">=</span> <span class="n">EventTerm</span><span class="p">(</span>
-        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">reset_joints_by_offset</span><span class="p">,</span>
-        <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;reset&quot;</span><span class="p">,</span>
-        <span class="n">params</span><span class="o">=</span><span class="p">{</span>
-            <span class="s2">&quot;asset_cfg&quot;</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;slider_to_cart&quot;</span><span class="p">]),</span>
-<span class="hll">            <span class="s2">&quot;position_range&quot;</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">),</span>
-</span>            <span class="s2">&quot;velocity_range&quot;</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">),</span>
-        <span class="p">},</span>
-    <span class="p">)</span>
-</pre></div>
-</div>
-<p>the <code class="docutils literal notranslate"><span class="pre">position_range</span></code> parameter can be modified with <code class="docutils literal notranslate"><span class="pre">env.events.reset_cart_position.params.position_range=&quot;[-2.0,</span> <span class="pre">2.0]&quot;</span></code>.
-This example shows two noteworthy points:</p>
-<ul class="simple">
-<li><p>The parameter we set has a space, so it must be enclosed in quotes.</p></li>
-<li><p>The parameter is a list while it is a tuple in the config. This is due to the fact that Hydra does not support tuples.</p></li>
-</ul>
-</section>
 </section>
 </section>
 
@@ -773,7 +770,7 @@ This example shows two noteworthy points:</p>
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="../overview/basic_agents.html"
+       href="../overview/simple_agents.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
@@ -812,6 +809,7 @@ This example shows two noteworthy points:</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dictionaries">Dictionaries</a></li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#modifying-inter-dependent-parameters">Modifying inter-dependent parameters</a></li>
 </ul>
   </nav></div>
 

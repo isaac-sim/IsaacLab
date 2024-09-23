@@ -226,8 +226,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
 
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/repo_structure.html">Repository organization</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/extensions.html">Extensions</a></li>
-
+<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/development.html">Application Development</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/template.html">Building your Own Project</a></li>
 </ul>
 </details></li>
@@ -246,7 +245,7 @@
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../overview/teleop_imitation.html">Teleoperation and Imitation Learning</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../overview/showroom.html">Showroom Demos</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../overview/basic_agents.html">Simple Agents</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../overview/simple_agents.html">Simple Agents</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="nav bd-sidenav">
@@ -815,8 +814,7 @@ process can be killed by pressing <code class="docutils literal notranslate"><sp
 <img alt="result of launch_app.py" src="../../../_images/tutorial_launch_app.jpg" />
 </figure>
 <p>Now, let’s look at how <a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher" title="omni.isaac.lab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> handles conflicting commands:</p>
-<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">export LIVESTREAM=0</span>
-<span class="go">./isaaclab.sh -p source/standalone/tutorials/00_sim/launch_app.py --size 0.5 --livestream 1</span>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">LIVESTREAM=0 ./isaaclab.sh -p source/standalone/tutorials/00_sim/launch_app.py --size 0.5 --livestream 1</span>
 </pre></div>
 </div>
 <p>This will cause the same behavior as in the previous run, because although we have set <code class="docutils literal notranslate"><span class="pre">LIVESTREAM=0</span></code>
@@ -824,8 +822,7 @@ in our envars, CLI args such as <code class="docutils literal notranslate"><span
 be killed by pressing <code class="docutils literal notranslate"><span class="pre">Ctrl+C</span></code> in the launching terminal.</p>
 <p>Finally, we will examine passing arguments to <code class="xref py py-class docutils literal notranslate"><span class="pre">SimulationApp</span></code> through
 <a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher" title="omni.isaac.lab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a>:</p>
-<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">export LIVESTREAM=1</span>
-<span class="go">./isaaclab.sh -p source/standalone/tutorials/00_sim/launch_app.py --size 0.5 --width 1920 --height 1080</span>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">LIVESTREAM=1 ./isaaclab.sh -p source/standalone/tutorials/00_sim/launch_app.py --size 0.5 --width 1920 --height 1080</span>
 </pre></div>
 </div>
 <p>This will cause the same behavior as before, but now the viewport will be rendered at 1920x1080p resolution.

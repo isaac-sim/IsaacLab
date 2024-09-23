@@ -54,7 +54,7 @@ Classic environments that are based on IsaacGymEnvs implementation of MuJoCo-sty
     |                  | |cartpole-direct-link|      |                                                                         |
     +------------------+-----------------------------+-------------------------------------------------------------------------+
     | |cartpole|       | |cartpole-camera-rgb-link|  | Move the cart to keep the pole upwards in the classic cartpole control  |
-    |                  |                             | and perceptive inputs                                                   |
+    |                  |                             | using perceptive inputs                                                 |
     |                  | |cartpole-camera-dpt-link|  |                                                                         |
     +------------------+-----------------------------+-------------------------------------------------------------------------+
 
@@ -111,7 +111,7 @@ for the reach environment:
     |                    |                         |                                                                             |
     |                    | |cube-shadow-lstm-link| |                                                                             |
     +--------------------+-------------------------+-----------------------------------------------------------------------------+
-    | |cube-shadow|      | |cube-shadow-vis-link|  | In-hand reorientation of a cube using Shadow hand and perceptive inputs     |
+    | |cube-shadow|      | |cube-shadow-vis-link|  | In-hand reorientation of a cube using Shadow hand using perceptive inputs   |
     +--------------------+-------------------------+-----------------------------------------------------------------------------+
 
 .. |reach-franka| image:: ../_static/tasks/manipulation/franka_reach.jpg
