@@ -229,6 +229,11 @@ class SensorBase(ABC):
         self._timestamp_last_update = torch.zeros_like(self._timestamp)
 
     @abstractmethod
+    def _invalidate_initialize_impl(self):
+        """Invalidates the sensor-related handles and internal buffers."""
+        raise NotImplementedError
+
+    @abstractmethod
     def _update_buffers_impl(self, env_ids: Sequence[int]):
         """Fills the sensor data for provided environment ids.
 
@@ -272,8 +277,10 @@ class SensorBase(ABC):
             self._is_initialized = True
 
     def _invalidate_initialize_callback(self, event):
-        """Invalidates the scene elements."""
+        """Invalidates the sensor elements."""
         self._is_initialized = False
+        # invalidate the sensor
+        self._invalidate_initialize_impl()
 
     """
     Helper functions.

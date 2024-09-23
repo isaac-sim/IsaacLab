@@ -224,6 +224,11 @@ class RayCaster(SensorBase):
         self._data.quat_w = torch.zeros(self._view.count, 4, device=self._device)
         self._data.ray_hits_w = torch.zeros(self._view.count, self.num_rays, 3, device=self._device)
 
+    def _invalidate_initialize_impl(self):
+        # set all existing views to None to invalidate them
+        self._physics_sim_view = None
+        self._view = None
+
     def _update_buffers_impl(self, env_ids: Sequence[int]):
         """Fills the buffers of the sensor data."""
         # obtain the poses of the sensors
@@ -266,6 +271,10 @@ class RayCaster(SensorBase):
             mesh=RayCaster.meshes[self.cfg.mesh_prim_paths[0]],
         )[0]
 
+    """
+    Implementation - Visualization.
+    """
+
     def _set_debug_vis_impl(self, debug_vis: bool):
         # set visibility of markers
         # note: parent only deals with callbacks. not their visibility
@@ -281,15 +290,3 @@ class RayCaster(SensorBase):
     def _debug_vis_callback(self, event):
         # show ray hit positions
         self.ray_visualizer.visualize(self._data.ray_hits_w.view(-1, 3))
-
-    """
-    Internal simulation callbacks.
-    """
-
-    def _invalidate_initialize_callback(self, event):
-        """Invalidates the scene elements."""
-        # call parent
-        super()._invalidate_initialize_callback(event)
-        # set all existing views to None to invalidate them
-        self._physics_sim_view = None
-        self._view = None

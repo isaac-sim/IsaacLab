@@ -279,6 +279,11 @@ class FrameTransformer(SensorBase):
         self._data.target_pos_source = torch.zeros_like(self._data.target_pos_w)
         self._data.target_quat_source = torch.zeros_like(self._data.target_quat_w)
 
+    def _invalidate_initialize_impl(self):
+        # set all existing views to None to invalidate them
+        self._physics_sim_view = None
+        self._frame_physx_view = None
+
     def _update_buffers_impl(self, env_ids: Sequence[int]):
         """Fills the buffers of the sensor data."""
         # default to all sensors
@@ -339,6 +344,10 @@ class FrameTransformer(SensorBase):
         self._data.target_pos_source[:] = target_pos_source.view(-1, total_num_frames, 3)
         self._data.target_quat_source[:] = target_quat_source.view(-1, total_num_frames, 4)
 
+    """
+    Implementation - Visualization.
+    """
+
     def _set_debug_vis_impl(self, debug_vis: bool):
         # set visibility of markers
         # note: parent only deals with callbacks. not their visibility
@@ -355,15 +364,3 @@ class FrameTransformer(SensorBase):
         # Update the visualized markers
         if self.frame_visualizer is not None:
             self.frame_visualizer.visualize(self._data.target_pos_w.view(-1, 3), self._data.target_quat_w.view(-1, 4))
-
-    """
-    Internal simulation callbacks.
-    """
-
-    def _invalidate_initialize_callback(self, event):
-        """Invalidates the scene elements."""
-        # call parent
-        super()._invalidate_initialize_callback(event)
-        # set all existing views to None to invalidate them
-        self._physics_sim_view = None
-        self._frame_physx_view = None

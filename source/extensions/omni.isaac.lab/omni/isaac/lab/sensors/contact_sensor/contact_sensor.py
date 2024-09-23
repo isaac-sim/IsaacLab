@@ -311,6 +311,12 @@ class ContactSensor(SensorBase):
                 self._num_envs, self._num_bodies, num_filters, 3, device=self._device
             )
 
+    def _invalidate_initialize_impl(self):
+        # set all existing views to None to invalidate them
+        self._physics_sim_view = None
+        self._body_physx_view = None
+        self._contact_physx_view = None
+
     def _update_buffers_impl(self, env_ids: Sequence[int]):
         """Fills the buffers of the sensor data."""
         # default to all sensors
@@ -372,6 +378,10 @@ class ContactSensor(SensorBase):
                 is_contact, self._data.current_contact_time[env_ids] + elapsed_time.unsqueeze(-1), 0.0
             )
 
+    """
+    Implementation - Visualization.
+    """
+
     def _set_debug_vis_impl(self, debug_vis: bool):
         # set visibility of markers
         # note: parent only deals with callbacks. not their visibility
@@ -402,16 +412,3 @@ class ContactSensor(SensorBase):
             frame_origins = pose.view(-1, self._num_bodies, 7)[:, :, :3]
         # visualize
         self.contact_visualizer.visualize(frame_origins.view(-1, 3), marker_indices=marker_indices.view(-1))
-
-    """
-    Internal simulation callbacks.
-    """
-
-    def _invalidate_initialize_callback(self, event):
-        """Invalidates the scene elements."""
-        # call parent
-        super()._invalidate_initialize_callback(event)
-        # set all existing views to None to invalidate them
-        self._physics_sim_view = None
-        self._body_physx_view = None
-        self._contact_physx_view = None

@@ -232,6 +232,10 @@ class TiledCamera(Camera):
         # Create internal buffers
         self._create_buffers()
 
+    def _invalidate_initialize_impl(self):
+        # set all existing views to None to invalidate them
+        self._view = None
+
     def _update_buffers_impl(self, env_ids: Sequence[int]):
         # Increment frame count
         self._frame[env_ids] += 1
@@ -393,14 +397,3 @@ class TiledCamera(Camera):
     def _process_annotator_output(self, name: str, output: Any) -> tuple[torch.tensor, dict | None]:
         # we do not need to process annotator output for the tiled camera sensor
         raise RuntimeError("This function should not be called for the tiled camera sensor.")
-
-    """
-    Internal simulation callbacks.
-    """
-
-    def _invalidate_initialize_callback(self, event):
-        """Invalidates the scene elements."""
-        # call parent
-        super()._invalidate_initialize_callback(event)
-        # set all existing views to None to invalidate them
-        self._view = None

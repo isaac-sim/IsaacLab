@@ -482,6 +482,10 @@ class Camera(SensorBase):
         self._create_buffers()
         self._update_intrinsic_matrices(self._ALL_INDICES)
 
+    def _invalidate_initialize_impl(self):
+        # set all existing views to None to invalidate them
+        self._view = None
+
     def _update_buffers_impl(self, env_ids: Sequence[int]):
         # Increment frame count
         self._frame[env_ids] += 1
@@ -508,7 +512,7 @@ class Camera(SensorBase):
                     self._data.info[index][name] = info
 
     """
-    Private Helpers
+    Checks and validations.
     """
 
     def _check_supported_data_types(self, cfg: CameraCfg):
@@ -546,6 +550,10 @@ class Camera(SensorBase):
         # the memory will be allocated when the buffer() function is called for the first time.
         self._data.output = TensorDict({}, batch_size=self._view.count, device=self.device)
         self._data.info = [{name: None for name in self.cfg.data_types} for _ in range(self._view.count)]
+
+    """
+    Update functions.
+    """
 
     def _update_intrinsic_matrices(self, env_ids: Sequence[int]):
         """Compute camera's matrix of intrinsic parameters.
@@ -597,6 +605,10 @@ class Camera(SensorBase):
         poses, quat = self._view.get_world_poses(env_ids)
         self._data.pos_w[env_ids] = poses
         self._data.quat_w_world[env_ids] = convert_orientation_convention(quat, origin="opengl", target="world")
+
+    """
+    Annotator data processing.
+    """
 
     def _create_annotator_data(self):
         """Create the buffers to store the annotator data.
@@ -670,14 +682,3 @@ class Camera(SensorBase):
 
         # return the data and info
         return data, info
-
-    """
-    Internal simulation callbacks.
-    """
-
-    def _invalidate_initialize_callback(self, event):
-        """Invalidates the scene elements."""
-        # call parent
-        super()._invalidate_initialize_callback(event)
-        # set all existing views to None to invalidate them
-        self._view = None
