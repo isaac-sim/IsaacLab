@@ -6,9 +6,13 @@
 from omni.isaac.lab.assets import DeformableObjectCfg
 from omni.isaac.lab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
 from omni.isaac.lab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
+from omni.isaac.lab.managers import EventTermCfg as EventTerm
+from omni.isaac.lab.managers import SceneEntityCfg
 from omni.isaac.lab.sim.spawners import UsdFileCfg
 from omni.isaac.lab.utils import configclass
 from omni.isaac.lab.utils.assets import ISAACLAB_NUCLEUS_DIR
+
+import omni.isaac.lab_tasks.manager_based.manipulation.lift.mdp as mdp
 
 from . import joint_pos_env_cfg
 
@@ -16,6 +20,11 @@ from . import joint_pos_env_cfg
 # Pre-defined configs
 ##
 from omni.isaac.lab_assets.franka import FRANKA_PANDA_HIGH_PD_CFG  # isort: skip
+
+
+##
+# Rigid object lift environment.
+##
 
 
 @configclass
@@ -50,6 +59,11 @@ class FrankaCubeLiftEnvCfg_PLAY(FrankaCubeLiftEnvCfg):
         self.observations.policy.enable_corruption = False
 
 
+##
+# Deformable object lift environment.
+##
+
+
 @configclass
 class FrankaTeddyBearLiftEnvCfg(FrankaCubeLiftEnvCfg):
     def __post_init__(self):
@@ -58,7 +72,7 @@ class FrankaTeddyBearLiftEnvCfg(FrankaCubeLiftEnvCfg):
 
         self.scene.object = DeformableObjectCfg(
             prim_path="{ENV_REGEX_NS}/Object",
-            init_state=DeformableObjectCfg.InitialStateCfg(pos=[0.5, 0, 0.05], rot=[0.707, 0, 0, 0.707]),
+            init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.5, 0, 0.05), rot=(0.707, 0, 0, 0.707)),
             spawn=UsdFileCfg(
                 usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Objects/Teddy_Bear/teddy_bear.usd",
                 scale=(0.01, 0.01, 0.01),
@@ -70,11 +84,17 @@ class FrankaTeddyBearLiftEnvCfg(FrankaCubeLiftEnvCfg):
         self.scene.robot.actuators["panda_hand"].stiffness = 40.0
         self.scene.robot.actuators["panda_hand"].damping = 10.0
 
-        # Remove all the terms for the lift_teddy_bear_sm demo
-        self.terminations.object_dropping = None
-        self.rewards.reaching_object = None
-        self.rewards.lifting_object = None
-        self.rewards.object_goal_tracking = None
-        self.rewards.object_goal_tracking_fine_grained = None
-        self.events.reset_object_position = None
-        self.observations.policy.object_position = None
+        # Disable replicate physics as it doesn't work for deformable objects
+        # FIXME: This should be fixed by the PhysX replication system.
+        self.scene.replicate_physics = False
+
+        # Set events for the specific object type (deformable cube)
+        self.events.reset_object_position = EventTerm(
+            func=mdp.reset_nodal_state_uniform,
+            mode="reset",
+            params={
+                "position_range": {"x": (-0.1, 0.1), "y": (-0.25, 0.25), "z": (0.0, 0.0)},
+                "velocity_range": {},
+                "asset_cfg": SceneEntityCfg("object"),
+            },
+        )
