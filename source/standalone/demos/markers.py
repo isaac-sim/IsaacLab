@@ -82,7 +82,7 @@ def define_markers() -> VisualizationMarkers:
                 visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.25, 0.0)),
             ),
             "robot_mesh": sim_utils.UsdFileCfg(
-                usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-D/anymal_d.usd",
+                usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd",
                 scale=(2.0, 2.0, 2.0),
                 visual_material=sim_utils.GlassMdlCfg(glass_color=(0.0, 0.1, 0.0)),
             ),

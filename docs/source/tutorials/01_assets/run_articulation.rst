@@ -82,7 +82,7 @@ Applying commands to the articulation involves two steps:
 
 1. *Setting the joint targets*: This sets the desired joint position, velocity, or effort targets for the articulation.
 2. *Writing the data to the simulation*: Based on the articulation's configuration, this step handles any
-   :ref:`actuation conversions <feature-actuators>` and writes the converted values to the PhysX buffer.
+   :ref:`actuation conversions <overview-actuators>` and writes the converted values to the PhysX buffer.
 
 In this tutorial, we control the articulation using joint effort commands. For this to work, we need to set the
 articulation's stiffness and damping parameters to zero. This is done a-priori inside the cart-pole's pre-defined

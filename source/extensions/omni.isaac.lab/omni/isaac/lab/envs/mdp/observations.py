@@ -202,7 +202,7 @@ def grab_images(
     """
     sensor: TiledCamera | Camera | RayCasterCamera = env.scene.sensors[sensor_cfg.name]
     images = sensor.data.output[replicator]
-    if (replicator == "distance_to_camera" or replicator == "depth") and convert_perspective_to_orthogonal:
+    if (replicator == "distance_to_camera") and convert_perspective_to_orthogonal:
         images = math_utils.convert_perspective_depth_to_orthogonal_depth(images, sensor.data.intrinsic_matrices)
     return images
 

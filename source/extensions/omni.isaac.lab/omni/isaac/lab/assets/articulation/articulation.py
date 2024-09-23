@@ -304,6 +304,8 @@ class Articulation(AssetBase):
         # convert root quaternion from wxyz to xyzw
         root_poses_xyzw = self._data.root_state_w[:, :7].clone()
         root_poses_xyzw[:, 3:] = math_utils.convert_quat(root_poses_xyzw[:, 3:], to="xyzw")
+        # Need to invalidate the buffer to trigger the update with the new root pose.
+        self._data._body_state_w.timestamp = -1.0
         # set into simulation
         self.root_physx_view.set_root_transforms(root_poses_xyzw, indices=physx_env_ids)
 
@@ -356,6 +358,8 @@ class Articulation(AssetBase):
         self._data.joint_vel[env_ids, joint_ids] = velocity
         self._data._previous_joint_vel[env_ids, joint_ids] = velocity
         self._data.joint_acc[env_ids, joint_ids] = 0.0
+        # Need to invalidate the buffer to trigger the update with the new root pose.
+        self._data._body_state_w.timestamp = -1.0
         # set into simulation
         self.root_physx_view.set_dof_positions(self._data.joint_pos, indices=physx_env_ids)
         self.root_physx_view.set_dof_velocities(self._data.joint_vel, indices=physx_env_ids)
@@ -954,6 +958,7 @@ class Articulation(AssetBase):
 
         # -- bodies
         self._data.default_mass = self.root_physx_view.get_masses().clone()
+        self._data.default_inertia = self.root_physx_view.get_inertias().clone()
 
         # -- default joint state
         self._data.default_joint_pos = torch.zeros(self.num_instances, self.num_joints, device=self.device)
@@ -1117,7 +1122,9 @@ class Articulation(AssetBase):
             actuator: ActuatorBase = actuator_cfg.class_type(
                 cfg=actuator_cfg,
                 joint_names=joint_names,
-                joint_ids=slice(None) if len(joint_names) == self.num_joints else joint_ids,
+                joint_ids=(
+                    slice(None) if len(joint_names) == self.num_joints else torch.tensor(joint_ids, device=self.device)
+                ),
                 num_envs=self.num_instances,
                 device=self.device,
                 stiffness=usd_stiffness[:, joint_ids],

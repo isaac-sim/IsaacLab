@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Wrapper to configure an :class:`ManagerBasedRLEnv` instance to RL-Games vectorized environment.
+"""Wrapper to configure a :class:`ManagerBasedRLEnv` or :class:`DirectRlEnv` instance to RL-Games vectorized environment.
 
 The following example shows how to wrap an environment for RL-Games and register the environment construction
 for RL-Games :class:`Runner` class:
@@ -60,7 +60,7 @@ class RlGamesVecEnvWrapper(IVecEnv):
     observations. This dictionary contains "obs" and "states" which typically correspond
     to the actor and critic observations respectively.
 
-    To use asymmetric actor-critic, the environment observations from :class:`ManagerBasedRLEnv`
+    To use asymmetric actor-critic, the environment observations from :class:`ManagerBasedRLEnv` or :class:`DirectRLEnv`
     must have the key or group name "critic". The observation group is used to set the
     :attr:`num_states` (int) and :attr:`state_space` (:obj:`gym.spaces.Box`). These are
     used by the learning agent in RL-Games to allocate buffers in the trajectory memory.
@@ -79,7 +79,7 @@ class RlGamesVecEnvWrapper(IVecEnv):
         https://github.com/NVIDIA-Omniverse/IsaacGymEnvs
     """
 
-    def __init__(self, env: ManagerBasedRLEnv, rl_device: str, clip_obs: float, clip_actions: float):
+    def __init__(self, env: ManagerBasedRLEnv | DirectRLEnv, rl_device: str, clip_obs: float, clip_actions: float):
         """Initializes the wrapper instance.
 
         Args:
@@ -89,12 +89,15 @@ class RlGamesVecEnvWrapper(IVecEnv):
             clip_actions: The clipping value for actions.
 
         Raises:
-            ValueError: The environment is not inherited from :class:`ManagerBasedRLEnv`.
+            ValueError: The environment is not inherited from :class:`ManagerBasedRLEnv` or :class:`DirectRLEnv`.
             ValueError: If specified, the privileged observations (critic) are not of type :obj:`gym.spaces.Box`.
         """
         # check that input is valid
         if not isinstance(env.unwrapped, ManagerBasedRLEnv) and not isinstance(env.unwrapped, DirectRLEnv):
-            raise ValueError(f"The environment must be inherited from ManagerBasedRLEnv. Environment type: {type(env)}")
+            raise ValueError(
+                "The environment must be inherited from ManagerBasedRLEnv or DirectRLEnv. Environment type:"
+                f" {type(env)}"
+            )
         # initialize the wrapper
         self.env = env
         # store provided arguments
@@ -168,7 +171,7 @@ class RlGamesVecEnvWrapper(IVecEnv):
         return cls.__name__
 
     @property
-    def unwrapped(self) -> ManagerBasedRLEnv:
+    def unwrapped(self) -> ManagerBasedRLEnv | DirectRLEnv:
         """Returns the base environment of the wrapper.
 
         This will be the bare :class:`gymnasium.Env` environment, underneath all layers of wrappers.

@@ -327,6 +327,7 @@ class RigidObject(AssetBase):
         # set information about rigid body into data
         self._data.body_names = self.body_names
         self._data.default_mass = self.root_physx_view.get_masses().clone()
+        self._data.default_inertia = self.root_physx_view.get_inertias().clone()
 
     def _process_cfg(self):
         """Post processing of configuration parameters."""
