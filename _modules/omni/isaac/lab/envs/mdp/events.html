@@ -518,7 +518,7 @@ document.write(`
 <span class="kn">import</span> <span class="nn">omni.isaac.lab.sim</span> <span class="k">as</span> <span class="nn">sim_utils</span>
 <span class="kn">import</span> <span class="nn">omni.isaac.lab.utils.math</span> <span class="k">as</span> <span class="nn">math_utils</span>
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.actuators</span> <span class="kn">import</span> <span class="n">ImplicitActuator</span>
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.assets</span> <span class="kn">import</span> <span class="n">Articulation</span><span class="p">,</span> <span class="n">RigidObject</span>
+<span class="kn">from</span> <span class="nn">omni.isaac.lab.assets</span> <span class="kn">import</span> <span class="n">Articulation</span><span class="p">,</span> <span class="n">DeformableObject</span><span class="p">,</span> <span class="n">RigidObject</span>
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.managers</span> <span class="kn">import</span> <span class="n">SceneEntityCfg</span>
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.terrains</span> <span class="kn">import</span> <span class="n">TerrainImporter</span>
 
@@ -1318,6 +1318,48 @@ document.write(`
     <span class="n">asset</span><span class="o">.</span><span class="n">write_joint_state_to_sim</span><span class="p">(</span><span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span></div>
 
 
+<div class="viewcode-block" id="reset_nodal_state_uniform"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.reset_nodal_state_uniform">[docs]</a><span class="k">def</span> <span class="nf">reset_nodal_state_uniform</span><span class="p">(</span>
+    <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span>
+    <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">position_range</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]],</span>
+    <span class="n">velocity_range</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]],</span>
+    <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span> <span class="o">=</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">),</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Reset the asset nodal state to a random position and velocity uniformly within the given ranges.</span>
+
+<span class="sd">    This function randomizes the nodal position and velocity of the asset.</span>
+
+<span class="sd">    * It samples the root position from the given ranges and adds them to the default nodal position, before setting</span>
+<span class="sd">      them into the physics simulation.</span>
+<span class="sd">    * It samples the root velocity from the given ranges and sets them into the physics simulation.</span>
+
+<span class="sd">    The function takes a dictionary of position and velocity ranges for each axis. The keys of the</span>
+<span class="sd">    dictionary are ``x``, ``y``, ``z``. The values are tuples of the form ``(min, max)``.</span>
+<span class="sd">    If the dictionary does not contain a key, the position or velocity is set to zero for that axis.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># extract the used quantities (to enable type-hinting)</span>
+    <span class="n">asset</span><span class="p">:</span> <span class="n">DeformableObject</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="p">[</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
+    <span class="c1"># get default root state</span>
+    <span class="n">nodal_state</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_nodal_state_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+
+    <span class="c1"># position</span>
+    <span class="n">range_list</span> <span class="o">=</span> <span class="p">[</span><span class="n">position_range</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">))</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;x&quot;</span><span class="p">,</span> <span class="s2">&quot;y&quot;</span><span class="p">,</span> <span class="s2">&quot;z&quot;</span><span class="p">]]</span>
+    <span class="n">ranges</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">range_list</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">asset</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+    <span class="n">rand_samples</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">sample_uniform</span><span class="p">(</span><span class="n">ranges</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">ranges</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">],</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">env_ids</span><span class="p">),</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="n">asset</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+
+    <span class="n">nodal_state</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="n">rand_samples</span>
+
+    <span class="c1"># velocities</span>
+    <span class="n">range_list</span> <span class="o">=</span> <span class="p">[</span><span class="n">velocity_range</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">))</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;x&quot;</span><span class="p">,</span> <span class="s2">&quot;y&quot;</span><span class="p">,</span> <span class="s2">&quot;z&quot;</span><span class="p">]]</span>
+    <span class="n">ranges</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">range_list</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">asset</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+    <span class="n">rand_samples</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">sample_uniform</span><span class="p">(</span><span class="n">ranges</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">ranges</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">],</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">env_ids</span><span class="p">),</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="n">asset</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+
+    <span class="n">nodal_state</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:]</span> <span class="o">+=</span> <span class="n">rand_samples</span>
+
+    <span class="c1"># set into the physics simulation</span>
+    <span class="n">asset</span><span class="o">.</span><span class="n">write_nodal_state_to_sim</span><span class="p">(</span><span class="n">nodal_state</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span></div>
+
+
 <div class="viewcode-block" id="reset_scene_to_default"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.reset_scene_to_default">[docs]</a><span class="k">def</span> <span class="nf">reset_scene_to_default</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Reset the scene to the default state specified in the scene configuration.&quot;&quot;&quot;</span>
     <span class="c1"># rigid bodies</span>
@@ -1338,7 +1380,12 @@ document.write(`
         <span class="n">default_joint_pos</span> <span class="o">=</span> <span class="n">articulation_asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_pos</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
         <span class="n">default_joint_vel</span> <span class="o">=</span> <span class="n">articulation_asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_vel</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
         <span class="c1"># set into the physics simulation</span>
-        <span class="n">articulation_asset</span><span class="o">.</span><span class="n">write_joint_state_to_sim</span><span class="p">(</span><span class="n">default_joint_pos</span><span class="p">,</span> <span class="n">default_joint_vel</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span></div>
+        <span class="n">articulation_asset</span><span class="o">.</span><span class="n">write_joint_state_to_sim</span><span class="p">(</span><span class="n">default_joint_pos</span><span class="p">,</span> <span class="n">default_joint_vel</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span>
+    <span class="c1"># deformable objects</span>
+    <span class="k">for</span> <span class="n">deformable_object</span> <span class="ow">in</span> <span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">deformable_objects</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+        <span class="c1"># obtain default and set into the physics simulation</span>
+        <span class="n">nodal_state</span> <span class="o">=</span> <span class="n">deformable_object</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_nodal_state_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+        <span class="n">deformable_object</span><span class="o">.</span><span class="n">write_nodal_state_to_sim</span><span class="p">(</span><span class="n">nodal_state</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span></div>
 
 
 <span class="sd">&quot;&quot;&quot;</span>
