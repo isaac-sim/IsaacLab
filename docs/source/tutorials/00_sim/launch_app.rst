@@ -153,8 +153,7 @@ Now, let's look at how :class:`~app.AppLauncher` handles conflicting commands:
 
 .. code-block:: console
 
-   export LIVESTREAM=0
-   ./isaaclab.sh -p source/standalone/tutorials/00_sim/launch_app.py --size 0.5 --livestream 1
+   LIVESTREAM=0 ./isaaclab.sh -p source/standalone/tutorials/00_sim/launch_app.py --size 0.5 --livestream 1
 
 This will cause the same behavior as in the previous run, because although we have set ``LIVESTREAM=0``
 in our envars, CLI args such as ``--livestream`` take precedence in determining behavior. The process can
@@ -165,8 +164,7 @@ Finally, we will examine passing arguments to :class:`~omni.isaac.kit.Simulation
 
 .. code-block:: console
 
-   export LIVESTREAM=1
-   ./isaaclab.sh -p source/standalone/tutorials/00_sim/launch_app.py --size 0.5 --width 1920 --height 1080
+   LIVESTREAM=1 ./isaaclab.sh -p source/standalone/tutorials/00_sim/launch_app.py --size 0.5 --width 1920 --height 1080
 
 This will cause the same behavior as before, but now the viewport will be rendered at 1920x1080p resolution.
 This can be useful when we want to gather high-resolution video, or we can specify a lower resolution if we

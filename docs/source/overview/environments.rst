@@ -116,7 +116,7 @@ for the reach environment:
     |                    |                         |                                                                             |
     |                    | |cube-shadow-lstm-link| |                                                                             |
     +--------------------+-------------------------+-----------------------------------------------------------------------------+
-    | |cube-shadow|      | |cube-shadow-vis-link|  | In-hand reorientation of a cube using Shadow hand and perceptive inputs     |
+    | |cube-shadow|      | |cube-shadow-vis-link|  | In-hand reorientation of a cube using Shadow hand using perceptive inputs   |
     +--------------------+-------------------------+-----------------------------------------------------------------------------+
 
 .. |reach-franka| image:: ../_static/tasks/manipulation/franka_reach.jpg

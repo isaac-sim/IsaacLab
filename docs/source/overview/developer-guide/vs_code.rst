@@ -2,7 +2,7 @@ Setting up Visual Studio Code
 -----------------------------
 
 The following is only applicable for Isaac Sim installed via the Omniverse Launcher.
-The ``Isaac Lab`` repository includes the VSCode settings to easily allow setting
+The Isaac Lab repository includes the VSCode settings to easily allow setting
 up your development environment. These are included in the ``.vscode`` directory
 and include the following files:
 
@@ -21,7 +21,7 @@ and include the following files:
 
 To setup the IDE, please follow these instructions:
 
-1. Open the ``Isaac Lab`` directory on Visual Studio Code IDE
+1. Open the ``IsaacLab`` directory on Visual Studio Code IDE
 2. Run VSCode `Tasks <https://code.visualstudio.com/docs/editor/tasks>`__, by
    pressing ``Ctrl+Shift+P``, selecting ``Tasks: Run Task`` and running the
    ``setup_python_env`` in the drop down menu.
