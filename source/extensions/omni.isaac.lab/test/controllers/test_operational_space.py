@@ -178,7 +178,7 @@ class TestOperationalSpaceController(unittest.TestCase):
         # Define goals for the arm pose [xyz + quat_wxyz] and wrench [force_xyz + torque_xyz]
         self.target_hybrid_set = ee_goal_hybrid_set.clone()
         # Define goals for the arm pose, and wrench, and kp
-        self.target_hybrid_variable_kp_set = torch.cat([self.target_hybrid_set, kp_set * 0.25], dim=-1)
+        self.target_hybrid_variable_kp_set = torch.cat([self.target_hybrid_set, kp_set * 0.2], dim=-1)
 
     def tearDown(self):
         """Stops simulator after each test."""
@@ -459,7 +459,7 @@ class TestOperationalSpaceController(unittest.TestCase):
             inertial_compensation=True,
             uncouple_motion_wrench=False,
             gravity_compensation=False,
-            damping_ratio=1.4,
+            damping_ratio=1.0,
             wrench_stiffness=[0.2, 0.0, 0.0, 0.0, 0.0, 0.0],
             motion_control_axes_b=[0, 1, 1, 1, 1, 1],
             wrench_control_axes_b=[1, 0, 0, 0, 0, 0],
