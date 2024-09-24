@@ -535,6 +535,14 @@ document.write(`
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="c1"># general settings</span>
+    <span class="n">seed</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The seed for the random number generator. Defaults to None, in which case the seed is not set.</span>
+
+<span class="sd">    Note:</span>
+<span class="sd">      The seed is set at the beginning of the environment initialization. This ensures that the environment</span>
+<span class="sd">      creation is deterministic and behaves similarly across different runs.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
     <span class="n">decimation</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Number of control action updates @ sim dt per policy dt.</span>
 
