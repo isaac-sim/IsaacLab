@@ -24,7 +24,7 @@ import omni.physics.tensors.impl.api as physx
 import omni.isaac.lab.sim as sim_utils
 import omni.isaac.lab.utils.math as math_utils
 from omni.isaac.lab.actuators import ImplicitActuator
-from omni.isaac.lab.assets import Articulation, RigidObject
+from omni.isaac.lab.assets import Articulation, DeformableObject, RigidObject
 from omni.isaac.lab.managers import SceneEntityCfg
 from omni.isaac.lab.terrains import TerrainImporter
 
@@ -132,11 +132,17 @@ def randomize_rigid_body_mass(
     mass_distribution_params: tuple[float, float],
     operation: Literal["add", "scale", "abs"],
     distribution: Literal["uniform", "log_uniform", "gaussian"] = "uniform",
+    recompute_inertia: bool = True,
 ):
     """Randomize the mass of the bodies by adding, scaling, or setting random values.
 
     This function allows randomizing the mass of the bodies of the asset. The function samples random values from the
     given distribution parameters and adds, scales, or sets the values into the physics simulation based on the operation.
+
+    If the ``recompute_inertia`` flag is set to ``True``, the function recomputes the inertia tensor of the bodies
+    after setting the mass. This is useful when the mass is changed significantly, as the inertia tensor depends
+    on the mass. It assumes the body is a uniform density object. If the body is not a uniform density object,
+    the inertia tensor may not be accurate.
 
     .. tip::
         This function uses CPU tensors to assign the body masses. It is recommended to use this function
@@ -159,7 +165,10 @@ def randomize_rigid_body_mass(
 
     # get the current masses of the bodies (num_assets, num_bodies)
     masses = asset.root_physx_view.get_masses()
+
     # apply randomization on default values
+    # this is to make sure when calling the function multiple times, the randomization is applied on the
+    # default values and not the previously randomized values
     masses[env_ids[:, None], body_ids] = asset.data.default_mass[env_ids[:, None], body_ids].clone()
 
     # sample from the given range
@@ -171,6 +180,24 @@ def randomize_rigid_body_mass(
 
     # set the mass into the physics simulation
     asset.root_physx_view.set_masses(masses, env_ids)
+
+    # recompute inertia tensors if needed
+    if recompute_inertia:
+        # compute the ratios of the new masses to the initial masses
+        ratios = masses[env_ids[:, None], body_ids] / asset.data.default_mass[env_ids[:, None], body_ids]
+        # scale the inertia tensors by the the ratios
+        # since mass randomization is done on default values, we can use the default inertia tensors
+        inertias = asset.root_physx_view.get_inertias()
+        if isinstance(asset, Articulation):
+            # inertia has shape: (num_envs, num_bodies, 9) for articulation
+            inertias[env_ids[:, None], body_ids] = (
+                asset.data.default_inertia[env_ids[:, None], body_ids] * ratios[..., None]
+            )
+        else:
+            # inertia has shape: (num_envs, 9) for rigid object
+            inertias[env_ids] = asset.data.default_inertia[env_ids] * ratios
+        # set the inertia tensors into the physics simulation
+        asset.root_physx_view.set_inertias(inertias, env_ids)
 
 
 def randomize_physics_scene_gravity(
@@ -797,6 +824,48 @@ def reset_joints_by_offset(
     asset.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
 
 
+def reset_nodal_state_uniform(
+    env: ManagerBasedEnv,
+    env_ids: torch.Tensor,
+    position_range: dict[str, tuple[float, float]],
+    velocity_range: dict[str, tuple[float, float]],
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+):
+    """Reset the asset nodal state to a random position and velocity uniformly within the given ranges.
+
+    This function randomizes the nodal position and velocity of the asset.
+
+    * It samples the root position from the given ranges and adds them to the default nodal position, before setting
+      them into the physics simulation.
+    * It samples the root velocity from the given ranges and sets them into the physics simulation.
+
+    The function takes a dictionary of position and velocity ranges for each axis. The keys of the
+    dictionary are ``x``, ``y``, ``z``. The values are tuples of the form ``(min, max)``.
+    If the dictionary does not contain a key, the position or velocity is set to zero for that axis.
+    """
+    # extract the used quantities (to enable type-hinting)
+    asset: DeformableObject = env.scene[asset_cfg.name]
+    # get default root state
+    nodal_state = asset.data.default_nodal_state_w[env_ids].clone()
+
+    # position
+    range_list = [position_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z"]]
+    ranges = torch.tensor(range_list, device=asset.device)
+    rand_samples = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 1, 3), device=asset.device)
+
+    nodal_state[..., :3] += rand_samples
+
+    # velocities
+    range_list = [velocity_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z"]]
+    ranges = torch.tensor(range_list, device=asset.device)
+    rand_samples = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 1, 3), device=asset.device)
+
+    nodal_state[..., 3:] += rand_samples
+
+    # set into the physics simulation
+    asset.write_nodal_state_to_sim(nodal_state, env_ids=env_ids)
+
+
 def reset_scene_to_default(env: ManagerBasedEnv, env_ids: torch.Tensor):
     """Reset the scene to the default state specified in the scene configuration."""
     # rigid bodies
@@ -818,6 +887,11 @@ def reset_scene_to_default(env: ManagerBasedEnv, env_ids: torch.Tensor):
         default_joint_vel = articulation_asset.data.default_joint_vel[env_ids].clone()
         # set into the physics simulation
         articulation_asset.write_joint_state_to_sim(default_joint_pos, default_joint_vel, env_ids=env_ids)
+    # deformable objects
+    for deformable_object in env.scene.deformable_objects.values():
+        # obtain default and set into the physics simulation
+        nodal_state = deformable_object.data.default_nodal_state_w[env_ids].clone()
+        deformable_object.write_nodal_state_to_sim(nodal_state, env_ids=env_ids)
 
 
 """

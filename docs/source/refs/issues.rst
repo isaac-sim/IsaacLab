@@ -35,11 +35,17 @@ We have made a feature request to the respective Omniverse teams to have complet
 over stepping different parts of the simulation app. However, at this point, there is no set
 timeline for this feature request.
 
+.. note::
+    With Isaac Lab 1.2, we have introduced a PhysX kinematic update call inside the
+    :attr:`~omni.isaac.lab.assets.ArticulationData.body_state_w` attribute. This workaround
+    ensures that the states of the links are updated when the root state or joint state
+    of an articulation is set.
+
 
 Blank initial frames from the camera
 ------------------------------------
 
-When using the :class:`omni.isaac.lab.sensors.Camera` sensor in standalone scripts, the first few frames
+When using the :class:`~omni.isaac.lab.sensors.Camera` sensor in standalone scripts, the first few frames
 may be blank. This is a known issue with the simulator where it needs a few steps to load the material
 textures properly and fill up the render targets.
 
@@ -79,7 +85,7 @@ When exiting a process with ``Ctrl+C``, occasionally the below error may appear:
 
 .. code-block:: bash
 
-	[Error] [omni.physx.plugin] Subscribtion cannot be changed during the event call.
+	[Error] [omni.physx.plugin] Subscription cannot be changed during the event call.
 
 This is due to the termination occurring in the middle of a physics event call and
 should not affect the functionality of Isaac Lab. It is safe to ignore the error
