@@ -49,9 +49,9 @@ compatibility issues with some Linux distributions. If you encounter any issues,
 
                .. code-block:: bash
 
-                  # create a conda environment named isaaclab with python3.10
+                  # create a virtual environment named isaaclab with python3.10
                   python3.10 -m venv isaaclab
-                  # activate the conda environment
+                  # activate the virtual environment
                   source isaaclab/bin/activate
 
             .. tab-item:: :icon:`fa-brands fa-windows` Windows

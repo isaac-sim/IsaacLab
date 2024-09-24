@@ -12,5 +12,5 @@ using VSCode.
 
   vs_code
   repo_structure
-  extensions
+  development
   template

@@ -1,7 +1,7 @@
 Running an example with Docker
 ==============================
 
-From the root of the ``Isaac Lab`` repository,  the ``docker`` directory contains all the Docker relevant files. These include the three files
+From the root of the Isaac Lab repository,  the ``docker`` directory contains all the Docker relevant files. These include the three files
 (**Dockerfile**, **docker-compose.yaml**, **.env**) which are used by Docker, and an additional script that we use to interface with them,
 **container.py**.
 
