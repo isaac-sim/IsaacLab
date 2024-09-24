@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.10.18 (2025-01-03)
+0.10.19 (2025-01-03)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -10,7 +10,7 @@ Fixed
 * Fixed the reset of the actions in the function overriding of the low level observations of :class:`omni.isaac.lab_tasks.manager_based.navigation.mdp.PreTrainedPolicyAction`.
 
 
-0.10.17 (2024-12-17)
+0.10.18 (2024-12-17)
 ~~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -21,7 +21,7 @@ Changed
   inside the ``Isaac-Reach-Franka-OSC-v0`` environment to enable nullspace control.
 
 
-0.10.16 (2024-12-16)
+0.10.17 (2024-12-16)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -32,7 +32,7 @@ Added
   gear meshing, and nut threading.
 
 
-0.10.15 (2024-12-16)
+0.10.16 (2024-12-16)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -43,7 +43,7 @@ Added
   :class:`omni.isaac.lab.envs.mdp.actions.OperationalSpaceControllerAction`.
 
 
-0.10.14 (2024-12-03)
+0.10.15 (2024-12-03)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -53,7 +53,7 @@ Added
   as manager-based RL envs that implement a three cube stacking task.
 
 
-0.10.13 (2024-10-30)
+0.10.14 (2024-10-30)
 ~~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -64,7 +64,7 @@ Changed
 * Blacklisted ``mdp`` directories during the recursive module search.
 
 
-0.10.12 (2024-10-28)
+0.10.13 (2024-10-28)
 ~~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -74,7 +74,7 @@ Changed
   and Isaac-Cartpole-Depth-Camera-v0 to Isaac-Cartpole-RGB-v0 and Isaac-Cartpole-Depth-v0
 
 
-0.10.11 (2024-10-28)
+0.10.12 (2024-10-28)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -83,7 +83,7 @@ Added
 * Added feature extracted observation cartpole examples.
 
 
-0.10.10 (2024-10-25)
+0.10.11 (2024-10-25)
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -92,7 +92,7 @@ Fixed
 * Fixed issues with defining Gymnasium spaces in Direct workflows due to Hydra/OmegaConf limitations with non-primitive types.
 
 
-0.10.9 (2024-10-22)
+0.10.10 (2024-10-22)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -102,7 +102,7 @@ Changed
   Earlier, this was done by making an empty configuration object, which is now unnecessary.
 
 
-0.10.8 (2024-10-22)
+0.10.9 (2024-10-22)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -110,6 +110,15 @@ Fixed
 
 * Fixed the wrong selection of body id's in the :meth:`omni.isaac.lab_tasks.manager_based.locomotion.velocity.mdp.rewards.feet_slide`
   reward function. This makes sure the right IDs are selected for the bodies.
+
+
+0.10.8 (2024-09-25)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Stack-Cube-Franka-IK-Rel-v0`` environment as a manager-based RL env that implements a three cube stacking task.
 
 
 0.10.7 (2024-10-02)
