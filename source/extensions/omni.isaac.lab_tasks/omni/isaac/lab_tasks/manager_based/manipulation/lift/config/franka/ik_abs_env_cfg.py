@@ -98,3 +98,13 @@ class FrankaTeddyBearLiftEnvCfg(FrankaCubeLiftEnvCfg):
                 "asset_cfg": SceneEntityCfg("object"),
             },
         )
+
+        # Remove all the terms for the state machine demo
+        # TODO: Computing the root pose of deformable object from nodal positions is expensive.
+        #       We need to fix that part before enabling these terms for the training.
+        self.terminations.object_dropping = None
+        self.rewards.reaching_object = None
+        self.rewards.lifting_object = None
+        self.rewards.object_goal_tracking = None
+        self.rewards.object_goal_tracking_fine_grained = None
+        self.observations.policy.object_position = None
