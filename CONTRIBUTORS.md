@@ -31,9 +31,10 @@ Guidelines for modifications:
 
 ## Contributors
 
-* Anton Bjørndahl Mortensen
 * Alice Zhou
+* Amr Mousa
 * Andrej Orsula
+* Anton Bjørndahl Mortensen
 * Antonio Serrano-Muñoz
 * Arjun Bhardwaj
 * Brayden Zhang
