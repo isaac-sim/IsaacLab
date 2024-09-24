@@ -47,7 +47,7 @@ class CartpoleDepthCameraSceneCfg(CartpoleSceneCfg):
 
 
 @configclass
-class ObservationsCfg:
+class RGBObservationsCfg:
     """Observation specifications for the MDP."""
 
     @configclass
@@ -60,28 +60,32 @@ class ObservationsCfg:
             self.enable_corruption = False
             self.concatenate_terms = True
 
+    policy: ObsGroup = RGBCameraPolicyCfg()
+
+
+@configclass
+class DepthObservationsCfg:
     @configclass
-    class DepthCameraPolicyCfg(RGBCameraPolicyCfg):
+    class DepthCameraPolicyCfg(RGBObservationsCfg.RGBCameraPolicyCfg):
         image = ObsTerm(
             func=grab_images, params={"sensor_cfg": SceneEntityCfg("tiled_camera"), "data_type": "distance_to_camera"}
         )
 
         def __post_init__(self) -> None:
-            self.enable_corruption = True
+            self.enable_corruption = False
             self.concatenate_terms = True
 
     # observation groups
-    policy: ObsGroup = RGBCameraPolicyCfg()
+    policy: ObsGroup = DepthCameraPolicyCfg()
 
 
 @configclass
 class CartpoleRGBCameraEnvCfg(CartpoleEnvCfg):
     scene: CartpoleSceneCfg = CartpoleRGBCameraSceneCfg(num_envs=1024, env_spacing=20)
-    observations: ObservationsCfg = ObservationsCfg()
+    observations = RGBObservationsCfg()
 
 
 @configclass
 class CartpoleDepthCameraEnvCfg(CartpoleEnvCfg):
     scene: CartpoleSceneCfg = CartpoleDepthCameraSceneCfg(num_envs=1024, env_spacing=20)
-    observations: ObservationsCfg = ObservationsCfg()
-    observations.policy = ObservationsCfg.DepthCameraPolicyCfg()
+    observations = DepthObservationsCfg()
