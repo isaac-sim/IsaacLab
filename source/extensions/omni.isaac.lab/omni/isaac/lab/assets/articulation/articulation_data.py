@@ -267,7 +267,6 @@ class ArticulationData:
             pose = self._root_physx_view.get_root_transforms().clone()
             pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
             velocity = self._root_physx_view.get_root_velocities().clone()
-
             # set the buffer data and timestamp
             self._root_state_w.data = torch.cat((pose, velocity), dim=-1)
             self._root_state_w.timestamp = self._sim_timestamp
@@ -277,7 +276,8 @@ class ArticulationData:
     def root_state_link_w(self):
         """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).
 
-        The position, quaternion, and linear/angular velocity are of the articulation root's actor frame relative to the world.
+        The position, quaternion, and linear/angular velocity are of the articulation root's actor frame relative to the
+        world.
         """
         state = self.root_state_w.clone()
         quat = state[:, 3:7]
@@ -291,8 +291,9 @@ class ArticulationData:
     def root_state_com_w(self):
         """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).
 
-        The position, quaternion, and linear/angular velocity are of the articulation root link's center of mass frame relative to the world.
-        Center of mass frame is assumed to be the same orientation as the link rather than the orientation of the principle inertia.
+        The position, quaternion, and linear/angular velocity are of the articulation root link's center of mass frame
+        relative to the world. Center of mass frame is assumed to be the same orientation as the link rather than the
+        orientation of the principle inertia.
         """
         state = self.root_state_w.clone()
         quat = state[:, 3:7]
@@ -313,7 +314,6 @@ class ArticulationData:
             poses = self._root_physx_view.get_link_transforms().clone()
             poses[..., 3:7] = math_utils.convert_quat(poses[..., 3:7], to="wxyz")
             velocities = self._root_physx_view.get_link_velocities()
-
             # set the buffer data and timestamp
             self._body_state_w.data = torch.cat((poses, velocities), dim=-1)
             self._body_state_w.timestamp = self._sim_timestamp
@@ -339,7 +339,9 @@ class ArticulationData:
         """State of all bodies `[pos, quat, lin_vel, ang_vel]` in simulation world frame.
         Shape is (num_instances, num_bodies, 13).
 
-        The position, quaternion, and linear/angular velocity are of the body's center of mass frame relative to the world.
+        The position, quaternion, and linear/angular velocity are of the body's center of mass frame relative to the
+        world. Center of mass frame is assumed to be the same orientation as the link rather than the orientation of the
+        principle inertia.
         """
         state = self.body_state_w.clone()
         quat = state[..., 3:7]
@@ -430,8 +432,8 @@ class ArticulationData:
     def root_vel_w(self) -> torch.Tensor:
         """Root velocity in simulation world frame. Shape is (num_instances, 6).
 
-        This quantity contains the linear and angular velocities of the articulation root's link frame relative to the
-        world.
+        This quantity contains the linear and angular velocities of the articulation root's center of mass frame
+        relative to the world.
         """
         return self.root_state_w[:, 7:13]
 
@@ -439,8 +441,7 @@ class ArticulationData:
     def root_lin_vel_w(self) -> torch.Tensor:
         """Root linear velocity in simulation world frame. Shape is (num_instances, 3).
 
-        This quantity is the linear velocity of the articulation root's link frame relative to the
-        world.
+        This quantity is the linear velocity of the articulation root's center of mass frame relative to the world.
         """
         return self.root_state_w[:, 7:10]
 
@@ -448,8 +449,7 @@ class ArticulationData:
     def root_ang_vel_w(self) -> torch.Tensor:
         """Root angular velocity in simulation world frame. Shape is (num_instances, 3).
 
-        This quantity is the angular velocity of the articulation root's link frame relative to the
-        world.
+        This quantity is the angular velocity of the articulation root's center of mass frame relative to the world.
         """
         return self.root_state_w[:, 10:13]
 
@@ -457,8 +457,8 @@ class ArticulationData:
     def root_lin_vel_b(self) -> torch.Tensor:
         """Root linear velocity in base frame. Shape is (num_instances, 3).
 
-        This quantity is the linear velocity of the articulation root's link frame relative to the world with
-        respect to the articulation root's actor frame.
+        This quantity is the linear velocity of the articulation root's center of mass frame relative to the world
+        with respect to the articulation root's actor frame.
         """
         return math_utils.quat_rotate_inverse(self.root_quat_w, self.root_lin_vel_w)
 
@@ -466,7 +466,7 @@ class ArticulationData:
     def root_ang_vel_b(self) -> torch.Tensor:
         """Root angular velocity in base world frame. Shape is (num_instances, 3).
 
-        This quantity is the angular velocity of the articulation root's link frame relative to the world with
+        This quantity is the angular velocity of the articulation root's center of mass frame relative to the world with
         respect to the articulation root's actor frame.
         """
         return math_utils.quat_rotate_inverse(self.root_quat_w, self.root_ang_vel_w)
@@ -491,7 +491,8 @@ class ArticulationData:
     def body_vel_w(self) -> torch.Tensor:
         """Velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 6).
 
-        This quantity contains the linear and angular velocities of the rigid bodies' link frame relative to the world.
+        This quantity contains the linear and angular velocities of the rigid bodies' center of mass frame relative
+        to the world.
         """
         return self.body_state_w[..., 7:13]
 
@@ -499,7 +500,7 @@ class ArticulationData:
     def body_lin_vel_w(self) -> torch.Tensor:
         """Linear velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
 
-        This quantity is the linear velocity of the rigid bodies' link frame relative to the world.
+        This quantity is the linear velocity of the rigid bodies' center of mass frame relative to the world.
         """
         return self.body_state_w[..., 7:10]
 
@@ -507,7 +508,7 @@ class ArticulationData:
     def body_ang_vel_w(self) -> torch.Tensor:
         """Angular velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
 
-        This quantity is the angular velocity of the rigid bodies' link frame relative to the world.
+        This quantity is the angular velocity of the rigid bodies' center of mass frame relative to the world.
         """
         return self.body_state_w[..., 10:13]
 
@@ -515,7 +516,7 @@ class ArticulationData:
     def body_lin_acc_w(self) -> torch.Tensor:
         """Linear acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
 
-        This quantity is the linear acceleration of the rigid bodies' link frame relative to the world.
+        This quantity is the linear acceleration of the rigid bodies' center of mass frame relative to the world.
         """
         return self.body_acc_w[..., 0:3]
 
@@ -523,6 +524,6 @@ class ArticulationData:
     def body_ang_acc_w(self) -> torch.Tensor:
         """Angular acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
 
-        This quantity is the angular acceleration of the rigid bodies' link frame relative to the world.
+        This quantity is the angular acceleration of the rigid bodies' center of mass frame relative to the world.
         """
         return self.body_acc_w[..., 3:6]
