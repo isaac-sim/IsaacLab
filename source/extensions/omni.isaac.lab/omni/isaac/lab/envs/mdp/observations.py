@@ -197,7 +197,7 @@ def grab_images(
         data_type: The data type to pull from the desired camera. Defaults to "rgb".
         convert_perspective_to_orthogonal: Whether to convert perspective
             depth images to orthogonal depth images. Defaults to True.
-        normalize: Set to true normalize images. Highly recommended for training performance.
+        normalize: Set to True to normalize images.
 
     Returns:
         The images produced at the last timestep
