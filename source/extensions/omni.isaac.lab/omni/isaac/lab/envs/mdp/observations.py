@@ -22,6 +22,9 @@ from omni.isaac.lab.sensors import Camera, RayCaster, RayCasterCamera, TiledCame
 if TYPE_CHECKING:
     from omni.isaac.lab.envs import ManagerBasedEnv, ManagerBasedRLEnv
 
+from torchvision import models
+from transformers import AutoModel  # TODO: Reminder about new transformers and einops deps
+
 """
 Root state.
 """
@@ -215,6 +218,76 @@ def grab_images(
         elif "distance_to" in data_type or "depth" in data_type:
             images[images == float("inf")] = 0
     return images.clone()
+
+
+def grab_image_features(
+    env: ManagerBasedEnv,
+    sensor_cfg: SceneEntityCfg = SceneEntityCfg("tiled_camera"),
+    data_type: str = "rgb",
+    convert_perspective_to_orthogonal: bool = True,
+    model_name: str = "Theia",
+    model_zoo_cfg: dict | None = None,
+) -> torch.Tensor:
+    """Grab all of the features of images of a specific datatype produced by a specific camera at the last timestep.
+
+    Args:
+        env: The environment the cameras are placed within.
+        sensor_cfg: The desired sensor to take . Defaults to SceneEntityCfg("tiled_camera").
+        data_type: The data type to pull from the desired camera. Defaults to "rgb".
+        convert_perspective_to_orthogonal: Whether to convert perspective
+            depth images to orthogonal depth images. Defaults to True.
+        model_name: The name of which model to use to extract features.
+        model_zoo_cfg: run inference to get features given the model and images
+
+    Returns:
+        The features from the images produced at the last timestep
+    """
+    if not hasattr(grab_image_features, "model_zoo"):
+        grab_image_features.model_zoo = {}
+
+    if model_zoo_cfg is None:
+        model_zoo_cfg = {
+            "Theia": {
+                "model": (
+                    lambda: AutoModel.from_pretrained(
+                        "theaiinstitute/theia-tiny-patch16-224-cdiv", trust_remote_code=True
+                    )
+                    .eval()
+                    .to("cuda:0")
+                ),
+                "preprocess": lambda img: (img - torch.amin(img, dim=(1, 2), keepdim=True)) / (
+                    torch.amax(img, dim=(1, 2), keepdim=True) - torch.amin(img, dim=(1, 2), keepdim=True)
+                ),  # Rescale to [0, 1]
+                "inference": lambda model, images: model.forward_feature(
+                    images, do_rescale=False, interpolate_pos_encoding=True
+                ),
+            },
+            "ResNet18": {
+                "model": lambda: models.resnet18(pretrained=True).eval().to("cuda:0"),
+                "preprocess": lambda img: (
+                    img.permute(0, 3, 1, 2)  # Convert [batch, height, width, 3] -> [batch, 3, height, width]
+                    - torch.tensor([0.485, 0.456, 0.406], device=img.device).view(1, 3, 1, 1)
+                ) / torch.tensor([0.229, 0.224, 0.225], device=img.device).view(1, 3, 1, 1),
+                "inference": lambda model, images: model(images),
+            },
+        }
+
+    if model_name not in grab_image_features.model_zoo:
+        print(f"[INFO]: Adding {model_name} to frozen feature extraction zoo...")
+        grab_image_features.model_zoo[model_name] = model_zoo_cfg[model_name]["model"]()
+
+    images = grab_images(
+        env=env,
+        sensor_cfg=sensor_cfg,
+        data_type=data_type,
+        convert_perspective_to_orthogonal=convert_perspective_to_orthogonal,
+        normalize=True,  # want this for training stability
+    )
+
+    proc_images = model_zoo_cfg[model_name]["preprocess"](images)
+    features = model_zoo_cfg[model_name]["inference"](grab_image_features.model_zoo[model_name], proc_images)
+
+    return features
 
 
 """
