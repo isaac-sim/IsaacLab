@@ -32,10 +32,10 @@ class OperationalSpaceControllerCfg:
     uncouple_motion_wrench: bool = False
     """Whether to decouple the wrench computation from task-space pose (motion) error."""
 
-    motion_control_axes: Sequence[int] = (1, 1, 1, 1, 1, 1)
-    """Motion direction to control. Mark as 0/1 for each axis."""
-    wrench_control_axes: Sequence[int] = (0, 0, 0, 0, 0, 0)
-    """Wrench direction to control. Mark as 0/1 for each axis."""
+    motion_control_axes_b: Sequence[int] = (1, 1, 1, 1, 1, 1)
+    """Motion direction to control, in root frame. Mark as 0/1 for each axis."""
+    wrench_control_axes_b: Sequence[int] = (0, 0, 0, 0, 0, 0)
+    """Wrench direction to control, in root frame. Mark as 0/1 for each axis."""
 
     inertial_compensation: bool = False
     """Whether to perform inertial compensation for motion control (inverse dynamics)."""

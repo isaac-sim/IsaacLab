@@ -366,7 +366,7 @@ class OperationalSpaceControllerAction(ActionTerm):
             )
 
         # set command into controller
-        self._osc.set_command(command=self._processed_actions, current_ee_pose=self._ee_pose_b)
+        self._osc.set_command(command=self._processed_actions, current_ee_pose_b=self._ee_pose_b)
 
     def apply_actions(self):
 
@@ -378,10 +378,10 @@ class OperationalSpaceControllerAction(ActionTerm):
         self._compute_ee_force()
         # Calculate the joint efforts
         self._joint_efforts[:] = self._osc.compute(
-            jacobian=self._jacobian_b,
-            current_ee_pose=self._ee_pose_b,
-            current_ee_vel=self._ee_vel_b,
-            current_ee_force=self._ee_force_b,
+            jacobian_b=self._jacobian_b,
+            current_ee_pose_b=self._ee_pose_b,
+            current_ee_vel_b=self._ee_vel_b,
+            current_ee_force_b=self._ee_force_b,
             mass_matrix=self._mass_matrix,
             gravity=self._gravity,
         )
@@ -437,7 +437,7 @@ class OperationalSpaceControllerAction(ActionTerm):
         self._gravity[:] = self._asset.root_physx_view.get_generalized_gravity_forces()[:, self._joint_ids]
 
     def _compute_ee_jacobian(self):
-        """Computes the geometric Jacobian of the ee body frame in the root frame.
+        """Computes the geometric Jacobian of the ee body frame in root frame.
 
         This function accounts for the target frame offset and applies the necessary transformations to obtain
         the right Jacobian from the parent body Jacobian.
@@ -447,7 +447,7 @@ class OperationalSpaceControllerAction(ActionTerm):
             :, self._jacobi_ee_body_idx, :, self._joint_ids
         ]
 
-        # Convert the Jacobian from world to robot base frame
+        # Convert the Jacobian from world to root frame
         self._jacobian_b[:] = self._jacobian_w
         root_rot_matrix = math_utils.matrix_from_quat(math_utils.quat_inv(self._asset.data.root_state_w[:, 3:7]))
         self._jacobian_b[:, :3, :] = torch.bmm(root_rot_matrix, self._jacobian_b[:, :3, :])
@@ -466,7 +466,7 @@ class OperationalSpaceControllerAction(ActionTerm):
             self._jacobian_b[:, 3:, :] = torch.bmm(math_utils.matrix_from_quat(self._offset_rot), self._jacobian_b[:, 3:, :])  # type: ignore
 
     def _compute_ee_pose(self):
-        """Computes the pose of the ee frame in the root frame."""
+        """Computes the pose of the ee frame in root frame."""
         # Obtain quantities from simulation
         self._ee_pose_w[:] = self._asset.data.body_state_w[:, self._ee_body_idx, :7]
         # Compute the pose of the ee body in the root frame
@@ -482,7 +482,7 @@ class OperationalSpaceControllerAction(ActionTerm):
             self._ee_pose_b[:] = self._ee_pose_b_no_offset
 
     def _compute_ee_velocity(self):
-        """Computes the velocity of the ee frame in the root frame."""
+        """Computes the velocity of the ee frame in root frame."""
         # Extract end-effector velocity in the world frame
         self._ee_vel_w[:] = self._asset.data.body_vel_w[:, self._ee_body_idx, :]
         # Compute the relative velocity in the world frame
@@ -501,10 +501,10 @@ class OperationalSpaceControllerAction(ActionTerm):
             # Angular velocity is not affected by the offset
 
     def _compute_ee_force(self):
-        """Computes the contact forces on the ee frame in the root frame."""
+        """Computes the contact forces on the ee frame in root frame."""
         # Obtain contact forces only if the contact sensor is available
         if self._contact_sensor is not None:
             self._contact_sensor.update(self._sim_dt)
             self._ee_force_w[:] = self._contact_sensor.data.net_forces_w[:, 0, :]  # type: ignore
-            # Rotate forces and torques into the root (base) frame
+            # Rotate forces and torques into root frame
             self._ee_force_b[:] = math_utils.quat_rotate_inverse(self._asset.data.root_quat_w, self._ee_force_w)

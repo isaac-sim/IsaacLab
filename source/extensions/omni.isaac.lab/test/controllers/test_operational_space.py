@@ -328,8 +328,8 @@ class TestOperationalSpaceController(unittest.TestCase):
 
         opc_cfg = OperationalSpaceControllerCfg(
             target_types=["wrench_abs"],
-            motion_control_axes=[0, 0, 0, 0, 0, 0],
-            wrench_control_axes=[1, 1, 1, 1, 1, 1],
+            motion_control_axes_b=[0, 0, 0, 0, 0, 0],
+            wrench_control_axes_b=[1, 1, 1, 1, 1, 1],
         )
         opc = OperationalSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
 
@@ -377,8 +377,8 @@ class TestOperationalSpaceController(unittest.TestCase):
         opc_cfg = OperationalSpaceControllerCfg(
             target_types=["wrench_abs"],
             wrench_stiffness=[0.2, 0.2, 0.2, 0.0, 0.0, 0.0],  # Zero torque feedback as we cannot contact torque
-            motion_control_axes=[0, 0, 0, 0, 0, 0],
-            wrench_control_axes=[1, 1, 1, 1, 1, 1],
+            motion_control_axes_b=[0, 0, 0, 0, 0, 0],
+            wrench_control_axes_b=[1, 1, 1, 1, 1, 1],
         )
         opc = OperationalSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
 
@@ -420,8 +420,8 @@ class TestOperationalSpaceController(unittest.TestCase):
             stiffness=100.0,
             damping_ratio=1.0,
             wrench_stiffness=[0.2, 0.0, 0.0, 0.0, 0.0, 0.0],
-            motion_control_axes=[0, 1, 1, 1, 1, 1],
-            wrench_control_axes=[1, 0, 0, 0, 0, 0],
+            motion_control_axes_b=[0, 1, 1, 1, 1, 1],
+            wrench_control_axes_b=[1, 0, 0, 0, 0, 0],
         )
         opc = OperationalSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
 
@@ -462,8 +462,8 @@ class TestOperationalSpaceController(unittest.TestCase):
             gravity_compensation=False,
             damping_ratio=1.4,
             wrench_stiffness=[0.2, 0.0, 0.0, 0.0, 0.0, 0.0],
-            motion_control_axes=[0, 1, 1, 1, 1, 1],
-            wrench_control_axes=[1, 0, 0, 0, 0, 0],
+            motion_control_axes_b=[0, 1, 1, 1, 1, 1],
+            wrench_control_axes_b=[1, 0, 0, 0, 0, 0],
         )
         opc = OperationalSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
 
@@ -485,9 +485,9 @@ class TestOperationalSpaceController(unittest.TestCase):
         target_set: torch.tensor,
     ):
         # Initialize the masks for evaluating target convergence according to selection matrices
-        self.pos_mask = torch.tensor(opc.cfg.motion_control_axes[:3], device=self.sim.device).view(1, 3)
-        self.rot_mask = torch.tensor(opc.cfg.motion_control_axes[3:], device=self.sim.device).view(1, 3)
-        self.wrench_mask = torch.tensor(opc.cfg.wrench_control_axes, device=self.sim.device).view(1, 6)
+        self.pos_mask = torch.tensor(opc.cfg.motion_control_axes_b[:3], device=self.sim.device).view(1, 3)
+        self.rot_mask = torch.tensor(opc.cfg.motion_control_axes_b[3:], device=self.sim.device).view(1, 3)
+        self.wrench_mask = torch.tensor(opc.cfg.wrench_control_axes_b, device=self.sim.device).view(1, 6)
         self.force_mask = self.wrench_mask[:, 0:3]  # Take only the force components as we can measure only these
 
         # Define simulation stepping
@@ -555,10 +555,10 @@ class TestOperationalSpaceController(unittest.TestCase):
                 )
                 # compute the joint commands
                 joint_efforts = opc.compute(
-                    jacobian=jacobian_b,
-                    current_ee_pose=ee_pose_b,
-                    current_ee_vel=ee_vel_b,
-                    current_ee_force=ee_force_b,
+                    jacobian_b=jacobian_b,
+                    current_ee_pose_b=ee_pose_b,
+                    current_ee_vel_b=ee_vel_b,
+                    current_ee_force_b=ee_force_b,
                     mass_matrix=mass_matrix,
                     gravity=gravity,
                 )
@@ -585,7 +585,7 @@ class TestOperationalSpaceController(unittest.TestCase):
         jacobian_w = robot.root_physx_view.get_jacobians()[:, ee_jacobi_idx, :, arm_joint_ids]
         mass_matrix = robot.root_physx_view.get_mass_matrices()[:, arm_joint_ids, :][:, :, arm_joint_ids]
         gravity = robot.root_physx_view.get_generalized_gravity_forces()[:, arm_joint_ids]
-        # Convert the Jacobian from world to robot base frame
+        # Convert the Jacobian from world to root frame
         jacobian_b = jacobian_w.clone()
         root_rot_matrix = matrix_from_quat(quat_inv(robot.data.root_state_w[:, 3:7]))
         jacobian_b[:, :3, :] = torch.bmm(root_rot_matrix, jacobian_b[:, :3, :])
@@ -643,7 +643,7 @@ class TestOperationalSpaceController(unittest.TestCase):
                     ee_pose_b[:, :3], ee_pose_b[:, 3:], ee_target_b[:, :7]
                 )
             elif target_type == "wrench_abs":
-                pass  # ee_target_pose_b could stay at the robot base for force control, what matters is ee_target_b
+                pass  # ee_target_pose_b could stay at the root frame for force control, what matters is ee_target_b
             else:
                 raise ValueError("Undefined target_type within _update_target().")
 
