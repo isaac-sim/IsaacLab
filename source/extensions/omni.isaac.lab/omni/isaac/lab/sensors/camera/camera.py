@@ -280,7 +280,7 @@ class Camera(SensorBase):
         env_ids: Sequence[int] | None = None,
         convention: Literal["opengl", "ros", "world"] = "ros",
     ):
-        r"""Set the pose of the camera w.r.t. the world frame using specified convention.
+        r"""Set the world pose of the camera w.r.t. the world frame using specified convention.
 
         Since different fields use different conventions for camera orientations, the method allows users to
         set the camera poses in the specified convention. Possible conventions are:
@@ -325,7 +325,7 @@ class Camera(SensorBase):
     def set_world_poses_from_view(
         self, eyes: torch.Tensor, targets: torch.Tensor, env_ids: Sequence[int] | None = None
     ):
-        """Set the poses of the camera from the eye position and look-at target position.
+        """Set the world pose of the camera from the eye position and look-at target position.
 
         Args:
             eyes: The positions of the camera's eye. Shape is (N, 3).
@@ -342,6 +342,76 @@ class Camera(SensorBase):
         # set camera poses using the view
         orientations = quat_from_matrix(create_rotation_matrix_from_view(eyes, targets, device=self._device))
         self._view.set_world_poses(eyes, orientations, env_ids)
+
+    def set_local_poses(
+        self,
+        positions: torch.Tensor | None = None,
+        orientations: torch.Tensor | None = None,
+        env_ids: Sequence[int] | None = None,
+        convention: Literal["opengl", "ros", "world"] = "ros",
+    ):
+        r"""Set the local pose of the camera w.r.t. the local frame using specified convention.
+
+        Since different fields use different conventions for camera orientations, the method allows users to
+        set the camera poses in the specified convention. Possible conventions are:
+
+        - :obj:`"opengl"` - forward axis: -Z - up axis +Y - Offset is applied in the OpenGL (Usd.Camera) convention
+        - :obj:`"ros"`    - forward axis: +Z - up axis -Y - Offset is applied in the ROS convention
+        - :obj:`"world"`  - forward axis: +X - up axis +Z - Offset is applied in the World Frame convention
+
+        See :meth:`omni.isaac.lab.sensors.camera.utils.convert_orientation_convention` for more details
+        on the conventions.
+
+        Args:
+            positions: The cartesian coordinates (in meters). Shape is (N, 3).
+                Defaults to None, in which case the camera position in not changed.
+            orientations: The quaternion orientation in (w, x, y, z). Shape is (N, 4).
+                Defaults to None, in which case the camera orientation in not changed.
+            env_ids: A sensor ids to manipulate. Defaults to None, which means all sensor indices.
+            convention: The convention in which the poses are fed. Defaults to "ros".
+
+        Raises:
+            RuntimeError: If the camera prim is not set. Need to call :meth:`initialize` method first.
+        """
+        # resolve env_ids
+        if env_ids is None:
+            env_ids = self._ALL_INDICES
+        # convert to backend tensor
+        if positions is not None:
+            if isinstance(positions, np.ndarray):
+                positions = torch.from_numpy(positions).to(device=self._device)
+            elif not isinstance(positions, torch.Tensor):
+                positions = torch.tensor(positions, device=self._device)
+        # convert rotation matrix from input convention to OpenGL
+        if orientations is not None:
+            if isinstance(orientations, np.ndarray):
+                orientations = torch.from_numpy(orientations).to(device=self._device)
+            elif not isinstance(orientations, torch.Tensor):
+                orientations = torch.tensor(orientations, device=self._device)
+            orientations = convert_orientation_convention(orientations, origin=convention, target="opengl")
+        # set the pose
+        self._view.set_local_poses(positions, orientations, env_ids)
+
+    def set_local_poses_from_view(
+        self, eyes: torch.Tensor, targets: torch.Tensor, env_ids: Sequence[int] | None = None
+    ):
+        """Set the local pose of the camera from the eye position and look-at target position.
+
+        Args:
+            eyes: The positions of the camera's eye. Shape is (N, 3).
+            targets: The target locations to look at. Shape is (N, 3).
+            env_ids: A sensor ids to manipulate. Defaults to None, which means all sensor indices.
+
+        Raises:
+            RuntimeError: If the camera prim is not set. Need to call :meth:`initialize` method first.
+            NotImplementedError: If the stage up-axis is not "Y" or "Z".
+        """
+        # resolve env_ids
+        if env_ids is None:
+            env_ids = self._ALL_INDICES
+        # set camera poses using the view
+        orientations = quat_from_matrix(create_rotation_matrix_from_view(eyes, targets, device=self._device))
+        self._view.set_local_poses(eyes, orientations, env_ids)
 
     """
     Operations
