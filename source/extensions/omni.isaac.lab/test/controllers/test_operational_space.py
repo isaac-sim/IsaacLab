@@ -187,6 +187,8 @@ class TestOperationalSpaceController(unittest.TestCase):
         # self.sim.clear()  # FIXME: This hangs the test for some reason when LIVESTREAM is not enabled.
         self.sim.clear_all_callbacks()
         self.sim.clear_instance()
+        # Make contact_forces None after relevant tests otherwise other tests give warning
+        self.contact_forces = None
 
     """
     Test fixtures.
@@ -334,7 +336,6 @@ class TestOperationalSpaceController(unittest.TestCase):
         opc = OperationalSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
 
         self._run_op_space_controller(robot, opc, "panda_hand", ["panda_joint.*"], self.target_abs_wrench_set)
-        self.contact_forces = None  # Make contact_forces None after the test otherwise other tests give warning
 
     def test_franka_wrench_abs_closed_loop(self):
         """Test closed loop absolute force control."""
@@ -383,7 +384,6 @@ class TestOperationalSpaceController(unittest.TestCase):
         opc = OperationalSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
 
         self._run_op_space_controller(robot, opc, "panda_hand", ["panda_joint.*"], self.target_abs_wrench_set)
-        self.contact_forces = None  # Make contact_forces None after the test otherwise other tests give warning
 
     def test_franka_hybrid_fixed_impedance_with_full_inertial_compensation(self):
         """Test hybrid control with fixed impedance and full inertial compensation."""
@@ -426,7 +426,6 @@ class TestOperationalSpaceController(unittest.TestCase):
         opc = OperationalSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
 
         self._run_op_space_controller(robot, opc, "panda_leftfinger", ["panda_joint.*"], self.target_hybrid_set)
-        self.contact_forces = None  # Make contact_forces None after the test otherwise other tests give warning
 
     def test_franka_hybrid_variable_kp_impedance_with_full_inertial_compensation(self):
         """Test hybrid control with variable kp impedance and full inertial compensation."""
@@ -470,7 +469,6 @@ class TestOperationalSpaceController(unittest.TestCase):
         self._run_op_space_controller(
             robot, opc, "panda_leftfinger", ["panda_joint.*"], self.target_hybrid_variable_kp_set
         )
-        self.contact_forces = None  # Make contact_forces None after the test otherwise other tests give warning
 
     """
     Helper functions
