@@ -328,8 +328,6 @@ class OperationalSpaceControllerAction(ActionTerm):
 
     def process_actions(self, actions: torch.Tensor):
 
-        # Retrieve the jacobians to correctly refresh the ee_pose_b after a reset, see #993.
-        self._compute_ee_jacobian()
         self._compute_ee_pose()
 
         # Store the raw actions. Please note that the actions contain task space targets
