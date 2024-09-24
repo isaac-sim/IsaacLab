@@ -992,7 +992,7 @@ def unproject_depth(depth: torch.Tensor, intrinsics: torch.Tensor) -> torch.Tens
     is provided orthogonally relative to the image plane, as opposed to absolutely relative to the camera's
     principal point (perspective depth). To unproject a perspective depth image, use
     :meth:`convert_perspective_depth_to_orthogonal_depth` to convert
-    to an orthogonal depth image prior to calling this method as otherwise the
+    to an orthogonal depth image prior to calling this method. Otherwise, the
     created point cloud will be distorted, especially around the edges.
 
     This function converts depth images into points given the calibration matrix of the camera.
