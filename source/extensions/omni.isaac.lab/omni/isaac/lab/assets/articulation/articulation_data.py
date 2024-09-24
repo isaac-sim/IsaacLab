@@ -266,7 +266,7 @@ class ArticulationData:
             # read data from simulation
             pose = self._root_physx_view.get_root_transforms().clone()
             pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
-            velocity = self._root_physx_view.get_root_velocities().clone()
+            velocity = self._root_physx_view.get_root_velocities()
             # set the buffer data and timestamp
             self._root_state_w.data = torch.cat((pose, velocity), dim=-1)
             self._root_state_w.timestamp = self._sim_timestamp
@@ -283,7 +283,7 @@ class ArticulationData:
         quat = state[:, 3:7]
         # adjust linear velocity to link
         state[:, 7:10] += torch.linalg.cross(
-            state[:, 7:10], math_utils.quat_rotate(quat, -self._com_pos_b[:, 0, :]), dim=-1
+            state[:, 10:13], math_utils.quat_rotate(quat, -self._com_pos_b[:, 0, :]), dim=-1
         )
         return state
 
