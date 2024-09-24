@@ -67,8 +67,8 @@ class RigidObjectData:
         self._body_acc_w = TimestampedBuffer()
 
         # Link center of mass
-        com_pos_b, _ = self._root_physx_view.get_coms().to(self.device).split([3, 4], dim=-1)
-        self._com_pos_b = torch.tensor(com_pos_b, device=self.device)
+        # com_pos_b, _ = self._root_physx_view.get_coms().to(self.device).split([3, 4], dim=-1)
+        self._com_pos_b, _ = self._root_physx_view.get_coms().to(self.device).split([3, 4], dim=-1)
 
     def update(self, dt: float):
         """Updates the data for the rigid object.
@@ -125,53 +125,46 @@ class RigidObjectData:
     def root_state_link_w(self):
         """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).
 
-        The position, quaternion, and linear/angular velocity are of the articulation root's actor frame relative to the
+        The position, quaternion, and linear/angular velocity are of the rigid body root frame relative to the
         world.
         """
         state = self.root_state_w.clone()
         quat = state[:, 3:7]
         # adjust linear velocity to link
-        state[:, 7:10] += torch.linalg.cross(
-            state[:, 10:13], math_utils.quat_rotate(quat, -self._com_pos_b[:, 0, :]), dim=-1
-        )
+        state[:, 7:10] += torch.linalg.cross(state[:, 10:13], math_utils.quat_rotate(quat, -self._com_pos_b), dim=-1)
         return state
 
     @property
     def root_state_com_w(self):
         """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).
 
-        The position, quaternion, and linear/angular velocity are of the articulation root link's center of mass frame
+        The position, quaternion, and linear/angular velocity are of the rigid body's center of mass frame
         relative to the world. Center of mass frame is assumed to be the same orientation as the link rather than the
         orientation of the principle inertia.
         """
         state = self.root_state_w.clone()
         quat = state[:, 3:7]
         # adjust position to center of mass
-        state[:, :3] += math_utils.quat_rotate(quat, self._com_pos_b[:, 0, :])
+        state[:, :3] += math_utils.quat_rotate(quat, self._com_pos_b)
         return state
-    
+
     @property
     def body_state_w(self):
         """State of all bodies `[pos, quat, lin_vel, ang_vel]` in simulation world frame. Shape is (num_instances, 1, 13).
 
-        All values are relative to the world.
+        The position and orientation are of the rigid bodies' actor frame. Meanwhile, the linear and angular
+        velocities are of the rigid bodies' center of mass frame.
         """
         return self.root_state_w.view(-1, 1, 13)
 
     @property
     def body_state_link_w(self):
         """State of all bodies `[pos, quat, lin_vel, ang_vel]` in simulation world frame.
-        Shape is (num_instances, num_bodies, 13).
+        Shape is (num_instances,1, 13).
 
         The position, quaternion, and linear/angular velocity are of the body's link frame relative to the world.
         """
-        state = self.body_state_w.clone()
-        quat = state[..., 3:7]
-        # adjust linear velocity to link
-        state[..., 7:10] += torch.linalg.cross(
-            state[..., 10:13], math_utils.quat_rotate(quat, -self._com_pos_b), dim=-1
-        )
-        return state
+        return self.root_state_link_w.view(-1, 1, 13)
 
     @property
     def body_state_com_w(self):
@@ -182,15 +175,11 @@ class RigidObjectData:
         world. Center of mass frame is assumed to be the same orientation as the link rather than the orientation of the
         principle inertia.
         """
-        state = self.body_state_w.clone()
-        quat = state[..., 3:7]
-        # adjust position to center of mass
-        state[..., :3] -= math_utils.quat_rotate(quat, self._com_pos_b)
-        return state
-    
+        return self.root_state_com_w.view(-1, 1, 13)
+
     @property
     def body_acc_w(self):
-        """Acceleration of all bodies center of mass. Shape is (num_instances, 1, 6).
+        """Acceleration of all bodies. Shape is (num_instances, 1, 6).
 
         This quantity is the acceleration of the rigid bodies' center of mass frame.
         """

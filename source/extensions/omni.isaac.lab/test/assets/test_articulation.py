@@ -339,7 +339,7 @@ class TestArticulation(unittest.TestCase):
                         articulation_cfg = generate_articulation_cfg(articulation_type="shadow_hand")
                         articulation, _ = generate_articulation(articulation_cfg, num_articulations, device)
 
-                        # Check that boundedness of arlinkticulation is correct
+                        # Check that boundedness of articulation is correct
                         self.assertEqual(ctypes.c_long.from_address(id(articulation)).value, 1)
 
                         # Play sim
