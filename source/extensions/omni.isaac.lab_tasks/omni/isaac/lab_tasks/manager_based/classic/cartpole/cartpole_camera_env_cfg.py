@@ -27,8 +27,8 @@ class CartpoleRGBCameraSceneCfg(CartpoleSceneCfg):
         spawn=sim_utils.PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
         ),
-        width=40,
-        height=40,
+        width=80,
+        height=80,
     )
 
 
@@ -41,8 +41,8 @@ class CartpoleDepthCameraSceneCfg(CartpoleSceneCfg):
         spawn=sim_utils.PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
         ),
-        width=40,
-        height=40,
+        width=80,
+        height=80,
     )
 
 
@@ -70,12 +70,7 @@ class DepthObservationsCfg:
         image = ObsTerm(
             func=grab_images, params={"sensor_cfg": SceneEntityCfg("tiled_camera"), "data_type": "distance_to_camera"}
         )
-
-        def __post_init__(self) -> None:
-            self.enable_corruption = False
-            self.concatenate_terms = True
-
-    # observation groups
+        
     policy: ObsGroup = DepthCameraPolicyCfg()
 
 
