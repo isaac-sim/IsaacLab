@@ -259,7 +259,7 @@ class ArticulationData:
     def root_state_w(self):
         """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).
 
-        The position and quaternion are of the articulation root's actor frame relative to the world. Meanwhile, 
+        The position and quaternion are of the articulation root's actor frame relative to the world. Meanwhile,
         the linear and angular velocities are of the articulation root's center of mass frame.
         """
         if self._root_state_w.timestamp < self._sim_timestamp:
@@ -267,7 +267,7 @@ class ArticulationData:
             pose = self._root_physx_view.get_root_transforms().clone()
             pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
             velocity = self._root_physx_view.get_root_velocities().clone()
-            
+
             # set the buffer data and timestamp
             self._root_state_w.data = torch.cat((pose, velocity), dim=-1)
             self._root_state_w.timestamp = self._sim_timestamp
@@ -287,7 +287,6 @@ class ArticulationData:
         )
         return state
 
-
     @property
     def root_state_com_w(self):
         """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).
@@ -298,7 +297,7 @@ class ArticulationData:
         state = self.root_state_w.clone()
         quat = state[:, 3:7]
         # adjust position to center of mass
-        state[:,:3] += math_utils.quat_rotate(quat, self._com_pos_b[:, 0, :])
+        state[:, :3] += math_utils.quat_rotate(quat, self._com_pos_b[:, 0, :])
         return state
 
     @property
@@ -345,9 +344,9 @@ class ArticulationData:
         state = self.body_state_w.clone()
         quat = state[..., 3:7]
         # adjust position to center of mass
-        state[...,:3] -= math_utils.quat_rotate(quat, self._com_pos_b)
+        state[..., :3] -= math_utils.quat_rotate(quat, self._com_pos_b)
         return state
-    
+
     @property
     def body_acc_w(self):
         """Acceleration of all bodies (center of mass). Shape is (num_instances, num_bodies, 6).
@@ -357,10 +356,10 @@ class ArticulationData:
         if self._body_acc_w.timestamp < self._sim_timestamp:
             # read data from simulation and set the buffer data and timestamp
             self._body_acc_w.data = self._root_physx_view.get_link_accelerations()
-            
+
             self._body_acc_w.timestamp = self._sim_timestamp
         return self._body_acc_w.data
-    
+
     @property
     def projected_gravity_b(self):
         """Projection of the gravity direction on base frame. Shape is (num_instances, 3)."""
