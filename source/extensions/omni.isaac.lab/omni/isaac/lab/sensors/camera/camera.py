@@ -501,7 +501,7 @@ class Camera(SensorBase):
                 # apply defined clipping behavior
                 if (
                     name == "distance_to_camera" or name == "distance_to_image_plane"
-                ) and self.cfg.depth_clipping_behavior is not None:
+                ) and self.cfg.depth_clipping_behavior != "none":
                     self._data.output[name][torch.isinf(self._data.output[name])] = (
                         0.0 if self.cfg.depth_clipping_behavior == "zero" else self.cfg.spawn.clipping_range[1]
                     )
@@ -630,7 +630,7 @@ class Camera(SensorBase):
             # clip the data if needed
             if (
                 name == "distance_to_camera" or name == "distance_to_image_plane"
-            ) and self.cfg.depth_clipping_behavior is not None:
+            ) and self.cfg.depth_clipping_behavior != "none":
                 self._data.output[name][torch.isinf(self._data.output[name])] = (
                     0.0 if self.cfg.depth_clipping_behavior == "zero" else self.cfg.spawn.clipping_range[1]
                 )

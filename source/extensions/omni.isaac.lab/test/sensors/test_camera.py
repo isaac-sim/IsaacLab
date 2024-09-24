@@ -368,8 +368,8 @@ class TestCamera(unittest.TestCase):
             This test is the same for all camera models to enforce the same clipping behavior.
         """
         # get camera cfgs
-        camera_cfg = CameraCfg(
-            prim_path="/World/Camera",
+        camera_cfg_zero = CameraCfg(
+            prim_path="/World/CameraZero",
             offset=CameraCfg.OffsetCfg(pos=(2.5, 2.5, 6.0), rot=(-0.125, 0.362, 0.873, -0.302), convention="ros"),
             spawn=sim_utils.PinholeCameraCfg().from_intrinsic_matrix(
                 focal_length=38.0,
@@ -381,8 +381,19 @@ class TestCamera(unittest.TestCase):
             height=540,
             width=960,
             data_types=["distance_to_image_plane", "distance_to_camera"],
+            depth_clipping_behavior="zero",
         )
-        camera = Camera(camera_cfg)
+        camera_zero = Camera(camera_cfg_zero)
+        
+        camera_cfg_none = copy.deepcopy(camera_cfg_zero)
+        camera_cfg_none.prim_path = "/World/CameraNone"
+        camera_cfg_none.depth_clipping_behavior = "none"
+        camera_none = Camera(camera_cfg_none)
+
+        camera_cfg_max = copy.deepcopy(camera_cfg_zero)
+        camera_cfg_max.prim_path = "/World/CameraMax"
+        camera_cfg_max.depth_clipping_behavior = "max"
+        camera_max = Camera(camera_cfg_max)
 
         # Play sim
         self.sim.reset()
@@ -392,17 +403,33 @@ class TestCamera(unittest.TestCase):
         for _ in range(5):
             self.sim.step()
 
-        camera.update(self.dt)
+        camera_zero.update(self.dt)
+        camera_none.update(self.dt)
+        camera_max.update(self.dt)
 
-        self.assertTrue(
-            camera.data.output["distance_to_camera"][camera.data.output["distance_to_camera"] != 0.0].min() >= 0.1
-        )
-        self.assertTrue(camera.data.output["distance_to_camera"].max() <= 10.0)
-        self.assertTrue(
-            camera.data.output["distance_to_image_plane"][camera.data.output["distance_to_image_plane"] != 0.0].min()
-            >= 0.1
-        )
-        self.assertTrue(camera.data.output["distance_to_image_plane"].max() <= 10.0)
+        # none clipping should contain inf values
+        self.assertTrue(torch.isinf(camera_none.data.output["distance_to_camera"]).any())
+        self.assertTrue(torch.isinf(camera_none.data.output["distance_to_image_plane"]).any())
+        self.assertTrue(camera_none.data.output["distance_to_camera"][~torch.isinf(camera_none.data.output["distance_to_camera"])].min() >= camera_cfg_zero.spawn.clipping_range[0])
+        self.assertTrue(camera_none.data.output["distance_to_camera"][~torch.isinf(camera_none.data.output["distance_to_camera"])].max() <= camera_cfg_zero.spawn.clipping_range[1])
+        self.assertTrue(camera_none.data.output["distance_to_image_plane"][~torch.isinf(camera_none.data.output["distance_to_image_plane"])].min() >= camera_cfg_zero.spawn.clipping_range[0])
+        self.assertTrue(camera_none.data.output["distance_to_image_plane"][~torch.isinf(camera_none.data.output["distance_to_camera"])].max() <= camera_cfg_zero.spawn.clipping_range[1])
+
+        # zero clipping should result in zero values
+        self.assertTrue(torch.all(camera_zero.data.output["distance_to_camera"][torch.isinf(camera_none.data.output["distance_to_camera"])] == 0.0))
+        self.assertTrue(torch.all(camera_zero.data.output["distance_to_image_plane"][torch.isinf(camera_none.data.output["distance_to_image_plane"])] == 0.0))
+        self.assertTrue(camera_zero.data.output["distance_to_camera"][camera_zero.data.output["distance_to_camera"] != 0.0].min() >= camera_cfg_zero.spawn.clipping_range[0])
+        self.assertTrue(camera_zero.data.output["distance_to_camera"].max() <= camera_cfg_zero.spawn.clipping_range[1])
+        self.assertTrue(camera_zero.data.output["distance_to_image_plane"][camera_zero.data.output["distance_to_image_plane"] != 0.0].min() >= camera_cfg_zero.spawn.clipping_range[0])
+        self.assertTrue(camera_zero.data.output["distance_to_image_plane"].max() <= camera_cfg_zero.spawn.clipping_range[1])
+
+        # max clipping should result in max values
+        self.assertTrue(torch.all(camera_max.data.output["distance_to_camera"][torch.isinf(camera_none.data.output["distance_to_camera"])] == camera_cfg_zero.spawn.clipping_range[1]))
+        self.assertTrue(torch.all(camera_max.data.output["distance_to_image_plane"][torch.isinf(camera_none.data.output["distance_to_image_plane"])] == camera_cfg_zero.spawn.clipping_range[1]))
+        self.assertTrue(camera_max.data.output["distance_to_camera"].min() >= camera_cfg_zero.spawn.clipping_range[0])
+        self.assertTrue(camera_max.data.output["distance_to_camera"].max() <= camera_cfg_zero.spawn.clipping_range[1])
+        self.assertTrue(camera_max.data.output["distance_to_image_plane"].min() >= camera_cfg_zero.spawn.clipping_range[0])
+        self.assertTrue(camera_max.data.output["distance_to_image_plane"].max() <= camera_cfg_zero.spawn.clipping_range[1])
 
     def test_camera_resolution_all_colorize(self):
         """Test camera resolution is correctly set for all types with colorization enabled."""

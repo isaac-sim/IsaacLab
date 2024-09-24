@@ -15,13 +15,7 @@ from .tiled_camera import TiledCamera
 
 @configclass
 class TiledCameraCfg(SensorBaseCfg):
-    """Configuration for a tiled rendering-based camera sensor.
-
-    .. note::
-
-        Compared to other cameras, the clipping behavior cannot be altered as the backend implementation automatically
-        clips the values exceeding the maximum range to zero.
-    """
+    """Configuration for a tiled rendering-based camera sensor."""
 
     @configclass
     class OffsetCfg:
