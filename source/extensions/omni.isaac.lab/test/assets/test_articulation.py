@@ -840,12 +840,9 @@ class TestArticulation(unittest.TestCase):
                     with build_simulation_context(device=device, add_ground_plane=False, auto_add_lighting=True) as sim:
                         articulation_cfg = generate_articulation_cfg(articulation_type="single_joint")
                         articulation, env_pos = generate_articulation(articulation_cfg, num_articulations, device)
-
                         env_idx = torch.tensor([x for x in range(num_articulations)])
-                        
                         # Check that boundedness of articulation is correct
                         self.assertEqual(ctypes.c_long.from_address(id(articulation)).value, 1)
-
                         # Play sim
                         sim.reset()
                         # Check if articulation is initialized
@@ -920,6 +917,7 @@ class TestArticulation(unittest.TestCase):
                             # orientation, linear vel, and angular vel
                             torch.testing.assert_close(root_state_w[...,3:],root_state_com_w[...,3:]) 
                             torch.testing.assert_close(body_state_w[...,3:],body_state_com_w[...,3:]) 
+
 
 if __name__ == "__main__":
     run_tests()

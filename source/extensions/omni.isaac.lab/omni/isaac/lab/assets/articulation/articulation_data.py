@@ -360,22 +360,6 @@ class ArticulationData:
             
             self._body_acc_w.timestamp = self._sim_timestamp
         return self._body_acc_w.data
-
-    @property
-    def body_acc_link_w(self):
-        """Acceleration of all bodies link frame. Shape is (num_instances, num_bodies, 6).
-        
-        All values are relative to the world."""
-        
-        body_acc_w = self.body_acc_w.clone()
-        # move linear acceleration to link frame
-        ang_acc_w = self.body_acc_w[..., 3:].clone()
-        ang_vel_w = self.body_state_w[..., 10:14].clone()
-        com_pos_w = body_state_com_w[...,:3].clone()
-        body_acc_w[..., :3] += torch.linalg.cross(ang_acc_w, com_pos_w, dim=-1) + torch.linalg.cross(
-            ang_vel_w, torch.linalg.cross(ang_vel_w, com_pos_w, dim=-1), dim=-1
-        )
-        return body_acc_w
     
     @property
     def projected_gravity_b(self):
