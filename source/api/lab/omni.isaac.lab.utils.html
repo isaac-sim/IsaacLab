@@ -281,6 +281,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/write_articulation_cfg.html">Writing an Asset Configuration</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/make_fixed_prim.html">Making a physics prim fixed in the simulation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/save_camera_output.html">Saving rendered images and 3D re-projection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/estimate_how_many_cameras_can_run.html">Find How Many/What Cameras You Should Train With</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/draw_markers.html">Creating Visualization Markers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/wrap_rl_env.html">Wrapping environments</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/add_own_library.html">Adding your own learning library</a></li>
@@ -670,6 +671,7 @@ document.write(`
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.apply_delta_pose"><code class="docutils literal notranslate"><span class="pre">apply_delta_pose()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.transform_points"><code class="docutils literal notranslate"><span class="pre">transform_points()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.unproject_depth"><code class="docutils literal notranslate"><span class="pre">unproject_depth()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.convert_perspective_depth_to_orthogonal_depth"><code class="docutils literal notranslate"><span class="pre">convert_perspective_depth_to_orthogonal_depth()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.project_points"><code class="docutils literal notranslate"><span class="pre">project_points()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.default_orientation"><code class="docutils literal notranslate"><span class="pre">default_orientation()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.random_orientation"><code class="docutils literal notranslate"><span class="pre">random_orientation()</span></code></a></li>
@@ -1961,31 +1963,34 @@ Shape is (num_samples,)</p></li>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.math.unproject_depth" title="omni.isaac.lab.utils.math.unproject_depth"><code class="xref py py-obj docutils literal notranslate"><span class="pre">unproject_depth</span></code></a></p></td>
 <td><p>Unproject depth image into a pointcloud.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.math.project_points" title="omni.isaac.lab.utils.math.project_points"><code class="xref py py-obj docutils literal notranslate"><span class="pre">project_points</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.math.convert_perspective_depth_to_orthogonal_depth" title="omni.isaac.lab.utils.math.convert_perspective_depth_to_orthogonal_depth"><code class="xref py py-obj docutils literal notranslate"><span class="pre">convert_perspective_depth_to_orthogonal_depth</span></code></a></p></td>
+<td><p>Provided depth image(s) where depth is provided as the distance to the principal point of the camera (perspective depth), this function converts it so that depth is provided as the distance to the camera's image plane (orthogonal depth).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.math.project_points" title="omni.isaac.lab.utils.math.project_points"><code class="xref py py-obj docutils literal notranslate"><span class="pre">project_points</span></code></a></p></td>
 <td><p>Projects 3D points into 2D image plane.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.math.default_orientation" title="omni.isaac.lab.utils.math.default_orientation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">default_orientation</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.math.default_orientation" title="omni.isaac.lab.utils.math.default_orientation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">default_orientation</span></code></a></p></td>
 <td><p>Returns identity rotation transform.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.math.random_orientation" title="omni.isaac.lab.utils.math.random_orientation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">random_orientation</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.math.random_orientation" title="omni.isaac.lab.utils.math.random_orientation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">random_orientation</span></code></a></p></td>
 <td><p>Returns sampled rotation in 3D as quaternion.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.math.random_yaw_orientation" title="omni.isaac.lab.utils.math.random_yaw_orientation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">random_yaw_orientation</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.math.random_yaw_orientation" title="omni.isaac.lab.utils.math.random_yaw_orientation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">random_yaw_orientation</span></code></a></p></td>
 <td><p>Returns sampled rotation around z-axis.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.math.sample_triangle" title="omni.isaac.lab.utils.math.sample_triangle"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sample_triangle</span></code></a>(lower, upper, size, device)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.math.sample_triangle" title="omni.isaac.lab.utils.math.sample_triangle"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sample_triangle</span></code></a>(lower, upper, size, device)</p></td>
 <td><p>Randomly samples tensor from a triangular distribution.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.math.sample_uniform" title="omni.isaac.lab.utils.math.sample_uniform"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sample_uniform</span></code></a>(lower, upper, size, device)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.math.sample_uniform" title="omni.isaac.lab.utils.math.sample_uniform"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sample_uniform</span></code></a>(lower, upper, size, device)</p></td>
 <td><p>Sample uniformly within a range.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.math.sample_log_uniform" title="omni.isaac.lab.utils.math.sample_log_uniform"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sample_log_uniform</span></code></a>(lower, upper, size, device)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.math.sample_log_uniform" title="omni.isaac.lab.utils.math.sample_log_uniform"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sample_log_uniform</span></code></a>(lower, upper, size, device)</p></td>
 <td><p>Sample using log-uniform distribution within a range.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.math.sample_gaussian" title="omni.isaac.lab.utils.math.sample_gaussian"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sample_gaussian</span></code></a>(mean, std, size, device)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.math.sample_gaussian" title="omni.isaac.lab.utils.math.sample_gaussian"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sample_gaussian</span></code></a>(mean, std, size, device)</p></td>
 <td><p>Sample using gaussian distribution.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.math.sample_cylinder" title="omni.isaac.lab.utils.math.sample_cylinder"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sample_cylinder</span></code></a>(radius, h_range, size, device)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.math.sample_cylinder" title="omni.isaac.lab.utils.math.sample_cylinder"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sample_cylinder</span></code></a>(radius, h_range, size, device)</p></td>
 <td><p>Sample 3D points uniformly on a cylinder's surface.</p></td>
 </tr>
 </tbody>
@@ -2636,7 +2641,12 @@ Defaults to None, in which case the orientation is assumed to be identity.</p></
 <dl class="py function">
 <dt class="sig sig-object py" id="omni.isaac.lab.utils.math.unproject_depth">
 <span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.utils.math.</span></span><span class="sig-name descname"><span class="pre">unproject_depth</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">depth</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">intrinsics</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></span></span><a class="headerlink" href="#omni.isaac.lab.utils.math.unproject_depth" title="Permalink to this definition">#</a></dt>
-<dd><p>Unproject depth image into a pointcloud.</p>
+<dd><p>Unproject depth image into a pointcloud. This method assumes that depth
+is provided orthogonally relative to the image plane, as opposed to absolutely relative to the camera’s
+principal point (perspective depth). To unproject a perspective depth image, use
+<a class="reference internal" href="#omni.isaac.lab.utils.math.convert_perspective_depth_to_orthogonal_depth" title="omni.isaac.lab.utils.math.convert_perspective_depth_to_orthogonal_depth"><code class="xref py py-meth docutils literal notranslate"><span class="pre">convert_perspective_depth_to_orthogonal_depth()</span></code></a> to convert
+to an orthogonal depth image prior to calling this method. Otherwise, the
+created point cloud will be distorted, especially around the edges.</p>
 <p>This function converts depth images into points given the calibration matrix of the camera.</p>
 <div class="math notranslate nohighlight">
 \[p_{3D} = K^{-1} \times [u, v, 1]^T \times d\]</div>
@@ -2655,6 +2665,41 @@ deal with many possible shapes of depth images and intrinsics matrices.</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>The 3D coordinates of points. Shape is (P, 3) or (N, P, 3).</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.12)"><strong>ValueError</strong></a> – When depth is not of shape (H, W) or (H, W, 1) or (N, H, W) or (N, H, W, 1).</p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.12)"><strong>ValueError</strong></a> – When intrinsics is not of shape (3, 3) or (N, 3, 3).</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="omni.isaac.lab.utils.math.convert_perspective_depth_to_orthogonal_depth">
+<span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.utils.math.</span></span><span class="sig-name descname"><span class="pre">convert_perspective_depth_to_orthogonal_depth</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">perspective_depth</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">intrinsics</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></span></span><a class="headerlink" href="#omni.isaac.lab.utils.math.convert_perspective_depth_to_orthogonal_depth" title="Permalink to this definition">#</a></dt>
+<dd><p>Provided depth image(s) where depth is provided as the distance to the principal
+point of the camera (perspective depth), this function converts it so that depth
+is provided as the distance to the camera’s image plane (orthogonal depth).</p>
+<p>This is helpful because <cite>unproject_depth</cite> assumes that depth is expressed in
+the orthogonal depth format.</p>
+<p>If <cite>perspective_depth</cite> is a batch of depth images and <cite>intrinsics</cite> is a single intrinsic matrix,
+the same calibration matrix is applied to all depth images in the batch.</p>
+<p>The function assumes that the width and height are both greater than 1.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>perspective_depth</strong> – The depth measurement obtained with the distance_to_camera replicator.
+Shape is (H, W) or or (H, W, 1) or (N, H, W) or (N, H, W, 1).</p></li>
+<li><p><strong>intrinsics</strong> – A tensor providing camera’s calibration matrix. Shape is (3, 3) or (N, 3, 3).</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><dl class="simple">
+<dt>The depth image as if obtained by the distance_to_image_plane replicator. Shape</dt><dd><p>matches the input shape of depth</p>
+</dd>
+</dl>
+</p>
 </dd>
 <dt class="field-odd">Raises<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -4344,6 +4389,7 @@ The returned tensor contains <code class="xref py py-obj docutils literal notran
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.apply_delta_pose"><code class="docutils literal notranslate"><span class="pre">apply_delta_pose()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.transform_points"><code class="docutils literal notranslate"><span class="pre">transform_points()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.unproject_depth"><code class="docutils literal notranslate"><span class="pre">unproject_depth()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.convert_perspective_depth_to_orthogonal_depth"><code class="docutils literal notranslate"><span class="pre">convert_perspective_depth_to_orthogonal_depth()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.project_points"><code class="docutils literal notranslate"><span class="pre">project_points()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.default_orientation"><code class="docutils literal notranslate"><span class="pre">default_orientation()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.random_orientation"><code class="docutils literal notranslate"><span class="pre">random_orientation()</span></code></a></li>
