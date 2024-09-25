@@ -512,7 +512,7 @@ document.write(`
 <span class="kn">import</span> <span class="nn">omni.isaac.lab.utils.math</span> <span class="k">as</span> <span class="nn">math_utils</span>
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.assets</span> <span class="kn">import</span> <span class="n">Articulation</span><span class="p">,</span> <span class="n">RigidObject</span>
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.managers</span> <span class="kn">import</span> <span class="n">SceneEntityCfg</span>
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.sensors</span> <span class="kn">import</span> <span class="n">RayCaster</span>
+<span class="kn">from</span> <span class="nn">omni.isaac.lab.sensors</span> <span class="kn">import</span> <span class="n">Camera</span><span class="p">,</span> <span class="n">RayCaster</span><span class="p">,</span> <span class="n">RayCasterCamera</span><span class="p">,</span> <span class="n">TiledCamera</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
     <span class="kn">from</span> <span class="nn">omni.isaac.lab.envs</span> <span class="kn">import</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span> <span class="n">ManagerBasedRLEnv</span>
@@ -675,6 +675,41 @@ document.write(`
     <span class="c1"># obtain the link incoming forces in world frame</span>
     <span class="n">link_incoming_forces</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">get_link_incoming_joint_force</span><span class="p">()[:,</span> <span class="n">asset_cfg</span><span class="o">.</span><span class="n">body_ids</span><span class="p">]</span>
     <span class="k">return</span> <span class="n">link_incoming_forces</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="grab_images"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.observations.grab_images">[docs]</a><span class="k">def</span> <span class="nf">grab_images</span><span class="p">(</span>
+    <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span>
+    <span class="n">sensor_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span> <span class="o">=</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;tiled_camera&quot;</span><span class="p">),</span>
+    <span class="n">data_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;rgb&quot;</span><span class="p">,</span>
+    <span class="n">convert_perspective_to_orthogonal</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">normalize</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Grab all of the latest images of a specific datatype produced by a specific camera.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        env: The environment the cameras are placed within.</span>
+<span class="sd">        sensor_cfg: The desired sensor to read from. Defaults to SceneEntityCfg(&quot;tiled_camera&quot;).</span>
+<span class="sd">        data_type: The data type to pull from the desired camera. Defaults to &quot;rgb&quot;.</span>
+<span class="sd">        convert_perspective_to_orthogonal: Whether to convert perspective</span>
+<span class="sd">            depth images to orthogonal depth images. Defaults to False.</span>
+<span class="sd">        normalize: Set to True to normalize images. Defaults to True.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        The images produced at the last timestep</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">sensor</span><span class="p">:</span> <span class="n">TiledCamera</span> <span class="o">|</span> <span class="n">Camera</span> <span class="o">|</span> <span class="n">RayCasterCamera</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">sensors</span><span class="p">[</span><span class="n">sensor_cfg</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
+    <span class="n">images</span> <span class="o">=</span> <span class="n">sensor</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">output</span><span class="p">[</span><span class="n">data_type</span><span class="p">]</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">data_type</span> <span class="o">==</span> <span class="s2">&quot;distance_to_camera&quot;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">convert_perspective_to_orthogonal</span><span class="p">:</span>
+        <span class="n">images</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">convert_perspective_depth_to_orthogonal_depth</span><span class="p">(</span><span class="n">images</span><span class="p">,</span> <span class="n">sensor</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">intrinsic_matrices</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">normalize</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">data_type</span> <span class="o">==</span> <span class="s2">&quot;rgb&quot;</span><span class="p">:</span>
+            <span class="n">images</span> <span class="o">=</span> <span class="n">images</span> <span class="o">/</span> <span class="mi">255</span>
+            <span class="n">mean_tensor</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">images</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="n">keepdim</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">images</span> <span class="o">-=</span> <span class="n">mean_tensor</span>
+        <span class="k">elif</span> <span class="s2">&quot;distance_to&quot;</span> <span class="ow">in</span> <span class="n">data_type</span> <span class="ow">or</span> <span class="s2">&quot;depth&quot;</span> <span class="ow">in</span> <span class="n">data_type</span><span class="p">:</span>
+            <span class="n">images</span><span class="p">[</span><span class="n">images</span> <span class="o">==</span> <span class="nb">float</span><span class="p">(</span><span class="s2">&quot;inf&quot;</span><span class="p">)]</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">return</span> <span class="n">images</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span></div>
 
 
 <span class="sd">&quot;&quot;&quot;</span>
