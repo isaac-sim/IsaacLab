@@ -797,7 +797,7 @@ def main():
             max_sys_util_thresh = args_cli.autotune_max_percentage_util
             max_num_cams = args_cli.autotune_max_camera_count
             print("[INFO]: Auto tuning until any of the following threshold are met")
-            print(f"|CPU: {max_sys_util_thresh[0]}% | RAM{ max_sys_util_thresh[1]}% | GPU: {max_sys_util_thresh[2]}% |")
+            print(f"|CPU: {max_sys_util_thresh[0]}% | RAM {max_sys_util_thresh[1]}% | GPU: {max_sys_util_thresh[2]}% |")
             print(f"[INFO]: Maximum number of cameras allowed: {max_num_cams}")
         # Determine which camera is being tested...
         tiled_camera_cfg = create_tiled_camera_cfg("tiled_camera")
