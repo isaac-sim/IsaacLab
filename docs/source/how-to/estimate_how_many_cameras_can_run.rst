@@ -60,6 +60,7 @@ the cartpole environment, with 2 cameras per environment (so 50 environments tot
 only in RGB mode, run
 
 .. code-block:: bash
+
    ./isaaclab.sh -p source/standalone/tutorials/04_sensors/benchmark_cameras.py \
    --task Isaac-Cartpole-v0 --num_tiled_cameras 100 \
    --task_num_cameras_per_env 2 \
@@ -72,6 +73,7 @@ max GPU compute percent, and max GPU memory percent). For example, to find the m
 you can run with cartpole, you could run:
 
 .. code-block:: bash
+
    ./isaaclab.sh -p source/standalone/tutorials/04_sensors/benchmark_cameras.py \
    --task Isaac-Cartpole-v0 --num_tiled_cameras 100 \
    --task_num_cameras_per_env 2 \
