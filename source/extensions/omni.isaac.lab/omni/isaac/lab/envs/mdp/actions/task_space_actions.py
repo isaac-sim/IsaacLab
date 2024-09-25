@@ -64,8 +64,10 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         # this means that number of bodies is one less than the articulation's number of bodies
         if self._asset.is_fixed_base:
             self._jacobi_body_idx = self._body_idx - 1
+            self._jacobi_joint_ids = self._joint_ids
         else:
             self._jacobi_body_idx = self._body_idx
+            self._jacobi_joint_ids = [i + 6 for i in self._joint_ids]
 
         # log info for debugging
         carb.log_info(
@@ -176,7 +178,7 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         the right Jacobian from the parent body Jacobian.
         """
         # read the parent jacobian
-        jacobian = self._asset.root_physx_view.get_jacobians()[:, self._jacobi_body_idx, :, self._joint_ids]
+        jacobian = self._asset.root_physx_view.get_jacobians()[:, self._jacobi_body_idx, :, self._jacobi_joint_ids]
         # account for the offset
         if self.cfg.body_offset is not None:
             # Modify the jacobian to account for the offset
