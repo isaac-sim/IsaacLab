@@ -524,7 +524,7 @@ document.write(`
 <span class="sd">        ====================== ========================= ========================</span>
 <span class="sd">        Move along x-axis      Numpad 8 / Arrow Up       Numpad 2 / Arrow Down</span>
 <span class="sd">        Move along y-axis      Numpad 4 / Arrow Right    Numpad 6 / Arrow Left</span>
-<span class="sd">        Rotate along z-axis    Numpad 7 / X              Numpad 9 / Y</span>
+<span class="sd">        Rotate along z-axis    Numpad 7 / Z              Numpad 9 / X</span>
 <span class="sd">        ====================== ========================= ========================</span>
 
 <span class="sd">    .. seealso::</span>
@@ -576,8 +576,8 @@ document.write(`
         <span class="n">msg</span> <span class="o">+=</span> <span class="s2">&quot;</span><span class="se">\t</span><span class="s2">Move backward  (along x-axis): Numpad 2 / Arrow Down</span><span class="se">\n</span><span class="s2">&quot;</span>
         <span class="n">msg</span> <span class="o">+=</span> <span class="s2">&quot;</span><span class="se">\t</span><span class="s2">Move right     (along y-axis): Numpad 4 / Arrow Right</span><span class="se">\n</span><span class="s2">&quot;</span>
         <span class="n">msg</span> <span class="o">+=</span> <span class="s2">&quot;</span><span class="se">\t</span><span class="s2">Move left      (along y-axis): Numpad 6 / Arrow Left</span><span class="se">\n</span><span class="s2">&quot;</span>
-        <span class="n">msg</span> <span class="o">+=</span> <span class="s2">&quot;</span><span class="se">\t</span><span class="s2">Yaw positively (along z-axis): Numpad 7 / X</span><span class="se">\n</span><span class="s2">&quot;</span>
-        <span class="n">msg</span> <span class="o">+=</span> <span class="s2">&quot;</span><span class="se">\t</span><span class="s2">Yaw negatively (along z-axis): Numpad 9 / Y&quot;</span>
+        <span class="n">msg</span> <span class="o">+=</span> <span class="s2">&quot;</span><span class="se">\t</span><span class="s2">Yaw positively (along z-axis): Numpad 7 / Z</span><span class="se">\n</span><span class="s2">&quot;</span>
+        <span class="n">msg</span> <span class="o">+=</span> <span class="s2">&quot;</span><span class="se">\t</span><span class="s2">Yaw negatively (along z-axis): Numpad 9 / X&quot;</span>
         <span class="k">return</span> <span class="n">msg</span>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
@@ -654,10 +654,10 @@ document.write(`
             <span class="s2">&quot;RIGHT&quot;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">([</span><span class="mf">0.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">])</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">v_y_sensitivity</span><span class="p">,</span>
             <span class="c1"># yaw command (positive)</span>
             <span class="s2">&quot;NUMPAD_7&quot;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">([</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">])</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">omega_z_sensitivity</span><span class="p">,</span>
-            <span class="s2">&quot;X&quot;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">([</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">])</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">omega_z_sensitivity</span><span class="p">,</span>
+            <span class="s2">&quot;Z&quot;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">([</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">])</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">omega_z_sensitivity</span><span class="p">,</span>
             <span class="c1"># yaw command (negative)</span>
             <span class="s2">&quot;NUMPAD_9&quot;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">([</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.0</span><span class="p">])</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">omega_z_sensitivity</span><span class="p">,</span>
-            <span class="s2">&quot;Z&quot;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">([</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.0</span><span class="p">])</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">omega_z_sensitivity</span><span class="p">,</span>
+            <span class="s2">&quot;X&quot;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">([</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.0</span><span class="p">])</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">omega_z_sensitivity</span><span class="p">,</span>
         <span class="p">}</span></div>
 </pre></div>
 
