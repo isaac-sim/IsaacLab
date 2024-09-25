@@ -266,33 +266,64 @@ class RigidObject(AssetBase):
         # create simulation view
         self._physics_sim_view = physx.create_simulation_view(self._backend)
         self._physics_sim_view.set_subspace_roots("/")
-        # obtain the first prim in the regex expression (all others are assumed to be a copy of this)
-        template_prim = sim_utils.find_first_matching_prim(self.cfg.prim_path)
-        if template_prim is None:
-            raise RuntimeError(f"Failed to find prim for expression: '{self.cfg.prim_path}'.")
-        template_prim_path = template_prim.GetPath().pathString
 
-        # find rigid root prims
-        root_prims = sim_utils.get_all_matching_child_prims(
-            template_prim_path, predicate=lambda prim: prim.HasAPI(UsdPhysics.RigidBodyAPI)
-        )
-        if len(root_prims) == 0:
-            raise RuntimeError(
-                f"Failed to find a rigid body when resolving '{self.cfg.prim_path}'."
-                " Please ensure that the prim has 'USD RigidBodyAPI' applied."
-            )
-        if len(root_prims) > 1:
-            raise RuntimeError(
-                f"Failed to find a single rigid body when resolving '{self.cfg.prim_path}'."
-                f" Found multiple '{root_prims}' under '{template_prim_path}'."
-                " Please ensure that there is only one rigid body in the prim path tree."
-            )
+        if self.cfg.use_first_matching_path:
+            # obtain the first prim in the regex expression (all others are assumed to be a copy of this)
+            template_prim = sim_utils.find_first_matching_prim(self.cfg.prim_path)
+            if template_prim is None:
+                raise RuntimeError(f"Failed to find prim for expression: '{self.cfg.prim_path}'.")
+            template_prim_path = template_prim.GetPath().pathString
 
-        # resolve root prim back into regex expression
-        root_prim_path = root_prims[0].GetPath().pathString
-        root_prim_path_expr = self.cfg.prim_path + root_prim_path[len(template_prim_path) :]
-        # -- object view
-        self._root_physx_view = self._physics_sim_view.create_rigid_body_view(root_prim_path_expr.replace(".*", "*"))
+            # find rigid root prims
+            root_prims = sim_utils.get_all_matching_child_prims(
+                template_prim_path, predicate=lambda prim: prim.HasAPI(UsdPhysics.RigidBodyAPI)
+            )
+            if len(root_prims) == 0:
+                raise RuntimeError(
+                    f"Failed to find a rigid body when resolving '{self.cfg.prim_path}'."
+                    " Please ensure that the prim has 'USD RigidBodyAPI' applied."
+                )
+            if len(root_prims) > 1:
+                raise RuntimeError(
+                    f"Failed to find a single rigid body when resolving '{self.cfg.prim_path}'."
+                    f" Found multiple '{root_prims}' under '{template_prim_path}'."
+                    " Please ensure that there is only one rigid body in the prim path tree."
+                )
+
+            # resolve root prim back into regex expression
+            root_prim_path = root_prims[0].GetPath().pathString
+            root_prim_path_expr = self.cfg.prim_path + root_prim_path[len(template_prim_path) :]
+            # -- object view
+            self._root_physx_view = self._physics_sim_view.create_rigid_body_view(
+                root_prim_path_expr.replace(".*", "*")
+            )
+        else:
+            # obtain all prims matching the regex expression
+            matching_prim_paths = sim_utils.find_matching_prims(self.cfg.prim_path)
+            if len(matching_prim_paths) == 0:
+                raise RuntimeError(f"Failed to find prim for expression: '{self.cfg.prim_path}'.")
+
+            # find rigid root prims
+            root_prim_path_expr = []
+            for prim_path in matching_prim_paths:
+                root_prims = sim_utils.get_all_matching_child_prims(
+                    prim_path.GetPath().pathString, predicate=lambda prim: prim.HasAPI(UsdPhysics.RigidBodyAPI)
+                )
+                if len(root_prims) == 0:
+                    raise RuntimeError(
+                        f"Failed to find a rigid body when resolving '{self.cfg.prim_path}'."
+                        " Please ensure that the prim has 'USD RigidBodyAPI' applied."
+                    )
+                if len(root_prims) > 1:
+                    raise RuntimeError(
+                        f"Failed to find a single rigid body when resolving '{self.cfg.prim_path}'."
+                        f" Found multiple '{root_prims}' under '{prim_path}'."
+                        " Please ensure that there is only one rigid body in the prim path tree."
+                    )
+                root_prim_path_expr.append(root_prims[0].GetPath().pathString)
+
+            # -- object view
+            self._root_physx_view = self._physics_sim_view.create_rigid_body_view(root_prim_path_expr)
 
         # check if the rigid body was created
         if self._root_physx_view._backend is None:

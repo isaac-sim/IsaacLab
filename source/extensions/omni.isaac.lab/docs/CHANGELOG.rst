@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.24.14 (2024-09-25)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``use_first_matching_path`` flag to ``RigidObjectCfg`` to allow option for traversal of all matching prim paths
+  for a ``RigidObject`` regex instead of only traversing the first matching prim path and assuming that all other
+  paths follow the same topology.
+
 
 0.24.13 (2024-09-08)
 ~~~~~~~~~~~~~~~~~~~~
