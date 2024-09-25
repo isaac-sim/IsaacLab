@@ -186,18 +186,18 @@ def grab_images(
     env: ManagerBasedEnv,
     sensor_cfg: SceneEntityCfg = SceneEntityCfg("tiled_camera"),
     data_type: str = "rgb",
-    convert_perspective_to_orthogonal: bool = True,
+    convert_perspective_to_orthogonal: bool = False,
     normalize: bool = True,
 ) -> torch.Tensor:
-    """Grab all of the images of a specific datatype produced by a specific camera at the last timestep.
+    """Grab all of the latest images of a specific datatype produced by a specific camera.
 
     Args:
         env: The environment the cameras are placed within.
-        sensor_cfg: The desired sensor to take . Defaults to SceneEntityCfg("tiled_camera").
+        sensor_cfg: The desired sensor to read from. Defaults to SceneEntityCfg("tiled_camera").
         data_type: The data type to pull from the desired camera. Defaults to "rgb".
         convert_perspective_to_orthogonal: Whether to convert perspective
-            depth images to orthogonal depth images. Defaults to True.
-        normalize: Set to True to normalize images.
+            depth images to orthogonal depth images. Defaults to False.
+        normalize: Set to True to normalize images. Defaults to True.
 
     Returns:
         The images produced at the last timestep

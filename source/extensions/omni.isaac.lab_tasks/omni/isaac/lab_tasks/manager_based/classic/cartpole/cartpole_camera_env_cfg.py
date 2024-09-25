@@ -70,7 +70,7 @@ class DepthObservationsCfg:
         image = ObsTerm(
             func=grab_images, params={"sensor_cfg": SceneEntityCfg("tiled_camera"), "data_type": "distance_to_camera"}
         )
-        
+
     policy: ObsGroup = DepthCameraPolicyCfg()
 
 
