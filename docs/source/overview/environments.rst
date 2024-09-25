@@ -56,7 +56,9 @@ Classic environments that are based on IsaacGymEnvs implementation of MuJoCo-sty
     | |cartpole|       | |manager-camera-rgb-link|   | Move the cart to keep the pole upwards in the classic cartpole control  |
     |                  |                             | and perceptive inputs                                                   |
     |                  | |manager-camera-dpt-link|   |                                                                         |
+    |                  |                             |                                                                         |
     |                  | |cartpole-camera-rgb-link|  |                                                                         |
+    |                  |                             |                                                                         |
     |                  | |cartpole-camera-dpt-link|  |                                                                         |
     +------------------+-----------------------------+-------------------------------------------------------------------------+
 
