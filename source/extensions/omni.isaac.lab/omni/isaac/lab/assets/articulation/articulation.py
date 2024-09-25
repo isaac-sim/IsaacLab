@@ -539,6 +539,8 @@ class Articulation(AssetBase):
             env_ids = env_ids[:, None]
         # set into internal buffers
         self._data.joint_limits[env_ids, joint_ids] = limits
+        # update default joint pos to stay within the new limits
+        self._data.default_joint_pos = torch.clamp(self._data.default_joint_pos, limits[..., 0], limits[..., 1])
         # set into simulation
         self.root_physx_view.set_dof_limits(self._data.joint_limits.cpu(), indices=physx_env_ids.cpu())
 

@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.24.14 (2024-09-25)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed potential issue where default joint positions can fall outside the of the limits being set with Articulation's
+  ``write_joint_limits_to_sim`` API.
+
 
 0.24.13 (2024-09-08)
 ~~~~~~~~~~~~~~~~~~~~
