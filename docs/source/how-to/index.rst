@@ -46,6 +46,17 @@ This guide explains how to save the camera output in Isaac Lab.
 
     save_camera_output
 
+Estimate How Many Cameras Can Run On Your Machine
+-------------------------------------------------
+
+This guide demonstrates how to estimate the number of cameras one can run on their machine under the desired parameters.
+
+.. toctree::
+    :maxdepth: 1
+
+    estimate_how_many_cameras_can_run
+
+
 Drawing Markers
 ---------------
 
