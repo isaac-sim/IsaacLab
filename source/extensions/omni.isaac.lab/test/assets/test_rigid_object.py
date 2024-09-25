@@ -79,6 +79,56 @@ def generate_cubes_scene(
     return cube_object, origins
 
 
+def generate_heterogeneous_cubes_scene(
+    num_cubes: int = 2, height=1.0, device: str = "cuda:0"
+) -> tuple[RigidObject, torch.Tensor]:
+    """Generate a scene with the provided number of cubes.
+
+    Args:
+        num_cubes: Number of cubes to generate.
+        height: Height of the cubes.
+        device: Device to use for the simulation.
+
+    Returns:
+        A tuple containing the rigid object representing the cubes and the origins of the cubes.
+
+    """
+    origins = torch.tensor([(i * 1.0, 0, height) for i in range(num_cubes)]).to(device)
+    # Create Top-level Xforms, one for each cube
+    for i, origin in enumerate(origins):
+        prim_utils.create_prim(f"/World/Table_{i}", "Xform", translation=origin)
+
+    # Resolve spawn configuration
+    spawn_cfg_1 = sim_utils.UsdFileCfg(
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/block_instanceable.usd",
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+    )
+    spawn_cfg_2 = sim_utils.UsdFileCfg(
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/basic_block.usd",
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+    )
+
+    # Create rigid object
+    cube_object_cfg_1 = RigidObjectCfg(
+        prim_path="/World/Table_0/Object",
+        spawn=spawn_cfg_1,
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, height)),
+    )
+    cube_object_cfg_2 = RigidObjectCfg(
+        prim_path="/World/Table_1/Object",
+        spawn=spawn_cfg_2,
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, height)),
+    )
+    cube_object_cfg = RigidObjectCfg(
+        prim_path="/World/Table_.*/Object",
+        spawn=None,
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, height)),
+        use_first_matching_path=False,
+    )
+
+    return cube_object_cfg, [cube_object_cfg_1, cube_object_cfg_2], origins
+
+
 class TestRigidObject(unittest.TestCase):
     """Test for rigid object class."""
 
@@ -117,6 +167,44 @@ class TestRigidObject(unittest.TestCase):
                             sim.step()
                             # update object
                             cube_object.update(sim.cfg.dt)
+
+    def test_initialization_with_heterogeneous_cubes(self):
+        """Test initialization for heterogeneous prims with rigid body API at different prim paths."""
+        num_cubes = 2
+        for device in ("cuda:0", "cpu"):
+            with self.subTest(num_cubes=num_cubes, device=device):
+                with build_simulation_context(device=device, auto_add_lighting=True) as sim:
+                    # Generate cubes configs
+                    cube_object_cfg, spawn_cfgs, _ = generate_heterogeneous_cubes_scene(
+                        num_cubes=num_cubes, device=device
+                    )
+
+                    # Spawn objects to scene
+                    for cfg in spawn_cfgs:
+                        RigidObject(cfg)
+
+                    # Main RigidObject instance
+                    cube_object = RigidObject(cube_object_cfg)
+
+                    # Play sim
+                    sim.reset()
+
+                    # Check if object is initialized
+                    self.assertTrue(cube_object.is_initialized)
+                    self.assertEqual(cube_object.num_instances, num_cubes)
+
+                    # Check buffers that exists and have correct shapes
+                    self.assertEqual(cube_object.data.root_pos_w.shape, (num_cubes, 3))
+                    self.assertEqual(cube_object.data.root_quat_w.shape, (num_cubes, 4))
+                    self.assertEqual(cube_object.data.default_mass.shape, (num_cubes, 1))
+                    self.assertEqual(cube_object.data.default_inertia.shape, (num_cubes, 9))
+
+                    # Simulate physics
+                    for _ in range(2):
+                        # perform rendering
+                        sim.step()
+                        # update object
+                        cube_object.update(sim.cfg.dt)
 
     def test_initialization_with_kinematic_enabled(self):
         """Test that initialization for prim with kinematic flag enabled."""
