@@ -35,7 +35,7 @@ class RigidObjectCfg(AssetBaseCfg):
     """Determines whether to parse only the first matching path to the regex expression and assume that
        all other matching assets follow the same topology as the first matching path.
 
-       If set to False, each path matching to the regex will be parsed to find the required predicate.
-       Only set to False when the regex encapsulates assets that have predicates specified at different
+       If set to False, each path matching to the regex will be parsed to find the RigidBodyAPI schema.
+       Only set to False when the regex encapsulates assets that have RigidBodyAPI attached to different
        locations in the topology tree. This will impact scene creation performance.
     """
