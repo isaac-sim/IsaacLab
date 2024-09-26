@@ -23,8 +23,7 @@ simulation_app = app_launcher.app
 
 import ctypes
 
-from omni.isaac.core.simulation_context import SimulationContext
-
+from omni.isaac.lab.sim import SimulationContext
 from omni.isaac.lab.devices import Se3Keyboard
 
 
@@ -41,7 +40,7 @@ def quit_cb():
 
 def main():
     # Load kit helper
-    sim = SimulationContext(physics_dt=0.01, rendering_dt=0.01)
+    sim = SimulationContext()
 
     # Create teleoperation interface
     teleop_interface = Se3Keyboard(pos_sensitivity=0.1, rot_sensitivity=0.1)

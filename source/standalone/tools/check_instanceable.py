@@ -63,42 +63,31 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-
-import omni.isaac.core.utils.prims as prim_utils
 from omni.isaac.cloner import GridCloner
-from omni.isaac.core.simulation_context import SimulationContext
-from omni.isaac.core.utils.carb import set_carb_setting
 
+import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.utils import Timer
 from omni.isaac.lab.utils.assets import check_file_path
 
 
 def main():
-    """Spawns the USD asset robot and clones it using Isaac Gym Cloner API."""
+    """Spawns the USD asset robot and clones it using the Cloner API."""
     # check valid file path
     if not check_file_path(args_cli.input):
         raise ValueError(f"Invalid file path: {args_cli.input}")
     # Load kit helper
-    sim = SimulationContext(
-        stage_units_in_meters=1.0, physics_dt=0.01, rendering_dt=0.01, backend="torch", device="cuda:0"
-    )
-    # enable flatcache which avoids passing data over to USD structure
-    # this speeds up the read-write operation of GPU buffers
-    if sim.get_physics_context().use_gpu_pipeline:
-        sim.get_physics_context().enable_flatcache(True)
-    # enable hydra scene-graph instancing
-    # this is needed to visualize the scene when flatcache is enabled
-    set_carb_setting(sim._settings, "/persistent/omnihydra/useSceneGraphInstancing", True)
+    sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device)
+    sim = sim_utils.SimulationContext(sim_cfg)
 
     # Create interface to clone the scene
     cloner = GridCloner(spacing=args_cli.spacing)
     cloner.define_base_env("/World/envs")
-    prim_utils.define_prim("/World/envs/env_0")
+    sim_utils.create_prim("/World/envs/env_0")
     # Spawn things into stage
-    prim_utils.create_prim("/World/Light", "DistantLight")
+    sim_utils.create_prim("/World/Light", "DistantLight")
 
     # Everything under the namespace "/World/envs/env_0" will be cloned
-    prim_utils.create_prim("/World/envs/env_0/Asset", "Xform", usd_path=os.path.abspath(args_cli.input))
+    sim_utils.create_prim("/World/envs/env_0/Asset", "Xform", usd_path=os.path.abspath(args_cli.input))
     # Clone the scene
     num_clones = args_cli.num_clones
 
