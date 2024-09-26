@@ -18,12 +18,12 @@ import numpy as np
 import os
 import unittest
 
-import omni.isaac.core.utils.prims as prim_utils
 import omni.kit.app
 import omni.usd
 from omni.isaac.core.articulations import ArticulationView
 from omni.isaac.core.simulation_context import SimulationContext
 
+import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.sim.converters import UrdfConverter, UrdfConverterCfg
 
 
@@ -99,9 +99,11 @@ class TestUrdfConverter(unittest.TestCase):
         urdf_converter = UrdfConverter(self.config)
 
         prim_path = "/World/Robot"
-        prim_utils.create_prim(prim_path, usd_path=urdf_converter.usd_path)
+        sim_utils.create_prim(prim_path, usd_path=urdf_converter.usd_path)
 
-        self.assertTrue(prim_utils.is_prim_path_valid(prim_path))
+        # get current stage
+        stage = omni.usd.get_context().get_stage()
+        self.assertTrue(stage.GetPrimAtPath(prim_path).IsValid())
 
     def test_config_drive_type(self):
         """Change the drive mechanism of the robot to be position."""
@@ -122,7 +124,7 @@ class TestUrdfConverter(unittest.TestCase):
         urdf_converter = UrdfConverter(self.config)
         # check the drive type of the robot
         prim_path = "/World/Robot"
-        prim_utils.create_prim(prim_path, usd_path=urdf_converter.usd_path)
+        sim_utils.create_prim(prim_path, usd_path=urdf_converter.usd_path)
 
         # access the robot
         robot = ArticulationView(prim_path, reset_xform_properties=False)

@@ -17,11 +17,11 @@ simulation_app = AppLauncher(config).app
 import os
 import unittest
 
-import omni.isaac.core.utils.prims as prim_utils
 import omni.kit.app
 import omni.usd
 from omni.isaac.core.simulation_context import SimulationContext
 
+import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.sim.converters import MjcfConverter, MjcfConverterCfg
 
 
@@ -100,9 +100,11 @@ class TestMjcfConverter(unittest.TestCase):
         urdf_converter = MjcfConverter(self.config)
 
         prim_path = "/World/Robot"
-        prim_utils.create_prim(prim_path, usd_path=urdf_converter.usd_path)
+        sim_utils.create_prim(prim_path, usd_path=urdf_converter.usd_path)
 
-        self.assertTrue(prim_utils.is_prim_path_valid(prim_path))
+        # get current stage
+        stage = omni.usd.get_context().get_stage()
+        self.assertTrue(stage.GetPrimAtPath(prim_path).IsValid())
 
 
 if __name__ == "__main__":

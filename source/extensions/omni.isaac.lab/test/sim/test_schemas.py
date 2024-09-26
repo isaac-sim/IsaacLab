@@ -14,13 +14,12 @@ simulation_app = AppLauncher(headless=True).app
 
 import unittest
 
-import omni.isaac.core.utils.prims as prim_utils
 import omni.usd
-from omni.isaac.core.simulation_context import SimulationContext
 from pxr import UsdPhysics
 
+import omni.isaac.lab.sim as sim_utils
 import omni.isaac.lab.sim.schemas as schemas
-from omni.isaac.lab.sim.utils import find_global_fixed_joint_prim
+from omni.isaac.lab.sim import build_simulation_context
 from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
 from omni.isaac.lab.utils.string import to_camel_case
 
@@ -30,12 +29,6 @@ class TestPhysicsSchema(unittest.TestCase):
 
     def setUp(self) -> None:
         """Create a blank new stage for each test."""
-        # Create a new stage
-        omni.usd.get_context().new_stage()
-        # Simulation time-step
-        self.dt = 0.1
-        # Load kit helper
-        self.sim = SimulationContext(physics_dt=self.dt, rendering_dt=self.dt, backend="numpy")
         # Set some default values for test
         self.arti_cfg = schemas.ArticulationRootPropertiesCfg(
             enabled_self_collisions=False,
@@ -73,13 +66,9 @@ class TestPhysicsSchema(unittest.TestCase):
         self.mass_cfg = schemas.MassPropertiesCfg(mass=1.0, density=100.0)
         self.joint_cfg = schemas.JointDrivePropertiesCfg(drive_type="acceleration")
 
-    def tearDown(self) -> None:
-        """Stops simulator after each test."""
-        # stop simulation
-        self.sim.stop()
-        self.sim.clear()
-        self.sim.clear_all_callbacks()
-        self.sim.clear_instance()
+    """
+    Test cases.
+    """
 
     def test_valid_properties_cfg(self):
         """Test that all the config instances have non-None values.
@@ -102,98 +91,102 @@ class TestPhysicsSchema(unittest.TestCase):
 
         In this case, modifying collision properties on the articulation instanced usd will fail.
         """
-        # spawn asset to the stage
-        asset_usd_file = f"{ISAAC_NUCLEUS_DIR}/Robots/ANYbotics/anymal_instanceable.usd"
-        prim_utils.create_prim("/World/asset_instanced", usd_path=asset_usd_file, translation=(0.0, 0.0, 0.62))
+        with build_simulation_context():
+            # spawn asset to the stage
+            asset_usd_file = f"{ISAAC_NUCLEUS_DIR}/Robots/ANYbotics/anymal_instanceable.usd"
+            sim_utils.create_prim("/World/asset_instanced", usd_path=asset_usd_file, translation=(0.0, 0.0, 0.62))
 
-        # set properties on the asset and check all properties are set
-        schemas.modify_articulation_root_properties("/World/asset_instanced", self.arti_cfg)
-        schemas.modify_rigid_body_properties("/World/asset_instanced", self.rigid_cfg)
-        schemas.modify_mass_properties("/World/asset_instanced", self.mass_cfg)
-        schemas.modify_joint_drive_properties("/World/asset_instanced", self.joint_cfg)
-        # validate the properties
-        self._validate_articulation_properties_on_prim("/World/asset_instanced", has_default_fixed_root=False)
-        self._validate_rigid_body_properties_on_prim("/World/asset_instanced")
-        self._validate_mass_properties_on_prim("/World/asset_instanced")
-        self._validate_joint_drive_properties_on_prim("/World/asset_instanced")
-
-        # make a fixed joint
-        # note: for this asset, it doesn't work because the root is not a rigid body
-        self.arti_cfg.fix_root_link = True
-        with self.assertRaises(NotImplementedError):
+            # set properties on the asset and check all properties are set
             schemas.modify_articulation_root_properties("/World/asset_instanced", self.arti_cfg)
+            schemas.modify_rigid_body_properties("/World/asset_instanced", self.rigid_cfg)
+            schemas.modify_mass_properties("/World/asset_instanced", self.mass_cfg)
+            schemas.modify_joint_drive_properties("/World/asset_instanced", self.joint_cfg)
+            # validate the properties
+            self._validate_articulation_properties_on_prim("/World/asset_instanced", has_default_fixed_root=False)
+            self._validate_rigid_body_properties_on_prim("/World/asset_instanced")
+            self._validate_mass_properties_on_prim("/World/asset_instanced")
+            self._validate_joint_drive_properties_on_prim("/World/asset_instanced")
+
+            # make a fixed joint
+            # note: for this asset, it doesn't work because the root is not a rigid body
+            self.arti_cfg.fix_root_link = True
+            with self.assertRaises(NotImplementedError):
+                schemas.modify_articulation_root_properties("/World/asset_instanced", self.arti_cfg)
 
     def test_modify_properties_on_articulation_usd(self):
         """Test setting properties on articulation usd."""
-        # spawn asset to the stage
-        asset_usd_file = f"{ISAAC_NUCLEUS_DIR}/Robots/Franka/franka.usd"
-        prim_utils.create_prim("/World/asset", usd_path=asset_usd_file, translation=(0.0, 0.0, 0.62))
+        with build_simulation_context():
+            # spawn asset to the stage
+            asset_usd_file = f"{ISAAC_NUCLEUS_DIR}/Robots/Franka/franka.usd"
+            sim_utils.create_prim("/World/asset", usd_path=asset_usd_file, translation=(0.0, 0.0, 0.62))
 
-        # set properties on the asset and check all properties are set
-        schemas.modify_articulation_root_properties("/World/asset", self.arti_cfg)
-        schemas.modify_rigid_body_properties("/World/asset", self.rigid_cfg)
-        schemas.modify_collision_properties("/World/asset", self.collision_cfg)
-        schemas.modify_mass_properties("/World/asset", self.mass_cfg)
-        schemas.modify_joint_drive_properties("/World/asset", self.joint_cfg)
-        # validate the properties
-        self._validate_articulation_properties_on_prim("/World/asset", has_default_fixed_root=True)
-        self._validate_rigid_body_properties_on_prim("/World/asset")
-        self._validate_collision_properties_on_prim("/World/asset")
-        self._validate_mass_properties_on_prim("/World/asset")
-        self._validate_joint_drive_properties_on_prim("/World/asset")
+            # set properties on the asset and check all properties are set
+            schemas.modify_articulation_root_properties("/World/asset", self.arti_cfg)
+            schemas.modify_rigid_body_properties("/World/asset", self.rigid_cfg)
+            schemas.modify_collision_properties("/World/asset", self.collision_cfg)
+            schemas.modify_mass_properties("/World/asset", self.mass_cfg)
+            schemas.modify_joint_drive_properties("/World/asset", self.joint_cfg)
+            # validate the properties
+            self._validate_articulation_properties_on_prim("/World/asset", has_default_fixed_root=True)
+            self._validate_rigid_body_properties_on_prim("/World/asset")
+            self._validate_collision_properties_on_prim("/World/asset")
+            self._validate_mass_properties_on_prim("/World/asset")
+            self._validate_joint_drive_properties_on_prim("/World/asset")
 
-        # make a fixed joint
-        self.arti_cfg.fix_root_link = True
-        schemas.modify_articulation_root_properties("/World/asset", self.arti_cfg)
-        # validate the properties
-        self._validate_articulation_properties_on_prim("/World/asset", has_default_fixed_root=True)
+            # make a fixed joint
+            self.arti_cfg.fix_root_link = True
+            schemas.modify_articulation_root_properties("/World/asset", self.arti_cfg)
+            # validate the properties
+            self._validate_articulation_properties_on_prim("/World/asset", has_default_fixed_root=True)
 
     def test_defining_rigid_body_properties_on_prim(self):
         """Test defining rigid body properties on a prim."""
-        # create a prim
-        prim_utils.create_prim("/World/parent", prim_type="XForm")
-        # spawn a prim
-        prim_utils.create_prim("/World/cube1", prim_type="Cube", translation=(0.0, 0.0, 0.62))
-        # set properties on the asset and check all properties are set
-        schemas.define_rigid_body_properties("/World/cube1", self.rigid_cfg)
-        schemas.define_collision_properties("/World/cube1", self.collision_cfg)
-        schemas.define_mass_properties("/World/cube1", self.mass_cfg)
-        # validate the properties
-        self._validate_rigid_body_properties_on_prim("/World/cube1")
-        self._validate_collision_properties_on_prim("/World/cube1")
-        self._validate_mass_properties_on_prim("/World/cube1")
+        with build_simulation_context() as sim:
+            # create a prim
+            sim_utils.create_prim("/World/parent", prim_type="XForm")
+            # spawn a prim
+            sim_utils.create_prim("/World/cube1", prim_type="Cube", translation=(0.0, 0.0, 0.62))
+            # set properties on the asset and check all properties are set
+            schemas.define_rigid_body_properties("/World/cube1", self.rigid_cfg)
+            schemas.define_collision_properties("/World/cube1", self.collision_cfg)
+            schemas.define_mass_properties("/World/cube1", self.mass_cfg)
+            # validate the properties
+            self._validate_rigid_body_properties_on_prim("/World/cube1")
+            self._validate_collision_properties_on_prim("/World/cube1")
+            self._validate_mass_properties_on_prim("/World/cube1")
 
-        # spawn another prim
-        prim_utils.create_prim("/World/cube2", prim_type="Cube", translation=(1.0, 1.0, 0.62))
-        # set properties on the asset and check all properties are set
-        schemas.define_rigid_body_properties("/World/cube2", self.rigid_cfg)
-        schemas.define_collision_properties("/World/cube2", self.collision_cfg)
-        # validate the properties
-        self._validate_rigid_body_properties_on_prim("/World/cube2")
-        self._validate_collision_properties_on_prim("/World/cube2")
+            # spawn another prim
+            sim_utils.create_prim("/World/cube2", prim_type="Cube", translation=(1.0, 1.0, 0.62))
+            # set properties on the asset and check all properties are set
+            schemas.define_rigid_body_properties("/World/cube2", self.rigid_cfg)
+            schemas.define_collision_properties("/World/cube2", self.collision_cfg)
+            # validate the properties
+            self._validate_rigid_body_properties_on_prim("/World/cube2")
+            self._validate_collision_properties_on_prim("/World/cube2")
 
-        # check if we can play
-        self.sim.reset()
-        for _ in range(100):
-            self.sim.step()
+            # check if we can play
+            sim.reset()
+            for _ in range(100):
+                sim.step()
 
     def test_defining_articulation_properties_on_prim(self):
         """Test defining articulation properties on a prim."""
-        # create a parent articulation
-        prim_utils.create_prim("/World/parent", prim_type="Xform")
-        schemas.define_articulation_root_properties("/World/parent", self.arti_cfg)
-        # validate the properties
-        self._validate_articulation_properties_on_prim("/World/parent", has_default_fixed_root=False)
+        with build_simulation_context() as sim:
+            # create a parent articulation
+            sim_utils.create_prim("/World/parent", prim_type="Xform")
+            schemas.define_articulation_root_properties("/World/parent", self.arti_cfg)
+            # validate the properties
+            self._validate_articulation_properties_on_prim("/World/parent", has_default_fixed_root=False)
 
-        # create a child articulation
-        prim_utils.create_prim("/World/parent/child", prim_type="Cube", translation=(0.0, 0.0, 0.62))
-        schemas.define_rigid_body_properties("/World/parent/child", self.rigid_cfg)
-        schemas.define_mass_properties("/World/parent/child", self.mass_cfg)
+            # create a child articulation
+            sim_utils.create_prim("/World/parent/child", prim_type="Cube", translation=(0.0, 0.0, 0.62))
+            schemas.define_rigid_body_properties("/World/parent/child", self.rigid_cfg)
+            schemas.define_mass_properties("/World/parent/child", self.mass_cfg)
 
-        # check if we can play
-        self.sim.reset()
-        for _ in range(100):
-            self.sim.step()
+            # check if we can play
+            sim.reset()
+            for _ in range(100):
+                sim.step()
 
     """
     Helper functions.
@@ -207,8 +200,10 @@ class TestPhysicsSchema(unittest.TestCase):
         If :attr:`has_default_fixed_root` is True, then the asset already has a fixed root link. This is used to check the
         expected behavior of the fixed root link configuration.
         """
+        # get current stage
+        stage = omni.usd.get_context().get_stage()
         # the root prim
-        root_prim = prim_utils.get_prim_at_path(prim_path)
+        root_prim = stage.GetPrimAtPath(prim_path)
         # check articulation properties are set correctly
         for attr_name, attr_value in self.arti_cfg.__dict__.items():
             # skip names we know are not present
@@ -217,7 +212,7 @@ class TestPhysicsSchema(unittest.TestCase):
             # handle fixed root link
             if attr_name == "fix_root_link" and attr_value is not None:
                 # obtain the fixed joint prim
-                fixed_joint_prim = find_global_fixed_joint_prim(prim_path)
+                fixed_joint_prim = sim_utils.find_global_fixed_joint_prim(prim_path)
                 # if asset does not have a fixed root link then check if the joint is created
                 if not has_default_fixed_root:
                     if attr_value:
@@ -249,8 +244,10 @@ class TestPhysicsSchema(unittest.TestCase):
             Right now this function exploits the hierarchy in the asset to check the properties. This is not a
             fool-proof way of checking the properties.
         """
+        # get current stage
+        stage = omni.usd.get_context().get_stage()
         # the root prim
-        root_prim = prim_utils.get_prim_at_path(prim_path)
+        root_prim = stage.GetPrimAtPath(prim_path)
         # check rigid body properties are set correctly
         for link_prim in root_prim.GetChildren():
             if UsdPhysics.RigidBodyAPI(link_prim):
@@ -277,8 +274,10 @@ class TestPhysicsSchema(unittest.TestCase):
             Right now this function exploits the hierarchy in the asset to check the properties. This is not a
             fool-proof way of checking the properties.
         """
+        # get current stage
+        stage = omni.usd.get_context().get_stage()
         # the root prim
-        root_prim = prim_utils.get_prim_at_path(prim_path)
+        root_prim = stage.GetPrimAtPath(prim_path)
         # check collision properties are set correctly
         for link_prim in root_prim.GetChildren():
             for mesh_prim in link_prim.GetChildren():
@@ -306,8 +305,10 @@ class TestPhysicsSchema(unittest.TestCase):
             Right now this function exploits the hierarchy in the asset to check the properties. This is not a
             fool-proof way of checking the properties.
         """
+        # get current stage
+        stage = omni.usd.get_context().get_stage()
         # the root prim
-        root_prim = prim_utils.get_prim_at_path(prim_path)
+        root_prim = stage.GetPrimAtPath(prim_path)
         # check rigid body mass properties are set correctly
         for link_prim in root_prim.GetChildren():
             if UsdPhysics.MassAPI(link_prim):
@@ -334,8 +335,10 @@ class TestPhysicsSchema(unittest.TestCase):
             Right now this function exploits the hierarchy in the asset to check the properties. This is not a
             fool-proof way of checking the properties.
         """
+        # get current stage
+        stage = omni.usd.get_context().get_stage()
         # the root prim
-        root_prim = prim_utils.get_prim_at_path(prim_path)
+        root_prim = stage.GetPrimAtPath(prim_path)
         # check joint drive properties are set correctly
         for link_prim in root_prim.GetAllChildren():
             for joint_prim in link_prim.GetChildren():

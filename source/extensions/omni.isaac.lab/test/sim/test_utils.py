@@ -16,7 +16,6 @@ simulation_app = AppLauncher(config).app
 import numpy as np
 import unittest
 
-import omni.isaac.core.utils.prims as prim_utils
 import omni.usd
 from pxr import Sdf, Usd, UsdGeom
 
@@ -34,12 +33,14 @@ class TestUtilities(unittest.TestCase):
 
     def test_get_all_matching_child_prims(self):
         """Test get_all_matching_child_prims() function."""
+        import omni.isaac.core.utils.prims as prim_utils
+
         # create scene
-        prim_utils.create_prim("/World/Floor")
-        prim_utils.create_prim(
+        sim_utils.create_prim("/World/Floor")
+        sim_utils.create_prim(
             "/World/Floor/thefloor", "Cube", position=np.array([75, 75, -150.1]), attributes={"size": 300}
         )
-        prim_utils.create_prim("/World/Room", "Sphere", attributes={"radius": 1e3})
+        sim_utils.create_prim("/World/Room", "Sphere", attributes={"radius": 1e3})
 
         # test
         isaac_sim_result = prim_utils.get_all_matching_child_prims("/World")
@@ -52,13 +53,15 @@ class TestUtilities(unittest.TestCase):
 
     def test_find_matching_prim_paths(self):
         """Test find_matching_prim_paths() function."""
+        import omni.isaac.core.utils.prims as prim_utils
+
         # create scene
         for index in range(2048):
             random_pos = np.random.uniform(-100, 100, size=3)
-            prim_utils.create_prim(f"/World/Floor_{index}", "Cube", position=random_pos, attributes={"size": 2.0})
-            prim_utils.create_prim(f"/World/Floor_{index}/Sphere", "Sphere", attributes={"radius": 10})
-            prim_utils.create_prim(f"/World/Floor_{index}/Sphere/childSphere", "Sphere", attributes={"radius": 1})
-            prim_utils.create_prim(f"/World/Floor_{index}/Sphere/childSphere2", "Sphere", attributes={"radius": 1})
+            sim_utils.create_prim(f"/World/Floor_{index}", "Cube", position=random_pos, attributes={"size": 2.0})
+            sim_utils.create_prim(f"/World/Floor_{index}/Sphere", "Sphere", attributes={"radius": 10})
+            sim_utils.create_prim(f"/World/Floor_{index}/Sphere/childSphere", "Sphere", attributes={"radius": 1})
+            sim_utils.create_prim(f"/World/Floor_{index}/Sphere/childSphere2", "Sphere", attributes={"radius": 1})
 
         # test leaf paths
         isaac_sim_result = prim_utils.find_matching_prim_paths("/World/Floor_.*/Sphere")
@@ -82,14 +85,14 @@ class TestUtilities(unittest.TestCase):
     def test_find_global_fixed_joint_prim(self):
         """Test find_global_fixed_joint_prim() function."""
         # create scene
-        prim_utils.create_prim("/World")
-        prim_utils.create_prim(
+        sim_utils.create_prim("/World")
+        sim_utils.create_prim(
             "/World/ANYmal", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd"
         )
-        prim_utils.create_prim(
+        sim_utils.create_prim(
             "/World/Franka", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
         )
-        prim_utils.create_prim("/World/Franka_Isaac", usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Franka/franka.usd")
+        sim_utils.create_prim("/World/Franka_Isaac", usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Franka/franka.usd")
 
         # test
         self.assertIsNone(sim_utils.find_global_fixed_joint_prim("/World/ANYmal"))
