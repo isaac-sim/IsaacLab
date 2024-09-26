@@ -13,8 +13,6 @@ import torch
 from collections.abc import Sequence
 from typing import Any, ClassVar
 
-from omni.isaac.version import get_version
-
 from omni.isaac.lab.managers import CommandManager, CurriculumManager, RewardManager, TerminationManager
 
 from .common import VecEnvStepReturn
@@ -56,7 +54,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
     """Whether the environment is a vectorized environment."""
     metadata: ClassVar[dict[str, Any]] = {
         "render_modes": [None, "human", "rgb_array"],
-        "isaac_sim_version": get_version(),
     }
     """Metadata for the environment."""
 

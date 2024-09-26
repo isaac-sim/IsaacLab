@@ -18,7 +18,6 @@ from typing import Any, ClassVar
 
 import carb
 import omni.kit.app
-from omni.isaac.version import get_version
 
 import omni.isaac.lab.utils.math as math_utils
 from omni.isaac.lab.managers import EventManager
@@ -61,7 +60,6 @@ class DirectRLEnv(gym.Env):
     """Whether the environment is a vectorized environment."""
     metadata: ClassVar[dict[str, Any]] = {
         "render_modes": [None, "human", "rgb_array"],
-        "isaac_sim_version": get_version(),
     }
     """Metadata for the environment."""
 

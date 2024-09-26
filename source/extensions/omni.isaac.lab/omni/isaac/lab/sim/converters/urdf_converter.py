@@ -10,7 +10,6 @@ import os
 import omni.kit.app
 import omni.kit.commands
 import omni.usd
-from omni.isaac.version import get_version
 from pxr import Usd
 
 from .asset_converter_base import AssetConverterBase
@@ -157,8 +156,7 @@ class UrdfConverter(AssetConverterBase):
         import_config.set_default_drive_strength(cfg.default_drive_stiffness)
         # default derivative gains
         import_config.set_default_position_drive_damping(cfg.default_drive_damping)
-        if get_version()[2] == "4":
-            # override joint dynamics parsed from urdf
-            import_config.set_override_joint_dynamics(cfg.override_joint_dynamics)
+        # override joint dynamics parsed from urdf
+        import_config.set_override_joint_dynamics(cfg.override_joint_dynamics)
 
         return import_config
