@@ -8,11 +8,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import carb
-import omni.isaac.core.utils.prims as prim_utils
 import omni.kit.commands
+import omni.usd
 from pxr import Sdf, Usd
 
-from omni.isaac.lab.sim.utils import clone
+import omni.isaac.lab.sim.utils as sim_utils
 from omni.isaac.lab.utils import to_camel_case
 
 if TYPE_CHECKING:
@@ -48,7 +48,7 @@ The dictionary maps the attribute name in the configuration to the attribute nam
 """
 
 
-@clone
+@sim_utils.clone
 def spawn_camera(
     prim_path: str,
     cfg: sensors_cfg.PinholeCameraCfg | sensors_cfg.FisheyeCameraCfg,
@@ -80,9 +80,11 @@ def spawn_camera(
     Raises:
         ValueError: If a prim already exists at the given path.
     """
+    # obtain current stage
+    stage = omni.usd.get_context().get_stage()
     # spawn camera if it doesn't exist.
-    if not prim_utils.is_prim_path_valid(prim_path):
-        prim_utils.create_prim(prim_path, "Camera", translation=translation, orientation=orientation)
+    if not stage.GetPrimAtPath(prim_path).IsValid():
+        sim_utils.create_prim(prim_path, "Camera", translation=translation, orientation=orientation)
     else:
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
 
@@ -116,7 +118,7 @@ def spawn_camera(
         "from_intrinsic_matrix",
     ]
     # get camera prim
-    prim = prim_utils.get_prim_at_path(prim_path)
+    prim = stage.GetPrimAtPath(prim_path)
     # create attributes for the fisheye camera model
     # note: for pinhole those are already part of the USD camera prim
     for attr_name, attr_type in attribute_types.values():
@@ -138,5 +140,6 @@ def spawn_camera(
             prim_prop_name = to_camel_case(param_name, to="cC")
         # get attribute from the class
         prim.GetAttribute(prim_prop_name).Set(param_value)
+
     # return the prim
-    return prim_utils.get_prim_at_path(prim_path)
+    return prim

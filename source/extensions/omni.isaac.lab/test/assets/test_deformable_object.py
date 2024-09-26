@@ -25,8 +25,6 @@ import ctypes
 import torch
 import unittest
 
-import omni.isaac.core.utils.prims as prim_utils
-
 import omni.isaac.lab.sim as sim_utils
 import omni.isaac.lab.utils.math as math_utils
 from omni.isaac.lab.assets import DeformableObject, DeformableObjectCfg
@@ -61,7 +59,7 @@ def generate_cubes_scene(
     origins = torch.tensor([(i * 1.0, 0, height) for i in range(num_cubes)]).to(device)
     # Create Top-level Xforms, one for each cube
     for i, origin in enumerate(origins):
-        prim_utils.create_prim(f"/World/Table_{i}", "Xform", translation=origin)
+        sim_utils.create_prim(f"/World/Table_{i}", "Xform", translation=origin)
 
     # Resolve spawn configuration
     if has_api:

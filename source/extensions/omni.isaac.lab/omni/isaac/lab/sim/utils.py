@@ -26,6 +26,101 @@ from . import schemas
 if TYPE_CHECKING:
     from .spawners.spawner_cfg import SpawnerCfg
 
+
+"""
+Prim - Operations.
+"""
+
+
+def create_prim(
+    prim_path: str,
+    prim_type: str = "Xform",
+    position: tuple[float, float, float] | None = None,
+    translation: tuple[float, float, float] | None = None,
+    orientation: tuple[float, float, float, float] | None = None,
+    scale: tuple[float, float, float] | None = None,
+    usd_path: str | None = None,
+    semantic_label: str | None = None,
+    semantic_type: str = "class",
+    attributes: dict[str, Any] | None = None,
+) -> Usd.Prim:
+    """Create a prim into current USD stage.
+
+    The method applies specified transforms, the semantic label and set specified attributes.
+
+    Args:
+        prim_path: The path of the new prim.
+        prim_type: The type of the prim to create. Defaults to "Xform".
+        position: The position of the prim (in world frame). Defaults to None.
+        translation: The translation of the prim (in parent's frame). Defaults to None.
+        orientation: The orientation of the prim as a quaternion (w, x, y, z). Defaults to None.
+        scale: The scaling of the prim. Defaults to None.
+        usd_path: The path to the USD file to reference. Defaults to None, in which case
+            no USD file is referenced.
+        semantic_label: The semantic label to apply to the prim. Defaults to None.
+        semantic_type: The semantic type to apply to the prim. Defaults to "class".
+        attributes: Optional attributes to apply to the prim. The keys are the attribute
+            names and the values are the attribute values. Defaults to None.
+
+    Returns:
+        The created USD prim.
+
+    Raises:
+        ValueError: If a prim already exists at the specified path.
+        ValueError: If both position and translation are provided.
+        ValueError: If the prim type is not "Xform" when a USD path is provided.
+    """
+    # Note: Imported here to prevent cyclic dependency in the module.
+    from omni.isaac.core.prims.xform_prim import XFormPrim
+
+    # obtain stage
+    stage = omni.usd.get_context().get_stage()
+
+    # check if prim already exists
+    if stage.GetPrimAtPath(prim_path).IsValid():
+        raise ValueError(f"A prim at path '{prim_path}' already exists.")
+    # check both position and translation are not provided
+    if position is not None and translation is not None:
+        raise ValueError("Both position and translation cannot be provided at the same time.")
+    # check that prim type is Xform if usd path is provided
+    if usd_path is not None and prim_type != "Xform":
+        raise ValueError("When providing a USD path, the prim type must be 'Xform'.")
+
+    # create prim in stage
+    prim = stage.DefinePrim(prim_path, prim_type)
+    # check prim creation is successful
+    if not prim:
+        raise RuntimeError(f"Failed to create prim at path '{prim_path}' with type '{prim_type}'.")
+
+    # apply attributes into prim
+    if attributes is not None:
+        for k, v in attributes.items():
+            prim.GetAttribute(k).Set(v)
+
+    # add reference to USD file
+    if usd_path is not None:
+        prim.GetReferences().AddReference(usd_path)
+
+    # add semantic label to prim
+    if semantic_label is not None:
+        # apply or acquire the existing SemanticAPI
+        semantic_api = Semantics.SemanticsAPI.Get(prim, "Semantics")
+        if not semantic_api:
+            semantic_api = Semantics.SemanticsAPI.Apply(prim, "Semantics")
+        # set the type and data for the SemanticAPI
+        if semantic_type is not None:
+            type_attr = semantic_api.CreateSemanticTypeAttr()
+            type_attr.Set(semantic_type)
+        if semantic_label is not None:
+            data_attr = semantic_api.CreateSemanticDataAttr()
+            data_attr.Set(semantic_label)
+
+    # apply the transformations
+    XFormPrim(prim_path=prim_path, position=position, translation=translation, orientation=orientation, scale=scale)
+
+    return prim
+
+
 """
 Attribute - Setters.
 """

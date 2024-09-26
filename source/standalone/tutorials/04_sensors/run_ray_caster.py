@@ -33,8 +33,6 @@ simulation_app = app_launcher.app
 
 import torch
 
-import omni.isaac.core.utils.prims as prim_utils
-
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.assets import RigidObject, RigidObjectCfg
 from omni.isaac.lab.sensors.ray_caster import RayCaster, RayCasterCfg, patterns
@@ -71,7 +69,7 @@ def design_scene() -> dict:
     # Each group will have a robot in it
     origins = [[0.25, 0.25, 0.0], [-0.25, 0.25, 0.0], [0.25, -0.25, 0.0], [-0.25, -0.25, 0.0]]
     for i, origin in enumerate(origins):
-        prim_utils.create_prim(f"/World/Origin{i}", "Xform", translation=origin)
+        sim_utils.create_prim(f"/World/Origin{i}", "Xform", translation=origin)
     # -- Balls
     cfg = RigidObjectCfg(
         prim_path="/World/Origin.*/ball",

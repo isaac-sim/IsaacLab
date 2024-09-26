@@ -35,8 +35,6 @@ simulation_app = app_launcher.app
 import numpy as np
 import torch
 
-import omni.isaac.core.utils.prims as prim_utils
-
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.assets import Articulation
 
@@ -77,37 +75,37 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     origins = define_origins(num_origins=7, spacing=1.25)
 
     # Origin 1 with Anymal B
-    prim_utils.create_prim("/World/Origin1", "Xform", translation=origins[0])
+    sim_utils.create_prim("/World/Origin1", "Xform", translation=origins[0])
     # -- Robot
     anymal_b = Articulation(ANYMAL_B_CFG.replace(prim_path="/World/Origin1/Robot"))
 
     # Origin 2 with Anymal C
-    prim_utils.create_prim("/World/Origin2", "Xform", translation=origins[1])
+    sim_utils.create_prim("/World/Origin2", "Xform", translation=origins[1])
     # -- Robot
     anymal_c = Articulation(ANYMAL_C_CFG.replace(prim_path="/World/Origin2/Robot"))
 
     # Origin 3 with Anymal D
-    prim_utils.create_prim("/World/Origin3", "Xform", translation=origins[2])
+    sim_utils.create_prim("/World/Origin3", "Xform", translation=origins[2])
     # -- Robot
     anymal_d = Articulation(ANYMAL_D_CFG.replace(prim_path="/World/Origin3/Robot"))
 
     # Origin 4 with Unitree A1
-    prim_utils.create_prim("/World/Origin4", "Xform", translation=origins[3])
+    sim_utils.create_prim("/World/Origin4", "Xform", translation=origins[3])
     # -- Robot
     unitree_a1 = Articulation(UNITREE_A1_CFG.replace(prim_path="/World/Origin4/Robot"))
 
     # Origin 5 with Unitree Go1
-    prim_utils.create_prim("/World/Origin5", "Xform", translation=origins[4])
+    sim_utils.create_prim("/World/Origin5", "Xform", translation=origins[4])
     # -- Robot
     unitree_go1 = Articulation(UNITREE_GO1_CFG.replace(prim_path="/World/Origin5/Robot"))
 
     # Origin 6 with Unitree Go2
-    prim_utils.create_prim("/World/Origin6", "Xform", translation=origins[5])
+    sim_utils.create_prim("/World/Origin6", "Xform", translation=origins[5])
     # -- Robot
     unitree_go2 = Articulation(UNITREE_GO2_CFG.replace(prim_path="/World/Origin6/Robot"))
 
     # Origin 7 with Boston Dynamics Spot
-    prim_utils.create_prim("/World/Origin7", "Xform", translation=origins[6])
+    sim_utils.create_prim("/World/Origin7", "Xform", translation=origins[6])
     # -- Robot
     spot = Articulation(SPOT_CFG.replace(prim_path="/World/Origin7/Robot"))
 

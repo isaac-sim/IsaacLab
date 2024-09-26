@@ -7,17 +7,17 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import omni.isaac.core.utils.prims as prim_utils
+import omni.usd
 from pxr import Usd
 
+import omni.isaac.lab.sim.utils as sim_utils
 from omni.isaac.lab.sim import schemas
-from omni.isaac.lab.sim.utils import bind_physics_material, bind_visual_material, clone
 
 if TYPE_CHECKING:
     from . import shapes_cfg
 
 
-@clone
+@sim_utils.clone
 def spawn_sphere(
     prim_path: str,
     cfg: shapes_cfg.SphereCfg,
@@ -50,12 +50,10 @@ def spawn_sphere(
     """
     # spawn sphere if it doesn't exist.
     attributes = {"radius": cfg.radius}
-    _spawn_geom_from_prim_type(prim_path, cfg, "Sphere", attributes, translation, orientation)
-    # return the prim
-    return prim_utils.get_prim_at_path(prim_path)
+    return _spawn_geom_from_prim_type(prim_path, cfg, "Sphere", attributes, translation, orientation)
 
 
-@clone
+@sim_utils.clone
 def spawn_cuboid(
     prim_path: str,
     cfg: shapes_cfg.CuboidCfg,
@@ -95,12 +93,10 @@ def spawn_cuboid(
     scale = [dim / size for dim in cfg.size]
     # spawn cuboid if it doesn't exist.
     attributes = {"size": size}
-    _spawn_geom_from_prim_type(prim_path, cfg, "Cube", attributes, translation, orientation, scale)
-    # return the prim
-    return prim_utils.get_prim_at_path(prim_path)
+    return _spawn_geom_from_prim_type(prim_path, cfg, "Cube", attributes, translation, orientation, scale)
 
 
-@clone
+@sim_utils.clone
 def spawn_cylinder(
     prim_path: str,
     cfg: shapes_cfg.CylinderCfg,
@@ -133,12 +129,10 @@ def spawn_cylinder(
     """
     # spawn cylinder if it doesn't exist.
     attributes = {"radius": cfg.radius, "height": cfg.height, "axis": cfg.axis.upper()}
-    _spawn_geom_from_prim_type(prim_path, cfg, "Cylinder", attributes, translation, orientation)
-    # return the prim
-    return prim_utils.get_prim_at_path(prim_path)
+    return _spawn_geom_from_prim_type(prim_path, cfg, "Cylinder", attributes, translation, orientation)
 
 
-@clone
+@sim_utils.clone
 def spawn_capsule(
     prim_path: str,
     cfg: shapes_cfg.CapsuleCfg,
@@ -171,12 +165,10 @@ def spawn_capsule(
     """
     # spawn capsule if it doesn't exist.
     attributes = {"radius": cfg.radius, "height": cfg.height, "axis": cfg.axis.upper()}
-    _spawn_geom_from_prim_type(prim_path, cfg, "Capsule", attributes, translation, orientation)
-    # return the prim
-    return prim_utils.get_prim_at_path(prim_path)
+    return _spawn_geom_from_prim_type(prim_path, cfg, "Capsule", attributes, translation, orientation)
 
 
-@clone
+@sim_utils.clone
 def spawn_cone(
     prim_path: str,
     cfg: shapes_cfg.ConeCfg,
@@ -209,9 +201,7 @@ def spawn_cone(
     """
     # spawn cone if it doesn't exist.
     attributes = {"radius": cfg.radius, "height": cfg.height, "axis": cfg.axis.upper()}
-    _spawn_geom_from_prim_type(prim_path, cfg, "Cone", attributes, translation, orientation)
-    # return the prim
-    return prim_utils.get_prim_at_path(prim_path)
+    return _spawn_geom_from_prim_type(prim_path, cfg, "Cone", attributes, translation, orientation)
 
 
 """
@@ -227,7 +217,7 @@ def _spawn_geom_from_prim_type(
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
     scale: tuple[float, float, float] | None = None,
-):
+) -> Usd.Prim:
     """Create a USDGeom-based prim with the given attributes.
 
     To make the asset instanceable, we must follow a certain structure dictated by how USD scene-graph
@@ -253,12 +243,17 @@ def _spawn_geom_from_prim_type(
             in which case this is set to identity.
         scale: The scale to apply to the prim. Defaults to None, in which case this is set to identity.
 
+    Returns:
+        The created prim at the given path.
+
     Raises:
         ValueError: If a prim already exists at the given path.
     """
+    # get current stage
+    stage = omni.usd.get_context().get_stage()
     # spawn geometry if it doesn't exist.
-    if not prim_utils.is_prim_path_valid(prim_path):
-        prim_utils.create_prim(prim_path, prim_type="Xform", translation=translation, orientation=orientation)
+    if not stage.GetPrimAtPath(prim_path).IsValid():
+        sim_utils.create_prim(prim_path, prim_type="Xform", translation=translation, orientation=orientation)
     else:
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
 
@@ -267,7 +262,7 @@ def _spawn_geom_from_prim_type(
     mesh_prim_path = geom_prim_path + "/mesh"
 
     # create the geometry prim
-    prim_utils.create_prim(mesh_prim_path, prim_type, scale=scale, attributes=attributes)
+    sim_utils.create_prim(mesh_prim_path, prim_type, scale=scale, attributes=attributes)
     # apply collision properties
     if cfg.collision_props is not None:
         schemas.define_collision_properties(mesh_prim_path, cfg.collision_props)
@@ -280,7 +275,7 @@ def _spawn_geom_from_prim_type(
         # create material
         cfg.visual_material.func(material_path, cfg.visual_material)
         # apply material
-        bind_visual_material(mesh_prim_path, material_path)
+        sim_utils.bind_visual_material(mesh_prim_path, material_path)
     # apply physics material
     if cfg.physics_material is not None:
         if not cfg.physics_material_path.startswith("/"):
@@ -290,7 +285,7 @@ def _spawn_geom_from_prim_type(
         # create material
         cfg.physics_material.func(material_path, cfg.physics_material)
         # apply material
-        bind_physics_material(mesh_prim_path, material_path)
+        sim_utils.bind_physics_material(mesh_prim_path, material_path)
 
     # note: we apply rigid properties in the end to later make the instanceable prim
     # apply mass properties
@@ -299,3 +294,6 @@ def _spawn_geom_from_prim_type(
     # apply rigid body properties
     if cfg.rigid_props is not None:
         schemas.define_rigid_body_properties(prim_path, cfg.rigid_props)
+
+    # return the main prim
+    return stage.GetPrimAtPath(prim_path)

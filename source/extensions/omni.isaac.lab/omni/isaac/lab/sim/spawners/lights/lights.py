@@ -7,16 +7,16 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import omni.isaac.core.utils.prims as prim_utils
+import omni.usd
 from pxr import Usd, UsdLux
 
-from omni.isaac.lab.sim.utils import clone, safe_set_attribute_on_usd_prim
+import omni.isaac.lab.sim.utils as sim_utils
 
 if TYPE_CHECKING:
     from . import lights_cfg
 
 
-@clone
+@sim_utils.clone
 def spawn_light(
     prim_path: str,
     cfg: lights_cfg.LightCfg,
@@ -43,11 +43,13 @@ def spawn_light(
     Raises:
         ValueError:  When a prim already exists at the specified prim path.
     """
+    # obtain stage
+    stage = omni.usd.get_context().get_stage()
     # check if prim already exists
-    if prim_utils.is_prim_path_valid(prim_path):
+    if stage.GetPrimAtPath(prim_path).IsValid():
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
     # create the prim
-    prim = prim_utils.create_prim(prim_path, prim_type=cfg.prim_type, translation=translation, orientation=orientation)
+    prim = sim_utils.create_prim(prim_path, prim_type=cfg.prim_type, translation=translation, orientation=orientation)
 
     # convert to dict
     cfg = cfg.to_dict()
@@ -75,6 +77,6 @@ def spawn_light(
             else:
                 prim_prop_name = f"inputs:{attr_name}"
             # set the attribute
-            safe_set_attribute_on_usd_prim(prim, prim_prop_name, value, camel_case=True)
+            sim_utils.safe_set_attribute_on_usd_prim(prim, prim_prop_name, value, camel_case=True)
     # return the prim
     return prim

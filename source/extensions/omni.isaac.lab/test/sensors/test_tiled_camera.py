@@ -22,7 +22,6 @@ import random
 import torch
 import unittest
 
-import omni.isaac.core.utils.prims as prim_utils
 import omni.replicator.core as rep
 import omni.usd
 from omni.isaac.core.prims import GeometryPrim, RigidPrim
@@ -123,7 +122,7 @@ class TestTiledCamera(unittest.TestCase):
 
         num_cameras = 9
         for i in range(num_cameras):
-            prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
+            sim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
         # Create camera
         camera_cfg = copy.deepcopy(self.camera_cfg)
@@ -176,7 +175,7 @@ class TestTiledCamera(unittest.TestCase):
 
         num_cameras = 9
         for i in range(num_cameras):
-            prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
+            sim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
         # Create camera
         camera_cfg = copy.deepcopy(self.camera_cfg)
@@ -254,7 +253,7 @@ class TestTiledCamera(unittest.TestCase):
 
         num_cameras = 9
         for i in range(num_cameras):
-            prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
+            sim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
         # Create camera
         camera_cfg = copy.deepcopy(self.camera_cfg)
@@ -306,7 +305,7 @@ class TestTiledCamera(unittest.TestCase):
 
         num_cameras = 9
         for i in range(num_cameras):
-            prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
+            sim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
         # Create camera
         camera_cfg = copy.deepcopy(self.camera_cfg)
@@ -358,7 +357,7 @@ class TestTiledCamera(unittest.TestCase):
 
         num_cameras = 9
         for i in range(num_cameras):
-            prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
+            sim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
         # Create camera
         camera_cfg = copy.deepcopy(self.camera_cfg)
@@ -410,7 +409,7 @@ class TestTiledCamera(unittest.TestCase):
 
         num_cameras = 9
         for i in range(num_cameras):
-            prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
+            sim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
         # Create camera
         camera_cfg = copy.deepcopy(self.camera_cfg)
@@ -462,7 +461,7 @@ class TestTiledCamera(unittest.TestCase):
 
         num_cameras = 9
         for i in range(num_cameras):
-            prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
+            sim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
         # Create camera
         camera_cfg = copy.deepcopy(self.camera_cfg)
@@ -514,7 +513,7 @@ class TestTiledCamera(unittest.TestCase):
 
         num_cameras = 9
         for i in range(num_cameras):
-            prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
+            sim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
         # Create camera
         camera_cfg = copy.deepcopy(self.camera_cfg)
@@ -566,7 +565,7 @@ class TestTiledCamera(unittest.TestCase):
 
         num_cameras = 9
         for i in range(num_cameras):
-            prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
+            sim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
         # Create camera
         camera_cfg = copy.deepcopy(self.camera_cfg)
@@ -619,7 +618,7 @@ class TestTiledCamera(unittest.TestCase):
 
         num_cameras = 9
         for i in range(num_cameras):
-            prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
+            sim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
         # Create camera
         camera_cfg = copy.deepcopy(self.camera_cfg)
@@ -672,7 +671,7 @@ class TestTiledCamera(unittest.TestCase):
 
         num_cameras = 9
         for i in range(num_cameras):
-            prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
+            sim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
         # Create camera
         camera_cfg = copy.deepcopy(self.camera_cfg)
@@ -725,7 +724,7 @@ class TestTiledCamera(unittest.TestCase):
 
         num_cameras = 9
         for i in range(num_cameras):
-            prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
+            sim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
         # Create camera
         camera_cfg = copy.deepcopy(self.camera_cfg)
@@ -780,7 +779,7 @@ class TestTiledCamera(unittest.TestCase):
 
         num_cameras = 9
         for i in range(num_cameras):
-            prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
+            sim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
         # Create camera
         camera_cfg = copy.deepcopy(self.camera_cfg)
@@ -834,7 +833,7 @@ class TestTiledCamera(unittest.TestCase):
 
         num_cameras = 9
         for i in range(num_cameras):
-            prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
+            sim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
         # Create camera
         camera_cfg = copy.deepcopy(self.camera_cfg)
@@ -900,7 +899,7 @@ class TestTiledCamera(unittest.TestCase):
 
         num_cameras = 9
         for i in range(num_cameras):
-            prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
+            sim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
         # Create camera
         camera_cfg = copy.deepcopy(self.camera_cfg)
@@ -996,7 +995,7 @@ class TestTiledCamera(unittest.TestCase):
 
         num_cameras = 2
         for i in range(num_cameras):
-            prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
+            sim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
         # Create camera
         camera_cfg = copy.deepcopy(self.camera_cfg)
@@ -1094,7 +1093,7 @@ class TestTiledCamera(unittest.TestCase):
 
         num_cameras = 11
         for i in range(num_cameras):
-            prim_utils.create_prim(f"/World/Origin_{i}", "Xform")
+            sim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
         # Create camera
         camera_cfg = copy.deepcopy(self.camera_cfg)
@@ -1324,7 +1323,7 @@ class TestTiledCamera(unittest.TestCase):
             position *= np.asarray([1.5, 1.5, 0.5])
             # create prim
             prim_type = random.choice(["Cube", "Sphere", "Cylinder"])
-            prim = prim_utils.create_prim(
+            prim = sim_utils.create_prim(
                 f"/World/Objects/Obj_{i:02d}",
                 prim_type,
                 translation=position,

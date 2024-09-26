@@ -31,8 +31,6 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import omni.isaac.core.utils.prims as prim_utils
-
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
 
@@ -51,7 +49,7 @@ def design_scene():
     cfg_light_distant.func("/World/lightDistant", cfg_light_distant, translation=(1, 0, 10))
 
     # create a new xform prim for all objects to be spawned under
-    prim_utils.create_prim("/World/Objects", "Xform")
+    sim_utils.create_prim("/World/Objects", "Xform")
     # spawn a red cone
     cfg_cone = sim_utils.ConeCfg(
         radius=0.15,

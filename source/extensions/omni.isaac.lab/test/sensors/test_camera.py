@@ -24,7 +24,6 @@ import scipy.spatial.transform as tf
 import torch
 import unittest
 
-import omni.isaac.core.utils.prims as prim_utils
 import omni.replicator.core as rep
 import omni.usd
 from omni.isaac.core.prims import GeometryPrim, RigidPrim
@@ -739,7 +738,7 @@ class TestCamera(unittest.TestCase):
             position *= np.asarray([1.5, 1.5, 0.5])
             # create prim
             prim_type = random.choice(["Cube", "Sphere", "Cylinder"])
-            prim = prim_utils.create_prim(
+            prim = sim_utils.create_prim(
                 f"/World/Objects/Obj_{i:02d}",
                 prim_type,
                 translation=position,

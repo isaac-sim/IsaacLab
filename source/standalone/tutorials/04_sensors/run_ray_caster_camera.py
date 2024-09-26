@@ -38,7 +38,6 @@ simulation_app = app_launcher.app
 import os
 import torch
 
-import omni.isaac.core.utils.prims as prim_utils
 import omni.replicator.core as rep
 
 import omni.isaac.lab.sim as sim_utils
@@ -53,8 +52,8 @@ def define_sensor() -> RayCasterCamera:
     # Camera base frames
     # In contras to the USD camera, we associate the sensor to the prims at these locations.
     # This means that parent prim of the sensor is the prim at this location.
-    prim_utils.create_prim("/World/Origin_00/CameraSensor", "Xform")
-    prim_utils.create_prim("/World/Origin_01/CameraSensor", "Xform")
+    sim_utils.create_prim("/World/Origin_00/CameraSensor", "Xform")
+    sim_utils.create_prim("/World/Origin_01/CameraSensor", "Xform")
 
     # Setup camera sensor
     camera_cfg = RayCasterCameraCfg(

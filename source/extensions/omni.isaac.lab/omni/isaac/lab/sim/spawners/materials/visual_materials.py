@@ -7,8 +7,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import omni.isaac.core.utils.prims as prim_utils
 import omni.kit.commands
+import omni.usd
 from pxr import Usd
 
 from omni.isaac.lab.sim.utils import clone, safe_set_attribute_on_usd_prim
@@ -46,13 +46,16 @@ def spawn_preview_surface(prim_path: str, cfg: visual_materials_cfg.PreviewSurfa
     Raises:
         ValueError: If a prim already exists at the given path.
     """
+    # obtain stage
+    stage = omni.usd.get_context().get_stage()
     # spawn material if it doesn't exist.
-    if not prim_utils.is_prim_path_valid(prim_path):
+    if not stage.GetPrimAtPath(prim_path).IsValid():
         omni.kit.commands.execute("CreatePreviewSurfaceMaterialPrim", mtl_path=prim_path, select_new_prim=False)
     else:
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
+
     # obtain prim
-    prim = prim_utils.get_prim_at_path(f"{prim_path}/Shader")
+    prim = stage.GetPrimAtPath(f"{prim_path}/Shader")
     # apply properties
     cfg = cfg.to_dict()
     del cfg["func"]
@@ -91,8 +94,10 @@ def spawn_from_mdl_file(prim_path: str, cfg: visual_materials_cfg.MdlMaterialCfg
     Raises:
         ValueError: If a prim already exists at the given path.
     """
+    # obtain stage
+    stage = omni.usd.get_context().get_stage()
     # spawn material if it doesn't exist.
-    if not prim_utils.is_prim_path_valid(prim_path):
+    if not stage.GetPrimAtPath(prim_path).IsValid():
         # extract material name from path
         material_name = cfg.mdl_path.split("/")[-1].split(".")[0]
         omni.kit.commands.execute(
@@ -104,8 +109,9 @@ def spawn_from_mdl_file(prim_path: str, cfg: visual_materials_cfg.MdlMaterialCfg
         )
     else:
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
+
     # obtain prim
-    prim = prim_utils.get_prim_at_path(f"{prim_path}/Shader")
+    prim = stage.GetPrimAtPath(f"{prim_path}/Shader")
     # apply properties
     cfg = cfg.to_dict()
     del cfg["func"]

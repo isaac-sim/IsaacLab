@@ -65,7 +65,6 @@ import os
 import random
 import torch
 
-import omni.isaac.core.utils.prims as prim_utils
 import omni.replicator.core as rep
 
 import omni.isaac.lab.sim as sim_utils
@@ -82,8 +81,8 @@ def define_sensor() -> Camera:
     # Setup camera sensor
     # In contrast to the ray-cast camera, we spawn the prim at these locations.
     # This means the camera sensor will be attached to these prims.
-    prim_utils.create_prim("/World/Origin_00", "Xform")
-    prim_utils.create_prim("/World/Origin_01", "Xform")
+    sim_utils.create_prim("/World/Origin_00", "Xform")
+    sim_utils.create_prim("/World/Origin_01", "Xform")
     camera_cfg = CameraCfg(
         prim_path="/World/Origin_.*/CameraSensor",
         update_period=0,
@@ -124,7 +123,7 @@ def design_scene() -> dict:
     scene_entities = {}
 
     # Xform to hold objects
-    prim_utils.create_prim("/World/Objects", "Xform")
+    sim_utils.create_prim("/World/Objects", "Xform")
     # Random objects
     for i in range(8):
         # sample random position

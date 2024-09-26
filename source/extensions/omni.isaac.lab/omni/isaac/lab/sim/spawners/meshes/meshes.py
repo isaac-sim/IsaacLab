@@ -10,11 +10,11 @@ import trimesh
 import trimesh.transformations
 from typing import TYPE_CHECKING
 
-import omni.isaac.core.utils.prims as prim_utils
+import omni.usd
 from pxr import Usd, UsdPhysics
 
+import omni.isaac.lab.sim.utils as sim_utils
 from omni.isaac.lab.sim import schemas
-from omni.isaac.lab.sim.utils import bind_physics_material, bind_visual_material, clone
 
 from ..materials import DeformableBodyMaterialCfg, RigidBodyMaterialCfg
 
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from . import meshes_cfg
 
 
-@clone
+@sim_utils.clone
 def spawn_mesh_sphere(
     prim_path: str,
     cfg: meshes_cfg.MeshSphereCfg,
@@ -54,12 +54,10 @@ def spawn_mesh_sphere(
     # create a trimesh sphere
     sphere = trimesh.creation.uv_sphere(radius=cfg.radius)
     # spawn the sphere as a mesh
-    _spawn_mesh_geom_from_mesh(prim_path, cfg, sphere, translation, orientation)
-    # return the prim
-    return prim_utils.get_prim_at_path(prim_path)
+    return _spawn_mesh_geom_from_mesh(prim_path, cfg, sphere, translation, orientation)
 
 
-@clone
+@sim_utils.clone
 def spawn_mesh_cuboid(
     prim_path: str,
     cfg: meshes_cfg.MeshCuboidCfg,
@@ -90,12 +88,10 @@ def spawn_mesh_cuboid(
     """  # create a trimesh box
     box = trimesh.creation.box(cfg.size)
     # spawn the cuboid as a mesh
-    _spawn_mesh_geom_from_mesh(prim_path, cfg, box, translation, orientation, None)
-    # return the prim
-    return prim_utils.get_prim_at_path(prim_path)
+    return _spawn_mesh_geom_from_mesh(prim_path, cfg, box, translation, orientation, None)
 
 
-@clone
+@sim_utils.clone
 def spawn_mesh_cylinder(
     prim_path: str,
     cfg: meshes_cfg.MeshCylinderCfg,
@@ -135,12 +131,10 @@ def spawn_mesh_cylinder(
     # create a trimesh cylinder
     cylinder = trimesh.creation.cylinder(radius=cfg.radius, height=cfg.height, transform=transform)
     # spawn the cylinder as a mesh
-    _spawn_mesh_geom_from_mesh(prim_path, cfg, cylinder, translation, orientation)
-    # return the prim
-    return prim_utils.get_prim_at_path(prim_path)
+    return _spawn_mesh_geom_from_mesh(prim_path, cfg, cylinder, translation, orientation)
 
 
-@clone
+@sim_utils.clone
 def spawn_mesh_capsule(
     prim_path: str,
     cfg: meshes_cfg.MeshCapsuleCfg,
@@ -180,12 +174,10 @@ def spawn_mesh_capsule(
     # create a trimesh capsule
     capsule = trimesh.creation.capsule(radius=cfg.radius, height=cfg.height, transform=transform)
     # spawn capsule if it doesn't exist.
-    _spawn_mesh_geom_from_mesh(prim_path, cfg, capsule, translation, orientation)
-    # return the prim
-    return prim_utils.get_prim_at_path(prim_path)
+    return _spawn_mesh_geom_from_mesh(prim_path, cfg, capsule, translation, orientation)
 
 
-@clone
+@sim_utils.clone
 def spawn_mesh_cone(
     prim_path: str,
     cfg: meshes_cfg.MeshConeCfg,
@@ -225,9 +217,7 @@ def spawn_mesh_cone(
     # create a trimesh cone
     cone = trimesh.creation.cone(radius=cfg.radius, height=cfg.height, transform=transform)
     # spawn cone if it doesn't exist.
-    _spawn_mesh_geom_from_mesh(prim_path, cfg, cone, translation, orientation)
-    # return the prim
-    return prim_utils.get_prim_at_path(prim_path)
+    return _spawn_mesh_geom_from_mesh(prim_path, cfg, cone, translation, orientation)
 
 
 """
@@ -242,7 +232,7 @@ def _spawn_mesh_geom_from_mesh(
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
     scale: tuple[float, float, float] | None = None,
-):
+) -> Usd.Prim:
     """Create a `USDGeomMesh`_ prim from the given mesh.
 
     This function is similar to :func:`shapes._spawn_geom_from_prim_type` but spawns the prim from a given mesh.
@@ -264,6 +254,9 @@ def _spawn_mesh_geom_from_mesh(
             in which case this is set to identity.
         scale: The scale to apply to the prim. Defaults to None, in which case this is set to identity.
 
+    Returns:
+        The created prim at the given path.
+
     Raises:
         ValueError: If a prim already exists at the given path.
         ValueError: If both deformable and rigid properties are used.
@@ -273,9 +266,11 @@ def _spawn_mesh_geom_from_mesh(
 
     .. _USDGeomMesh: https://openusd.org/dev/api/class_usd_geom_mesh.html
     """
+    # get the current stage
+    stage = omni.usd.get_context().get_stage()
     # spawn geometry if it doesn't exist.
-    if not prim_utils.is_prim_path_valid(prim_path):
-        prim_utils.create_prim(prim_path, prim_type="Xform", translation=translation, orientation=orientation)
+    if not stage.GetPrimAtPath(prim_path):
+        sim_utils.create_prim(prim_path, prim_type="Xform", translation=translation, orientation=orientation)
     else:
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
 
@@ -297,7 +292,7 @@ def _spawn_mesh_geom_from_mesh(
     mesh_prim_path = geom_prim_path + "/mesh"
 
     # create the mesh prim
-    mesh_prim = prim_utils.create_prim(
+    mesh_prim = sim_utils.create_prim(
         mesh_prim_path,
         prim_type="Mesh",
         scale=scale,
@@ -342,7 +337,7 @@ def _spawn_mesh_geom_from_mesh(
         # create material
         cfg.visual_material.func(material_path, cfg.visual_material)
         # apply material
-        bind_visual_material(mesh_prim_path, material_path)
+        sim_utils.bind_visual_material(mesh_prim_path, material_path)
 
     # apply physics material
     if cfg.physics_material is not None:
@@ -353,7 +348,7 @@ def _spawn_mesh_geom_from_mesh(
         # create material
         cfg.physics_material.func(material_path, cfg.physics_material)
         # apply material
-        bind_physics_material(mesh_prim_path, material_path)
+        sim_utils.bind_physics_material(mesh_prim_path, material_path)
 
     # note: we apply the rigid properties to the parent prim in case of rigid objects.
     if cfg.rigid_props is not None:
@@ -362,3 +357,6 @@ def _spawn_mesh_geom_from_mesh(
             schemas.define_mass_properties(prim_path, cfg.mass_props)
         # apply rigid properties
         schemas.define_rigid_body_properties(prim_path, cfg.rigid_props)
+
+    # return the main prim
+    return stage.GetPrimAtPath(prim_path)

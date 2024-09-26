@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import omni.isaac.core.utils.prims as prim_utils
 import omni.usd
 from pxr import PhysxSchema, Usd, UsdPhysics, UsdShade
 
@@ -41,12 +40,14 @@ def spawn_rigid_body_material(prim_path: str, cfg: physics_materials_cfg.RigidBo
     Raises:
         ValueError:  When a prim already exists at the specified prim path and is not a material.
     """
+    # obtain stage
+    stage = omni.usd.get_context().get_stage()
     # create material prim if no prim exists
-    if not prim_utils.is_prim_path_valid(prim_path):
+    if not stage.GetPrimAtPath(prim_path).IsValid():
         _ = UsdShade.Material.Define(omni.usd.get_context().get_stage(), prim_path)
 
     # obtain prim
-    prim = prim_utils.get_prim_at_path(prim_path)
+    prim = stage.GetPrimAtPath(prim_path)
     # check if prim is a material
     if not prim.IsA(UsdShade.Material):
         raise ValueError(f"A prim already exists at path: '{prim_path}' but is not a material.")
@@ -99,13 +100,14 @@ def spawn_deformable_body_material(prim_path: str, cfg: physics_materials_cfg.De
 
     .. _PxFEMSoftBodyMaterial: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/_api_build/structPxFEMSoftBodyMaterialModel.html
     """
+    # obtain stage
+    stage = omni.usd.get_context().get_stage()
     # create material prim if no prim exists
-    if not prim_utils.is_prim_path_valid(prim_path):
-        stage = omni.usd.get_context().get_stage()
+    if not stage.GetPrimAtPath(prim_path).IsValid():
         _ = UsdShade.Material.Define(stage, prim_path)
 
     # obtain prim
-    prim = prim_utils.get_prim_at_path(prim_path)
+    prim = stage.GetPrimAtPath(prim_path)
     # check if prim is a material
     if not prim.IsA(UsdShade.Material):
         raise ValueError(f"A prim already exists at path: '{prim_path}' but is not a material.")

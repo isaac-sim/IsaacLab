@@ -15,7 +15,6 @@ simulation_app = AppLauncher(headless=True).app
 import torch
 import unittest
 
-import omni.isaac.core.utils.prims as prim_utils
 import omni.usd
 from omni.isaac.cloner import GridCloner
 
@@ -54,7 +53,7 @@ class TestDifferentialIKController(unittest.TestCase):
         cloner.define_base_env("/World/envs")
         self.env_prim_paths = cloner.generate_paths("/World/envs/env", self.num_envs)
         # create source prim
-        prim_utils.define_prim(self.env_prim_paths[0], "Xform")
+        sim_utils.create_prim(self.env_prim_paths[0], "Xform")
         # clone the env xform
         self.env_origins = cloner.clone(
             source_prim_path=self.env_prim_paths[0],

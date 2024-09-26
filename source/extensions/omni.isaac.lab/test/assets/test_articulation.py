@@ -23,8 +23,6 @@ import torch
 import unittest
 from typing import Literal
 
-import omni.isaac.core.utils.prims as prim_utils
-
 import omni.isaac.lab.sim as sim_utils
 import omni.isaac.lab.utils.string as string_utils
 from omni.isaac.lab.actuators import ImplicitActuatorCfg
@@ -111,7 +109,7 @@ def generate_articulation(
 
     # Create Top-level Xforms, one for each articulation
     for i in range(num_articulations):
-        prim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=translations[i][:3])
+        sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=translations[i][:3])
     articulation = Articulation(articulation_cfg.replace(prim_path="/World/Env_.*/Robot"))
 
     return articulation, translations

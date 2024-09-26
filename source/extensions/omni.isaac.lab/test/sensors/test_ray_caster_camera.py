@@ -22,7 +22,6 @@ import os
 import torch
 import unittest
 
-import omni.isaac.core.utils.prims as prim_utils
 import omni.replicator.core as rep
 import omni.usd
 from pxr import Gf
@@ -72,7 +71,7 @@ class TestWarpCamera(unittest.TestCase):
         # Create a new stage
         omni.usd.get_context().new_stage()
         # create xform because placement of camera directly under world is not supported
-        prim_utils.create_prim("/World/Camera", "Xform")
+        sim_utils.create_prim("/World/Camera", "Xform")
         # Simulation time-step
         self.dt = 0.01
         # Load kit helper
@@ -160,7 +159,7 @@ class TestWarpCamera(unittest.TestCase):
             rot=QUAT_ROS,
             convention="ros",
         )
-        prim_utils.create_prim("/World/CameraOffsetRos", "Xform")
+        sim_utils.create_prim("/World/CameraOffsetRos", "Xform")
         cam_cfg_offset_ros.prim_path = "/World/CameraOffsetRos"
         camera_ros = RayCasterCamera(cam_cfg_offset_ros)
         # -- OpenGL convention
@@ -170,7 +169,7 @@ class TestWarpCamera(unittest.TestCase):
             rot=QUAT_OPENGL,
             convention="opengl",
         )
-        prim_utils.create_prim("/World/CameraOffsetOpengl", "Xform")
+        sim_utils.create_prim("/World/CameraOffsetOpengl", "Xform")
         cam_cfg_offset_opengl.prim_path = "/World/CameraOffsetOpengl"
         camera_opengl = RayCasterCamera(cam_cfg_offset_opengl)
         # -- World convention
@@ -180,7 +179,7 @@ class TestWarpCamera(unittest.TestCase):
             rot=QUAT_WORLD,
             convention="world",
         )
-        prim_utils.create_prim("/World/CameraOffsetWorld", "Xform")
+        sim_utils.create_prim("/World/CameraOffsetWorld", "Xform")
         cam_cfg_offset_world.prim_path = "/World/CameraOffsetWorld"
         camera_world = RayCasterCamera(cam_cfg_offset_world)
 
@@ -258,13 +257,13 @@ class TestWarpCamera(unittest.TestCase):
         # -- camera 1
         cam_cfg_1 = copy.deepcopy(self.camera_cfg)
         cam_cfg_1.prim_path = "/World/Camera_1"
-        prim_utils.create_prim("/World/Camera_1", "Xform")
+        sim_utils.create_prim("/World/Camera_1", "Xform")
         # Create camera
         cam_1 = RayCasterCamera(cam_cfg_1)
         # -- camera 2
         cam_cfg_2 = copy.deepcopy(self.camera_cfg)
         cam_cfg_2.prim_path = "/World/Camera_2"
-        prim_utils.create_prim("/World/Camera_2", "Xform")
+        sim_utils.create_prim("/World/Camera_2", "Xform")
         cam_2 = RayCasterCamera(cam_cfg_2)
 
         # check that the loaded meshes are equal
@@ -411,7 +410,7 @@ class TestWarpCamera(unittest.TestCase):
             height=240,
             width=320,
         )
-        prim_utils.create_prim("/World/Camera_warp", "Xform")
+        sim_utils.create_prim("/World/Camera_warp", "Xform")
         camera_cfg_warp = RayCasterCameraCfg(
             prim_path="/World/Camera",
             mesh_prim_paths=["/World/defaultGroundPlane"],
@@ -502,7 +501,7 @@ class TestWarpCamera(unittest.TestCase):
             height=240,
             width=320,
         )
-        prim_utils.create_prim("/World/Camera_warp", "Xform")
+        sim_utils.create_prim("/World/Camera_warp", "Xform")
         camera_cfg_warp = RayCasterCameraCfg(
             prim_path="/World/Camera",
             mesh_prim_paths=["/World/defaultGroundPlane"],
@@ -577,7 +576,7 @@ class TestWarpCamera(unittest.TestCase):
             height=240,
             width=320,
         )
-        prim_raycast_cam = prim_utils.create_prim("/World/Camera_warp", "Xform")
+        prim_raycast_cam = sim_utils.create_prim("/World/Camera_warp", "Xform")
         prim_raycast_cam.GetAttribute("xformOp:translate").Set(tuple(POSITION))
         prim_raycast_cam.GetAttribute("xformOp:orient").Set(gf_quatf)
 
@@ -605,7 +604,7 @@ class TestWarpCamera(unittest.TestCase):
             ),
             offset=CameraCfg.OffsetCfg(pos=(0, 0, 2.0), rot=offset_rot, convention="ros"),
         )
-        prim_usd = prim_utils.create_prim("/World/Camera_usd", "Xform")
+        prim_usd = sim_utils.create_prim("/World/Camera_usd", "Xform")
         prim_usd.GetAttribute("xformOp:translate").Set(tuple(POSITION))
         prim_usd.GetAttribute("xformOp:orient").Set(gf_quatf)
 
@@ -658,7 +657,7 @@ class TestWarpCamera(unittest.TestCase):
         offset_rot = [-0.1251, 0.3617, 0.8731, -0.3020]
         offset_pos = (2.5, 2.5, 4.0)
         intrinsics = [380.0831, 0.0, 467.7916, 0.0, 380.0831, 262.0532, 0.0, 0.0, 1.0]
-        prim_utils.create_prim("/World/Camera_warp", "Xform")
+        sim_utils.create_prim("/World/Camera_warp", "Xform")
         # get camera cfgs
         camera_warp_cfg = RayCasterCameraCfg(
             prim_path="/World/Camera_warp",

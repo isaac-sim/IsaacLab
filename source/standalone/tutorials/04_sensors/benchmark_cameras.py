@@ -244,7 +244,6 @@ import random
 import time
 import torch
 
-import omni.isaac.core.utils.prims as prim_utils
 import psutil
 from omni.isaac.core.utils.stage import create_new_stage
 
@@ -285,7 +284,7 @@ def create_camera_base(
     if instantiate:
         # Create the necessary prims
         for idx in range(num_cams):
-            prim_utils.create_prim(f"/World/{name}_{idx:02d}", "Xform")
+            sim_utils.create_prim(f"/World/{name}_{idx:02d}", "Xform")
     if prim_path is None:
         prim_path = f"/World/{name}_.*/{name}"
     # If valid camera settings are provided, create the camera
@@ -345,7 +344,7 @@ def create_ray_caster_cameras(
 ) -> RayCasterCamera | RayCasterCameraCfg | None:
     """Create the raycaster cameras; different configuration than Standard/Tiled camera"""
     for idx in range(num_cams):
-        prim_utils.create_prim(f"/World/RayCasterCamera_{idx:02d}/RayCaster", "Xform")
+        sim_utils.create_prim(f"/World/RayCasterCamera_{idx:02d}/RayCaster", "Xform")
 
     if num_cams > 0 and len(data_types) > 0 and height > 0 and width > 0:
         cam_cfg = RayCasterCameraCfg(
@@ -445,7 +444,7 @@ def design_scene(
     scene_entities = {}
 
     # Xform to hold objects
-    prim_utils.create_prim("/World/Objects", "Xform")
+    sim_utils.create_prim("/World/Objects", "Xform")
     # Random objects
     for i in range(num_objects):
         # sample random position

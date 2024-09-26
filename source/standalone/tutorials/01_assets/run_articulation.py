@@ -34,8 +34,6 @@ simulation_app = app_launcher.app
 
 import torch
 
-import omni.isaac.core.utils.prims as prim_utils
-
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.assets import Articulation
 from omni.isaac.lab.sim import SimulationContext
@@ -59,9 +57,9 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     # Each group will have a robot in it
     origins = [[0.0, 0.0, 0.0], [-1.0, 0.0, 0.0]]
     # Origin 1
-    prim_utils.create_prim("/World/Origin1", "Xform", translation=origins[0])
+    sim_utils.create_prim("/World/Origin1", "Xform", translation=origins[0])
     # Origin 2
-    prim_utils.create_prim("/World/Origin2", "Xform", translation=origins[1])
+    sim_utils.create_prim("/World/Origin2", "Xform", translation=origins[1])
 
     # Articulation
     cartpole_cfg = CARTPOLE_CFG.copy()

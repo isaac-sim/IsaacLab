@@ -8,19 +8,18 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import carb
-import omni.isaac.core.utils.prims as prim_utils
 import omni.kit.commands
 import omni.usd
 from pxr import Gf, Sdf, Usd
 
+import omni.isaac.lab.sim.utils as sim_utils
 from omni.isaac.lab.sim import converters, schemas
-from omni.isaac.lab.sim.utils import bind_physics_material, bind_visual_material, clone, select_usd_variants
 
 if TYPE_CHECKING:
     from . import from_files_cfg
 
 
-@clone
+@sim_utils.clone
 def spawn_from_usd(
     prim_path: str,
     cfg: from_files_cfg.UsdFileCfg,
@@ -60,7 +59,7 @@ def spawn_from_usd(
     return _spawn_from_usd_file(prim_path, cfg.usd_path, cfg, translation, orientation)
 
 
-@clone
+@sim_utils.clone
 def spawn_from_urdf(
     prim_path: str,
     cfg: from_files_cfg.UrdfFileCfg,
@@ -132,26 +131,31 @@ def spawn_ground_plane(
     Raises:
         ValueError: If the prim path already exists.
     """
+    # Get current stage
+    stage = omni.usd.get_context().get_stage()
     # Spawn Ground-plane
-    if not prim_utils.is_prim_path_valid(prim_path):
-        prim_utils.create_prim(prim_path, usd_path=cfg.usd_path, translation=translation, orientation=orientation)
+    if not stage.GetPrimAtPath(prim_path).IsValid():
+        sim_utils.create_prim(prim_path, usd_path=cfg.usd_path, translation=translation, orientation=orientation)
     else:
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
 
     # Create physics material
     if cfg.physics_material is not None:
+        # Find the collision prim
+        collision_prim = sim_utils.get_first_matching_child_prim(
+            prim_path, predicate=lambda x: x.GetTypeName() == "Collision"
+        )
+        if collision_prim is None:
+            raise ValueError(f"Collision prim not found under prim path: '{prim_path}'.")
+        collision_prim_path = collision_prim.GetPath().pathString
+        # Create physics material
         cfg.physics_material.func(f"{prim_path}/physicsMaterial", cfg.physics_material)
         # Apply physics material to ground plane
-        collision_prim_path = prim_utils.get_prim_path(
-            prim_utils.get_first_matching_child_prim(
-                prim_path, predicate=lambda x: prim_utils.get_prim_type_name(x) == "Plane"
-            )
-        )
-        bind_physics_material(collision_prim_path, f"{prim_path}/physicsMaterial")
+        sim_utils.bind_physics_material(collision_prim_path, f"{prim_path}/physicsMaterial")
 
     # Scale only the mesh
     # Warning: This is specific to the default grid plane asset.
-    if prim_utils.is_prim_path_valid(f"{prim_path}/Enviroment"):
+    if stage.GetPrimAtPath(f"{prim_path}/Enviroment").IsValid():
         # compute scale from size
         scale = (cfg.size[0] / 100.0, cfg.size[1] / 100.0, 1.0)
         # apply scale to the mesh
@@ -179,7 +183,7 @@ def spawn_ground_plane(
     omni.kit.commands.execute("ToggleVisibilitySelectedPrims", selected_paths=[f"{prim_path}/SphereLight"])
 
     # return the prim
-    return prim_utils.get_prim_at_path(prim_path)
+    return stage.GetPrimAtPath(prim_path)
 
 
 """
@@ -221,9 +225,9 @@ def _spawn_from_usd_file(
     if not stage.ResolveIdentifierToEditTarget(usd_path):
         raise FileNotFoundError(f"USD file not found at path: '{usd_path}'.")
     # spawn asset if it doesn't exist.
-    if not prim_utils.is_prim_path_valid(prim_path):
+    if not stage.GetPrimAtPath(prim_path).IsValid():
         # add prim as reference to stage
-        prim_utils.create_prim(
+        sim_utils.create_prim(
             prim_path,
             usd_path=usd_path,
             translation=translation,
@@ -234,8 +238,9 @@ def _spawn_from_usd_file(
         carb.log_warn(f"A prim already exists at prim path: '{prim_path}'.")
 
     # modify variants
-    if hasattr(cfg, "variants") and cfg.variants is not None:
-        select_usd_variants(prim_path, cfg.variants)
+    variants = getattr(cfg, "variants", None)
+    if variants is not None:
+        sim_utils.select_usd_variants(prim_path, variants)
 
     # modify rigid body properties
     if cfg.rigid_props is not None:
@@ -272,7 +277,7 @@ def _spawn_from_usd_file(
         # create material
         cfg.visual_material.func(material_path, cfg.visual_material)
         # apply material
-        bind_visual_material(prim_path, material_path)
+        sim_utils.bind_visual_material(prim_path, material_path)
 
     # return the prim
-    return prim_utils.get_prim_at_path(prim_path)
+    return stage.GetPrimAtPath(prim_path)
