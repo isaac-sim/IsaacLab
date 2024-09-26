@@ -143,7 +143,7 @@ def spawn_ground_plane(
     if cfg.physics_material is not None:
         # Find the collision prim
         collision_prim = sim_utils.get_first_matching_child_prim(
-            prim_path, predicate=lambda x: x.GetTypeName() == "Collision"
+            prim_path, predicate=lambda x: x.GetTypeName() == "Plane"
         )
         if collision_prim is None:
             raise ValueError(f"Collision prim not found under prim path: '{prim_path}'.")
