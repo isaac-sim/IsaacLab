@@ -591,16 +591,19 @@ class AppLauncher:
         """Load correct extensions based on AppLauncher's resolved config member variables."""
         # These have to be loaded after SimulationApp is initialized
         import carb
+        import omni.kit.app
         import omni.physx.bindings._physx as physx_impl
-        from omni.isaac.core.utils.extensions import enable_extension
 
         # Retrieve carb settings for modification
         carb_settings_iface = carb.settings.get_settings()
 
+        # Retrieve extension manager from the app
+        kit_ext_man = omni.kit.app.get_app().get_extension_manager()
+
         if self._livestream >= 1:
             # Ensure that a viewport exists in case an experience has been
             # loaded which does not load it by default
-            enable_extension("omni.kit.viewport.window")
+            kit_ext_man.set_extension_enabled_immediate("omni.kit.viewport.window", True)
             # Set carb settings to allow for livestreaming
             carb_settings_iface.set_bool("/app/livestream/enabled", True)
             carb_settings_iface.set_bool("/app/window/drawMouse", True)
@@ -611,13 +614,13 @@ class AppLauncher:
             if self._livestream == 1:
                 # Enable Native Livestream extension
                 # Default App: Streaming Client from the Omniverse Launcher
-                enable_extension("omni.kit.streamsdk.plugins-3.2.1")
-                enable_extension("omni.kit.livestream.core-3.2.0")
-                enable_extension("omni.kit.livestream.native-4.1.0")
+                kit_ext_man.set_extension_enabled_immediate("omni.kit.streamsdk.plugins-3.2.1", True)
+                kit_ext_man.set_extension_enabled_immediate("omni.kit.livestream.core-3.2.0", True)
+                kit_ext_man.set_extension_enabled_immediate("omni.kit.livestream.native-4.1.0", True)
             elif self._livestream == 2:
                 # Enable WebRTC Livestream extension
                 # Default URL: http://localhost:8211/streaming/webrtc-client/
-                enable_extension("omni.services.streamclient.webrtc")
+                kit_ext_man.set_extension_enabled_immediate("omni.services.streamclient.webrtc", True)
             else:
                 raise ValueError(f"Invalid value for livestream: {self._livestream}. Expected: 1, 2 .")
         else:
