@@ -18,9 +18,9 @@ import shutil
 import torch
 import unittest
 
+import omni.isaac.lab.utils.math as math_utils
 from omni.isaac.lab.terrains import FlatPatchSamplingCfg, TerrainGenerator, TerrainGeneratorCfg
 from omni.isaac.lab.terrains.config.rough import ROUGH_TERRAINS_CFG
-import omni.isaac.lab.utils.math as math_utils
 
 
 class TestTerrainGenerator(unittest.TestCase):

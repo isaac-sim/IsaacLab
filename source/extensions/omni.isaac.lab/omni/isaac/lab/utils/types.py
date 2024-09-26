@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 
 @dataclass
-class ArticulationActions(object):
+class ArticulationActions:
     """Data container to store articulation's joints actions.
 
     This class is used to store the actions of the joints of an articulation.

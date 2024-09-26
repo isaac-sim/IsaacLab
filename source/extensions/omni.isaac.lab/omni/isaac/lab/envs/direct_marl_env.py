@@ -20,12 +20,12 @@ import carb
 import omni.kit.app
 from omni.isaac.version import get_version
 
+import omni.isaac.lab.utils.math as math_utils
 from omni.isaac.lab.managers import EventManager
 from omni.isaac.lab.scene import InteractiveScene
 from omni.isaac.lab.sim import SimulationContext
 from omni.isaac.lab.utils.noise import NoiseModel
 from omni.isaac.lab.utils.timer import Timer
-import omni.isaac.lab.utils.math as math_utils
 
 from .common import ActionType, AgentID, EnvStepReturn, ObsType, StateType
 from .direct_marl_env_cfg import DirectMARLEnvCfg
