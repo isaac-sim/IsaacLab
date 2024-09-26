@@ -54,6 +54,7 @@ import gymnasium as gym
 import json
 import numpy as np
 import os
+import psutil
 import sys
 import time
 import torch
@@ -61,7 +62,6 @@ import traceback
 from collections import OrderedDict
 from torch.utils.data import DataLoader
 
-import psutil
 import robomimic.utils.env_utils as EnvUtils
 import robomimic.utils.file_utils as FileUtils
 import robomimic.utils.obs_utils as ObsUtils

@@ -240,12 +240,12 @@ simulation_app = app_launcher.app
 
 import gymnasium as gym
 import numpy as np
+import psutil
 import random
 import time
 import torch
 
-import psutil
-from omni.isaac.core.utils.stage import create_new_stage
+import omni.usd
 
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.assets import RigidObject, RigidObjectCfg
@@ -850,7 +850,9 @@ def main():
             cur_sys_util = analysis["system_utilization_analytics"]
             print("Triggering reset...")
             env.close()
-            create_new_stage()
+
+            # create a new stage to avoid memory leaks
+            omni.usd.get_context().new_stage()
         print("[INFO]: DONE! Feel free to CTRL + C Me ")
         print(f"[INFO]: If you've made it this far, you can likely simulate {cur_num_cams} {camera_name_prefix}")
         print("Keep in mind, this is without any training running on the GPU.")

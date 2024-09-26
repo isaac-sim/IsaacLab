@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import torch
 
-from omni.isaac.core.utils.stage import get_current_stage
+import omni.usd
 from omni.isaac.core.utils.torch.transformations import tf_combine, tf_inverse, tf_vector
 from pxr import UsdGeom
 
@@ -205,7 +205,7 @@ class FrankaCabinetEnv(DirectRLEnv):
 
         self.robot_dof_targets = torch.zeros((self.num_envs, self._robot.num_joints), device=self.device)
 
-        stage = get_current_stage()
+        stage = omni.usd.get_context().get_stage()
         hand_pose = get_env_local_pose(
             self.scene.env_origins[0],
             UsdGeom.Xformable(stage.GetPrimAtPath("/World/envs/env_0/Robot/panda_link7")),

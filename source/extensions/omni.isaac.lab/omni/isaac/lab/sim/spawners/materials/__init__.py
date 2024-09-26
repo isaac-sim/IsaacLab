@@ -31,8 +31,6 @@ When parsing physics material properties on an object, the following priority is
 Usage:
     .. code-block:: python
 
-        import omni.isaac.core.utils.prims as prim_utils
-
         import omni.isaac.lab.sim as sim_utils
 
         # create a visual material
