@@ -61,8 +61,7 @@ class OperationalSpaceController:
         # -- commands
         self._task_space_target = torch.zeros(self.num_envs, self.target_dim, device=self._device)
         # -- buffers for motion/force control
-        self.desired_ee_pos = None
-        self.desired_ee_rot = None
+        self.desired_ee_pose = None
         self.desired_ee_wrench = None
         # -- motion control gains
         self._p_gains = torch.zeros(self.num_envs, 6, device=self._device)
@@ -115,8 +114,7 @@ class OperationalSpaceController:
 
     def reset(self):
         """Reset the internals."""
-        self.desired_ee_pos = None
-        self.desired_ee_rot = None
+        self.desired_ee_pose = None
         self.desired_ee_wrench = None
 
     def initialize(self):
@@ -191,16 +189,16 @@ class OperationalSpaceController:
                 if current_ee_pose_b is None:
                     raise ValueError("Current pose is required for 'pose_rel' command.")
                 # compute targets
-                self.desired_ee_pos, self.desired_ee_rot = apply_delta_pose(
+                desired_ee_pos, desired_ee_rot = apply_delta_pose(
                     current_ee_pose_b[:, :3], current_ee_pose_b[:, 3:], target
                 )
+                self.desired_ee_pose = torch.cat([desired_ee_pos, desired_ee_rot], dim=-1)
             elif command_type == "pose_abs":
                 # compute targets
-                self.desired_ee_pos = target[:, 0:3]
-                self.desired_ee_rot = target[:, 3:7]
+                self.desired_ee_pose = target.clone()
             elif command_type == "wrench_abs":
                 # compute targets
-                self.desired_ee_wrench = target
+                self.desired_ee_wrench = target.clone()
             else:
                 raise ValueError(f"Invalid control command: {self.cfg.command_type}.")
 
@@ -244,7 +242,7 @@ class OperationalSpaceController:
         joint_efforts = torch.zeros(self.num_envs, num_DoF, device=self._device)
 
         # compute for motion-control
-        if self.desired_ee_pos is not None:
+        if self.desired_ee_pose is not None:
             # check input is provided
             if current_ee_pose_b is None or current_ee_vel_b is None:
                 raise ValueError("Current end-effector pose and velocity are required for motion control.")
@@ -253,8 +251,8 @@ class OperationalSpaceController:
                 compute_pose_error(
                     current_ee_pose_b[:, :3],
                     current_ee_pose_b[:, 3:],
-                    self.desired_ee_pos,
-                    self.desired_ee_rot,
+                    self.desired_ee_pose[:, :3],
+                    self.desired_ee_pose[:, 3:],
                     rot_error_type="axis_angle",
                 ),
                 dim=-1,
