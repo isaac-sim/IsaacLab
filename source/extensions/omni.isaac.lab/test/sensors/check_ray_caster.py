@@ -41,11 +41,8 @@ simulation_app = app_launcher.app
 
 import torch
 
-import omni.isaac.core.utils.prims as prim_utils
 from omni.isaac.cloner import GridCloner
 from omni.isaac.core.prims import RigidPrimView
-from omni.isaac.core.simulation_context import SimulationContext
-from omni.isaac.core.utils.viewports import set_camera_view
 
 import omni.isaac.lab.sim as sim_utils
 import omni.isaac.lab.terrains as terrain_gen
@@ -56,13 +53,13 @@ from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
 from omni.isaac.lab.utils.timer import Timer
 
 
-def design_scene(sim: SimulationContext, num_envs: int = 2048):
+def design_scene(sim: sim_utils.SimulationContext, num_envs: int = 2048):
     """Design the scene."""
     # Create interface to clone the scene
     cloner = GridCloner(spacing=2.0)
     cloner.define_base_env("/World/envs")
     # Everything under the namespace "/World/envs/env_0" will be cloned
-    prim_utils.define_prim("/World/envs/env_0")
+    sim_utils.create_prim("/World/envs/env_0")
     # Define the scene
     # -- Light
     cfg = sim_utils.DistantLightCfg(intensity=2000)
@@ -88,20 +85,10 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048):
 
 def main():
     """Main function."""
-
     # Load kit helper
-    sim_params = {
-        "use_gpu": True,
-        "use_gpu_pipeline": True,
-        "use_flatcache": True,  # deprecated from Isaac Sim 2023.1 onwards
-        "use_fabric": True,  # used from Isaac Sim 2023.1 onwards
-        "enable_scene_query_support": True,
-    }
-    sim = SimulationContext(
-        physics_dt=1.0 / 60.0, rendering_dt=1.0 / 60.0, sim_params=sim_params, backend="torch", device="cuda:0"
-    )
+    sim = sim_utils.SimulationContext()
     # Set main camera
-    set_camera_view([0.0, 30.0, 25.0], [0.0, 0.0, -2.5])
+    sim.set_camera_view([0.0, 30.0, 25.0], [0.0, 0.0, -2.5])
 
     # Parameters
     num_envs = args_cli.num_envs

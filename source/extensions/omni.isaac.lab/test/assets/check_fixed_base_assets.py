@@ -35,8 +35,6 @@ simulation_app = app_launcher.app
 import numpy as np
 import torch
 
-import omni.isaac.core.utils.prims as prim_utils
-
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.assets import Articulation
 
@@ -75,12 +73,12 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     origins = define_origins(num_origins=4, spacing=2.0)
 
     # Origin 1 with Franka Panda
-    prim_utils.create_prim("/World/Origin1", "Xform", translation=origins[0])
+    sim_utils.create_prim("/World/Origin1", "Xform", translation=origins[0])
     # -- Robot
     franka = Articulation(FRANKA_PANDA_CFG.replace(prim_path="/World/Origin1/Robot"))
 
     # Origin 2 with Anymal C
-    prim_utils.create_prim("/World/Origin2", "Xform", translation=origins[1])
+    sim_utils.create_prim("/World/Origin2", "Xform", translation=origins[1])
     # -- Robot
     robot_cfg = ANYMAL_C_CFG.replace(prim_path="/World/Origin2/Robot")
     robot_cfg.spawn.articulation_props.fix_root_link = True

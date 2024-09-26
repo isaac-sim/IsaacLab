@@ -36,11 +36,7 @@ simulation_app = app_launcher.app
 
 import torch
 
-import omni.isaac.core.utils.prims as prim_utils
 from omni.isaac.cloner import GridCloner
-from omni.isaac.core.simulation_context import SimulationContext
-from omni.isaac.core.utils.carb import set_carb_setting
-from omni.isaac.core.utils.viewports import set_camera_view
 
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.assets import Articulation
@@ -75,21 +71,17 @@ Main
 
 def main():
     """Spawns the ANYmal robot and clones it using Isaac Sim Cloner API."""
-
     # Load kit helper
-    sim = SimulationContext(physics_dt=0.005, rendering_dt=0.005, backend="torch", device="cuda:0")
+    sim_cfg = sim_utils.SimulationCfg(dt=0.005, device="cuda:0")
+    sim = sim_utils.SimulationContext(sim_cfg)
     # Set main camera
-    set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
-
-    # Enable hydra scene-graph instancing
-    # this is needed to visualize the scene when flatcache is enabled
-    set_carb_setting(sim._settings, "/persistent/omnihydra/useSceneGraphInstancing", True)
+    sim.set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
 
     # Create interface to clone the scene
     cloner = GridCloner(spacing=2.0)
     cloner.define_base_env("/World/envs")
     # Everything under the namespace "/World/envs/env_0" will be cloned
-    prim_utils.define_prim("/World/envs/env_0")
+    sim_utils.create_prim("/World/envs/env_0")
     # Clone the scene
     num_envs = args_cli.num_robots
     cloner.define_base_env("/World/envs")

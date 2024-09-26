@@ -64,16 +64,13 @@ simulation_app = app_launcher.app
 
 import numpy as np
 
-import omni.isaac.core.utils.prims as prim_utils
 import omni.kit
+import omni.kit.app
 import omni.kit.commands
 from omni.isaac.cloner import GridCloner
 from omni.isaac.core.materials import PhysicsMaterial, PreviewSurface
 from omni.isaac.core.objects import DynamicSphere
 from omni.isaac.core.prims import GeometryPrim, RigidPrim, RigidPrimView
-from omni.isaac.core.simulation_context import SimulationContext
-from omni.isaac.core.utils.extensions import enable_extension
-from omni.isaac.core.utils.viewports import set_camera_view
 
 import omni.isaac.lab.sim as sim_utils
 import omni.isaac.lab.terrains as terrain_gen
@@ -81,25 +78,17 @@ from omni.isaac.lab.terrains.config.rough import ROUGH_TERRAINS_CFG
 from omni.isaac.lab.terrains.terrain_importer import TerrainImporter
 from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
 
-enable_extension("omni.kit.primitive.mesh")
+# Enable the mesh extension
+ext_man = omni.kit.app.get_app_interface().get_extension_manager()
+ext_man.set_extension_enabled_immediate("omni.kit.primitive.mesh", True)
 
 
 def main():
-    """Generates a terrain from isaaclab."""
-
+    """Generates a terrain procedurally."""
     # Load kit helper
-    sim_params = {
-        "use_gpu": True,
-        "use_gpu_pipeline": True,
-        "use_flatcache": True,
-        "use_fabric": True,
-        "enable_scene_query_support": True,
-    }
-    sim = SimulationContext(
-        physics_dt=1.0 / 60.0, rendering_dt=1.0 / 60.0, sim_params=sim_params, backend="torch", device="cuda:0"
-    )
+    sim = sim_utils.SimulationContext()
     # Set main camera
-    set_camera_view([0.0, 30.0, 25.0], [0.0, 0.0, -2.5])
+    sim.set_camera_view([0.0, 30.0, 25.0], [0.0, 0.0, -2.5])
 
     # Parameters
     num_balls = 2048
@@ -108,7 +97,7 @@ def main():
     cloner = GridCloner(spacing=2.0)
     cloner.define_base_env("/World/envs")
     # Everything under the namespace "/World/envs/env_0" will be cloned
-    prim_utils.define_prim("/World/envs/env_0")
+    sim_utils.create_prim("/World/envs/env_0")
 
     # Handler for terrains importing
     terrain_importer_cfg = terrain_gen.TerrainImporterCfg(
@@ -135,7 +124,7 @@ def main():
     else:
         # -- Ball geometry
         cube_prim_path = omni.kit.commands.execute("CreateMeshPrimCommand", prim_type="Sphere")[1]
-        prim_utils.move_prim(cube_prim_path, "/World/envs/env_0/ball")
+        omni.kit.commands.execute("MovePrimCommand", path_from=cube_prim_path, path_to="/World/envs/env_0/ball")
         # -- Ball physics
         RigidPrim(prim_path="/World/envs/env_0/ball", mass=0.5, scale=(0.5, 0.5, 0.5), translation=(0.0, 0.0, 0.5))
         GeometryPrim(prim_path="/World/envs/env_0/ball", collision=True)

@@ -23,8 +23,8 @@ simulation_app = app_launcher.app
 
 import ctypes
 
-from omni.isaac.lab.sim import SimulationContext
 from omni.isaac.lab.devices import Se3Keyboard
+from omni.isaac.lab.sim import SimulationContext
 
 
 def print_cb():
