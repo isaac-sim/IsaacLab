@@ -7,9 +7,9 @@ from __future__ import annotations
 
 import os
 
+import omni.kit.app
 import omni.kit.commands
 import omni.usd
-from omni.isaac.core.utils.extensions import enable_extension
 from pxr import Usd
 
 from .asset_converter_base import AssetConverterBase
@@ -91,9 +91,9 @@ class MjcfConverter(AssetConverterBase):
         Returns:
             The constructed ``ImportConfig`` object containing the desired settings.
         """
-
         # Enable MJCF Extensions
-        enable_extension("omni.importer.mjcf")
+        kit_ext_man = omni.kit.app.get_app().get_extension_manager()
+        kit_ext_man.set_extension_enabled_immediate("omni.importer.mjcf", True)
 
         from omni.importer.mjcf import _mjcf as omni_mjcf
 

@@ -5,12 +5,16 @@
 
 import os
 
-from omni.isaac.core.utils.extensions import get_extension_path_from_name
+import omni.kit.app
 
 from omni.isaac.lab.controllers.rmp_flow import RmpFlowControllerCfg
 
 # Note: RMP-Flow config files for supported robots are stored in the motion_generation extension
-_RMP_CONFIG_DIR = os.path.join(get_extension_path_from_name("omni.isaac.motion_generation"), "motion_policy_configs")
+extension_manager = omni.kit.app.get_app().get_extension_manager()
+extension_id = extension_manager.get_enabled_extension_id(omni.isaac.motion_generation)
+extension_path = extension_manager.get_extension_path(extension_id)
+
+_RMP_CONFIG_DIR = os.path.join(extension_path, "motion_policy_configs")
 
 # Path to current directory
 _CUR_DIR = os.path.dirname(os.path.realpath(__file__))

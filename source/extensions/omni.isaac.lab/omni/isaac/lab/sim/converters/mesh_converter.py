@@ -7,9 +7,9 @@ import asyncio
 import os
 
 import omni
+import omni.kit.app
 import omni.kit.commands
 import omni.usd
-from omni.isaac.core.utils.extensions import enable_extension
 from pxr import Usd, UsdGeom, UsdPhysics, UsdUtils
 
 from omni.isaac.lab.sim.converters.asset_converter_base import AssetConverterBase
@@ -176,8 +176,10 @@ class MeshConverter(AssetConverterBase):
         Returns:
             True if the conversion succeeds.
         """
-        enable_extension("omni.kit.asset_converter")
-        enable_extension("omni.usd.metrics.assembler")
+        # enable extensions
+        kit_ext_man = omni.kit.app.get_app().get_extension_manager()
+        kit_ext_man.set_extension_enabled_immediate("omni.kit.asset_converter", True)
+        kit_ext_man.set_extension_enabled_immediate("omni.usd.metrics.assembler", True)
 
         import omni.kit.asset_converter
         import omni.usd

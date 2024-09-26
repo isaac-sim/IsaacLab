@@ -18,9 +18,9 @@ import os
 import unittest
 
 import omni.isaac.core.utils.prims as prim_utils
+import omni.kit.app
 import omni.usd
 from omni.isaac.core.simulation_context import SimulationContext
-from omni.isaac.core.utils.extensions import enable_extension, get_extension_path_from_name
 
 from omni.isaac.lab.sim.converters import MjcfConverter, MjcfConverterCfg
 
@@ -32,9 +32,14 @@ class TestMjcfConverter(unittest.TestCase):
         """Create a blank new stage for each test."""
         # Create a new stage
         omni.usd.get_context().new_stage()
+
+        # enable mjcf importer extension
+        extension_manager = omni.kit.app.get_app().get_extension_manager()
+        extension_manager.set_extension_enabled_immediate("omni.importer.mjcf", True)
         # retrieve path to mjcf importer extension
-        enable_extension("omni.importer.mjcf")
-        extension_path = get_extension_path_from_name("omni.importer.mjcf")
+        extension_id = extension_manager.get_enabled_extension_id("omni.importer.mjcf")
+        extension_path = extension_manager.get_extension_path(extension_id)
+
         # default configuration
         self.config = MjcfConverterCfg(
             asset_path=f"{extension_path}/data/mjcf/nv_ant.xml",

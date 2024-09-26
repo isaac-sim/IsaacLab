@@ -46,14 +46,19 @@ AppLauncher.add_app_launcher_args(parser)
 # to ensure kit args don't break the benchmark arg parsing
 args_cli, _ = parser.parse_known_args()
 
+# Start the timer for app start
 app_start_time_begin = time.perf_counter_ns()
 
 # launch omniverse app
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
+# End the timer for app start
 app_start_time_end = time.perf_counter_ns()
 
+"""Rest everything follows."""
+
+# Start the timer for imports
 imports_time_begin = time.perf_counter_ns()
 
 import gymnasium as gym
@@ -64,7 +69,6 @@ from datetime import datetime
 
 from rsl_rl.runners import OnPolicyRunner
 
-from omni.isaac.lab.envs import ManagerBasedRLEnvCfg
 from omni.isaac.lab.utils.dict import print_dict
 from omni.isaac.lab.utils.io import dump_pickle, dump_yaml
 
@@ -72,11 +76,15 @@ import omni.isaac.lab_tasks  # noqa: F401
 from omni.isaac.lab_tasks.utils import get_checkpoint_path, parse_env_cfg
 from omni.isaac.lab_tasks.utils.wrappers.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper
 
+# Stop the timer for imports
 imports_time_end = time.perf_counter_ns()
 
-from omni.isaac.core.utils.extensions import enable_extension
+# Enable benchmarking extension
+import omni.kit.app
 
-enable_extension("omni.isaac.benchmark.services")
+extension_manager = omni.kit.app.get_app().get_extension_manager()
+extension_manager.set_extension_enabled_immediate("omni.isaac.benchmark.services", True)
+
 from omni.isaac.benchmark.services import BaseIsaacBenchmark
 
 from omni.isaac.lab.utils.timer import Timer
@@ -117,7 +125,7 @@ def main():
     """Train with RSL-RL agent."""
     # parse configuration
     benchmark.set_phase("loading", start_recording_frametime=False, start_recording_runtime=True)
-    env_cfg: ManagerBasedRLEnvCfg = parse_env_cfg(
+    env_cfg = parse_env_cfg(
         args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric
     )
     agent_cfg: RslRlOnPolicyRunnerCfg = cli_args.parse_rsl_rl_cfg(args_cli.task, args_cli)

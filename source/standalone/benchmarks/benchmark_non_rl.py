@@ -43,33 +43,19 @@ args_cli, _ = parser.parse_known_args()
 if args_cli.video:
     args_cli.enable_cameras = True
 
+# Start the timer for app start
 app_start_time_begin = time.perf_counter_ns()
 
 # launch omniverse app
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
+# End the timer for app start
 app_start_time_end = time.perf_counter_ns()
 
 """Rest everything follows."""
 
-# enable benchmarking extension
-from omni.isaac.core.utils.extensions import enable_extension
-
-enable_extension("omni.isaac.benchmark.services")
-from omni.isaac.benchmark.services import BaseIsaacBenchmark
-
-from omni.isaac.lab.utils.timer import Timer
-from source.standalone.benchmarks.utils import (
-    log_app_start_time,
-    log_python_imports_time,
-    log_runtime_step_times,
-    log_scene_creation_time,
-    log_simulation_start_time,
-    log_task_start_time,
-    log_total_start_time,
-)
-
+# Start the timer for imports
 imports_time_begin = time.perf_counter_ns()
 
 import gymnasium as gym
@@ -83,8 +69,27 @@ from omni.isaac.lab.utils.dict import print_dict
 import omni.isaac.lab_tasks  # noqa: F401
 from omni.isaac.lab_tasks.utils import parse_env_cfg
 
+# Stop the timer for imports
 imports_time_end = time.perf_counter_ns()
 
+# Enable benchmarking extension
+import omni.kit.app
+
+extension_manager = omni.kit.app.get_app().get_extension_manager()
+extension_manager.set_extension_enabled_immediate("omni.isaac.benchmark.services", True)
+
+from omni.isaac.benchmark.services import BaseIsaacBenchmark
+
+from omni.isaac.lab.utils.timer import Timer
+from source.standalone.benchmarks.utils import (
+    log_app_start_time,
+    log_python_imports_time,
+    log_runtime_step_times,
+    log_scene_creation_time,
+    log_simulation_start_time,
+    log_task_start_time,
+    log_total_start_time,
+)
 
 # Create the benchmark
 benchmark = BaseIsaacBenchmark(

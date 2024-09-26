@@ -15,9 +15,9 @@ simulation_app = AppLauncher(headless=True).app
 import unittest
 
 import omni.isaac.core.utils.prims as prim_utils
+import omni.kit.app
 import omni.usd
 from omni.isaac.core.simulation_context import SimulationContext
-from omni.isaac.core.utils.extensions import enable_extension, get_extension_path_from_name
 
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.utils.assets import ISAACLAB_NUCLEUS_DIR
@@ -67,9 +67,13 @@ class TestSpawningFromFiles(unittest.TestCase):
 
     def test_spawn_urdf(self):
         """Test loading prim from URDF file."""
-        # retrieve path to urdf importer extension
-        enable_extension("omni.importer.urdf")
-        extension_path = get_extension_path_from_name("omni.importer.urdf")
+        # enable URDF importer extension
+        extension_manager = omni.kit.app.get_app().get_extension_manager()
+        extension_manager.set_extension_enabled_immediate("omni.importer.urdf", True)
+        # retrieve path to URDF importer extension
+        extension_id = extension_manager.get_enabled_extension_id("omni.importer.urdf")
+        extension_path = extension_manager.get_extension_path(extension_id)
+
         # Spawn franka from URDF
         cfg = sim_utils.UrdfFileCfg(
             asset_path=f"{extension_path}/data/urdf/robots/franka_description/robots/panda_arm_hand.urdf", fix_base=True

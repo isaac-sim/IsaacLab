@@ -7,9 +7,9 @@ from __future__ import annotations
 
 import os
 
+import omni.kit.app
 import omni.kit.commands
 import omni.usd
-from omni.isaac.core.utils.extensions import enable_extension
 from omni.isaac.version import get_version
 from pxr import Usd
 
@@ -115,7 +115,8 @@ class UrdfConverter(AssetConverterBase):
             The constructed ``ImportConfig`` object containing the desired settings.
         """
         # Enable urdf extension
-        enable_extension("omni.importer.urdf")
+        kit_ext_man = omni.kit.app.get_app().get_extension_manager()
+        kit_ext_man.set_extension_enabled_immediate("omni.importer.urdf", True)
 
         from omni.importer.urdf import _urdf as omni_urdf
 
