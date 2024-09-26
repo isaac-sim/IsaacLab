@@ -9,13 +9,60 @@
 from __future__ import annotations
 
 import numpy as np
+import os
+import random
 import torch
 import torch.nn.functional
 from typing import Literal
 
+import warp as wp
+
 """
 General
 """
+
+
+def set_seed(seed: int, torch_deterministic: bool = False):
+    """Set seed across modules.
+
+    This method sets the global seed for random number generators in python, numpy, and torch.
+    It also sets the seed for the cuDNN backend to ensure reproducibility.
+
+    If the seed is set to -1, a random seed is chosen. If the flag `torch_deterministic` is set to True,
+    then the seed is set to 42.
+
+    Args:
+        seed: The seed value to set.
+        torch_deterministic: Whether to set the torch backend to deterministic. Defaults to False.
+    """
+    # handle seed when set to -1
+    if seed == -1:
+        if torch_deterministic:
+            seed = 42
+        else:
+            seed = np.random.randint(0, 10000)
+
+    # set seed across modules
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    os.environ["PYTHONHASHSEED"] = str(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    wp.rand_init(seed)
+
+    # set torch backend to deterministic
+    if torch_deterministic:
+        # refer to https://docs.nvidia.com/cuda/cublas/index.html#cublasApi_reproducibility
+        os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
+        torch.backends.cudnn.benchmark = False
+        torch.backends.cudnn.deterministic = True
+        torch.use_deterministic_algorithms(True)
+    else:
+        torch.backends.cudnn.benchmark = True
+        torch.backends.cudnn.deterministic = False
+
+    return seed
 
 
 @torch.jit.script

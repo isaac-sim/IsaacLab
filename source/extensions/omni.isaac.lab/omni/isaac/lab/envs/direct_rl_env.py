@@ -17,7 +17,6 @@ from collections.abc import Sequence
 from typing import Any, ClassVar
 
 import carb
-import omni.isaac.core.utils.torch as torch_utils
 import omni.kit.app
 from omni.isaac.version import get_version
 
@@ -26,6 +25,7 @@ from omni.isaac.lab.scene import InteractiveScene
 from omni.isaac.lab.sim import SimulationContext
 from omni.isaac.lab.utils.noise import NoiseModel
 from omni.isaac.lab.utils.timer import Timer
+import omni.isaac.lab.utils.math as math_utils
 
 from .common import VecEnvObs, VecEnvStepReturn
 from .direct_rl_env_cfg import DirectRLEnvCfg
@@ -381,7 +381,7 @@ class DirectRLEnv(gym.Env):
         except ModuleNotFoundError:
             pass
         # set seed for torch and other libraries
-        return torch_utils.set_seed(seed)
+        return math_utils.set_seed(seed)
 
     def render(self, recompute: bool = False) -> np.ndarray | None:
         """Run rendering without stepping through the physics.

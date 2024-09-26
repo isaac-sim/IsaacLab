@@ -18,10 +18,9 @@ import shutil
 import torch
 import unittest
 
-import omni.isaac.core.utils.torch as torch_utils
-
 from omni.isaac.lab.terrains import FlatPatchSamplingCfg, TerrainGenerator, TerrainGeneratorCfg
 from omni.isaac.lab.terrains.config.rough import ROUGH_TERRAINS_CFG
+import omni.isaac.lab.utils.math as math_utils
 
 
 class TestTerrainGenerator(unittest.TestCase):
@@ -62,7 +61,7 @@ class TestTerrainGenerator(unittest.TestCase):
             for seed in [20, 40, 80]:
                 with self.subTest(seed=seed):
                     # set initial seed
-                    torch_utils.set_seed(seed)
+                    math_utils.set_seed(seed)
 
                     # create terrain generator
                     cfg = ROUGH_TERRAINS_CFG.copy()
@@ -74,7 +73,7 @@ class TestTerrainGenerator(unittest.TestCase):
                     terrain_mesh_1 = terrain_generator.terrain_mesh.copy()
 
                     # set seed again
-                    torch_utils.set_seed(seed)
+                    math_utils.set_seed(seed)
 
                     # create terrain generator
                     terrain_generator = TerrainGenerator(cfg=cfg)
@@ -119,7 +118,7 @@ class TestTerrainGenerator(unittest.TestCase):
 
                 # set a random seed to disturb the process
                 # this is to ensure that the seed inside the terrain generator makes deterministic results
-                torch_utils.set_seed(12456)
+                math_utils.set_seed(12456)
 
                 # create terrain generator with cache enabled
                 terrain_generator = TerrainGenerator(cfg=cfg)

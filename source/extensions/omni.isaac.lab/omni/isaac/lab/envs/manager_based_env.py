@@ -9,12 +9,12 @@ from collections.abc import Sequence
 from typing import Any
 
 import carb
-import omni.isaac.core.utils.torch as torch_utils
 
 from omni.isaac.lab.managers import ActionManager, EventManager, ObservationManager
 from omni.isaac.lab.scene import InteractiveScene
 from omni.isaac.lab.sim import SimulationContext
 from omni.isaac.lab.utils.timer import Timer
+import omni.isaac.lab.utils.math as math_utils
 
 from .common import VecEnvObs
 from .manager_based_env_cfg import ManagerBasedEnvCfg
@@ -322,7 +322,7 @@ class ManagerBasedEnv:
         except ModuleNotFoundError:
             pass
         # set seed for torch and other libraries
-        return torch_utils.set_seed(seed)
+        return math_utils.set_seed(seed)
 
     def close(self):
         """Cleanup for the environment."""
