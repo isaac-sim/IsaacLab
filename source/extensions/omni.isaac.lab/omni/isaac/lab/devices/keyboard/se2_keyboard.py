@@ -30,7 +30,7 @@ class Se2Keyboard(DeviceBase):
         ====================== ========================= ========================
         Move along x-axis      Numpad 8 / Arrow Up       Numpad 2 / Arrow Down
         Move along y-axis      Numpad 4 / Arrow Right    Numpad 6 / Arrow Left
-        Rotate along z-axis    Numpad 7 / X              Numpad 9 / Y
+        Rotate along z-axis    Numpad 7 / Z              Numpad 9 / X
         ====================== ========================= ========================
 
     .. seealso::
@@ -82,8 +82,8 @@ class Se2Keyboard(DeviceBase):
         msg += "\tMove backward  (along x-axis): Numpad 2 / Arrow Down\n"
         msg += "\tMove right     (along y-axis): Numpad 4 / Arrow Right\n"
         msg += "\tMove left      (along y-axis): Numpad 6 / Arrow Left\n"
-        msg += "\tYaw positively (along z-axis): Numpad 7 / X\n"
-        msg += "\tYaw negatively (along z-axis): Numpad 9 / Y"
+        msg += "\tYaw positively (along z-axis): Numpad 7 / Z\n"
+        msg += "\tYaw negatively (along z-axis): Numpad 9 / X"
         return msg
 
     """
@@ -160,8 +160,8 @@ class Se2Keyboard(DeviceBase):
             "RIGHT": np.asarray([0.0, -1.0, 0.0]) * self.v_y_sensitivity,
             # yaw command (positive)
             "NUMPAD_7": np.asarray([0.0, 0.0, 1.0]) * self.omega_z_sensitivity,
-            "X": np.asarray([0.0, 0.0, 1.0]) * self.omega_z_sensitivity,
+            "Z": np.asarray([0.0, 0.0, 1.0]) * self.omega_z_sensitivity,
             # yaw command (negative)
             "NUMPAD_9": np.asarray([0.0, 0.0, -1.0]) * self.omega_z_sensitivity,
-            "Z": np.asarray([0.0, 0.0, -1.0]) * self.omega_z_sensitivity,
+            "X": np.asarray([0.0, 0.0, -1.0]) * self.omega_z_sensitivity,
         }

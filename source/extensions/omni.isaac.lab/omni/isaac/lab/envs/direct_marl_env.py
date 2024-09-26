@@ -79,6 +79,12 @@ class DirectMARLEnv:
         # initialize internal variables
         self._is_closed = False
 
+        # set the seed for the environment
+        if self.cfg.seed is not None:
+            self.seed(self.cfg.seed)
+        else:
+            carb.log_warn("Seed not set for the environment. The environment creation may not be deterministic.")
+
         # create a simulation context to control the simulator
         if SimulationContext.instance() is None:
             self.sim: SimulationContext = SimulationContext(self.cfg.sim)
@@ -88,6 +94,7 @@ class DirectMARLEnv:
         # print useful information
         print("[INFO]: Base environment:")
         print(f"\tEnvironment device    : {self.device}")
+        print(f"\tEnvironment seed      : {self.cfg.seed}")
         print(f"\tPhysics step-size     : {self.physics_dt}")
         print(f"\tRendering step-size   : {self.physics_dt * self.cfg.sim.render_interval}")
         print(f"\tEnvironment step-size : {self.step_dt}")

@@ -64,8 +64,10 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         # this means that number of bodies is one less than the articulation's number of bodies
         if self._asset.is_fixed_base:
             self._jacobi_body_idx = self._body_idx - 1
+            self._jacobi_joint_ids = self._joint_ids
         else:
             self._jacobi_body_idx = self._body_idx
+            self._jacobi_joint_ids = [i + 6 for i in self._joint_ids]
 
         # log info for debugging
         carb.log_info(
