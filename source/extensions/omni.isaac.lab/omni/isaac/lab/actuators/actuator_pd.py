@@ -9,9 +9,8 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-from omni.isaac.core.utils.types import ArticulationActions
-
 from omni.isaac.lab.utils import DelayBuffer, LinearInterpolation
+from omni.isaac.lab.utils.types import ArticulationActions
 
 from .actuator_base import ActuatorBase
 
