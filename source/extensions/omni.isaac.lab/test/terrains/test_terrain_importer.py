@@ -16,7 +16,6 @@ import numpy as np
 import torch
 import unittest
 
-import omni.isaac.core.utils.prims as prim_utils
 import omni.kit
 import omni.kit.commands
 from omni.isaac.cloner import GridCloner
@@ -25,6 +24,7 @@ from omni.isaac.core.objects import DynamicSphere
 from omni.isaac.core.prims import GeometryPrim, RigidPrim, RigidPrimView
 from omni.isaac.core.utils.extensions import enable_extension
 
+import omni.isaac.lab.sim as sim_utils
 import omni.isaac.lab.terrains as terrain_gen
 from omni.isaac.lab.sim import SimulationContext, build_simulation_context
 from omni.isaac.lab.terrains import TerrainImporter, TerrainImporterCfg
@@ -223,7 +223,7 @@ class TestTerrainImporter(unittest.TestCase):
         cloner = GridCloner(spacing=env_spacing)
         cloner.define_base_env("/World/envs")
         envs_prim_paths = cloner.generate_paths("/World/envs/env", num_paths=num_envs)
-        prim_utils.define_prim("/World/envs/env_0")
+        prim_utils.create_prim("/World/envs/env_0")
         # clone envs using grid cloner
         env_origins = cloner.clone(
             source_prim_path="/World/envs/env_0", prim_paths=envs_prim_paths, replicate_physics=True
@@ -251,7 +251,7 @@ class TestTerrainImporter(unittest.TestCase):
         cloner = GridCloner(spacing=2.0)
         cloner.define_base_env("/World/envs")
         # Everything under the namespace "/World/envs/env_0" will be cloned
-        prim_utils.define_prim(prim_path="/World/envs/env_0", prim_type="Xform")
+        prim_utils.create_prim(prim_path="/World/envs/env_0", prim_type="Xform")
 
         # Define the scene
         # -- Ball
@@ -264,7 +264,7 @@ class TestTerrainImporter(unittest.TestCase):
             # -- Ball geometry
             enable_extension("omni.kit.primitive.mesh")
             cube_prim_path = omni.kit.commands.execute("CreateMeshPrimCommand", prim_type="Sphere")[1]
-            prim_utils.move_prim(cube_prim_path, "/World/envs/env_0/ball")
+            omni.kit.commands.execute("MovePrimCommand", path_from=cube_prim_path, path_to="/World/envs/env_0/ball")
             # -- Ball physics
             RigidPrim(prim_path="/World/envs/env_0/ball", mass=0.5, scale=(0.5, 0.5, 0.5), translation=(0.0, 0.0, 0.5))
             GeometryPrim(prim_path="/World/envs/env_0/ball", collision=True)

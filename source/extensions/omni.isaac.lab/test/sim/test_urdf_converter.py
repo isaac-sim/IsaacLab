@@ -19,7 +19,7 @@ import os
 import unittest
 
 import omni.isaac.core.utils.prims as prim_utils
-import omni.isaac.core.utils.stage as stage_utils
+import omni.usd
 from omni.isaac.core.articulations import ArticulationView
 from omni.isaac.core.utils.extensions import enable_extension, get_extension_path_from_name
 
