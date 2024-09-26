@@ -15,7 +15,7 @@ simulation_app = AppLauncher(headless=True).app
 import unittest
 
 import omni.isaac.core.utils.prims as prim_utils
-import omni.isaac.core.utils.stage as stage_utils
+import omni.usd
 from omni.isaac.core.simulation_context import SimulationContext
 from pxr import UsdPhysics, UsdShade
 
@@ -29,13 +29,11 @@ class TestSpawningMaterials(unittest.TestCase):
     def setUp(self) -> None:
         """Create a blank new stage for each test."""
         # Create a new stage
-        stage_utils.create_new_stage()
+        omni.usd.get_context().new_stage()
         # Simulation time-step
         self.dt = 0.1
         # Load kit helper
         self.sim = SimulationContext(physics_dt=self.dt, rendering_dt=self.dt, backend="numpy")
-        # Wait for spawning
-        stage_utils.update_stage()
 
     def tearDown(self) -> None:
         """Stops simulator after each test."""

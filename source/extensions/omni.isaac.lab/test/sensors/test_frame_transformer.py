@@ -22,7 +22,7 @@ import scipy.spatial.transform as tf
 import torch
 import unittest
 
-import omni.isaac.core.utils.stage as stage_utils
+import omni.usd
 
 import omni.isaac.lab.sim as sim_utils
 import omni.isaac.lab.utils.math as math_utils
@@ -69,7 +69,7 @@ class TestFrameTransformer(unittest.TestCase):
     def setUp(self):
         """Create a blank new stage for each test."""
         # Create a new stage
-        stage_utils.create_new_stage()
+        omni.usd.get_context().new_stage()
         # Load kit helper
         self.sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.005))
         # Set main camera

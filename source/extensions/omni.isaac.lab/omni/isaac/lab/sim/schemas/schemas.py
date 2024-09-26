@@ -7,8 +7,8 @@
 from __future__ import annotations
 
 import carb
-import omni.isaac.core.utils.stage as stage_utils
 import omni.physx.scripts.utils as physx_utils
+import omni.usd
 from omni.physx.scripts import deformableUtils as deformable_utils
 from pxr import PhysxSchema, Usd, UsdPhysics
 
@@ -44,7 +44,7 @@ def define_articulation_root_properties(
     """
     # obtain stage
     if stage is None:
-        stage = stage_utils.get_current_stage()
+        stage = omni.usd.get_context().get_stage()
     # get articulation USD prim
     prim = stage.GetPrimAtPath(prim_path)
     # check if prim path is valid
@@ -102,7 +102,7 @@ def modify_articulation_root_properties(
     """
     # obtain stage
     if stage is None:
-        stage = stage_utils.get_current_stage()
+        stage = omni.usd.get_context().get_stage()
     # get articulation USD prim
     articulation_prim = stage.GetPrimAtPath(prim_path)
     # check if prim has articulation applied on it
@@ -204,7 +204,7 @@ def define_rigid_body_properties(
     """
     # obtain stage
     if stage is None:
-        stage = stage_utils.get_current_stage()
+        stage = omni.usd.get_context().get_stage()
     # get USD prim
     prim = stage.GetPrimAtPath(prim_path)
     # check if prim path is valid
@@ -250,7 +250,7 @@ def modify_rigid_body_properties(
     """
     # obtain stage
     if stage is None:
-        stage = stage_utils.get_current_stage()
+        stage = omni.usd.get_context().get_stage()
     # get rigid-body USD prim
     rigid_body_prim = stage.GetPrimAtPath(prim_path)
     # check if prim has rigid-body applied on it
@@ -299,7 +299,7 @@ def define_collision_properties(
     """
     # obtain stage
     if stage is None:
-        stage = stage_utils.get_current_stage()
+        stage = omni.usd.get_context().get_stage()
     # get USD prim
     prim = stage.GetPrimAtPath(prim_path)
     # check if prim path is valid
@@ -343,7 +343,7 @@ def modify_collision_properties(
     """
     # obtain stage
     if stage is None:
-        stage = stage_utils.get_current_stage()
+        stage = omni.usd.get_context().get_stage()
     # get USD prim
     collider_prim = stage.GetPrimAtPath(prim_path)
     # check if prim has collision applied on it
@@ -390,7 +390,7 @@ def define_mass_properties(prim_path: str, cfg: schemas_cfg.MassPropertiesCfg, s
     """
     # obtain stage
     if stage is None:
-        stage = stage_utils.get_current_stage()
+        stage = omni.usd.get_context().get_stage()
     # get USD prim
     prim = stage.GetPrimAtPath(prim_path)
     # check if prim path is valid
@@ -435,7 +435,7 @@ def modify_mass_properties(prim_path: str, cfg: schemas_cfg.MassPropertiesCfg, s
     """
     # obtain stage
     if stage is None:
-        stage = stage_utils.get_current_stage()
+        stage = omni.usd.get_context().get_stage()
     # get USD prim
     rigid_prim = stage.GetPrimAtPath(prim_path)
     # check if prim has mass API applied on it
@@ -478,7 +478,7 @@ def activate_contact_sensors(prim_path: str, threshold: float = 0.0, stage: Usd.
     """
     # obtain stage
     if stage is None:
-        stage = stage_utils.get_current_stage()
+        stage = omni.usd.get_context().get_stage()
     # get prim
     prim: Usd.Prim = stage.GetPrimAtPath(prim_path)
     # check if prim is valid
@@ -564,7 +564,7 @@ def modify_joint_drive_properties(
     """
     # obtain stage
     if stage is None:
-        stage = stage_utils.get_current_stage()
+        stage = omni.usd.get_context().get_stage()
     # get USD prim
     prim = stage.GetPrimAtPath(prim_path)
     # check if prim path is valid
@@ -633,7 +633,7 @@ def modify_fixed_tendon_properties(
     """
     # obtain stage
     if stage is None:
-        stage = stage_utils.get_current_stage()
+        stage = omni.usd.get_context().get_stage()
     # get USD prim
     tendon_prim = stage.GetPrimAtPath(prim_path)
     # check if prim has fixed tendon applied on it
@@ -688,7 +688,7 @@ def define_deformable_body_properties(
     """
     # obtain stage
     if stage is None:
-        stage = stage_utils.get_current_stage()
+        stage = omni.usd.get_context().get_stage()
     # get USD prim
     prim = stage.GetPrimAtPath(prim_path)
     # check if prim path is valid
@@ -763,7 +763,7 @@ def modify_deformable_body_properties(
     """
     # obtain stage
     if stage is None:
-        stage = stage_utils.get_current_stage()
+        stage = omni.usd.get_context().get_stage()
 
     # get deformable-body USD prim
     deformable_body_prim = stage.GetPrimAtPath(prim_path)

@@ -16,7 +16,7 @@ simulation_app = AppLauncher(config).app
 import torch
 import unittest
 
-import omni.isaac.core.utils.stage as stage_utils
+import omni.usd
 from omni.isaac.core.simulation_context import SimulationContext
 
 import omni.isaac.lab.sim as sim_utils
@@ -34,7 +34,7 @@ class TestUsdVisualizationMarkers(unittest.TestCase):
         # Simulation time-step
         self.dt = 0.01
         # Open a new stage
-        stage_utils.create_new_stage()
+        omni.usd.get_context().new_stage()
         # Load kit helper
         self.sim = SimulationContext(physics_dt=self.dt, rendering_dt=self.dt, backend="torch", device="cuda:0")
 
@@ -43,7 +43,7 @@ class TestUsdVisualizationMarkers(unittest.TestCase):
         # stop simulation
         self.sim.stop()
         # close stage
-        stage_utils.close_stage()
+        omni.usd.get_context().close_stage()
         # clear the simulation context
         self.sim.clear_instance()
 

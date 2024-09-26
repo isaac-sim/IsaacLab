@@ -14,8 +14,8 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 import carb
-import omni.isaac.core.utils.stage as stage_utils
 import omni.kit.commands
+import omni.usd
 from omni.isaac.cloner import Cloner
 from pxr import PhysxSchema, Sdf, Semantics, Usd, UsdGeom, UsdPhysics, UsdShade
 
@@ -154,7 +154,7 @@ def apply_nested(func: Callable) -> Callable:
         # get current stage
         stage = bound_args.arguments.get("stage")
         if stage is None:
-            stage = stage_utils.get_current_stage()
+            stage = omni.usd.get_context().get_stage()
         # get USD prim
         prim: Usd.Prim = stage.GetPrimAtPath(prim_path)
         # check if prim is valid
@@ -314,7 +314,7 @@ def bind_visual_material(
     """
     # resolve stage
     if stage is None:
-        stage = stage_utils.get_current_stage()
+        stage = omni.usd.get_context().get_stage()
     # check if prim and material exists
     if not stage.GetPrimAtPath(prim_path).IsValid():
         raise ValueError(f"Target prim '{material_path}' does not exist.")
@@ -371,7 +371,7 @@ def bind_physics_material(
     """
     # resolve stage
     if stage is None:
-        stage = stage_utils.get_current_stage()
+        stage = omni.usd.get_context().get_stage()
     # check if prim and material exists
     if not stage.GetPrimAtPath(prim_path).IsValid():
         raise ValueError(f"Target prim '{material_path}' does not exist.")
@@ -509,7 +509,7 @@ def make_uninstanceable(prim_path: str | Sdf.Path, stage: Usd.Stage | None = Non
         raise ValueError(f"Prim path '{prim_path}' is not global. It must start with '/'.")
     # get current stage
     if stage is None:
-        stage = stage_utils.get_current_stage()
+        stage = omni.usd.get_context().get_stage()
     # get prim
     prim: Usd.Prim = stage.GetPrimAtPath(prim_path)
     # check if prim is valid
@@ -556,7 +556,7 @@ def get_first_matching_child_prim(
         raise ValueError(f"Prim path '{prim_path}' is not global. It must start with '/'.")
     # get current stage
     if stage is None:
-        stage = stage_utils.get_current_stage()
+        stage = omni.usd.get_context().get_stage()
     # get prim
     prim = stage.GetPrimAtPath(prim_path)
     # check if prim is valid
@@ -604,7 +604,7 @@ def get_all_matching_child_prims(
         raise ValueError(f"Prim path '{prim_path}' is not global. It must start with '/'.")
     # get current stage
     if stage is None:
-        stage = stage_utils.get_current_stage()
+        stage = omni.usd.get_context().get_stage()
     # get prim
     prim = stage.GetPrimAtPath(prim_path)
     # check if prim is valid
@@ -649,7 +649,7 @@ def find_first_matching_prim(prim_path_regex: str, stage: Usd.Stage | None = Non
         raise ValueError(f"Prim path '{prim_path_regex}' is not global. It must start with '/'.")
     # get current stage
     if stage is None:
-        stage = stage_utils.get_current_stage()
+        stage = omni.usd.get_context().get_stage()
     # need to wrap the token patterns in '^' and '$' to prevent matching anywhere in the string
     pattern = f"^{prim_path_regex}$"
     compiled_pattern = re.compile(pattern)
@@ -679,7 +679,7 @@ def find_matching_prims(prim_path_regex: str, stage: Usd.Stage | None = None) ->
         raise ValueError(f"Prim path '{prim_path_regex}' is not global. It must start with '/'.")
     # get current stage
     if stage is None:
-        stage = stage_utils.get_current_stage()
+        stage = omni.usd.get_context().get_stage()
     # need to wrap the token patterns in '^' and '$' to prevent matching anywhere in the string
     tokens = prim_path_regex.split("/")[1:]
     tokens = [f"^{token}$" for token in tokens]
@@ -750,7 +750,7 @@ def find_global_fixed_joint_prim(
         raise ValueError(f"Prim path '{prim_path}' is not global. It must start with '/'.")
     # get current stage
     if stage is None:
-        stage = stage_utils.get_current_stage()
+        stage = omni.usd.get_context().get_stage()
 
     # check if prim exists
     prim = stage.GetPrimAtPath(prim_path)
@@ -832,7 +832,7 @@ def select_usd_variants(prim_path: str, variants: object | dict[str, str], stage
     """
     # Resolve stage
     if stage is None:
-        stage = stage_utils.get_current_stage()
+        stage = omni.usd.get_context().get_stage()
     # Obtain prim
     prim = stage.GetPrimAtPath(prim_path)
     if not prim.IsValid():

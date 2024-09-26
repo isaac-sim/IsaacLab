@@ -23,8 +23,8 @@ import torch
 import unittest
 
 import omni.isaac.core.utils.prims as prim_utils
-import omni.isaac.core.utils.stage as stage_utils
 import omni.replicator.core as rep
+import omni.usd
 from pxr import Gf
 
 import omni.isaac.lab.sim as sim_utils
@@ -70,7 +70,7 @@ class TestWarpCamera(unittest.TestCase):
             ],
         )
         # Create a new stage
-        stage_utils.create_new_stage()
+        omni.usd.get_context().new_stage()
         # create xform because placement of camera directly under world is not supported
         prim_utils.create_prim("/World/Camera", "Xform")
         # Simulation time-step
@@ -81,8 +81,6 @@ class TestWarpCamera(unittest.TestCase):
         # Ground-plane
         mesh = make_plane(size=(100, 100), height=0.0, center_zero=True)
         create_prim_from_mesh("/World/defaultGroundPlane", mesh)
-        # load stage
-        stage_utils.update_stage()
 
     def tearDown(self):
         """Stops simulator after each test."""

@@ -17,7 +17,7 @@ import numpy as np
 import unittest
 
 import omni.isaac.core.utils.prims as prim_utils
-import omni.isaac.core.utils.stage as stage_utils
+import omni.usd
 from pxr import Sdf, Usd, UsdGeom
 
 import omni.isaac.lab.sim as sim_utils
@@ -30,12 +30,7 @@ class TestUtilities(unittest.TestCase):
     def setUp(self):
         """Create a blank new stage for each test."""
         # Create a new stage
-        stage_utils.create_new_stage()
-        stage_utils.update_stage()
-
-    def tearDown(self) -> None:
-        """Clear stage after each test."""
-        stage_utils.clear_stage()
+        omni.usd.get_context().new_stage()
 
     def test_get_all_matching_child_prims(self):
         """Test get_all_matching_child_prims() function."""
@@ -109,7 +104,7 @@ class TestUtilities(unittest.TestCase):
 
     def test_select_usd_variants(self):
         """Test select_usd_variants() function."""
-        stage = stage_utils.get_current_stage()
+        stage = omni.usd.get_context().get_stage()
         prim: Usd.Prim = UsdGeom.Xform.Define(stage, Sdf.Path("/World")).GetPrim()
         stage.SetDefaultPrim(prim)
 

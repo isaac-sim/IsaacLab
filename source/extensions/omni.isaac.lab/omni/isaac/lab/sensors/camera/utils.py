@@ -15,7 +15,7 @@ import torch.nn.functional as F
 from collections.abc import Sequence
 from typing import Literal
 
-import omni.isaac.core.utils.stage as stage_utils
+import omni.usd
 import warp as wp
 from pxr import UsdGeom
 
@@ -379,7 +379,8 @@ def create_rotation_matrix_from_view(
     Reference:
     Based on PyTorch3D (https://github.com/facebookresearch/pytorch3d/blob/eaf0709d6af0025fe94d1ee7cec454bc3054826a/pytorch3d/renderer/cameras.py#L1635-L1685)
     """
-    up_axis_token = stage_utils.get_stage_up_axis()
+    stage = omni.usd.get_context().get_stage()
+    up_axis_token = UsdGeom.GetStageUpAxis(stage)
     if up_axis_token == UsdGeom.Tokens.y:
         up_axis = torch.tensor((0, 1, 0), device=device, dtype=torch.float32).repeat(eyes.shape[0], 1)
     elif up_axis_token == UsdGeom.Tokens.z:

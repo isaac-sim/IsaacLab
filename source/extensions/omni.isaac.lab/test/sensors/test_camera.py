@@ -25,8 +25,8 @@ import torch
 import unittest
 
 import omni.isaac.core.utils.prims as prim_utils
-import omni.isaac.core.utils.stage as stage_utils
 import omni.replicator.core as rep
+import omni.usd
 from omni.isaac.core.prims import GeometryPrim, RigidPrim
 from pxr import Gf, Usd, UsdGeom
 
@@ -59,7 +59,7 @@ class TestCamera(unittest.TestCase):
             ),
         )
         # Create a new stage
-        stage_utils.create_new_stage()
+        omni.usd.get_context().new_stage()
         # Simulation time-step
         self.dt = 0.01
         # Load kit helper
@@ -67,8 +67,6 @@ class TestCamera(unittest.TestCase):
         self.sim: sim_utils.SimulationContext = sim_utils.SimulationContext(sim_cfg)
         # populate scene
         self._populate_scene()
-        # load stage
-        stage_utils.update_stage()
 
     def tearDown(self):
         """Stops simulator after each test."""

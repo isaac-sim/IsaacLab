@@ -15,8 +15,8 @@ from contextlib import contextmanager
 from typing import Any
 
 import carb
-import omni.isaac.core.utils.stage as stage_utils
 import omni.physx
+import omni.usd
 from omni.isaac.core.simulation_context import SimulationContext as _SimulationContext
 from omni.isaac.core.utils.viewports import set_camera_view
 from omni.isaac.version import get_version
@@ -115,7 +115,7 @@ class SimulationContext(_SimulationContext):
             cfg = SimulationCfg()
         self.cfg = cfg
         # check that simulation is running
-        if stage_utils.get_current_stage() is None:
+        if omni.usd.get_context().get_stage() is None:
             raise RuntimeError("The stage has not been created. Did you run the simulator?")
 
         # set flags for simulator
@@ -721,7 +721,7 @@ def build_simulation_context(
     """
     try:
         if create_new_stage:
-            stage_utils.create_new_stage()
+            omni.usd.get_context().new_stage()
 
         if sim_cfg is None:
             # Construct one and overwrite the dt, gravity, and device

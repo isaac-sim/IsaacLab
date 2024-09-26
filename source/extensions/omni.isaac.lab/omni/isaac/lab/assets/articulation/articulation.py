@@ -14,8 +14,8 @@ from prettytable import PrettyTable
 from typing import TYPE_CHECKING
 
 import carb
-import omni.isaac.core.utils.stage as stage_utils
 import omni.physics.tensors.impl.api as physx
+import omni.usd
 from pxr import PhysxSchema, UsdPhysics
 
 import omni.isaac.lab.sim as sim_utils
@@ -1182,7 +1182,7 @@ class Articulation(AssetBase):
 
         # parse fixed tendons properties if they exist
         if self.num_fixed_tendons > 0:
-            stage = stage_utils.get_current_stage()
+            stage = omni.usd.get_context().get_stage()
 
             # iterate over all joints to find tendons attached to them
             for j in range(self.num_joints):

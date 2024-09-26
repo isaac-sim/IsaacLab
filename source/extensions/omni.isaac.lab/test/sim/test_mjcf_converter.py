@@ -18,7 +18,7 @@ import os
 import unittest
 
 import omni.isaac.core.utils.prims as prim_utils
-import omni.isaac.core.utils.stage as stage_utils
+import omni.usd
 from omni.isaac.core.simulation_context import SimulationContext
 from omni.isaac.core.utils.extensions import enable_extension, get_extension_path_from_name
 
@@ -31,7 +31,7 @@ class TestMjcfConverter(unittest.TestCase):
     def setUp(self):
         """Create a blank new stage for each test."""
         # Create a new stage
-        stage_utils.create_new_stage()
+        omni.usd.get_context().new_stage()
         # retrieve path to mjcf importer extension
         enable_extension("omni.importer.mjcf")
         extension_path = get_extension_path_from_name("omni.importer.mjcf")

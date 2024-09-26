@@ -23,9 +23,9 @@ import numpy as np
 import torch
 from dataclasses import MISSING
 
-import omni.isaac.core.utils.stage as stage_utils
 import omni.kit.commands
 import omni.physx.scripts.utils as physx_utils
+import omni.usd
 from pxr import Gf, PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, Vt
 
 import omni.isaac.lab.sim as sim_utils
@@ -142,10 +142,10 @@ class VisualizationMarkers:
         Raises:
             ValueError: When no markers are provided in the :obj:`cfg`.
         """
+        stage = omni.usd.get_context().get_stage()
         # get next free path for the prim
-        prim_path = stage_utils.get_next_free_path(cfg.prim_path)
+        prim_path = omni.usd.get_stage_next_free_path(stage, cfg.prim_path, True)
         # create a new prim
-        stage = stage_utils.get_current_stage()
         self._instancer_manager = UsdGeom.PointInstancer.Define(stage, prim_path)
         # store inputs
         self.prim_path = prim_path

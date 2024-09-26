@@ -18,7 +18,7 @@ import unittest
 
 import omni
 import omni.isaac.core.utils.prims as prim_utils
-import omni.isaac.core.utils.stage as stage_utils
+import omni.usd
 from omni.isaac.core.simulation_context import SimulationContext
 from pxr import UsdGeom, UsdPhysics
 
@@ -50,7 +50,7 @@ class TestMeshConverter(unittest.TestCase):
     def setUp(self):
         """Create a blank new stage for each test."""
         # Create a new stage
-        stage_utils.create_new_stage()
+        omni.usd.get_context().new_stage()
         # Simulation time-step
         self.dt = 0.01
         # Load kit helper

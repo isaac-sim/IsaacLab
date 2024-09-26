@@ -60,8 +60,8 @@ import contextlib
 import os
 
 import carb
-import omni.isaac.core.utils.stage as stage_utils
 import omni.kit.app
+import omni.usd
 
 from omni.isaac.lab.sim.converters import MjcfConverter, MjcfConverterCfg
 from omni.isaac.lab.utils.assets import check_file_path
@@ -119,7 +119,7 @@ def main():
     # Simulate scene (if not headless)
     if local_gui or livestream_gui:
         # Open the stage with USD
-        stage_utils.open_stage(mjcf_converter.usd_path)
+        omni.usd.get_context().open_stage(mjcf_converter.usd_path)
         # Reinitialize the simulation
         app = omni.kit.app.get_app_interface()
         # Run simulation

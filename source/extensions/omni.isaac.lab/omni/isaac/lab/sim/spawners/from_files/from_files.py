@@ -9,8 +9,8 @@ from typing import TYPE_CHECKING
 
 import carb
 import omni.isaac.core.utils.prims as prim_utils
-import omni.isaac.core.utils.stage as stage_utils
 import omni.kit.commands
+import omni.usd
 from pxr import Gf, Sdf, Usd
 
 from omni.isaac.lab.sim import converters, schemas
@@ -217,7 +217,7 @@ def _spawn_from_usd_file(
         FileNotFoundError: If the USD file does not exist at the given path.
     """
     # check file path exists
-    stage: Usd.Stage = stage_utils.get_current_stage()
+    stage: Usd.Stage = omni.usd.get_context().get_stage()
     if not stage.ResolveIdentifierToEditTarget(usd_path):
         raise FileNotFoundError(f"USD file not found at path: '{usd_path}'.")
     # spawn asset if it doesn't exist.

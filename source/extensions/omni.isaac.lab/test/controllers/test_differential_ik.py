@@ -16,7 +16,7 @@ import torch
 import unittest
 
 import omni.isaac.core.utils.prims as prim_utils
-import omni.isaac.core.utils.stage as stage_utils
+import omni.usd
 from omni.isaac.cloner import GridCloner
 
 import omni.isaac.lab.sim as sim_utils
@@ -36,7 +36,7 @@ class TestDifferentialIKController(unittest.TestCase):
     def setUp(self):
         """Create a blank new stage for each test."""
         # Wait for spawning
-        stage_utils.create_new_stage()
+        omni.usd.get_context().new_stage()
         # Constants
         self.num_envs = 128
         # Load kit helper

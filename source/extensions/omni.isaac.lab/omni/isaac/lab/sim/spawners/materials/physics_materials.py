@@ -8,7 +8,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import omni.isaac.core.utils.prims as prim_utils
-import omni.isaac.core.utils.stage as stage_utils
+import omni.usd
 from pxr import PhysxSchema, Usd, UsdPhysics, UsdShade
 
 from omni.isaac.lab.sim.utils import clone, safe_set_attribute_on_usd_schema
@@ -43,7 +43,7 @@ def spawn_rigid_body_material(prim_path: str, cfg: physics_materials_cfg.RigidBo
     """
     # create material prim if no prim exists
     if not prim_utils.is_prim_path_valid(prim_path):
-        _ = UsdShade.Material.Define(stage_utils.get_current_stage(), prim_path)
+        _ = UsdShade.Material.Define(omni.usd.get_context().get_stage(), prim_path)
 
     # obtain prim
     prim = prim_utils.get_prim_at_path(prim_path)
@@ -101,7 +101,8 @@ def spawn_deformable_body_material(prim_path: str, cfg: physics_materials_cfg.De
     """
     # create material prim if no prim exists
     if not prim_utils.is_prim_path_valid(prim_path):
-        _ = UsdShade.Material.Define(stage_utils.get_current_stage(), prim_path)
+        stage = omni.usd.get_context().get_stage()
+        _ = UsdShade.Material.Define(stage, prim_path)
 
     # obtain prim
     prim = prim_utils.get_prim_at_path(prim_path)
