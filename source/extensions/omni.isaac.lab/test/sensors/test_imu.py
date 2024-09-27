@@ -101,12 +101,15 @@ class MySceneCfg(InteractiveSceneCfg):
     # sensors - imu (filled inside unit test)
     imu_ball: ImuCfg = ImuCfg(
         prim_path="{ENV_REGEX_NS}/ball",
+        gravity_bias = (0.0,0.0,0.0),
     )
     imu_cube: ImuCfg = ImuCfg(
         prim_path="{ENV_REGEX_NS}/cube",
+        gravity_bias = (0.0,0.0,0.0),
     )
     imu_robot_imu_link: ImuCfg = ImuCfg(
         prim_path="{ENV_REGEX_NS}/robot/imu_link",
+        gravity_bias = (0.0,0.0,0.0),
     )
     imu_robot_base: ImuCfg = ImuCfg(
         prim_path="{ENV_REGEX_NS}/robot/base",
@@ -114,12 +117,14 @@ class MySceneCfg(InteractiveSceneCfg):
             pos=POS_OFFSET,
             rot=ROT_OFFSET,
         ),
+        gravity_bias = (0.0,0.0,0.0),
     )
 
     imu_pendulum_imu_link: ImuCfg = ImuCfg(
         prim_path="{ENV_REGEX_NS}/pendulum/imu_link",
         debug_vis=not app_launcher._headless,
         visualizer_cfg=RED_ARROW_X_MARKER_CFG.replace(prim_path="/Visuals/Acceleration/imu_link"),
+        gravity_bias = (0.0,0.0,0.0),
     )
     imu_pendulum_base: ImuCfg = ImuCfg(
         prim_path="{ENV_REGEX_NS}/pendulum/link_1",
@@ -129,6 +134,7 @@ class MySceneCfg(InteractiveSceneCfg):
         ),
         debug_vis=not app_launcher._headless,
         visualizer_cfg=GREEN_ARROW_X_MARKER_CFG.replace(prim_path="/Visuals/Acceleration/base"),
+        gravity_bias = (0.0,0.0,0.0),
     )
 
     def __post_init__(self):

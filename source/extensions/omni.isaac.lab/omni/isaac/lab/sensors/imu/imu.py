@@ -163,13 +163,13 @@ class Imu(SensorBase):
         # )
 
         # numerical derivative
-        lin_acc_w = (lin_vel_w - self._prev_lin_vel_w) / self._dt
+        lin_acc_w = (lin_vel_w - self._prev_lin_vel_w) / self._dt + self._gravity_bias_w
         ang_acc_w = (ang_vel_w - self._prev_ang_vel_w) / self._dt
         # store the velocities
         self._data.lin_vel_b[env_ids] = math_utils.quat_rotate_inverse(self._data.quat_w[env_ids], lin_vel_w)
         self._data.ang_vel_b[env_ids] = math_utils.quat_rotate_inverse(self._data.quat_w[env_ids], ang_vel_w)
         # store the accelerations
-        self._data.lin_acc_b[env_ids] = math_utils.quat_rotate_inverse(self._data.quat_w[env_ids], lin_acc_w)
+        self._data.lin_acc_b[env_ids] = math_utils.quat_rotate_inverse(self._data.quat_w[env_ids], lin_acc_w) 
         self._data.ang_acc_b[env_ids] = math_utils.quat_rotate_inverse(self._data.quat_w[env_ids], ang_acc_w)
 
         self._prev_lin_vel_w[:] = lin_vel_w
@@ -193,6 +193,8 @@ class Imu(SensorBase):
         self._offset_quat_b = torch.tensor(list(self.cfg.offset.rot), device=self._device).repeat(self._view.count, 1)
         # get the offset from COM to link origin
         self._com_pos_b = self._view.get_coms().to(self.device).split([3, 4], dim=-1)[0]
+        # set gravity bias
+        self._gravity_bias_w = torch.tensor(list(self.cfg.gravity_bias), device=self._device).repeat(self._view.count, 1)
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         # set visibility of markers
