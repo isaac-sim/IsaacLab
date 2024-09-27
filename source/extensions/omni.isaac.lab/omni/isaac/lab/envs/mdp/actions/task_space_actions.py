@@ -229,8 +229,10 @@ class OperationalSpaceControllerAction(ActionTerm):
         # this means that number of bodies is one less than the articulation's number of bodies
         if self._asset.is_fixed_base:
             self._jacobi_ee_body_idx = self._ee_body_idx - 1
+            self._jacobi_joint_idx = self._joint_ids
         else:
             self._jacobi_ee_body_idx = self._ee_body_idx
+            self._jacobi_joint_idx = [i + 6 for i in self._joint_ids]
 
         # log info for debugging
         carb.log_info(
@@ -442,7 +444,7 @@ class OperationalSpaceControllerAction(ActionTerm):
         """
         # read the parent jacobian
         self._jacobian_w[:] = self._asset.root_physx_view.get_jacobians()[
-            :, self._jacobi_ee_body_idx, :, self._joint_ids
+            :, self._jacobi_ee_body_idx, :, self._jacobi_joint_idx
         ]
 
         # Convert the Jacobian from world to root frame
