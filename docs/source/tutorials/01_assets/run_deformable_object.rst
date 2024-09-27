@@ -167,9 +167,15 @@ from a height and settling on to the ground. Meanwhile the other two cubes must 
 should see a marker showing the kinematic target position for the nodes at the bottom-left corner of the cubes.
 To stop the simulation, you can either close the window, or press ``Ctrl+C`` in the terminal
 
-This tutorial showed how to spawn rigid objects and wrap them in a :class:`DeformableObject` class to initialize their
-physics handles which allows setting and obtaining their state. In the next tutorial, we will see how to interact
-with an articulated object which is a collection of rigid objects connected by joints.
+.. figure:: ../../_static/tutorials/tutorial_run_deformable_object.jpg
+    :align: center
+    :figwidth: 100%
+    :alt: result of run_deformable_object.py
+
+This tutorial showed how to spawn deformable objects and wrap them in a :class:`DeformableObject` class to initialize their
+physics handles which allows setting and obtaining their state. We also saw how to apply kinematic commands to the
+deformable object to move the mesh nodes in a controlled manner. In the next tutorial, we will see how to create
+a scene using the :class:`InteractiveScene` class.
 
 .. _PhysX documentation: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/docs/SoftBodies.html
 .. _partial kinematic: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/docs/SoftBodies.html#kinematic-soft-bodies
