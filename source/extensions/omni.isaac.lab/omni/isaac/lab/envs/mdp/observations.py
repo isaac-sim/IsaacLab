@@ -19,7 +19,6 @@ from omni.isaac.lab.assets import Articulation, RigidObject
 from omni.isaac.lab.managers import SceneEntityCfg
 from omni.isaac.lab.sensors import Camera, Imu, RayCaster, RayCasterCamera, TiledCamera
 
-
 if TYPE_CHECKING:
     from omni.isaac.lab.envs import ManagerBasedEnv, ManagerBasedRLEnv
 
@@ -224,7 +223,7 @@ def imu_lin_acc(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg
     asset: Imu = env.scene[asset_cfg.name]
     return asset.data.lin_acc_b
 
-  
+
 def grab_images(
     env: ManagerBasedEnv,
     sensor_cfg: SceneEntityCfg = SceneEntityCfg("tiled_camera"),
