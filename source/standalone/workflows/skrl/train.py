@@ -62,6 +62,7 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import gymnasium as gym
+import numpy as np
 import os
 from datetime import datetime
 
@@ -119,9 +120,14 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     if args_cli.ml_framework.startswith("jax"):
         skrl.config.jax.backend = "jax" if args_cli.ml_framework == "jax" else "numpy"
 
+    # process seed from command line
+    if args_cli.seed == -1:
+        args_cli.seed = np.random.randint(0, 10000)
+
     # set the environment seed
     # note: certain randomization occur in the environment initialization so we set the seed here
-    env_cfg.seed = args_cli.seed if args_cli.seed is not None else agent_cfg["seed"]
+    agent_cfg["seed"] = args_cli.seed if args_cli.seed is not None else agent_cfg["seed"]
+    env_cfg.seed = agent_cfg["seed"]
 
     # specify directory for logging experiments
     log_root_path = os.path.join("logs", "skrl", agent_cfg["agent"]["experiment"]["directory"])
