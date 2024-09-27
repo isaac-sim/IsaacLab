@@ -1,0 +1,171 @@
+# Spin up: `kubectl apply -f tune.yaml`.
+# Check if exists: `kubectl get pods`
+# Delete `kubectl delete -f tune.yaml`.
+# Jinja is used for templating here as full helm setup seems overkill here
+# Reminder to self: use built in hydra stuff
+
+apiVersion: ray.io/v1alpha1
+kind: RayCluster
+metadata:
+  name: {{ name }}
+  namespace: {{ namespace }}
+spec:
+  rayVersion: "2.8.0"
+  enableInTreeAutoscaling: true
+  autoscalerOptions:
+    upscalingMode: Default
+    idleTimeoutSeconds: 120
+    imagePullPolicy: Always
+    securityContext: {}
+    envFrom: []
+  headGroupSpec:
+    rayStartParams:
+      block: "true"
+      dashboard-host: 0.0.0.0
+      # this prevents tasks from being scheduled on the head pod, which minimizes crashes of the whole cluster
+      num-gpus: "0"
+      num-cpus: "0"
+      ray-debugger-external: "true"
+    headService:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        annotations:
+          networking.gke.io/load-balancer-type: Internal
+          networking.gke.io/internal-load-balancer-subnet: gke-dev
+          networking.gke.io/internal-load-balancer-allow-global-access: "true"
+          external-dns.alpha.kubernetes.io/hostname: {{ external_dns_hostname }}
+      spec:
+        type: LoadBalancer # allows us to not use port-forwards to access the cluster
+    template:
+      metadata:
+        labels:
+          app.kubernetes.io/instance: tuner
+          app.kubernetes.io/name: kuberay
+          cloud.google.com/gke-ray-node-type: head
+      spec:
+        serviceAccountName: {{ service_account_name }}
+        affinity: {}
+        securityContext:
+          fsGroup: 100 # ray gid is 100, this allows it to access the ephemeral storage
+        containers:
+          - env:
+              - name: RAY_memory_monitor_refresh_ms
+                value: "0"
+              - name: RAY_GRAFANA_IFRAME_HOST # for metrics dashboard
+                value: http://127.0.0.1:3000
+              - name: RAY_GRAFANA_HOST # for metrics dashboard
+                value: http://prometheus-grafana.prometheus.svc:80
+              - name: RAY_PROMETHEUS_HOST # for metrics dashboard
+                value: http://prometheus-kube-prometheus-prometheus.prometheus.svc:9090
+              - name: DISPLAY # virtual display for sim
+                value: :1
+            image: {{ image }}
+            imagePullPolicy: Always
+            name: ray-head
+            resources: # using a full cpu-only node for the head pod
+              limits:
+                cpu: "4"
+                memory: 50G
+                nvidia.com/gpu: "0"
+              requests:
+                cpu: "4"
+                memory: 50G
+                nvidia.com/gpu: "0"
+            securityContext: {}
+            volumeMounts:
+              - mountPath: /tmp/ray
+                name: ray-logs
+            command: ["/bin/bash", "-c", "echo 'Hello, World!'"] # !!! TODO !!!
+          - image: fluent/fluent-bit:1.9.6
+            name: fluentbit
+            resources:
+              limits:
+                cpu: 100m
+                memory: 128Mi
+              requests:
+                cpu: 100m
+                memory: 128Mi
+            volumeMounts:
+              - mountPath: /tmp/ray
+                name: ray-logs
+              - mountPath: /fluent-bit/etc/
+                name: fluentbit-config
+        imagePullSecrets: []
+        nodeSelector:
+          iam.gke.io/gke-metadata-server-enabled: "true"
+          profile: "cpu"
+        volumes:
+          - configMap:
+              name: fluentbit-config
+            name: fluentbit-config
+          - name: ray-logs
+            emptyDir: {}
+  workerGroupSpecs:
+    - groupName: gpu-group
+      maxReplicas: {{ max_workers }}
+      minReplicas: {{ min_workers }}
+      rayStartParams:
+        block: "true"
+        ray-debugger-external: "true"
+        resources: '"{\"train\": 1}"'
+      replicas: {{ starting_worker_count }}
+      template:
+        metadata:
+          annotations: {}
+          labels:
+            app.kubernetes.io/instance: tuner
+            app.kubernetes.io/name: kuberay
+            cloud.google.com/gke-ray-node-type: worker
+        spec:
+          serviceAccountName: {{ service_account_name }}
+          affinity: {}
+          securityContext:
+            fsGroup: 100 # allow access to ephemeral server
+          containers:
+            - env: []
+              image: {{ image }}
+              imagePullPolicy: Always
+              name: ray-worker
+              resources: # fitting one pod per node
+                limits:
+                  cpu: "14" # allowing for overhead of 2 cpus
+                  memory: {{ ram_gb }}G
+                  nvidia.com/gpu: "{{ gpu_per_worker }}"
+                requests:
+                  cpu: "14"
+                  memory: {{ ram_gb }}G
+                  nvidia.com/gpu: "{{ gpu_per_worker }}"
+              securityContext: {}
+              volumeMounts:
+                - mountPath: /tmp/ray
+                  name: ray-logs
+              command: ["/bin/bash", "-c", "echo 'Hello, World!'"] # !!! TODO !!!
+            - image: fluent/fluent-bit:1.9.6
+              name: fluentbit
+              resources:
+                limits:
+                  cpu: 100m
+                  memory: 128Mi
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+              volumeMounts:
+                - mountPath: /tmp/ray
+                  name: ray-logs
+                - mountPath: /fluent-bit/etc/
+                  name: fluentbit-config
+          imagePullSecrets: []
+          nodeSelector:
+            cloud.google.com/gke-accelerator: {{ worker_accelerator }} nvidia-l4
+            iam.gke.io/gke-metadata-server-enabled: "true"
+          tolerations:
+            - key: "nvidia.com/gpu"
+              operator: "Exists"
+              effect: "NoSchedule"
+          volumes:
+            - configMap:
+                name: fluentbit-config
+              name: fluentbit-config
+            - name: ray-logs
+              emptyDir: {}
