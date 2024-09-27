@@ -677,7 +677,7 @@ class TestRigidObject(unittest.TestCase):
         for num_cubes in (1, 2):
             for device in ("cuda:0", "cpu"):
                 for with_offset in [True, False]:
-                    with self.subTest(num_cubes=num_cubes, device=device, gravity_enabled=False):
+                    with self.subTest(num_cubes=num_cubes, device=device, with_offset=with_offset):
                         with build_simulation_context(
                             device=device, gravity_enabled=False, auto_add_lighting=True
                         ) as sim:
