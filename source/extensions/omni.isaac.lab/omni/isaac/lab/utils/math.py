@@ -580,41 +580,47 @@ def quat_apply_yaw(quat: torch.Tensor, vec: torch.Tensor) -> torch.Tensor:
 
 @torch.jit.script
 def quat_rotate(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
-    """Rotate a vector by a quaternion.
+    """Rotate a vector by a quaternion along the last dimension of q and v.
 
     Args:
-        q: The quaternion in (w, x, y, z). Shape is (N, 4).
-        v: The vector in (x, y, z). Shape is (N, 3).
+        q: The quaternion in (w, x, y, z). Shape is (..., 4).
+        v: The vector in (x, y, z). Shape is (..., 3).
 
     Returns:
-        The rotated vector in (x, y, z). Shape is (N, 3).
+        The rotated vector in (x, y, z). Shape is (..., 3).
     """
-    shape = q.shape
-    q_w = q[:, 0]
-    q_vec = q[:, 1:]
+    q_w = q[..., 0]
+    q_vec = q[..., 1:]
     a = v * (2.0 * q_w**2 - 1.0).unsqueeze(-1)
     b = torch.cross(q_vec, v, dim=-1) * q_w.unsqueeze(-1) * 2.0
-    c = q_vec * torch.bmm(q_vec.view(shape[0], 1, 3), v.view(shape[0], 3, 1)).squeeze(-1) * 2.0
+    # for two-dimensional tensors, bmm is faster than einsum
+    if q_vec.dim() == 2:
+        c = q_vec * torch.bmm(q_vec.view(q.shape[0], 1, 3), v.view(q.shape[0], 3, 1)).squeeze(-1) * 2.0
+    else:
+        c = q_vec * torch.einsum("...i,...i->...", q_vec, v).unsqueeze(-1) * 2.0
     return a + b + c
 
 
 @torch.jit.script
 def quat_rotate_inverse(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
-    """Rotate a vector by the inverse of a quaternion.
+    """Rotate a vector by the inverse of a quaternion along the last dimension of q and v.
 
     Args:
-        q: The quaternion in (w, x, y, z). Shape is (N, 4).
-        v: The vector in (x, y, z). Shape is (N, 3).
+        q: The quaternion in (w, x, y, z). Shape is (..., 4).
+        v: The vector in (x, y, z). Shape is (..., 3).
 
     Returns:
-        The rotated vector in (x, y, z). Shape is (N, 3).
+        The rotated vector in (x, y, z). Shape is (..., 3).
     """
-    shape = q.shape
-    q_w = q[:, 0]
-    q_vec = q[:, 1:]
+    q_w = q[..., 0]
+    q_vec = q[..., 1:]
     a = v * (2.0 * q_w**2 - 1.0).unsqueeze(-1)
     b = torch.cross(q_vec, v, dim=-1) * q_w.unsqueeze(-1) * 2.0
-    c = q_vec * torch.bmm(q_vec.view(shape[0], 1, 3), v.view(shape[0], 3, 1)).squeeze(-1) * 2.0
+    # for two-dimensional tensors, bmm is faster than einsum
+    if q_vec.dim() == 2:
+        c = q_vec * torch.bmm(q_vec.view(q.shape[0], 1, 3), v.view(q.shape[0], 3, 1)).squeeze(-1) * 2.0
+    else:
+        c = q_vec * torch.einsum("...i,...i->...", q_vec, v).unsqueeze(-1) * 2.0
     return a - b + c
 
 
@@ -982,7 +988,12 @@ Projection operations.
 
 @torch.jit.script
 def unproject_depth(depth: torch.Tensor, intrinsics: torch.Tensor) -> torch.Tensor:
-    r"""Unproject depth image into a pointcloud.
+    r"""Unproject depth image into a pointcloud. This method assumes that depth
+    is provided orthogonally relative to the image plane, as opposed to absolutely relative to the camera's
+    principal point (perspective depth). To unproject a perspective depth image, use
+    :meth:`convert_perspective_depth_to_orthogonal_depth` to convert
+    to an orthogonal depth image prior to calling this method. Otherwise, the
+    created point cloud will be distorted, especially around the edges.
 
     This function converts depth images into points given the calibration matrix of the camera.
 
@@ -1051,6 +1062,105 @@ def unproject_depth(depth: torch.Tensor, intrinsics: torch.Tensor) -> torch.Tens
         points_xyz = points_xyz.squeeze(0)
 
     return points_xyz
+
+
+@torch.jit.script
+def convert_perspective_depth_to_orthogonal_depth(
+    perspective_depth: torch.Tensor, intrinsics: torch.Tensor
+) -> torch.Tensor:
+    r"""Provided depth image(s) where depth is provided as the distance to the principal
+    point of the camera (perspective depth), this function converts it so that depth
+    is provided as the distance to the camera's image plane (orthogonal depth).
+
+    This is helpful because `unproject_depth` assumes that depth is expressed in
+    the orthogonal depth format.
+
+    If `perspective_depth` is a batch of depth images and `intrinsics` is a single intrinsic matrix,
+    the same calibration matrix is applied to all depth images in the batch.
+
+    The function assumes that the width and height are both greater than 1.
+
+    Args:
+        perspective_depth: The depth measurement obtained with the distance_to_camera replicator.
+            Shape is (H, W) or or (H, W, 1) or (N, H, W) or (N, H, W, 1).
+        intrinsics: A tensor providing camera's calibration matrix. Shape is (3, 3) or (N, 3, 3).
+
+    Returns:
+        The depth image as if obtained by the distance_to_image_plane replicator. Shape
+            matches the input shape of depth
+
+    Raises:
+        ValueError: When depth is not of shape (H, W) or (H, W, 1) or (N, H, W) or (N, H, W, 1).
+        ValueError: When intrinsics is not of shape (3, 3) or (N, 3, 3).
+    """
+
+    # Clone inputs to avoid in-place modifications
+    perspective_depth_batch = perspective_depth.clone()
+    intrinsics_batch = intrinsics.clone()
+
+    # Check if inputs are batched
+    is_batched = perspective_depth_batch.dim() == 4 or (
+        perspective_depth_batch.dim() == 3 and perspective_depth_batch.shape[-1] != 1
+    )
+
+    # Track whether the last dimension was singleton
+    add_last_dim = False
+    if perspective_depth_batch.dim() == 4 and perspective_depth_batch.shape[-1] == 1:
+        add_last_dim = True
+        perspective_depth_batch = perspective_depth_batch.squeeze(dim=3)  # (N, H, W, 1) -> (N, H, W)
+    if perspective_depth_batch.dim() == 3 and perspective_depth_batch.shape[-1] == 1:
+        add_last_dim = True
+        perspective_depth_batch = perspective_depth_batch.squeeze(dim=2)  # (H, W, 1) -> (H, W)
+
+    if perspective_depth_batch.dim() == 2:
+        perspective_depth_batch = perspective_depth_batch[None]  # (H, W) -> (1, H, W)
+
+    if intrinsics_batch.dim() == 2:
+        intrinsics_batch = intrinsics_batch[None]  # (3, 3) -> (1, 3, 3)
+
+    if is_batched and intrinsics_batch.shape[0] == 1:
+        intrinsics_batch = intrinsics_batch.expand(perspective_depth_batch.shape[0], -1, -1)  # (1, 3, 3) -> (N, 3, 3)
+
+    # Validate input shapes
+    if perspective_depth_batch.dim() != 3:
+        raise ValueError(f"Expected perspective_depth to have 2, 3, or 4 dimensions; got {perspective_depth.shape}.")
+    if intrinsics_batch.dim() != 3:
+        raise ValueError(f"Expected intrinsics to have shape (3, 3) or (N, 3, 3); got {intrinsics.shape}.")
+
+    # Image dimensions
+    im_height, im_width = perspective_depth_batch.shape[1:]
+
+    # Get the intrinsics parameters
+    fx = intrinsics_batch[:, 0, 0].view(-1, 1, 1)
+    fy = intrinsics_batch[:, 1, 1].view(-1, 1, 1)
+    cx = intrinsics_batch[:, 0, 2].view(-1, 1, 1)
+    cy = intrinsics_batch[:, 1, 2].view(-1, 1, 1)
+
+    # Create meshgrid of pixel coordinates
+    u_grid = torch.arange(im_width, device=perspective_depth.device, dtype=perspective_depth.dtype)
+    v_grid = torch.arange(im_height, device=perspective_depth.device, dtype=perspective_depth.dtype)
+    u_grid, v_grid = torch.meshgrid(u_grid, v_grid, indexing="xy")
+
+    # Expand the grids for batch processing
+    u_grid = u_grid.unsqueeze(0).expand(perspective_depth_batch.shape[0], -1, -1)
+    v_grid = v_grid.unsqueeze(0).expand(perspective_depth_batch.shape[0], -1, -1)
+
+    # Compute the squared terms for efficiency
+    x_term = ((u_grid - cx) / fx) ** 2
+    y_term = ((v_grid - cy) / fy) ** 2
+
+    # Calculate the orthogonal (normal) depth
+    normal_depth = perspective_depth_batch / torch.sqrt(1 + x_term + y_term)
+
+    # Restore the last dimension if it was present in the input
+    if add_last_dim:
+        normal_depth = normal_depth.unsqueeze(-1)
+
+    # Return to original shape if input was not batched
+    if not is_batched:
+        normal_depth = normal_depth.squeeze(0)
+
+    return normal_depth
 
 
 @torch.jit.script

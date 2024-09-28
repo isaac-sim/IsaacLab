@@ -20,7 +20,9 @@ There are two types of environment designing workflows:
 * **Direct**: The user implements all the necessary functionality directly into a single class
   directly without the need for additional managers.
 
-Based on these workflows, there are the following environment classes:
+Based on these workflows, there are the following environment classes for single and multi-agent RL:
+
+**Single-Agent RL:**
 
 * :class:`ManagerBasedEnv`: The manager-based workflow base environment which only provides the
   agent with the current observations and executes the actions provided by the agent.
@@ -30,6 +32,11 @@ Based on these workflows, there are the following environment classes:
 * :class:`DirectRLEnv`: The direct workflow RL task environment which provides implementations for
   implementing scene setup, computing dones, performing resets, and computing reward and observation.
 
+**Multi-Agent RL (MARL):**
+
+* :class:`DirectMARLEnv`: The direct workflow MARL task environment which provides implementations for
+  implementing scene setup, computing dones, performing resets, and computing reward and observation.
+
 For more information about the workflow design patterns, see the `Task Design Workflows`_ section.
 
 .. _`Task Design Workflows`: https://isaac-sim.github.io/IsaacLab/source/features/task_workflows.html
@@ -37,9 +44,12 @@ For more information about the workflow design patterns, see the `Task Design Wo
 
 from . import mdp, ui
 from .common import VecEnvObs, VecEnvStepReturn, ViewerCfg
+from .direct_marl_env import DirectMARLEnv
+from .direct_marl_env_cfg import DirectMARLEnvCfg
 from .direct_rl_env import DirectRLEnv
 from .direct_rl_env_cfg import DirectRLEnvCfg
 from .manager_based_env import ManagerBasedEnv
 from .manager_based_env_cfg import ManagerBasedEnvCfg
 from .manager_based_rl_env import ManagerBasedRLEnv
 from .manager_based_rl_env_cfg import ManagerBasedRLEnvCfg
+from .utils import multi_agent_to_single_agent, multi_agent_with_one_agent

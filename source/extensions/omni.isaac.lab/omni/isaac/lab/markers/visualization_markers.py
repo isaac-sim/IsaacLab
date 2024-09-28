@@ -345,12 +345,10 @@ class VisualizationMarkers:
             # resolve prim path
             marker_prim_path = f"{self.prim_path}/{name}"
             # create a child prim for the marker
-            prim = cfg.func(prim_path=marker_prim_path, cfg=cfg)
+            marker_prim = cfg.func(prim_path=marker_prim_path, cfg=cfg)
             # make the asset uninstanceable (in case it is)
             # point instancer defines its own prototypes so if an asset is already instanced, this doesn't work.
-            self._process_prototype_prim(prim)
-            # remove any physics on the markers because they are only for visualization!
-            physx_utils.removeRigidBodySubtree(prim)
+            self._process_prototype_prim(marker_prim)
             # add child reference to point instancer
             self._instancer_manager.GetPrototypesRel().AddTarget(marker_prim_path)
         # check that we loaded all the prototypes
@@ -407,3 +405,6 @@ class VisualizationMarkers:
                 )
             # add children to list
             all_prims += child_prim.GetChildren()
+
+        # remove any physics on the markers because they are only for visualization!
+        physx_utils.removeRigidBodySubtree(prim)

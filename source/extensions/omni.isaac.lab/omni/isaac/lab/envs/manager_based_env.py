@@ -74,6 +74,12 @@ class ManagerBasedEnv:
         # initialize internal variables
         self._is_closed = False
 
+        # set the seed for the environment
+        if self.cfg.seed is not None:
+            self.seed(self.cfg.seed)
+        else:
+            carb.log_warn("Seed not set for the environment. The environment creation may not be deterministic.")
+
         # create a simulation context to control the simulator
         if SimulationContext.instance() is None:
             # the type-annotation is required to avoid a type-checking error
@@ -89,6 +95,7 @@ class ManagerBasedEnv:
         # print useful information
         print("[INFO]: Base environment:")
         print(f"\tEnvironment device    : {self.device}")
+        print(f"\tEnvironment seed      : {self.cfg.seed}")
         print(f"\tPhysics step-size     : {self.physics_dt}")
         print(f"\tRendering step-size   : {self.physics_dt * self.cfg.sim.render_interval}")
         print(f"\tEnvironment step-size : {self.step_dt}")
@@ -222,6 +229,10 @@ class ManagerBasedEnv:
     def reset(self, seed: int | None = None, options: dict[str, Any] | None = None) -> tuple[VecEnvObs, dict]:
         """Resets all the environments and returns observations.
 
+        This function calls the :meth:`_reset_idx` function to reset all the environments.
+        However, certain operations, such as procedural terrain generation, that happened during initialization
+        are not repeated.
+
         Args:
             seed: The seed to use for randomization. Defaults to None, in which case the seed is not set.
             options: Additional information to specify how the environment is reset. Defaults to None.
@@ -235,9 +246,15 @@ class ManagerBasedEnv:
         # set the seed
         if seed is not None:
             self.seed(seed)
+
         # reset state of scene
         indices = torch.arange(self.num_envs, dtype=torch.int64, device=self.device)
         self._reset_idx(indices)
+
+        # if sensors are added to the scene, make sure we render to reflect changes in reset
+        if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
+            self.sim.render()
+
         # return observations
         return self.observation_manager.compute(), self.extras
 
@@ -337,6 +354,7 @@ class ManagerBasedEnv:
         """
         # reset the internal buffers of the scene elements
         self.scene.reset(env_ids)
+
         # apply events such as randomization for environments that need a reset
         if "reset" in self.event_manager.available_modes:
             env_step_count = self._sim_step_counter // self.cfg.decimation

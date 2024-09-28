@@ -19,7 +19,6 @@ from omni.isaac.lab.envs import DirectRLEnv, DirectRLEnvCfg, ViewerCfg
 from omni.isaac.lab.scene import InteractiveSceneCfg
 from omni.isaac.lab.sensors import TiledCamera, TiledCameraCfg, save_images_to_file
 from omni.isaac.lab.sim import SimulationCfg
-from omni.isaac.lab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from omni.isaac.lab.utils import configclass
 from omni.isaac.lab.utils.math import sample_uniform
 
@@ -45,7 +44,7 @@ class CartpoleRGBCameraEnvCfg(DirectRLEnvCfg):
     # camera
     tiled_camera: TiledCameraCfg = TiledCameraCfg(
         prim_path="/World/envs/env_.*/Camera",
-        offset=TiledCameraCfg.OffsetCfg(pos=(-7.0, 0.0, 3.0), rot=(0.9945, 0.0, 0.1045, 0.0), convention="world"),
+        offset=TiledCameraCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(1.0, 0.0, 0.0, 0.0), convention="world"),
         data_types=["rgb"],
         spawn=sim_utils.PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
@@ -60,7 +59,7 @@ class CartpoleRGBCameraEnvCfg(DirectRLEnvCfg):
     viewer = ViewerCfg(eye=(20.0, 20.0, 20.0))
 
     # scene
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=256, env_spacing=20.0, replicate_physics=True)
+    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1024, env_spacing=20.0, replicate_physics=True)
 
     # reset
     max_cart_pos = 3.0  # the cart is reset if it exceeds that position [m]
@@ -79,7 +78,7 @@ class CartpoleDepthCameraEnvCfg(CartpoleRGBCameraEnvCfg):
     # camera
     tiled_camera: TiledCameraCfg = TiledCameraCfg(
         prim_path="/World/envs/env_.*/Camera",
-        offset=TiledCameraCfg.OffsetCfg(pos=(-7.0, 0.0, 3.0), rot=(0.9945, 0.0, 0.1045, 0.0), convention="world"),
+        offset=TiledCameraCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(1.0, 0.0, 0.0, 0.0), convention="world"),
         data_types=["depth"],
         spawn=sim_utils.PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
@@ -152,8 +151,7 @@ class CartpoleCameraEnv(DirectRLEnv):
         """Setup the scene with the cartpole and camera."""
         self._cartpole = Articulation(self.cfg.robot_cfg)
         self._tiled_camera = TiledCamera(self.cfg.tiled_camera)
-        # add ground plane
-        spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg(size=(500, 500)))
+
         # clone, filter, and replicate
         self.scene.clone_environments(copy_from_source=False)
         self.scene.filter_collisions(global_prim_paths=[])
@@ -173,7 +171,15 @@ class CartpoleCameraEnv(DirectRLEnv):
 
     def _get_observations(self) -> dict:
         data_type = "rgb" if "rgb" in self.cfg.tiled_camera.data_types else "depth"
-        observations = {"policy": self._tiled_camera.data.output[data_type].clone()}
+        if "rgb" in self.cfg.tiled_camera.data_types:
+            camera_data = self._tiled_camera.data.output[data_type] / 255.0
+            # normalize the camera data for better training results
+            mean_tensor = torch.mean(camera_data, dim=(1, 2), keepdim=True)
+            camera_data -= mean_tensor
+        elif "depth" in self.cfg.tiled_camera.data_types:
+            camera_data = self._tiled_camera.data.output[data_type]
+            camera_data[camera_data == float("inf")] = 0
+        observations = {"policy": camera_data.clone()}
 
         if self.cfg.write_image_to_file:
             save_images_to_file(observations["policy"], f"cartpole_{data_type}.png")

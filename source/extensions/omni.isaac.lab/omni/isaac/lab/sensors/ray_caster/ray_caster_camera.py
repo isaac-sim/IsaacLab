@@ -126,7 +126,7 @@ class RayCasterCamera(RayCaster):
 
         Args:
             matrices: The intrinsic matrices for the camera. Shape is (N, 3, 3).
-            focal_length: Focal length to use when computing aperture values. Defaults to 1.0.
+            focal_length: Focal length to use when computing aperture values (in cm). Defaults to 1.0.
             env_ids: A sensor ids to manipulate. Defaults to None, which means all sensor indices.
         """
         # resolve env_ids
@@ -298,14 +298,14 @@ class RayCasterCamera(RayCaster):
             elif self.cfg.depth_clipping_behavior == "zero":
                 distance_to_image_plane[distance_to_image_plane > self.cfg.max_distance] = 0.0
                 distance_to_image_plane[torch.isnan(distance_to_image_plane)] = 0.0
-            self._data.output["distance_to_image_plane"][env_ids] = distance_to_image_plane.view(-1, *self.image_shape)
+            self._data.output["distance_to_image_plane"][env_ids] = distance_to_image_plane.view(-1, *self.image_shape, 1)
 
         if "distance_to_camera" in self.cfg.data_types:
             if self.cfg.depth_clipping_behavior == "max":
                 ray_depth = torch.clip(ray_depth, max=self.cfg.max_distance)
             elif self.cfg.depth_clipping_behavior == "zero":
                 ray_depth[ray_depth > self.cfg.max_distance] = 0.0
-            self._data.output["distance_to_camera"][env_ids] = ray_depth.view(-1, *self.image_shape)
+            self._data.output["distance_to_camera"][env_ids] = ray_depth.view(-1, *self.image_shape, 1)
 
         if "normals" in self.cfg.data_types:
             self._data.output["normals"][env_ids] = ray_normal.view(-1, *self.image_shape, 3)
@@ -352,7 +352,7 @@ class RayCasterCamera(RayCaster):
         self._data.info = [{name: None for name in self.cfg.data_types}] * self._view.count
         for name in self.cfg.data_types:
             if name in ["distance_to_image_plane", "distance_to_camera"]:
-                shape = (self.cfg.pattern_cfg.height, self.cfg.pattern_cfg.width)
+                shape = (self.cfg.pattern_cfg.height, self.cfg.pattern_cfg.width, 1)
             elif name in ["normals"]:
                 shape = (self.cfg.pattern_cfg.height, self.cfg.pattern_cfg.width, 3)
             else:

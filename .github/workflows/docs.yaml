@@ -3,10 +3,24 @@ name: Build & deploy docs
 on: [push]
 
 jobs:
+  check-secrets:
+    name: Check secrets
+    runs-on: ubuntu-latest
+    outputs:
+      trigger-build: ${{ steps.trigger-build.outputs.defined }}
+    steps:
+      - id: trigger-build
+        env:
+          REPO_NAME: ${{ secrets.REPO_NAME }}
+          BRANCH_REF: ${{ secrets.BRANCH_REF }}
+        if: "${{ github.repository == env.REPO_NAME && github.ref == env.BRANCH_REF }}"
+        run: echo "defined=true" >> "$GITHUB_OUTPUT"
+
   build-docs:
     name: Build and deploy documentation
     runs-on: ubuntu-latest
-    if: github.repository == 'isaac-sim/IsaacLab' && github.ref == 'refs/heads/main'
+    needs: [check-secrets]
+    if: needs.check-secrets.outputs.trigger-build == 'true'
 
     steps:
     - name: Checkout code

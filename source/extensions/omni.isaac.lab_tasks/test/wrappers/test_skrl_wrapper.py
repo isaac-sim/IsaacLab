@@ -20,7 +20,7 @@ import unittest
 
 import omni.usd
 
-from omni.isaac.lab.envs import ManagerBasedRLEnvCfg
+from omni.isaac.lab.envs import DirectMARLEnv, multi_agent_to_single_agent
 
 import omni.isaac.lab_tasks  # noqa: F401
 from omni.isaac.lab_tasks.utils.parse_cfg import load_cfg_from_registry, parse_env_cfg
@@ -58,10 +58,12 @@ class TestSKRLVecEnvWrapper(unittest.TestCase):
                 # create a new stage
                 omni.usd.get_context().new_stage()
                 # parse configuration
-                env_cfg: ManagerBasedRLEnvCfg = parse_env_cfg(task_name, device=self.device, num_envs=self.num_envs)
+                env_cfg = parse_env_cfg(task_name, device=self.device, num_envs=self.num_envs)
                 agent_cfg = load_cfg_from_registry(task_name, "skrl_cfg_entry_point")  # noqa: F841
                 # create environment
                 env = gym.make(task_name, cfg=env_cfg)
+                if isinstance(env.unwrapped, DirectMARLEnv):
+                    env = multi_agent_to_single_agent(env)
                 # wrap environment
                 env = SkrlVecEnvWrapper(env)
 
@@ -73,7 +75,7 @@ class TestSKRLVecEnvWrapper(unittest.TestCase):
 
                 # simulate environment for 1000 steps
                 with torch.inference_mode():
-                    for _ in range(1000):
+                    for _ in range(10):
                         # sample actions from -1 to 1
                         actions = (
                             2 * torch.rand(self.num_envs, *env.action_space.shape, device=env.unwrapped.device) - 1

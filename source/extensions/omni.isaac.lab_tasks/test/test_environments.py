@@ -18,9 +18,10 @@ import gymnasium as gym
 import torch
 import unittest
 
+import carb
 import omni.usd
 
-from omni.isaac.lab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg
+from omni.isaac.lab.envs import ManagerBasedRLEnvCfg
 
 import omni.isaac.lab_tasks  # noqa: F401
 from omni.isaac.lab_tasks.utils.parse_cfg import parse_env_cfg
@@ -38,14 +39,17 @@ class TestEnvironments(unittest.TestCase):
                 cls.registered_tasks.append(task_spec.id)
         # sort environments by name
         cls.registered_tasks.sort()
-        # print all existing task names
-        print(">>> All registered environments:", cls.registered_tasks)
+
+        # this flag is necessary to prevent a bug where the simulation gets stuck randomly when running the
+        # test on many environments.
+        carb_settings_iface = carb.settings.get_settings()
+        carb_settings_iface.set_bool("/physics/cooking/ujitsoCollisionCooking", False)
 
     """
     Test fixtures.
     """
 
-    def test_multiple_instances_gpu(self):
+    def test_multiple_num_envs_on_gpu(self):
         """Run all environments with multiple instances and check environments return valid signals."""
         # common parameters
         num_envs = 32
@@ -60,7 +64,7 @@ class TestEnvironments(unittest.TestCase):
                 print(f">>> Closing environment: {task_name}")
                 print("-" * 80)
 
-    def test_single_instance_gpu(self):
+    def test_single_env_on_gpu(self):
         """Run all environments with single instance and check environments return valid signals."""
         # common parameters
         num_envs = 1
@@ -80,16 +84,22 @@ class TestEnvironments(unittest.TestCase):
     """
 
     def _check_random_actions(self, task_name: str, device: str, num_envs: int, num_steps: int = 1000):
-        """Run random actions and check environments return valid signals."""
+        """Run random actions and check environments returned signals are valid."""
         # create a new stage
         omni.usd.get_context().new_stage()
         # parse configuration
         env_cfg: ManagerBasedRLEnvCfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
+
+        # skip test if the environment is a multi-agent task
+        if hasattr(env_cfg, "possible_agents"):
+            print(f"[INFO]: Skipping {task_name} as it is a multi-agent task")
+            return
+
         # create environment
-        env: ManagerBasedRLEnv = gym.make(task_name, cfg=env_cfg)
-        # this flag is necessary to prevent a bug where the simulation gets stuck randomly when running the
-        # test on many environments.
-        env.sim.set_setting("/physics/cooking/ujitsoCollisionCooking", False)
+        env = gym.make(task_name, cfg=env_cfg)
+
+        # disable control on stop
+        env.unwrapped.sim._app_control_on_stop_handle = None  # type: ignore
 
         # reset environment
         obs, _ = env.reset()

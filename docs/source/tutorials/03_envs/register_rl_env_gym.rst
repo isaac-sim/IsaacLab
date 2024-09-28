@@ -1,3 +1,5 @@
+.. _tutorial-register-rl-env-gym:
+
 Registering an Environment
 ==========================
 
@@ -53,7 +55,8 @@ are running simultaneously in the same process, and all the data is returned in 
 fashion.
 
 Similarly, the :class:`envs.DirectRLEnv` class also inherits from the :class:`gymnasium.Env` class
-for the direct workflow.
+for the direct workflow. For :class:`envs.DirectMARLEnv`, although it does not inherit
+from Gymnasium, it can be registered and created in the same way.
 
 Using the gym registry
 ----------------------

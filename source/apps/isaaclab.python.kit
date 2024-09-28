@@ -5,10 +5,17 @@
 [package]
 title = "Isaac Lab Python"
 description = "An app for running Isaac Lab"
-version = "1.1.0"
+version = "1.2.0"
 
 # That makes it browsable in UI with "experience" filter
 keywords = ["experience", "app", "usd"]
+
+[settings]
+# Note: This path was adapted to be respective to the kit-exe file location
+app.versionFile = "${exe-path}/VERSION"
+app.folder = "${exe-path}/"
+app.name = "Isaac-Sim"
+app.version = "4.2.0"
 
 [dependencies]
 # Isaac Sim extensions
@@ -62,6 +69,7 @@ keywords = ["experience", "app", "usd"]
 "omni.kit.viewport.menubar.render" = {}
 "omni.kit.viewport.menubar.camera" = {}
 "omni.kit.viewport.menubar.display" = {}
+"omni.kit.viewport.menubar.lighting" = {}
 
 "omni.kit.viewport.rtx" = {}
 "omni.kit.widget.cache_indicator" = {}
@@ -205,8 +213,8 @@ app.runLoops.rendering_1.rateLimitUsePrecisionSleep = true
 app.runLoops.rendering_1.syncToPresent = false
 app.runLoopsGlobal.syncToPresent = false
 app.vsync = false
-exts.omni.kit.renderer.core.present.enabled = false
-exts.omni.kit.renderer.core.present.presentAfterRendering = false
+exts."omni.kit.renderer.core".present.enabled = false
+exts."omni.kit.renderer.core".present.presentAfterRendering = false
 persistent.app.viewport.defaults.tickRate = 120
 rtx-transient.dlssg.enabled = false
 
@@ -215,12 +223,8 @@ app.audio.enabled = false
 # Enable Vulkan - avoids torch+cu12 error on windows
 app.vulkan = true
 
-# Basic Kit App
-################################
-app.versionFile = "${exe-path}/VERSION"
-app.folder = "${exe-path}/"
-app.name = "Isaac-Sim"
-app.version = "4.1.0"
+# disable replicator orchestrator for better runtime perf
+exts."omni.replicator.core".Orchestrator.enabled = false
 
 # hide NonToggleable Exts
 exts."omni.kit.window.extensions".hideNonToggleableExts = true

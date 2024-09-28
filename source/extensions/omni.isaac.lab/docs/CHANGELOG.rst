@@ -17,7 +17,132 @@ Changed
 Changelog
 ---------
 
-0.22.4 (2024-08-29)
+0.22.15 (2024-09-20)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`grab_images` to be able to use images for an observation term in manager based environments
+
+0.24.14 (2024-09-20)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`convert_perspective_depth_to_orthogonal_depth`. :meth:`unproject_depth` assumes
+  that the input depth image is orthogonal. The new :meth:`convert_perspective_depth_to_orthogonal_depth`
+  can be used to convert a perspective depth image into an orthogonal depth image, so that the point cloud
+  can be unprojected correctly with :meth:`unproject_depth`.
+
+0.24.13 (2024-09-08)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Moved the configuration of visualization markers for the command terms to their respective configuration classes.
+  This allows users to modify the markers for the command terms without having to modify the command term classes.
+
+
+0.24.12 (2024-09-18)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed outdated fetching of articulation data by using the method ``update_articulations_kinematic`` in
+  :class:`omni.isaac.lab.assets.ArticulationData`. Before if an articulation was moved during a reset, the pose of the
+  links were outdated if fetched before the next physics step. Adding this method ensures that the pose of the links
+  is always up-to-date. Similarly ``update_articulations_kinematic`` was added before any render step to ensure that the
+  articulation displays correctly after a reset.
+
+
+0.24.11 (2024-09-11)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added skrl's JAX environment variables to :class:`~omni.isaac.lab.app.AppLauncher`
+  to support distributed multi-GPU and multi-node training using JAX
+
+
+0.24.10 (2024-09-10)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added config class, support, and tests for MJCF conversion via standalone python scripts.
+
+
+0.24.9 (2024-09-09)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a seed parameter to the :attr:`omni.isaac.lab.envs.ManagerBasedEnvCfg` and :attr:`omni.isaac.lab.envs.DirectRLEnvCfg`
+  classes to set the seed for the environment. This seed is used to initialize the random number generator for the environment.
+* Adapted the workflow scripts to set the seed for the environment using the seed specified in the learning agent's configuration
+  file or the command line argument. This ensures that the simulation results are reproducible across different runs.
+
+
+0.24.8 (2024-09-08)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Modified:meth:`quat_rotate` and :meth:`quat_rotate_inverse` operations to use :meth:`torch.einsum`
+  for faster processing of high dimensional input tensors.
+
+
+0.24.7 (2024-09-06)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added support for property attributes in the :meth:``omni.isaac.lab.utils.configclass`` method.
+  Earlier, the configclass decorator failed to parse the property attributes correctly and made them
+  instance variables instead.
+
+
+0.24.6 (2024-09-05)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Adapted the ``A`` and ``D`` button bindings inside :meth:`omni.isaac.lab.device.Se3Keyboard` to make them now
+  more-intuitive to control the y-axis motion based on the right-hand rule.
+
+
+0.24.5 (2024-08-29)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added alternative data type "distance_to_camera" in :class:`omni.isaac.lab.sensors.TiledCamera` class to be
+  consistent with all other cameras (equal to type "depth").
+
+
+0.24.4 (2024-09-02)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added missing SI units to the documentation of :class:`omni.isaac.lab.sensors.Camera` and
+  :class:`omni.isaac.lab.sensors.RayCasterCamera`.
+* Added test to check :attr:`omni.isaac.lab.sensors.RayCasterCamera.set_intrinsic_matrices`
+
+
+0.24.3 (2024-08-29)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -28,7 +153,7 @@ Fixed
   which required initialization of the class to call the class-methods.
 
 
-0.22.3 (2024-08-28)
+0.24.2 (2024-08-28)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -49,13 +174,48 @@ Fixed
   the behavior equal to the USD Camera.
 
 
-0.22.2 (2024-08-21)
+0.24.1 (2024-08-21)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
 ^^^^^^^
 
 * Disabled default viewport in certain headless scenarios for better performance.
+
+
+0.24.0 (2024-08-17)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added additional annotators for :class:`omni.isaac.lab.sensors.camera.TiledCamera` class.
+
+Changed
+^^^^^^^
+
+* Updated :class:`omni.isaac.lab.sensors.TiledCamera` to latest RTX tiled rendering API.
+* Single channel outputs for :class:`omni.isaac.lab.sensors.TiledCamera`, :class:`omni.isaac.lab.sensors.Camera` and :class:`omni.isaac.lab.sensors.RayCasterCamera` now has shape (H, W, 1).
+* Data type for RGB output for :class:`omni.isaac.lab.sensors.TiledCamera` changed from ``torch.float`` to ``torch.uint8``.
+* Dimension of RGB output for :class:`omni.isaac.lab.sensors.Camera` changed from (H, W, 4) to (H, W, 3). Use type ``rgba`` to retrieve the previous dimension.
+
+
+0.23.1 (2024-08-17)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated torch to version 2.4.0.
+
+
+0.23.0 (2024-08-16)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added direct workflow base class :class:`omni.isaac.lab.envs.DirectMARLEnv` for multi-agent environments.
 
 
 0.22.1 (2024-08-17)
@@ -73,7 +233,7 @@ Added
 ~~~~~~~~~~~~~~~~~~~
 
 Added
-^^^^^^^
+^^^^^
 
 * Added :mod:`~omni.isaac.lab.utils.modifiers` module to provide framework for configurable and custom
   observation data modifiers.
