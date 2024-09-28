@@ -49,7 +49,8 @@ class RayCasterCameraCfg(RayCasterCfg):
 
     - ``"max"``: Values are clipped to the maximum value.
     - ``"zero"``: Values are clipped to zero.
-    - ``"none``: No clipping is applied. Values will be returned as ``nan``. 
+    - ``"none``: No clipping is applied. Values will be returned as ``inf`` for ``distance_to_camera`` and ``nan``
+      for ``distance_to_image_plane`` data type.
     """
 
     def __post_init__(self):

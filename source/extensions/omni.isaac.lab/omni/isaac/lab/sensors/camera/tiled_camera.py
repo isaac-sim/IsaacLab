@@ -45,7 +45,7 @@ class TiledCamera(Camera):
         accurately captured in the RGB images. We are currently working on improving the fidelity of the RGB images.
 
     .. note::
-        Compared to other cameras, the depth clipping behavior cannot be altered as the backend implementation 
+        Compared to other cameras, the depth clipping behavior cannot be altered as the backend implementation
         automatically clips the values exceeding the maximum range to zero.
 
     .. versionadded:: v1.0.0
