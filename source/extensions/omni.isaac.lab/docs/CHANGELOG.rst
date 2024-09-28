@@ -1,3 +1,9 @@
+Changelog
+---------
+
+0.24.16 (2024-09-28)
+~~~~~~~~~~~~~~~~~~~~
+
 Added
 ^^^^^
 
@@ -14,16 +20,14 @@ Changed
   :class:`omni.isaac.lab.sensors.ray_caster.TiledCamera` clipped the values to zero.
 
 
-Changelog
----------
-
-0.22.15 (2024-09-20)
+0.24.15 (2024-09-20)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
 
 * Added :meth:`grab_images` to be able to use images for an observation term in manager based environments
+
 
 0.24.14 (2024-09-20)
 ~~~~~~~~~~~~~~~~~~~~
