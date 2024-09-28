@@ -298,7 +298,9 @@ class RayCasterCamera(RayCaster):
             elif self.cfg.depth_clipping_behavior == "zero":
                 distance_to_image_plane[distance_to_image_plane > self.cfg.max_distance] = 0.0
                 distance_to_image_plane[torch.isnan(distance_to_image_plane)] = 0.0
-            self._data.output["distance_to_image_plane"][env_ids] = distance_to_image_plane.view(-1, *self.image_shape, 1)
+            self._data.output["distance_to_image_plane"][env_ids] = distance_to_image_plane.view(
+                -1, *self.image_shape, 1
+            )
 
         if "distance_to_camera" in self.cfg.data_types:
             if self.cfg.depth_clipping_behavior == "max":
