@@ -15,11 +15,11 @@ simulation_app = AppLauncher(headless=True).app
 import torch
 import unittest
 
-import omni.isaac.core.utils.prims as prim_utils
-import omni.isaac.core.utils.stage as stage_utils
 from omni.isaac.cloner import GridCloner
+import omni.isaac.core.utils.prims as prim_utils
 
 import omni.isaac.lab.sim as sim_utils
+from omni.isaac.lab.sim import build_simulation_context
 from omni.isaac.lab.assets import Articulation
 from omni.isaac.lab.controllers import DifferentialIKController, DifferentialIKControllerCfg
 from omni.isaac.lab.utils.math import compute_pose_error, subtract_frame_transforms
@@ -35,33 +35,6 @@ class TestDifferentialIKController(unittest.TestCase):
 
     def setUp(self):
         """Create a blank new stage for each test."""
-        # Wait for spawning
-        stage_utils.create_new_stage()
-        # Constants
-        self.num_envs = 128
-        # Load kit helper
-        sim_cfg = sim_utils.SimulationCfg(dt=0.01)
-        self.sim = sim_utils.SimulationContext(sim_cfg)
-        # TODO: Remove this once we have a better way to handle this.
-        self.sim._app_control_on_stop_handle = None
-
-        # Create a ground plane
-        cfg = sim_utils.GroundPlaneCfg()
-        cfg.func("/World/GroundPlane", cfg)
-
-        # Create interface to clone the scene
-        cloner = GridCloner(spacing=2.0)
-        cloner.define_base_env("/World/envs")
-        self.env_prim_paths = cloner.generate_paths("/World/envs/env", self.num_envs)
-        # create source prim
-        prim_utils.define_prim(self.env_prim_paths[0], "Xform")
-        # clone the env xform
-        self.env_origins = cloner.clone(
-            source_prim_path=self.env_prim_paths[0],
-            prim_paths=self.env_prim_paths,
-            replicate_physics=True,
-        )
-
         # Define goals for the arm
         ee_goals_set = [
             [0.5, 0.5, 0.7, 0.707, 0, 0.707, 0],
@@ -70,48 +43,72 @@ class TestDifferentialIKController(unittest.TestCase):
         ]
         self.ee_pose_b_des_set = torch.tensor(ee_goals_set, device=self.sim.device)
 
-    def tearDown(self):
-        """Stops simulator after each test."""
-        # stop simulation
-        self.sim.stop()
-        self.sim.clear()
-        self.sim.clear_all_callbacks()
-        self.sim.clear_instance()
-
     """
     Test fixtures.
     """
 
     def test_franka_ik_pose_abs(self):
         """Test IK controller for Franka arm with Franka hand."""
-        # Create robot instance
-        robot_cfg = FRANKA_PANDA_HIGH_PD_CFG.replace(prim_path="/World/envs/env_.*/Robot")
-        robot = Articulation(cfg=robot_cfg)
+        with build_simulation_context(dt=0.01) as sim:
+            # Set simulation context
+            self.sim = sim
 
-        # Create IK controller
-        diff_ik_cfg = DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls")
-        diff_ik_controller = DifferentialIKController(diff_ik_cfg, num_envs=self.num_envs, device=self.sim.device)
+            # Design the scene
+            num_envs = 128
+            self._design_scene(num_envs)
+            # Create robot instance
+            robot_cfg = FRANKA_PANDA_HIGH_PD_CFG.replace(prim_path="/World/envs/env_.*/Robot")
+            robot = Articulation(cfg=robot_cfg)
 
-        # Run the controller and check that it converges to the goal
-        self._run_ik_controller(robot, diff_ik_controller, "panda_hand", ["panda_joint.*"])
+            # Create IK controller
+            diff_ik_cfg = DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls")
+            diff_ik_controller = DifferentialIKController(diff_ik_cfg, num_envs=num_envs, device=self.sim.device)
+
+            # Run the controller and check that it converges to the goal
+            self._run_ik_controller(robot, diff_ik_controller, "panda_hand", ["panda_joint.*"])
 
     def test_ur10_ik_pose_abs(self):
         """Test IK controller for UR10 arm."""
-        # Create robot instance
-        robot_cfg = UR10_CFG.replace(prim_path="/World/envs/env_.*/Robot")
-        robot_cfg.spawn.rigid_props.disable_gravity = True
-        robot = Articulation(cfg=robot_cfg)
+        with build_simulation_context(dt=0.01) as sim:
+            # Set simulation context
+            self.sim = sim
 
-        # Create IK controller
-        diff_ik_cfg = DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls")
-        diff_ik_controller = DifferentialIKController(diff_ik_cfg, num_envs=self.num_envs, device=self.sim.device)
+            # Design the scene
+            num_envs = 128
+            self._design_scene(num_envs)
+            # Create robot instance
+            robot_cfg = UR10_CFG.replace(prim_path="/World/envs/env_.*/Robot")
+            robot_cfg.spawn.rigid_props.disable_gravity = True
+            robot = Articulation(cfg=robot_cfg)
 
-        # Run the controller and check that it converges to the goal
-        self._run_ik_controller(robot, diff_ik_controller, "ee_link", [".*"])
+            # Create IK controller
+            diff_ik_cfg = DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls")
+            diff_ik_controller = DifferentialIKController(diff_ik_cfg, num_envs=num_envs, device=self.sim.device)
+
+            # Run the controller and check that it converges to the goal
+            self._run_ik_controller(robot, diff_ik_controller, "ee_link", [".*"])
 
     """
     Helper functions.
     """
+
+    def _design_scene(self, num_envs: int):
+        # Create a ground plane
+        cfg = sim_utils.GroundPlaneCfg()
+        cfg.func("/World/GroundPlane", cfg)
+
+        # Create interface to clone the scene
+        cloner = GridCloner(spacing=2.0)
+        cloner.define_base_env("/World/envs")
+        self.env_prim_paths = cloner.generate_paths("/World/envs/env", num_envs)
+        # create source prim
+        prim_utils.create_prim(self.env_prim_paths[0], "Xform")
+        # clone the env xform
+        self.env_origins = cloner.clone(
+            source_prim_path=self.env_prim_paths[0],
+            prim_paths=self.env_prim_paths,
+            replicate_physics=True,
+        )
 
     def _run_ik_controller(
         self,
@@ -137,7 +134,7 @@ class TestDifferentialIKController(unittest.TestCase):
         # Track the given command
         current_goal_idx = 0
         # Current goal for the arm
-        ee_pose_b_des = torch.zeros(self.num_envs, diff_ik_controller.action_dim, device=self.sim.device)
+        ee_pose_b_des = torch.zeros(robot.num_instances, diff_ik_controller.action_dim, device=robot.device)
         ee_pose_b_des[:] = self.ee_pose_b_des_set[current_goal_idx]
         # Compute current pose of the end-effector
         ee_pose_w = robot.data.body_state_w[:, ee_frame_idx, 0:7]
