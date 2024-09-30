@@ -39,7 +39,9 @@ def apply_manifest(args: argparse.Namespace) -> None:
 
     # Apply the Kubernetes manifest using kubectl
     try:
-        subprocess.run(["kubectl", "apply", "-f", "-"], input=cleaned_yaml_string, text=True, check=True)
+        print(cleaned_yaml_string)
+        print("not running yet, for inspection")
+        # subprocess.run(["kubectl", "apply", "-f", "-"], input=cleaned_yaml_string, text=True, check=True)
     except subprocess.CalledProcessError as e:
         exit(f"An error occurred while running `kubectl`: {e}")
 
@@ -54,6 +56,7 @@ def parse_args() -> argparse.Namespace:
     arg_parser = argparse.ArgumentParser(
         description="Script to apply manifests to create Kubernetes objects for Ray clusters."
     )
+
     arg_parser.add_argument(
         "--name",
         type=str,
@@ -71,13 +74,30 @@ def parse_args() -> argparse.Namespace:
     arg_parser.add_argument("--service_acount_name", type=str, required=True, help="The service account name to use.")
 
     arg_parser.add_argument(
+        "--external_dns_hostname", type=str, required=True, help="The external hostname to use to view logs in progress"
+    )
+
+    arg_parser.add_argument(
+        "head_entry_point",
+        nargs="+",
+        default=["python", "no_entrypoint_supplied_silly.py"],  # TODO: Make this whatever the tune is
+        help="The program to run from the head node to facilitate a hyperparam run",
+    )
+
+    arg_parser.add_argument(
         "--image",
         type=str,
         required=True,
         help="Docker image for the Ray cluster pods.",
     )
 
-    arg_parser.add_argument("--worker_accelerator", type=str, default="nvidia-l4")
+    arg_parser.add_argument(
+        "--worker_accelerator",
+        type=str,
+        default="nvidia-l4",
+        help="The name of a gpu accelerator available with Google.",
+    )
+
     arg_parser.add_argument(
         "--min-workers",
         type=int,
@@ -85,6 +105,7 @@ def parse_args() -> argparse.Namespace:
         default=2,
         help="Minimum number of workers.",
     )
+
     arg_parser.add_argument(
         "--max-workers",
         type=int,
@@ -99,12 +120,16 @@ def parse_args() -> argparse.Namespace:
         default=1,
         help="Initial number of workers to start with.",
     )
+
+    arg_parser.add_argument("--cpu_per_worker", type=int, default=1, help="Number of CPUs to assign to each worker pod")
+
     arg_parser.add_argument(
         "--gpu_per_worker",
         type=int,
         default=1,
         help="Number of GPUs to assign to each worker pod.",
     )
+
     arg_parser.add_argument("--ram_gb", type=int, default=50, help="How many gigs of RAM to use")
 
     return arg_parser.parse_args()

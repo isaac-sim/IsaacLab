@@ -108,7 +108,6 @@ spec:
       rayStartParams:
         block: "true"
         ray-debugger-external: "true"
-        resources: '"{\"train\": 1}"'
       replicas: {{ starting_worker_count }}
       template:
         metadata:
@@ -129,11 +128,11 @@ spec:
               name: ray-worker
               resources: # fitting one pod per node
                 limits:
-                  cpu: "14" # allowing for overhead of 2 cpus
+                  cpu: "{{ cpu_per_worker }}" # allowing for overhead of 2 cpus
                   memory: {{ ram_gb }}G
                   nvidia.com/gpu: "{{ gpu_per_worker }}"
                 requests:
-                  cpu: "14"
+                  cpu: "{{ cpu_per_worker }}"
                   memory: {{ ram_gb }}G
                   nvidia.com/gpu: "{{ gpu_per_worker }}"
               securityContext: {}
