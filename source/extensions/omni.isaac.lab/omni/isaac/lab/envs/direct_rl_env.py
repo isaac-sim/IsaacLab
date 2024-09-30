@@ -31,7 +31,6 @@ from omni.isaac.lab.utils.timer import Timer
 from .common import VecEnvObs, VecEnvStepReturn
 from .direct_rl_env_cfg import DirectRLEnvCfg
 from .ui import ViewportCameraController
-from .utils import spec_to_gym_space
 
 
 class DirectRLEnv(gym.Env):
@@ -508,6 +507,9 @@ class DirectRLEnv(gym.Env):
     """
 
     def _configure_gym_env_spaces(self):
+        # defer import to avoid circular import error
+        from omni.isaac.lab.envs.utils import spec_to_gym_space
+
         """Configure the action and observation spaces for the Gym environment."""
         # show deprecation message and overwrite configuration
         if self.cfg.num_actions is not None:

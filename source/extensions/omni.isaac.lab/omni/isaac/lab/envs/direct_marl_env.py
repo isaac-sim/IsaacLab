@@ -412,10 +412,10 @@ class DirectMARLEnv:
         Returns:
             The states for the environment, or None if :attr:`DirectMARLEnvCfg.num_states` parameter is zero.
         """
-        if not self.cfg.num_states:
+        if not self.cfg.state_space:
             return None
         # concatenate and return the observations as state
-        if self.cfg.num_states < 0:
+        if self.cfg.state_space < 0:  # FIXME
             self.state_buf = torch.cat([self.obs_dict[agent] for agent in self.cfg.possible_agents], dim=-1)
         # compute and return custom environment state
         else:
@@ -565,6 +565,9 @@ class DirectMARLEnv:
     """
 
     def _configure_env_spaces(self):
+        # defer import to avoid circular import error
+        from omni.isaac.lab.envs.utils import spec_to_gym_space
+
         """Configure the spaces for the environment."""
         self.agents = self.cfg.possible_agents
         self.possible_agents = self.cfg.possible_agents
@@ -587,23 +590,21 @@ class DirectMARLEnv:
 
         # set up observation and action spaces
         self.observation_spaces = {
-            agent: gym.spaces.Box(low=-np.inf, high=np.inf, shape=(self.cfg.num_observations[agent],))
-            for agent in self.cfg.possible_agents
+            agent: spec_to_gym_space(self.cfg.observation_spaces[agent]) for agent in self.cfg.possible_agents
         }
         self.action_spaces = {
-            agent: gym.spaces.Box(low=-np.inf, high=np.inf, shape=(self.cfg.num_actions[agent],))
-            for agent in self.cfg.possible_agents
+            agent: spec_to_gym_space(self.cfg.action_spaces[agent]) for agent in self.cfg.possible_agents
         }
 
         # set up state space
-        if not self.cfg.num_states:
+        if not self.cfg.state_space:
             self.state_space = None
-        if self.cfg.num_states < 0:
+        if self.cfg.state_space < 0:  # FIXME
             self.state_space = gym.spaces.Box(
                 low=-np.inf, high=np.inf, shape=(sum(self.cfg.num_observations.values()),)
             )
         else:
-            self.state_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(self.cfg.num_states,))
+            self.state_space = spec_to_gym_space(self.cfg.state_space)
 
     def _reset_idx(self, env_ids: Sequence[int]):
         """Reset environments based on specified indices.

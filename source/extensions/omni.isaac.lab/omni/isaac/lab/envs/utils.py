@@ -7,13 +7,11 @@ import gymnasium as gym
 import math
 import numpy as np
 import torch
-from typing import Any, TypeVar
+from typing import Any
 
 from .common import ActionType, AgentID, EnvStepReturn, ObsType, SpaceType, StateType, VecEnvObs, VecEnvStepReturn
-
-# sentinel types to avoid circular import errors
-DirectMARLEnv = TypeVar("DirectMARLEnv")
-DirectRLEnv = TypeVar("DirectRLEnv")
+from .direct_marl_env import DirectMARLEnv
+from .direct_rl_env import DirectRLEnv
 
 
 def spec_to_gym_space(spec: SpaceType) -> gym.spaces.Space:
