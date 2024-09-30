@@ -105,7 +105,27 @@ class DirectRLEnvCfg:
     """
 
     observation_space: SpaceType = MISSING
-    """Observation space definition."""
+    """Observation space definition.
+
+    The space can be defined either using Gymnasium :py:mod:`~gymnasium.spaces` (when a more detailed
+    specification of the space is desired) or basic Python data types (for simplicity).
+
+    .. list-table::
+        :header-rows: 1
+
+        * - Gymnasium space
+          - Python data type
+        * - :class:`~gymnasium.spaces.Box`
+          - Integer or list of integers (e.g.: ``7``, ``[64, 64, 3]``)
+        * - :class:`~gymnasium.spaces.Discrete`
+          - Single-element set (e.g.: ``{2}``)
+        * - :class:`~gymnasium.spaces.MultiDiscrete`
+          - List of single-element sets (e.g.: ``[{2}, {5}]``)
+        * - :class:`~gymnasium.spaces.Dict`
+          - Dictionary (e.g.: ``{"joints": 7, "rgb": [64, 64, 3], "gripper": {2}}``)
+        * - :class:`~gymnasium.spaces.Tuple`
+          - Tuple (e.g.: ``(7, [64, 64, 3], {2})``)
+    """
 
     num_observations: int | None = None
     """The dimension of the observation space from each environment instance.
@@ -119,6 +139,25 @@ class DirectRLEnvCfg:
     """State space definition.
 
     This is useful for asymmetric actor-critic and defines the observation space for the critic.
+
+    The space can be defined either using Gymnasium :py:mod:`~gymnasium.spaces` (when a more detailed
+    specification of the space is desired) or basic Python data types (for simplicity).
+
+    .. list-table::
+        :header-rows: 1
+
+        * - Gymnasium space
+          - Python data type
+        * - :class:`~gymnasium.spaces.Box`
+          - Integer or list of integers (e.g.: ``7``, ``[64, 64, 3]``)
+        * - :class:`~gymnasium.spaces.Discrete`
+          - Single-element set (e.g.: ``{2}``)
+        * - :class:`~gymnasium.spaces.MultiDiscrete`
+          - List of single-element sets (e.g.: ``[{2}, {5}]``)
+        * - :class:`~gymnasium.spaces.Dict`
+          - Dictionary (e.g.: ``{"joints": 7, "rgb": [64, 64, 3], "gripper": {2}}``)
+        * - :class:`~gymnasium.spaces.Tuple`
+          - Tuple (e.g.: ``(7, [64, 64, 3], {2})``)
     """
 
     num_states: int | None = None
@@ -136,7 +175,27 @@ class DirectRLEnvCfg:
     """
 
     action_space: SpaceType = MISSING
-    """Action space definition."""
+    """Action space definition.
+
+    The space can be defined either using Gymnasium :py:mod:`~gymnasium.spaces` (when a more detailed
+    specification of the space is desired) or basic Python data types (for simplicity).
+
+    .. list-table::
+        :header-rows: 1
+
+        * - Gymnasium space
+          - Python data type
+        * - :class:`~gymnasium.spaces.Box`
+          - Integer or list of integers (e.g.: ``7``, ``[64, 64, 3]``)
+        * - :class:`~gymnasium.spaces.Discrete`
+          - Single-element set (e.g.: ``{2}``)
+        * - :class:`~gymnasium.spaces.MultiDiscrete`
+          - List of single-element sets (e.g.: ``[{2}, {5}]``)
+        * - :class:`~gymnasium.spaces.Dict`
+          - Dictionary (e.g.: ``{"joints": 7, "rgb": [64, 64, 3], "gripper": {2}}``)
+        * - :class:`~gymnasium.spaces.Tuple`
+          - Tuple (e.g.: ``(7, [64, 64, 3], {2})``)
+    """
 
     num_actions: int | None = None
     """The dimension of the action space for each environment.
