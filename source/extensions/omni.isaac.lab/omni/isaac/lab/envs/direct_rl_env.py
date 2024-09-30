@@ -173,7 +173,7 @@ class DirectRLEnv(gym.Env):
         self.reset_terminated = torch.zeros(self.num_envs, device=self.device, dtype=torch.bool)
         self.reset_time_outs = torch.zeros_like(self.reset_terminated)
         self.reset_buf = torch.zeros(self.num_envs, dtype=torch.bool, device=self.sim.device)
-        self.actions = torch.zeros(self.num_envs, self.cfg.num_actions, device=self.sim.device)
+        # TODO: self.actions = torch.zeros(self.num_envs, self.cfg.num_actions, device=self.sim.device)
 
         # setup the action and observation spaces for Gym
         self._configure_gym_env_spaces()
