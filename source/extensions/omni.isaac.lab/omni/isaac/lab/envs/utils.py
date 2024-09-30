@@ -9,9 +9,45 @@ import numpy as np
 import torch
 from typing import Any
 
-from .common import ActionType, AgentID, EnvStepReturn, ObsType, StateType, VecEnvObs, VecEnvStepReturn
+from .common import ActionType, AgentID, EnvStepReturn, ObsType, SpaceType, StateType, VecEnvObs, VecEnvStepReturn
 from .direct_marl_env import DirectMARLEnv
 from .direct_rl_env import DirectRLEnv
+
+
+def spec_to_gym_space(spec: SpaceType) -> gym.spaces.Space:
+    """Generate an appropriate Gymnasium space according to the given space specification.
+
+    Args:
+        spec: Space specification.
+
+    Returns:
+        Gymnasium space.
+
+    Raises:
+        ValueError: If the given space specification is not valid/supported.
+    """
+    if isinstance(spec, gym.spaces.Space):
+        return spec
+    # fundamental spaces
+    # Box
+    elif isinstance(spec, int):
+        return gym.spaces.Box(low=-np.inf, high=np.inf, shape=(spec,))
+    elif isinstance(spec, list) and all(isinstance(x, int) for x in spec):
+        return gym.spaces.Box(low=-np.inf, high=np.inf, shape=spec)
+    # Discrete
+    elif isinstance(spec, set) and len(spec) == 1:
+        return gym.spaces.Discrete(n=next(iter(spec)))
+    # MultiDiscrete
+    elif isinstance(spec, list) and all(isinstance(x, set) and len(x) == 1 for x in spec):
+        return gym.spaces.MultiDiscrete(nvec=[next(iter(x)) for x in spec])
+    # composite spaces
+    # Tuple
+    elif isinstance(spec, tuple):
+        return gym.spaces.Tuple([spec_to_gym_space(x) for x in spec])
+    # Tuple
+    elif isinstance(spec, dict):
+        return gym.spaces.Dict({k: spec_to_gym_space(v) for k, v in spec.items()})
+    raise ValueError(f"Unsupported space specification: {spec}")
 
 
 def multi_agent_to_single_agent(env: DirectMARLEnv, state_as_observation: bool = False) -> DirectRLEnv:
