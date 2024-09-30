@@ -79,13 +79,10 @@ def generate_cubes_scene(
     return cube_object, origins
 
 
-def generate_heterogeneous_cubes_scene(
-    num_cubes: int = 2, height=1.0, device: str = "cuda:0"
-) -> tuple[RigidObject, torch.Tensor]:
+def generate_heterogeneous_cubes_scene(height=1.0, device: str = "cuda:0") -> tuple[RigidObject, torch.Tensor]:
     """Generate a scene with the provided number of cubes.
 
     Args:
-        num_cubes: Number of cubes to generate.
         height: Height of the cubes.
         device: Device to use for the simulation.
 
@@ -93,6 +90,7 @@ def generate_heterogeneous_cubes_scene(
         A tuple containing the rigid object representing the cubes and the origins of the cubes.
 
     """
+    num_cubes = 2
     origins = torch.tensor([(i * 1.0, 0, height) for i in range(num_cubes)]).to(device)
     # Create Top-level Xforms, one for each cube
     for i, origin in enumerate(origins):
@@ -126,7 +124,11 @@ def generate_heterogeneous_cubes_scene(
         use_first_matching_path=False,
     )
 
-    return cube_object_cfg, [cube_object_cfg_1, cube_object_cfg_2], origins
+    # Spawn objects to scene
+    RigidObject(cube_object_cfg_1)
+    RigidObject(cube_object_cfg_2)
+
+    return cube_object_cfg, origins
 
 
 class TestRigidObject(unittest.TestCase):
@@ -174,14 +176,8 @@ class TestRigidObject(unittest.TestCase):
         for device in ("cuda:0", "cpu"):
             with self.subTest(num_cubes=num_cubes, device=device):
                 with build_simulation_context(device=device, auto_add_lighting=True) as sim:
-                    # Generate cubes configs
-                    cube_object_cfg, spawn_cfgs, _ = generate_heterogeneous_cubes_scene(
-                        num_cubes=num_cubes, device=device
-                    )
-
-                    # Spawn objects to scene
-                    for cfg in spawn_cfgs:
-                        RigidObject(cfg)
+                    # Generate 2 different cubes
+                    cube_object_cfg, _ = generate_heterogeneous_cubes_scene(device=device)
 
                     # Main RigidObject instance
                     cube_object = RigidObject(cube_object_cfg)

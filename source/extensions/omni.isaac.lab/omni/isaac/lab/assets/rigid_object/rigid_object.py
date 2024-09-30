@@ -298,10 +298,22 @@ class RigidObject(AssetBase):
                 root_prim_path_expr.replace(".*", "*")
             )
         else:
-            # obtain all prims matching the regex expression
-            matching_prim_paths = sim_utils.find_matching_prims(self.cfg.prim_path)
-            if len(matching_prim_paths) == 0:
+            # obtain the first prim in the regex expression (all others are assumed to be a copy of this)
+            template_prim = sim_utils.find_first_matching_prim(self.cfg.prim_path)
+            if template_prim is None:
                 raise RuntimeError(f"Failed to find prim for expression: '{self.cfg.prim_path}'.")
+            template_prim_path = template_prim.GetPath().pathString
+            template_parent_path = template_prim.GetPath().GetParentPath().pathString
+
+            # resolve template prim back into regex expression
+            template_prim_path_expr = (
+                self.cfg.prim_path[: len(template_parent_path) + 1] + template_prim_path[len(template_parent_path) :]
+            )
+
+            # obtain all prims matching the regex expression
+            matching_prim_paths = sim_utils.find_matching_prims(template_prim_path_expr)
+            if len(matching_prim_paths) == 0:
+                raise RuntimeError(f"Failed to find prim for expression: '{template_prim_path_expr}'.")
 
             # find rigid root prims
             root_prim_path_expr = []
