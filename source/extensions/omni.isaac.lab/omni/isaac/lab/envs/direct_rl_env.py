@@ -525,11 +525,6 @@ class DirectRLEnv(gym.Env):
             if isinstance(self.cfg.state_space, type(MISSING)):
                 self.cfg.state_space = self.cfg.num_states
 
-        # observation space (unbounded since we don't impose any limits)
-        self.num_actions = self.cfg.num_actions
-        self.num_observations = self.cfg.num_observations
-        self.num_states = self.cfg.num_states
-
         # set up spaces
         self.single_observation_space = gym.spaces.Dict()
         self.single_observation_space["policy"] = spec_to_gym_space(self.cfg.observation_space)
