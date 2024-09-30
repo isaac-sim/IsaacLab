@@ -14,6 +14,7 @@ import torch
 import weakref
 from abc import abstractmethod
 from collections.abc import Sequence
+from dataclasses import MISSING
 from typing import Any, ClassVar
 
 import carb
@@ -507,6 +508,22 @@ class DirectRLEnv(gym.Env):
 
     def _configure_gym_env_spaces(self):
         """Configure the action and observation spaces for the Gym environment."""
+        # show deprecation message and overwrite configuration
+        if self.cfg.num_actions is not None:
+            carb.log_warn("DirectRLEnvCfg.num_actions is deprecated. Use DirectRLEnvCfg.action_space instead.")
+            if isinstance(self.cfg.action_space, type(MISSING)):
+                self.cfg.action_space = self.cfg.num_actions
+        if self.cfg.num_observations is not None:
+            carb.log_warn(
+                "DirectRLEnvCfg.num_observations is deprecated. Use DirectRLEnvCfg.observation_space instead."
+            )
+            if isinstance(self.cfg.observation_space, type(MISSING)):
+                self.cfg.observation_space = self.cfg.num_observations
+        if self.cfg.num_states is not None:
+            carb.log_warn("DirectRLEnvCfg.num_states is deprecated. Use DirectRLEnvCfg.state_space instead.")
+            if isinstance(self.cfg.state_space, type(MISSING)):
+                self.cfg.state_space = self.cfg.num_states
+
         # observation space (unbounded since we don't impose any limits)
         self.num_actions = self.cfg.num_actions
         self.num_observations = self.cfg.num_observations
