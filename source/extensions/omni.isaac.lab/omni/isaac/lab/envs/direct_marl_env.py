@@ -14,6 +14,7 @@ import torch
 import weakref
 from abc import abstractmethod
 from collections.abc import Sequence
+from dataclasses import MISSING
 from typing import Any, ClassVar
 
 import carb
@@ -567,6 +568,22 @@ class DirectMARLEnv:
         """Configure the spaces for the environment."""
         self.agents = self.cfg.possible_agents
         self.possible_agents = self.cfg.possible_agents
+
+        # show deprecation message and overwrite configuration
+        if self.cfg.num_actions is not None:
+            carb.log_warn("DirectMARLEnvCfg.num_actions is deprecated. Use DirectMARLEnvCfg.action_spaces instead.")
+            if isinstance(self.cfg.action_spaces, type(MISSING)):
+                self.cfg.action_spaces = self.cfg.num_actions
+        if self.cfg.num_observations is not None:
+            carb.log_warn(
+                "DirectMARLEnvCfg.num_observations is deprecated. Use DirectMARLEnvCfg.observation_spaces instead."
+            )
+            if isinstance(self.cfg.observation_spaces, type(MISSING)):
+                self.cfg.observation_spaces = self.cfg.num_observations
+        if self.cfg.num_states is not None:
+            carb.log_warn("DirectMARLEnvCfg.num_states is deprecated. Use DirectMARLEnvCfg.state_space instead.")
+            if isinstance(self.cfg.state_space, type(MISSING)):
+                self.cfg.state_space = self.cfg.num_states
 
         # set up observation and action spaces
         self.observation_spaces = {
