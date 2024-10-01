@@ -99,11 +99,11 @@ def multi_agent_to_single_agent(env: DirectMARLEnv, state_as_observation: bool =
             if self._state_as_observation:
                 self.single_observation_space["policy"] = self.env.state_space
             else:
-                self.single_observation_space["policy"] = gym.spaces.Tuple(
-                    [self.env.observation_spaces[agent] for agent in self.env.possible_agents]
+                self.single_observation_space["policy"] = gym.spaces.flatten_space(
+                    gym.spaces.Tuple([self.env.observation_spaces[agent] for agent in self.env.possible_agents])
                 )
-            self.single_action_space = gym.spaces.Tuple(
-                [self.env.action_spaces[agent] for agent in self.env.possible_agents]
+            self.single_action_space = gym.spaces.flatten_space(
+                gym.spaces.Tuple([self.env.action_spaces[agent] for agent in self.env.possible_agents])
             )
 
             # batch the spaces for vectorized environments
@@ -119,18 +119,25 @@ def multi_agent_to_single_agent(env: DirectMARLEnv, state_as_observation: bool =
             if self._state_as_observation:
                 obs = {"policy": self.env.state()}
             # concatenate agents' observations
-            else:  # FIXME
-                obs = {"policy": torch.cat([obs[agent] for agent in self.env.possible_agents], dim=-1)}
+            # FIXME: This implementation assumes the spaces are fundamental ones. Fix it to support composite spaces
+            else:
+                obs = {
+                    "policy": torch.cat(
+                        [obs[agent].reshape(self.num_envs, -1) for agent in self.env.possible_agents], dim=-1
+                    )
+                }
 
             return obs, extras
 
         def step(self, action: torch.Tensor) -> VecEnvStepReturn:
             # split single-agent actions to build the multi-agent ones
+            # FIXME: This implementation assumes the spaces are fundamental ones. Fix it to support composite spaces
             index = 0
             _actions = {}
-            for agent in self.env.possible_agents:  # FIXME
-                _actions[agent] = action[:, index : index + self.env.cfg.num_actions[agent]]
-                index += self.env.cfg.num_actions[agent]
+            for agent in self.env.possible_agents:
+                delta = gym.spaces.flatdim(self.env.action_spaces[agent])
+                _actions[agent] = action[:, index : index + delta]
+                index += delta
 
             # step the environment
             obs, rewards, terminated, time_outs, extras = self.env.step(_actions)
@@ -139,8 +146,13 @@ def multi_agent_to_single_agent(env: DirectMARLEnv, state_as_observation: bool =
             if self._state_as_observation:
                 obs = {"policy": self.env.state()}
             # concatenate agents' observations
-            else:  # FIXME
-                obs = {"policy": torch.cat([obs[agent] for agent in self.env.possible_agents], dim=-1)}
+            # FIXME: This implementation assumes the spaces are fundamental ones. Fix it to support composite spaces
+            else:
+                obs = {
+                    "policy": torch.cat(
+                        [obs[agent].reshape(self.num_envs, -1) for agent in self.env.possible_agents], dim=-1
+                    )
+                }
 
             # process environment outputs to return single-agent data
             rewards = sum(rewards.values())
@@ -203,15 +215,15 @@ def multi_agent_with_one_agent(env: DirectMARLEnv, state_as_observation: bool = 
             self._exported_possible_agents = [self._agent_id]
             if self._state_as_observation:
                 self._exported_observation_spaces = {self._agent_id: self.env.state_space}
-            else:  # FIXME
+            else:
                 self._exported_observation_spaces = {
-                    self._agent_id: gym.spaces.Box(
-                        low=-np.inf, high=np.inf, shape=(sum(self.env.cfg.num_observations.values()),)
+                    self._agent_id: gym.spaces.flatten_space(
+                        gym.spaces.Tuple([self.env.observation_spaces[agent] for agent in self.env.possible_agents])
                     )
-                }  # FIXME
+                }
             self._exported_action_spaces = {
-                self._agent_id: gym.spaces.Box(
-                    low=-np.inf, high=np.inf, shape=(sum(self.env.cfg.num_actions.values()),)
+                self._agent_id: gym.spaces.flatten_space(
+                    gym.spaces.Tuple([self.env.action_spaces[agent] for agent in self.env.possible_agents])
                 )
             }
 
@@ -243,18 +255,25 @@ def multi_agent_with_one_agent(env: DirectMARLEnv, state_as_observation: bool = 
             if self._state_as_observation:
                 obs = {self._agent_id: self.env.state()}
             # concatenate agents' observations
-            else:  # FIXME
-                obs = {self._agent_id: torch.cat([obs[agent] for agent in self.env.possible_agents], dim=-1)}
+            # FIXME: This implementation assumes the spaces are fundamental ones. Fix it to support composite spaces
+            else:
+                obs = {
+                    self._agent_id: torch.cat(
+                        [obs[agent].reshape(self.num_envs, -1) for agent in self.env.possible_agents], dim=-1
+                    )
+                }
 
             return obs, extras
 
         def step(self, actions: dict[AgentID, ActionType]) -> EnvStepReturn:
             # split agent actions to build the multi-agent ones
+            # FIXME: This implementation assumes the spaces are fundamental ones. Fix it to support composite spaces
             index = 0
             _actions = {}
-            for agent in self.env.possible_agents:  # FIXME
-                _actions[agent] = actions[self._agent_id][:, index : index + self.env.cfg.num_actions[agent]]
-                index += self.env.cfg.num_actions[agent]
+            for agent in self.env.possible_agents:
+                delta = gym.spaces.flatdim(self.env.action_spaces[agent])
+                _actions[agent] = actions[self._agent_id][:, index : index + delta]
+                index += delta
 
             # step the environment
             obs, rewards, terminated, time_outs, extras = self.env.step(_actions)
@@ -263,8 +282,13 @@ def multi_agent_with_one_agent(env: DirectMARLEnv, state_as_observation: bool = 
             if self._state_as_observation:
                 obs = {self._agent_id: self.env.state()}
             # concatenate agents' observations
-            else:  # FIXME
-                obs = {self._agent_id: torch.cat([obs[agent] for agent in self.env.possible_agents], dim=-1)}
+            # FIXME: This implementation assumes the spaces are fundamental ones. Fix it to support composite spaces
+            else:
+                obs = {
+                    self._agent_id: torch.cat(
+                        [obs[agent].reshape(self.num_envs, -1) for agent in self.env.possible_agents], dim=-1
+                    )
+                }
 
             # process environment outputs to return agent data
             rewards = {self._agent_id: sum(rewards.values())}

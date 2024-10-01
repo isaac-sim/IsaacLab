@@ -411,8 +411,11 @@ class DirectMARLEnv:
         if not self.cfg.state_space:
             return None
         # concatenate and return the observations as state
-        if self.cfg.state_space < 0:  # FIXME
-            self.state_buf = torch.cat([self.obs_dict[agent] for agent in self.cfg.possible_agents], dim=-1)
+        # FIXME: This implementation assumes the spaces are fundamental ones. Fix it to support composite spaces
+        if isinstance(self.cfg.state_space, int) and self.cfg.state_space < 0:
+            self.state_buf = torch.cat(
+                [self.obs_dict[agent].reshape(self.num_envs, -1) for agent in self.cfg.possible_agents], dim=-1
+            )
         # compute and return custom environment state
         else:
             self.state_buf = self._get_states()
@@ -595,8 +598,10 @@ class DirectMARLEnv:
         # set up state space
         if not self.cfg.state_space:
             self.state_space = None
-        if self.cfg.state_space < 0:
-            self.state_space = gym.spaces.Tuple([self.observation_spaces[agent] for agent in self.cfg.possible_agents])
+        if isinstance(self.cfg.state_space, int) and self.cfg.state_space < 0:
+            self.state_space = gym.spaces.flatten_space(
+                gym.spaces.Tuple([self.observation_spaces[agent] for agent in self.cfg.possible_agents])
+            )
         else:
             self.state_space = spec_to_gym_space(self.cfg.state_space)
 
