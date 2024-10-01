@@ -165,10 +165,6 @@ class DirectMARLEnv:
         # -- init buffers
         self.episode_length_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
         self.reset_buf = torch.zeros(self.num_envs, dtype=torch.bool, device=self.sim.device)
-        self.actions = {
-            agent: torch.zeros(self.num_envs, self.cfg.num_actions[agent], device=self.sim.device)
-            for agent in self.cfg.possible_agents
-        }
 
         # setup the observation, state and action spaces
         self._configure_env_spaces()
@@ -407,10 +403,10 @@ class DirectMARLEnv:
         """Returns the state for the environment.
 
         The state-space is used for centralized training or asymmetric actor-critic architectures. It is configured
-        using the :attr:`DirectMARLEnvCfg.num_states` parameter.
+        using the :attr:`DirectMARLEnvCfg.state_space` parameter.
 
         Returns:
-            The states for the environment, or None if :attr:`DirectMARLEnvCfg.num_states` parameter is zero.
+            The states for the environment, or None if :attr:`DirectMARLEnvCfg.state_space` parameter is zero.
         """
         if not self.cfg.state_space:
             return None
@@ -599,10 +595,8 @@ class DirectMARLEnv:
         # set up state space
         if not self.cfg.state_space:
             self.state_space = None
-        if self.cfg.state_space < 0:  # FIXME
-            self.state_space = gym.spaces.Box(
-                low=-np.inf, high=np.inf, shape=(sum(self.cfg.num_observations.values()),)
-            )
+        if self.cfg.state_space < 0:
+            self.state_space = gym.spaces.Tuple([self.observation_spaces[agent] for agent in self.cfg.possible_agents])
         else:
             self.state_space = spec_to_gym_space(self.cfg.state_space)
 
@@ -682,8 +676,8 @@ class DirectMARLEnv:
     def _get_states(self) -> StateType:
         """Compute and return the states for the environment.
 
-        This method is only called (and therefore has to be implemented) when the :attr:`DirectMARLEnvCfg.num_states`
-        parameter is greater than zero.
+        This method is only called (and therefore has to be implemented) when the :attr:`DirectMARLEnvCfg.state_space`
+        parameter is not a number less than or equal to zero.
 
         Returns:
             The states for the environment.

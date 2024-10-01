@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import gymnasium as gym
 import torch
 
 import omni.isaac.lab.sim as sim_utils
@@ -105,7 +106,7 @@ class QuadcopterEnv(DirectRLEnv):
         super().__init__(cfg, render_mode, **kwargs)
 
         # Total thrust and moment applied to the base of the quadcopter
-        self._actions = torch.zeros(self.num_envs, self.cfg.num_actions, device=self.device)
+        self._actions = torch.zeros(self.num_envs, gym.spaces.flatdim(self.single_action_space), device=self.device)
         self._thrust = torch.zeros(self.num_envs, 1, 3, device=self.device)
         self._moment = torch.zeros(self.num_envs, 1, 3, device=self.device)
         # Goal position
