@@ -32,10 +32,10 @@ class OperationalSpaceControllerCfg:
     uncouple_motion_wrench: bool = False
     """Whether to decouple the wrench computation from task-space pose (motion) error."""
 
-    motion_control_axes_b: Sequence[int] = (1, 1, 1, 1, 1, 1)
-    """Motion direction to control, in root frame. Mark as 0/1 for each axis."""
-    wrench_control_axes_b: Sequence[int] = (0, 0, 0, 0, 0, 0)
-    """Wrench direction to control, in root frame. Mark as 0/1 for each axis."""
+    motion_control_axes_task: Sequence[int] = (1, 1, 1, 1, 1, 1)
+    """Motion direction to control in task reference frame. Mark as 0/1 for each axis."""
+    wrench_control_axes_task: Sequence[int] = (0, 0, 0, 0, 0, 0)
+    """Wrench direction to control in task reference frame. Mark as 0/1 for each axis."""
 
     inertial_compensation: bool = False
     """Whether to perform inertial compensation for motion control (inverse dynamics)."""
@@ -44,10 +44,10 @@ class OperationalSpaceControllerCfg:
     """Whether to perform gravity compensation."""
 
     stiffness: float | Sequence[float] = (100.0, 100.0, 100.0, 100.0, 100.0, 100.0)
-    """The positional gain for determining wrenches based on task-space pose error."""
+    """The positional gain for determining effort wrenches based on task-space pose error."""
 
     damping_ratio: float | Sequence[float] = (1.0, 1.0, 1.0, 1.0, 1.0, 1.0)
-    """The damping ratio is used in-conjunction with positional gain to compute wrenches
+    """The damping ratio is used in-conjunction with positional gain to compute effort wrenches
     based on task-space velocity error.
 
     The following math operation is performed for computing velocity gains:
@@ -67,7 +67,7 @@ class OperationalSpaceControllerCfg:
     """
 
     wrench_stiffness: float | Sequence[float] = None
-    """The positional gain for determining wrenches for closed-loop force control.
+    """The positional gain for determining effort wrenches for closed-loop force control.
 
     If obj:`None`, then open-loop control of desired wrench is performed.
 

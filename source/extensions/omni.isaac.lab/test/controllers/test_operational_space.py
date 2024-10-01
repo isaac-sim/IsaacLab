@@ -330,8 +330,8 @@ class TestOperationalSpaceController(unittest.TestCase):
 
         opc_cfg = OperationalSpaceControllerCfg(
             target_types=["wrench_abs"],
-            motion_control_axes_b=[0, 0, 0, 0, 0, 0],
-            wrench_control_axes_b=[1, 1, 1, 1, 1, 1],
+            motion_control_axes_task=[0, 0, 0, 0, 0, 0],
+            wrench_control_axes_task=[1, 1, 1, 1, 1, 1],
         )
         opc = OperationalSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
 
@@ -378,8 +378,8 @@ class TestOperationalSpaceController(unittest.TestCase):
         opc_cfg = OperationalSpaceControllerCfg(
             target_types=["wrench_abs"],
             wrench_stiffness=[0.2, 0.2, 0.2, 0.0, 0.0, 0.0],  # Zero torque feedback as we cannot contact torque
-            motion_control_axes_b=[0, 0, 0, 0, 0, 0],
-            wrench_control_axes_b=[1, 1, 1, 1, 1, 1],
+            motion_control_axes_task=[0, 0, 0, 0, 0, 0],
+            wrench_control_axes_task=[1, 1, 1, 1, 1, 1],
         )
         opc = OperationalSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
 
@@ -420,8 +420,8 @@ class TestOperationalSpaceController(unittest.TestCase):
             stiffness=100.0,
             damping_ratio=1.0,
             wrench_stiffness=[0.2, 0.0, 0.0, 0.0, 0.0, 0.0],
-            motion_control_axes_b=[0, 1, 1, 1, 1, 1],
-            wrench_control_axes_b=[1, 0, 0, 0, 0, 0],
+            motion_control_axes_task=[0, 1, 1, 1, 1, 1],
+            wrench_control_axes_task=[1, 0, 0, 0, 0, 0],
         )
         opc = OperationalSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
 
@@ -461,8 +461,8 @@ class TestOperationalSpaceController(unittest.TestCase):
             gravity_compensation=False,
             damping_ratio=1.0,
             wrench_stiffness=[0.2, 0.0, 0.0, 0.0, 0.0, 0.0],
-            motion_control_axes_b=[0, 1, 1, 1, 1, 1],
-            wrench_control_axes_b=[1, 0, 0, 0, 0, 0],
+            motion_control_axes_task=[0, 1, 1, 1, 1, 1],
+            wrench_control_axes_task=[1, 0, 0, 0, 0, 0],
         )
         opc = OperationalSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
 
@@ -483,9 +483,9 @@ class TestOperationalSpaceController(unittest.TestCase):
         target_set: torch.tensor,
     ):
         # Initialize the masks for evaluating target convergence according to selection matrices
-        self.pos_mask = torch.tensor(opc.cfg.motion_control_axes_b[:3], device=self.sim.device).view(1, 3)
-        self.rot_mask = torch.tensor(opc.cfg.motion_control_axes_b[3:], device=self.sim.device).view(1, 3)
-        self.wrench_mask = torch.tensor(opc.cfg.wrench_control_axes_b, device=self.sim.device).view(1, 6)
+        self.pos_mask = torch.tensor(opc.cfg.motion_control_axes_task[:3], device=self.sim.device).view(1, 3)
+        self.rot_mask = torch.tensor(opc.cfg.motion_control_axes_task[3:], device=self.sim.device).view(1, 3)
+        self.wrench_mask = torch.tensor(opc.cfg.wrench_control_axes_task, device=self.sim.device).view(1, 6)
         self.force_mask = self.wrench_mask[:, 0:3]  # Take only the force components as we can measure only these
 
         # Define simulation stepping
