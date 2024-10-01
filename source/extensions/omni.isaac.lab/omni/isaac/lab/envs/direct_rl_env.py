@@ -507,7 +507,7 @@ class DirectRLEnv(gym.Env):
 
     def _configure_gym_env_spaces(self):
         # defer import to avoid circular import error
-        from omni.isaac.lab.envs.utils import spec_to_gym_space
+        from omni.isaac.lab.envs.utils import sample_space, spec_to_gym_space
 
         """Configure the action and observation spaces for the Gym environment."""
         # show deprecation message and overwrite configuration
@@ -540,6 +540,9 @@ class DirectRLEnv(gym.Env):
         if self.cfg.state_space > 0:
             self.single_observation_space["critic"] = spec_to_gym_space(self.cfg.state_space)
             self.state_space = gym.vector.utils.batch_space(self.single_observation_space["critic"], self.num_envs)
+
+        # instantiate actions (needed for tasks for which the observations computation is dependent on the actions)
+        self.actions = sample_space(self.single_action_space, self.sim.device, batch_size=self.num_envs, fill_value=0)
 
     def _reset_idx(self, env_ids: Sequence[int]):
         """Reset environments based on specified indices.

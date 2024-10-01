@@ -565,7 +565,7 @@ class DirectMARLEnv:
 
     def _configure_env_spaces(self):
         # defer import to avoid circular import error
-        from omni.isaac.lab.envs.utils import spec_to_gym_space
+        from omni.isaac.lab.envs.utils import sample_space, spec_to_gym_space
 
         """Configure the spaces for the environment."""
         self.agents = self.cfg.possible_agents
@@ -604,6 +604,12 @@ class DirectMARLEnv:
             )
         else:
             self.state_space = spec_to_gym_space(self.cfg.state_space)
+
+        # instantiate actions (needed for tasks for which the observations computation is dependent on the actions)
+        self.actions = {
+            agent: sample_space(self.action_spaces[agent], self.sim.device, batch_size=self.num_envs, fill_value=0)
+            for agent in self.cfg.possible_agents
+        }
 
     def _reset_idx(self, env_ids: Sequence[int]):
         """Reset environments based on specified indices.

@@ -50,6 +50,51 @@ def spec_to_gym_space(spec: SpaceType) -> gym.spaces.Space:
     raise ValueError(f"Unsupported space specification: {spec}")
 
 
+def sample_space(space: gym.spaces.Space, device: str, batch_size: int = -1, fill_value: float | None = None) -> Any:
+    """Sample a Gymnasium space where the data container are PyTorch tensors.
+
+    Args:
+        space: Gymnasium space.
+        device: The device where the tensor should be created.
+        batch_size: Batch size. If the specified value is greater than zero, a batched space will be created and sampled from it.
+        fill_value: The value to fill the created tensors with. If None (default value), tensors will keep their random values.
+
+    Returns:
+        Tensorized sampled space.
+    """
+
+    def tensorize(s, x):
+        if isinstance(s, gym.spaces.Box):
+            tensor = torch.tensor(x, device=device, dtype=torch.float32).reshape(batch_size, *s.shape)
+            if fill_value is not None:
+                tensor.fill_(fill_value)
+            return tensor
+        elif isinstance(s, gym.spaces.Discrete):
+            if isinstance(x, np.ndarray):
+                tensor = torch.tensor(x, device=device, dtype=torch.int64).reshape(batch_size, 1)
+                if fill_value is not None:
+                    tensor.fill_(int(fill_value))
+                return tensor
+            elif isinstance(x, np.number) or type(x) in [int, float]:
+                tensor = torch.tensor([x], device=device, dtype=torch.int64).reshape(batch_size, 1)
+                if fill_value is not None:
+                    tensor.fill_(int(fill_value))
+                return tensor
+        elif isinstance(s, gym.spaces.MultiDiscrete):
+            if isinstance(x, np.ndarray):
+                tensor = torch.tensor(x, device=device, dtype=torch.int64).reshape(batch_size, *s.shape)
+                if fill_value is not None:
+                    tensor.fill_(int(fill_value))
+                return tensor
+        elif isinstance(s, gym.spaces.Dict):
+            return {k: tensorize(_s, x[k]) for k, _s in s.items()}
+        elif isinstance(s, gym.spaces.Tuple):
+            return tuple([tensorize(_s, v) for _s, v in zip(s, x)])
+
+    sample = (gym.vector.utils.batch_space(space, batch_size) if batch_size > 0 else space).sample()
+    return tensorize(space, sample)
+
+
 def multi_agent_to_single_agent(env: DirectMARLEnv, state_as_observation: bool = False) -> DirectRLEnv:
     """Convert the multi-agent environment instance to a single-agent environment instance.
 
