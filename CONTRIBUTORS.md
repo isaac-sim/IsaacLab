@@ -47,6 +47,7 @@ Guidelines for modifications:
 * Jia Lin Yuan
 * Jingzhou Liu
 * Johnson Sun
+* Kaixi Bao
 * Kourosh Darvish
 * Lorenz Wellhausen
 * Masoud Moghani
