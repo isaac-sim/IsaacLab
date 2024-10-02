@@ -57,7 +57,7 @@
     <link rel="prev" title="Find How Many/What Cameras You Should Train With" href="estimate_how_many_cameras_can_run.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Oct 01, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 02, 2024"/>
   </head>
   
   
@@ -677,63 +677,64 @@ points, lines and splines. For cases, where you need to render more complex shap
 <span class="linenos"> 94</span><span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
 <span class="linenos"> 95</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Main function.&quot;&quot;&quot;</span>
 <span class="linenos"> 96</span>    <span class="c1"># Load kit helper</span>
-<span class="linenos"> 97</span>    <span class="n">sim</span> <span class="o">=</span> <span class="n">SimulationContext</span><span class="p">(</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationCfg</span><span class="p">(</span><span class="n">dt</span><span class="o">=</span><span class="mf">0.01</span><span class="p">))</span>
-<span class="linenos"> 98</span>    <span class="c1"># Set main camera</span>
-<span class="linenos"> 99</span>    <span class="n">sim</span><span class="o">.</span><span class="n">set_camera_view</span><span class="p">([</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">18.0</span><span class="p">,</span> <span class="mf">12.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">])</span>
-<span class="linenos">100</span>
-<span class="linenos">101</span>    <span class="c1"># Spawn things into stage</span>
-<span class="linenos">102</span>    <span class="c1"># Lights</span>
-<span class="linenos">103</span>    <span class="n">cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">DomeLightCfg</span><span class="p">(</span><span class="n">intensity</span><span class="o">=</span><span class="mf">3000.0</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">))</span>
-<span class="linenos">104</span>    <span class="n">cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="s2">&quot;/World/Light&quot;</span><span class="p">,</span> <span class="n">cfg</span><span class="p">)</span>
-<span class="linenos">105</span>
-<span class="hll"><span class="linenos">106</span>    <span class="c1"># create markers</span>
-</span><span class="hll"><span class="linenos">107</span>    <span class="n">my_visualizer</span> <span class="o">=</span> <span class="n">define_markers</span><span class="p">()</span>
-</span><span class="linenos">108</span>
-<span class="linenos">109</span>    <span class="c1"># define a grid of positions where the markers should be placed</span>
-<span class="linenos">110</span>    <span class="n">num_markers_per_type</span> <span class="o">=</span> <span class="mi">5</span>
-<span class="linenos">111</span>    <span class="n">grid_spacing</span> <span class="o">=</span> <span class="mf">2.0</span>
-<span class="linenos">112</span>    <span class="c1"># Calculate the half-width and half-height</span>
-<span class="linenos">113</span>    <span class="n">half_width</span> <span class="o">=</span> <span class="p">(</span><span class="n">num_markers_per_type</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="mf">2.0</span>
-<span class="linenos">114</span>    <span class="n">half_height</span> <span class="o">=</span> <span class="p">(</span><span class="n">my_visualizer</span><span class="o">.</span><span class="n">num_prototypes</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="mf">2.0</span>
-<span class="linenos">115</span>    <span class="c1"># Create the x and y ranges centered around the origin</span>
-<span class="linenos">116</span>    <span class="n">x_range</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="o">-</span><span class="n">half_width</span> <span class="o">*</span> <span class="n">grid_spacing</span><span class="p">,</span> <span class="p">(</span><span class="n">half_width</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">grid_spacing</span><span class="p">,</span> <span class="n">grid_spacing</span><span class="p">)</span>
-<span class="linenos">117</span>    <span class="n">y_range</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="o">-</span><span class="n">half_height</span> <span class="o">*</span> <span class="n">grid_spacing</span><span class="p">,</span> <span class="p">(</span><span class="n">half_height</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">grid_spacing</span><span class="p">,</span> <span class="n">grid_spacing</span><span class="p">)</span>
-<span class="linenos">118</span>    <span class="c1"># Create the grid</span>
-<span class="linenos">119</span>    <span class="n">x_grid</span><span class="p">,</span> <span class="n">y_grid</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">meshgrid</span><span class="p">(</span><span class="n">x_range</span><span class="p">,</span> <span class="n">y_range</span><span class="p">,</span> <span class="n">indexing</span><span class="o">=</span><span class="s2">&quot;ij&quot;</span><span class="p">)</span>
-<span class="linenos">120</span>    <span class="n">x_grid</span> <span class="o">=</span> <span class="n">x_grid</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
-<span class="linenos">121</span>    <span class="n">y_grid</span> <span class="o">=</span> <span class="n">y_grid</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
-<span class="linenos">122</span>    <span class="n">z_grid</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">x_grid</span><span class="p">)</span>
-<span class="linenos">123</span>    <span class="c1"># marker locations</span>
-<span class="linenos">124</span>    <span class="n">marker_locations</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">x_grid</span><span class="p">,</span> <span class="n">y_grid</span><span class="p">,</span> <span class="n">z_grid</span><span class="p">],</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
-<span class="linenos">125</span>    <span class="n">marker_indices</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">my_visualizer</span><span class="o">.</span><span class="n">num_prototypes</span><span class="p">)</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">num_markers_per_type</span><span class="p">)</span>
-<span class="linenos">126</span>
-<span class="linenos">127</span>    <span class="c1"># Play the simulator</span>
-<span class="linenos">128</span>    <span class="n">sim</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
-<span class="linenos">129</span>    <span class="c1"># Now we are ready!</span>
-<span class="linenos">130</span>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Setup complete...&quot;</span><span class="p">)</span>
-<span class="linenos">131</span>
-<span class="linenos">132</span>    <span class="c1"># Yaw angle</span>
-<span class="linenos">133</span>    <span class="n">yaw</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">marker_locations</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">])</span>
-<span class="linenos">134</span>    <span class="c1"># Simulate physics</span>
-<span class="linenos">135</span>    <span class="k">while</span> <span class="n">simulation_app</span><span class="o">.</span><span class="n">is_running</span><span class="p">():</span>
-<span class="hll"><span class="linenos">136</span>        <span class="c1"># rotate the markers around the z-axis for visualization</span>
-</span><span class="hll"><span class="linenos">137</span>        <span class="n">marker_orientations</span> <span class="o">=</span> <span class="n">quat_from_angle_axis</span><span class="p">(</span><span class="n">yaw</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">]))</span>
-</span><span class="hll"><span class="linenos">138</span>        <span class="c1"># visualize</span>
-</span><span class="hll"><span class="linenos">139</span>        <span class="n">my_visualizer</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">marker_locations</span><span class="p">,</span> <span class="n">marker_orientations</span><span class="p">,</span> <span class="n">marker_indices</span><span class="o">=</span><span class="n">marker_indices</span><span class="p">)</span>
-</span><span class="hll"><span class="linenos">140</span>        <span class="c1"># roll corresponding indices to show how marker prototype can be changed</span>
-</span><span class="hll"><span class="linenos">141</span>        <span class="k">if</span> <span class="n">yaw</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">item</span><span class="p">()</span> <span class="o">%</span> <span class="p">(</span><span class="mf">0.5</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">pi</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mf">0.01</span><span class="p">:</span>
-</span><span class="hll"><span class="linenos">142</span>            <span class="n">marker_indices</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">roll</span><span class="p">(</span><span class="n">marker_indices</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
-</span><span class="linenos">143</span>        <span class="c1"># perform step</span>
-<span class="linenos">144</span>        <span class="n">sim</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
-<span class="linenos">145</span>        <span class="c1"># increment yaw</span>
-<span class="linenos">146</span>        <span class="n">yaw</span> <span class="o">+=</span> <span class="mf">0.01</span>
-<span class="linenos">147</span>
+<span class="linenos"> 97</span>    <span class="n">sim_cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationCfg</span><span class="p">(</span><span class="n">dt</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+<span class="linenos"> 98</span>    <span class="n">sim</span> <span class="o">=</span> <span class="n">SimulationContext</span><span class="p">(</span><span class="n">sim_cfg</span><span class="p">)</span>
+<span class="linenos"> 99</span>    <span class="c1"># Set main camera</span>
+<span class="linenos">100</span>    <span class="n">sim</span><span class="o">.</span><span class="n">set_camera_view</span><span class="p">([</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">18.0</span><span class="p">,</span> <span class="mf">12.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">])</span>
+<span class="linenos">101</span>
+<span class="linenos">102</span>    <span class="c1"># Spawn things into stage</span>
+<span class="linenos">103</span>    <span class="c1"># Lights</span>
+<span class="linenos">104</span>    <span class="n">cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">DomeLightCfg</span><span class="p">(</span><span class="n">intensity</span><span class="o">=</span><span class="mf">3000.0</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">))</span>
+<span class="linenos">105</span>    <span class="n">cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="s2">&quot;/World/Light&quot;</span><span class="p">,</span> <span class="n">cfg</span><span class="p">)</span>
+<span class="hll"><span class="linenos">106</span>
+</span><span class="hll"><span class="linenos">107</span>    <span class="c1"># create markers</span>
+</span><span class="linenos">108</span>    <span class="n">my_visualizer</span> <span class="o">=</span> <span class="n">define_markers</span><span class="p">()</span>
+<span class="linenos">109</span>
+<span class="linenos">110</span>    <span class="c1"># define a grid of positions where the markers should be placed</span>
+<span class="linenos">111</span>    <span class="n">num_markers_per_type</span> <span class="o">=</span> <span class="mi">5</span>
+<span class="linenos">112</span>    <span class="n">grid_spacing</span> <span class="o">=</span> <span class="mf">2.0</span>
+<span class="linenos">113</span>    <span class="c1"># Calculate the half-width and half-height</span>
+<span class="linenos">114</span>    <span class="n">half_width</span> <span class="o">=</span> <span class="p">(</span><span class="n">num_markers_per_type</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="mf">2.0</span>
+<span class="linenos">115</span>    <span class="n">half_height</span> <span class="o">=</span> <span class="p">(</span><span class="n">my_visualizer</span><span class="o">.</span><span class="n">num_prototypes</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="mf">2.0</span>
+<span class="linenos">116</span>    <span class="c1"># Create the x and y ranges centered around the origin</span>
+<span class="linenos">117</span>    <span class="n">x_range</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="o">-</span><span class="n">half_width</span> <span class="o">*</span> <span class="n">grid_spacing</span><span class="p">,</span> <span class="p">(</span><span class="n">half_width</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">grid_spacing</span><span class="p">,</span> <span class="n">grid_spacing</span><span class="p">)</span>
+<span class="linenos">118</span>    <span class="n">y_range</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="o">-</span><span class="n">half_height</span> <span class="o">*</span> <span class="n">grid_spacing</span><span class="p">,</span> <span class="p">(</span><span class="n">half_height</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">grid_spacing</span><span class="p">,</span> <span class="n">grid_spacing</span><span class="p">)</span>
+<span class="linenos">119</span>    <span class="c1"># Create the grid</span>
+<span class="linenos">120</span>    <span class="n">x_grid</span><span class="p">,</span> <span class="n">y_grid</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">meshgrid</span><span class="p">(</span><span class="n">x_range</span><span class="p">,</span> <span class="n">y_range</span><span class="p">,</span> <span class="n">indexing</span><span class="o">=</span><span class="s2">&quot;ij&quot;</span><span class="p">)</span>
+<span class="linenos">121</span>    <span class="n">x_grid</span> <span class="o">=</span> <span class="n">x_grid</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+<span class="linenos">122</span>    <span class="n">y_grid</span> <span class="o">=</span> <span class="n">y_grid</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+<span class="linenos">123</span>    <span class="n">z_grid</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">x_grid</span><span class="p">)</span>
+<span class="linenos">124</span>    <span class="c1"># marker locations</span>
+<span class="linenos">125</span>    <span class="n">marker_locations</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">x_grid</span><span class="p">,</span> <span class="n">y_grid</span><span class="p">,</span> <span class="n">z_grid</span><span class="p">],</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="linenos">126</span>    <span class="n">marker_indices</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">my_visualizer</span><span class="o">.</span><span class="n">num_prototypes</span><span class="p">)</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">num_markers_per_type</span><span class="p">)</span>
+<span class="linenos">127</span>
+<span class="linenos">128</span>    <span class="c1"># Play the simulator</span>
+<span class="linenos">129</span>    <span class="n">sim</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+<span class="linenos">130</span>    <span class="c1"># Now we are ready!</span>
+<span class="linenos">131</span>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Setup complete...&quot;</span><span class="p">)</span>
+<span class="linenos">132</span>
+<span class="linenos">133</span>    <span class="c1"># Yaw angle</span>
+<span class="linenos">134</span>    <span class="n">yaw</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">marker_locations</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">])</span>
+<span class="linenos">135</span>    <span class="c1"># Simulate physics</span>
+<span class="hll"><span class="linenos">136</span>    <span class="k">while</span> <span class="n">simulation_app</span><span class="o">.</span><span class="n">is_running</span><span class="p">():</span>
+</span><span class="hll"><span class="linenos">137</span>        <span class="c1"># rotate the markers around the z-axis for visualization</span>
+</span><span class="hll"><span class="linenos">138</span>        <span class="n">marker_orientations</span> <span class="o">=</span> <span class="n">quat_from_angle_axis</span><span class="p">(</span><span class="n">yaw</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">]))</span>
+</span><span class="hll"><span class="linenos">139</span>        <span class="c1"># visualize</span>
+</span><span class="hll"><span class="linenos">140</span>        <span class="n">my_visualizer</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">marker_locations</span><span class="p">,</span> <span class="n">marker_orientations</span><span class="p">,</span> <span class="n">marker_indices</span><span class="o">=</span><span class="n">marker_indices</span><span class="p">)</span>
+</span><span class="hll"><span class="linenos">141</span>        <span class="c1"># roll corresponding indices to show how marker prototype can be changed</span>
+</span><span class="hll"><span class="linenos">142</span>        <span class="k">if</span> <span class="n">yaw</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">item</span><span class="p">()</span> <span class="o">%</span> <span class="p">(</span><span class="mf">0.5</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">pi</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mf">0.01</span><span class="p">:</span>
+</span><span class="linenos">143</span>            <span class="n">marker_indices</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">roll</span><span class="p">(</span><span class="n">marker_indices</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+<span class="linenos">144</span>        <span class="c1"># perform step</span>
+<span class="linenos">145</span>        <span class="n">sim</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+<span class="linenos">146</span>        <span class="c1"># increment yaw</span>
+<span class="linenos">147</span>        <span class="n">yaw</span> <span class="o">+=</span> <span class="mf">0.01</span>
 <span class="linenos">148</span>
-<span class="linenos">149</span><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
-<span class="linenos">150</span>    <span class="c1"># run the main function</span>
-<span class="linenos">151</span>    <span class="n">main</span><span class="p">()</span>
-<span class="linenos">152</span>    <span class="c1"># close sim app</span>
-<span class="linenos">153</span>    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+<span class="linenos">149</span>
+<span class="linenos">150</span><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+<span class="linenos">151</span>    <span class="c1"># run the main function</span>
+<span class="linenos">152</span>    <span class="n">main</span><span class="p">()</span>
+<span class="linenos">153</span>    <span class="c1"># close sim app</span>
+<span class="linenos">154</span>    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
 </pre></div>
 </div>
 </div>
@@ -807,13 +808,13 @@ configured from USD files.</p>
 <h2>Drawing the markers<a class="headerlink" href="#drawing-the-markers" title="Permalink to this heading">#</a></h2>
 <p>To draw the markers, we call the <a class="reference internal" href="../api/lab/omni.isaac.lab.markers.html#omni.isaac.lab.markers.VisualizationMarkers.visualize" title="omni.isaac.lab.markers.VisualizationMarkers.visualize"><code class="xref py py-class docutils literal notranslate"><span class="pre">visualize</span></code></a> method. This method takes in
 as arguments the pose of the markers and the corresponding marker prototypes to draw.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># rotate the markers around the z-axis for visualization</span>
-<span class="n">marker_orientations</span> <span class="o">=</span> <span class="n">quat_from_angle_axis</span><span class="p">(</span><span class="n">yaw</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">]))</span>
-<span class="c1"># visualize</span>
-<span class="n">my_visualizer</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">marker_locations</span><span class="p">,</span> <span class="n">marker_orientations</span><span class="p">,</span> <span class="n">marker_indices</span><span class="o">=</span><span class="n">marker_indices</span><span class="p">)</span>
-<span class="c1"># roll corresponding indices to show how marker prototype can be changed</span>
-<span class="k">if</span> <span class="n">yaw</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">item</span><span class="p">()</span> <span class="o">%</span> <span class="p">(</span><span class="mf">0.5</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">pi</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mf">0.01</span><span class="p">:</span>
-    <span class="n">marker_indices</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">roll</span><span class="p">(</span><span class="n">marker_indices</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">while</span> <span class="n">simulation_app</span><span class="o">.</span><span class="n">is_running</span><span class="p">():</span>
+    <span class="c1"># rotate the markers around the z-axis for visualization</span>
+    <span class="n">marker_orientations</span> <span class="o">=</span> <span class="n">quat_from_angle_axis</span><span class="p">(</span><span class="n">yaw</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">]))</span>
+    <span class="c1"># visualize</span>
+    <span class="n">my_visualizer</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">marker_locations</span><span class="p">,</span> <span class="n">marker_orientations</span><span class="p">,</span> <span class="n">marker_indices</span><span class="o">=</span><span class="n">marker_indices</span><span class="p">)</span>
+    <span class="c1"># roll corresponding indices to show how marker prototype can be changed</span>
+    <span class="k">if</span> <span class="n">yaw</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">item</span><span class="p">()</span> <span class="o">%</span> <span class="p">(</span><span class="mf">0.5</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">pi</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mf">0.01</span><span class="p">:</span>
 </pre></div>
 </div>
 </section>
@@ -911,7 +912,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 01, 2024.
+  Last updated on Oct 02, 2024.
   <br/>
 </p>
   </div>

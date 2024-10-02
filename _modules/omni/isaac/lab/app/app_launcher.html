@@ -54,7 +54,7 @@
     <link rel="search" title="Search" href="../../../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Oct 01, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 02, 2024"/>
   </head>
   
   
@@ -673,11 +673,11 @@ document.write(`
 <span class="sd">        * ``experience`` (str): The experience file to load when launching the SimulationApp. If a relative path</span>
 <span class="sd">          is provided, it is resolved relative to the ``apps`` folder in Isaac Sim and Isaac Lab (in that order).</span>
 
-<span class="sd">          If provided as an empty string, the experience file is determined based on the headless flag:</span>
+<span class="sd">          If provided as an empty string, the experience file is determined based on the command-line flags:</span>
 
 <span class="sd">          * If headless and enable_cameras are True, the experience file is set to ``isaaclab.python.headless.rendering.kit``.</span>
 <span class="sd">          * If headless is False and enable_cameras is True, the experience file is set to ``isaaclab.python.rendering.kit``.</span>
-<span class="sd">          * If headless is False and enable_cameras is False, the experience file is set to ``isaaclab.python.kit``.</span>
+<span class="sd">          * If headless and enable_cameras are False, the experience file is set to ``isaaclab.python.kit``.</span>
 <span class="sd">          * If headless is True and enable_cameras is False, the experience file is set to ``isaaclab.python.headless.kit``.</span>
 
 <span class="sd">        Args:</span>
@@ -1223,7 +1223,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 01, 2024.
+  Last updated on Oct 02, 2024.
   <br/>
 </p>
   </div>
