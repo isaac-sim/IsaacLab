@@ -11,7 +11,7 @@ to enable hyperparameter tuning on Kubernetes clusters.
 This guide includes additional dependencies that are not part of the default Isaac Lab install
 as this functionality is still largely experimental.
 
-You also need to install `kubectl`, which can be done from this link [here](https://kubernetes.io/docs/tasks/tools/)
+You also need to install `kubectl`, which can be done from [this link here](https://kubernetes.io/docs/tasks/tools/)
 
 To install all Python dependencies, run
 
@@ -27,7 +27,7 @@ On your cloud provider of choice, configure the following
 	an Isaac Lab image that you have pull with the correct permissions
 - A storage (GCS bucket, AWS S3 bucket, etc)
 - A kubernetes Cluster with a GPU-passthrough enabled node-pool that has access to
-	your storage (likely has to be on same region/VPC), and has the Ray operator enabled
+	your container registry/storage (likely has to be on same region/VPC), and has the Ray operator enabled
 	with correct IAM permissions
 - A ``kuberay.yaml.ninja`` file that describes how to allocate resources (example already included for
 	google cloud)

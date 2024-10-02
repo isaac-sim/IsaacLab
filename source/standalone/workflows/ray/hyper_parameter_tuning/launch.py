@@ -11,7 +11,7 @@ import yaml
 from jinja2 import Environment, FileSystemLoader
 from kubernetes import config
 
-SCRIPT_DIR = pathlib.Path(__file__).parent
+SCRIPT_DIR = pathlib.Path(__file__).parent.parent
 
 
 def apply_manifest(args: argparse.Namespace) -> None:
@@ -19,7 +19,7 @@ def apply_manifest(args: argparse.Namespace) -> None:
     config.load_kube_config()
 
     # Set up Jinja2 environment for loading templates
-    templates_dir = SCRIPT_DIR / "templates"
+    templates_dir = SCRIPT_DIR / "cluster_configs" / args.cluster_host
     file_loader = FileSystemLoader(str(templates_dir))
     jinja_env = Environment(loader=file_loader, keep_trailing_newline=True)
 
@@ -58,6 +58,17 @@ def parse_args() -> argparse.Namespace:
     )
 
     arg_parser.add_argument(
+        "cluster_host",
+        type=str,
+        default="google_cloud",
+        choices=["google_cloud", "local"],
+        help=(
+            "In the cluster_configs directory, the name of the folder where a tune.yaml.jinja"
+            "file exists defining the KubeRay config. Currently only google_cloud and local are supported."
+        ),
+    )
+
+    arg_parser.add_argument(
         "--name",
         type=str,
         required=True,
@@ -74,14 +85,7 @@ def parse_args() -> argparse.Namespace:
     arg_parser.add_argument("--service_acount_name", type=str, required=True, help="The service account name to use.")
 
     arg_parser.add_argument(
-        "--external_dns_hostname", type=str, required=True, help="The external hostname to use to view logs in progress"
-    )
-
-    arg_parser.add_argument(
-        "head_entry_point",
-        nargs="+",
-        default=["python", "no_entrypoint_supplied_silly.py"],  # TODO: Make this whatever the tune is
-        help="The program to run from the head node to facilitate a hyperparam run",
+        "--redis_password", type=str, required=True, help="What password to use to protect redis access."
     )
 
     arg_parser.add_argument(
@@ -99,7 +103,7 @@ def parse_args() -> argparse.Namespace:
     )
 
     arg_parser.add_argument(
-        "--min-workers",
+        "--min_workers",
         type=int,
         required=False,
         default=2,
@@ -107,7 +111,7 @@ def parse_args() -> argparse.Namespace:
     )
 
     arg_parser.add_argument(
-        "--max-workers",
+        "--max_workers",
         type=int,
         required=False,
         default=8,

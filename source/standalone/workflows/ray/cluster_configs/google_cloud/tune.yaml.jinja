@@ -18,23 +18,26 @@ spec:
     imagePullPolicy: Always
     securityContext: {}
     envFrom: []
+
   headGroupSpec:
     rayStartParams:
       block: "true"
       dashboard-host: 0.0.0.0
+      dashboard-port: "8265"            # Port for the Ray dashboard
+      node-ip-address: "0.0.0.0"        # Listen on all network interfaces for worker connections
+      port: "6379"
+      include-dashboard: "true"
+      ray-debugger-external: "true"
+      object-manager-port: "8076"
+      redis-password: {{ redis_password }}
       # this prevents tasks from being scheduled on the head pod, which minimizes crashes of the whole cluster
       num-gpus: "0"
       num-cpus: "0"
-      ray-debugger-external: "true"
     headService:
       apiVersion: v1
       kind: Service
       metadata:
-        annotations:
-          networking.gke.io/load-balancer-type: Internal
-          networking.gke.io/internal-load-balancer-subnet: gke-dev
-          networking.gke.io/internal-load-balancer-allow-global-access: "true"
-          external-dns.alpha.kubernetes.io/hostname: {{ external_dns_hostname }}
+        name: head
       spec:
         type: LoadBalancer # allows us to not use port-forwards to access the cluster
     template:
@@ -101,6 +104,7 @@ spec:
             name: fluentbit-config
           - name: ray-logs
             emptyDir: {}
+
   workerGroupSpecs:
     - groupName: gpu-group
       maxReplicas: {{ max_workers }}
@@ -108,6 +112,7 @@ spec:
       rayStartParams:
         block: "true"
         ray-debugger-external: "true"
+        redis-password: {{ redis_password }}
       replicas: {{ starting_worker_count }}
       template:
         metadata:
@@ -139,7 +144,7 @@ spec:
               volumeMounts:
                 - mountPath: /tmp/ray
                   name: ray-logs
-              command: ["/bin/bash", "-c", "echo 'Hello, World!'"] # !!! TODO !!!
+              command: ["/bin/bash", "-c", "ray start --address='ray://head.{{ namespace }}.svc.cluster.local:6379' --redis-password={{ redis_password }}"]
             - image: fluent/fluent-bit:1.9.6
               name: fluentbit
               resources:
