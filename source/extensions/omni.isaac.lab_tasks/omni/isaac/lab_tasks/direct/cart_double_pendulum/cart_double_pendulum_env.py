@@ -27,9 +27,9 @@ class CartDoublePendulumEnvCfg(DirectMARLEnvCfg):
     decimation = 2
     episode_length_s = 5.0
     possible_agents = ["cart", "pendulum"]
-    num_actions = {"cart": 1, "pendulum": 1}
-    num_observations = {"cart": 4, "pendulum": 3}
-    num_states = -1
+    action_spaces = {"cart": 1, "pendulum": 1}
+    observation_spaces = {"cart": 4, "pendulum": 3}
+    state_space = -1
 
     # simulation
     sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation)

@@ -51,9 +51,9 @@ class QuadcopterEnvCfg(DirectRLEnvCfg):
     # env
     episode_length_s = 10.0
     decimation = 2
-    num_actions = 4
-    num_observations = 12
-    num_states = 0
+    action_space = 4
+    observation_space = 12
+    state_space = 0
     debug_vis = True
 
     ui_window_class_type = QuadcopterEnvWindow

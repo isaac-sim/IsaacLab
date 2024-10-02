@@ -60,9 +60,9 @@ class AnymalCFlatEnvCfg(DirectRLEnvCfg):
     episode_length_s = 20.0
     decimation = 4
     action_scale = 0.5
-    num_actions = 12
-    num_observations = 48
-    num_states = 0
+    action_space = 12
+    observation_space = 48
+    state_space = 0
 
     # simulation
     sim: SimulationCfg = SimulationCfg(
@@ -119,7 +119,7 @@ class AnymalCFlatEnvCfg(DirectRLEnvCfg):
 @configclass
 class AnymalCRoughEnvCfg(AnymalCFlatEnvCfg):
     # env
-    num_observations = 235
+    observation_space = 235
 
     terrain = TerrainImporterCfg(
         prim_path="/World/ground",
