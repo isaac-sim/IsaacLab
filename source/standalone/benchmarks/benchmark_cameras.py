@@ -5,18 +5,19 @@
 
 """
 This script might help you determine how many cameras your system can realistically run
-at different desired settings. You can supply different task environments
-to inject cameras into, or just test a sample scene. Additionally,
-you can automatically find the maximum amount of cameras you can run a task with through the
-autotune functionality.
+at different desired settings.
+
+You can supply different task environments to inject cameras into, or just test a sample scene.
+Additionally, you can automatically find the maximum amount of cameras you can run a task with
+through the auto-tune functionality.
 
 .. code-block:: bash
 
     # Usage with GUI
-    ./isaaclab.sh -p source/standalone/tutorials/04_sensors/benchmark_cameras.py -h
+    ./isaaclab.sh -p source/standalone/benchmarks/benchmark_cameras.py -h
 
     # Usage with headless
-    ./isaaclab.sh -p source/standalone/tutorials/04_sensors/benchmark_cameras.py -h --headless
+    ./isaaclab.sh -p source/standalone/benchmarks/benchmark_cameras.py -h --headless
 
 """
 
@@ -753,7 +754,7 @@ def main():
     print("[INFO]: Designing the scene")
     if args_cli.task is None:
         print("[INFO]: No task environment provided, creating random scene.")
-        sim_cfg = sim_utils.SimulationCfg(device="cpu" if args_cli.cpu else "cuda")
+        sim_cfg = sim_utils.SimulationCfg(device=args_cli.device)
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
         sim.set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])

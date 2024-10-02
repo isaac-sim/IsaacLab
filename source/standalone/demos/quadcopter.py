@@ -45,9 +45,9 @@ from omni.isaac.lab_assets import CRAZYFLIE_CFG  # isort:skip
 
 def main():
     """Main function."""
-
     # Load kit helper
-    sim = SimulationContext(sim_utils.SimulationCfg(dt=0.005))
+    sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device)
+    sim = SimulationContext(sim_cfg)
     # Set main camera
     sim.set_camera_view(eye=[0.5, 0.5, 1.0], target=[0.0, 0.0, 0.5])
 
