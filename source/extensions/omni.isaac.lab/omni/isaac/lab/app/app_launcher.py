@@ -592,7 +592,6 @@ class AppLauncher:
         # this is to avoid the warnings from the simulation app about not ok modules
         r = re.compile(".*lab.*")
         found_modules = list(filter(r.match, list(sys.modules.keys())))
-        found_modules += ["omni.isaac.kit.app_framework"]
         # remove Isaac Lab modules from sys.modules
         hacked_modules = dict()
         for key in found_modules:
