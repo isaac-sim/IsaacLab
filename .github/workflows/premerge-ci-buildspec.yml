@@ -68,6 +68,7 @@ phases:
         ssh ubuntu@$EC2_INSTANCE_IP "
           cd $SRC_DIR
           DOCKER_BUILDKIT=1 docker build -t isaac-lab-dev \
+            --build-arg ISAACSIM_BASE_IMAGE=$ISAACSIM_BASE_IMAGE \
             --build-arg ISAACSIM_VERSION_ARG=4.2.0 \
             --build-arg ISAACSIM_ROOT_PATH_ARG=/isaac-sim \
             --build-arg ISAACLAB_PATH_ARG=/workspace/isaaclab \

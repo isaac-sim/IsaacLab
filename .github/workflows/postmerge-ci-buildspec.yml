@@ -33,6 +33,7 @@ phases:
 
         docker login -u \$oauthtoken -p $NGC_TOKEN nvcr.io
         docker build -t $IMAGE_NAME:$COMBINED_TAG \
+          --build-arg ISAACSIM_BASE_IMAGE=$ISAACSIM_BASE_IMAGE \
           --build-arg ISAACSIM_VERSION_ARG=4.2.0 \
           --build-arg ISAACSIM_ROOT_PATH_ARG=/isaac-sim \
           --build-arg ISAACLAB_PATH_ARG=/workspace/isaaclab \

@@ -8,7 +8,8 @@
 
 # Base image
 ARG ISAACSIM_VERSION_ARG
-FROM nvcr.io/nvidia/isaac-sim:${ISAACSIM_VERSION_ARG} AS base
+ARG ISAACSIM_BASE_IMAGE=nvcr.io/nvidia/isaac-sim
+FROM ${ISAACSIM_BASE_IMAGE}:${ISAACSIM_VERSION_ARG} AS base
 ENV ISAACSIM_VERSION=${ISAACSIM_VERSION_ARG}
 
 # Set default RUN shell to bash
