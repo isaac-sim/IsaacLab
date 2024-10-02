@@ -1,6 +1,25 @@
 Changelog
 ---------
 
+0.22.16 (2024-10-02)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added support for different Gymnasium spaces (``Box``, ``Discrete``, ``MultiDiscrete``, ``Tuple`` and ``Dict``)
+  to define observation, action and state spaces in the direct workflow.
+* Added :meth:`sample_space` to environment utils to sample supported spaces where data containers are torch tensors.
+
+Changed
+^^^^^^^
+
+* Mark the :attr:`num_observations`, :attr:`num_actions` and :attr:`num_states` in :class:`DirectRLEnvCfg` as deprecated
+  in favor of :attr:`observation_space`, :attr:`action_space` and :attr:`state_space` respectively.
+* Mark the :attr:`num_observations`, :attr:`num_actions` and :attr:`num_states` in :class:`DirectMARLEnvCfg` as deprecated
+  in favor of :attr:`observation_spaces`, :attr:`action_spaces` and :attr:`state_space` respectively.
+
+
 0.22.15 (2024-09-20)
 ~~~~~~~~~~~~~~~~~~~~
 
@@ -8,6 +27,7 @@ Added
 ^^^^^
 
 * Added :meth:`grab_images` to be able to use images for an observation term in manager based environments
+
 
 0.24.14 (2024-09-20)
 ~~~~~~~~~~~~~~~~~~~~
@@ -19,6 +39,7 @@ Added
   that the input depth image is orthogonal. The new :meth:`convert_perspective_depth_to_orthogonal_depth`
   can be used to convert a perspective depth image into an orthogonal depth image, so that the point cloud
   can be unprojected correctly with :meth:`unproject_depth`.
+
 
 0.24.13 (2024-09-08)
 ~~~~~~~~~~~~~~~~~~~~
