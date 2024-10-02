@@ -34,6 +34,7 @@ class OperationalSpaceControllerCfg:
 
     motion_control_axes_task: Sequence[int] = (1, 1, 1, 1, 1, 1)
     """Motion direction to control in task reference frame. Mark as 0/1 for each axis."""
+
     wrench_control_axes_task: Sequence[int] = (0, 0, 0, 0, 0, 0)
     """Wrench direction to control in task reference frame. Mark as 0/1 for each axis."""
 
