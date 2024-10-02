@@ -595,64 +595,64 @@ class AppLauncher:
         import omni.physx.bindings._physx as physx_impl
 
         # Retrieve carb settings for modification
-        carb_settings_iface = carb.settings.get_settings()
+        settings_iface = carb.settings.get_settings()
 
         # Retrieve extension manager from the app
-        kit_ext_man = omni.kit.app.get_app().get_extension_manager()
+        ext_manager = omni.kit.app.get_app().get_extension_manager()
 
         if self._livestream >= 1:
             # Ensure that a viewport exists in case an experience has been
             # loaded which does not load it by default
-            kit_ext_man.set_extension_enabled_immediate("omni.kit.viewport.window", True)
+            ext_manager.set_extension_enabled_immediate("omni.kit.viewport.window", True)
             # Set carb settings to allow for livestreaming
-            carb_settings_iface.set_bool("/app/livestream/enabled", True)
-            carb_settings_iface.set_bool("/app/window/drawMouse", True)
-            carb_settings_iface.set_bool("/ngx/enabled", False)
-            carb_settings_iface.set_string("/app/livestream/proto", "ws")
-            carb_settings_iface.set_int("/app/livestream/websocket/framerate_limit", 120)
+            settings_iface.set_bool("/app/livestream/enabled", True)
+            settings_iface.set_bool("/app/window/drawMouse", True)
+            settings_iface.set_bool("/ngx/enabled", False)
+            settings_iface.set_string("/app/livestream/proto", "ws")
+            settings_iface.set_int("/app/livestream/websocket/framerate_limit", 120)
             # Note: Only one livestream extension can be enabled at a time
             if self._livestream == 1:
                 # Enable Native Livestream extension
                 # Default App: Streaming Client from the Omniverse Launcher
-                kit_ext_man.set_extension_enabled_immediate("omni.kit.streamsdk.plugins-3.2.1", True)
-                kit_ext_man.set_extension_enabled_immediate("omni.kit.livestream.core-3.2.0", True)
-                kit_ext_man.set_extension_enabled_immediate("omni.kit.livestream.native-4.1.0", True)
+                ext_manager.set_extension_enabled_immediate("omni.kit.streamsdk.plugins-3.2.1", True)
+                ext_manager.set_extension_enabled_immediate("omni.kit.livestream.core-3.2.0", True)
+                ext_manager.set_extension_enabled_immediate("omni.kit.livestream.native-4.1.0", True)
             elif self._livestream == 2:
                 # Enable WebRTC Livestream extension
                 # Default URL: http://localhost:8211/streaming/webrtc-client/
-                kit_ext_man.set_extension_enabled_immediate("omni.services.streamclient.webrtc", True)
+                ext_manager.set_extension_enabled_immediate("omni.services.streamclient.webrtc", True)
             else:
                 raise ValueError(f"Invalid value for livestream: {self._livestream}. Expected: 1, 2 .")
         else:
-            carb_settings_iface.set_bool("/app/livestream/enabled", False)
+            settings_iface.set_bool("/app/livestream/enabled", False)
 
         # set carb setting to indicate Isaac Lab's offscreen_render pipeline should be enabled
         # this flag is used by the SimulationContext class to enable the offscreen_render pipeline
         # when the render() method is called.
-        carb_settings_iface.set_bool("/isaaclab/render/offscreen", self._offscreen_render)
+        settings_iface.set_bool("/isaaclab/render/offscreen", self._offscreen_render)
 
         # set carb setting to indicate Isaac Lab's render_viewport pipeline should be enabled
         # this flag is used by the SimulationContext class to enable the render_viewport pipeline
         # when the render() method is called.
-        carb_settings_iface.set_bool("/isaaclab/render/active_viewport", self._render_viewport)
+        settings_iface.set_bool("/isaaclab/render/active_viewport", self._render_viewport)
 
         # set carb setting to indicate no RTX sensors are used
         # this flag is set to True when an RTX-rendering related sensor is created
         # for example: the `Camera` sensor class
-        carb_settings_iface.set_bool("/isaaclab/render/rtx_sensors", False)
+        settings_iface.set_bool("/isaaclab/render/rtx_sensors", False)
 
         # set fabric update flag to disable updating transforms when rendering is disabled
-        carb_settings_iface.set_bool("/physics/fabricUpdateTransformations", self._rendering_enabled())
+        settings_iface.set_bool("/physics/fabricUpdateTransformations", self._rendering_enabled())
 
         # set the nucleus directory manually to the latest published Nucleus
         # note: this is done to ensure prior versions of Isaac Sim still use the latest assets
         assets_path = "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.2"
-        carb_settings_iface.set_string("/persistent/isaac/asset_root/default", assets_path)
-        carb_settings_iface.set_string("/persistent/isaac/asset_root/cloud", assets_path)
-        carb_settings_iface.set_string("/persistent/isaac/asset_root/nvidia", assets_path)
+        settings_iface.set_string("/persistent/isaac/asset_root/default", assets_path)
+        settings_iface.set_string("/persistent/isaac/asset_root/cloud", assets_path)
+        settings_iface.set_string("/persistent/isaac/asset_root/nvidia", assets_path)
 
         # disable physics backwards compatibility check
-        carb_settings_iface.set_int(physx_impl.SETTING_BACKWARD_COMPATIBILITY, 0)
+        settings_iface.set_int(physx_impl.SETTING_BACKWARD_COMPATIBILITY, 0)
 
     def _hide_stop_button(self):
         """Hide the stop button in the toolbar.
