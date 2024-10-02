@@ -535,6 +535,9 @@ class TestOperationalSpaceController(unittest.TestCase):
                 robot.set_joint_effort_target(zero_joint_efforts)  # Set zero torques in the initial step
                 robot.write_data_to_sim()
                 robot.reset()
+                # reset contact sensor
+                if self.contact_forces is not None:
+                    self.contact_forces.reset()
                 # reset target pose
                 robot.update(sim_dt)
                 _, _, _, ee_pose_b, _, _, _, _ = self._update_states(
