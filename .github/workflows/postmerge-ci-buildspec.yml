@@ -16,7 +16,7 @@ phases:
 
         # Replace '/' with '-' and remove any invalid characters for Docker tag
         SAFE_BRANCH_NAME=$(echo $BRANCH_NAME | sed 's/[^a-zA-Z0-9._-]/-/g')
-        
+
         # Use "latest" if branch name is empty or only contains invalid characters
         if [ -z "$SAFE_BRANCH_NAME" ]; then
           SAFE_BRANCH_NAME="latest"
