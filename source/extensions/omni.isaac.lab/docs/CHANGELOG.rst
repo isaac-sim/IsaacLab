@@ -1,13 +1,24 @@
 Changelog
 ---------
 
-0.22.15 (2024-09-20)
+0.24.16 (2024-10-03)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the deprecation notice for using ``pxr.Semantics``. The corresponding modules use ``Semantics`` module
+  directly.
+
+
+0.24.15 (2024-09-20)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
 
 * Added :meth:`grab_images` to be able to use images for an observation term in manager based environments
+
 
 0.24.14 (2024-09-20)
 ~~~~~~~~~~~~~~~~~~~~

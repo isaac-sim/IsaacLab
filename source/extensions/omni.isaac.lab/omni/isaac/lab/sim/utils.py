@@ -16,8 +16,9 @@ from typing import TYPE_CHECKING, Any
 import carb
 import omni.isaac.core.utils.stage as stage_utils
 import omni.kit.commands
+import Semantics
 from omni.isaac.cloner import Cloner
-from pxr import PhysxSchema, Sdf, Semantics, Usd, UsdGeom, UsdPhysics, UsdShade
+from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
 from omni.isaac.lab.utils.string import to_camel_case
 

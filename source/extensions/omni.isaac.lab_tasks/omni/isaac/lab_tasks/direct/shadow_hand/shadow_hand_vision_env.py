@@ -9,7 +9,7 @@ from __future__ import annotations
 import torch
 
 import omni.usd
-from pxr import Semantics
+import Semantics
 
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.assets import Articulation, RigidObject
