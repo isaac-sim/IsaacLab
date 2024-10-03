@@ -619,7 +619,7 @@ where we learned about the <a class="reference internal" href="../../api/lab/omn
 <span class="linenos"> 15</span><span class="sd">.. code-block:: bash</span>
 <span class="linenos"> 16</span>
 <span class="linenos"> 17</span><span class="sd">    # Usage</span>
-<span class="linenos"> 18</span><span class="sd">    ./isaaclab.sh -p source/standalone/tutorials/04_sensors/add_sensors_on_robot.py</span>
+<span class="linenos"> 18</span><span class="sd">    ./isaaclab.sh -p source/standalone/tutorials/04_sensors/add_sensors_on_robot.py --enable_cameras</span>
 <span class="linenos"> 19</span>
 <span class="linenos"> 20</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="linenos"> 21</span>
@@ -914,7 +914,7 @@ to access the data for the different sensors created in this tutorial:</p>
 <section id="the-code-execution">
 <h2>The Code Execution<a class="headerlink" href="#the-code-execution" title="Permalink to this heading">#</a></h2>
 <p>Now that we have gone through the code, let’s run the script and see the result:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/tutorials/04_sensors/add_sensors_on_robot.py<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">2</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/tutorials/04_sensors/add_sensors_on_robot.py<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">2</span><span class="w"> </span>--enable_cameras
 </pre></div>
 </div>
 <p>This command should open a stage with a ground plane, lights, and two quadrupedal robots.

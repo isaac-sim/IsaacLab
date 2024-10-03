@@ -591,7 +591,7 @@ directory.</p>
 <span class="linenos"> 12</span><span class="sd">.. code-block:: bash</span>
 <span class="linenos"> 13</span>
 <span class="linenos"> 14</span><span class="sd">    # Usage with GUI</span>
-<span class="linenos"> 15</span><span class="sd">    ./isaaclab.sh -p source/standalone/tutorials/04_sensors/run_usd_camera.py</span>
+<span class="linenos"> 15</span><span class="sd">    ./isaaclab.sh -p source/standalone/tutorials/04_sensors/run_usd_camera.py --enable_cameras</span>
 <span class="linenos"> 16</span>
 <span class="linenos"> 17</span><span class="sd">    # Usage with headless</span>
 <span class="linenos"> 18</span><span class="sd">    ./isaaclab.sh -p source/standalone/tutorials/04_sensors/run_usd_camera.py --headless --enable_cameras</span>
@@ -632,7 +632,7 @@ directory.</p>
 <span class="linenos"> 53</span><span class="n">AppLauncher</span><span class="o">.</span><span class="n">add_app_launcher_args</span><span class="p">(</span><span class="n">parser</span><span class="p">)</span>
 <span class="linenos"> 54</span><span class="c1"># parse the arguments</span>
 <span class="linenos"> 55</span><span class="n">args_cli</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
-<span class="linenos"> 56</span><span class="n">args_cli</span><span class="o">.</span><span class="n">enable_cameras</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="linenos"> 56</span>
 <span class="linenos"> 57</span><span class="c1"># launch omniverse app</span>
 <span class="linenos"> 58</span><span class="n">app_launcher</span> <span class="o">=</span> <span class="n">AppLauncher</span><span class="p">(</span><span class="n">args_cli</span><span class="p">)</span>
 <span class="linenos"> 59</span><span class="n">simulation_app</span> <span class="o">=</span> <span class="n">app_launcher</span><span class="o">.</span><span class="n">app</span>
@@ -951,7 +951,7 @@ This makes it easy to visualize the point cloud in the 3D space.</p>
 <h2>Executing the script<a class="headerlink" href="#executing-the-script" title="Permalink to this heading">#</a></h2>
 <p>To run the accompanying script, execute the following command:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Usage with saving and drawing</span>
-./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/tutorials/04_sensors/run_usd_camera.py<span class="w"> </span>--save<span class="w"> </span>--draw
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/tutorials/04_sensors/run_usd_camera.py<span class="w"> </span>--save<span class="w"> </span>--draw<span class="w"> </span>--enable_cameras
 
 <span class="c1"># Usage with saving only in headless mode</span>
 ./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/tutorials/04_sensors/run_usd_camera.py<span class="w"> </span>--save<span class="w"> </span>--headless<span class="w"> </span>--enable_cameras
