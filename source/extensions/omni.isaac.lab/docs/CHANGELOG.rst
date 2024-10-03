@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.24.16 (2024-09-26)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Modified :class:`omni.isaac.lab.envs.mdp.actions.DifferentialInverseKinematicsAction` class to use the geometric
+  Jacobian computed w.r.t. to the root frame of the robot. This helps ensure that root pose does not affect the tracking.
+
 0.22.15 (2024-09-20)
 ~~~~~~~~~~~~~~~~~~~~
 
