@@ -11,7 +11,7 @@ to enable hyperparameter tuning on Kubernetes clusters.
 This guide includes additional dependencies that are not part of the default Isaac Lab install
 as this functionality is still largely experimental.
 
-You also need to install `kubectl`, which can be done from [this link here](https://kubernetes.io/docs/tasks/tools/)
+***You also need to install `kubectl`***, which can be done from [this link here](https://kubernetes.io/docs/tasks/tools/)
 
 To install all Python dependencies, run
 
@@ -58,10 +58,16 @@ As a result of using Ray, running experiments in the cloud and locally have very
 
 	``./isaaclab.sh -p source/workflows/ray/hyper_parameter_tuning``
 
-3. Define your desired hyperparameter sweep in a .py file on your local host.
+3. Check that your KubeRay integration worked with `kubectl get pods` and `kubectl describe pods`
+
+4. Define your desired hyperparameter sweep in a .py file on your local host.
 	For an example, see ``source/standalone/workflows/ray/hyper_parameter_tuning/config/cartpole_sweep.py``
 
-4. Start your hyperparameter tune sweep job
+5. Start your hyperparameter tune sweep job
+
+6. When you have completed your hyperparameter tune sweep job, stop the cluster
+	``kubectl delete raycluster <CLUSTER_NAME> -n <NAMESPACE>``
+
 
 
 ###

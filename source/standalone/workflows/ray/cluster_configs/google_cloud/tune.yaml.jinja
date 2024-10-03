@@ -18,7 +18,6 @@ spec:
     imagePullPolicy: Always
     securityContext: {}
     envFrom: []
-
   headGroupSpec:
     rayStartParams:
       block: "true"
@@ -29,7 +28,7 @@ spec:
       include-dashboard: "true"
       ray-debugger-external: "true"
       object-manager-port: "8076"
-      redis-password: {{ redis_password }}
+      redis-password: "{{ redis_password }}"
       # this prevents tasks from being scheduled on the head pod, which minimizes crashes of the whole cluster
       num-gpus: "0"
       num-cpus: "0"
@@ -68,18 +67,18 @@ spec:
             name: ray-head
             resources: # using a full cpu-only node for the head pod
               limits:
-                cpu: "4"
-                memory: 50G
+                cpu: "{{ num_head_cpu }}"
+                memory: {{ head_ram_gb }}G
                 nvidia.com/gpu: "0"
               requests:
-                cpu: "4"
-                memory: 50G
+                cpu: "{{ num_head_cpu }}"
+                memory: {{ head_ram_gb }}G
                 nvidia.com/gpu: "0"
             securityContext: {}
             volumeMounts:
               - mountPath: /tmp/ray
-                name: ray-logs
-            command: ["/bin/bash", "-c", "echo 'Hello, World!'"] # !!! TODO !!!
+                name: ray-logs #TODO: Maybe don't install ray and just add it as dep to image
+            command: ["/bin/bash", "-c", "pip3 install ray && ray start --head --port=6379 --object-manager-port=8076 --dashboard-host=0.0.0.0 --dashboard-port=8265 --redis-password={{ redis_password }}"]
           - image: fluent/fluent-bit:1.9.6
             name: fluentbit
             resources:
@@ -92,12 +91,9 @@ spec:
             volumeMounts:
               - mountPath: /tmp/ray
                 name: ray-logs
-              - mountPath: /fluent-bit/etc/
-                name: fluentbit-config
         imagePullSecrets: []
         nodeSelector:
           iam.gke.io/gke-metadata-server-enabled: "true"
-          profile: "cpu"
         volumes:
           - configMap:
               name: fluentbit-config
@@ -134,17 +130,17 @@ spec:
               resources: # fitting one pod per node
                 limits:
                   cpu: "{{ cpu_per_worker }}" # allowing for overhead of 2 cpus
-                  memory: {{ ram_gb }}G
+                  memory: {{ worker_ram_gb }}G
                   nvidia.com/gpu: "{{ gpu_per_worker }}"
                 requests:
                   cpu: "{{ cpu_per_worker }}"
-                  memory: {{ ram_gb }}G
+                  memory: {{ worker_ram_gb }}G
                   nvidia.com/gpu: "{{ gpu_per_worker }}"
               securityContext: {}
               volumeMounts:
                 - mountPath: /tmp/ray
                   name: ray-logs
-              command: ["/bin/bash", "-c", "ray start --address='ray://head.{{ namespace }}.svc.cluster.local:6379' --redis-password={{ redis_password }}"]
+              command: ["/bin/bash", "-c", "pip3 install ray && ray start --address='ray://head.{{ namespace }}.svc.cluster.local:6379' --redis-password={{ redis_password }}"]
             - image: fluent/fluent-bit:1.9.6
               name: fluentbit
               resources:
@@ -157,8 +153,6 @@ spec:
               volumeMounts:
                 - mountPath: /tmp/ray
                   name: ray-logs
-                - mountPath: /fluent-bit/etc/
-                  name: fluentbit-config
           imagePullSecrets: []
           nodeSelector:
             cloud.google.com/gke-accelerator: {{ worker_accelerator }} nvidia-l4

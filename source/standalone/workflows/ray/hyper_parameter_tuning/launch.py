@@ -39,9 +39,11 @@ def apply_manifest(args: argparse.Namespace) -> None:
 
     # Apply the Kubernetes manifest using kubectl
     try:
+        print("Populated the following Ray Configuration from the config file and CLI args")
+        print("<START OF CONFIG BELOW")
         print(cleaned_yaml_string)
-        print("not running yet, for inspection")
-        # subprocess.run(["kubectl", "apply", "-f", "-"], input=cleaned_yaml_string, text=True, check=True)
+        print("<END OF CONFIG ABOVE")
+        subprocess.run(["kubectl", "apply", "-f", "-"], input=cleaned_yaml_string, text=True, check=True)
     except subprocess.CalledProcessError as e:
         exit(f"An error occurred while running `kubectl`: {e}")
 
@@ -58,7 +60,7 @@ def parse_args() -> argparse.Namespace:
     )
 
     arg_parser.add_argument(
-        "cluster_host",
+        "--cluster_host",
         type=str,
         default="google_cloud",
         choices=["google_cloud", "local"],
@@ -71,18 +73,22 @@ def parse_args() -> argparse.Namespace:
     arg_parser.add_argument(
         "--name",
         type=str,
-        required=True,
+        required=False,
+        default="isaac-lab-hyperparameter-tuner",
         help="Name of the Kubernetes deployment.",
     )
 
     arg_parser.add_argument(
         "--namespace",
         type=str,
-        required=True,
+        required=False,
+        default="default",
         help="Kubernetes namespace to deploy the Ray cluster.",
     )
 
-    arg_parser.add_argument("--service_acount_name", type=str, required=True, help="The service account name to use.")
+    arg_parser.add_argument(
+        "--service_acount_name", type=str, required=False, default="default", help="The service account name to use."
+    )
 
     arg_parser.add_argument(
         "--redis_password", type=str, required=True, help="What password to use to protect redis access."
@@ -125,7 +131,9 @@ def parse_args() -> argparse.Namespace:
         help="Initial number of workers to start with.",
     )
 
-    arg_parser.add_argument("--cpu_per_worker", type=int, default=1, help="Number of CPUs to assign to each worker pod")
+    arg_parser.add_argument(
+        "--cpu_per_worker", type=int, default=14, help="Number of CPUs to assign to each worker pod"
+    )
 
     arg_parser.add_argument(
         "--gpu_per_worker",
@@ -134,7 +142,16 @@ def parse_args() -> argparse.Namespace:
         help="Number of GPUs to assign to each worker pod.",
     )
 
-    arg_parser.add_argument("--ram_gb", type=int, default=50, help="How many gigs of RAM to use")
+    arg_parser.add_argument("--worker_ram_gb", type=int, default=50, help="How many gigs of RAM to use")
+
+    arg_parser.add_argument(
+        "--num_head_cpu",
+        type=float,  # to be able to schedule partial CPU heads
+        default=1,
+        help="The number of CPUs to give the Ray head.",
+    )
+
+    arg_parser.add_argument("--head_ram_gb", type=int, default=1, help="How many gigs of ram to give the Ray head")
 
     return arg_parser.parse_args()
 
