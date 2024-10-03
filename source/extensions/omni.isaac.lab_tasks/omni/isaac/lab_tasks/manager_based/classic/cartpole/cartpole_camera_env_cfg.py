@@ -51,6 +51,11 @@ class CartpoleDepthCameraSceneCfg(CartpoleSceneCfg):
     )
 
 
+##
+# MDP settings
+##
+
+
 @configclass
 class RGBObservationsCfg:
     """Observation specifications for the MDP."""
@@ -81,6 +86,11 @@ class DepthObservationsCfg:
         )
 
     policy: ObsGroup = DepthCameraPolicyCfg()
+
+
+##
+# Environment configuration
+##
 
 
 @configclass
