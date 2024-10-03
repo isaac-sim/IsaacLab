@@ -1,13 +1,25 @@
 Changelog
 ---------
 
-0.22.15 (2024-09-20)
+0.24.16 (2024-10-03)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Renamed the observation function :meth:`grab_images` to :meth:`image` to follow convention of noun-based naming.
+* Renamed the function :meth:`convert_perspective_depth_to_orthogonal_depth` to a shorter name
+  :meth:`omni.isaac.lab.utils.math.orthogonalize_perspective_depth`.
+
+
+0.24.15 (2024-09-20)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
 
-* Added :meth:`grab_images` to be able to use images for an observation term in manager based environments
+* Added :meth:`grab_images` to be able to use images for an observation term in manager-based environments.
+
 
 0.24.14 (2024-09-20)
 ~~~~~~~~~~~~~~~~~~~~
