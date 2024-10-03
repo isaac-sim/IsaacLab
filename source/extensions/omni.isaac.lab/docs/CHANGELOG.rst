@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.22.16 (2024-10-03)
+0.24.16 (2024-10-03)
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -10,7 +10,7 @@ Fixed
 * Fixes parsing and application of ``size`` parameter for ``GroundPlaneCfg`` to scale the default ground plane.
 
 
-0.22.15 (2024-09-20)
+0.24.15 (2024-09-20)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
