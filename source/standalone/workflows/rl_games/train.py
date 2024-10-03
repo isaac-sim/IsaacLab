@@ -46,8 +46,8 @@ simulation_app = app_launcher.app
 
 import gymnasium as gym
 import math
-import numpy as np
 import os
+import random
 from datetime import datetime
 
 from rl_games.common import env_configurations, vecenv
@@ -77,9 +77,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
     env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
 
-    # process seed from command line
+    # randomly sample a seed if seed = -1
     if args_cli.seed == -1:
-        args_cli.seed = np.random.randint(0, 10000)
+        args_cli.seed = random.randint(0, 10000)
 
     agent_cfg["params"]["seed"] = args_cli.seed if args_cli.seed is not None else agent_cfg["params"]["seed"]
     agent_cfg["params"]["config"]["max_epochs"] = (

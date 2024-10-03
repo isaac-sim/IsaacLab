@@ -62,8 +62,8 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import gymnasium as gym
-import numpy as np
 import os
+import random
 from datetime import datetime
 
 import skrl
@@ -120,9 +120,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     if args_cli.ml_framework.startswith("jax"):
         skrl.config.jax.backend = "jax" if args_cli.ml_framework == "jax" else "numpy"
 
-    # process seed from command line
+    # randomly sample a seed if seed = -1
     if args_cli.seed == -1:
-        args_cli.seed = np.random.randint(0, 10000)
+        args_cli.seed = random.randint(0, 10000)
 
     # set the environment seed
     # note: certain randomization occur in the environment initialization so we set the seed here
