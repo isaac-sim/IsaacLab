@@ -64,6 +64,10 @@ class TiledCamera(Camera):
     .. _replicator extension: https://docs.omniverse.nvidia.com/extensions/latest/ext_replicator/annotators_details.html#annotator-output
     .. _USDGeom Camera: https://graphics.pixar.com/usd/docs/api/class_usd_geom_camera.html
 
+    .. note::
+        Compared to other cameras, the depth clipping behavior cannot be altered as the backend implementation
+        automatically clips the values exceeding the maximum range to zero.
+
     .. versionadded:: v1.0.0
 
         This feature is available starting from Isaac Sim 4.2. Before this version, the tiled rendering APIs

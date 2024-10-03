@@ -46,6 +46,15 @@ class RayCasterCameraCfg(RayCasterCfg):
     data_types: list[str] = ["distance_to_image_plane"]
     """List of sensor names/types to enable for the camera. Defaults to ["distance_to_image_plane"]."""
 
+    depth_clipping_behavior: Literal["max", "zero", "none"] = "zero"
+    """Clipping behavior for the camera for values exceed the maximum value. Defaults to "zero".
+
+    - ``"max"``: Values are clipped to the maximum value.
+    - ``"zero"``: Values are clipped to zero.
+    - ``"none``: No clipping is applied. Values will be returned as ``inf`` for ``distance_to_camera`` and ``nan``
+      for ``distance_to_image_plane`` data type.
+    """
+
     pattern_cfg: PinholeCameraPatternCfg = MISSING
     """The pattern that defines the local ray starting positions and directions in a pinhole camera pattern."""
 
