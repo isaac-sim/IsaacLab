@@ -82,9 +82,9 @@ def randomize_rigid_body_material(
 
     # sample material properties from the given ranges
     material_samples = np.zeros(materials[env_ids].shape)
-    material_samples[..., 0] = np.random.uniform(*static_friction_range)
-    material_samples[..., 1] = np.random.uniform(*dynamic_friction_range)
-    material_samples[..., 2] = np.random.uniform(*restitution_range)
+    material_samples[..., 0] = np.random.uniform(*static_friction_range, size=tuple(materials.shape[:-1]))
+    material_samples[..., 1] = np.random.uniform(*dynamic_friction_range, size=tuple(materials.shape[:-1]))
+    material_samples[..., 2] = np.random.uniform(*restitution_range, size=tuple(materials.shape[:-1]))
 
     # create uniform range tensor for bucketing
     lo = np.array([static_friction_range[0], dynamic_friction_range[0], restitution_range[0]])
@@ -94,7 +94,9 @@ def randomize_rigid_body_material(
     # into buckets based on the number of buckets specified
     for d in range(3):
         buckets = np.array([(hi[d] - lo[d]) * i / num_buckets + lo[d] for i in range(num_buckets)])
-        material_samples[..., d] = buckets[np.searchsorted(buckets, material_samples[..., d]) - 1]
+        material_samples[..., d] = buckets[
+            np.clip(np.searchsorted(buckets, material_samples[..., d]), 0, num_buckets - 1)
+        ]
 
     # update material buffer with new samples
     if isinstance(asset, Articulation) and asset_cfg.body_ids != slice(None):
