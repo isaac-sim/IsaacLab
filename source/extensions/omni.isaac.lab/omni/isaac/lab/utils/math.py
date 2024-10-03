@@ -1019,8 +1019,10 @@ def unproject_depth(depth: torch.Tensor, intrinsics: torch.Tensor) -> torch.Tens
         ValueError: When depth is not of shape (H, W) or (H, W, 1) or (N, H, W) or (N, H, W, 1).
         ValueError: When intrinsics is not of shape (3, 3) or (N, 3, 3).
     """
+    # clone inputs to avoid in-place modifications
     depth_batch = depth.clone()
     intrinsics_batch = intrinsics.clone()
+    
     # check if inputs are batched
     is_batched = depth_batch.dim() == 4 or (depth_batch.dim() == 3 and depth_batch.shape[-1] != 1)
     # make sure inputs are batched
@@ -1065,7 +1067,7 @@ def unproject_depth(depth: torch.Tensor, intrinsics: torch.Tensor) -> torch.Tens
 
 @torch.jit.script
 def convert_perspective_depth_to_orthogonal_depth(
-    perspective_depth: torch.Tensor, intrinsics: torch.Tensor
+    depth: torch.Tensor, intrinsics: torch.Tensor
 ) -> torch.Tensor:
     """Converts perspective depth image to orthogonal depth image.
     
@@ -1076,7 +1078,7 @@ def convert_perspective_depth_to_orthogonal_depth(
     The function assumes that the width and height are both greater than 1.
 
     Args:
-        perspective_depth: The perspective depth images. Shape is (H, W) or or (H, W, 1) or (N, H, W) or (N, H, W, 1).
+        depth: The perspective depth images. Shape is (H, W) or or (H, W, 1) or (N, H, W) or (N, H, W, 1).
         intrinsics: The camera's calibration matrix. If a single matrix is provided, the same
             calibration matrix is used across all the depth images in the batch.
             Shape is (3, 3) or (N, 3, 3).
@@ -1089,7 +1091,7 @@ def convert_perspective_depth_to_orthogonal_depth(
         ValueError: When intrinsics is not of shape (3, 3) or (N, 3, 3).
     """
     # Clone inputs to avoid in-place modifications
-    perspective_depth_batch = perspective_depth.clone()
+    perspective_depth_batch = depth.clone()
     intrinsics_batch = intrinsics.clone()
 
     # Check if inputs are batched
@@ -1117,7 +1119,7 @@ def convert_perspective_depth_to_orthogonal_depth(
 
     # Validate input shapes
     if perspective_depth_batch.dim() != 3:
-        raise ValueError(f"Expected perspective_depth to have 2, 3, or 4 dimensions; got {perspective_depth.shape}.")
+        raise ValueError(f"Expected depth images to have 2, 3, or 4 dimensions; got {perspective_depth.shape}.")
     if intrinsics_batch.dim() != 3:
         raise ValueError(f"Expected intrinsics to have shape (3, 3) or (N, 3, 3); got {intrinsics.shape}.")
 
@@ -1131,8 +1133,8 @@ def convert_perspective_depth_to_orthogonal_depth(
     cy = intrinsics_batch[:, 1, 2].view(-1, 1, 1)
 
     # Create meshgrid of pixel coordinates
-    u_grid = torch.arange(im_width, device=perspective_depth.device, dtype=perspective_depth.dtype)
-    v_grid = torch.arange(im_height, device=perspective_depth.device, dtype=perspective_depth.dtype)
+    u_grid = torch.arange(im_width, device=depth.device, dtype=depth.dtype)
+    v_grid = torch.arange(im_height, device=depth.device, dtype=depth.dtype)
     u_grid, v_grid = torch.meshgrid(u_grid, v_grid, indexing="xy")
 
     # Expand the grids for batch processing
@@ -1144,17 +1146,17 @@ def convert_perspective_depth_to_orthogonal_depth(
     y_term = ((v_grid - cy) / fy) ** 2
 
     # Calculate the orthogonal (normal) depth
-    normal_depth = perspective_depth_batch / torch.sqrt(1 + x_term + y_term)
+    orthogonal_depth = perspective_depth_batch / torch.sqrt(1 + x_term + y_term)
 
     # Restore the last dimension if it was present in the input
     if add_last_dim:
-        normal_depth = normal_depth.unsqueeze(-1)
+        orthogonal_depth = orthogonal_depth.unsqueeze(-1)
 
     # Return to original shape if input was not batched
     if not is_batched:
-        normal_depth = normal_depth.squeeze(0)
+        orthogonal_depth = orthogonal_depth.squeeze(0)
 
-    return normal_depth
+    return orthogonal_depth
 
 
 @torch.jit.script
@@ -1185,8 +1187,10 @@ def project_points(points: torch.Tensor, intrinsics: torch.Tensor) -> torch.Tens
     Returns:
         Projected 3D coordinates of points. Shape is (P, 3) or (N, P, 3).
     """
+    # clone the inputs to avoid in-place operations modifying the original data
     points_batch = points.clone()
     intrinsics_batch = intrinsics.clone()
+    
     # check if inputs are batched
     is_batched = points_batch.dim() == 2
     # make sure inputs are batched
@@ -1199,12 +1203,14 @@ def project_points(points: torch.Tensor, intrinsics: torch.Tensor) -> torch.Tens
         raise ValueError(f"Expected points to have dim = 3: got shape {points.shape}.")
     if intrinsics_batch.dim() != 3:
         raise ValueError(f"Expected intrinsics to have shape (3, 3) or (N, 3, 3): got shape {intrinsics.shape}.")
+    
     # project points into 2D image plane
     points_2d = torch.matmul(intrinsics_batch, points_batch.transpose(1, 2))
     points_2d = points_2d / points_2d[:, -1, :].unsqueeze(1)  # normalize by last coordinate
     points_2d = points_2d.transpose_(1, 2)  # (N, 3, P) -> (N, P, 3)
     # replace last coordinate with depth
     points_2d[:, :, -1] = points_batch[:, :, -1]
+    
     # return points in same shape as input
     if not is_batched:
         points_2d = points_2d.squeeze(0)  # (1, 3, P) -> (3, P)
