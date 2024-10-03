@@ -988,13 +988,8 @@ Projection operations.
 
 @torch.jit.script
 def unproject_depth(depth: torch.Tensor, intrinsics: torch.Tensor) -> torch.Tensor:
-    r"""Unproject depth image into a pointcloud. This method assumes that depth
-    is provided orthogonally relative to the image plane, as opposed to absolutely relative to the camera's
-    principal point (perspective depth). To unproject a perspective depth image, use
-    :meth:`convert_perspective_depth_to_orthogonal_depth` to convert
-    to an orthogonal depth image prior to calling this method. Otherwise, the
-    created point cloud will be distorted, especially around the edges.
-
+    r"""Un-project orthogonal depth image into a pointcloud.
+    
     This function converts depth images into points given the calibration matrix of the camera.
 
     .. math::
@@ -1003,15 +998,19 @@ def unproject_depth(depth: torch.Tensor, intrinsics: torch.Tensor) -> torch.Tens
     where :math:`p_{3D}` is the 3D point, :math:`d` is the depth value, :math:`u` and :math:`v` are
     the pixel coordinates and :math:`K` is the intrinsic matrix.
 
-    If `depth` is a batch of depth images and `intrinsics` is a single intrinsic matrix, the same
-    calibration matrix is applied to all depth images in the batch.
-
     The function assumes that the width and height are both greater than 1. This makes the function
     deal with many possible shapes of depth images and intrinsics matrices.
 
+    Additionally, the provided depth images need to be the orthogonal distance to the camera's image plane.
+    In the case of perspective depth images (i.e. the depth is computed from the camera's optical center),
+    please use the :meth:`orthogonalize_perspective_depth` to convert the depth image to
+    orthogonal depth image. Otherwise, the generated pointcloud will be distorted, especially around the edges.
+
     Args:
         depth: The depth measurement. Shape is (H, W) or or (H, W, 1) or (N, H, W) or (N, H, W, 1).
-        intrinsics: A tensor providing camera's calibration matrix. Shape is (3, 3) or (N, 3, 3).
+        intrinsics: The camera's calibration matrix. If a single matrix is provided, the same
+            calibration matrix is used across all the depth images in the batch.
+            Shape is (3, 3) or (N, 3, 3).
 
     Returns:
         The 3D coordinates of points. Shape is (P, 3) or (N, P, 3).
@@ -1068,32 +1067,27 @@ def unproject_depth(depth: torch.Tensor, intrinsics: torch.Tensor) -> torch.Tens
 def convert_perspective_depth_to_orthogonal_depth(
     perspective_depth: torch.Tensor, intrinsics: torch.Tensor
 ) -> torch.Tensor:
-    r"""Provided depth image(s) where depth is provided as the distance to the principal
-    point of the camera (perspective depth), this function converts it so that depth
-    is provided as the distance to the camera's image plane (orthogonal depth).
-
-    This is helpful because `unproject_depth` assumes that depth is expressed in
-    the orthogonal depth format.
-
-    If `perspective_depth` is a batch of depth images and `intrinsics` is a single intrinsic matrix,
-    the same calibration matrix is applied to all depth images in the batch.
+    """Converts perspective depth image to orthogonal depth image.
+    
+    Perspective depth images contain distances measured from the camera's optical center.
+    Meanwhile, orthogonal depth images provide the distance from the camera's image plane.
+    This method uses the camera geometry to convert perspective depth to orthogonal depth image.
 
     The function assumes that the width and height are both greater than 1.
 
     Args:
-        perspective_depth: The depth measurement obtained with the distance_to_camera replicator.
-            Shape is (H, W) or or (H, W, 1) or (N, H, W) or (N, H, W, 1).
-        intrinsics: A tensor providing camera's calibration matrix. Shape is (3, 3) or (N, 3, 3).
+        perspective_depth: The perspective depth images. Shape is (H, W) or or (H, W, 1) or (N, H, W) or (N, H, W, 1).
+        intrinsics: The camera's calibration matrix. If a single matrix is provided, the same
+            calibration matrix is used across all the depth images in the batch.
+            Shape is (3, 3) or (N, 3, 3).
 
     Returns:
-        The depth image as if obtained by the distance_to_image_plane replicator. Shape
-            matches the input shape of depth
+        The orthogonal depth images. Shape matches the input shape of depth images.
 
     Raises:
         ValueError: When depth is not of shape (H, W) or (H, W, 1) or (N, H, W) or (N, H, W, 1).
         ValueError: When intrinsics is not of shape (3, 3) or (N, 3, 3).
     """
-
     # Clone inputs to avoid in-place modifications
     perspective_depth_batch = perspective_depth.clone()
     intrinsics_batch = intrinsics.clone()
