@@ -9,10 +9,10 @@ This script demonstrates the different camera sensors that can be attached to a 
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p source/standalone/demos/cameras.py --disable_fabric
+    ./isaaclab.sh -p source/standalone/demos/cameras.py --enable_cameras
 
     # Usage in headless mode
-    ./isaaclab.sh -p source/standalone/demos/cameras.py --headless --enable_cameras --disable_fabric
+    ./isaaclab.sh -p source/standalone/demos/cameras.py --headless --enable_cameras
 
 """
 
@@ -274,16 +274,8 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
 
 def main():
     """Main function."""
-
-    # note: tile rendered cameras doesn't update the camera poses when using the GPU pipeline and Fabric.
-    #   this is a bug which should be fixed in the future releases.
-    sim_cfg = sim_utils.SimulationCfg(dt=0.005)
-    # check if fabric is enabled
-    if args_cli.disable_fabric:
-        sim_cfg.use_fabric = False
-        sim_cfg.device = "cpu"
-
     # Initialize the simulation context
+    sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device, use_fabric=not args_cli.disable_fabric)
     sim = sim_utils.SimulationContext(sim_cfg)
     # Set main camera
     sim.set_camera_view(eye=[3.5, 3.5, 3.5], target=[0.0, 0.0, 0.0])

@@ -178,11 +178,11 @@ class AppLauncher:
         * ``experience`` (str): The experience file to load when launching the SimulationApp. If a relative path
           is provided, it is resolved relative to the ``apps`` folder in Isaac Sim and Isaac Lab (in that order).
 
-          If provided as an empty string, the experience file is determined based on the headless flag:
+          If provided as an empty string, the experience file is determined based on the command-line flags:
 
           * If headless and enable_cameras are True, the experience file is set to ``isaaclab.python.headless.rendering.kit``.
           * If headless is False and enable_cameras is True, the experience file is set to ``isaaclab.python.rendering.kit``.
-          * If headless is False and enable_cameras is False, the experience file is set to ``isaaclab.python.kit``.
+          * If headless and enable_cameras are False, the experience file is set to ``isaaclab.python.kit``.
           * If headless is True and enable_cameras is False, the experience file is set to ``isaaclab.python.headless.kit``.
 
         Args:
