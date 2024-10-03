@@ -27,10 +27,10 @@ Added
 Added
 ^^^^^
 
-* Added :meth:`convert_perspective_depth_to_orthogonal_depth`. :meth:`unproject_depth` assumes
-  that the input depth image is orthogonal. The new :meth:`convert_perspective_depth_to_orthogonal_depth`
-  can be used to convert a perspective depth image into an orthogonal depth image, so that the point cloud
-  can be unprojected correctly with :meth:`unproject_depth`.
+* Added the method :meth:`convert_perspective_depth_to_orthogonal_depth` to convert perspective depth
+  images to orthogonal depth images. This is useful for the :meth:`~omni.isaac.lab.utils.math.unproject_depth`,
+  since it expects orthogonal depth images as inputs.
+
 
 0.24.13 (2024-09-08)
 ~~~~~~~~~~~~~~~~~~~~
