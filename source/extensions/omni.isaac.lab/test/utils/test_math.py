@@ -384,7 +384,7 @@ class TestMathUtilities(unittest.TestCase):
         intrinsics = torch.tensor([[500.0, 0.0, 5.0], [0.0, 500.0, 5.0], [0.0, 0.0, 1.0]])
 
         # Convert perspective depth to orthogonal depth
-        orthogonal_depth = math_utils.convert_perspective_depth_to_orthogonal_depth(perspective_depth, intrinsics)
+        orthogonal_depth = math_utils.orthogonalize_perspective_depth(perspective_depth, intrinsics)
 
         # Manually compute expected orthogonal depth based on the formula for comparison
         expected_orthogonal_depth = torch.tensor(

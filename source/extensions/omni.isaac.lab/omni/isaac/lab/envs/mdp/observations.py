@@ -205,7 +205,7 @@ def grab_images(
     sensor: TiledCamera | Camera | RayCasterCamera = env.scene.sensors[sensor_cfg.name]
     images = sensor.data.output[data_type]
     if (data_type == "distance_to_camera") and convert_perspective_to_orthogonal:
-        images = math_utils.convert_perspective_depth_to_orthogonal_depth(images, sensor.data.intrinsic_matrices)
+        images = math_utils.orthogonalize_perspective_depth(images, sensor.data.intrinsic_matrices)
 
     if normalize:
         if data_type == "rgb":

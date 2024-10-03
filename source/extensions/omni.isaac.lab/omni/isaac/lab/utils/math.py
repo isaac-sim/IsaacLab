@@ -1066,7 +1066,7 @@ def unproject_depth(depth: torch.Tensor, intrinsics: torch.Tensor) -> torch.Tens
 
 
 @torch.jit.script
-def convert_perspective_depth_to_orthogonal_depth(
+def orthogonalize_perspective_depth(
     depth: torch.Tensor, intrinsics: torch.Tensor
 ) -> torch.Tensor:
     """Converts perspective depth image to orthogonal depth image.
