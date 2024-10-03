@@ -10,7 +10,7 @@ Environment wrappers are a way to modify the behavior of an environment without 
 This can be used to apply functions to modify observations or rewards, record videos, enforce time limits, etc.
 A detailed description of the API is available in the :class:`gymnasium.Wrapper` class.
 
-At present, all RL environments inheriting from the :class:`~envs.ManagerBasedRLEnv` class
+At present, all RL environments inheriting from the :class:`~envs.ManagerBasedRLEnv` or :class:`~envs.DirectRLEnv` classes
 are compatible with :class:`gymnasium.Wrapper`, since the base class implements the :class:`gymnasium.Env` interface.
 In order to wrap an environment, you need to first initialize the base environment. After that, you can
 wrap it with as many wrappers as you want by calling ``env = wrapper(env, *args, **kwargs)`` repeatedly.
@@ -127,7 +127,7 @@ Every learning framework has its own API for interacting with environments. For 
 `Stable-Baselines3`_ library uses the `gym.Env <https://gymnasium.farama.org/api/env/>`_
 interface to interact with environments. However, libraries like `RL-Games`_, `RSL-RL`_ or `SKRL`_
 use their own API for interfacing with a learning environments. Since there is no one-size-fits-all
-solution, we do not base the :class:`~envs.ManagerBasedRLEnv` class on any particular learning framework's
+solution, we do not base the :class:`~envs.ManagerBasedRLEnv` and :class:`~envs.DirectRLEnv` classes on any particular learning framework's
 environment definition. Instead, we implement wrappers to make it compatible with the learning
 framework's environment definition.
 
@@ -155,6 +155,7 @@ Adding new wrappers
 
 All new wrappers should be added to the :mod:`omni.isaac.lab_tasks.utils.wrappers` module.
 They should check that the underlying environment is an instance of :class:`omni.isaac.lab.envs.ManagerBasedRLEnv`
+or :class:`~envs.DirectRLEnv`
 before applying the wrapper. This can be done by using the :func:`unwrapped` property.
 
 We include a set of wrappers in this module that can be used as a reference to implement your own wrappers.

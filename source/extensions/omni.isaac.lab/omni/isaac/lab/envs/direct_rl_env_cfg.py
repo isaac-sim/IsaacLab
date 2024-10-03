@@ -133,3 +133,14 @@ class DirectRLEnvCfg:
 
     All actions are clipped to this range before being applied to the environment.
     """
+
+    rerender_on_reset: bool = False
+    """Whether a render step is performed again after at least one environment has been reset.
+    Defaults to False, which means no render step will be performed after reset.
+
+    * When this is False, data collected from sensors after performing reset will be stale and will not reflect the
+      latest states in simulation caused by the reset.
+    * When this is True, an extra render step will be performed to update the sensor data
+      to reflect the latest states from the reset. This comes at a cost of performance as an additional render
+      step will be performed after each time an environment is reset.
+    """

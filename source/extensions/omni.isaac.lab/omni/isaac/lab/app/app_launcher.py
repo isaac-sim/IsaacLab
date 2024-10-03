@@ -178,11 +178,11 @@ class AppLauncher:
         * ``experience`` (str): The experience file to load when launching the SimulationApp. If a relative path
           is provided, it is resolved relative to the ``apps`` folder in Isaac Sim and Isaac Lab (in that order).
 
-          If provided as an empty string, the experience file is determined based on the headless flag:
+          If provided as an empty string, the experience file is determined based on the command-line flags:
 
           * If headless and enable_cameras are True, the experience file is set to ``isaaclab.python.headless.rendering.kit``.
           * If headless is False and enable_cameras is True, the experience file is set to ``isaaclab.python.rendering.kit``.
-          * If headless is False and enable_cameras is False, the experience file is set to ``isaaclab.python.kit``.
+          * If headless and enable_cameras are False, the experience file is set to ``isaaclab.python.kit``.
           * If headless is True and enable_cameras is False, the experience file is set to ``isaaclab.python.headless.kit``.
 
         Args:
@@ -492,9 +492,9 @@ class AppLauncher:
 
         if "distributed" in launcher_args and launcher_args["distributed"]:
             # local rank (GPU id) in a current multi-gpu mode
-            self.local_rank = int(os.getenv("LOCAL_RANK", "0"))
+            self.local_rank = int(os.getenv("LOCAL_RANK", "0")) + int(os.getenv("JAX_LOCAL_RANK", "0"))
             # global rank (GPU id) in multi-gpu multi-node mode
-            self.global_rank = int(os.getenv("RANK", "0"))
+            self.global_rank = int(os.getenv("RANK", "0")) + int(os.getenv("JAX_RANK", "0"))
 
             self.device_id = self.local_rank
             launcher_args["multi_gpu"] = False
@@ -643,7 +643,7 @@ class AppLauncher:
 
         # set the nucleus directory manually to the latest published Nucleus
         # note: this is done to ensure prior versions of Isaac Sim still use the latest assets
-        assets_path = "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.1"
+        assets_path = "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.2"
         carb_settings_iface.set_string("/persistent/isaac/asset_root/default", assets_path)
         carb_settings_iface.set_string("/persistent/isaac/asset_root/cloud", assets_path)
         carb_settings_iface.set_string("/persistent/isaac/asset_root/nvidia", assets_path)

@@ -270,6 +270,10 @@ class DirectRLEnv(gym.Env):
         indices = torch.arange(self.num_envs, dtype=torch.int64, device=self.device)
         self._reset_idx(indices)
 
+        # if sensors are added to the scene, make sure we render to reflect changes in reset
+        if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
+            self.sim.render()
+
         # return observations
         return self._get_observations(), self.extras
 
@@ -342,6 +346,9 @@ class DirectRLEnv(gym.Env):
         reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
         if len(reset_env_ids) > 0:
             self._reset_idx(reset_env_ids)
+            # if sensors are added to the scene, make sure we render to reflect changes in reset
+            if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
+                self.sim.render()
 
         # post-step: step interval event
         if self.cfg.events:

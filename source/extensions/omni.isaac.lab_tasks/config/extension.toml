@@ -1,7 +1,7 @@
 [package]
 
 # Note: Semantic Versioning is used: https://semver.org/
-version = "0.10.0"
+version = "0.10.5"
 
 # Description
 title = "Isaac Lab Environments"
@@ -22,7 +22,7 @@ requirements = [
     "stable-baselines3>=2.1",
     "rl-games==1.6.1",
     "rsl-rl@git+https://github.com/leggedrobotics/rsl_rl.git",
-    "skrl>=1.2.0"
+    "skrl>=1.3.0"
 ]
 
 modules = [

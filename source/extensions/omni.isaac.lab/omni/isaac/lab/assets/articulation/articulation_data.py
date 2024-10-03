@@ -48,9 +48,9 @@ class ArticulationData:
         self._sim_timestamp = 0.0
 
         # Obtain global physics sim view
-        physics_sim_view = physx.create_simulation_view("torch")
-        physics_sim_view.set_subspace_roots("/")
-        gravity = physics_sim_view.get_gravity()
+        self._physics_sim_view = physx.create_simulation_view("torch")
+        self._physics_sim_view.set_subspace_roots("/")
+        gravity = self._physics_sim_view.get_gravity()
         # Convert to direction vector
         gravity_dir = torch.tensor((gravity[0], gravity[1], gravity[2]), device=self.device)
         gravity_dir = math_utils.normalize(gravity_dir.unsqueeze(0)).squeeze(0)
@@ -103,6 +103,13 @@ class ArticulationData:
 
     default_mass: torch.Tensor = None
     """Default mass read from the simulation. Shape is (num_instances, num_bodies)."""
+
+    default_inertia: torch.Tensor = None
+    """Default inertia read from the simulation. Shape is (num_instances, num_bodies, 9).
+
+    The inertia is the inertia tensor relative to the center of mass frame. The values are stored in
+    the order :math:`[I_{xx}, I_{xy}, I_{xz}, I_{yx}, I_{yy}, I_{yz}, I_{zx}, I_{zy}, I_{zz}]`.
+    """
 
     default_joint_pos: torch.Tensor = None
     """Default joint positions of all joints. Shape is (num_instances, num_joints)."""
@@ -278,6 +285,7 @@ class ArticulationData:
         velocities are of the articulation links's center of mass frame.
         """
         if self._body_state_w.timestamp < self._sim_timestamp:
+            self._physics_sim_view.update_articulations_kinematic()
             # read data from simulation
             poses = self._root_physx_view.get_link_transforms().clone()
             poses[..., 3:7] = math_utils.convert_quat(poses[..., 3:7], to="wxyz")
