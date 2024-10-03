@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.24.16 (2024-09-25)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``use_first_matching_path`` flag to ``RigidObjectCfg`` to allow option for traversal of all matching prim paths
+  for a ``RigidObject`` regex instead of only traversing the first matching prim path and assuming that all other
+  paths follow the same topology.
+
+
 0.22.15 (2024-09-20)
 ~~~~~~~~~~~~~~~~~~~~
 
@@ -8,6 +19,7 @@ Added
 ^^^^^
 
 * Added :meth:`grab_images` to be able to use images for an observation term in manager based environments
+
 
 0.24.14 (2024-09-20)
 ~~~~~~~~~~~~~~~~~~~~
@@ -19,6 +31,7 @@ Added
   that the input depth image is orthogonal. The new :meth:`convert_perspective_depth_to_orthogonal_depth`
   can be used to convert a perspective depth image into an orthogonal depth image, so that the point cloud
   can be unprojected correctly with :meth:`unproject_depth`.
+
 
 0.24.13 (2024-09-08)
 ~~~~~~~~~~~~~~~~~~~~
