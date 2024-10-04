@@ -76,7 +76,7 @@ class ManagerBasedEnv:
 
         # set the seed for the environment
         if self.cfg.seed is not None:
-            self.seed(self.cfg.seed)
+            self.cfg.seed = self.seed(self.cfg.seed)
         else:
             carb.log_warn("Seed not set for the environment. The environment creation may not be deterministic.")
 

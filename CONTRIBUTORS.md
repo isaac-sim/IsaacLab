@@ -41,12 +41,15 @@ Guidelines for modifications:
 * Calvin Yu
 * Chenyu Yang
 * David Yang
+* Gary Lvov
 * HoJin Jeon
 * Jean Tampon
 * Jia Lin Yuan
 * Jingzhou Liu
 * Johnson Sun
+* Kaixi Bao
 * Kourosh Darvish
+* Lionel Gulich
 * Lorenz Wellhausen
 * Masoud Moghani
 * Michael Gussert
