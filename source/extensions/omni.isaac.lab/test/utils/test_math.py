@@ -202,11 +202,19 @@ class TestMathUtilities(unittest.TestCase):
         quat_world = torch.tensor([[-0.3647052, -0.27984815, -0.1159169, 0.88047623]])
 
         # from ROS
-        torch.testing.assert_close(math_utils.convert_camera_frame_orientation_convention(quat_ros, "ros", "opengl"), quat_opengl)
-        torch.testing.assert_close(math_utils.convert_camera_frame_orientation_convention(quat_ros, "ros", "world"), quat_world)
-        torch.testing.assert_close(math_utils.convert_camera_frame_orientation_convention(quat_ros, "ros", "ros"), quat_ros)
+        torch.testing.assert_close(
+            math_utils.convert_camera_frame_orientation_convention(quat_ros, "ros", "opengl"), quat_opengl
+        )
+        torch.testing.assert_close(
+            math_utils.convert_camera_frame_orientation_convention(quat_ros, "ros", "world"), quat_world
+        )
+        torch.testing.assert_close(
+            math_utils.convert_camera_frame_orientation_convention(quat_ros, "ros", "ros"), quat_ros
+        )
         # from OpenGL
-        torch.testing.assert_close(math_utils.convert_camera_frame_orientation_convention(quat_opengl, "opengl", "ros"), quat_ros)
+        torch.testing.assert_close(
+            math_utils.convert_camera_frame_orientation_convention(quat_opengl, "opengl", "ros"), quat_ros
+        )
         torch.testing.assert_close(
             math_utils.convert_camera_frame_orientation_convention(quat_opengl, "opengl", "world"), quat_world
         )
@@ -214,11 +222,15 @@ class TestMathUtilities(unittest.TestCase):
             math_utils.convert_camera_frame_orientation_convention(quat_opengl, "opengl", "opengl"), quat_opengl
         )
         # from World
-        torch.testing.assert_close(math_utils.convert_camera_frame_orientation_convention(quat_world, "world", "ros"), quat_ros)
+        torch.testing.assert_close(
+            math_utils.convert_camera_frame_orientation_convention(quat_world, "world", "ros"), quat_ros
+        )
         torch.testing.assert_close(
             math_utils.convert_camera_frame_orientation_convention(quat_world, "world", "opengl"), quat_opengl
         )
-        torch.testing.assert_close(math_utils.convert_camera_frame_orientation_convention(quat_world, "world", "world"), quat_world)
+        torch.testing.assert_close(
+            math_utils.convert_camera_frame_orientation_convention(quat_world, "world", "world"), quat_world
+        )
 
     def test_wrap_to_pi(self):
         """Test wrap_to_pi method."""

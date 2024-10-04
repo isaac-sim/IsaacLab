@@ -223,7 +223,7 @@ def imu_lin_acc(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg
     asset: Imu = env.scene[asset_cfg.name]
     return asset.data.lin_acc_b
 
-  
+
 def image(
     env: ManagerBasedEnv,
     sensor_cfg: SceneEntityCfg = SceneEntityCfg("tiled_camera"),

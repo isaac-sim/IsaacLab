@@ -22,7 +22,11 @@ from pxr import UsdGeom
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.utils import to_camel_case
 from omni.isaac.lab.utils.array import convert_to_torch
-from omni.isaac.lab.utils.math import convert_camera_frame_orientation_convention, create_rotation_matrix_from_view, quat_from_matrix
+from omni.isaac.lab.utils.math import (
+    convert_camera_frame_orientation_convention,
+    create_rotation_matrix_from_view,
+    quat_from_matrix,
+)
 
 from ..sensor_base import SensorBase
 from .camera_data import CameraData
@@ -116,7 +120,9 @@ class Camera(SensorBase):
         if self.cfg.spawn is not None:
             # compute the rotation offset
             rot = torch.tensor(self.cfg.offset.rot, dtype=torch.float32).unsqueeze(0)
-            rot_offset = convert_camera_frame_orientation_convention(rot, origin=self.cfg.offset.convention, target="opengl")
+            rot_offset = convert_camera_frame_orientation_convention(
+                rot, origin=self.cfg.offset.convention, target="opengl"
+            )
             rot_offset = rot_offset.squeeze(0).numpy()
             # ensure vertical aperture is set, otherwise replace with default for squared pixels
             if self.cfg.spawn.vertical_aperture is None:
@@ -598,7 +604,9 @@ class Camera(SensorBase):
         # get the poses from the view
         poses, quat = self._view.get_world_poses(env_ids)
         self._data.pos_w[env_ids] = poses
-        self._data.quat_w_world[env_ids] = convert_camera_frame_orientation_convention(quat, origin="opengl", target="world")
+        self._data.quat_w_world[env_ids] = convert_camera_frame_orientation_convention(
+            quat, origin="opengl", target="world"
+        )
 
     def _create_annotator_data(self):
         """Create the buffers to store the annotator data.

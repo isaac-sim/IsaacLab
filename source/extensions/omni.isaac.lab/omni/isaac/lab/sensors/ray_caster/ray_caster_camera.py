@@ -196,7 +196,9 @@ class RayCasterCamera(RayCaster):
             self._offset_pos[env_ids] = math_utils.quat_apply(math_utils.quat_inv(quat_w), pos_offset_world_frame)
         if orientations is not None:
             # convert rotation matrix from input convention to world
-            quat_w_set = math_utils.convert_camera_frame_orientation_convention(orientations, origin=convention, target="world")
+            quat_w_set = math_utils.convert_camera_frame_orientation_convention(
+                orientations, origin=convention, target="world"
+            )
             self._offset_quat[env_ids] = math_utils.quat_mul(math_utils.quat_inv(quat_w), quat_w_set)
 
         # update the data
