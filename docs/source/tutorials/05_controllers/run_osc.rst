@@ -14,7 +14,7 @@ Reference for the operational space control:
 formulation. IEEE Journal of Robotics and Automation, 3(1):43–53, 1987. URL http://dx.doi.org/10.1109/JRA.1987.1087068.
 - [2] https://ethz.ch/content/dam/ethz/special-interest/mavt/robotics-n-intelligent-systems/rsl-dam/documents/RobotDynamics2017/RD_HS2017script.pdf
 
-In this tutorial, we will learn how to use an OPC to control the robot.
+In this tutorial, we will learn how to use an OSC to control the robot.
 We will use the :class:`controllers.OperationalSpaceController` class to apply a constant force perpendicular to a
 tilted wall surface while tracking a desired end-effector pose in all the other directions.
 
@@ -95,7 +95,7 @@ kd values adapt according to kp values to maintain a critically damped response)
 .. literalinclude:: ../../../../source/standalone/tutorials/05_controllers/run_osc.py
    :language: python
    :start-at: # Create the OSC
-   :end-at: opc = OperationalSpaceController(opc_cfg, num_envs=scene.num_envs, device=sim.device)
+   :end-at: osc = OperationalSpaceController(osc_cfg, num_envs=scene.num_envs, device=sim.device)
 
 Updating the states of the robot
 --------------------------------------------
@@ -115,7 +115,7 @@ Computing robot command
 
 The OSC separates the operation of setting the desired command and computing the desired joint positions.
 To set the desired command, the user should provide command vector, which  includes the target commands
-(i.e., in the order they appear in the target_types argument of the OPC configuration),
+(i.e., in the order they appear in the target_types argument of the OSC configuration),
 and the desired stiffness and damping ratio values if the impedance_mode is set to "variable_kp" or "variable".
 They should be all in the same coordinate frame as the task frame (e.g., indicated with _task subscript) and
 concatanated together.
@@ -134,8 +134,8 @@ computations are done in the base frame.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/05_controllers/run_osc.py
    :language: python
-   :start-at: # set the opc command
-   :end-at: opc.set_command(command=command, current_ee_pose_b=ee_pose_b, current_task_frame_pose_b=task_frame_pose_b)
+   :start-at: # set the osc command
+   :end-at: osc.set_command(command=command, current_ee_pose_b=ee_pose_b, current_task_frame_pose_b=task_frame_pose_b)
 
 The joint effort/torque values are computed using the provided robot states and the desired command as the following:
 

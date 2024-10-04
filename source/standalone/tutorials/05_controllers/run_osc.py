@@ -119,7 +119,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
     arm_joint_ids = robot.find_joints(arm_joint_names)[0]
 
     # Create the OSC
-    opc_cfg = OperationalSpaceControllerCfg(
+    osc_cfg = OperationalSpaceControllerCfg(
         target_types=["pose_abs", "wrench_abs"],
         impedance_mode="variable_kp",
         inertial_compensation=True,
@@ -130,7 +130,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
         motion_control_axes_task=[1, 1, 0, 1, 1, 1],
         contact_wrench_control_axes_task=[0, 0, 1, 0, 0, 0],
     )
-    opc = OperationalSpaceController(opc_cfg, num_envs=scene.num_envs, device=sim.device)
+    osc = OperationalSpaceController(osc_cfg, num_envs=scene.num_envs, device=sim.device)
 
     # Markers
     frame_marker_cfg = FRAME_MARKER_CFG.copy()
@@ -180,7 +180,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
     # Track the given target command
     current_goal_idx = 0  # Current goal index for the arm
     command = torch.zeros(
-        scene.num_envs, opc.action_dim, device=sim.device
+        scene.num_envs, osc.action_dim, device=sim.device
     )  # Generic target command, which can be pose, position, force, etc.
     ee_target_pose_b = torch.zeros(scene.num_envs, 7, device=sim.device)  # Target pose in the body frame
     ee_target_pose_w = torch.zeros(scene.num_envs, 7, device=sim.device)  # Target pose in the world frame (for marker)
@@ -209,19 +209,19 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
                 sim, scene, robot, ee_frame_idx, arm_joint_ids, contact_forces
             )  # at reset, the jacobians are not updated to the latest state
             command, ee_target_pose_b, ee_target_pose_w, current_goal_idx = update_target(
-                sim, scene, opc, root_pose_w, ee_pose_b, ee_target_set, current_goal_idx
+                sim, scene, osc, root_pose_w, ee_pose_b, ee_target_set, current_goal_idx
             )
-            # set the opc command
-            opc.reset()
-            command, task_frame_pose_b = convert_to_task_frame(opc, command=command, ee_target_pose_b=ee_target_pose_b)
-            opc.set_command(command=command, current_ee_pose_b=ee_pose_b, current_task_frame_pose_b=task_frame_pose_b)
+            # set the osc command
+            osc.reset()
+            command, task_frame_pose_b = convert_to_task_frame(osc, command=command, ee_target_pose_b=ee_target_pose_b)
+            osc.set_command(command=command, current_ee_pose_b=ee_pose_b, current_task_frame_pose_b=task_frame_pose_b)
         else:
             # get the updated states
             jacobian_b, mass_matrix, gravity, ee_pose_b, ee_vel_b, root_pose_w, ee_pose_w, ee_force_b = update_states(
                 sim, scene, robot, ee_frame_idx, arm_joint_ids, contact_forces
             )
             # compute the joint commands
-            joint_efforts = opc.compute(
+            joint_efforts = osc.compute(
                 jacobian_b=jacobian_b,
                 current_ee_pose_b=ee_pose_b,
                 current_ee_vel_b=ee_vel_b,
@@ -301,19 +301,19 @@ def update_states(
 def update_target(
     sim: sim_utils.SimulationContext,
     scene: InteractiveScene,
-    opc: OperationalSpaceController,
+    osc: OperationalSpaceController,
     root_pose_w: torch.tensor,
     ee_pose_b: torch.tensor,
     ee_target_set: torch.tensor,
     current_goal_idx: int,
 ):
     # update the ee desired command
-    command = torch.zeros(scene.num_envs, opc.action_dim, device=sim.device)
+    command = torch.zeros(scene.num_envs, osc.action_dim, device=sim.device)
     command[:] = ee_target_set[current_goal_idx]
 
     # update the ee desired pose
     ee_target_pose_b = torch.zeros(scene.num_envs, 7, device=sim.device)
-    for target_type in opc.cfg.target_types:
+    for target_type in osc.cfg.target_types:
         if target_type == "pose_abs":
             ee_target_pose_b[:] = command[:, :7]
         elif target_type == "wrench_abs":
@@ -333,12 +333,12 @@ def update_target(
 
 
 # Convert the target commands to the task frame
-def convert_to_task_frame(opc: OperationalSpaceController, command: torch.tensor, ee_target_pose_b: torch.tensor):
+def convert_to_task_frame(osc: OperationalSpaceController, command: torch.tensor, ee_target_pose_b: torch.tensor):
     command = command.clone()
     task_frame_pose_b = ee_target_pose_b.clone()
 
     cmd_idx = 0
-    for target_type in opc.cfg.target_types:
+    for target_type in osc.cfg.target_types:
         if target_type == "pose_abs":
             command[:, :3], command[:, 3:7] = subtract_frame_transforms(
                 task_frame_pose_b[:, :3], task_frame_pose_b[:, 3:], command[:, :3], command[:, 3:7]
