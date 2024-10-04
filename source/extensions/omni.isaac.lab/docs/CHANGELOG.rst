@@ -1,7 +1,17 @@
 Changelog
 ---------
 
-0.22.15 (2024-09-20)
+0.24.16 (2024-10-04)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixes
+^^^^^
+
+* Fixed the :meth:`omni.isaac.lab.envs.mdp.events.randomize_rigid_body_material` function to acutally sample randomly 
+  from the given ranges
+
+
+0.24.15 (2024-09-20)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
