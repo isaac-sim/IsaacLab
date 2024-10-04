@@ -50,10 +50,11 @@ from omni.isaac.lab.sim import SimulationContext
 from omni.isaac.lab.utils import Timer, configclass
 
 ##
-# Multi-Object Spawning
+# Randomization events.
 ##
 
-def randomize_color(prim_path_expr: str):
+
+def randomize_color_pxr(prim_path_expr: str):
     """Randomize the color of the geometry."""
     # acquire stage
     stage = omni.usd.get_context().get_stage()
@@ -70,6 +71,11 @@ def randomize_color(prim_path_expr: str):
             # Here is an example on setting color randomly
             color_spec = env_spec.GetAttributeAtPath(prim_path + "/geometry/material/Shader.inputs:diffuseColor")
             color_spec.default = Gf.Vec3f(random.random(), random.random(), random.random())
+
+
+##
+# Multi-Object Spawning
+##
 
 
 def spawn_multi_object_randomly(
@@ -125,11 +131,6 @@ def spawn_multi_object_randomly(
 
     # delete the dataset prim after spawning
     prim_utils.delete_prim("/World/Dataset")
-
-    # DO YOUR OWN OTHER KIND OF RANDOMIZATION HERE!
-    # Note: Just need to acquire the right attribute about the property you want to set
-    # Here is an example on setting color randomly
-    randomize_color(f"{root_path}/{asset_path}")
 
     # return the prim
     return prim_utils.get_prim_at_path(prim_paths[0])
@@ -240,10 +241,18 @@ def main():
     sim = SimulationContext(sim_cfg)
     # Set main camera
     sim.set_camera_view([2.5, 0.0, 4.0], [0.0, 0.0, 2.0])
+
     # Design scene
     scene_cfg = MultiObjectSceneCfg(num_envs=args_cli.num_envs, env_spacing=1.0, replicate_physics=False)
     with Timer("[INFO] Time to create scene: "):
         scene = InteractiveScene(scene_cfg)
+
+    with Timer("[INFO] Time to randomize scene: "):
+        # DO YOUR OWN OTHER KIND OF RANDOMIZATION HERE!
+        # Note: Just need to acquire the right attribute about the property you want to set
+        # Here is an example on setting color randomly
+        randomize_color_pxr(scene_cfg.object.prim_path)
+
     # Play the simulator
     sim.reset()
     # Now we are ready!
