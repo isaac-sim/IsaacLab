@@ -196,6 +196,7 @@ class TestMathUtilities(unittest.TestCase):
         torch.testing.assert_close(error_4, error_1)
 
     def test_convention_converter(self):
+        """Test convert_orientation_convention to and from ros, opengl, and world conventions."""
         quat_ros = torch.tensor([[-0.17591989, 0.33985114, 0.82047325, -0.42470819]])
         quat_opengl = torch.tensor([[0.33985113, 0.17591988, 0.42470818, 0.82047324]])
         quat_world = torch.tensor([[-0.3647052, -0.27984815, -0.1159169, 0.88047623]])
