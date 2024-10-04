@@ -6,8 +6,8 @@
 """
 This script demonstrates how to use the operational space controller (OSC) with the simulator.
 
-The OSC controller can be configured in different modes. It uses the dynamical quantities such as Jacobians and 
-mass matricescomputed by PhysX. 
+The OSC controller can be configured in different modes. It uses the dynamical quantities such as Jacobians and
+mass matricescomputed by PhysX.
 
 .. code-block:: bash
 
@@ -44,9 +44,8 @@ from omni.isaac.lab.controllers import OperationalSpaceController, OperationalSp
 from omni.isaac.lab.markers import VisualizationMarkers
 from omni.isaac.lab.markers.config import FRAME_MARKER_CFG
 from omni.isaac.lab.scene import InteractiveScene, InteractiveSceneCfg
-from omni.isaac.lab.utils import configclass
-from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
 from omni.isaac.lab.sensors import ContactSensorCfg
+from omni.isaac.lab.utils import configclass
 from omni.isaac.lab.utils.math import (
     combine_frame_transforms,
     matrix_from_quat,
@@ -140,16 +139,22 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
     goal_marker = VisualizationMarkers(frame_marker_cfg.replace(prim_path="/Visuals/ee_goal"))
 
     # Define targets for the arm
-    ee_goal_pose_set_tilted_b = torch.tensor([
-        [0.6, 0.15, 0.3, 0.0, 0.92387953, 0.0, 0.38268343],
-        [0.6, -0.3, 0.3, 0.0, 0.92387953, 0.0, 0.38268343],
-        [0.8, 0.0, 0.5, 0.0, 0.92387953, 0.0, 0.38268343],
-    ], device=sim.device)
-    ee_goal_wrench_set_tilted_task = torch.tensor([
-        [0.0, 0.0, 10.0, 0.0, 0.0, 0.0],
-        [0.0, 0.0, 10.0, 0.0, 0.0, 0.0],
-        [0.0, 0.0, 10.0, 0.0, 0.0, 0.0],
-    ], device=sim.device)
+    ee_goal_pose_set_tilted_b = torch.tensor(
+        [
+            [0.6, 0.15, 0.3, 0.0, 0.92387953, 0.0, 0.38268343],
+            [0.6, -0.3, 0.3, 0.0, 0.92387953, 0.0, 0.38268343],
+            [0.8, 0.0, 0.5, 0.0, 0.92387953, 0.0, 0.38268343],
+        ],
+        device=sim.device,
+    )
+    ee_goal_wrench_set_tilted_task = torch.tensor(
+        [
+            [0.0, 0.0, 10.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 10.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 10.0, 0.0, 0.0, 0.0],
+        ],
+        device=sim.device,
+    )
     kp_set_task = torch.tensor(
         [
             [360.0, 360.0, 360.0, 360.0, 360.0, 360.0],
@@ -178,9 +183,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
         scene.num_envs, opc.action_dim, device=sim.device
     )  # Generic target command, which can be pose, position, force, etc.
     ee_target_pose_b = torch.zeros(scene.num_envs, 7, device=sim.device)  # Target pose in the body frame
-    ee_target_pose_w = torch.zeros(
-        scene.num_envs, 7, device=sim.device
-    )  # Target pose in the world frame (for marker)
+    ee_target_pose_w = torch.zeros(scene.num_envs, 7, device=sim.device)  # Target pose in the world frame (for marker)
 
     # Set joint efforts to zero
     zero_joint_efforts = torch.zeros(scene.num_envs, robot.num_joints, device=sim.device)
@@ -210,16 +213,12 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             )
             # set the opc command
             opc.reset()
-            command, task_frame_pose_b = convert_to_task_frame(
-                opc, command=command, ee_target_pose_b=ee_target_pose_b
-            )
-            opc.set_command(
-                command=command, current_ee_pose_b=ee_pose_b, current_task_frame_pose_b=task_frame_pose_b
-            )
+            command, task_frame_pose_b = convert_to_task_frame(opc, command=command, ee_target_pose_b=ee_target_pose_b)
+            opc.set_command(command=command, current_ee_pose_b=ee_pose_b, current_task_frame_pose_b=task_frame_pose_b)
         else:
             # get the updated states
-            jacobian_b, mass_matrix, gravity, ee_pose_b, ee_vel_b, root_pose_w, ee_pose_w, ee_force_b = (
-                update_states(sim, scene, robot, ee_frame_idx, arm_joint_ids, contact_forces)
+            jacobian_b, mass_matrix, gravity, ee_pose_b, ee_vel_b, root_pose_w, ee_pose_w, ee_force_b = update_states(
+                sim, scene, robot, ee_frame_idx, arm_joint_ids, contact_forces
             )
             # compute the joint commands
             joint_efforts = opc.compute(
@@ -230,6 +229,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
                 mass_matrix=mass_matrix,
                 gravity=gravity,
             )
+            # apply actions
             robot.set_joint_effort_target(joint_efforts, joint_ids=arm_joint_ids)
             robot.write_data_to_sim()
 
@@ -247,6 +247,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
         count += 1
 
 
+# Update robot states
 def update_states(
     sim: sim_utils.SimulationContext,
     scene: InteractiveScene,
@@ -296,6 +297,7 @@ def update_states(
     return jacobian_b, mass_matrix, gravity, ee_pose_b, ee_vel_b, root_pose_w, ee_pose_w, ee_force_b
 
 
+# Update the target commands
 def update_target(
     sim: sim_utils.SimulationContext,
     scene: InteractiveScene,
@@ -330,9 +332,8 @@ def update_target(
     return command, ee_target_pose_b, ee_target_pose_w, next_goal_idx
 
 
-def convert_to_task_frame(
-    opc: OperationalSpaceController, command: torch.tensor, ee_target_pose_b: torch.tensor
-):
+# Convert the target commands to the task frame
+def convert_to_task_frame(opc: OperationalSpaceController, command: torch.tensor, ee_target_pose_b: torch.tensor):
     command = command.clone()
     task_frame_pose_b = ee_target_pose_b.clone()
 
