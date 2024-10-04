@@ -376,23 +376,27 @@ class TestMathUtilities(unittest.TestCase):
                 iter_old_quat_rotate_inverse(q_rand, v_rand),
             )
 
-    def test_depth_perspective_conversion(self):
-        # Create a sample perspective depth image (N, H, W)
-        perspective_depth = torch.tensor([[[10.0, 0.0, 100.0], [0.0, 3000.0, 0.0], [100.0, 0.0, 100.0]]])
+    def test_orthogonalize_perspective_depth(self):
+        """Test for comparing perspective depth to orthogonal depth conversion."""
+        for device in ["cpu", "cuda:0"]:
+            # Create a sample perspective depth image (N, H, W)
+            perspective_depth = torch.tensor(
+                [[[10.0, 0.0, 100.0], [0.0, 3000.0, 0.0], [100.0, 0.0, 100.0]]], device=device
+            )
 
-        # Create sample intrinsic matrix (3, 3)
-        intrinsics = torch.tensor([[500.0, 0.0, 5.0], [0.0, 500.0, 5.0], [0.0, 0.0, 1.0]])
+            # Create sample intrinsic matrix (3, 3)
+            intrinsics = torch.tensor([[500.0, 0.0, 5.0], [0.0, 500.0, 5.0], [0.0, 0.0, 1.0]], device=device)
 
-        # Convert perspective depth to orthogonal depth
-        orthogonal_depth = math_utils.orthogonalize_perspective_depth(perspective_depth, intrinsics)
+            # Convert perspective depth to orthogonal depth
+            orthogonal_depth = math_utils.orthogonalize_perspective_depth(perspective_depth, intrinsics)
 
-        # Manually compute expected orthogonal depth based on the formula for comparison
-        expected_orthogonal_depth = torch.tensor(
-            [[[9.9990, 0.0000, 99.9932], [0.0000, 2999.8079, 0.0000], [99.9932, 0.0000, 99.9964]]]
-        )
+            # Manually compute expected orthogonal depth based on the formula for comparison
+            expected_orthogonal_depth = torch.tensor(
+                [[[9.9990, 0.0000, 99.9932], [0.0000, 2999.8079, 0.0000], [99.9932, 0.0000, 99.9964]]], device=device
+            )
 
-        # Assert that the output is close to the expected result
-        torch.testing.assert_close(orthogonal_depth, expected_orthogonal_depth)
+            # Assert that the output is close to the expected result
+            torch.testing.assert_close(orthogonal_depth, expected_orthogonal_depth)
 
 
 if __name__ == "__main__":
