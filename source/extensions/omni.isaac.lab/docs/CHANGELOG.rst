@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.24.17 (2024-10-04)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the deprecation notice for using ``pxr.Semantics``. The corresponding modules use ``Semantics`` module
+  directly.
+
+
 0.24.16 (2024-10-03)
 ~~~~~~~~~~~~~~~~~~~~
 
