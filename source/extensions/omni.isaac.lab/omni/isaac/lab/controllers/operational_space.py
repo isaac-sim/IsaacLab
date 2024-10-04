@@ -386,10 +386,9 @@ class OperationalSpaceController:
             )
             velocity_error_b = -current_ee_vel_b  # zero target velocity
             # -- desired end-effector acceleration (spring damped system)
-            des_ee_acc_b = (
-                self._motion_p_gains_b @ pose_error_b.unsqueeze(-1)
-                + self._motion_d_gains_b @ velocity_error_b.unsqueeze(-1)
-            ).squeeze(-1)
+            des_ee_acc_b = self._motion_p_gains_b @ pose_error_b.unsqueeze(
+                -1
+            ) + self._motion_d_gains_b @ velocity_error_b.unsqueeze(-1)
             # -- inertial compensation
             if self.cfg.inertial_compensation:
                 # check input is provided
@@ -403,21 +402,19 @@ class OperationalSpaceController:
                     os_mass_matrix_pos = torch.inverse(jacobian_b[:, 0:3] @ mass_matrix_inv @ jacobian_b[:, 0:3].mT)
                     os_mass_matrix_ori = torch.inverse(jacobian_b[:, 3:6] @ mass_matrix_inv @ jacobian_b[:, 3:6].mT)
                     # (Generalized) operational space command forces (from pseudo-dynamics)
-                    decoupled_command_force_b = (os_mass_matrix_pos @ des_ee_acc_b[:, 0:3].unsqueeze(-1)).squeeze(-1)
-                    decoupled_command_torque_b = (os_mass_matrix_ori @ des_ee_acc_b[:, 3:6].unsqueeze(-1)).squeeze(-1)
-                    os_command_forces_b = torch.cat([decoupled_command_force_b, decoupled_command_torque_b], dim=-1)
+                    decoupled_command_force_b = os_mass_matrix_pos @ des_ee_acc_b[:, 0:3]
+                    decoupled_command_torque_b = os_mass_matrix_ori @ des_ee_acc_b[:, 3:6]
+                    os_command_forces_b = torch.cat([decoupled_command_force_b, decoupled_command_torque_b], dim=1)
                 else:
                     # coupled dynamics
                     os_mass_matrix_full = torch.inverse(jacobian_b @ mass_matrix_inv @ jacobian_b.mT)
                     # (Generalized) operational space command forces
-                    os_command_forces_b = (os_mass_matrix_full @ des_ee_acc_b.unsqueeze(-1)).squeeze(-1)
+                    os_command_forces_b = os_mass_matrix_full @ des_ee_acc_b
             else:
                 # task-space impedance control: command forces = \ddot(x_des)
                 os_command_forces_b = des_ee_acc_b
             # -- joint-space commands
-            joint_efforts += (
-                jacobian_b.mT @ self._selection_matrix_motion_b @ os_command_forces_b.unsqueeze(-1)
-            ).squeeze(-1)
+            joint_efforts += (jacobian_b.mT @ self._selection_matrix_motion_b @ os_command_forces_b).squeeze(-1)
 
         # compute joint efforts for contact wrench/force control
         if self.desired_ee_wrench_b is not None:
@@ -427,21 +424,20 @@ class OperationalSpaceController:
                 if current_ee_force_b is None:
                     raise ValueError("Current end-effector force is required for closed-loop force control.")
                 # We can only measure the force component at the contact, so only apply the feedback for only the force
-                # component, keep the torque component open loop
+                # component, keep the control of moment components open loop
                 self._ee_contact_wrench_b[:, 0:3] = current_ee_force_b
                 self._ee_contact_wrench_b[:, 3:6] = self.desired_ee_wrench_b[:, 3:6]
-                # closed-loop control
-                os_contact_wrench_command_b = self.desired_ee_wrench_b + (
-                    self._contact_wrench_p_gains_b
-                    @ (self.desired_ee_wrench_b - self._ee_contact_wrench_b).unsqueeze(-1)
-                ).squeeze(-1)
+                # closed-loop control with feedforward term
+                os_contact_wrench_command_b = self.desired_ee_wrench_b.unsqueeze(
+                    -1
+                ) + self._contact_wrench_p_gains_b @ (self.desired_ee_wrench_b - self._ee_contact_wrench_b).unsqueeze(
+                    -1
+                )
             else:
                 # open-loop control
-                os_contact_wrench_command_b = self.desired_ee_wrench_b
+                os_contact_wrench_command_b = self.desired_ee_wrench_b.unsqueeze(-1)
             # -- joint-space commands
-            joint_efforts += (
-                jacobian_b.mT @ self._selection_matrix_force_b @ os_contact_wrench_command_b.unsqueeze(-1)
-            ).squeeze(-1)
+            joint_efforts += (jacobian_b.mT @ self._selection_matrix_force_b @ os_contact_wrench_command_b).squeeze(-1)
 
         # add gravity compensation (bias correction)
         if self.cfg.gravity_compensation:
