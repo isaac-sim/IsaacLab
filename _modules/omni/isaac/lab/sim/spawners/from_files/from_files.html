@@ -646,16 +646,11 @@ document.write(`
 
     <span class="c1"># Scale only the mesh</span>
     <span class="c1"># Warning: This is specific to the default grid plane asset.</span>
-    <span class="k">if</span> <span class="n">prim_utils</span><span class="o">.</span><span class="n">is_prim_path_valid</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">/Enviroment&quot;</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">prim_utils</span><span class="o">.</span><span class="n">is_prim_path_valid</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">/Environment&quot;</span><span class="p">):</span>
         <span class="c1"># compute scale from size</span>
         <span class="n">scale</span> <span class="o">=</span> <span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">size</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">/</span> <span class="mf">100.0</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">size</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="mf">100.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span>
         <span class="c1"># apply scale to the mesh</span>
-        <span class="n">omni</span><span class="o">.</span><span class="n">kit</span><span class="o">.</span><span class="n">commands</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-            <span class="s2">&quot;ChangeProperty&quot;</span><span class="p">,</span>
-            <span class="n">prop_path</span><span class="o">=</span><span class="n">Sdf</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">/Enviroment.xformOp:scale&quot;</span><span class="p">),</span>
-            <span class="n">value</span><span class="o">=</span><span class="n">scale</span><span class="p">,</span>
-            <span class="n">prev</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-        <span class="p">)</span>
+        <span class="n">prim_utils</span><span class="o">.</span><span class="n">set_prim_property</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">/Environment&quot;</span><span class="p">,</span> <span class="s2">&quot;xformOp:scale&quot;</span><span class="p">,</span> <span class="n">scale</span><span class="p">)</span>
 
     <span class="c1"># Change the color of the plane</span>
     <span class="c1"># Warning: This is specific to the default grid plane asset.</span>
