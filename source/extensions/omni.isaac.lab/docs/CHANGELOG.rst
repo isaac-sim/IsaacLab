@@ -31,7 +31,6 @@ Added
 * Added :meth:`grab_images` to be able to use images for an observation term in manager-based environments.
 
 
-
 0.24.14 (2024-09-20)
 ~~~~~~~~~~~~~~~~~~~~
 
