@@ -60,6 +60,7 @@ class ContainerInterface:
 
         # keep the environment variables from the current environment
         self.environ = os.environ
+        
 
         # resolve the image extension through the passed yamls and envs
         self._resolve_image_extension(yamls, envs)
@@ -137,6 +138,7 @@ class ContainerInterface:
         """
         if self.is_container_running():
             print(f"[INFO] Entering the existing '{self.container_name}' container in a bash session...\n")
+            print(os.environ['dis'])
             subprocess.run([
                 "docker",
                 "exec",

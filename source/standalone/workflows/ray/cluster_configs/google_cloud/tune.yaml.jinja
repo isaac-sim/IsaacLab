@@ -3,7 +3,6 @@
 # Delete `kubectl delete -f tune.yaml`.
 # Jinja is used for templating here as full helm setup seems overkill here
 # Reminder to self: use built in hydra stuff
-
 apiVersion: ray.io/v1alpha1
 kind: RayCluster
 metadata:
@@ -18,27 +17,27 @@ spec:
     imagePullPolicy: Always
     securityContext: {}
     envFrom: []
+  
   headGroupSpec:
     rayStartParams:
       block: "true"
       dashboard-host: 0.0.0.0
-      dashboard-port: "8265"            # Port for the Ray dashboard
-      node-ip-address: "0.0.0.0"        # Listen on all network interfaces for worker connections
+      dashboard-port: "8265"            
+      node-ip-address: "0.0.0.0"        
       port: "6379"
       include-dashboard: "true"
       ray-debugger-external: "true"
       object-manager-port: "8076"
       redis-password: "{{ redis_password }}"
-      # this prevents tasks from being scheduled on the head pod, which minimizes crashes of the whole cluster
       num-gpus: "0"
       num-cpus: "0"
     headService:
       apiVersion: v1
       kind: Service
       metadata:
-        name: head
+        name: {{ name }}-head
       spec:
-        type: LoadBalancer # allows us to not use port-forwards to access the cluster
+        type: LoadBalancer
     template:
       metadata:
         labels:
@@ -49,23 +48,23 @@ spec:
         serviceAccountName: {{ service_account_name }}
         affinity: {}
         securityContext:
-          fsGroup: 100 # ray gid is 100, this allows it to access the ephemeral storage
+          fsGroup: 100 
         containers:
           - env:
               - name: RAY_memory_monitor_refresh_ms
                 value: "0"
-              - name: RAY_GRAFANA_IFRAME_HOST # for metrics dashboard
+              - name: RAY_GRAFANA_IFRAME_HOST 
                 value: http://127.0.0.1:3000
-              - name: RAY_GRAFANA_HOST # for metrics dashboard
+              - name: RAY_GRAFANA_HOST 
                 value: http://prometheus-grafana.prometheus.svc:80
-              - name: RAY_PROMETHEUS_HOST # for metrics dashboard
+              - name: RAY_PROMETHEUS_HOST 
                 value: http://prometheus-kube-prometheus-prometheus.prometheus.svc:9090
-              - name: DISPLAY # virtual display for sim
+              - name: DISPLAY 
                 value: :1
             image: {{ image }}
             imagePullPolicy: Always
             name: ray-head
-            resources: # using a full cpu-only node for the head pod
+            resources:
               limits:
                 cpu: "{{ num_head_cpu }}"
                 memory: {{ head_ram_gb }}G
@@ -77,8 +76,8 @@ spec:
             securityContext: {}
             volumeMounts:
               - mountPath: /tmp/ray
-                name: ray-logs #TODO: Maybe don't install ray and just add it as dep to image
-            command: ["/bin/bash", "-c", "pip3 install ray && ray start --head --port=6379 --object-manager-port=8076 --dashboard-host=0.0.0.0 --dashboard-port=8265 --redis-password={{ redis_password }}"]
+                name: ray-logs
+            command: ["/bin/bash", "-c", "ray start --head --port=6379 --object-manager-port=8076 --dashboard-host=0.0.0.0 --dashboard-port=8265 --include-dashboard=true --redis-password={{ redis_password }} && tail -f /dev/null"]
           - image: fluent/fluent-bit:1.9.6
             name: fluentbit
             resources:
@@ -121,15 +120,19 @@ spec:
           serviceAccountName: {{ service_account_name }}
           affinity: {}
           securityContext:
-            fsGroup: 100 # allow access to ephemeral server
+            fsGroup: 100 
           containers:
-            - env: []
+            - env:
+              - name: NVIDIA_VISIBLE_DEVICES
+                value: "all"
+              - name: NVIDIA_DRIVER_CAPABILITIES
+                value: "compute,utility"
               image: {{ image }}
               imagePullPolicy: Always
               name: ray-worker
-              resources: # fitting one pod per node
+              resources:
                 limits:
-                  cpu: "{{ cpu_per_worker }}" # allowing for overhead of 2 cpus
+                  cpu: "{{ cpu_per_worker }}"
                   memory: {{ worker_ram_gb }}G
                   nvidia.com/gpu: "{{ gpu_per_worker }}"
                 requests:
@@ -140,7 +143,7 @@ spec:
               volumeMounts:
                 - mountPath: /tmp/ray
                   name: ray-logs
-              command: ["/bin/bash", "-c", "pip3 install ray && ray start --address='ray://head.{{ namespace }}.svc.cluster.local:6379' --redis-password={{ redis_password }}"]
+              command: ["/bin/bash", "-c", "ray start --address='{{ name }}-head.{{ namespace }}.svc.cluster.local:6379' --redis-password={{ redis_password }} && tail -f /dev/null"]
             - image: fluent/fluent-bit:1.9.6
               name: fluentbit
               resources:
@@ -155,7 +158,7 @@ spec:
                   name: ray-logs
           imagePullSecrets: []
           nodeSelector:
-            cloud.google.com/gke-accelerator: {{ worker_accelerator }} nvidia-l4
+            cloud.google.com/gke-accelerator: {{ worker_accelerator }}
             iam.gke.io/gke-metadata-server-enabled: "true"
           tolerations:
             - key: "nvidia.com/gpu"

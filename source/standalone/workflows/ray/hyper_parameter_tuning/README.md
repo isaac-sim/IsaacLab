@@ -25,6 +25,8 @@ On your cloud provider of choice, configure the following
 
 - An container registry (NGC, GCS artifact registry, AWS ECR, etc) where you have
 	an Isaac Lab image that you have pull with the correct permissions
+- Modify the container so that it includes ray
+	(RUN ${ISAACLAB_PATH}/_isaac_sim/kit/python/bin/python3 -m pip install ray && ln -s /isaac-sim/kit/python/bin/ray /usr/local/bin/ray)
 - A storage (GCS bucket, AWS S3 bucket, etc)
 - A kubernetes Cluster with a GPU-passthrough enabled node-pool that has access to
 	your container registry/storage (likely has to be on same region/VPC), and has the Ray operator enabled
@@ -68,8 +70,8 @@ As a result of using Ray, running experiments in the cloud and locally have very
 6. When you have completed your hyperparameter tune sweep job, stop the cluster
 	``kubectl delete raycluster <CLUSTER_NAME> -n <NAMESPACE>``
 
-
-
+https://docs.ray.io/en/latest/cluster/kubernetes/k8s-ecosystem/ingress.html#kuberay-gke-ingress
+ kubectl get svc
 ###
 Notes
 https://discuss.ray.io/t/how-to-define-fcnet-hiddens-size-and-number-of-layers-in-rllib-tune/6504/18

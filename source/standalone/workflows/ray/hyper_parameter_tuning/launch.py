@@ -147,11 +147,11 @@ def parse_args() -> argparse.Namespace:
     arg_parser.add_argument(
         "--num_head_cpu",
         type=float,  # to be able to schedule partial CPU heads
-        default=1,
+        default=4,
         help="The number of CPUs to give the Ray head.",
     )
 
-    arg_parser.add_argument("--head_ram_gb", type=int, default=1, help="How many gigs of ram to give the Ray head")
+    arg_parser.add_argument("--head_ram_gb", type=int, default=4, help="How many gigs of ram to give the Ray head")
 
     return arg_parser.parse_args()
 
