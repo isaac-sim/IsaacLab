@@ -154,12 +154,15 @@ class Imu(SensorBase):
         self._data.pos_w[env_ids] = pos_w + math_utils.quat_rotate(quat_w, self._offset_pos_b)
         self._data.quat_w[env_ids] = math_utils.quat_mul(quat_w, self._offset_quat_b)
 
+        # get the offset from COM to link origin
+        com_pos_b = self._view.get_coms().to(self.device).split([3, 4], dim=-1)[0]
+
         # obtain the velocities of the link COM
         lin_vel_w, ang_vel_w = self._view.get_velocities()[env_ids].split([3, 3], dim=-1)
         # if an offset is present or the COM does not agree with the link origin, the linear velocity has to be
         # transformed taking the angular velocity into account
         lin_vel_w += torch.linalg.cross(
-            ang_vel_w, math_utils.quat_rotate(quat_w, self._offset_pos_b - self._com_pos_b[env_ids]), dim=-1
+            ang_vel_w, math_utils.quat_rotate(quat_w, self._offset_pos_b - com_pos_b[env_ids]), dim=-1
         )
 
         # NOTE: currently the physx API generates errors when using small masses, will switch back to it once fixed
@@ -200,8 +203,6 @@ class Imu(SensorBase):
         # store sensor offset transformation
         self._offset_pos_b = torch.tensor(list(self.cfg.offset.pos), device=self._device).repeat(self._view.count, 1)
         self._offset_quat_b = torch.tensor(list(self.cfg.offset.rot), device=self._device).repeat(self._view.count, 1)
-        # get the offset from COM to link origin
-        self._com_pos_b = self._view.get_coms().to(self.device).split([3, 4], dim=-1)[0]
         # set gravity bias
         self._gravity_bias_w = torch.tensor(list(self.cfg.gravity_bias), device=self._device).repeat(
             self._view.count, 1
