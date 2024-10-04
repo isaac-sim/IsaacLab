@@ -261,7 +261,7 @@ from omni.isaac.lab.sensors import (
     TiledCameraCfg,
     patterns,
 )
-from omni.isaac.lab.utils.math import convert_perspective_depth_to_orthogonal_depth, unproject_depth
+from omni.isaac.lab.utils.math import orthogonalize_perspective_depth, unproject_depth
 
 from omni.isaac.lab_tasks.utils import load_cfg_from_registry
 
@@ -677,9 +677,8 @@ def run_simulator(
                         depth = camera.data.output[data_type]
                         depth_images[data_label + "_raw"] = depth
                         if perspective_depth_predicate(data_type) and convert_depth_to_camera_to_image_plane:
-                            depth = convert_perspective_depth_to_orthogonal_depth(
-                                perspective_depth=camera.data.output[data_type],
-                                intrinsics=camera.data.intrinsic_matrices,
+                            depth = orthogonalize_perspective_depth(
+                                camera.data.output[data_type], camera.data.intrinsic_matrices
                             )
                             depth_images[data_label + "_undistorted"] = depth
 
