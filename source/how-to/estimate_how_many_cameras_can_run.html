@@ -57,7 +57,7 @@
     <link rel="prev" title="Saving rendered images and 3D re-projection" href="save_camera_output.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Oct 03, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 04, 2024"/>
   </head>
   
   
@@ -854,7 +854,7 @@ directory.</p>
 <span class="linenos">261</span>    <span class="n">TiledCameraCfg</span><span class="p">,</span>
 <span class="linenos">262</span>    <span class="n">patterns</span><span class="p">,</span>
 <span class="linenos">263</span><span class="p">)</span>
-<span class="linenos">264</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.utils.math</span> <span class="kn">import</span> <span class="n">convert_perspective_depth_to_orthogonal_depth</span><span class="p">,</span> <span class="n">unproject_depth</span>
+<span class="linenos">264</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.utils.math</span> <span class="kn">import</span> <span class="n">orthogonalize_perspective_depth</span><span class="p">,</span> <span class="n">unproject_depth</span>
 <span class="linenos">265</span>
 <span class="linenos">266</span><span class="kn">from</span> <span class="nn">omni.isaac.lab_tasks.utils</span> <span class="kn">import</span> <span class="n">load_cfg_from_registry</span>
 <span class="linenos">267</span>
@@ -1270,196 +1270,195 @@ directory.</p>
 <span class="linenos">677</span>                        <span class="n">depth</span> <span class="o">=</span> <span class="n">camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">output</span><span class="p">[</span><span class="n">data_type</span><span class="p">]</span>
 <span class="linenos">678</span>                        <span class="n">depth_images</span><span class="p">[</span><span class="n">data_label</span> <span class="o">+</span> <span class="s2">&quot;_raw&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">depth</span>
 <span class="linenos">679</span>                        <span class="k">if</span> <span class="n">perspective_depth_predicate</span><span class="p">(</span><span class="n">data_type</span><span class="p">)</span> <span class="ow">and</span> <span class="n">convert_depth_to_camera_to_image_plane</span><span class="p">:</span>
-<span class="linenos">680</span>                            <span class="n">depth</span> <span class="o">=</span> <span class="n">convert_perspective_depth_to_orthogonal_depth</span><span class="p">(</span>
-<span class="linenos">681</span>                                <span class="n">perspective_depth</span><span class="o">=</span><span class="n">camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">output</span><span class="p">[</span><span class="n">data_type</span><span class="p">],</span>
-<span class="linenos">682</span>                                <span class="n">intrinsics</span><span class="o">=</span><span class="n">camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">intrinsic_matrices</span><span class="p">,</span>
-<span class="linenos">683</span>                            <span class="p">)</span>
-<span class="linenos">684</span>                            <span class="n">depth_images</span><span class="p">[</span><span class="n">data_label</span> <span class="o">+</span> <span class="s2">&quot;_undistorted&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">depth</span>
-<span class="linenos">685</span>
-<span class="linenos">686</span>                        <span class="n">pointcloud</span> <span class="o">=</span> <span class="n">unproject_depth</span><span class="p">(</span><span class="n">depth</span><span class="o">=</span><span class="n">depth</span><span class="p">,</span> <span class="n">intrinsics</span><span class="o">=</span><span class="n">camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">intrinsic_matrices</span><span class="p">)</span>
-<span class="linenos">687</span>                        <span class="n">clouds</span><span class="p">[</span><span class="n">data_label</span><span class="p">]</span> <span class="o">=</span> <span class="n">pointcloud</span>
-<span class="linenos">688</span>                    <span class="k">else</span><span class="p">:</span>  <span class="c1"># rgb image, just save it</span>
-<span class="linenos">689</span>                        <span class="n">image</span> <span class="o">=</span> <span class="n">camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">output</span><span class="p">[</span><span class="n">data_type</span><span class="p">]</span>
-<span class="linenos">690</span>                        <span class="n">images</span><span class="p">[</span><span class="n">data_label</span><span class="p">]</span> <span class="o">=</span> <span class="n">image</span>
-<span class="linenos">691</span>
-<span class="linenos">692</span>        <span class="c1"># End timing for the step</span>
-<span class="linenos">693</span>        <span class="n">step_end_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
-<span class="linenos">694</span>        <span class="n">sim_step_time</span> <span class="o">+=</span> <span class="n">step_end_time</span> <span class="o">-</span> <span class="n">step_start_time</span>
-<span class="linenos">695</span>
-<span class="linenos">696</span>        <span class="k">if</span> <span class="n">timestep</span> <span class="o">&gt;</span> <span class="n">warm_start_length</span><span class="p">:</span>
-<span class="linenos">697</span>            <span class="n">get_utilization_percentages</span><span class="p">(</span><span class="n">reset</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<span class="linenos">698</span>            <span class="n">total_time</span> <span class="o">+=</span> <span class="n">step_end_time</span> <span class="o">-</span> <span class="n">step_start_time</span>
-<span class="linenos">699</span>            <span class="n">valid_timesteps</span> <span class="o">+=</span> <span class="mi">1</span>
-<span class="linenos">700</span>
-<span class="linenos">701</span>        <span class="n">timestep</span> <span class="o">+=</span> <span class="mi">1</span>
-<span class="linenos">702</span>
-<span class="linenos">703</span>    <span class="c1"># Calculate average timings</span>
-<span class="linenos">704</span>    <span class="k">if</span> <span class="n">valid_timesteps</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
-<span class="linenos">705</span>        <span class="n">avg_timestep_duration</span> <span class="o">=</span> <span class="n">total_time</span> <span class="o">/</span> <span class="n">valid_timesteps</span>
-<span class="linenos">706</span>        <span class="n">avg_sim_step_duration</span> <span class="o">=</span> <span class="n">sim_step_time</span> <span class="o">/</span> <span class="n">experiment_length</span>
-<span class="linenos">707</span>    <span class="k">else</span><span class="p">:</span>
-<span class="linenos">708</span>        <span class="n">avg_timestep_duration</span> <span class="o">=</span> <span class="mf">0.0</span>
-<span class="linenos">709</span>        <span class="n">avg_sim_step_duration</span> <span class="o">=</span> <span class="mf">0.0</span>
-<span class="linenos">710</span>
-<span class="linenos">711</span>    <span class="c1"># Package timing analytics in a dictionary</span>
-<span class="linenos">712</span>    <span class="n">timing_analytics</span> <span class="o">=</span> <span class="p">{</span>
-<span class="linenos">713</span>        <span class="s2">&quot;average_timestep_duration&quot;</span><span class="p">:</span> <span class="n">avg_timestep_duration</span><span class="p">,</span>
-<span class="linenos">714</span>        <span class="s2">&quot;average_sim_step_duration&quot;</span><span class="p">:</span> <span class="n">avg_sim_step_duration</span><span class="p">,</span>
-<span class="linenos">715</span>        <span class="s2">&quot;total_simulation_time&quot;</span><span class="p">:</span> <span class="n">sim_step_time</span><span class="p">,</span>
-<span class="linenos">716</span>        <span class="s2">&quot;total_experiment_duration&quot;</span><span class="p">:</span> <span class="n">sim_step_time</span><span class="p">,</span>
-<span class="linenos">717</span>    <span class="p">}</span>
-<span class="linenos">718</span>
-<span class="linenos">719</span>    <span class="n">system_utilization_analytics</span> <span class="o">=</span> <span class="n">get_utilization_percentages</span><span class="p">()</span>
-<span class="linenos">720</span>
-<span class="linenos">721</span>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;--- Benchmark Results ---&quot;</span><span class="p">)</span>
-<span class="linenos">722</span>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Average timestep duration: </span><span class="si">{</span><span class="n">avg_timestep_duration</span><span class="si">:</span><span class="s2">.6f</span><span class="si">}</span><span class="s2"> seconds&quot;</span><span class="p">)</span>
-<span class="linenos">723</span>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Average simulation step duration: </span><span class="si">{</span><span class="n">avg_sim_step_duration</span><span class="si">:</span><span class="s2">.6f</span><span class="si">}</span><span class="s2"> seconds&quot;</span><span class="p">)</span>
-<span class="linenos">724</span>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Total simulation time: </span><span class="si">{</span><span class="n">sim_step_time</span><span class="si">:</span><span class="s2">.6f</span><span class="si">}</span><span class="s2"> seconds&quot;</span><span class="p">)</span>
-<span class="linenos">725</span>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">System Utilization Statistics:&quot;</span><span class="p">)</span>
-<span class="linenos">726</span>    <span class="nb">print</span><span class="p">(</span>
-<span class="linenos">727</span>        <span class="sa">f</span><span class="s2">&quot;| CPU:</span><span class="si">{</span><span class="n">system_utilization_analytics</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">% | &quot;</span>
-<span class="linenos">728</span>        <span class="sa">f</span><span class="s2">&quot;RAM:</span><span class="si">{</span><span class="n">system_utilization_analytics</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2">% | &quot;</span>
-<span class="linenos">729</span>        <span class="sa">f</span><span class="s2">&quot;GPU Compute:</span><span class="si">{</span><span class="n">system_utilization_analytics</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="si">}</span><span class="s2">% | &quot;</span>
-<span class="linenos">730</span>        <span class="sa">f</span><span class="s2">&quot; GPU Memory: </span><span class="si">{</span><span class="n">system_utilization_analytics</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">% |&quot;</span>
-<span class="linenos">731</span>    <span class="p">)</span>
-<span class="linenos">732</span>
-<span class="linenos">733</span>    <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;timing_analytics&quot;</span><span class="p">:</span> <span class="n">timing_analytics</span><span class="p">,</span> <span class="s2">&quot;system_utilization_analytics&quot;</span><span class="p">:</span> <span class="n">system_utilization_analytics</span><span class="p">}</span>
+<span class="linenos">680</span>                            <span class="n">depth</span> <span class="o">=</span> <span class="n">orthogonalize_perspective_depth</span><span class="p">(</span>
+<span class="linenos">681</span>                                <span class="n">camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">output</span><span class="p">[</span><span class="n">data_type</span><span class="p">],</span> <span class="n">camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">intrinsic_matrices</span>
+<span class="linenos">682</span>                            <span class="p">)</span>
+<span class="linenos">683</span>                            <span class="n">depth_images</span><span class="p">[</span><span class="n">data_label</span> <span class="o">+</span> <span class="s2">&quot;_undistorted&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">depth</span>
+<span class="linenos">684</span>
+<span class="linenos">685</span>                        <span class="n">pointcloud</span> <span class="o">=</span> <span class="n">unproject_depth</span><span class="p">(</span><span class="n">depth</span><span class="o">=</span><span class="n">depth</span><span class="p">,</span> <span class="n">intrinsics</span><span class="o">=</span><span class="n">camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">intrinsic_matrices</span><span class="p">)</span>
+<span class="linenos">686</span>                        <span class="n">clouds</span><span class="p">[</span><span class="n">data_label</span><span class="p">]</span> <span class="o">=</span> <span class="n">pointcloud</span>
+<span class="linenos">687</span>                    <span class="k">else</span><span class="p">:</span>  <span class="c1"># rgb image, just save it</span>
+<span class="linenos">688</span>                        <span class="n">image</span> <span class="o">=</span> <span class="n">camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">output</span><span class="p">[</span><span class="n">data_type</span><span class="p">]</span>
+<span class="linenos">689</span>                        <span class="n">images</span><span class="p">[</span><span class="n">data_label</span><span class="p">]</span> <span class="o">=</span> <span class="n">image</span>
+<span class="linenos">690</span>
+<span class="linenos">691</span>        <span class="c1"># End timing for the step</span>
+<span class="linenos">692</span>        <span class="n">step_end_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+<span class="linenos">693</span>        <span class="n">sim_step_time</span> <span class="o">+=</span> <span class="n">step_end_time</span> <span class="o">-</span> <span class="n">step_start_time</span>
+<span class="linenos">694</span>
+<span class="linenos">695</span>        <span class="k">if</span> <span class="n">timestep</span> <span class="o">&gt;</span> <span class="n">warm_start_length</span><span class="p">:</span>
+<span class="linenos">696</span>            <span class="n">get_utilization_percentages</span><span class="p">(</span><span class="n">reset</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="linenos">697</span>            <span class="n">total_time</span> <span class="o">+=</span> <span class="n">step_end_time</span> <span class="o">-</span> <span class="n">step_start_time</span>
+<span class="linenos">698</span>            <span class="n">valid_timesteps</span> <span class="o">+=</span> <span class="mi">1</span>
+<span class="linenos">699</span>
+<span class="linenos">700</span>        <span class="n">timestep</span> <span class="o">+=</span> <span class="mi">1</span>
+<span class="linenos">701</span>
+<span class="linenos">702</span>    <span class="c1"># Calculate average timings</span>
+<span class="linenos">703</span>    <span class="k">if</span> <span class="n">valid_timesteps</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+<span class="linenos">704</span>        <span class="n">avg_timestep_duration</span> <span class="o">=</span> <span class="n">total_time</span> <span class="o">/</span> <span class="n">valid_timesteps</span>
+<span class="linenos">705</span>        <span class="n">avg_sim_step_duration</span> <span class="o">=</span> <span class="n">sim_step_time</span> <span class="o">/</span> <span class="n">experiment_length</span>
+<span class="linenos">706</span>    <span class="k">else</span><span class="p">:</span>
+<span class="linenos">707</span>        <span class="n">avg_timestep_duration</span> <span class="o">=</span> <span class="mf">0.0</span>
+<span class="linenos">708</span>        <span class="n">avg_sim_step_duration</span> <span class="o">=</span> <span class="mf">0.0</span>
+<span class="linenos">709</span>
+<span class="linenos">710</span>    <span class="c1"># Package timing analytics in a dictionary</span>
+<span class="linenos">711</span>    <span class="n">timing_analytics</span> <span class="o">=</span> <span class="p">{</span>
+<span class="linenos">712</span>        <span class="s2">&quot;average_timestep_duration&quot;</span><span class="p">:</span> <span class="n">avg_timestep_duration</span><span class="p">,</span>
+<span class="linenos">713</span>        <span class="s2">&quot;average_sim_step_duration&quot;</span><span class="p">:</span> <span class="n">avg_sim_step_duration</span><span class="p">,</span>
+<span class="linenos">714</span>        <span class="s2">&quot;total_simulation_time&quot;</span><span class="p">:</span> <span class="n">sim_step_time</span><span class="p">,</span>
+<span class="linenos">715</span>        <span class="s2">&quot;total_experiment_duration&quot;</span><span class="p">:</span> <span class="n">sim_step_time</span><span class="p">,</span>
+<span class="linenos">716</span>    <span class="p">}</span>
+<span class="linenos">717</span>
+<span class="linenos">718</span>    <span class="n">system_utilization_analytics</span> <span class="o">=</span> <span class="n">get_utilization_percentages</span><span class="p">()</span>
+<span class="linenos">719</span>
+<span class="linenos">720</span>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;--- Benchmark Results ---&quot;</span><span class="p">)</span>
+<span class="linenos">721</span>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Average timestep duration: </span><span class="si">{</span><span class="n">avg_timestep_duration</span><span class="si">:</span><span class="s2">.6f</span><span class="si">}</span><span class="s2"> seconds&quot;</span><span class="p">)</span>
+<span class="linenos">722</span>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Average simulation step duration: </span><span class="si">{</span><span class="n">avg_sim_step_duration</span><span class="si">:</span><span class="s2">.6f</span><span class="si">}</span><span class="s2"> seconds&quot;</span><span class="p">)</span>
+<span class="linenos">723</span>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Total simulation time: </span><span class="si">{</span><span class="n">sim_step_time</span><span class="si">:</span><span class="s2">.6f</span><span class="si">}</span><span class="s2"> seconds&quot;</span><span class="p">)</span>
+<span class="linenos">724</span>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">System Utilization Statistics:&quot;</span><span class="p">)</span>
+<span class="linenos">725</span>    <span class="nb">print</span><span class="p">(</span>
+<span class="linenos">726</span>        <span class="sa">f</span><span class="s2">&quot;| CPU:</span><span class="si">{</span><span class="n">system_utilization_analytics</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">% | &quot;</span>
+<span class="linenos">727</span>        <span class="sa">f</span><span class="s2">&quot;RAM:</span><span class="si">{</span><span class="n">system_utilization_analytics</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2">% | &quot;</span>
+<span class="linenos">728</span>        <span class="sa">f</span><span class="s2">&quot;GPU Compute:</span><span class="si">{</span><span class="n">system_utilization_analytics</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="si">}</span><span class="s2">% | &quot;</span>
+<span class="linenos">729</span>        <span class="sa">f</span><span class="s2">&quot; GPU Memory: </span><span class="si">{</span><span class="n">system_utilization_analytics</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">% |&quot;</span>
+<span class="linenos">730</span>    <span class="p">)</span>
+<span class="linenos">731</span>
+<span class="linenos">732</span>    <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;timing_analytics&quot;</span><span class="p">:</span> <span class="n">timing_analytics</span><span class="p">,</span> <span class="s2">&quot;system_utilization_analytics&quot;</span><span class="p">:</span> <span class="n">system_utilization_analytics</span><span class="p">}</span>
+<span class="linenos">733</span>
 <span class="linenos">734</span>
-<span class="linenos">735</span>
-<span class="linenos">736</span><span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
-<span class="linenos">737</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Main function.&quot;&quot;&quot;</span>
-<span class="linenos">738</span>    <span class="c1"># Load simulation context</span>
-<span class="linenos">739</span>    <span class="k">if</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">num_tiled_cameras</span> <span class="o">+</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">num_standard_cameras</span> <span class="o">+</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">num_ray_caster_cameras</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
-<span class="linenos">740</span>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;You must select at least one camera.&quot;</span><span class="p">)</span>
-<span class="linenos">741</span>    <span class="k">if</span> <span class="p">(</span>
-<span class="linenos">742</span>        <span class="p">(</span><span class="n">args_cli</span><span class="o">.</span><span class="n">num_tiled_cameras</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">num_standard_cameras</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span>
-<span class="linenos">743</span>        <span class="ow">or</span> <span class="p">(</span><span class="n">args_cli</span><span class="o">.</span><span class="n">num_ray_caster_cameras</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">num_standard_cameras</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span>
-<span class="linenos">744</span>        <span class="ow">or</span> <span class="p">(</span><span class="n">args_cli</span><span class="o">.</span><span class="n">num_ray_caster_cameras</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">num_tiled_cameras</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span>
-<span class="linenos">745</span>    <span class="p">):</span>
-<span class="linenos">746</span>        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[WARNING]: You have elected to use more than one camera type.&quot;</span><span class="p">)</span>
-<span class="linenos">747</span>        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[WARNING]: For a benchmark to be meaningful, use ONLY ONE camera type at a time.&quot;</span><span class="p">)</span>
-<span class="linenos">748</span>        <span class="nb">print</span><span class="p">(</span>
-<span class="linenos">749</span>            <span class="s2">&quot;[WARNING]: For example, if num_tiled_cameras=100, for a meaningful benchmark,&quot;</span>
-<span class="linenos">750</span>            <span class="s2">&quot;num_standard_cameras should be 0, and num_ray_caster_cameras should be 0&quot;</span>
-<span class="linenos">751</span>        <span class="p">)</span>
-<span class="linenos">752</span>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Benchmark one camera at a time.&quot;</span><span class="p">)</span>
-<span class="linenos">753</span>
-<span class="linenos">754</span>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Designing the scene&quot;</span><span class="p">)</span>
-<span class="linenos">755</span>    <span class="k">if</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">task</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-<span class="linenos">756</span>        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: No task environment provided, creating random scene.&quot;</span><span class="p">)</span>
-<span class="linenos">757</span>        <span class="n">sim_cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationCfg</span><span class="p">(</span><span class="n">device</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
-<span class="linenos">758</span>        <span class="n">sim</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">(</span><span class="n">sim_cfg</span><span class="p">)</span>
-<span class="linenos">759</span>        <span class="c1"># Set main camera</span>
-<span class="linenos">760</span>        <span class="n">sim</span><span class="o">.</span><span class="n">set_camera_view</span><span class="p">([</span><span class="mf">2.5</span><span class="p">,</span> <span class="mf">2.5</span><span class="p">,</span> <span class="mf">2.5</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">])</span>
-<span class="linenos">761</span>        <span class="n">scene_entities</span> <span class="o">=</span> <span class="n">design_scene</span><span class="p">(</span>
-<span class="linenos">762</span>            <span class="n">num_tiled_cams</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">num_tiled_cameras</span><span class="p">,</span>
-<span class="linenos">763</span>            <span class="n">num_standard_cams</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">num_standard_cameras</span><span class="p">,</span>
-<span class="linenos">764</span>            <span class="n">num_ray_caster_cams</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">num_ray_caster_cameras</span><span class="p">,</span>
-<span class="linenos">765</span>            <span class="n">tiled_camera_data_types</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">tiled_camera_data_types</span><span class="p">,</span>
-<span class="linenos">766</span>            <span class="n">standard_camera_data_types</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">standard_camera_data_types</span><span class="p">,</span>
-<span class="linenos">767</span>            <span class="n">ray_caster_camera_data_types</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">ray_caster_camera_data_types</span><span class="p">,</span>
-<span class="linenos">768</span>            <span class="n">height</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">height</span><span class="p">,</span>
-<span class="linenos">769</span>            <span class="n">width</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">width</span><span class="p">,</span>
-<span class="linenos">770</span>            <span class="n">num_objects</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">num_objects</span><span class="p">,</span>
-<span class="linenos">771</span>            <span class="n">mesh_prim_paths</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">ray_caster_visible_mesh_prim_paths</span><span class="p">,</span>
-<span class="linenos">772</span>        <span class="p">)</span>
-<span class="linenos">773</span>        <span class="c1"># Play simulator</span>
-<span class="linenos">774</span>        <span class="n">sim</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
-<span class="linenos">775</span>        <span class="c1"># Now we are ready!</span>
-<span class="linenos">776</span>        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Setup complete...&quot;</span><span class="p">)</span>
-<span class="linenos">777</span>        <span class="c1"># Run simulator</span>
-<span class="linenos">778</span>        <span class="n">run_simulator</span><span class="p">(</span>
-<span class="linenos">779</span>            <span class="n">sim</span><span class="o">=</span><span class="n">sim</span><span class="p">,</span>
-<span class="linenos">780</span>            <span class="n">scene_entities</span><span class="o">=</span><span class="n">scene_entities</span><span class="p">,</span>
-<span class="linenos">781</span>            <span class="n">warm_start_length</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">warm_start_length</span><span class="p">,</span>
-<span class="linenos">782</span>            <span class="n">experiment_length</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">experiment_length</span><span class="p">,</span>
-<span class="linenos">783</span>            <span class="n">tiled_camera_data_types</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">tiled_camera_data_types</span><span class="p">,</span>
-<span class="linenos">784</span>            <span class="n">standard_camera_data_types</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">standard_camera_data_types</span><span class="p">,</span>
-<span class="linenos">785</span>            <span class="n">ray_caster_camera_data_types</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">ray_caster_camera_data_types</span><span class="p">,</span>
-<span class="linenos">786</span>            <span class="n">convert_depth_to_camera_to_image_plane</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">convert_depth_to_camera_to_image_plane</span><span class="p">,</span>
-<span class="linenos">787</span>        <span class="p">)</span>
-<span class="linenos">788</span>    <span class="k">else</span><span class="p">:</span>
-<span class="linenos">789</span>        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Using known task environment, injecting cameras.&quot;</span><span class="p">)</span>
-<span class="linenos">790</span>        <span class="n">autotune_iter</span> <span class="o">=</span> <span class="mi">0</span>
-<span class="linenos">791</span>        <span class="n">max_sys_util_thresh</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">]</span>
-<span class="linenos">792</span>        <span class="n">max_num_cams</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">args_cli</span><span class="o">.</span><span class="n">num_tiled_cameras</span><span class="p">,</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">num_standard_cameras</span><span class="p">,</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">num_ray_caster_cameras</span><span class="p">)</span>
-<span class="linenos">793</span>        <span class="n">cur_num_cams</span> <span class="o">=</span> <span class="n">max_num_cams</span>
-<span class="linenos">794</span>        <span class="n">cur_sys_util</span> <span class="o">=</span> <span class="n">max_sys_util_thresh</span>
-<span class="linenos">795</span>        <span class="n">interval</span> <span class="o">=</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">autotune_camera_count_interval</span>
-<span class="linenos">796</span>
-<span class="linenos">797</span>        <span class="k">if</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">autotune</span><span class="p">:</span>
-<span class="linenos">798</span>            <span class="n">max_sys_util_thresh</span> <span class="o">=</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">autotune_max_percentage_util</span>
-<span class="linenos">799</span>            <span class="n">max_num_cams</span> <span class="o">=</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">autotune_max_camera_count</span>
-<span class="linenos">800</span>            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Auto tuning until any of the following threshold are met&quot;</span><span class="p">)</span>
-<span class="linenos">801</span>            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;|CPU: </span><span class="si">{</span><span class="n">max_sys_util_thresh</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">% | RAM </span><span class="si">{</span><span class="n">max_sys_util_thresh</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2">% | GPU: </span><span class="si">{</span><span class="n">max_sys_util_thresh</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="si">}</span><span class="s2">% |&quot;</span><span class="p">)</span>
-<span class="linenos">802</span>            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[INFO]: Maximum number of cameras allowed: </span><span class="si">{</span><span class="n">max_num_cams</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-<span class="linenos">803</span>        <span class="c1"># Determine which camera is being tested...</span>
-<span class="linenos">804</span>        <span class="n">tiled_camera_cfg</span> <span class="o">=</span> <span class="n">create_tiled_camera_cfg</span><span class="p">(</span><span class="s2">&quot;tiled_camera&quot;</span><span class="p">)</span>
-<span class="linenos">805</span>        <span class="n">standard_camera_cfg</span> <span class="o">=</span> <span class="n">create_standard_camera_cfg</span><span class="p">(</span><span class="s2">&quot;standard_camera&quot;</span><span class="p">)</span>
-<span class="linenos">806</span>        <span class="n">ray_caster_camera_cfg</span> <span class="o">=</span> <span class="n">create_ray_caster_camera_cfg</span><span class="p">(</span><span class="s2">&quot;ray_caster_camera&quot;</span><span class="p">)</span>
-<span class="linenos">807</span>        <span class="n">camera_name_prefix</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
-<span class="linenos">808</span>        <span class="n">camera_creation_callable</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="linenos">809</span>        <span class="n">num_cams</span> <span class="o">=</span> <span class="mi">0</span>
-<span class="linenos">810</span>        <span class="k">if</span> <span class="n">tiled_camera_cfg</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<span class="linenos">811</span>            <span class="n">camera_name_prefix</span> <span class="o">=</span> <span class="s2">&quot;tiled_camera&quot;</span>
-<span class="linenos">812</span>            <span class="n">camera_creation_callable</span> <span class="o">=</span> <span class="n">create_tiled_camera_cfg</span>
-<span class="linenos">813</span>            <span class="n">num_cams</span> <span class="o">=</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">num_tiled_cameras</span>
-<span class="linenos">814</span>        <span class="k">elif</span> <span class="n">standard_camera_cfg</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<span class="linenos">815</span>            <span class="n">camera_name_prefix</span> <span class="o">=</span> <span class="s2">&quot;standard_camera&quot;</span>
-<span class="linenos">816</span>            <span class="n">camera_creation_callable</span> <span class="o">=</span> <span class="n">create_standard_camera_cfg</span>
-<span class="linenos">817</span>            <span class="n">num_cams</span> <span class="o">=</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">num_standard_cameras</span>
-<span class="linenos">818</span>        <span class="k">elif</span> <span class="n">ray_caster_camera_cfg</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<span class="linenos">819</span>            <span class="n">camera_name_prefix</span> <span class="o">=</span> <span class="s2">&quot;ray_caster_camera&quot;</span>
-<span class="linenos">820</span>            <span class="n">camera_creation_callable</span> <span class="o">=</span> <span class="n">create_ray_caster_camera_cfg</span>
-<span class="linenos">821</span>            <span class="n">num_cams</span> <span class="o">=</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">num_ray_caster_cameras</span>
-<span class="linenos">822</span>
-<span class="linenos">823</span>        <span class="k">while</span> <span class="p">(</span>
-<span class="linenos">824</span>            <span class="nb">all</span><span class="p">(</span><span class="n">cur</span> <span class="o">&lt;=</span> <span class="n">max_thresh</span> <span class="k">for</span> <span class="n">cur</span><span class="p">,</span> <span class="n">max_thresh</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">cur_sys_util</span><span class="p">,</span> <span class="n">max_sys_util_thresh</span><span class="p">))</span>
-<span class="linenos">825</span>            <span class="ow">and</span> <span class="n">cur_num_cams</span> <span class="o">&lt;=</span> <span class="n">max_num_cams</span>
-<span class="linenos">826</span>        <span class="p">):</span>
-<span class="linenos">827</span>            <span class="n">cur_num_cams</span> <span class="o">=</span> <span class="n">num_cams</span> <span class="o">+</span> <span class="n">interval</span> <span class="o">*</span> <span class="n">autotune_iter</span>
-<span class="linenos">828</span>            <span class="n">autotune_iter</span> <span class="o">+=</span> <span class="mi">1</span>
-<span class="linenos">829</span>
-<span class="linenos">830</span>            <span class="n">env</span> <span class="o">=</span> <span class="n">inject_cameras_into_task</span><span class="p">(</span>
-<span class="linenos">831</span>                <span class="n">task</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">task</span><span class="p">,</span>
-<span class="linenos">832</span>                <span class="n">num_cams</span><span class="o">=</span><span class="n">cur_num_cams</span><span class="p">,</span>
-<span class="linenos">833</span>                <span class="n">camera_name_prefix</span><span class="o">=</span><span class="n">camera_name_prefix</span><span class="p">,</span>
-<span class="linenos">834</span>                <span class="n">camera_creation_callable</span><span class="o">=</span><span class="n">camera_creation_callable</span><span class="p">,</span>
-<span class="linenos">835</span>                <span class="n">num_cameras_per_env</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">task_num_cameras_per_env</span><span class="p">,</span>
-<span class="linenos">836</span>            <span class="p">)</span>
-<span class="linenos">837</span>            <span class="n">env</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
-<span class="linenos">838</span>            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Testing with </span><span class="si">{</span><span class="n">cur_num_cams</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">camera_name_prefix</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-<span class="linenos">839</span>            <span class="n">analysis</span> <span class="o">=</span> <span class="n">run_simulator</span><span class="p">(</span>
-<span class="linenos">840</span>                <span class="n">sim</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-<span class="linenos">841</span>                <span class="n">scene_entities</span><span class="o">=</span><span class="n">env</span><span class="o">.</span><span class="n">unwrapped</span><span class="o">.</span><span class="n">scene</span><span class="p">,</span>
-<span class="linenos">842</span>                <span class="n">warm_start_length</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">warm_start_length</span><span class="p">,</span>
-<span class="linenos">843</span>                <span class="n">experiment_length</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">experiment_length</span><span class="p">,</span>
-<span class="linenos">844</span>                <span class="n">tiled_camera_data_types</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">tiled_camera_data_types</span><span class="p">,</span>
-<span class="linenos">845</span>                <span class="n">standard_camera_data_types</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">standard_camera_data_types</span><span class="p">,</span>
-<span class="linenos">846</span>                <span class="n">ray_caster_camera_data_types</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">ray_caster_camera_data_types</span><span class="p">,</span>
-<span class="linenos">847</span>                <span class="n">convert_depth_to_camera_to_image_plane</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">convert_depth_to_camera_to_image_plane</span><span class="p">,</span>
-<span class="linenos">848</span>                <span class="n">max_cameras_per_env</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">task_num_cameras_per_env</span><span class="p">,</span>
-<span class="linenos">849</span>                <span class="n">env</span><span class="o">=</span><span class="n">env</span><span class="p">,</span>
-<span class="linenos">850</span>            <span class="p">)</span>
-<span class="linenos">851</span>
-<span class="linenos">852</span>            <span class="n">cur_sys_util</span> <span class="o">=</span> <span class="n">analysis</span><span class="p">[</span><span class="s2">&quot;system_utilization_analytics&quot;</span><span class="p">]</span>
-<span class="linenos">853</span>            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Triggering reset...&quot;</span><span class="p">)</span>
-<span class="linenos">854</span>            <span class="n">env</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
-<span class="linenos">855</span>            <span class="n">create_new_stage</span><span class="p">()</span>
-<span class="linenos">856</span>        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: DONE! Feel free to CTRL + C Me &quot;</span><span class="p">)</span>
-<span class="linenos">857</span>        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[INFO]: If you&#39;ve made it this far, you can likely simulate </span><span class="si">{</span><span class="n">cur_num_cams</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">camera_name_prefix</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-<span class="linenos">858</span>        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Keep in mind, this is without any training running on the GPU.&quot;</span><span class="p">)</span>
-<span class="linenos">859</span>        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Set lower utilization thresholds to account for training.&quot;</span><span class="p">)</span>
-<span class="linenos">860</span>
-<span class="linenos">861</span>        <span class="k">if</span> <span class="ow">not</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">autotune</span><span class="p">:</span>
-<span class="linenos">862</span>            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[WARNING]: GPU Util Statistics only correct while autotuning, ignore above.&quot;</span><span class="p">)</span>
+<span class="linenos">735</span><span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+<span class="linenos">736</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Main function.&quot;&quot;&quot;</span>
+<span class="linenos">737</span>    <span class="c1"># Load simulation context</span>
+<span class="linenos">738</span>    <span class="k">if</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">num_tiled_cameras</span> <span class="o">+</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">num_standard_cameras</span> <span class="o">+</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">num_ray_caster_cameras</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+<span class="linenos">739</span>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;You must select at least one camera.&quot;</span><span class="p">)</span>
+<span class="linenos">740</span>    <span class="k">if</span> <span class="p">(</span>
+<span class="linenos">741</span>        <span class="p">(</span><span class="n">args_cli</span><span class="o">.</span><span class="n">num_tiled_cameras</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">num_standard_cameras</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span>
+<span class="linenos">742</span>        <span class="ow">or</span> <span class="p">(</span><span class="n">args_cli</span><span class="o">.</span><span class="n">num_ray_caster_cameras</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">num_standard_cameras</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span>
+<span class="linenos">743</span>        <span class="ow">or</span> <span class="p">(</span><span class="n">args_cli</span><span class="o">.</span><span class="n">num_ray_caster_cameras</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">num_tiled_cameras</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span>
+<span class="linenos">744</span>    <span class="p">):</span>
+<span class="linenos">745</span>        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[WARNING]: You have elected to use more than one camera type.&quot;</span><span class="p">)</span>
+<span class="linenos">746</span>        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[WARNING]: For a benchmark to be meaningful, use ONLY ONE camera type at a time.&quot;</span><span class="p">)</span>
+<span class="linenos">747</span>        <span class="nb">print</span><span class="p">(</span>
+<span class="linenos">748</span>            <span class="s2">&quot;[WARNING]: For example, if num_tiled_cameras=100, for a meaningful benchmark,&quot;</span>
+<span class="linenos">749</span>            <span class="s2">&quot;num_standard_cameras should be 0, and num_ray_caster_cameras should be 0&quot;</span>
+<span class="linenos">750</span>        <span class="p">)</span>
+<span class="linenos">751</span>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Benchmark one camera at a time.&quot;</span><span class="p">)</span>
+<span class="linenos">752</span>
+<span class="linenos">753</span>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Designing the scene&quot;</span><span class="p">)</span>
+<span class="linenos">754</span>    <span class="k">if</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">task</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<span class="linenos">755</span>        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: No task environment provided, creating random scene.&quot;</span><span class="p">)</span>
+<span class="linenos">756</span>        <span class="n">sim_cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationCfg</span><span class="p">(</span><span class="n">device</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+<span class="linenos">757</span>        <span class="n">sim</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">(</span><span class="n">sim_cfg</span><span class="p">)</span>
+<span class="linenos">758</span>        <span class="c1"># Set main camera</span>
+<span class="linenos">759</span>        <span class="n">sim</span><span class="o">.</span><span class="n">set_camera_view</span><span class="p">([</span><span class="mf">2.5</span><span class="p">,</span> <span class="mf">2.5</span><span class="p">,</span> <span class="mf">2.5</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">])</span>
+<span class="linenos">760</span>        <span class="n">scene_entities</span> <span class="o">=</span> <span class="n">design_scene</span><span class="p">(</span>
+<span class="linenos">761</span>            <span class="n">num_tiled_cams</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">num_tiled_cameras</span><span class="p">,</span>
+<span class="linenos">762</span>            <span class="n">num_standard_cams</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">num_standard_cameras</span><span class="p">,</span>
+<span class="linenos">763</span>            <span class="n">num_ray_caster_cams</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">num_ray_caster_cameras</span><span class="p">,</span>
+<span class="linenos">764</span>            <span class="n">tiled_camera_data_types</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">tiled_camera_data_types</span><span class="p">,</span>
+<span class="linenos">765</span>            <span class="n">standard_camera_data_types</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">standard_camera_data_types</span><span class="p">,</span>
+<span class="linenos">766</span>            <span class="n">ray_caster_camera_data_types</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">ray_caster_camera_data_types</span><span class="p">,</span>
+<span class="linenos">767</span>            <span class="n">height</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">height</span><span class="p">,</span>
+<span class="linenos">768</span>            <span class="n">width</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">width</span><span class="p">,</span>
+<span class="linenos">769</span>            <span class="n">num_objects</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">num_objects</span><span class="p">,</span>
+<span class="linenos">770</span>            <span class="n">mesh_prim_paths</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">ray_caster_visible_mesh_prim_paths</span><span class="p">,</span>
+<span class="linenos">771</span>        <span class="p">)</span>
+<span class="linenos">772</span>        <span class="c1"># Play simulator</span>
+<span class="linenos">773</span>        <span class="n">sim</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+<span class="linenos">774</span>        <span class="c1"># Now we are ready!</span>
+<span class="linenos">775</span>        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Setup complete...&quot;</span><span class="p">)</span>
+<span class="linenos">776</span>        <span class="c1"># Run simulator</span>
+<span class="linenos">777</span>        <span class="n">run_simulator</span><span class="p">(</span>
+<span class="linenos">778</span>            <span class="n">sim</span><span class="o">=</span><span class="n">sim</span><span class="p">,</span>
+<span class="linenos">779</span>            <span class="n">scene_entities</span><span class="o">=</span><span class="n">scene_entities</span><span class="p">,</span>
+<span class="linenos">780</span>            <span class="n">warm_start_length</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">warm_start_length</span><span class="p">,</span>
+<span class="linenos">781</span>            <span class="n">experiment_length</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">experiment_length</span><span class="p">,</span>
+<span class="linenos">782</span>            <span class="n">tiled_camera_data_types</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">tiled_camera_data_types</span><span class="p">,</span>
+<span class="linenos">783</span>            <span class="n">standard_camera_data_types</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">standard_camera_data_types</span><span class="p">,</span>
+<span class="linenos">784</span>            <span class="n">ray_caster_camera_data_types</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">ray_caster_camera_data_types</span><span class="p">,</span>
+<span class="linenos">785</span>            <span class="n">convert_depth_to_camera_to_image_plane</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">convert_depth_to_camera_to_image_plane</span><span class="p">,</span>
+<span class="linenos">786</span>        <span class="p">)</span>
+<span class="linenos">787</span>    <span class="k">else</span><span class="p">:</span>
+<span class="linenos">788</span>        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Using known task environment, injecting cameras.&quot;</span><span class="p">)</span>
+<span class="linenos">789</span>        <span class="n">autotune_iter</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="linenos">790</span>        <span class="n">max_sys_util_thresh</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">]</span>
+<span class="linenos">791</span>        <span class="n">max_num_cams</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">args_cli</span><span class="o">.</span><span class="n">num_tiled_cameras</span><span class="p">,</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">num_standard_cameras</span><span class="p">,</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">num_ray_caster_cameras</span><span class="p">)</span>
+<span class="linenos">792</span>        <span class="n">cur_num_cams</span> <span class="o">=</span> <span class="n">max_num_cams</span>
+<span class="linenos">793</span>        <span class="n">cur_sys_util</span> <span class="o">=</span> <span class="n">max_sys_util_thresh</span>
+<span class="linenos">794</span>        <span class="n">interval</span> <span class="o">=</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">autotune_camera_count_interval</span>
+<span class="linenos">795</span>
+<span class="linenos">796</span>        <span class="k">if</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">autotune</span><span class="p">:</span>
+<span class="linenos">797</span>            <span class="n">max_sys_util_thresh</span> <span class="o">=</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">autotune_max_percentage_util</span>
+<span class="linenos">798</span>            <span class="n">max_num_cams</span> <span class="o">=</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">autotune_max_camera_count</span>
+<span class="linenos">799</span>            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Auto tuning until any of the following threshold are met&quot;</span><span class="p">)</span>
+<span class="linenos">800</span>            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;|CPU: </span><span class="si">{</span><span class="n">max_sys_util_thresh</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">% | RAM </span><span class="si">{</span><span class="n">max_sys_util_thresh</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2">% | GPU: </span><span class="si">{</span><span class="n">max_sys_util_thresh</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="si">}</span><span class="s2">% |&quot;</span><span class="p">)</span>
+<span class="linenos">801</span>            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[INFO]: Maximum number of cameras allowed: </span><span class="si">{</span><span class="n">max_num_cams</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="linenos">802</span>        <span class="c1"># Determine which camera is being tested...</span>
+<span class="linenos">803</span>        <span class="n">tiled_camera_cfg</span> <span class="o">=</span> <span class="n">create_tiled_camera_cfg</span><span class="p">(</span><span class="s2">&quot;tiled_camera&quot;</span><span class="p">)</span>
+<span class="linenos">804</span>        <span class="n">standard_camera_cfg</span> <span class="o">=</span> <span class="n">create_standard_camera_cfg</span><span class="p">(</span><span class="s2">&quot;standard_camera&quot;</span><span class="p">)</span>
+<span class="linenos">805</span>        <span class="n">ray_caster_camera_cfg</span> <span class="o">=</span> <span class="n">create_ray_caster_camera_cfg</span><span class="p">(</span><span class="s2">&quot;ray_caster_camera&quot;</span><span class="p">)</span>
+<span class="linenos">806</span>        <span class="n">camera_name_prefix</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+<span class="linenos">807</span>        <span class="n">camera_creation_callable</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="linenos">808</span>        <span class="n">num_cams</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="linenos">809</span>        <span class="k">if</span> <span class="n">tiled_camera_cfg</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<span class="linenos">810</span>            <span class="n">camera_name_prefix</span> <span class="o">=</span> <span class="s2">&quot;tiled_camera&quot;</span>
+<span class="linenos">811</span>            <span class="n">camera_creation_callable</span> <span class="o">=</span> <span class="n">create_tiled_camera_cfg</span>
+<span class="linenos">812</span>            <span class="n">num_cams</span> <span class="o">=</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">num_tiled_cameras</span>
+<span class="linenos">813</span>        <span class="k">elif</span> <span class="n">standard_camera_cfg</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<span class="linenos">814</span>            <span class="n">camera_name_prefix</span> <span class="o">=</span> <span class="s2">&quot;standard_camera&quot;</span>
+<span class="linenos">815</span>            <span class="n">camera_creation_callable</span> <span class="o">=</span> <span class="n">create_standard_camera_cfg</span>
+<span class="linenos">816</span>            <span class="n">num_cams</span> <span class="o">=</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">num_standard_cameras</span>
+<span class="linenos">817</span>        <span class="k">elif</span> <span class="n">ray_caster_camera_cfg</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<span class="linenos">818</span>            <span class="n">camera_name_prefix</span> <span class="o">=</span> <span class="s2">&quot;ray_caster_camera&quot;</span>
+<span class="linenos">819</span>            <span class="n">camera_creation_callable</span> <span class="o">=</span> <span class="n">create_ray_caster_camera_cfg</span>
+<span class="linenos">820</span>            <span class="n">num_cams</span> <span class="o">=</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">num_ray_caster_cameras</span>
+<span class="linenos">821</span>
+<span class="linenos">822</span>        <span class="k">while</span> <span class="p">(</span>
+<span class="linenos">823</span>            <span class="nb">all</span><span class="p">(</span><span class="n">cur</span> <span class="o">&lt;=</span> <span class="n">max_thresh</span> <span class="k">for</span> <span class="n">cur</span><span class="p">,</span> <span class="n">max_thresh</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">cur_sys_util</span><span class="p">,</span> <span class="n">max_sys_util_thresh</span><span class="p">))</span>
+<span class="linenos">824</span>            <span class="ow">and</span> <span class="n">cur_num_cams</span> <span class="o">&lt;=</span> <span class="n">max_num_cams</span>
+<span class="linenos">825</span>        <span class="p">):</span>
+<span class="linenos">826</span>            <span class="n">cur_num_cams</span> <span class="o">=</span> <span class="n">num_cams</span> <span class="o">+</span> <span class="n">interval</span> <span class="o">*</span> <span class="n">autotune_iter</span>
+<span class="linenos">827</span>            <span class="n">autotune_iter</span> <span class="o">+=</span> <span class="mi">1</span>
+<span class="linenos">828</span>
+<span class="linenos">829</span>            <span class="n">env</span> <span class="o">=</span> <span class="n">inject_cameras_into_task</span><span class="p">(</span>
+<span class="linenos">830</span>                <span class="n">task</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">task</span><span class="p">,</span>
+<span class="linenos">831</span>                <span class="n">num_cams</span><span class="o">=</span><span class="n">cur_num_cams</span><span class="p">,</span>
+<span class="linenos">832</span>                <span class="n">camera_name_prefix</span><span class="o">=</span><span class="n">camera_name_prefix</span><span class="p">,</span>
+<span class="linenos">833</span>                <span class="n">camera_creation_callable</span><span class="o">=</span><span class="n">camera_creation_callable</span><span class="p">,</span>
+<span class="linenos">834</span>                <span class="n">num_cameras_per_env</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">task_num_cameras_per_env</span><span class="p">,</span>
+<span class="linenos">835</span>            <span class="p">)</span>
+<span class="linenos">836</span>            <span class="n">env</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+<span class="linenos">837</span>            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Testing with </span><span class="si">{</span><span class="n">cur_num_cams</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">camera_name_prefix</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="linenos">838</span>            <span class="n">analysis</span> <span class="o">=</span> <span class="n">run_simulator</span><span class="p">(</span>
+<span class="linenos">839</span>                <span class="n">sim</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<span class="linenos">840</span>                <span class="n">scene_entities</span><span class="o">=</span><span class="n">env</span><span class="o">.</span><span class="n">unwrapped</span><span class="o">.</span><span class="n">scene</span><span class="p">,</span>
+<span class="linenos">841</span>                <span class="n">warm_start_length</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">warm_start_length</span><span class="p">,</span>
+<span class="linenos">842</span>                <span class="n">experiment_length</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">experiment_length</span><span class="p">,</span>
+<span class="linenos">843</span>                <span class="n">tiled_camera_data_types</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">tiled_camera_data_types</span><span class="p">,</span>
+<span class="linenos">844</span>                <span class="n">standard_camera_data_types</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">standard_camera_data_types</span><span class="p">,</span>
+<span class="linenos">845</span>                <span class="n">ray_caster_camera_data_types</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">ray_caster_camera_data_types</span><span class="p">,</span>
+<span class="linenos">846</span>                <span class="n">convert_depth_to_camera_to_image_plane</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">convert_depth_to_camera_to_image_plane</span><span class="p">,</span>
+<span class="linenos">847</span>                <span class="n">max_cameras_per_env</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">task_num_cameras_per_env</span><span class="p">,</span>
+<span class="linenos">848</span>                <span class="n">env</span><span class="o">=</span><span class="n">env</span><span class="p">,</span>
+<span class="linenos">849</span>            <span class="p">)</span>
+<span class="linenos">850</span>
+<span class="linenos">851</span>            <span class="n">cur_sys_util</span> <span class="o">=</span> <span class="n">analysis</span><span class="p">[</span><span class="s2">&quot;system_utilization_analytics&quot;</span><span class="p">]</span>
+<span class="linenos">852</span>            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Triggering reset...&quot;</span><span class="p">)</span>
+<span class="linenos">853</span>            <span class="n">env</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+<span class="linenos">854</span>            <span class="n">create_new_stage</span><span class="p">()</span>
+<span class="linenos">855</span>        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: DONE! Feel free to CTRL + C Me &quot;</span><span class="p">)</span>
+<span class="linenos">856</span>        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[INFO]: If you&#39;ve made it this far, you can likely simulate </span><span class="si">{</span><span class="n">cur_num_cams</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">camera_name_prefix</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="linenos">857</span>        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Keep in mind, this is without any training running on the GPU.&quot;</span><span class="p">)</span>
+<span class="linenos">858</span>        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Set lower utilization thresholds to account for training.&quot;</span><span class="p">)</span>
+<span class="linenos">859</span>
+<span class="linenos">860</span>        <span class="k">if</span> <span class="ow">not</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">autotune</span><span class="p">:</span>
+<span class="linenos">861</span>            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[WARNING]: GPU Util Statistics only correct while autotuning, ignore above.&quot;</span><span class="p">)</span>
+<span class="linenos">862</span>
 <span class="linenos">863</span>
-<span class="linenos">864</span>
-<span class="linenos">865</span><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
-<span class="linenos">866</span>    <span class="c1"># run the main function</span>
-<span class="linenos">867</span>    <span class="n">main</span><span class="p">()</span>
-<span class="linenos">868</span>    <span class="c1"># close sim app</span>
-<span class="linenos">869</span>    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+<span class="linenos">864</span><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+<span class="linenos">865</span>    <span class="c1"># run the main function</span>
+<span class="linenos">866</span>    <span class="n">main</span><span class="p">()</span>
+<span class="linenos">867</span>    <span class="c1"># close sim app</span>
+<span class="linenos">868</span>    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
 </pre></div>
 </div>
 </div>
@@ -1616,7 +1615,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 03, 2024.
+  Last updated on Oct 04, 2024.
   <br/>
 </p>
   </div>

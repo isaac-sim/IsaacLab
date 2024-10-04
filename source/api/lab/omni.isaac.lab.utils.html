@@ -59,7 +59,7 @@
     <link rel="prev" title="omni.isaac.lab.terrains" href="omni.isaac.lab.terrains.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Oct 03, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 04, 2024"/>
   </head>
   
   
@@ -670,8 +670,8 @@ document.write(`
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.compute_pose_error"><code class="docutils literal notranslate"><span class="pre">compute_pose_error()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.apply_delta_pose"><code class="docutils literal notranslate"><span class="pre">apply_delta_pose()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.transform_points"><code class="docutils literal notranslate"><span class="pre">transform_points()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.orthogonalize_perspective_depth"><code class="docutils literal notranslate"><span class="pre">orthogonalize_perspective_depth()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.unproject_depth"><code class="docutils literal notranslate"><span class="pre">unproject_depth()</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.convert_perspective_depth_to_orthogonal_depth"><code class="docutils literal notranslate"><span class="pre">convert_perspective_depth_to_orthogonal_depth()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.project_points"><code class="docutils literal notranslate"><span class="pre">project_points()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.default_orientation"><code class="docutils literal notranslate"><span class="pre">default_orientation()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.random_orientation"><code class="docutils literal notranslate"><span class="pre">random_orientation()</span></code></a></li>
@@ -1960,11 +1960,11 @@ Shape is (num_samples,)</p></li>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.math.transform_points" title="omni.isaac.lab.utils.math.transform_points"><code class="xref py py-obj docutils literal notranslate"><span class="pre">transform_points</span></code></a>(points[, pos, quat])</p></td>
 <td><p>Transform input points in a given frame to a target frame.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.math.unproject_depth" title="omni.isaac.lab.utils.math.unproject_depth"><code class="xref py py-obj docutils literal notranslate"><span class="pre">unproject_depth</span></code></a></p></td>
-<td><p>Unproject depth image into a pointcloud.</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.math.orthogonalize_perspective_depth" title="omni.isaac.lab.utils.math.orthogonalize_perspective_depth"><code class="xref py py-obj docutils literal notranslate"><span class="pre">orthogonalize_perspective_depth</span></code></a></p></td>
+<td><p>Converts perspective depth image to orthogonal depth image.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.math.convert_perspective_depth_to_orthogonal_depth" title="omni.isaac.lab.utils.math.convert_perspective_depth_to_orthogonal_depth"><code class="xref py py-obj docutils literal notranslate"><span class="pre">convert_perspective_depth_to_orthogonal_depth</span></code></a></p></td>
-<td><p>Provided depth image(s) where depth is provided as the distance to the principal point of the camera (perspective depth), this function converts it so that depth is provided as the distance to the camera's image plane (orthogonal depth).</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.math.unproject_depth" title="omni.isaac.lab.utils.math.unproject_depth"><code class="xref py py-obj docutils literal notranslate"><span class="pre">unproject_depth</span></code></a></p></td>
+<td><p>Un-project depth image into a pointcloud.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.math.project_points" title="omni.isaac.lab.utils.math.project_points"><code class="xref py py-obj docutils literal notranslate"><span class="pre">project_points</span></code></a></p></td>
 <td><p>Projects 3D points into 2D image plane.</p></td>
@@ -2639,32 +2639,24 @@ Defaults to None, in which case the orientation is assumed to be identity.</p></
 </dd></dl>
 
 <dl class="py function">
-<dt class="sig sig-object py" id="omni.isaac.lab.utils.math.unproject_depth">
-<span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.utils.math.</span></span><span class="sig-name descname"><span class="pre">unproject_depth</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">depth</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">intrinsics</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></span></span><a class="headerlink" href="#omni.isaac.lab.utils.math.unproject_depth" title="Permalink to this definition">#</a></dt>
-<dd><p>Unproject depth image into a pointcloud. This method assumes that depth
-is provided orthogonally relative to the image plane, as opposed to absolutely relative to the camera’s
-principal point (perspective depth). To unproject a perspective depth image, use
-<a class="reference internal" href="#omni.isaac.lab.utils.math.convert_perspective_depth_to_orthogonal_depth" title="omni.isaac.lab.utils.math.convert_perspective_depth_to_orthogonal_depth"><code class="xref py py-meth docutils literal notranslate"><span class="pre">convert_perspective_depth_to_orthogonal_depth()</span></code></a> to convert
-to an orthogonal depth image prior to calling this method. Otherwise, the
-created point cloud will be distorted, especially around the edges.</p>
-<p>This function converts depth images into points given the calibration matrix of the camera.</p>
-<div class="math notranslate nohighlight">
-\[p_{3D} = K^{-1} \times [u, v, 1]^T \times d\]</div>
-<p>where <span class="math notranslate nohighlight">\(p_{3D}\)</span> is the 3D point, <span class="math notranslate nohighlight">\(d\)</span> is the depth value, <span class="math notranslate nohighlight">\(u\)</span> and <span class="math notranslate nohighlight">\(v\)</span> are
-the pixel coordinates and <span class="math notranslate nohighlight">\(K\)</span> is the intrinsic matrix.</p>
-<p>If <cite>depth</cite> is a batch of depth images and <cite>intrinsics</cite> is a single intrinsic matrix, the same
-calibration matrix is applied to all depth images in the batch.</p>
-<p>The function assumes that the width and height are both greater than 1. This makes the function
-deal with many possible shapes of depth images and intrinsics matrices.</p>
+<dt class="sig sig-object py" id="omni.isaac.lab.utils.math.orthogonalize_perspective_depth">
+<span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.utils.math.</span></span><span class="sig-name descname"><span class="pre">orthogonalize_perspective_depth</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">depth</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">intrinsics</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></span></span><a class="headerlink" href="#omni.isaac.lab.utils.math.orthogonalize_perspective_depth" title="Permalink to this definition">#</a></dt>
+<dd><p>Converts perspective depth image to orthogonal depth image.</p>
+<p>Perspective depth images contain distances measured from the camera’s optical center.
+Meanwhile, orthogonal depth images provide the distance from the camera’s image plane.
+This method uses the camera geometry to convert perspective depth to orthogonal depth image.</p>
+<p>The function assumes that the width and height are both greater than 1.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>depth</strong> – The depth measurement. Shape is (H, W) or or (H, W, 1) or (N, H, W) or (N, H, W, 1).</p></li>
-<li><p><strong>intrinsics</strong> – A tensor providing camera’s calibration matrix. Shape is (3, 3) or (N, 3, 3).</p></li>
+<li><p><strong>depth</strong> – The perspective depth images. Shape is (H, W) or or (H, W, 1) or (N, H, W) or (N, H, W, 1).</p></li>
+<li><p><strong>intrinsics</strong> – The camera’s calibration matrix. If a single matrix is provided, the same
+calibration matrix is used across all the depth images in the batch.
+Shape is (3, 3) or (N, 3, 3).</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>The 3D coordinates of points. Shape is (P, 3) or (N, P, 3).</p>
+<dd class="field-even"><p>The orthogonal depth images. Shape matches the input shape of depth images.</p>
 </dd>
 <dt class="field-odd">Raises<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -2676,30 +2668,37 @@ deal with many possible shapes of depth images and intrinsics matrices.</p>
 </dd></dl>
 
 <dl class="py function">
-<dt class="sig sig-object py" id="omni.isaac.lab.utils.math.convert_perspective_depth_to_orthogonal_depth">
-<span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.utils.math.</span></span><span class="sig-name descname"><span class="pre">convert_perspective_depth_to_orthogonal_depth</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">perspective_depth</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">intrinsics</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></span></span><a class="headerlink" href="#omni.isaac.lab.utils.math.convert_perspective_depth_to_orthogonal_depth" title="Permalink to this definition">#</a></dt>
-<dd><p>Provided depth image(s) where depth is provided as the distance to the principal
-point of the camera (perspective depth), this function converts it so that depth
-is provided as the distance to the camera’s image plane (orthogonal depth).</p>
-<p>This is helpful because <cite>unproject_depth</cite> assumes that depth is expressed in
-the orthogonal depth format.</p>
-<p>If <cite>perspective_depth</cite> is a batch of depth images and <cite>intrinsics</cite> is a single intrinsic matrix,
-the same calibration matrix is applied to all depth images in the batch.</p>
-<p>The function assumes that the width and height are both greater than 1.</p>
+<dt class="sig sig-object py" id="omni.isaac.lab.utils.math.unproject_depth">
+<span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.utils.math.</span></span><span class="sig-name descname"><span class="pre">unproject_depth</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">depth</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">intrinsics</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">is_ortho</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></span></span><a class="headerlink" href="#omni.isaac.lab.utils.math.unproject_depth" title="Permalink to this definition">#</a></dt>
+<dd><p>Un-project depth image into a pointcloud.</p>
+<p>This function converts orthogonal or perspective depth images into points given the calibration matrix
+of the camera. It uses the following transformation based on camera geometry:</p>
+<div class="math notranslate nohighlight">
+\[p_{3D} = K^{-1} \times [u, v, 1]^T \times d\]</div>
+<p>where <span class="math notranslate nohighlight">\(p_{3D}\)</span> is the 3D point, <span class="math notranslate nohighlight">\(d\)</span> is the depth value (measured from the image plane),
+<span class="math notranslate nohighlight">\(u\)</span> and <span class="math notranslate nohighlight">\(v\)</span> are the pixel coordinates and <span class="math notranslate nohighlight">\(K\)</span> is the intrinsic matrix.</p>
+<p>The function assumes that the width and height are both greater than 1. This makes the function
+deal with many possible shapes of depth images and intrinsics matrices.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If <code class="xref py py-attr docutils literal notranslate"><span class="pre">is_ortho</span></code> is False, the input depth images are transformed to orthogonal depth images
+by using the <a class="reference internal" href="#omni.isaac.lab.utils.math.orthogonalize_perspective_depth" title="omni.isaac.lab.utils.math.orthogonalize_perspective_depth"><code class="xref py py-meth docutils literal notranslate"><span class="pre">orthogonalize_perspective_depth()</span></code></a> method.</p>
+</div>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>perspective_depth</strong> – The depth measurement obtained with the distance_to_camera replicator.
-Shape is (H, W) or or (H, W, 1) or (N, H, W) or (N, H, W, 1).</p></li>
-<li><p><strong>intrinsics</strong> – A tensor providing camera’s calibration matrix. Shape is (3, 3) or (N, 3, 3).</p></li>
+<li><p><strong>depth</strong> – The depth measurement. Shape is (H, W) or or (H, W, 1) or (N, H, W) or (N, H, W, 1).</p></li>
+<li><p><strong>intrinsics</strong> – The camera’s calibration matrix. If a single matrix is provided, the same
+calibration matrix is used across all the depth images in the batch.
+Shape is (3, 3) or (N, 3, 3).</p></li>
+<li><p><strong>is_ortho</strong> – Whether the input depth image is orthogonal or perspective depth image. If True, the input
+depth image is considered as the <em>orthogonal</em> type, where the measurements are from the camera’s
+image plane. If False, the depth image is considered as the <em>perspective</em> type, where the
+measurements are from the camera’s optical center. Defaults to True.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p><dl class="simple">
-<dt>The depth image as if obtained by the distance_to_image_plane replicator. Shape</dt><dd><p>matches the input shape of depth</p>
-</dd>
-</dl>
-</p>
+<dd class="field-even"><p>The 3D coordinates of points. Shape is (P, 3) or (N, P, 3).</p>
 </dd>
 <dt class="field-odd">Raises<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -4388,8 +4387,8 @@ The returned tensor contains <code class="xref py py-obj docutils literal notran
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.compute_pose_error"><code class="docutils literal notranslate"><span class="pre">compute_pose_error()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.apply_delta_pose"><code class="docutils literal notranslate"><span class="pre">apply_delta_pose()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.transform_points"><code class="docutils literal notranslate"><span class="pre">transform_points()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.orthogonalize_perspective_depth"><code class="docutils literal notranslate"><span class="pre">orthogonalize_perspective_depth()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.unproject_depth"><code class="docutils literal notranslate"><span class="pre">unproject_depth()</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.convert_perspective_depth_to_orthogonal_depth"><code class="docutils literal notranslate"><span class="pre">convert_perspective_depth_to_orthogonal_depth()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.project_points"><code class="docutils literal notranslate"><span class="pre">project_points()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.default_orientation"><code class="docutils literal notranslate"><span class="pre">default_orientation()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.random_orientation"><code class="docutils literal notranslate"><span class="pre">random_orientation()</span></code></a></li>
@@ -4551,7 +4550,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 03, 2024.
+  Last updated on Oct 04, 2024.
   <br/>
 </p>
   </div>

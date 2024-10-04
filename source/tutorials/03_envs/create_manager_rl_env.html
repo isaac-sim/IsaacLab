@@ -57,7 +57,7 @@
     <link rel="prev" title="Creating a Manager-Based Base Environment" href="create_manager_base_env.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Oct 03, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 04, 2024"/>
   </head>
   
   
@@ -779,7 +779,7 @@ curriculum and commands.</p>
 <span class="linenos">176</span>
 <span class="linenos">177</span><span class="nd">@configclass</span>
 <span class="linenos">178</span><span class="k">class</span> <span class="nc">CartpoleEnvCfg</span><span class="p">(</span><span class="n">ManagerBasedRLEnvCfg</span><span class="p">):</span>
-<span class="linenos">179</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the locomotion velocity-tracking environment.&quot;&quot;&quot;</span>
+<span class="linenos">179</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the cartpole environment.&quot;&quot;&quot;</span>
 <span class="linenos">180</span>
 <span class="linenos">181</span>    <span class="c1"># Scene settings</span>
 <span class="linenos">182</span>    <span class="n">scene</span><span class="p">:</span> <span class="n">CartpoleSceneCfg</span> <span class="o">=</span> <span class="n">CartpoleSceneCfg</span><span class="p">(</span><span class="n">num_envs</span><span class="o">=</span><span class="mi">4096</span><span class="p">,</span> <span class="n">env_spacing</span><span class="o">=</span><span class="mf">4.0</span><span class="p">)</span>
@@ -1012,7 +1012,7 @@ cartpole environment. This is similar to the <code class="xref py py-class docut
 only with the added RL components explained in the above sections.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@configclass</span>
 <span class="k">class</span> <span class="nc">CartpoleEnvCfg</span><span class="p">(</span><span class="n">ManagerBasedRLEnvCfg</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the locomotion velocity-tracking environment.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the cartpole environment.&quot;&quot;&quot;</span>
 
     <span class="c1"># Scene settings</span>
     <span class="n">scene</span><span class="p">:</span> <span class="n">CartpoleSceneCfg</span> <span class="o">=</span> <span class="n">CartpoleSceneCfg</span><span class="p">(</span><span class="n">num_envs</span><span class="o">=</span><span class="mi">4096</span><span class="p">,</span> <span class="n">env_spacing</span><span class="o">=</span><span class="mf">4.0</span><span class="p">)</span>
@@ -1196,7 +1196,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 03, 2024.
+  Last updated on Oct 04, 2024.
   <br/>
 </p>
   </div>
