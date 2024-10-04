@@ -377,7 +377,7 @@ class TestMathUtilities(unittest.TestCase):
             )
 
     def test_orthogonalize_perspective_depth(self):
-        """Test for comparing perspective depth to orthogonal depth conversion."""
+        """Test for converting perspective depth to orthogonal depth."""
         for device in ["cpu", "cuda:0"]:
             # Create a sample perspective depth image (N, H, W)
             perspective_depth = torch.tensor(
