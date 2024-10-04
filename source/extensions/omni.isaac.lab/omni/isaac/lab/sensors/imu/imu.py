@@ -27,9 +27,9 @@ if TYPE_CHECKING:
 class Imu(SensorBase):
     """The Inertia Measurement Unit (IMU) sensor.
 
-    The sensor can be attached to any :class:`RigidObject` or :class:`Articulation` in the scene. The sensor provides complete state information. 
-    The sensor is primarily used to provide the linear acceleration and angular velocity of the object in the body frame. The sensor also provides 
-    the position and orientation of the object in the world frame and the angular acceleration and linear velocity in the body frame. The extra 
+    The sensor can be attached to any :class:`RigidObject` or :class:`Articulation` in the scene. The sensor provides complete state information.
+    The sensor is primarily used to provide the linear acceleration and angular velocity of the object in the body frame. The sensor also provides
+    the position and orientation of the object in the world frame and the angular acceleration and linear velocity in the body frame. The extra
     data outputs are useful for simulating with or comparing against "perfect" state estimation.
 
     .. note::
@@ -41,8 +41,8 @@ class Imu(SensorBase):
     .. note::
 
         It is suggested to use the OffsetCfg to define an IMU frame relative to a rigid body prim defined at the root of
-        a :class:`RigidObject` or  a prim that is defined by a non-fixed joint in an :class:`Articulation` (except for the 
-        root of a fixed based articulation). The use frames with fixed joints and small mass/inertia to emulate a transform 
+        a :class:`RigidObject` or  a prim that is defined by a non-fixed joint in an :class:`Articulation` (except for the
+        root of a fixed based articulation). The use frames with fixed joints and small mass/inertia to emulate a transform
         relative to a body frame can result in lower performance and accuracy.
 
     """
