@@ -16,9 +16,14 @@ from typing import TYPE_CHECKING, Any
 import carb
 import omni.isaac.core.utils.stage as stage_utils
 import omni.kit.commands
-import Semantics
 from omni.isaac.cloner import Cloner
 from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
+
+# from Isaac Sim 4.2 onwards, pxr.Semantics is deprecated
+try:
+    import Semantics
+except ModuleNotFoundError:
+    from pxr import Semantics
 
 from omni.isaac.lab.utils.string import to_camel_case
 

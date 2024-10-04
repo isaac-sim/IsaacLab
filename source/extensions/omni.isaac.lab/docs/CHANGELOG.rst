@@ -8,7 +8,7 @@ Fixed
 ^^^^^
 
 * Fixed the deprecation notice for using ``pxr.Semantics``. The corresponding modules use ``Semantics`` module
-  directly. 
+  directly.
 
 
 0.24.16 (2024-10-03)
