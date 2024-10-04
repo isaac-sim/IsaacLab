@@ -17,13 +17,13 @@ spec:
     imagePullPolicy: Always
     securityContext: {}
     envFrom: []
-  
+
   headGroupSpec:
     rayStartParams:
       block: "true"
       dashboard-host: 0.0.0.0
-      dashboard-port: "8265"            
-      node-ip-address: "0.0.0.0"        
+      dashboard-port: "8265"
+      node-ip-address: "0.0.0.0"
       port: "6379"
       include-dashboard: "true"
       ray-debugger-external: "true"
@@ -48,19 +48,9 @@ spec:
         serviceAccountName: {{ service_account_name }}
         affinity: {}
         securityContext:
-          fsGroup: 100 
+          fsGroup: 100
         containers:
           - env:
-              - name: RAY_memory_monitor_refresh_ms
-                value: "0"
-              - name: RAY_GRAFANA_IFRAME_HOST 
-                value: http://127.0.0.1:3000
-              - name: RAY_GRAFANA_HOST 
-                value: http://prometheus-grafana.prometheus.svc:80
-              - name: RAY_PROMETHEUS_HOST 
-                value: http://prometheus-kube-prometheus-prometheus.prometheus.svc:9090
-              - name: DISPLAY 
-                value: :1
             image: {{ image }}
             imagePullPolicy: Always
             name: ray-head
@@ -120,13 +110,14 @@ spec:
           serviceAccountName: {{ service_account_name }}
           affinity: {}
           securityContext:
-            fsGroup: 100 
+            fsGroup: 100
           containers:
             - env:
               - name: NVIDIA_VISIBLE_DEVICES
                 value: "all"
               - name: NVIDIA_DRIVER_CAPABILITIES
                 value: "compute,utility"
+
               image: {{ image }}
               imagePullPolicy: Always
               name: ray-worker
