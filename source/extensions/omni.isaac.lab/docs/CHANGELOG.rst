@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+
+0.25.0 (2024-10-04)
+
+Added
+^^^^^
+
+* Added Imu sensor implementation that directly accesses the physx view :class:`omni.isaac.lab.sensors.Imu`. The
+  sensor comes with a configuration class :class:`omni.isaac.lab.sensors.ImuCfg` and data class
+  :class:`omni.isaac.lab.sensors.ImuData`.
+
+
 0.24.18 (2024-10-04)
 ~~~~~~~~~~~~~~~~~~~~
 
