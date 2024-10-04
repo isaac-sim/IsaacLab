@@ -139,9 +139,9 @@ class TestOperationalSpaceController(unittest.TestCase):
         )
         kp_set = torch.tensor(
             [
-                [500.0, 500.0, 500.0, 500.0, 500.0, 500.0],
-                [600.0, 600.0, 600.0, 600.0, 600.0, 600.0],
-                [400.0, 400.0, 400.0, 400.0, 400.0, 400.0],
+                [200.0, 200.0, 200.0, 200.0, 200.0, 200.0],
+                [240.0, 240.0, 240.0, 240.0, 240.0, 240.0],
+                [160.0, 160.0, 160.0, 160.0, 160.0, 160.0],
             ],
             device=self.sim.device,
         )
@@ -157,7 +157,7 @@ class TestOperationalSpaceController(unittest.TestCase):
             [
                 [0.6, 0.2, 0.5, 0.0, 0.707, 0.0, 0.707, 10.0, 0.0, 0.0, 0.0, 0.0, 0.0],
                 [0.6, -0.29, 0.6, 0.0, 0.707, 0.0, 0.707, 10.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-                [0.6, 0.1, 0.7, 0.0, 0.5774, 0.0, 0.8165, 10.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                [0.6, 0.1, 0.9, 0.0, 0.5774, 0.0, 0.8165, 2.0, 0.0, 0.0, 0.0, 0.0, 0.0],
             ],
             device=self.sim.device,
         )
@@ -195,7 +195,7 @@ class TestOperationalSpaceController(unittest.TestCase):
         # Define goals for the arm pose [xyz + quat_wxyz] and wrench [force_xyz + torque_xyz]
         self.target_hybrid_set_b = ee_goal_hybrid_set_b.clone()
         # Define goals for the arm pose, and wrench, and kp
-        self.target_hybrid_variable_kp_set = torch.cat([self.target_hybrid_set_b, kp_set * 0.2], dim=-1)
+        self.target_hybrid_variable_kp_set = torch.cat([self.target_hybrid_set_b, kp_set], dim=-1)
         # Define goals for the arm pose [xyz + quat_wxyz] in root and and wrench [force_xyz + torque_xyz] in task frame
         self.target_hybrid_set_tilted = torch.cat([ee_goal_pose_set_tilted_b, ee_goal_wrench_set_tilted_task], dim=-1)
 
@@ -232,7 +232,7 @@ class TestOperationalSpaceController(unittest.TestCase):
         self._run_op_space_controller(robot, opc, "panda_hand", ["panda_joint.*"], self.target_abs_pose_set_b)
 
     def test_franka_pose_abs_with_decoupled_motion(self):
-        """Test absolute pose control with fixed impedance and decoupled motion."""
+        """Test absolute pose control with fixed impedance and decoupled motion inertia compensation."""
         robot = Articulation(cfg=self.robot_cfg)
         opc_cfg = OperationalSpaceControllerCfg(
             target_types=["pose_abs"],
@@ -248,7 +248,7 @@ class TestOperationalSpaceController(unittest.TestCase):
         self._run_op_space_controller(robot, opc, "panda_hand", ["panda_joint.*"], self.target_abs_pose_set_b)
 
     def test_franka_pose_abs_fixed_impedance_with_gravity_compensation(self):
-        """Test absolute pose control with fixed impedance, full inertial and gravity compensation."""
+        """Test absolute pose control with fixed impedance, inertial and gravity compensation."""
         self.robot_cfg.spawn.rigid_props.disable_gravity = False
         robot = Articulation(cfg=self.robot_cfg)
         opc_cfg = OperationalSpaceControllerCfg(
@@ -265,7 +265,7 @@ class TestOperationalSpaceController(unittest.TestCase):
         self._run_op_space_controller(robot, opc, "panda_hand", ["panda_joint.*"], self.target_abs_pose_set_b)
 
     def test_franka_pose_abs(self):
-        """Test absolute pose control with fixed impedance and full inertial compensation."""
+        """Test absolute pose control with fixed impedance and inertial compensation."""
         robot = Articulation(cfg=self.robot_cfg)
         opc_cfg = OperationalSpaceControllerCfg(
             target_types=["pose_abs"],
@@ -281,7 +281,7 @@ class TestOperationalSpaceController(unittest.TestCase):
         self._run_op_space_controller(robot, opc, "panda_hand", ["panda_joint.*"], self.target_abs_pose_set_b)
 
     def test_franka_pose_rel(self):
-        """Test relative pose control with fixed impedance and full inertial compensation."""
+        """Test relative pose control with fixed impedance and inertial compensation."""
         robot = Articulation(cfg=self.robot_cfg)
         opc_cfg = OperationalSpaceControllerCfg(
             target_types=["pose_rel"],
@@ -297,7 +297,7 @@ class TestOperationalSpaceController(unittest.TestCase):
         self._run_op_space_controller(robot, opc, "panda_hand", ["panda_joint.*"], self.target_rel_pose_set_b)
 
     def test_franka_pose_abs_variable_impedance(self):
-        """Test absolute pose control with variable impedance and full inertial compensation."""
+        """Test absolute pose control with variable impedance and inertial compensation."""
         robot = Articulation(cfg=self.robot_cfg)
         opc_cfg = OperationalSpaceControllerCfg(
             target_types=["pose_abs"],
@@ -305,8 +305,6 @@ class TestOperationalSpaceController(unittest.TestCase):
             inertial_compensation=True,
             decoupled_motion_calculations=False,
             gravity_compensation=False,
-            motion_stiffness_task=500.0,
-            motion_damping_ratio_task=1.0,
         )
         opc = OperationalSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
 
@@ -414,8 +412,8 @@ class TestOperationalSpaceController(unittest.TestCase):
 
         self._run_op_space_controller(robot, opc, "panda_hand", ["panda_joint.*"], self.target_abs_wrench_set)
 
-    def test_franka_hybrid(self):
-        """Test hybrid control with fixed impedance and full inertial compensation."""
+    def test_franka_hybrid_decoupled_motion(self):
+        """Test hybrid control with fixed impedance and decoupled motion inertia compensation."""
         robot = Articulation(cfg=self.robot_cfg)
 
         obstacle_spawn_cfg = sim_utils.CuboidCfg(
@@ -457,7 +455,7 @@ class TestOperationalSpaceController(unittest.TestCase):
         self._run_op_space_controller(robot, opc, "panda_leftfinger", ["panda_joint.*"], self.target_hybrid_set_b)
 
     def test_franka_hybrid_variable_kp_impedance(self):
-        """Test hybrid control with variable kp impedance and full inertial compensation."""
+        """Test hybrid control with variable kp impedance and inertial compensation."""
         robot = Articulation(cfg=self.robot_cfg)
 
         obstacle_spawn_cfg = sim_utils.CuboidCfg(
@@ -500,7 +498,7 @@ class TestOperationalSpaceController(unittest.TestCase):
         )
 
     def test_franka_taskframe_pose_abs(self):
-        """Test absolute pose control in task frame with fixed impedance and full inertial compensation."""
+        """Test absolute pose control in task frame with fixed impedance and inertial compensation."""
         robot = Articulation(cfg=self.robot_cfg)
         self.frame = "task"
         opc_cfg = OperationalSpaceControllerCfg(
@@ -516,8 +514,8 @@ class TestOperationalSpaceController(unittest.TestCase):
 
         self._run_op_space_controller(robot, opc, "panda_hand", ["panda_joint.*"], self.target_abs_pose_set_b)
 
-    def test_franka_hybrid_taskframe(self):
-        """Test hybrid control on task frame with fixed impedance and full inertial compensation."""
+    def test_franka_taskframe_hybrid(self):
+        """Test hybrid control in task frame with fixed impedance and inertial compensation."""
         robot = Articulation(cfg=self.robot_cfg)
         self.frame = "task"
 
@@ -549,9 +547,9 @@ class TestOperationalSpaceController(unittest.TestCase):
             inertial_compensation=True,
             decoupled_motion_calculations=False,
             gravity_compensation=False,
-            motion_stiffness_task=100.0,
+            motion_stiffness_task=200.0,
             motion_damping_ratio_task=1.0,
-            contact_wrench_stiffness_task=[0.0, 0.0, 0.2, 0.0, 0.0, 0.0],
+            contact_wrench_stiffness_task=[0.0, 0.0, 0.1, 0.0, 0.0, 0.0],
             motion_control_axes_task=[1, 1, 0, 1, 1, 1],
             contact_wrench_control_axes_task=[0, 0, 1, 0, 0, 0],
         )
@@ -821,7 +819,13 @@ class TestOperationalSpaceController(unittest.TestCase):
                 torch.testing.assert_close(rot_error_norm, des_error, rtol=0.0, atol=0.1)
                 cmd_idx += 6
             elif target_type == "wrench_abs":
-                force_error = ee_force_b - ee_target_b[:, cmd_idx : cmd_idx + 3]
+                force_target_b = ee_target_b[:, cmd_idx : cmd_idx + 3].clone()
+                # Convert to base frame if the target was defined in task frame
+                if self.frame == "task":
+                    task_frame_pose_b = ee_target_pose_b.clone()
+                    R_task_b = matrix_from_quat(task_frame_pose_b[:, 3:])
+                    force_target_b[:] = (R_task_b @ force_target_b[:].unsqueeze(-1)).squeeze(-1)
+                force_error = ee_force_b - force_target_b
                 force_error_norm = torch.norm(
                     force_error * self.force_mask, dim=-1
                 )  # ignore torque part as we cannot measure it
