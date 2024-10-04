@@ -29,12 +29,12 @@ Differential Inverse Kinematics
 Operational Space controllers
 -----------------------------
 
-.. autoclass:: OperationSpaceController
+.. autoclass:: OperationalSpaceController
     :members:
     :inherited-members:
     :show-inheritance:
 
-.. autoclass:: OperationSpaceControllerCfg
+.. autoclass:: OperationalSpaceControllerCfg
     :members:
     :inherited-members:
     :show-inheritance:
