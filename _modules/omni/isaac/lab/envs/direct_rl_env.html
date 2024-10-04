@@ -581,7 +581,7 @@ document.write(`
 
         <span class="c1"># set the seed for the environment</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">seed</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">seed</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">seed</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">seed</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">carb</span><span class="o">.</span><span class="n">log_warn</span><span class="p">(</span><span class="s2">&quot;Seed not set for the environment. The environment creation may not be deterministic.&quot;</span><span class="p">)</span>
 
