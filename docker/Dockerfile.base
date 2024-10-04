@@ -7,9 +7,9 @@
 # Please check above link for license information.
 
 # Base image
+ARG ISAACSIM_BASE_IMAGE_ARG
 ARG ISAACSIM_VERSION_ARG
-ARG ISAACSIM_BASE_IMAGE=nvcr.io/nvidia/isaac-sim
-FROM ${ISAACSIM_BASE_IMAGE}:${ISAACSIM_VERSION_ARG} AS base
+FROM ${ISAACSIM_BASE_IMAGE_ARG}:${ISAACSIM_VERSION_ARG} AS base
 ENV ISAACSIM_VERSION=${ISAACSIM_VERSION_ARG}
 
 # Set default RUN shell to bash
