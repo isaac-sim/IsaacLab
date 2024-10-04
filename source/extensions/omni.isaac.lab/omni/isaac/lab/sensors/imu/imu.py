@@ -190,12 +190,12 @@ class Imu(SensorBase):
         self._data.pos_w = torch.zeros(self._view.count, 3, device=self._device)
         self._data.quat_w = torch.zeros(self._view.count, 4, device=self._device)
         self._data.quat_w[:, 0] = 1.0
-        self._data.lin_vel_b = torch.zeros(self._view.count, 3, device=self._device)
-        self._data.ang_vel_b = torch.zeros(self._view.count, 3, device=self._device)
-        self._data.lin_acc_b = torch.zeros(self._view.count, 3, device=self._device)
-        self._data.ang_acc_b = torch.zeros(self._view.count, 3, device=self._device)
-        self._prev_lin_vel_w = torch.zeros(self._view.count, 3, device=self._device)
-        self._prev_ang_vel_w = torch.zeros(self._view.count, 3, device=self._device)
+        self._data.lin_vel_b = torch.zeros_like(self._data.pos_w)
+        self._data.ang_vel_b = torch.zeros_like(self._data.pos_w)
+        self._data.lin_acc_b = torch.zeros_like(self._data.pos_w)
+        self._data.ang_acc_b = torch.zeros_like(self._data.pos_w)
+        self._prev_lin_vel_w = torch.zeros_like(self._data.pos_w)
+        self._prev_ang_vel_w = torch.zeros_like(self._data.pos_w)
 
         # store sensor offset transformation
         self._offset_pos_b = torch.tensor(list(self.cfg.offset.pos), device=self._device).repeat(self._view.count, 1)
