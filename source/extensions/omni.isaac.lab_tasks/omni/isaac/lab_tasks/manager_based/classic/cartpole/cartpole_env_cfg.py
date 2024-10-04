@@ -176,7 +176,7 @@ class CurriculumCfg:
 
 @configclass
 class CartpoleEnvCfg(ManagerBasedRLEnvCfg):
-    """Configuration for the locomotion velocity-tracking environment."""
+    """Configuration for the cartpole environment."""
 
     # Scene settings
     scene: CartpoleSceneCfg = CartpoleSceneCfg(num_envs=4096, env_spacing=4.0)
