@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.24.18 (2024-10-04)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixes parsing and application of ``size`` parameter for :class:`~omni.isaac.lab.sim.spawn.GroundPlaneCfg` to correctly
+  scale the grid-based ground plane.
+
+
 0.24.17 (2024-10-04)
 ~~~~~~~~~~~~~~~~~~~~
 
