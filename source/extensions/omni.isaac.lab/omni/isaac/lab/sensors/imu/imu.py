@@ -165,15 +165,6 @@ class Imu(SensorBase):
             ang_vel_w, math_utils.quat_rotate(quat_w, self._offset_pos_b - com_pos_b[env_ids]), dim=-1
         )
 
-        # NOTE: currently the physx API generates errors when using small masses, will switch back to it once fixed
-        # obtain the acceleration of the link COM
-        # lin_acc_w, ang_acc_w = self._view.get_accelerations()[env_ids].split([3, 3], dim=-1)
-        # # if an offset is present or the COM does not agree with the link origin, the linear acceleration has to
-        # # be transformed taking the angular velocity and acceleration into account
-        # lin_acc_w += torch.cross(ang_acc_w, math_utils.quat_rotate(quat_w, self._offset_pos_b - self._com_pos_b[env_ids]), dim=-1) + torch.cross(
-        #     ang_vel_w, torch.cross(ang_vel_w, math_utils.quat_rotate(quat_w, self._offset_pos_b - self._com_pos_b[env_ids]), dim=-1), dim=-1
-        # )
-
         # numerical derivative
         lin_acc_w = (lin_vel_w - self._prev_lin_vel_w) / self._dt + self._gravity_bias_w
         ang_acc_w = (ang_vel_w - self._prev_ang_vel_w) / self._dt
