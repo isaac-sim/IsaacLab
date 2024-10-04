@@ -16,6 +16,7 @@ import numpy as np
 import torch
 import unittest
 
+import omni.isaac.core.utils.prims as prim_utils
 import omni.kit
 import omni.kit.commands
 from omni.isaac.cloner import GridCloner
@@ -24,7 +25,6 @@ from omni.isaac.core.objects import DynamicSphere
 from omni.isaac.core.prims import GeometryPrim, RigidPrim, RigidPrimView
 from omni.isaac.core.utils.extensions import enable_extension
 
-import omni.isaac.lab.sim as sim_utils
 import omni.isaac.lab.terrains as terrain_gen
 from omni.isaac.lab.sim import SimulationContext, build_simulation_context
 from omni.isaac.lab.terrains import TerrainImporter, TerrainImporterCfg

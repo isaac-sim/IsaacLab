@@ -14,8 +14,8 @@ simulation_app = AppLauncher(headless=True).app
 
 import unittest
 
-from omni.isaac.core.utils.extensions import enable_extension, get_extension_path_from_name
 import omni.usd
+from omni.isaac.core.utils.extensions import enable_extension, get_extension_path_from_name
 
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.sim import build_simulation_context

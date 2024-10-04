@@ -23,7 +23,6 @@ import omni.usd
 from omni.isaac.core.articulations import ArticulationView
 from omni.isaac.core.utils.extensions import enable_extension, get_extension_path_from_name
 
-
 from omni.isaac.lab.sim import build_simulation_context
 from omni.isaac.lab.sim.converters import UrdfConverter, UrdfConverterCfg
 

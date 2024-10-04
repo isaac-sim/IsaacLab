@@ -14,6 +14,7 @@ simulation_app = AppLauncher(headless=True).app
 
 import unittest
 
+import omni.isaac.core.utils.prims as prim_utils
 import omni.usd
 from pxr import UsdPhysics, UsdShade
 
