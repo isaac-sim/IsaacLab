@@ -272,7 +272,7 @@ class OperationalSpaceControllerAction(ActionTerm):
         # create contact sensor if and of the command is wrench_abs anf if stiffness is provided
         if (
             "wrench_abs" in self.cfg.controller_cfg.target_types
-            and self.cfg.controller_cfg.wrench_stiffness is not None
+            and self.cfg.controller_cfg.contact_wrench_stiffness_task is not None
         ):
             self._contact_sensor_cfg = ContactSensorCfg(prim_path=self._asset.cfg.prim_path + "/" + self._ee_body_name)
             self._contact_sensor = ContactSensor(self._contact_sensor_cfg)
@@ -352,8 +352,8 @@ class OperationalSpaceControllerAction(ActionTerm):
             self._processed_actions[:, self._stiffness_idx : self._stiffness_idx + 6] *= self._stiffness_scale
             self._processed_actions[:, self._stiffness_idx : self._stiffness_idx + 6] = torch.clamp(
                 self._processed_actions[:, self._stiffness_idx : self._stiffness_idx + 6],
-                min=self.cfg.controller_cfg.stiffness_limits[0],
-                max=self.cfg.controller_cfg.stiffness_limits[1],
+                min=self.cfg.controller_cfg.motion_stiffness_limits_task[0],
+                max=self.cfg.controller_cfg.motion_stiffness_limits_task[1],
             )
         if self._damping_ratio_idx is not None:
             self._processed_actions[
@@ -361,8 +361,8 @@ class OperationalSpaceControllerAction(ActionTerm):
             ] *= self._damping_ratio_scale
             self._processed_actions[:, self._damping_ratio_idx : self._damping_ratio_idx + 6] = torch.clamp(
                 self._processed_actions[:, self._damping_ratio_idx : self._damping_ratio_idx + 6],
-                min=self.cfg.controller_cfg.damping_ratio_limits[0],
-                max=self.cfg.controller_cfg.damping_ratio_limits[1],
+                min=self.cfg.controller_cfg.motion_damping_ratio_limits_task[0],
+                max=self.cfg.controller_cfg.motion_damping_ratio_limits_task[1],
             )
 
         # set command into controller
