@@ -987,85 +987,6 @@ Projection operations.
 
 
 @torch.jit.script
-def unproject_depth(depth: torch.Tensor, intrinsics: torch.Tensor) -> torch.Tensor:
-    r"""Un-project orthogonal depth image into a pointcloud.
-
-    This function converts depth images into points given the calibration matrix of the camera.
-
-    .. math::
-        p_{3D} = K^{-1} \times [u, v, 1]^T \times d
-
-    where :math:`p_{3D}` is the 3D point, :math:`d` is the depth value, :math:`u` and :math:`v` are
-    the pixel coordinates and :math:`K` is the intrinsic matrix.
-
-    The function assumes that the width and height are both greater than 1. This makes the function
-    deal with many possible shapes of depth images and intrinsics matrices.
-
-    Additionally, the provided depth images need to be the orthogonal distance to the camera's image plane.
-    In the case of perspective depth images (i.e. the depth is computed from the camera's optical center),
-    please use the :meth:`orthogonalize_perspective_depth` to convert the depth image to
-    orthogonal depth image. Otherwise, the generated pointcloud will be distorted, especially around the edges.
-
-    Args:
-        depth: The depth measurement. Shape is (H, W) or or (H, W, 1) or (N, H, W) or (N, H, W, 1).
-        intrinsics: The camera's calibration matrix. If a single matrix is provided, the same
-            calibration matrix is used across all the depth images in the batch.
-            Shape is (3, 3) or (N, 3, 3).
-
-    Returns:
-        The 3D coordinates of points. Shape is (P, 3) or (N, P, 3).
-
-    Raises:
-        ValueError: When depth is not of shape (H, W) or (H, W, 1) or (N, H, W) or (N, H, W, 1).
-        ValueError: When intrinsics is not of shape (3, 3) or (N, 3, 3).
-    """
-    # clone inputs to avoid in-place modifications
-    depth_batch = depth.clone()
-    intrinsics_batch = intrinsics.clone()
-
-    # check if inputs are batched
-    is_batched = depth_batch.dim() == 4 or (depth_batch.dim() == 3 and depth_batch.shape[-1] != 1)
-    # make sure inputs are batched
-    if depth_batch.dim() == 3 and depth_batch.shape[-1] == 1:
-        depth_batch = depth_batch.squeeze(dim=2)  # (H, W, 1) -> (H, W)
-    if depth_batch.dim() == 2:
-        depth_batch = depth_batch[None]  # (H, W) -> (1, H, W)
-    if depth_batch.dim() == 4 and depth_batch.shape[-1] == 1:
-        depth_batch = depth_batch.squeeze(dim=3)  # (N, H, W, 1) -> (N, H, W)
-    if intrinsics_batch.dim() == 2:
-        intrinsics_batch = intrinsics_batch[None]  # (3, 3) -> (1, 3, 3)
-    # check shape of inputs
-    if depth_batch.dim() != 3:
-        raise ValueError(f"Expected depth images to have dim = 2 or 3 or 4: got shape {depth.shape}")
-    if intrinsics_batch.dim() != 3:
-        raise ValueError(f"Expected intrinsics to have shape (3, 3) or (N, 3, 3): got shape {intrinsics.shape}")
-
-    # get image height and width
-    im_height, im_width = depth_batch.shape[1:]
-    # create image points in homogeneous coordinates (3, H x W)
-    indices_u = torch.arange(im_width, device=depth.device, dtype=depth.dtype)
-    indices_v = torch.arange(im_height, device=depth.device, dtype=depth.dtype)
-    img_indices = torch.stack(torch.meshgrid([indices_u, indices_v], indexing="ij"), dim=0).reshape(2, -1)
-    pixels = torch.nn.functional.pad(img_indices, (0, 0, 0, 1), mode="constant", value=1.0)
-    pixels = pixels.unsqueeze(0)  # (3, H x W) -> (1, 3, H x W)
-
-    # unproject points into 3D space
-    points = torch.matmul(torch.inverse(intrinsics_batch), pixels)  # (N, 3, H x W)
-    points = points / points[:, -1, :].unsqueeze(1)  # normalize by last coordinate
-    # flatten depth image (N, H, W) -> (N, H x W)
-    depth_batch = depth_batch.transpose_(1, 2).reshape(depth_batch.shape[0], -1).unsqueeze(2)
-    depth_batch = depth_batch.expand(-1, -1, 3)
-    # scale points by depth
-    points_xyz = points.transpose_(1, 2) * depth_batch  # (N, H x W, 3)
-
-    # return points in same shape as input
-    if not is_batched:
-        points_xyz = points_xyz.squeeze(0)
-
-    return points_xyz
-
-
-@torch.jit.script
 def orthogonalize_perspective_depth(depth: torch.Tensor, intrinsics: torch.Tensor) -> torch.Tensor:
     """Converts perspective depth image to orthogonal depth image.
 
@@ -1155,6 +1076,93 @@ def orthogonalize_perspective_depth(depth: torch.Tensor, intrinsics: torch.Tenso
         orthogonal_depth = orthogonal_depth.squeeze(0)
 
     return orthogonal_depth
+
+
+@torch.jit.script
+def unproject_depth(depth: torch.Tensor, intrinsics: torch.Tensor, is_ortho: bool = True) -> torch.Tensor:
+    r"""Un-project depth image into a pointcloud.
+
+    This function converts orthogonal or perspective depth images into points given the calibration matrix
+    of the camera. It uses the following transformation based on camera geometry:
+
+    .. math::
+        p_{3D} = K^{-1} \times [u, v, 1]^T \times d
+
+    where :math:`p_{3D}` is the 3D point, :math:`d` is the depth value (measured from the image plane),
+    :math:`u` and :math:`v` are the pixel coordinates and :math:`K` is the intrinsic matrix.
+
+    The function assumes that the width and height are both greater than 1. This makes the function
+    deal with many possible shapes of depth images and intrinsics matrices.
+
+    .. note::
+        If :attr:`is_ortho` is False, the input depth images are transformed to orthogonal depth images
+        by using the :meth:`orthogonalize_perspective_depth` method.
+
+    Args:
+        depth: The depth measurement. Shape is (H, W) or or (H, W, 1) or (N, H, W) or (N, H, W, 1).
+        intrinsics: The camera's calibration matrix. If a single matrix is provided, the same
+            calibration matrix is used across all the depth images in the batch.
+            Shape is (3, 3) or (N, 3, 3).
+        is_ortho: Whether the input depth image is orthogonal or perspective depth image. If True, the input
+            depth image is considered as the *orthogonal* type, where the measurements are from the camera's
+            image plane. If False, the depth image is considered as the *perspective* type, where the
+            measurements are from the camera's optical center. Defaults to True.
+
+    Returns:
+        The 3D coordinates of points. Shape is (P, 3) or (N, P, 3).
+
+    Raises:
+        ValueError: When depth is not of shape (H, W) or (H, W, 1) or (N, H, W) or (N, H, W, 1).
+        ValueError: When intrinsics is not of shape (3, 3) or (N, 3, 3).
+    """
+    # clone inputs to avoid in-place modifications
+    intrinsics_batch = intrinsics.clone()
+    # convert depth image to orthogonal if needed
+    if not is_ortho:
+        depth_batch = orthogonalize_perspective_depth(depth, intrinsics)
+    else:
+        depth_batch = depth.clone()
+
+    # check if inputs are batched
+    is_batched = depth_batch.dim() == 4 or (depth_batch.dim() == 3 and depth_batch.shape[-1] != 1)
+    # make sure inputs are batched
+    if depth_batch.dim() == 3 and depth_batch.shape[-1] == 1:
+        depth_batch = depth_batch.squeeze(dim=2)  # (H, W, 1) -> (H, W)
+    if depth_batch.dim() == 2:
+        depth_batch = depth_batch[None]  # (H, W) -> (1, H, W)
+    if depth_batch.dim() == 4 and depth_batch.shape[-1] == 1:
+        depth_batch = depth_batch.squeeze(dim=3)  # (N, H, W, 1) -> (N, H, W)
+    if intrinsics_batch.dim() == 2:
+        intrinsics_batch = intrinsics_batch[None]  # (3, 3) -> (1, 3, 3)
+    # check shape of inputs
+    if depth_batch.dim() != 3:
+        raise ValueError(f"Expected depth images to have dim = 2 or 3 or 4: got shape {depth.shape}")
+    if intrinsics_batch.dim() != 3:
+        raise ValueError(f"Expected intrinsics to have shape (3, 3) or (N, 3, 3): got shape {intrinsics.shape}")
+
+    # get image height and width
+    im_height, im_width = depth_batch.shape[1:]
+    # create image points in homogeneous coordinates (3, H x W)
+    indices_u = torch.arange(im_width, device=depth.device, dtype=depth.dtype)
+    indices_v = torch.arange(im_height, device=depth.device, dtype=depth.dtype)
+    img_indices = torch.stack(torch.meshgrid([indices_u, indices_v], indexing="ij"), dim=0).reshape(2, -1)
+    pixels = torch.nn.functional.pad(img_indices, (0, 0, 0, 1), mode="constant", value=1.0)
+    pixels = pixels.unsqueeze(0)  # (3, H x W) -> (1, 3, H x W)
+
+    # unproject points into 3D space
+    points = torch.matmul(torch.inverse(intrinsics_batch), pixels)  # (N, 3, H x W)
+    points = points / points[:, -1, :].unsqueeze(1)  # normalize by last coordinate
+    # flatten depth image (N, H, W) -> (N, H x W)
+    depth_batch = depth_batch.transpose_(1, 2).reshape(depth_batch.shape[0], -1).unsqueeze(2)
+    depth_batch = depth_batch.expand(-1, -1, 3)
+    # scale points by depth
+    points_xyz = points.transpose_(1, 2) * depth_batch  # (N, H x W, 3)
+
+    # return points in same shape as input
+    if not is_batched:
+        points_xyz = points_xyz.squeeze(0)
+
+    return points_xyz
 
 
 @torch.jit.script
