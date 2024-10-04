@@ -42,7 +42,7 @@ from omni.isaac.lab_assets import FRANKA_PANDA_CFG  # isort:skip
 
 
 class TestOperationalSpaceController(unittest.TestCase):
-    """Test fixture for checking that differential IK controller tracks commands properly."""
+    """Test fixture for checking that Operational Space controller tracks commands properly."""
 
     def setUp(self):
         """Create a blank new stage for each test."""
@@ -157,13 +157,13 @@ class TestOperationalSpaceController(unittest.TestCase):
             [
                 [0.6, 0.2, 0.5, 0.0, 0.707, 0.0, 0.707, 10.0, 0.0, 0.0, 0.0, 0.0, 0.0],
                 [0.6, -0.29, 0.6, 0.0, 0.707, 0.0, 0.707, 10.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-                [0.6, 0.1, 0.9, 0.0, 0.5774, 0.0, 0.8165, 2.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                [0.6, 0.1, 0.8, 0.0, 0.5774, 0.0, 0.8165, 4.0, 0.0, 0.0, 0.0, 0.0, 0.0],
             ],
             device=self.sim.device,
         )
         ee_goal_pose_set_tilted_b = torch.tensor(
             [
-                [0.6, 0.3, 0.3, 0.0, 0.92387953, 0.0, 0.38268343],
+                [0.6, 0.15, 0.3, 0.0, 0.92387953, 0.0, 0.38268343],
                 [0.6, -0.3, 0.3, 0.0, 0.92387953, 0.0, 0.38268343],
                 [0.8, 0.0, 0.5, 0.0, 0.92387953, 0.0, 0.38268343],
             ],
@@ -444,7 +444,7 @@ class TestOperationalSpaceController(unittest.TestCase):
             inertial_compensation=True,
             decoupled_motion_calculations=True,
             gravity_compensation=False,
-            motion_stiffness_task=200.0,
+            motion_stiffness_task=300.0,
             motion_damping_ratio_task=1.0,
             contact_wrench_stiffness_task=[0.1, 0.0, 0.0, 0.0, 0.0, 0.0],
             motion_control_axes_task=[0, 1, 1, 1, 1, 1],
@@ -486,8 +486,8 @@ class TestOperationalSpaceController(unittest.TestCase):
             inertial_compensation=True,
             decoupled_motion_calculations=False,
             gravity_compensation=False,
-            motion_damping_ratio_task=1.0,
-            contact_wrench_stiffness_task=[0.2, 0.0, 0.0, 0.0, 0.0, 0.0],
+            motion_damping_ratio_task=0.8,
+            contact_wrench_stiffness_task=[0.1, 0.0, 0.0, 0.0, 0.0, 0.0],
             motion_control_axes_task=[0, 1, 1, 1, 1, 1],
             contact_wrench_control_axes_task=[1, 0, 0, 0, 0, 0],
         )
@@ -513,6 +513,23 @@ class TestOperationalSpaceController(unittest.TestCase):
         opc = OperationalSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
 
         self._run_op_space_controller(robot, opc, "panda_hand", ["panda_joint.*"], self.target_abs_pose_set_b)
+
+    def test_franka_taskframe_pose_rel(self):
+        """Test relative pose control in task frame with fixed impedance and inertial compensation."""
+        robot = Articulation(cfg=self.robot_cfg)
+        self.frame = "task"
+        opc_cfg = OperationalSpaceControllerCfg(
+            target_types=["pose_rel"],
+            impedance_mode="fixed",
+            inertial_compensation=True,
+            decoupled_motion_calculations=False,
+            gravity_compensation=False,
+            motion_stiffness_task=500.0,
+            motion_damping_ratio_task=1.0,
+        )
+        opc = OperationalSpaceController(opc_cfg, num_envs=self.num_envs, device=self.sim.device)
+
+        self._run_op_space_controller(robot, opc, "panda_hand", ["panda_joint.*"], self.target_rel_pose_set_b)
 
     def test_franka_taskframe_hybrid(self):
         """Test hybrid control in task frame with fixed impedance and inertial compensation."""
@@ -547,7 +564,7 @@ class TestOperationalSpaceController(unittest.TestCase):
             inertial_compensation=True,
             decoupled_motion_calculations=False,
             gravity_compensation=False,
-            motion_stiffness_task=200.0,
+            motion_stiffness_task=400.0,
             motion_damping_ratio_task=1.0,
             contact_wrench_stiffness_task=[0.0, 0.0, 0.1, 0.0, 0.0, 0.0],
             motion_control_axes_task=[1, 1, 0, 1, 1, 1],
@@ -770,12 +787,18 @@ class TestOperationalSpaceController(unittest.TestCase):
                         task_frame_pose_b[:, :3], task_frame_pose_b[:, 3:], command[:, :3], command[:, 3:7]
                     )
                     cmd_idx += 7
-                # elif target_type == "pose_rel": TODO This needs to be implemented
-                #    cmd_idx += 6
+                elif target_type == "pose_rel":
+                    # Compute rotation matrices
+                    R_task_b = matrix_from_quat(task_frame_pose_b[:, 3:])  # Task frame to base frame
+                    R_b_task = R_task_b.mT  # Base frame to task frame
+                    # Transform the delta position and orientation from base to task frame
+                    command[:, :3] = (R_b_task @ command[:, :3].unsqueeze(-1)).squeeze(-1)
+                    command[:, 3:7] = (R_b_task @ command[:, 3:7].unsqueeze(-1)).squeeze(-1)
+                    cmd_idx += 6
                 elif target_type == "wrench_abs":
                     # These are already defined in target frame for ee_goal_wrench_set_tilted_task (since it is
                     # easier), so not transforming
-                    cmd_idx += 6  # TODO This needs to be checked
+                    cmd_idx += 6
                 else:
                     raise ValueError("Undefined target_type within _convert_to_task_frame().")
         else:
