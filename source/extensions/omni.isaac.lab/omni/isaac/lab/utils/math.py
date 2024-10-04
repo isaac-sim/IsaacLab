@@ -1420,7 +1420,7 @@ Orientation Conversions
 """
 
 
-def convert_orientation_convention(
+def convert_camera_frame_orientation_convention(
     orientation: torch.Tensor,
     origin: Literal["opengl", "ros", "world"] = "opengl",
     target: Literal["opengl", "ros", "world"] = "ros",

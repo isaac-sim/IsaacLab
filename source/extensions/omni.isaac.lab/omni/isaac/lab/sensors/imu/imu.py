@@ -235,6 +235,6 @@ class Imu(SensorBase):
                 device=self._device,
             )
         )
-        quat_w = math_utils.convert_orientation_convention(quat_opengl, "opengl", "world")
+        quat_w = math_utils.convert_camera_frame_orientation_convention(quat_opengl, "opengl", "world")
         # display markers
         self.acceleration_visualizer.visualize(base_pos_w, quat_w, arrow_scale)
