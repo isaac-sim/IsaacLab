@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+0.24.19 (2024-10-05)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added new functionalities to the FrameTransformer to make it more general. It is now possible to track:
+
+  * Target frames that aren't children of the source frame prim_path
+  * Target frames that are based upon the source frame prim_path
+
+
 0.24.18 (2024-10-04)
 ~~~~~~~~~~~~~~~~~~~~
 
