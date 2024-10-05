@@ -7,7 +7,7 @@ Changelog
 Added
 ^^^^^
 
-* Updated the FrameTransformer to make it more general. Added tracking for the following cases:
+* Added new functionalities to the FrameTransformer to make it more general. It is now possible to track:
 
   * Target frames that aren't children of the source frame prim_path
   * Target frames that are based upon the source frame prim_path
