@@ -62,6 +62,17 @@ def spawn_multi_asset(
     prim_utils.create_prim("/World/Dataset", "Scope")
     proto_prim_paths = list()
     for index, asset_cfg in enumerate(cfg.assets_cfg):
+        # append semantic tags if specified
+        if cfg.semantic_tags is not None:
+            if asset_cfg.semantic_tags is None:
+                asset_cfg.semantic_tags = cfg.semantic_tags
+            else:
+                asset_cfg.semantic_tags += cfg.semantic_tags
+        # override settings for properties
+        for name in ["mass_props", "rigid_props", "collision_props", "activate_contact_sensors", "deformable_props"]:
+            value = getattr(cfg, name)
+            if hasattr(asset_cfg, name) and value is not None:
+                setattr(asset_cfg, name, value)
         # spawn single instance
         proto_prim_path = f"/World/Dataset/Asset_{index:04d}"
         asset_cfg.func(proto_prim_path, asset_cfg, translation=translation, orientation=orientation)
