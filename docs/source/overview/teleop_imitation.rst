@@ -60,7 +60,7 @@ format.
       # install python module (for robomimic)
       ./isaaclab.sh -i robomimic
       # split data
-      ./isaaclab.sh -p source/standalone//workflows/robomimic/tools/split_train_val.py logs/robomimic/Isaac-Lift-Cube-Franka-IK-Rel-v0/hdf_dataset.hdf5 --ratio 0.2
+      ./isaaclab.sh -p source/standalone/workflows/robomimic/tools/split_train_val.py logs/robomimic/Isaac-Lift-Cube-Franka-IK-Rel-v0/hdf_dataset.hdf5 --ratio 0.2
 
 3. Train a BC agent for ``Isaac-Lift-Cube-Franka-IK-Rel-v0`` with
    `Robomimic <https://robomimic.github.io/>`__:
