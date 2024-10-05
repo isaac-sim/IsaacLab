@@ -1,3 +1,30 @@
+# How to contribute to this EESC FORK
+
+1. Create a branch with this name pattern:  `<firstname>.<surname>/<creation date>/<feature name>`
+2. Do not change any file from the original code, because I constantly sync fork.
+   . Your experiments can be included in a file `source/experiments/`
+   . Create a readme for your experiment so people know how to run the code
+3. When making a Pull Request to main, add a changelog here explaining your feature
+
+
+# Experiments 
+
+### `source/experiments/go1_velocity_flat`
+
+I created this experiment with two purposes:
+   1. To make it clear what the configurations classes for the task actually are (because the original one has many inheritances)
+   2. To run the go1 environments using rl_games as well. 
+
+
+To run it:
+`python source/experiments/go1_velocity_flat/rl_train.py --headless --num_envs 4096`
+`python source/experiments/go1_velocity_flat/skrl_train.py --headless --num_envs 4096`
+
+Results: the skrl works faster
+
+---
+
+
 ![Isaac Lab](docs/source/_static/isaaclab.jpg)
 
 ---
