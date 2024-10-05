@@ -16,8 +16,7 @@ import ctypes
 import numpy as np
 import unittest
 
-import omni.isaac.core.utils.prims as prim_utils
-from omni.isaac.core.simulation_context import SimulationContext as IsaacSimulationContext
+import omni.usd
 
 from omni.isaac.lab.sim import SimulationCfg, SimulationContext
 
@@ -34,9 +33,7 @@ class TestSimulationContext(unittest.TestCase):
         """Tests that the singleton is working."""
         sim1 = SimulationContext()
         sim2 = SimulationContext()
-        sim3 = IsaacSimulationContext()
         self.assertIs(sim1, sim2)
-        self.assertIs(sim1, sim3)
 
         # try to delete the singleton
         sim2.clear_instance()
@@ -44,11 +41,7 @@ class TestSimulationContext(unittest.TestCase):
         # create new instance
         sim4 = SimulationContext()
         self.assertIsNot(sim1, sim4)
-        self.assertIsNot(sim3, sim4)
         self.assertIs(sim1.instance(), sim4.instance())
-        self.assertIs(sim3.instance(), sim4.instance())
-        # clear instance
-        sim3.clear_instance()
 
     def test_initialization(self):
         """Test the simulation config."""
@@ -62,9 +55,12 @@ class TestSimulationContext(unittest.TestCase):
         self.assertEqual(sim.get_physics_dt(), cfg.dt)
         self.assertEqual(sim.get_rendering_dt(), cfg.dt * cfg.render_interval)
         self.assertFalse(sim.has_rtx_sensors())
+
+        # get current stage
+        stage = omni.usd.get_context().get_stage()
         # check valid paths
-        self.assertTrue(prim_utils.is_prim_path_valid("/Physics/PhysX"))
-        self.assertTrue(prim_utils.is_prim_path_valid("/Physics/PhysX/defaultMaterial"))
+        self.assertTrue(stage.GetPrimAtPath("/Physics/PhysX").IsValid())
+        self.assertTrue(stage.GetPrimAtPath("/Physics/PhysX/defaultMaterial").IsValid())
         # check valid gravity
         gravity_dir, gravity_mag = sim.get_physics_context().get_gravity()
         gravity = np.array(gravity_dir) * gravity_mag
@@ -89,7 +85,7 @@ class TestSimulationContext(unittest.TestCase):
 
     def test_headless_mode(self):
         """Test that render mode is headless since we are running in headless mode."""
-
+        # Load kit helper
         sim = SimulationContext()
         # check default render mode
         self.assertEqual(sim.render_mode, sim.RenderMode.NO_GUI_OR_RENDERING)

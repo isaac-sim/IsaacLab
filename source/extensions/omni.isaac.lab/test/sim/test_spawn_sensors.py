@@ -14,11 +14,10 @@ simulation_app = AppLauncher(headless=True).app
 
 import unittest
 
-import omni.isaac.core.utils.prims as prim_utils
-import omni.isaac.core.utils.stage as stage_utils
-from omni.isaac.core.simulation_context import SimulationContext
+import omni.usd
 
 import omni.isaac.lab.sim as sim_utils
+from omni.isaac.lab.sim import build_simulation_context
 from omni.isaac.lab.sim.spawners.sensors.sensors import (
     CUSTOM_FISHEYE_CAMERA_ATTRIBUTES,
     CUSTOM_PINHOLE_CAMERA_ATTRIBUTES,
@@ -29,62 +28,49 @@ from omni.isaac.lab.utils.string import to_camel_case
 class TestSpawningSensors(unittest.TestCase):
     """Test fixture for checking spawning of USD sensors with different settings."""
 
-    def setUp(self) -> None:
-        """Create a blank new stage for each test."""
-        # Create a new stage
-        stage_utils.create_new_stage()
-        # Simulation time-step
-        self.dt = 0.1
-        # Load kit helper
-        self.sim = SimulationContext(physics_dt=self.dt, rendering_dt=self.dt, backend="numpy")
-        # Wait for spawning
-        stage_utils.update_stage()
-
-    def tearDown(self) -> None:
-        """Stops simulator after each test."""
-        # stop simulation
-        self.sim.stop()
-        self.sim.clear()
-        self.sim.clear_all_callbacks()
-        self.sim.clear_instance()
-
     """
     Basic spawning.
     """
 
     def test_spawn_pinhole_camera(self):
         """Test spawning a pinhole camera."""
-        cfg = sim_utils.PinholeCameraCfg(
-            focal_length=5.0, f_stop=10.0, clipping_range=(0.1, 1000.0), horizontal_aperture=10.0
-        )
-        prim = cfg.func("/World/pinhole_camera", cfg)
+        with build_simulation_context():
+            cfg = sim_utils.PinholeCameraCfg(
+                focal_length=5.0, f_stop=10.0, clipping_range=(0.1, 1000.0), horizontal_aperture=10.0
+            )
+            prim = cfg.func("/World/pinhole_camera", cfg)
 
-        # check if the light is spawned
-        self.assertTrue(prim.IsValid())
-        self.assertTrue(prim_utils.is_prim_path_valid("/World/pinhole_camera"))
-        self.assertEqual(prim.GetPrimTypeInfo().GetTypeName(), "Camera")
-        # validate properties on the prim
-        self._validate_properties_on_prim("/World/pinhole_camera", cfg, CUSTOM_PINHOLE_CAMERA_ATTRIBUTES)
+            # get current stage
+            stage = omni.usd.get_context().get_stage()
+            # check if the light is spawned
+            self.assertTrue(prim.IsValid())
+            self.assertTrue(stage.GetPrimAtPath("/World/pinhole_camera").IsValid())
+            self.assertEqual(prim.GetPrimTypeInfo().GetTypeName(), "Camera")
+            # validate properties on the prim
+            self._validate_properties_on_prim("/World/pinhole_camera", cfg, CUSTOM_PINHOLE_CAMERA_ATTRIBUTES)
 
     def test_spawn_fisheye_camera(self):
         """Test spawning a fisheye camera."""
-        cfg = sim_utils.FisheyeCameraCfg(
-            projection_type="fisheye_equidistant",
-            focal_length=5.0,
-            f_stop=10.0,
-            clipping_range=(0.1, 1000.0),
-            horizontal_aperture=10.0,
-        )
-        # FIXME: This throws a warning. Check with Replicator team if this is expected/known.
-        #   [omni.hydra] Camera '/World/fisheye_camera': Unknown projection type, defaulting to pinhole
-        prim = cfg.func("/World/fisheye_camera", cfg)
+        with build_simulation_context():
+            cfg = sim_utils.FisheyeCameraCfg(
+                projection_type="fisheye_equidistant",
+                focal_length=5.0,
+                f_stop=10.0,
+                clipping_range=(0.1, 1000.0),
+                horizontal_aperture=10.0,
+            )
+            # FIXME: This throws a warning. Check with Replicator team if this is expected/known.
+            #   [omni.hydra] Camera '/World/fisheye_camera': Unknown projection type, defaulting to pinhole
+            prim = cfg.func("/World/fisheye_camera", cfg)
 
-        # check if the light is spawned
-        self.assertTrue(prim.IsValid())
-        self.assertTrue(prim_utils.is_prim_path_valid("/World/fisheye_camera"))
-        self.assertEqual(prim.GetPrimTypeInfo().GetTypeName(), "Camera")
-        # validate properties on the prim
-        self._validate_properties_on_prim("/World/fisheye_camera", cfg, CUSTOM_FISHEYE_CAMERA_ATTRIBUTES)
+            # get current stage
+            stage = omni.usd.get_context().get_stage()
+            # check if the light is spawned
+            self.assertTrue(prim.IsValid())
+            self.assertTrue(stage.GetPrimAtPath("/World/fisheye_camera").IsValid())
+            self.assertEqual(prim.GetPrimTypeInfo().GetTypeName(), "Camera")
+            # validate properties on the prim
+            self._validate_properties_on_prim("/World/fisheye_camera", cfg, CUSTOM_FISHEYE_CAMERA_ATTRIBUTES)
 
     """
     Helper functions.
@@ -108,7 +94,8 @@ class TestSpawningSensors(unittest.TestCase):
             "from_intrinsic_matrix",
         ]
         # get prim
-        prim = prim_utils.get_prim_at_path(prim_path)
+        stage = omni.usd.get_context().get_stage()
+        prim = stage.GetPrimAtPath(prim_path)
         for attr_name, attr_value in cfg.__dict__.items():
             # skip names we know are not present
             if attr_name in non_usd_cfg_param_names or attr_value is None:
