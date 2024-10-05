@@ -54,7 +54,7 @@
     <link rel="search" title="Search" href="../../../../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Oct 04, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 05, 2024"/>
   </head>
   
   
@@ -500,6 +500,7 @@ document.write(`
 
 <span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">annotations</span>
 
+<span class="kn">import</span> <span class="nn">re</span>
 <span class="kn">import</span> <span class="nn">torch</span>
 <span class="kn">from</span> <span class="nn">collections.abc</span> <span class="kn">import</span> <span class="n">Sequence</span>
 <span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
@@ -544,21 +545,6 @@ document.write(`
 <span class="sd">    manipulator, and the target frame would be the body corresponding to the end effector. Since the end-effector is</span>
 <span class="sd">    typically a fictitious body, the user may need to specify an offset from the end-effector to the body of the</span>
 <span class="sd">    manipulator.</span>
-
-<span class="sd">    .. note::</span>
-
-<span class="sd">        Currently, this implementation only handles frames within an articulation. This is because the frame</span>
-<span class="sd">        regex expressions are resolved based on their parent prim path. This can be extended to handle</span>
-<span class="sd">        frames outside of articulation by using the frame prim path instead. However, this would require</span>
-<span class="sd">        additional checks to ensure that the user-specified frames are valid which is not currently implemented.</span>
-
-<span class="sd">    .. warning::</span>
-
-<span class="sd">        The implementation assumes that the parent body of a target frame is not the same as that</span>
-<span class="sd">        of the source frame (i.e. :attr:`FrameTransformerCfg.prim_path`). While a corner case, this can occur</span>
-<span class="sd">        if the user specifies the same prim path for both the source frame and target frame. In this case,</span>
-<span class="sd">        the target frame will be ignored and not reported. This is a limitation of the current implementation</span>
-<span class="sd">        and will be fixed in a future release.</span>
 
 <span class="sd">    &quot;&quot;&quot;</span>
 
@@ -631,9 +617,9 @@ document.write(`
             <span class="bp">self</span><span class="o">.</span><span class="n">_source_frame_offset_pos</span> <span class="o">=</span> <span class="n">source_frame_offset_pos</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_num_envs</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_source_frame_offset_quat</span> <span class="o">=</span> <span class="n">source_frame_offset_quat</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_num_envs</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
 
-        <span class="c1"># Keep track of mapping from the rigid body name to the desired frame, as there may be multiple frames</span>
+        <span class="c1"># Keep track of mapping from the rigid body name to the desired frames and prim path, as there may be multiple frames</span>
         <span class="c1"># based upon the same body name and we don&#39;t want to create unnecessary views</span>
-        <span class="n">body_names_to_frames</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">body_names_to_frames</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="c1"># The offsets associated with each target frame</span>
         <span class="n">target_offsets</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="c1"># The frames whose offsets are not identity</span>
@@ -643,6 +629,9 @@ document.write(`
         <span class="c1"># rotation offsets are not the identity quaternion for efficiency in _update_buffer_impl</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_apply_target_frame_offset</span> <span class="o">=</span> <span class="kc">False</span>
 
+        <span class="c1"># Need to keep track of whether the source frame is also a target frame</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_source_is_also_target_frame</span> <span class="o">=</span> <span class="kc">False</span>
+
         <span class="c1"># Collect all target frames, their associated body prim paths and their offsets so that we can extract</span>
         <span class="c1"># the prim, check that it has the appropriate rigid body API in a single loop.</span>
         <span class="c1"># First element is None because user can&#39;t specify source frame name</span>
@@ -650,7 +639,8 @@ document.write(`
         <span class="n">frame_prim_paths</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="n">target_frame</span><span class="o">.</span><span class="n">prim_path</span> <span class="k">for</span> <span class="n">target_frame</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">target_frames</span><span class="p">]</span>
         <span class="c1"># First element is None because source frame offset is handled separately</span>
         <span class="n">frame_offsets</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="n">target_frame</span><span class="o">.</span><span class="n">offset</span> <span class="k">for</span> <span class="n">target_frame</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">target_frames</span><span class="p">]</span>
-        <span class="k">for</span> <span class="n">frame</span><span class="p">,</span> <span class="n">prim_path</span><span class="p">,</span> <span class="n">offset</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">frames</span><span class="p">,</span> <span class="n">frame_prim_paths</span><span class="p">,</span> <span class="n">frame_offsets</span><span class="p">):</span>
+        <span class="n">frame_types</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;source&quot;</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="s2">&quot;target&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">target_frames</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">frame</span><span class="p">,</span> <span class="n">prim_path</span><span class="p">,</span> <span class="n">offset</span><span class="p">,</span> <span class="n">frame_type</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">frames</span><span class="p">,</span> <span class="n">frame_prim_paths</span><span class="p">,</span> <span class="n">frame_offsets</span><span class="p">,</span> <span class="n">frame_types</span><span class="p">):</span>
             <span class="c1"># Find correct prim</span>
             <span class="n">matching_prims</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">find_matching_prims</span><span class="p">(</span><span class="n">prim_path</span><span class="p">)</span>
             <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">matching_prims</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
@@ -675,9 +665,19 @@ document.write(`
 
                 <span class="c1"># Keep track of which frames are associated with which bodies</span>
                 <span class="k">if</span> <span class="n">body_name</span> <span class="ow">in</span> <span class="n">body_names_to_frames</span><span class="p">:</span>
-                    <span class="n">body_names_to_frames</span><span class="p">[</span><span class="n">body_name</span><span class="p">]</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">frame_name</span><span class="p">)</span>
+                    <span class="n">body_names_to_frames</span><span class="p">[</span><span class="n">body_name</span><span class="p">][</span><span class="s2">&quot;frames&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">frame_name</span><span class="p">)</span>
+
+                    <span class="c1"># This is a corner case where the source frame is also a target frame</span>
+                    <span class="k">if</span> <span class="n">body_names_to_frames</span><span class="p">[</span><span class="n">body_name</span><span class="p">][</span><span class="s2">&quot;type&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;source&quot;</span> <span class="ow">and</span> <span class="n">frame_type</span> <span class="o">==</span> <span class="s2">&quot;target&quot;</span><span class="p">:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_source_is_also_target_frame</span> <span class="o">=</span> <span class="kc">True</span>
+
                 <span class="k">else</span><span class="p">:</span>
-                    <span class="n">body_names_to_frames</span><span class="p">[</span><span class="n">body_name</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="n">frame_name</span><span class="p">}</span>
+                    <span class="c1"># Store the first matching prim path and the type of frame</span>
+                    <span class="n">body_names_to_frames</span><span class="p">[</span><span class="n">body_name</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+                        <span class="s2">&quot;frames&quot;</span><span class="p">:</span> <span class="p">{</span><span class="n">frame_name</span><span class="p">},</span>
+                        <span class="s2">&quot;prim_path&quot;</span><span class="p">:</span> <span class="n">matching_prim_path</span><span class="p">,</span>
+                        <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="n">frame_type</span><span class="p">,</span>
+                    <span class="p">}</span>
 
                 <span class="k">if</span> <span class="n">offset</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
                     <span class="n">offset_pos</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">offset</span><span class="o">.</span><span class="n">pos</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
@@ -686,7 +686,6 @@ document.write(`
                     <span class="k">if</span> <span class="ow">not</span> <span class="n">is_identity_pose</span><span class="p">(</span><span class="n">offset_pos</span><span class="p">,</span> <span class="n">offset_quat</span><span class="p">):</span>
                         <span class="n">non_identity_offset_frames</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">frame_name</span><span class="p">)</span>
                         <span class="bp">self</span><span class="o">.</span><span class="n">_apply_target_frame_offset</span> <span class="o">=</span> <span class="kc">True</span>
-
                     <span class="n">target_offsets</span><span class="p">[</span><span class="n">frame_name</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;pos&quot;</span><span class="p">:</span> <span class="n">offset_pos</span><span class="p">,</span> <span class="s2">&quot;quat&quot;</span><span class="p">:</span> <span class="n">offset_quat</span><span class="p">}</span>
 
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_apply_target_frame_offset</span><span class="p">:</span>
@@ -701,37 +700,75 @@ document.write(`
             <span class="p">)</span>
 
         <span class="c1"># The names of bodies that RigidPrimView will be tracking to later extract transforms from</span>
-        <span class="n">tracked_body_names</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">body_names_to_frames</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
-        <span class="c1"># Construct regex expression for the body names</span>
-        <span class="n">body_names_regex</span> <span class="o">=</span> <span class="sa">r</span><span class="s2">&quot;(&quot;</span> <span class="o">+</span> <span class="s2">&quot;|&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tracked_body_names</span><span class="p">)</span> <span class="o">+</span> <span class="sa">r</span><span class="s2">&quot;)&quot;</span>
-        <span class="n">body_names_regex</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="o">.</span><span class="n">rsplit</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">body_names_regex</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="n">tracked_prim_paths</span> <span class="o">=</span> <span class="p">[</span><span class="n">body_names_to_frames</span><span class="p">[</span><span class="n">body_name</span><span class="p">][</span><span class="s2">&quot;prim_path&quot;</span><span class="p">]</span> <span class="k">for</span> <span class="n">body_name</span> <span class="ow">in</span> <span class="n">body_names_to_frames</span><span class="o">.</span><span class="n">keys</span><span class="p">()]</span>
+        <span class="n">tracked_body_names</span> <span class="o">=</span> <span class="p">[</span><span class="n">body_name</span> <span class="k">for</span> <span class="n">body_name</span> <span class="ow">in</span> <span class="n">body_names_to_frames</span><span class="o">.</span><span class="n">keys</span><span class="p">()]</span>
+
+        <span class="n">body_names_regex</span> <span class="o">=</span> <span class="p">[</span><span class="n">tracked_prim_path</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;env_0&quot;</span><span class="p">,</span> <span class="s2">&quot;env_*&quot;</span><span class="p">)</span> <span class="k">for</span> <span class="n">tracked_prim_path</span> <span class="ow">in</span> <span class="n">tracked_prim_paths</span><span class="p">]</span>
+
         <span class="c1"># Create simulation view</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_physics_sim_view</span> <span class="o">=</span> <span class="n">physx</span><span class="o">.</span><span class="n">create_simulation_view</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_backend</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_physics_sim_view</span><span class="o">.</span><span class="n">set_subspace_roots</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">)</span>
         <span class="c1"># Create a prim view for all frames and initialize it</span>
         <span class="c1"># order of transforms coming out of view will be source frame followed by target frame(s)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_frame_physx_view</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_physics_sim_view</span><span class="o">.</span><span class="n">create_rigid_body_view</span><span class="p">(</span><span class="n">body_names_regex</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;.*&quot;</span><span class="p">,</span> <span class="s2">&quot;*&quot;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_frame_physx_view</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_physics_sim_view</span><span class="o">.</span><span class="n">create_rigid_body_view</span><span class="p">(</span><span class="n">body_names_regex</span><span class="p">)</span>
 
         <span class="c1"># Determine the order in which regex evaluated body names so we can later index into frame transforms</span>
         <span class="c1"># by frame name correctly</span>
         <span class="n">all_prim_paths</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_frame_physx_view</span><span class="o">.</span><span class="n">prim_paths</span>
 
-        <span class="c1"># Only need first env as the names and their ordering are the same across environments</span>
-        <span class="n">first_env_prim_paths</span> <span class="o">=</span> <span class="n">all_prim_paths</span><span class="p">[</span><span class="mi">0</span> <span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">tracked_body_names</span><span class="p">)]</span>
-        <span class="n">first_env_body_names</span> <span class="o">=</span> <span class="p">[</span><span class="n">first_env_prim_path</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">first_env_prim_path</span> <span class="ow">in</span> <span class="n">first_env_prim_paths</span><span class="p">]</span>
+        <span class="k">if</span> <span class="s2">&quot;env_&quot;</span> <span class="ow">in</span> <span class="n">all_prim_paths</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
 
-        <span class="c1"># Re-parse the list as it may have moved when resolving regex above</span>
+            <span class="k">def</span> <span class="nf">extract_env_num_and_prim_path</span><span class="p">(</span><span class="n">item</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">str</span><span class="p">]:</span>
+<span class="w">                </span><span class="sd">&quot;&quot;&quot;Separates the environment number and prim_path from the item.</span>
+
+<span class="sd">                Args:</span>
+<span class="sd">                    item: The item to extract the environment number from. Assumes item is of the form</span>
+<span class="sd">                        `/World/envs/env_1/blah` or `/World/envs/env_11/blah`.</span>
+<span class="sd">                Returns:</span>
+<span class="sd">                    The environment number and the prim_path.</span>
+<span class="sd">                &quot;&quot;&quot;</span>
+                <span class="n">match</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;env_(\d+)(.*)&quot;</span><span class="p">,</span> <span class="n">item</span><span class="p">)</span>
+                <span class="k">return</span> <span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)),</span> <span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">2</span><span class="p">))</span>
+
+            <span class="c1"># Find the indices that would reorganize output to be per environment. We want `env_1/blah` to come before `env_11/blah`</span>
+            <span class="c1"># and env_1/Robot/base to come before env_1/Robot/foot so we need to use custom key function</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_per_env_indices</span> <span class="o">=</span> <span class="p">[</span>
+                <span class="n">index</span>
+                <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span>
+                    <span class="nb">list</span><span class="p">(</span><span class="nb">enumerate</span><span class="p">(</span><span class="n">all_prim_paths</span><span class="p">)),</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">extract_env_num_and_prim_path</span><span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+                <span class="p">)</span>
+            <span class="p">]</span>
+
+            <span class="c1"># Only need 0th env as the names and their ordering are the same across environments</span>
+            <span class="n">sorted_prim_paths</span> <span class="o">=</span> <span class="p">[</span>
+                <span class="n">all_prim_paths</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="k">for</span> <span class="n">index</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_per_env_indices</span> <span class="k">if</span> <span class="s2">&quot;env_0&quot;</span> <span class="ow">in</span> <span class="n">all_prim_paths</span><span class="p">[</span><span class="n">index</span><span class="p">]</span>
+            <span class="p">]</span>
+
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># If no environment is present, then the order of the body names is the same as the order of the prim paths sorted alphabetically</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_per_env_indices</span> <span class="o">=</span> <span class="p">[</span><span class="n">index</span> <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">enumerate</span><span class="p">(</span><span class="n">all_prim_paths</span><span class="p">),</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">])]</span>
+            <span class="n">sorted_prim_paths</span> <span class="o">=</span> <span class="p">[</span><span class="n">all_prim_paths</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="k">for</span> <span class="n">index</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_per_env_indices</span><span class="p">]</span>
+
+        <span class="c1"># -- target frames</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_target_frame_body_names</span> <span class="o">=</span> <span class="p">[</span><span class="n">prim_path</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">prim_path</span> <span class="ow">in</span> <span class="n">sorted_prim_paths</span><span class="p">]</span>
+
         <span class="c1"># -- source frame</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_source_frame_body_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
-        <span class="n">source_frame_index</span> <span class="o">=</span> <span class="n">first_env_body_names</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_source_frame_body_name</span><span class="p">)</span>
-        <span class="c1"># -- target frames</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_target_frame_body_names</span> <span class="o">=</span> <span class="n">first_env_body_names</span><span class="p">[:]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_target_frame_body_names</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_source_frame_body_name</span><span class="p">)</span>
+        <span class="n">source_frame_index</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_target_frame_body_names</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_source_frame_body_name</span><span class="p">)</span>
+
+        <span class="c1"># Only remove source frame from tracked bodies if it is not also a target frame</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_source_is_also_target_frame</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_target_frame_body_names</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_source_frame_body_name</span><span class="p">)</span>
 
         <span class="c1"># Determine indices into all tracked body frames for both source and target frames</span>
         <span class="n">all_ids</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_num_envs</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">tracked_body_names</span><span class="p">))</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_source_frame_body_ids</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_num_envs</span><span class="p">)</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">tracked_body_names</span><span class="p">)</span> <span class="o">+</span> <span class="n">source_frame_index</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_target_frame_body_ids</span> <span class="o">=</span> <span class="n">all_ids</span><span class="p">[</span><span class="o">~</span><span class="n">torch</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">all_ids</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_source_frame_body_ids</span><span class="p">)]</span>
+
+        <span class="c1"># If source frame is also a target frame, then the target frame body ids are the same as the source frame body ids</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_source_is_also_target_frame</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_target_frame_body_ids</span> <span class="o">=</span> <span class="n">all_ids</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_target_frame_body_ids</span> <span class="o">=</span> <span class="n">all_ids</span><span class="p">[</span><span class="o">~</span><span class="n">torch</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">all_ids</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_source_frame_body_ids</span><span class="p">)]</span>
 
         <span class="c1"># The name of each of the target frame(s) - either user specified or defaulted to the body name</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_target_frame_names</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
@@ -744,26 +781,34 @@ document.write(`
         <span class="n">duplicate_frame_indices</span> <span class="o">=</span> <span class="p">[]</span>
 
         <span class="c1"># Go through each body name and determine the number of duplicates we need for that frame</span>
-        <span class="c1"># and extract the offsets. This is all done to handles the case where multiple frames</span>
+        <span class="c1"># and extract the offsets. This is all done to handle the case where multiple frames</span>
         <span class="c1"># reference the same body, but have different names and/or offsets</span>
         <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">body_name</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_target_frame_body_names</span><span class="p">):</span>
-            <span class="k">for</span> <span class="n">frame</span> <span class="ow">in</span> <span class="n">body_names_to_frames</span><span class="p">[</span><span class="n">body_name</span><span class="p">]:</span>
-                <span class="n">target_frame_offset_pos</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">target_offsets</span><span class="p">[</span><span class="n">frame</span><span class="p">][</span><span class="s2">&quot;pos&quot;</span><span class="p">])</span>
-                <span class="n">target_frame_offset_quat</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">target_offsets</span><span class="p">[</span><span class="n">frame</span><span class="p">][</span><span class="s2">&quot;quat&quot;</span><span class="p">])</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">_target_frame_names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">frame</span><span class="p">)</span>
-                <span class="n">duplicate_frame_indices</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">frame</span> <span class="ow">in</span> <span class="n">body_names_to_frames</span><span class="p">[</span><span class="n">body_name</span><span class="p">][</span><span class="s2">&quot;frames&quot;</span><span class="p">]:</span>
+                <span class="c1"># Only need to handle target frames here as source frame is handled separately</span>
+                <span class="k">if</span> <span class="n">frame</span> <span class="ow">in</span> <span class="n">target_offsets</span><span class="p">:</span>
+                    <span class="n">target_frame_offset_pos</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">target_offsets</span><span class="p">[</span><span class="n">frame</span><span class="p">][</span><span class="s2">&quot;pos&quot;</span><span class="p">])</span>
+                    <span class="n">target_frame_offset_quat</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">target_offsets</span><span class="p">[</span><span class="n">frame</span><span class="p">][</span><span class="s2">&quot;quat&quot;</span><span class="p">])</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_target_frame_names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">frame</span><span class="p">)</span>
+                    <span class="n">duplicate_frame_indices</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
 
         <span class="c1"># To handle multiple environments, need to expand so [0, 1, 1, 2] with 2 environments becomes</span>
         <span class="c1"># [0, 1, 1, 2, 3, 4, 4, 5]. Again, this is a optimization to make _update_buffer_impl more efficient</span>
         <span class="n">duplicate_frame_indices</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">duplicate_frame_indices</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
-        <span class="n">num_target_body_frames</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">tracked_body_names</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_source_is_also_target_frame</span><span class="p">:</span>
+            <span class="n">num_target_body_frames</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">tracked_body_names</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">num_target_body_frames</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">tracked_body_names</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+
         <span class="bp">self</span><span class="o">.</span><span class="n">_duplicate_frame_indices</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">(</span>
             <span class="p">[</span><span class="n">duplicate_frame_indices</span> <span class="o">+</span> <span class="n">num_target_body_frames</span> <span class="o">*</span> <span class="n">env_num</span> <span class="k">for</span> <span class="n">env_num</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_num_envs</span><span class="p">)]</span>
         <span class="p">)</span>
 
-        <span class="c1"># Stack up all the frame offsets for shape (num_envs, num_frames, 3) and (num_envs, num_frames, 4)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_target_frame_offset_pos</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span><span class="n">target_frame_offset_pos</span><span class="p">)</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_num_envs</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_target_frame_offset_quat</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span><span class="n">target_frame_offset_quat</span><span class="p">)</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_num_envs</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="c1"># Target frame offsets are only applied if at least one of the offsets are non-identity</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_apply_target_frame_offset</span><span class="p">:</span>
+            <span class="c1"># Stack up all the frame offsets for shape (num_envs, num_frames, 3) and (num_envs, num_frames, 4)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_target_frame_offset_pos</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span><span class="n">target_frame_offset_pos</span><span class="p">)</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_num_envs</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_target_frame_offset_quat</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span><span class="n">target_frame_offset_quat</span><span class="p">)</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_num_envs</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
 
         <span class="c1"># fill the data buffer</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">target_frame_names</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_target_frame_names</span>
@@ -783,6 +828,10 @@ document.write(`
         <span class="c1"># Extract transforms from view - shape is:</span>
         <span class="c1"># (the total number of source and target body frames being tracked * self._num_envs, 7)</span>
         <span class="n">transforms</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_frame_physx_view</span><span class="o">.</span><span class="n">get_transforms</span><span class="p">()</span>
+
+        <span class="c1"># Reorder the transforms to be per environment as is expected of SensorData</span>
+        <span class="n">transforms</span> <span class="o">=</span> <span class="n">transforms</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_per_env_indices</span><span class="p">]</span>
+
         <span class="c1"># Convert quaternions as PhysX uses xyzw form</span>
         <span class="n">transforms</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:]</span> <span class="o">=</span> <span class="n">convert_quat</span><span class="p">(</span><span class="n">transforms</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:],</span> <span class="n">to</span><span class="o">=</span><span class="s2">&quot;wxyz&quot;</span><span class="p">)</span>
 
@@ -804,6 +853,7 @@ document.write(`
         <span class="n">target_frames</span> <span class="o">=</span> <span class="n">transforms</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_target_frame_body_ids</span><span class="p">]</span>
         <span class="n">duplicated_target_frame_pos_w</span> <span class="o">=</span> <span class="n">target_frames</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_duplicate_frame_indices</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span>
         <span class="n">duplicated_target_frame_quat_w</span> <span class="o">=</span> <span class="n">target_frames</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_duplicate_frame_indices</span><span class="p">,</span> <span class="mi">3</span><span class="p">:]</span>
+
         <span class="c1"># Only apply offset if the offsets will result in a coordinate frame transform</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_apply_target_frame_offset</span><span class="p">:</span>
             <span class="n">target_pos_w</span><span class="p">,</span> <span class="n">target_quat_w</span> <span class="o">=</span> <span class="n">combine_frame_transforms</span><span class="p">(</span>
@@ -909,7 +959,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 04, 2024.
+  Last updated on Oct 05, 2024.
   <br/>
 </p>
   </div>

@@ -54,7 +54,7 @@
     <link rel="search" title="Search" href="../../../../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Oct 04, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 05, 2024"/>
   </head>
   
   
@@ -526,10 +526,15 @@ document.write(`
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Information specific to a coordinate frame.&quot;&quot;&quot;</span>
 
         <span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">MISSING</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;The prim path corresponding to the parent rigid body.</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The prim path corresponding to a rigid body.</span>
 
-<span class="sd">        This prim should be part of the same articulation as :attr:`FrameTransformerCfg.prim_path`.</span>
+<span class="sd">        This can be a regex pattern to match multiple prims. For example, &quot;/Robot/.*&quot; will match all prims under &quot;/Robot&quot;.</span>
+
+<span class="sd">        This means that if the source :attr:`FrameTransformerCfg.prim_path` is &quot;/Robot/base&quot;, and the target :attr:`FrameTransformerCfg.FrameCfg.prim_path` is &quot;/Robot/.*&quot;,</span>
+<span class="sd">        then the frame transformer will track the poses of all the prims under &quot;/Robot&quot;,</span>
+<span class="sd">        including &quot;/Robot/base&quot; (even though this will result in an identity pose w.r.t. the source frame).</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+
         <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;User-defined name for the new coordinate frame. Defaults to None.</span>
 
@@ -608,7 +613,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 04, 2024.
+  Last updated on Oct 05, 2024.
   <br/>
 </p>
   </div>

@@ -59,7 +59,7 @@
     <link rel="prev" title="omni.isaac.lab.scene" href="omni.isaac.lab.scene.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Oct 04, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 05, 2024"/>
   </head>
   
   
@@ -2814,21 +2814,6 @@ robotic manipulator. In this case, the source frame would be the body correspond
 manipulator, and the target frame would be the body corresponding to the end effector. Since the end-effector is
 typically a fictitious body, the user may need to specify an offset from the end-effector to the body of the
 manipulator.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>Currently, this implementation only handles frames within an articulation. This is because the frame
-regex expressions are resolved based on their parent prim path. This can be extended to handle
-frames outside of articulation by using the frame prim path instead. However, this would require
-additional checks to ensure that the user-specified frames are valid which is not currently implemented.</p>
-</div>
-<div class="admonition warning">
-<p class="admonition-title">Warning</p>
-<p>The implementation assumes that the parent body of a target frame is not the same as that
-of the source frame (i.e. <a class="reference internal" href="#omni.isaac.lab.sensors.FrameTransformerCfg.prim_path" title="omni.isaac.lab.sensors.FrameTransformerCfg.prim_path"><code class="xref py py-attr docutils literal notranslate"><span class="pre">FrameTransformerCfg.prim_path</span></code></a>). While a corner case, this can occur
-if the user specifies the same prim path for both the source frame and target frame. In this case,
-the target frame will be ignored and not reported. This is a limitation of the current implementation
-and will be fixed in a future release.</p>
-</div>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
@@ -2991,8 +2976,8 @@ does not support debug visualization.</p>
 <span class="sig-name descname"><span class="pre">target_frame_names</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.12)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#omni.isaac.lab.sensors.FrameTransformerData.target_frame_names" title="Permalink to this definition">#</a></dt>
 <dd><p>Target frame names (this denotes the order in which that frame data is ordered).</p>
 <p>The frame names are resolved from the <a class="reference internal" href="#omni.isaac.lab.sensors.FrameTransformerCfg.FrameCfg.name" title="omni.isaac.lab.sensors.FrameTransformerCfg.FrameCfg.name"><code class="xref py py-attr docutils literal notranslate"><span class="pre">FrameTransformerCfg.FrameCfg.name</span></code></a> field.
-This usually follows the order in which the frames are defined in the config. However, in
-the case of regex matching, the order may be different.</p>
+This does not necessarily follow the order in which the frames are defined in the config due to
+the regex matching.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -3080,7 +3065,7 @@ the case of regex matching, the order may be different.</p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.FrameTransformerCfg.FrameCfg.prim_path" title="omni.isaac.lab.sensors.FrameTransformerCfg.FrameCfg.prim_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">prim_path</span></code></a></p></td>
-<td><p>The prim path corresponding to the parent rigid body.</p></td>
+<td><p>The prim path corresponding to a rigid body.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.FrameTransformerCfg.FrameCfg.name" title="omni.isaac.lab.sensors.FrameTransformerCfg.FrameCfg.name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">name</span></code></a></p></td>
 <td><p>User-defined name for the new coordinate frame.</p></td>
@@ -3094,8 +3079,11 @@ the case of regex matching, the order may be different.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sensors.FrameTransformerCfg.FrameCfg.prim_path">
 <span class="sig-name descname"><span class="pre">prim_path</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.sensors.FrameTransformerCfg.FrameCfg.prim_path" title="Permalink to this definition">#</a></dt>
-<dd><p>The prim path corresponding to the parent rigid body.</p>
-<p>This prim should be part of the same articulation as <a class="reference internal" href="#omni.isaac.lab.sensors.FrameTransformerCfg.prim_path" title="omni.isaac.lab.sensors.FrameTransformerCfg.prim_path"><code class="xref py py-attr docutils literal notranslate"><span class="pre">FrameTransformerCfg.prim_path</span></code></a>.</p>
+<dd><p>The prim path corresponding to a rigid body.</p>
+<p>This can be a regex pattern to match multiple prims. For example, “/Robot/.*” will match all prims under “/Robot”.</p>
+<p>This means that if the source <a class="reference internal" href="#omni.isaac.lab.sensors.FrameTransformerCfg.prim_path" title="omni.isaac.lab.sensors.FrameTransformerCfg.prim_path"><code class="xref py py-attr docutils literal notranslate"><span class="pre">FrameTransformerCfg.prim_path</span></code></a> is “/Robot/base”, and the target <a class="reference internal" href="#omni.isaac.lab.sensors.FrameTransformerCfg.FrameCfg.prim_path" title="omni.isaac.lab.sensors.FrameTransformerCfg.FrameCfg.prim_path"><code class="xref py py-attr docutils literal notranslate"><span class="pre">FrameTransformerCfg.FrameCfg.prim_path</span></code></a> is “/Robot/.*”,
+then the frame transformer will track the poses of all the prims under “/Robot”,
+including “/Robot/base” (even though this will result in an identity pose w.r.t. the source frame).</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -4369,7 +4357,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 04, 2024.
+  Last updated on Oct 05, 2024.
   <br/>
 </p>
   </div>
