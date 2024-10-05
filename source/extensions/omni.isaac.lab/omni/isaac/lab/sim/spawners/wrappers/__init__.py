@@ -10,5 +10,5 @@ into a single configuration. This is useful when the user wants to spawn multipl
 different configurations.
 """
 
-from .wrappers import spawn_multi_asset
-from .wrappers_cfg import MultiAssetSpawnerCfg
+from .wrappers import spawn_multi_asset, spawn_multi_usd_file
+from .wrappers_cfg import MultiAssetSpawnerCfg, MultiUsdFileCfg

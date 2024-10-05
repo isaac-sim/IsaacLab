@@ -14,6 +14,7 @@ import omni.usd
 from pxr import Sdf, Usd
 
 import omni.isaac.lab.sim as sim_utils
+from omni.isaac.lab.sim.spawners.from_files import UsdFileCfg
 
 if TYPE_CHECKING:
     from . import wrappers_cfg
@@ -69,10 +70,11 @@ def spawn_multi_asset(
             else:
                 asset_cfg.semantic_tags += cfg.semantic_tags
         # override settings for properties
-        for name in ["mass_props", "rigid_props", "collision_props", "activate_contact_sensors", "deformable_props"]:
-            value = getattr(cfg, name)
-            if hasattr(asset_cfg, name) and value is not None:
-                setattr(asset_cfg, name, value)
+        attr_names = ["mass_props", "rigid_props", "collision_props", "activate_contact_sensors", "deformable_props"]
+        for attr_name in attr_names:
+            attr_value = getattr(cfg, attr_name)
+            if hasattr(asset_cfg, attr_name) and attr_value is not None:
+                setattr(asset_cfg, attr_name, attr_value)
         # spawn single instance
         proto_prim_path = f"/World/Dataset/Asset_{index:04d}"
         asset_cfg.func(proto_prim_path, asset_cfg, translation=translation, orientation=orientation)
@@ -102,3 +104,54 @@ def spawn_multi_asset(
 
     # return the prim
     return prim_utils.get_prim_at_path(prim_paths[0])
+
+
+def spawn_multi_usd_file(
+    prim_path: str,
+    cfg: wrappers_cfg.MultiUsdFileCfg,
+    translation: tuple[float, float, float] | None = None,
+    orientation: tuple[float, float, float, float] | None = None,
+) -> Usd.Prim:
+    """Spawn multiple USD files based on the provided configurations.
+
+    This function spawns multiple assets based on the provided configurations. The assets are spawned
+    in the order they are provided in the list. If the `random_choice` parameter is set to True, a random
+    asset configuration is selected for each spawn.
+
+    Args:
+        prim_path: The prim path to spawn the assets.
+        cfg: The configuration for spawning the assets.
+        translation: The translation of the spawned assets. Default is None.
+        orientation: The orientation of the spawned assets. Default is None.
+
+    Returns:
+        The created prim at the first prim path.
+    """
+    # needed here to avoid circular imports
+    from .wrappers_cfg import MultiAssetSpawnerCfg
+
+    # parse all the usd files
+    if isinstance(cfg.usd_path, str):
+        usd_paths = [cfg.usd_path]
+    else:
+        usd_paths = cfg.usd_path
+
+    # make a template usd config
+    usd_template_cfg = UsdFileCfg()
+    for attr_name, attr_value in cfg.__dict__.items():
+        # skip names we know are not present
+        if attr_name in ["func", "usd_path", "random_choice"]:
+            continue
+        # set the attribute into the template
+        setattr(usd_template_cfg, attr_name, attr_value)
+
+    # create multi asset configuration of USD files
+    multi_asset_cfg = MultiAssetSpawnerCfg(assets_cfg=[])
+    for usd_path in usd_paths:
+        usd_cfg = usd_template_cfg.replace(usd_path=usd_path)
+        multi_asset_cfg.assets_cfg.append(usd_cfg)
+    # set random choice
+    multi_asset_cfg.random_choice = cfg.random_choice
+
+    # call the original function
+    return spawn_multi_asset(prim_path, multi_asset_cfg, translation, orientation)
