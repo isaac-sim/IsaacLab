@@ -4,7 +4,7 @@ phases:
   pre_build:
     commands:
       - echo "Launching EC2 instance to run tests"
-      - INSTANCE_ID=$(aws ec2 run-instances --image-id ami-064d9f428f75cebb1 --count 1 --instance-type g5.2xlarge --key-name production/ssh/isaaclab --security-group-ids sg-02617e4b8916794c4 --subnet-id subnet-0907ceaeb40fd9eac --block-device-mappings 'DeviceName=/dev/sda1,Ebs={VolumeSize=500}' --output text --query 'Instances[0].InstanceId')
+      - INSTANCE_ID=$(aws ec2 run-instances --image-id ami-0f7f7fb14ee15d5ae --count 1 --instance-type g5.2xlarge --key-name production/ssh/isaaclab --security-group-ids sg-02617e4b8916794c4 --subnet-id subnet-0907ceaeb40fd9eac --block-device-mappings 'DeviceName=/dev/sda1,Ebs={VolumeSize=500}' --output text --query 'Instances[0].InstanceId')
       - aws ec2 wait instance-running --instance-ids $INSTANCE_ID
       - EC2_INSTANCE_IP=$(aws ec2 describe-instances --filters "Name=instance-state-name,Values=running" "Name=instance-id,Values=$INSTANCE_ID" --query 'Reservations[*].Instances[*].[PrivateIpAddress]' --output text)
       - mkdir -p ~/.ssh

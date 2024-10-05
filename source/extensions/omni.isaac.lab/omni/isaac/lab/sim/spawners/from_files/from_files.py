@@ -151,16 +151,11 @@ def spawn_ground_plane(
 
     # Scale only the mesh
     # Warning: This is specific to the default grid plane asset.
-    if prim_utils.is_prim_path_valid(f"{prim_path}/Enviroment"):
+    if prim_utils.is_prim_path_valid(f"{prim_path}/Environment"):
         # compute scale from size
         scale = (cfg.size[0] / 100.0, cfg.size[1] / 100.0, 1.0)
         # apply scale to the mesh
-        omni.kit.commands.execute(
-            "ChangeProperty",
-            prop_path=Sdf.Path(f"{prim_path}/Enviroment.xformOp:scale"),
-            value=scale,
-            prev=None,
-        )
+        prim_utils.set_prim_property(f"{prim_path}/Environment", "xformOp:scale", scale)
 
     # Change the color of the plane
     # Warning: This is specific to the default grid plane asset.
