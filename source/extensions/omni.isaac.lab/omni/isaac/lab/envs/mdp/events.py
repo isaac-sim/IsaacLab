@@ -19,8 +19,8 @@ import torch
 from typing import TYPE_CHECKING, Literal
 
 import carb
-import omni.usd
 import omni.physics.tensors.impl.api as physx
+import omni.usd
 from pxr import Gf, Sdf
 
 import omni.isaac.lab.sim as sim_utils
@@ -40,8 +40,8 @@ def randomize_shape_color(
     asset_cfg: SceneEntityCfg,
 ):
     """Randomize the color of a shape.
-    
-    This function randomizes the color of USD shapes created using :class:`omni.isaac.lab.sim.spawn.ShapeCfg` 
+
+    This function randomizes the color of USD shapes created using :class:`omni.isaac.lab.sim.spawn.ShapeCfg`
     class. It modifies the attribute: "geometry/material/Shader.inputs:diffuseColor" under the prims
     corresponding to the asset.
     """
