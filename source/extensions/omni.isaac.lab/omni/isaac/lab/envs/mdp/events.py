@@ -19,7 +19,9 @@ import torch
 from typing import TYPE_CHECKING, Literal
 
 import carb
+import omni.usd
 import omni.physics.tensors.impl.api as physx
+from pxr import Gf, Sdf
 
 import omni.isaac.lab.sim as sim_utils
 import omni.isaac.lab.utils.math as math_utils
@@ -30,6 +32,108 @@ from omni.isaac.lab.terrains import TerrainImporter
 
 if TYPE_CHECKING:
     from omni.isaac.lab.envs import ManagerBasedEnv
+
+
+def randomize_shape_color(
+    env: ManagerBasedEnv,
+    env_ids: torch.Tensor | None,
+    asset_cfg: SceneEntityCfg,
+):
+    """Randomize the color of a shape.
+    
+    This function randomizes the color of USD shapes created using :class:`omni.isaac.lab.sim.spawn.ShapeCfg` 
+    class. It modifies the attribute: "geometry/material/Shader.inputs:diffuseColor" under the prims
+    corresponding to the asset.
+    """
+    # extract the used quantities (to enable type-hinting)
+    asset: RigidObject = env.scene[asset_cfg.name]
+
+    # resolve environment ids
+    if env_ids is None:
+        env_ids = torch.arange(env.scene.num_envs, device="cpu")
+    else:
+        env_ids = env_ids.cpu()
+
+    # acquire stage
+    stage = omni.usd.get_context().get_stage()
+    # resolve prim paths for spawning and cloning
+    prim_paths = sim_utils.find_matching_prim_paths(asset.cfg.prim_path)
+
+    # sample values
+    rand_samples = math_utils.sample_uniform(0.0, 1.0, (len(env_ids), 3), device="cpu").tolist()
+
+    # use sdf changeblock for faster processing of USD properties
+    with Sdf.ChangeBlock():
+        for i, env_id in enumerate(env_ids):
+            # spawn single instance
+            prim_spec = Sdf.CreatePrimInLayer(stage.GetRootLayer(), prim_paths[env_id])
+
+            # get the attribute to randomize
+            color_spec = prim_spec.GetAttributeAtPath(
+                prim_paths[env_id] + "/geometry/material/Shader.inputs:diffuseColor"
+            )
+            color_spec.default = Gf.Vec3f(*rand_samples[i])
+
+
+def randomize_scale(
+    env: ManagerBasedEnv,
+    env_ids: torch.Tensor | None,
+    scale_range: tuple[float, float] | dict[str, tuple[float, float]],
+    asset_cfg: SceneEntityCfg,
+):
+    """Randomize the scale of an asset along all dimensions.
+
+    This function modifies the "xformOp:scale" property of all the prims corresponding to the asset.
+
+    It takes a tuple or dictionary for the scale ranges. If it is a tuple, then the scaling along
+    individual axis is performed equally. If it is a dictionary, the scaling is independent across each dimension.
+
+    The keys of the dictionary are ``x``, ``y``, and ``z``. The values are tuples of the form ``(min, max)``.
+    If the dictionary does not contain a key, the range is set to one for that axis.
+
+    .. attention::
+        Since this function modifies USD properties, it should only be used before the simulation starts
+        playing. This corresponds to the event mode named "spawn". Using it at simulation time, may lead to
+        unpredictable behaviors.
+
+    .. note::
+        When randomizing the scale of individual assets, please make sure to set
+        :attr:`omni.isaac.lab.scene.InteractiveSceneCfg.replicate_physics` to False. This ensures that physics
+        parser will parse the individual asset properties separately.
+
+    """
+    # extract the used quantities (to enable type-hinting)
+    asset: RigidObject | Articulation = env.scene[asset_cfg.name]
+
+    # resolve environment ids
+    if env_ids is None:
+        env_ids = torch.arange(env.scene.num_envs, device="cpu")
+    else:
+        env_ids = env_ids.cpu()
+
+    # acquire stage
+    stage = omni.usd.get_context().get_stage()
+    # resolve prim paths for spawning and cloning
+    prim_paths = sim_utils.find_matching_prim_paths(asset.cfg.prim_path)
+
+    # sample scale values
+    if isinstance(scale_range, dict):
+        range_list = [scale_range.get(key, (1.0, 1.0)) for key in ["x", "y", "z"]]
+        ranges = torch.tensor(range_list, device="cpu")
+        rand_samples = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 3), device="cpu").tolist()
+    else:
+        rand_samples = math_utils.sample_uniform(*scale_range, (len(env_ids), 1), device="cpu")
+        rand_samples = rand_samples.repeat(1, 3).tolist()
+
+    # use sdf changeblock for faster processing of USD properties
+    with Sdf.ChangeBlock():
+        for i, env_id in enumerate(env_ids):
+            # spawn single instance
+            prim_spec = Sdf.CreatePrimInLayer(stage.GetRootLayer(), prim_paths[env_id])
+
+            # get the attribute to randomize
+            scale_spec = prim_spec.GetAttributeAtPath(prim_paths[env_id] + ".xformOp:scale")
+            scale_spec.default = Gf.Vec3f(*rand_samples[i])
 
 
 def randomize_rigid_body_material(
