@@ -38,7 +38,8 @@ class EventManager(ManagerBase):
 
     For a typical training process, you may want to apply events in the following modes:
 
-    - "startup": Event is applied once at the beginning of the training.
+    - "scene": Event is applied once after designing the scene.
+    - "startup": Event is applied once after the simulation starts playing.
     - "reset": Event is applied at every reset.
     - "interval": Event is applied at pre-specified intervals of time.
 

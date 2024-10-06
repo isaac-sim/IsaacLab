@@ -116,6 +116,23 @@ class ManagerBasedEnv:
             self.scene = InteractiveScene(self.cfg.scene)
         print("[INFO]: Scene manager: ", self.scene)
 
+        # check for valid config type
+        from omni.isaac.lab.managers import EventTermCfg
+        # randomization at scene level
+        for term_name, term_cfg in self.cfg.events.__dict__.items():
+            # check for non config
+            if term_cfg is None:
+                continue
+            if not isinstance(term_cfg, EventTermCfg):
+                raise TypeError(
+                    f"Configuration for the term '{term_name}' is not of type EventTermCfg."
+                    f" Received: '{type(term_cfg)}'."
+                )
+            if term_cfg.mode == "scene":
+                if self.scene.cfg.replicate_physics:
+                    carb.log_warn("You are not smart.")
+                term_cfg.func(self, None, **term_cfg.params)
+        
         # set up camera viewport controller
         # viewport is not available in other rendering modes so the function will throw a warning
         # FIXME: This needs to be fixed in the future when we unify the UI functionalities even for
