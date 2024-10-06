@@ -45,7 +45,7 @@ class MultiAssetSpawnerCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
 @configclass
 class MultiUsdFileCfg(UsdFileCfg):
     """Configuration parameters for loading multiple USD files.
-    
+
     Specifying values for any properties at the configuration level is applied to all the assets
     imported from their USD files.
 
