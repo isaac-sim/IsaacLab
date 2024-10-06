@@ -11,7 +11,7 @@ from typing import Any
 import carb
 import omni.isaac.core.utils.torch as torch_utils
 
-from omni.isaac.lab.managers import ActionManager, EventManager, ObservationManager
+from omni.isaac.lab.managers import ActionManager, EventManager, EventTermCfg, ObservationManager
 from omni.isaac.lab.scene import InteractiveScene
 from omni.isaac.lab.sim import SimulationContext
 from omni.isaac.lab.utils.timer import Timer
@@ -116,23 +116,27 @@ class ManagerBasedEnv:
             self.scene = InteractiveScene(self.cfg.scene)
         print("[INFO]: Scene manager: ", self.scene)
 
-        # check for valid config type
-        from omni.isaac.lab.managers import EventTermCfg
-
         # randomization at scene level
-        for term_name, term_cfg in self.cfg.events.__dict__.items():
-            # check for non config
-            if term_cfg is None:
-                continue
-            if not isinstance(term_cfg, EventTermCfg):
-                raise TypeError(
-                    f"Configuration for the term '{term_name}' is not of type EventTermCfg."
-                    f" Received: '{type(term_cfg)}'."
-                )
-            if term_cfg.mode == "scene":
-                if self.scene.cfg.replicate_physics:
-                    carb.log_warn("You are not smart.")
-                term_cfg.func(self, None, **term_cfg.params)
+        with Timer("[INFO]: Time taken for scene-level randomization", "scene_randomization"):
+            for term_name, term_cfg in self.cfg.events.__dict__.items():
+                # check for non config
+                if term_cfg is None:
+                    continue
+                # check for valid config type
+                if not isinstance(term_cfg, EventTermCfg):
+                    raise TypeError(
+                        f"Configuration for the term '{term_name}' is not of type EventTermCfg."
+                        f" Received: '{type(term_cfg)}'."
+                    )
+                # call event terms corresponding to the scene-level randomization
+                if term_cfg.mode == "scene":
+                    if self.scene.cfg.replicate_physics:
+                        carb.log_warn(
+                            "Replicate physics is enabled in the 'InteractiveScene' configuration."
+                            " This may adversely affect PhysX parsing of scene information."
+                            " We recommend disabling this property."
+                        )
+                    term_cfg.func(self, None, **term_cfg.params)
 
         # set up camera viewport controller
         # viewport is not available in other rendering modes so the function will throw a warning
