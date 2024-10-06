@@ -44,7 +44,15 @@ class MultiAssetSpawnerCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
 
 @configclass
 class MultiUsdFileCfg(UsdFileCfg):
-    """Configuration parameters for loading multiple USDs from their individual configurations."""
+    """Configuration parameters for loading multiple USD files.
+    
+    Specifying values for any properties at the configuration level is applied to all the assets
+    imported from their USD files.
+
+    .. tip::
+        It is recommended that all the USD based assets follow a similar prim-hierarchy.
+
+    """
 
     func = wrappers.spawn_multi_usd_file
 

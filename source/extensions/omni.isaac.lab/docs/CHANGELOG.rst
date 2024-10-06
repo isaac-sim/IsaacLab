@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.24.19 (2024-10-06)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added configuration classes for spawning assets from a list of individual asset configurations randomly
+  at the specified prim paths.
+
+
 0.24.18 (2024-10-04)
 ~~~~~~~~~~~~~~~~~~~~
 
