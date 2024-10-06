@@ -59,7 +59,7 @@ from omni.isaac.lab_assets.anymal import ANYDRIVE_3_LSTM_ACTUATOR_CFG  # isort: 
 ##
 
 
-def randomize_color_pxr(prim_path_expr: str):
+def randomize_shape_color(prim_path_expr: str):
     """Randomize the color of the geometry."""
     # acquire stage
     stage = omni.usd.get_context().get_stage()
@@ -227,7 +227,7 @@ def main():
         # DO YOUR OWN OTHER KIND OF RANDOMIZATION HERE!
         # Note: Just need to acquire the right attribute about the property you want to set
         # Here is an example on setting color randomly
-        randomize_color_pxr(scene_cfg.object.prim_path)
+        randomize_shape_color(scene_cfg.object.prim_path)
 
     # Play the simulator
     sim.reset()
