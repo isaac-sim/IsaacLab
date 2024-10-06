@@ -41,10 +41,18 @@ import omni.usd
 from pxr import Gf, Sdf
 
 import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.assets import AssetBaseCfg, RigidObjectCfg
+from omni.isaac.lab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from omni.isaac.lab.scene import InteractiveScene, InteractiveSceneCfg
 from omni.isaac.lab.sim import SimulationContext
 from omni.isaac.lab.utils import Timer, configclass
+from omni.isaac.lab.utils.assets import ISAACLAB_NUCLEUS_DIR
+
+##
+# Pre-defined Configuration
+##
+
+from omni.isaac.lab_assets.anymal import ANYDRIVE_3_LSTM_ACTUATOR_CFG  # isort: skip
+
 
 ##
 # Randomization events.
@@ -111,7 +119,43 @@ class MultiObjectSceneCfg(InteractiveSceneCfg):
             mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
             collision_props=sim_utils.CollisionPropertiesCfg(),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.3)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 2.0)),
+    )
+
+    # articulation
+    robot: ArticulationCfg = ArticulationCfg(
+        prim_path="/World/envs/env_.*/Robot",
+        spawn=sim_utils.MultiUsdFileCfg(
+            usd_path=[
+                f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd",
+                f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-D/anymal_d.usd",
+            ],
+            random_choice=True,
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(
+                disable_gravity=False,
+                retain_accelerations=False,
+                linear_damping=0.0,
+                angular_damping=0.0,
+                max_linear_velocity=1000.0,
+                max_angular_velocity=1000.0,
+                max_depenetration_velocity=1.0,
+            ),
+            articulation_props=sim_utils.ArticulationRootPropertiesCfg(
+                enabled_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=0
+            ),
+            activate_contact_sensors=True,
+        ),
+        init_state=ArticulationCfg.InitialStateCfg(
+            pos=(0.0, 0.0, 0.6),
+            joint_pos={
+                ".*HAA": 0.0,  # all HAA
+                ".*F_HFE": 0.4,  # both front HFE
+                ".*H_HFE": -0.4,  # both hind HFE
+                ".*F_KFE": -0.8,  # both front KFE
+                ".*H_KFE": 0.8,  # both hind KFE
+            },
+        ),
+        actuators={"legs": ANYDRIVE_3_LSTM_ACTUATOR_CFG},
     )
 
 
@@ -125,6 +169,7 @@ def run_simulator(sim: SimulationContext, scene: InteractiveScene):
     # Extract scene entities
     # note: we only do this here for readability.
     rigid_object = scene["object"]
+    robot = scene["robot"]
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
     count = 0
@@ -135,13 +180,24 @@ def run_simulator(sim: SimulationContext, scene: InteractiveScene):
             # reset counter
             count = 0
             # reset the scene entities
-            # root state
+            # object
             root_state = rigid_object.data.default_root_state.clone()
             root_state[:, :3] += scene.env_origins
             rigid_object.write_root_state_to_sim(root_state)
+            # robot
+            # -- root state
+            root_state = robot.data.default_root_state.clone()
+            root_state[:, :3] += scene.env_origins
+            robot.write_root_state_to_sim(root_state)
+            # -- joint state
+            joint_pos, joint_vel = robot.data.default_joint_pos.clone(), robot.data.default_joint_vel.clone()
+            robot.write_joint_state_to_sim(joint_pos, joint_vel)
             # clear internal buffers
             scene.reset()
-            print("[INFO]: Resetting robot state...")
+            print("[INFO]: Resetting scene state...")
+
+        # Apply action to robot
+        robot.set_joint_position_target(robot.data.default_joint_pos)
         # Write data to sim
         scene.write_data_to_sim()
         # Perform step
@@ -155,13 +211,13 @@ def run_simulator(sim: SimulationContext, scene: InteractiveScene):
 def main():
     """Main function."""
     # Load kit helper
-    sim_cfg = sim_utils.SimulationCfg(device=args_cli.device)
+    sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device)
     sim = SimulationContext(sim_cfg)
     # Set main camera
     sim.set_camera_view([2.5, 0.0, 4.0], [0.0, 0.0, 2.0])
 
     # Design scene
-    scene_cfg = MultiObjectSceneCfg(num_envs=args_cli.num_envs, env_spacing=1.0, replicate_physics=False)
+    scene_cfg = MultiObjectSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0, replicate_physics=False)
     with Timer("[INFO] Time to create scene: "):
         scene = InteractiveScene(scene_cfg)
 
