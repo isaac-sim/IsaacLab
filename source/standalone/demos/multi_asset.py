@@ -115,7 +115,9 @@ class MultiObjectSceneCfg(InteractiveSceneCfg):
                 ),
             ],
             random_choice=True,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(
+                solver_position_iteration_count=4, solver_velocity_iteration_count=0
+            ),
             mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
             collision_props=sim_utils.CollisionPropertiesCfg(),
         ),
