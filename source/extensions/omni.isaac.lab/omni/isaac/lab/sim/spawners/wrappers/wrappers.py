@@ -87,6 +87,8 @@ def spawn_multi_asset(
     stage = omni.usd.get_context().get_stage()
 
     # manually clone prims if the source prim path is a regex expression
+    # note: unlike in the cloner API from Isaac Sim, we do not "reset" xforms on the copied prims.
+    #   This is because the "spawn" calls during the creation of the proto prims already handles this operation.
     with Sdf.ChangeBlock():
         for index, prim_path in enumerate(prim_paths):
             # spawn single instance
@@ -114,9 +116,8 @@ def spawn_multi_usd_file(
 ) -> Usd.Prim:
     """Spawn multiple USD files based on the provided configurations.
 
-    This function spawns multiple assets based on the provided configurations. The assets are spawned
-    in the order they are provided in the list. If the `random_choice` parameter is set to True, a random
-    asset configuration is selected for each spawn.
+    This function creates configuration instances corresponding the individual USD files and
+    calls the :meth:`spawn_multi_asset` method to spawn them into the scene.
 
     Args:
         prim_path: The prim path to spawn the assets.

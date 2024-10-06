@@ -314,9 +314,16 @@ Wrappers
   .. autosummary::
 
     MultiAssetSpawnerCfg
+    MultiUsdFileCfg
 
 .. autofunction:: spawn_multi_asset
 
 .. autoclass:: MultiAssetSpawnerCfg
+    :members:
+    :exclude-members: __init__, func
+
+.. autofunction:: spawn_multi_usd_file
+
+.. autoclass:: MultiUsdFileCfg
     :members:
     :exclude-members: __init__, func
