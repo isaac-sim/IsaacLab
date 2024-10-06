@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import builtins
+import inspect
 import torch
 from collections.abc import Sequence
 from typing import Any
@@ -11,7 +12,7 @@ from typing import Any
 import carb
 import omni.isaac.core.utils.torch as torch_utils
 
-from omni.isaac.lab.managers import ActionManager, EventManager, EventTermCfg, ObservationManager
+from omni.isaac.lab.managers import ActionManager, EventManager, EventTermCfg, ManagerTermBase, ObservationManager
 from omni.isaac.lab.scene import InteractiveScene
 from omni.isaac.lab.sim import SimulationContext
 from omni.isaac.lab.utils.timer import Timer
@@ -117,6 +118,8 @@ class ManagerBasedEnv:
         print("[INFO]: Scene manager: ", self.scene)
 
         # randomization at scene level
+        # we mimic operations from event manager since we cannot initialize event manager here.
+        # sometimes it requires joints and body names which are only available once simulation starts playing.
         with Timer("[INFO]: Time taken for scene-level randomization", "scene_randomization"):
             for term_name, term_cfg in self.cfg.events.__dict__.items():
                 # check for non config
@@ -136,6 +139,15 @@ class ManagerBasedEnv:
                             " This may adversely affect PhysX parsing of scene information."
                             " We recommend disabling this property."
                         )
+                    # initialize the term if it is a class
+                    if inspect.isclass(term_cfg.func):
+                        if not issubclass(term_cfg.func, ManagerTermBase):
+                            raise TypeError(
+                                f"Configuration for the term '{term_name}' is not of type ManagerTermBase."
+                                f" Received: '{type(term_cfg.func)}'."
+                            )
+                        term_cfg.func = term_cfg.func(cfg=term_cfg, env=self._env)
+                    # call the term
                     term_cfg.func(self, None, **term_cfg.params)
 
         # set up camera viewport controller
