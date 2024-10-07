@@ -43,6 +43,7 @@ Guidelines for modifications:
 * David Yang
 * Gary Lvov
 * HoJin Jeon
+* Hongyu Li
 * Jean Tampon
 * Jia Lin Yuan
 * Jingzhou Liu
