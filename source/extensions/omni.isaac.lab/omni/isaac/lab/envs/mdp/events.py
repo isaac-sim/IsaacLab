@@ -65,6 +65,9 @@ class randomize_rigid_body_material(ManagerTermBase):
         Args:
             cfg: The configuration of the event term.
             env: The environment instance.
+
+        Raises:
+            ValueError: If the asset is not a RigidObject or an Articulation.
         """
         super().__init__(cfg, env)
 
@@ -86,6 +89,14 @@ class randomize_rigid_body_material(ManagerTermBase):
             for link_path in self.asset.root_physx_view.link_paths[0]:
                 link_physx_view = self.asset._physics_sim_view.create_rigid_body_view(link_path)  # type: ignore
                 self.num_shapes_per_body.append(link_physx_view.max_shapes)
+            # ensure the parsing is correct
+            num_shapes = sum(self.num_shapes_per_body)
+            expected_shapes = self.asset.root_physx_view.max_shapes
+            if num_shapes != expected_shapes:
+                raise ValueError(
+                    "Randomization term 'randomize_rigid_body_material' failed to parse the number of shapes per body."
+                    f" Expected total shapes: {expected_shapes}, but got: {num_shapes}."
+                )
         else:
             # in this case, we don't need to do special indexing
             self.num_shapes_per_body = None
