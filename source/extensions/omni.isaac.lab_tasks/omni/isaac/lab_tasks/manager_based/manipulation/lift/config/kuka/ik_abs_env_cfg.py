@@ -17,7 +17,7 @@ import torch
 ##
 # Pre-defined configs
 ##
-from omni.isaac.lab_assets.kuka import KUKA_VICTOR_HIGH_PD_CFG  # isort: skip
+from omni.isaac.lab_assets.kuka import KUKA_VICTOR_HIGH_PD_CFG, KUKA_VICTOR_LEFT_HIGH_PD_CFG  # isort: skip
 
 
 @configclass
@@ -28,7 +28,7 @@ class KukaCubeLiftEnvCfg(joint_pos_env_cfg.KukaCubeLiftEnvCfg):
 
         # Set Franka as robot
         # We switch here to a stiffer PD controller for IK tracking to be better.
-        self.scene.robot = KUKA_VICTOR_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = KUKA_VICTOR_LEFT_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
 
         # Set actions for the specific robot type (franka)

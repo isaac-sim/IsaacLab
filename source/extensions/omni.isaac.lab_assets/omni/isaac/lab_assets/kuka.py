@@ -27,7 +27,8 @@ from omni.isaac.lab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 KUKA_VICTOR_LEFT_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path="assets/victor/victor_left_arm_with_gripper.usd",
+        # usd_path="assets/victor/victor_left_arm_with_gripper.usd",
+        usd_path="assets/victor/victor_left_arm_with_approx_gripper/victor_left_arm_with_approx_gripper.usd",
         activate_contact_sensors=False,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
@@ -35,7 +36,9 @@ KUKA_VICTOR_LEFT_CFG = ArticulationCfg(
         ),
         articulation_props=sim_utils.ArticulationRootPropertiesCfg(
             enabled_self_collisions=True, solver_position_iteration_count=8, solver_velocity_iteration_count=0
-        )
+        ),
+        collision_props=sim_utils.CollisionPropertiesCfg(
+            contact_offset=0.001)
     ),
     
     init_state=ArticulationCfg.InitialStateCfg(
@@ -95,15 +98,18 @@ This configuration is useful for task-space control using differential IK.
 
 KUKA_VICTOR_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path="assets/victor/victor_approx_gripper/victor_approx_gripper.usd",
+        # usd_path="assets/victor/victor_approx_gripper/victor_approx_gripper.usd",
+        usd_path="assets/victor/victor_full_gripper/victor_full_gripper.usd",
         activate_contact_sensors=False,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
-            max_depenetration_velocity=5.0,
+            max_depenetration_velocity=0.5,
         ),
         articulation_props=sim_utils.ArticulationRootPropertiesCfg(
             enabled_self_collisions=True, solver_position_iteration_count=8, solver_velocity_iteration_count=0
-        )
+        ),
+        collision_props=sim_utils.CollisionPropertiesCfg(
+            contact_offset=0.001, rest_offset=0)
     ),
     
     init_state=ArticulationCfg.InitialStateCfg(

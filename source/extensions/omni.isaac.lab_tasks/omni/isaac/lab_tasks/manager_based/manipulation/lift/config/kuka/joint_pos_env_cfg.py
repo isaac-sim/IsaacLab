@@ -19,7 +19,7 @@ from omni.isaac.lab_tasks.manager_based.manipulation.lift.lift_env_cfg import Li
 # Pre-defined configs
 ##
 from omni.isaac.lab.markers.config import FRAME_MARKER_CFG  # isort: skip
-from omni.isaac.lab_assets.kuka import KUKA_VICTOR_CFG  # isort: skip
+from omni.isaac.lab_assets.kuka import KUKA_VICTOR_CFG, KUKA_VICTOR_LEFT_CFG  # isort: skip
 
 
 @configclass
@@ -29,7 +29,7 @@ class KukaCubeLiftEnvCfg(LiftEnvCfg):
         super().__post_init__()
 
         # Set Kuka as robot
-        self.scene.robot = KUKA_VICTOR_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = KUKA_VICTOR_LEFT_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         scene_offsets = [0.3, 0.2, 0.8]
         
         self.scene.table.init_state.pos = [0.5 + scene_offsets[0], scene_offsets[1], scene_offsets[2]]
@@ -93,10 +93,11 @@ class KukaCubeLiftEnvCfg(LiftEnvCfg):
             # filter_prim_paths_expr= ["{ENV_REGEX_NS}/Table"], 
             # filter_prim_paths_expr= ["{ENV_REGEX_NS}/Robot/.*finger"],
             filter_prim_paths_expr= ["{ENV_REGEX_NS}/Table", 
-                                     "{ENV_REGEX_NS}/Robot/victor_left_finger_b_link_0", 
-                                     "{ENV_REGEX_NS}/Robot/victor_left_finger_b_link_0"], 
+                                    #  "{ENV_REGEX_NS}/Robot/victor_left_finger_b_link_0", 
+                                    #  "{ENV_REGEX_NS}/Robot/victor_left_finger_b_link_0"
+                                     ], 
             track_air_time=True, track_pose=True,
-            update_period=0.0, debug_vis=True
+            update_period=0.0, 
         )
 
 
