@@ -97,19 +97,16 @@ class randomize_rigid_body_material(ManagerTermBase):
         num_buckets = int(cfg.params.get("num_buckets", 1))
 
         # sample material properties from the given ranges
+        # note: we only sample the materials once during initialization
+        #   afterwards these are randomly assigned to the geometries of the asset
         range_list = [static_friction_range, dynamic_friction_range, restitution_range]
         ranges = torch.tensor(range_list, device="cpu")
-        material_buckets = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (num_buckets, 3), device="cpu")
+        self.material_buckets = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (num_buckets, 3), device="cpu")
 
         # ensure dynamic friction is always less than static friction
         make_consistent = cfg.params.get("make_consistent", False)
         if make_consistent:
-            material_buckets[:, 1] = torch.min(material_buckets[:, 0], material_buckets[:, 1])
-
-        # store the material buckets
-        # note: we only sample the materials once during initialization
-        #   afterwards these are randomly assigned to the geometries of the asset
-        self.material_buckets = material_buckets
+            self.material_buckets[:, 1] = torch.min(self.material_buckets[:, 0], self.material_buckets[:, 1])
 
     def __call__(
         self,
