@@ -14,7 +14,6 @@ the event introduced by the function.
 
 from __future__ import annotations
 
-import numpy as np
 import torch
 from typing import TYPE_CHECKING, Literal
 
