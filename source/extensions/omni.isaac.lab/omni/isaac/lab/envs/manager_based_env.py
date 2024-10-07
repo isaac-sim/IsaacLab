@@ -118,37 +118,8 @@ class ManagerBasedEnv:
         print("[INFO]: Scene manager: ", self.scene)
 
         # randomization at scene level
-        # we mimic operations from event manager since we cannot initialize event manager here.
-        # sometimes it requires joints and body names which are only available once simulation starts playing.
-        with Timer("[INFO]: Time taken for scene-level randomization", "scene_randomization"):
-            for term_name, term_cfg in self.cfg.events.__dict__.items():
-                # check for non config
-                if term_cfg is None:
-                    continue
-                # check for valid config type
-                if not isinstance(term_cfg, EventTermCfg):
-                    raise TypeError(
-                        f"Configuration for the term '{term_name}' is not of type EventTermCfg."
-                        f" Received: '{type(term_cfg)}'."
-                    )
-                # call event terms corresponding to the scene-level randomization
-                if term_cfg.mode == "scene":
-                    if self.scene.cfg.replicate_physics:
-                        carb.log_warn(
-                            "Replicate physics is enabled in the 'InteractiveScene' configuration."
-                            " This may adversely affect PhysX parsing of scene information."
-                            " We recommend disabling this property."
-                        )
-                    # initialize the term if it is a class
-                    if inspect.isclass(term_cfg.func):
-                        if not issubclass(term_cfg.func, ManagerTermBase):
-                            raise TypeError(
-                                f"Configuration for the term '{term_name}' is not of type ManagerTermBase."
-                                f" Received: '{type(term_cfg.func)}'."
-                            )
-                        term_cfg.func = term_cfg.func(cfg=term_cfg, env=self._env)
-                    # call the term
-                    term_cfg.func(self, None, **term_cfg.params)
+        with Timer("[INFO]: Time taken for scene randomization", "scene_randomization"):
+            self._apply_scene_randomization()
 
         # set up camera viewport controller
         # viewport is not available in other rendering modes so the function will throw a warning
@@ -407,3 +378,49 @@ class ManagerBasedEnv:
         # -- event manager
         info = self.event_manager.reset(env_ids)
         self.extras["log"].update(info)
+
+    def _apply_scene_randomization(self):
+        """Apply scene-level randomization.
+
+        This function applies the scene-level randomization based on the configuration provided
+        to the event manager. Since the event manager is not initialized at this point, we mimic
+        the operations of the event manager to apply the scene-level randomization.
+
+        It must be called only before the simulation/physics is started.
+        """
+        # check if scene randomization is enabled
+        applied_scene_randomization = False
+
+        # iterate over all event terms
+        for term_name, term_cfg in self.cfg.events.__dict__.items():
+            # check for non config
+            if term_cfg is None:
+                continue
+            # check for valid config type
+            if not isinstance(term_cfg, EventTermCfg):
+                raise TypeError(
+                    f"Configuration for the term '{term_name}' is not of type EventTermCfg."
+                    f" Received: '{type(term_cfg)}'."
+                )
+            # call event terms corresponding to the scene-level randomization
+            if term_cfg.mode == "scene":
+                # enable scene randomization
+                applied_scene_randomization = True
+                # initialize the term if it is a class
+                if inspect.isclass(term_cfg.func):
+                    if not issubclass(term_cfg.func, ManagerTermBase):
+                        raise TypeError(
+                            f"Configuration for the term '{term_name}' is not of type ManagerTermBase."
+                            f" Received: '{type(term_cfg.func)}'."
+                        )
+                    term_cfg.func = term_cfg.func(cfg=term_cfg, env=self)
+                # call the term
+                term_cfg.func(self, None, **term_cfg.params)
+
+        # warn the user that replicate physics may affect PhysX parsing
+        if self.scene.cfg.replicate_physics and applied_scene_randomization:
+            carb.log_warn(
+                "Replicate physics is enabled in the 'InteractiveScene' configuration."
+                " This may adversely affect PhysX parsing of scene information."
+                " We recommend disabling this property."
+            )
