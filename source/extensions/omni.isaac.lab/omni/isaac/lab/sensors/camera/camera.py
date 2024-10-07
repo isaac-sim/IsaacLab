@@ -416,16 +416,17 @@ class Camera(SensorBase):
     """
     Operations - Get pose.
     """
-    def get_local_poses(self, env_ids: Sequence[int] | None = None):
-        """Get the local pose of the camera.
+
+    def get_world_poses(self, env_ids: Sequence[int] | None = None):
+        """Get the world pose of the camera.
 
         Args:
-            env_ids: A sensor ids to manipulate. Defaults to None, which means all sensor indices.
+            env_ids: indices to specify which prims to query. Defaults to None, which means all sensor indices.
 
         Raises:
             RuntimeError: If the camera prim is not set. Need to call :meth:`initialize` method first.
 
-        Returns: the position and orientation of the local camera pose. quaternion is scalar-first (w, x, y, z)
+        Returns: the position and orientation of the world camera pose. quaternion is scalar-first (w, x, y, z)
         """
         # resolve env_ids
         if env_ids is None:
