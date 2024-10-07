@@ -91,7 +91,7 @@ def randomize_rigid_body_material(
         material_buckets[:, 1] = torch.min(material_buckets[:, 0], material_buckets[:, 1])
 
     # randomly assign material IDs to the geometries
-    bucket_ids = torch.randint(0, num_buckets, (len(env_ids) * asset.root_physx_view.max_shapes, ), device="cpu")
+    bucket_ids = torch.randint(0, num_buckets, (len(env_ids) * asset.root_physx_view.max_shapes,), device="cpu")
     material_samples = material_buckets[bucket_ids].view(len(env_ids), -1, 3)
 
     # retrieve material buffer from the physics simulation
