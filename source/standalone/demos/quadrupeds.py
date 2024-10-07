@@ -49,7 +49,7 @@ from omni.isaac.lab_assets.unitree import UNITREE_A1_CFG, UNITREE_GO1_CFG, UNITR
 
 
 def define_origins(num_origins: int, spacing: float) -> list[list[float]]:
-    """Defines the origins of the the scene."""
+    """Defines the origins of the scene."""
     # create tensor based on number of environments
     env_origins = torch.zeros(num_origins, 3)
     # create a grid of origins
