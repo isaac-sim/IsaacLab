@@ -84,6 +84,7 @@ Table of Contents
 
    source/overview/developer-guide/index
    source/overview/core-concepts/index
+   source/overview/sensors/index
    source/overview/environments
    source/overview/reinforcement-learning/index
    source/overview/teleop_imitation
