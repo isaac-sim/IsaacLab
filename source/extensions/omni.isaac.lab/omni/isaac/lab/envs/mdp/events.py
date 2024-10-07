@@ -40,6 +40,7 @@ def randomize_rigid_body_material(
     restitution_range: tuple[float, float],
     num_buckets: int,
     asset_cfg: SceneEntityCfg,
+    make_consistent: bool = False,
 ):
     """Randomize the physics materials on all geometries of the asset.
 
@@ -52,6 +53,10 @@ def randomize_rigid_body_material(
     is the number of assets spawned and ``max_num_shapes`` is the maximum number of shapes in the asset (over
     all bodies). The integer values are used as indices to select the material properties from the
     material buckets.
+
+    If the flag ``make_consistent`` is set to ``True``, the dynamic friction is set to be less than or equal to
+    the static friction. This obeys the physics constraint on friction values. However, it may not always be
+    essential for the application. Thus, the flag is set to ``False`` by default.
 
     .. attention::
         This function uses CPU tensors to assign the material properties. It is recommended to use this function
@@ -77,26 +82,20 @@ def randomize_rigid_body_material(
     else:
         env_ids = env_ids.cpu()
 
-    # retrieve material buffer
-    materials = asset.root_physx_view.get_material_properties()
-
     # sample material properties from the given ranges
-    material_samples = np.zeros(materials[env_ids].shape)
-    material_samples[..., 0] = np.random.uniform(*static_friction_range, size=tuple(materials.shape[:-1]))
-    material_samples[..., 1] = np.random.uniform(*dynamic_friction_range, size=tuple(materials.shape[:-1]))
-    material_samples[..., 2] = np.random.uniform(*restitution_range, size=tuple(materials.shape[:-1]))
+    range_list = [static_friction_range, dynamic_friction_range, restitution_range]
+    ranges = torch.tensor(range_list, device="cpu")
+    material_buckets = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (num_buckets, 3), device="cpu")
+    # ensure dynamic friction is always less than static friction
+    if make_consistent:
+        material_buckets[:, 1] = torch.min(material_buckets[:, 0], material_buckets[:, 1])
 
-    # create uniform range tensor for bucketing
-    lo = np.array([static_friction_range[0], dynamic_friction_range[0], restitution_range[0]])
-    hi = np.array([static_friction_range[1], dynamic_friction_range[1], restitution_range[1]])
+    # randomly assign material IDs to the geometries
+    bucket_ids = torch.randint(0, num_buckets, (len(env_ids) * asset.root_physx_view.max_shapes, ), device="cpu")
+    material_samples = material_buckets[bucket_ids].view(len(env_ids), -1, 3)
 
-    # to avoid 64k material limit in physx, we bucket materials by binning randomized material properties
-    # into buckets based on the number of buckets specified
-    for d in range(3):
-        buckets = np.array([(hi[d] - lo[d]) * i / num_buckets + lo[d] for i in range(num_buckets)])
-        material_samples[..., d] = buckets[
-            np.clip(np.searchsorted(buckets, material_samples[..., d]), 0, num_buckets - 1)
-        ]
+    # retrieve material buffer from the physics simulation
+    materials = asset.root_physx_view.get_material_properties()
 
     # update material buffer with new samples
     if isinstance(asset, Articulation) and asset_cfg.body_ids != slice(None):
@@ -117,11 +116,9 @@ def randomize_rigid_body_material(
             # assign the new materials
             # material ids are of shape: num_env_ids x num_shapes
             # material_buckets are of shape: num_buckets x 3
-            materials[env_ids, start_idx:end_idx] = torch.from_numpy(material_samples[:, start_idx:end_idx]).to(
-                dtype=torch.float
-            )
+            materials[env_ids, start_idx:end_idx] = material_samples[:, start_idx:end_idx]
     else:
-        materials[env_ids] = torch.from_numpy(material_samples).to(dtype=torch.float)
+        materials[env_ids] = material_samples
 
     # apply to simulation
     asset.root_physx_view.set_material_properties(materials, env_ids)
