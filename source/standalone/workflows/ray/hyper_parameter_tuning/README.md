@@ -89,7 +89,7 @@ As a result of using Ray, running experiments in the cloud and locally have very
 	``
 
 
-4. Define your desired hyperparameter tuning configuration in a .py file on your local host.
+4. Define your desired hyperparameter tuning configuration in a ray tune script on your local host.
 	For an example, see ``source/standalone/workflows/ray/hyper_parameter_tuning/config/cartpole_sweep.py``
 
 5. Start your hyperparameter tune sweep job with 

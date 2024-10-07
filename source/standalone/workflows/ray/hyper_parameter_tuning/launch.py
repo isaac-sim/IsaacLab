@@ -63,10 +63,10 @@ def parse_args() -> argparse.Namespace:
         "--cluster_host",
         type=str,
         default="google_cloud",
-        choices=["google_cloud", "local"],
+        choices=["google_cloud"],
         help=(
             "In the cluster_configs directory, the name of the folder where a tune.yaml.jinja"
-            "file exists defining the KubeRay config. Currently only google_cloud and local are supported."
+            "file exists defining the KubeRay config. Currently only google_cloud is supported."
         ),
     )
 
