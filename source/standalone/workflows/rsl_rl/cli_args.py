@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import argparse
+import random
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -68,6 +69,9 @@ def update_rsl_rl_cfg(agent_cfg: RslRlOnPolicyRunnerCfg, args_cli: argparse.Name
     """
     # override the default configuration with CLI arguments
     if hasattr(args_cli, "seed") and args_cli.seed is not None:
+        # randomly sample a seed if seed = -1
+        if args_cli.seed == -1:
+            args_cli.seed = random.randint(0, 10000)
         agent_cfg.seed = args_cli.seed
     if args_cli.resume is not None:
         agent_cfg.resume = args_cli.resume
