@@ -34,16 +34,12 @@ if TYPE_CHECKING:
     from omni.isaac.lab.envs import ManagerBasedEnv
 
 
-def randomize_shape_color(
-    env: ManagerBasedEnv,
-    env_ids: torch.Tensor | None,
-    asset_cfg: SceneEntityCfg,
-):
+def randomize_shape_color(env: ManagerBasedEnv, env_ids: torch.Tensor | None, asset_cfg: SceneEntityCfg):
     """Randomize the color of a shape.
 
     This function randomizes the color of USD shapes created using :class:`omni.isaac.lab.sim.spawn.ShapeCfg`
     class. It modifies the attribute: "geometry/material/Shader.inputs:diffuseColor" under the prims
-    corresponding to the asset.
+    corresponding to the asset. If the attribute does not exist, the function errors out.
     """
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
