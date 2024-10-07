@@ -14,6 +14,7 @@ from omni.isaac.lab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 import omni.isaac.lab_tasks.manager_based.manipulation.lift.mdp as mdp
 
+from omni.isaac.lab.sensors import ContactSensor, ContactSensorCfg
 from . import joint_pos_env_cfg
 
 ##

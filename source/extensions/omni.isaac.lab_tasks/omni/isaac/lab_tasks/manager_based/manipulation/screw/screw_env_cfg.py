@@ -21,7 +21,7 @@ from omni.isaac.lab.sensors import FrameTransformerCfg
 from omni.isaac.lab.utils import configclass
 from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
 from omni.isaac.lab.utils.noise import AdditiveUniformNoiseCfg as Unoise
-
+from omni.isaac.lab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg, MassPropertiesCfg
 import omni.isaac.lab_tasks.manager_based.manipulation.screw.mdp as mdp
 
 ##
@@ -68,6 +68,22 @@ class ScrewSceneCfg(InteractiveSceneCfg):
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_bolt_m8_tight/factory_bolt_m8_tight.usd",
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.63, 0.0, 0.0)),
+    )
+    wrench:RigidObjectCfg = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Wrench",
+        spawn=sim_utils.UsdFileCfg(
+            usd_path=f"/home/zixuanh/force/IsaacLab/factory_socket_wrench.usd",
+            rigid_props=RigidBodyPropertiesCfg(
+                    solver_position_iteration_count=16,
+                    solver_velocity_iteration_count=1,
+                    max_angular_velocity=1000.0,
+                    max_linear_velocity=1000.0,
+                    max_depenetration_velocity=5.0,
+                    disable_gravity=False,
+                ),
+            mass_props=MassPropertiesCfg(mass=1.0),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.63, 0.05, 0.0)),
     )
 
     # lights

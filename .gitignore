@@ -4,6 +4,7 @@
 **/*.so
 **/*.log*
 
+*.mp4
 # Omniverse
 **/*.dmp
 **/.thumbs

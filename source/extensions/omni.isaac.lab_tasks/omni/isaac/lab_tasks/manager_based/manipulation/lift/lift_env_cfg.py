@@ -17,6 +17,8 @@ from omni.isaac.lab.managers import SceneEntityCfg
 from omni.isaac.lab.managers import TerminationTermCfg as DoneTerm
 from omni.isaac.lab.scene import InteractiveSceneCfg
 from omni.isaac.lab.sensors.frame_transformer.frame_transformer_cfg import FrameTransformerCfg
+from omni.isaac.lab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg, MassPropertiesCfg
+from omni.isaac.lab.sensors import CameraCfg, ContactSensorCfg, RayCasterCfg, patterns
 from omni.isaac.lab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from omni.isaac.lab.utils import configclass
 from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
@@ -46,7 +48,13 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     table = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Table",
         init_state=AssetBaseCfg.InitialStateCfg(pos=[0.5, 0, 0], rot=[0.707, 0, 0, 0.707]),
-        spawn=UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd"),
+        spawn=UsdFileCfg(
+            usd_path=f"/home/zixuanh/isaac-sim-assets/Assets/Isaac/4.2/Isaac/Props/Mounts/SeattleLabTable/table_instanceable.usd",
+                          rigid_props=RigidBodyPropertiesCfg(
+                                kinematic_enabled=True,
+                            ),
+
+                         ),
     )
 
     # plane
@@ -61,7 +69,15 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         prim_path="/World/light",
         spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
     )
-
+    contact_sensor: ContactSensorCfg = MISSING
+    # contact_sensor = ContactSensorCfg(
+    #     prim_path="{ENV_REGEX_NS}/Object",
+    #     # filter_prim_paths_expr= ["{ENV_REGEX_NS}/Table"],
+    #     # filter_prim_paths_expr= ["{ENV_REGEX_NS}/Robot/.*finger"],
+    #     filter_prim_paths_expr= ["{ENV_REGEX_NS}/Table", "{ENV_REGEX_NS}/Robot/.*rightfinger", "{ENV_REGEX_NS}/Robot/.*leftfinger"],
+    #     track_air_time=True, track_pose=True,
+    #     update_period=0.0, debug_vis=True
+    # )
 
 ##
 # MDP settings

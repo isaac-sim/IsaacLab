@@ -1,0 +1,43 @@
+<robot name="factory_socket_wrench">
+    <link name = "factory_socket_head">
+        <visual>
+            <geometry>
+                <mesh filename="/home/zixuanh/force/Isaacgym_Env/urdf/factory_my/mesh/m8_socket_wrench_head_transformed.obj" scale="0.001 0.001 0.001"/>
+            </geometry>
+        </visual>
+        <collision>
+            <geometry>
+                <mesh filename="/home/zixuanh/force/Isaacgym_Env/urdf/factory_my/mesh/m8_socket_wrench_head_transformed.obj" scale="0.001 0.001 0.001"/>
+            </geometry>
+            <sdf resolution="256"/>
+        </collision>
+        <inertial>
+        <mass value="0.05"/>
+        </inertial>
+    </link>
+
+    <joint name="factory_socket_wrench_joint" type="fixed">
+        <parent link="factory_socket_head"/>
+        <child link="factory_socket_handle"/>
+        <origin xyz="0 0.012 0 " rpy="1.57 0 0"/>
+    </joint>
+
+    <link name="factory_socket_handle">
+        <visual>
+            <geometry>
+                <mesh filename="/home/zixuanh/force/Isaacgym_Env/urdf/factory_my/mesh/m8_socket_wrench_handle_transformed.obj" scale="0.001 0.001 0.001"/>
+            </geometry>
+        </visual>
+        <collision>
+            <geometry>
+                <mesh filename="/home/zixuanh/force/Isaacgym_Env/urdf/factory_my/mesh/m8_socket_wrench_handle_transformed.obj" scale="0.001 0.001 0.001"/>
+            </geometry>
+            <sdf resolution="256"/>
+        </collision>
+        <inertial>
+        <mass value="0.05.0"/>
+        </inertial>
+    </link>
+
+
+</robot>

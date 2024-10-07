@@ -23,11 +23,10 @@ from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Screw a nut onto a bolt using a state machine.")
-parser.add_argument("--cpu", action="store_true", default=False, help="Use CPU pipeline.")
 parser.add_argument(
     "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
 )
-parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
+parser.add_argument("--num_envs", type=int, default=1, help="Number of environments to simulate.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -47,8 +46,10 @@ import warp as wp
 from omni.isaac.lab.assets.rigid_object.rigid_object_data import RigidObjectData
 
 import omni.isaac.lab_tasks  # noqa: F401
+from omni.isaac.lab.envs import ManagerBasedRLEnv
 from omni.isaac.lab_tasks.manager_based.manipulation.screw.screw_env_cfg import ScrewEnvCfg
 from omni.isaac.lab_tasks.utils.parse_cfg import parse_env_cfg
+from omni.isaac.core.prims import GeometryPrim
 
 # initialize warp
 wp.init()
@@ -292,10 +293,16 @@ def main():
     # parse configuration
     env_cfg: ScrewEnvCfg = parse_env_cfg(
         "Isaac-Screw-Nut-Franka-IK-Abs-v0",
-        use_gpu=not args_cli.cpu,
         num_envs=args_cli.num_envs,
         use_fabric=not args_cli.disable_fabric,
     )
+    # import omni.isaac.core.utils.prims as prim_utils
+    # from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
+    # # nut = prim_utils.create_prim("/world/nut", usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_nut_m8_tight/factory_nut_m8_tight.usd")
+    # nut = prim_utils.create_prim("/world/nut", usd_path=f"/home/zixuanh/Downloads/isaac-sim-assets-1-4.2.0/Assets/Isaac/4.2/Isaac//Props/Factory/factory_nut_m8_tight/factory_nut_m8_tight.usd")
+    # nut_prim = GeometryPrim("/world/nut", collision=True)
+    # print(nut_prim.get_collision_approximation())
+    # env = ManagerBasedRLEnv(cfg=env_cfg)
     # create environment
     env = gym.make("Isaac-Screw-Nut-Franka-IK-Abs-v0", cfg=env_cfg)
     # reset environment at start

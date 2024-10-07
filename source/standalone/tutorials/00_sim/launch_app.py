@@ -25,7 +25,7 @@ parser = argparse.ArgumentParser(description="Tutorial on running IsaacSim via t
 parser.add_argument("--size", type=float, default=1.0, help="Side-length of cuboid")
 # SimulationApp arguments https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/omni.isaac.kit/docs/index.html?highlight=simulationapp#omni.isaac.kit.SimulationApp
 parser.add_argument(
-    "--width", type=int, default=1280, help="Width of the viewport and generated images. Defaults to 1280"
+    "--width", type=int, default=720, help="Width of the viewport and generated images. Defaults to 1280"
 )
 parser.add_argument(
     "--height", type=int, default=720, help="Height of the viewport and generated images. Defaults to 720"
