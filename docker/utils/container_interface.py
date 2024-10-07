@@ -137,26 +137,15 @@ class ContainerInterface:
         """
         if self.is_container_running():
             print(f"[INFO] Entering the existing '{self.container_name}' container in a bash session...\n")
-            if "DISPLAY" in os.environ:
-                subprocess.run([
-                    "docker",
-                    "exec",
-                    "--interactive",
-                    "--tty",
-                    "-e",
-                    f"DISPLAY={os.environ['DISPLAY']}",
-                    f"{self.container_name}",
-                    "bash",
-                ])
-            else:
-                subprocess.run([
-                    "docker",
-                    "exec",
-                    "--interactive",
-                    "--tty",
-                    f"{self.container_name}",
-                    "bash",
-                ])
+            subprocess.run([
+                "docker",
+                "exec",
+                "--interactive",
+                "--tty",
+                *(["-e", f"DISPLAY={os.environ['DISPLAY']}"] if "DISPLAY" in os.environ else []),
+                f"{self.container_name}",
+                "bash",
+            ])
         else:
             raise RuntimeError(f"The container '{self.container_name}' is not running.")
 
