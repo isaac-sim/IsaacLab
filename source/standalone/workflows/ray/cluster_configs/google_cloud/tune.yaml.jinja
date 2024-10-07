@@ -1,7 +1,7 @@
 # Spin up: `kubectl apply -f tune.yaml`.
 # Check if exists: `kubectl get pods`
 # Delete `kubectl delete -f tune.yaml`.
-# Jinja is used for templating here as full helm setup seems overkill here
+# Jinja is used for templating here as full helm setup seems overkill
 # Reminder to self: use built in hydra stuff
 apiVersion: ray.io/v1alpha1
 kind: RayCluster
@@ -29,8 +29,8 @@ spec:
       ray-debugger-external: "true"
       object-manager-port: "8076"
       redis-password: "{{ redis_password }}"
-      num-gpus: "0"
-      num-cpus: "0"
+      num-gpus: "0" 
+      num-cpus: "0" # prevent scheduling jobs to the head node - workers only
     headService:
       apiVersion: v1
       kind: Service
@@ -67,7 +67,7 @@ spec:
             volumeMounts:
               - mountPath: /tmp/ray
                 name: ray-logs
-            command: ["/bin/bash", "-c", "ray start --head --port=6379 --object-manager-port=8076 --dashboard-host=0.0.0.0 --dashboard-port=8265 --include-dashboard=true --redis-password={{ redis_password }} && tail -f /dev/null"]
+            command: ["/bin/bash", "-c", "ray start --head --port=6379 --object-manager-port=8076 --dashboard-host=0.0.0.0 --dashboard-port=8265 --include-dashboard=true && tail -f /dev/null"]
           - image: fluent/fluent-bit:1.9.6
             name: fluentbit
             resources:
@@ -134,7 +134,7 @@ spec:
               volumeMounts:
                 - mountPath: /tmp/ray
                   name: ray-logs
-              command: ["/bin/bash", "-c", "ray start --address='{{ name }}-head.{{ namespace }}.svc.cluster.local:6379' --redis-password={{ redis_password }} && tail -f /dev/null"]
+              command: ["/usr/bin/bash", "-c", "ray start --address={{ name }}-head.{{ namespace }}.svc.cluster.local:6379 && tail -f /dev/null"]
             - image: fluent/fluent-bit:1.9.6
               name: fluentbit
               resources:

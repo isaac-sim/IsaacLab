@@ -91,10 +91,6 @@ def parse_args() -> argparse.Namespace:
     )
 
     arg_parser.add_argument(
-        "--redis_password", type=str, required=True, help="What password to use to protect redis access."
-    )
-
-    arg_parser.add_argument(
         "--image",
         type=str,
         required=True,
