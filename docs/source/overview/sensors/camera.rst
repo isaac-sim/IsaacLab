@@ -71,6 +71,11 @@ Both :class:`~sensors.TiledCamera` and :class:`~sensors.Camera` classes provide 
 RGB and RGBA
 ~~~~~~~~~~~~
 
+.. figure:: ../../_static/overview/overview_sensors_rgb.png
+    :align: center
+    :figwidth: 100%
+    :alt: A scene captured in RGB
+
 ``rgb`` data type returns a 3-channel RGB colored image of type ``torch.uint8``, with dimension (B, H, W, 3).
 
 ``rgba`` data type returns a 4-channel RGBA colored image of type ``torch.uint8``, with dimension (B, H, W, 4).
@@ -80,6 +85,11 @@ To convert the ``torch.uint8`` data to ``torch.float32``, divide the buffer by 2
 Depth and Distances
 ~~~~~~~~~~~~~~~~~~~
 
+.. figure:: ../../_static/overview/overview_sensors_depth.png
+    :align: center
+    :figwidth: 100%
+    :alt: A scene captured in RGB
+
 ``distance_to_camera`` returns a single-channel depth image with distance to the camera optical center. The dimension for this annotator is (B, H, W, 1) and has type ``torch.float32``.
 
 ``distance_to_image_plane`` returns a single-channel depth image with distances of 3D points from the camera plane along the camera's Z-axis. The dimension for this annotator is (B, H, W, 1) and has type ``torch.float32``.
@@ -88,6 +98,11 @@ Depth and Distances
 
 Normals
 ~~~~~~~
+
+.. figure:: ../../_static/overview/overview_sensors_normals.png
+    :align: center
+    :figwidth: 100%
+    :alt: A scene captured in RGB
 
 ``normals`` returns an image containing the local surface normal vectors at each pixel. The buffer has dimension (B, H, W, 3), containing the (x, y, z) information for each vector, and has data type ``torch.float32``.
 
@@ -99,6 +114,11 @@ Motion Vectors
 Semantic Segmentation
 ~~~~~~~~~~~~~~~~~~~~~
 
+.. figure:: ../../_static/overview/overview_sensors_semantic.png
+    :align: center
+    :figwidth: 100%
+    :alt: A scene captured in RGB
+
 ``semantic_segmentation`` outputs semantic segmentation of each entity in the camera’s viewport that has semantic labels. In addition to the image buffer, an ``info`` dictionary can be retrieved with ``tiled_camera.data.info['semantic_segmentation']`` containing ID to labels information.
 
 - If ``colorize_semantic_segmentation=True`` in the camera config, a 4-channel RGBA image will be returned with dimension (B, H, W, 4) and type ``torch.uint8``. The info ``idToLabels`` dictionary will be the mapping from color to semantic labels.
@@ -107,6 +127,11 @@ Semantic Segmentation
 
 Instance ID Segmentation
 ~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. figure:: ../../_static/overview/overview_sensors_instanceID.png
+    :align: center
+    :figwidth: 100%
+    :alt: A scene captured in RGB
 
 ``instance_id_segmentation_fast`` outputs instance ID segmentation of each entity in the camera’s viewport. The instance ID is unique for each prim in the scene with different paths. In addition to the image buffer, an ``info`` dictionary can be retrieved with ``tiled_camera.data.info['instance_id_segmentation_fast']`` containing ID to labels information.
 
@@ -118,6 +143,11 @@ The main difference between ``instance_id_segmentation_fast`` and ``instance_seg
 
 Instance Segmentation
 """""""""""""""""""""
+
+.. figure:: ../../_static/overview/overview_sensors_instance.png
+    :align: center
+    :figwidth: 100%
+    :alt: A scene captured in RGB
 
 ``instance_segmentation_fast`` outputs instance segmentation of each entity in the camera’s viewport. In addition to the image buffer, an ``info`` dictionary can be retrieved with ``tiled_camera.data.info['instance_segmentation_fast']`` containing ID to labels and ID to semantic information.
 
