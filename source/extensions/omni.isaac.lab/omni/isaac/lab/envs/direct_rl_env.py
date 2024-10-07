@@ -21,7 +21,7 @@ import omni.isaac.core.utils.torch as torch_utils
 import omni.kit.app
 from omni.isaac.version import get_version
 
-from omni.isaac.lab.managers import EventManager, EventTermCfg, ManagerTermBase
+from omni.isaac.lab.managers import EventManager, ManagerBase
 from omni.isaac.lab.scene import InteractiveScene
 from omni.isaac.lab.sim import SimulationContext
 from omni.isaac.lab.utils.noise import NoiseModel
@@ -509,6 +509,43 @@ class DirectRLEnv(gym.Env):
     Helper functions.
     """
 
+    def _apply_scene_randomization(self):
+        """Apply scene-level randomization.
+
+        This function applies the scene-level randomization based on the configuration provided
+        to the event manager. Since the event manager is not initialized at this point, we mimic
+        the operations of the event manager to apply the scene-level randomization.
+
+        It must be called only before the simulation/physics is started.
+        """
+        # check if events exist
+        if not self.cfg.events:
+            return
+
+        # check if scene randomization is enabled
+        applied_scene_randomization = False
+        # iterate over all event terms
+        for term_name, term_cfg in self.cfg.events.__dict__.items():
+            # check for non config
+            if term_cfg is None:
+                continue
+            # call event terms corresponding to the scene-level randomization
+            if term_cfg.mode == "scene":
+                # resolve term config
+                ManagerBase.resolve_term_cfg(self, term_name, term_cfg, min_argc=2)
+                # enable scene randomization
+                applied_scene_randomization = True
+                # call the term
+                term_cfg.func(self, None, **term_cfg.params)
+
+        # warn the user that replicate physics may affect PhysX parsing
+        if self.scene.cfg.replicate_physics and applied_scene_randomization:
+            carb.log_warn(
+                "Replicate physics is enabled in the 'InteractiveScene' configuration."
+                " This may adversely affect PhysX parsing of scene information."
+                " We recommend disabling this property."
+            )
+
     def _configure_gym_env_spaces(self):
         """Configure the action and observation spaces for the Gym environment."""
         # observation space (unbounded since we don't impose any limits)
@@ -554,56 +591,6 @@ class DirectRLEnv(gym.Env):
 
         # reset the episode length buffer
         self.episode_length_buf[env_ids] = 0
-
-    def _apply_scene_randomization(self):
-        """Apply scene-level randomization.
-
-        This function applies the scene-level randomization based on the configuration provided
-        to the event manager. Since the event manager is not initialized at this point, we mimic
-        the operations of the event manager to apply the scene-level randomization.
-
-        It must be called only before the simulation/physics is started.
-        """
-        # check if events exist
-        if not self.cfg.events:
-            return
-
-        # check if scene randomization is enabled
-        applied_scene_randomization = False
-
-        # iterate over all event terms
-        for term_name, term_cfg in self.cfg.events.__dict__.items():
-            # check for non config
-            if term_cfg is None:
-                continue
-            # check for valid config type
-            if not isinstance(term_cfg, EventTermCfg):
-                raise TypeError(
-                    f"Configuration for the term '{term_name}' is not of type EventTermCfg."
-                    f" Received: '{type(term_cfg)}'."
-                )
-            # call event terms corresponding to the scene-level randomization
-            if term_cfg.mode == "scene":
-                # enable scene randomization
-                applied_scene_randomization = True
-                # initialize the term if it is a class
-                if inspect.isclass(term_cfg.func):
-                    if not issubclass(term_cfg.func, ManagerTermBase):
-                        raise TypeError(
-                            f"Configuration for the term '{term_name}' is not of type ManagerTermBase."
-                            f" Received: '{type(term_cfg.func)}'."
-                        )
-                    term_cfg.func = term_cfg.func(cfg=term_cfg, env=self)
-                # call the term
-                term_cfg.func(self, None, **term_cfg.params)
-
-        # warn the user that replicate physics may affect PhysX parsing
-        if self.scene.cfg.replicate_physics and applied_scene_randomization:
-            carb.log_warn(
-                "Replicate physics is enabled in the 'InteractiveScene' configuration."
-                " This may adversely affect PhysX parsing of scene information."
-                " We recommend disabling this property."
-            )
 
     """
     Implementation-specific functions.
