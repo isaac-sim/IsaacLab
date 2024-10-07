@@ -280,6 +280,8 @@ class OperationalSpaceControllerActionCfg(ActionTermCfg):
     """Name of the body or frame for which motion/force control is performed."""
     body_offset: OffsetCfg | None = None
     """Offset of target frame w.r.t. to the body frame. Defaults to None, in which case no offset is applied."""
+    task_frame_rel_path: str = None
+    """The path of a RigidObject, relative to the sub-environment, that represents the task frame. Defaults to None."""
     controller_cfg: OperationalSpaceControllerCfg = MISSING
     """The configuration for the operational space controller."""
     position_scale: float = 1.0

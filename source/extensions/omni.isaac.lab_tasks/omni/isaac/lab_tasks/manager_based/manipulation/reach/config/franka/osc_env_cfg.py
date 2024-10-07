@@ -29,13 +29,17 @@ class FrankaReachEnvCfg(joint_pos_env_cfg.FrankaReachEnvCfg):
         self.scene.robot.actuators["panda_forearm"].stiffness = 0.0
         self.scene.robot.actuators["panda_forearm"].damping = 0.0
         self.scene.robot.spawn.rigid_props.disable_gravity = True
+
+        # If closed-loop contact force control is desired, contact sensors should be enabled for the robot
         # self.scene.robot.spawn.activate_contact_sensors = True
 
-        # Set actions for the specific robot type (franka)
         self.actions.arm_action = OperationalSpaceControllerActionCfg(
             asset_name="robot",
             joint_names=["panda_joint.*"],
             body_name="panda_hand",
+            # If a task frame different from articulation root/base is desired, a RigidObject, e.g., "task_frame",
+            # can be added to the scene and its relative path could provided as task_frame_rel_path
+            # task_frame_rel_path="task_frame",
             controller_cfg=OperationalSpaceControllerCfg(
                 target_types=["pose_abs"],
                 impedance_mode="variable_kp",
@@ -50,7 +54,7 @@ class FrankaReachEnvCfg(joint_pos_env_cfg.FrankaReachEnvCfg):
             orientation_scale=1.0,
             stiffness_scale=100.0,
         )
-        # Removing these observations as they are not needed and we want to avoid learning redundancy space
+        # Removing these observations as they are not needed for OSC and we want keep the observation space small
         self.observations.policy.joint_pos = None
         self.observations.policy.joint_vel = None
 

@@ -10,13 +10,15 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import carb
+from pxr import UsdPhysics
 
 import omni.isaac.lab.utils.math as math_utils
 from omni.isaac.lab.assets.articulation import Articulation
 from omni.isaac.lab.controllers.differential_ik import DifferentialIKController
 from omni.isaac.lab.controllers.operational_space import OperationalSpaceController
 from omni.isaac.lab.managers.action_manager import ActionTerm
-from omni.isaac.lab.sensors import ContactSensor, ContactSensorCfg
+from omni.isaac.lab.sensors import ContactSensor, ContactSensorCfg, FrameTransformer, FrameTransformerCfg
+from omni.isaac.lab.sim.utils import find_matching_prims
 
 if TYPE_CHECKING:
     from omni.isaac.lab.envs import ManagerBasedEnv
@@ -207,6 +209,10 @@ class OperationalSpaceControllerAction(ActionTerm):
     """The configuration of the action term."""
     _asset: Articulation
     """The articulation asset on which the action term is applied."""
+    _contact_sensor: ContactSensor = None
+    """The contact sensor for the end-effector body."""
+    _task_frame_transformer: FrameTransformer = None
+    """The frame transformer for the task frame."""
 
     def __init__(self, cfg: actions_cfg.OperationalSpaceControllerActionCfg, env: ManagerBasedEnv):
         # initialize the action term
@@ -249,6 +255,50 @@ class OperationalSpaceControllerAction(ActionTerm):
         if self._num_DoF == self._asset.num_joints:
             self._joint_ids = slice(None)
 
+        # convert the fixed offsets to torch tensors of batched shape
+        if self.cfg.body_offset is not None:
+            self._offset_pos = torch.tensor(self.cfg.body_offset.pos, device=self.device).repeat(self.num_envs, 1)
+            self._offset_rot = torch.tensor(self.cfg.body_offset.rot, device=self.device).repeat(self.num_envs, 1)
+        else:
+            self._offset_pos, self._offset_rot = None, None
+
+        # create contact sensor if any of the command is wrench_abs, and if stiffness is provided
+        if (
+            "wrench_abs" in self.cfg.controller_cfg.target_types
+            and self.cfg.controller_cfg.contact_wrench_stiffness_task is not None
+        ):
+            self._contact_sensor_cfg = ContactSensorCfg(prim_path=self._asset.cfg.prim_path + "/" + self._ee_body_name)
+            self._contact_sensor = ContactSensor(self._contact_sensor_cfg)
+            if not self._contact_sensor.is_initialized:
+                self._contact_sensor._initialize_impl()
+                self._contact_sensor._is_initialized = True
+
+        # Initialize the task frame transformer if a relative path for the RigidObject, representing the task frame,
+        # is provided.
+        if self.cfg.task_frame_rel_path is not None:
+            # The source RigidObject can be any child of the articulation asset (we will not use it),
+            # hence, we will use the first RigidObject child.
+            root_rigidbody_path = self._first_RigidObject_child_path()
+            task_frame_transformer_path = "/World/envs/env_.*/" + self.cfg.task_frame_rel_path
+            task_frame_transformer_cfg = FrameTransformerCfg(
+                prim_path=root_rigidbody_path,
+                target_frames=[
+                    FrameTransformerCfg.FrameCfg(
+                        name="task_frame",
+                        prim_path=task_frame_transformer_path,
+                    ),
+                ],
+            )
+            self._task_frame_transformer = FrameTransformer(task_frame_transformer_cfg)
+            if not self._task_frame_transformer.is_initialized:
+                self._task_frame_transformer._initialize_impl()
+                self._task_frame_transformer._is_initialized = True
+            # create tensor for task frame pose wrt the root frame
+            self._task_frame_pose_b = torch.zeros(self.num_envs, 7, device=self.device)
+        else:
+            # create an empty reference for task frame pose
+            self._task_frame_pose_b = None
+
         # create the operational space controller
         self._osc = OperationalSpaceController(cfg=self.cfg.controller_cfg, num_envs=self.num_envs, device=self.device)
 
@@ -271,20 +321,6 @@ class OperationalSpaceControllerAction(ActionTerm):
         self._ee_force_w = torch.zeros(self.num_envs, 3, device=self.device)  # Only the forces are used for now
         self._ee_force_b = torch.zeros(self.num_envs, 3, device=self.device)  # Only the forces are used for now
 
-        # create contact sensor if and of the command is wrench_abs anf if stiffness is provided
-        if (
-            "wrench_abs" in self.cfg.controller_cfg.target_types
-            and self.cfg.controller_cfg.contact_wrench_stiffness_task is not None
-        ):
-            self._contact_sensor_cfg = ContactSensorCfg(prim_path=self._asset.cfg.prim_path + "/" + self._ee_body_name)
-            self._contact_sensor = ContactSensor(self._contact_sensor_cfg)
-            if not self._contact_sensor.is_initialized:
-                self._contact_sensor._initialize_impl()
-                self._contact_sensor._is_initialized = True
-        else:
-            self._contact_sensor_cfg = None
-            self._contact_sensor = None
-
         # create the joint effort tensor
         self._joint_efforts = torch.zeros(self.num_envs, self._num_DoF, device=self.device)
 
@@ -294,13 +330,6 @@ class OperationalSpaceControllerAction(ActionTerm):
         self._wrench_scale = torch.tensor(self.cfg.wrench_scale, device=self.device)
         self._stiffness_scale = torch.tensor(self.cfg.stiffness_scale, device=self.device)
         self._damping_ratio_scale = torch.tensor(self.cfg.damping_ratio_scale, device=self.device)
-
-        # convert the fixed offsets to torch tensors of batched shape
-        if self.cfg.body_offset is not None:
-            self._offset_pos = torch.tensor(self.cfg.body_offset.pos, device=self.device).repeat(self.num_envs, 1)
-            self._offset_rot = torch.tensor(self.cfg.body_offset.rot, device=self.device).repeat(self.num_envs, 1)
-        else:
-            self._offset_pos, self._offset_rot = None, None
 
         # indexes for the various command elements (e.g., pose_rel, stifness, etc.) within the command tensor
         self._pose_abs_idx = None
@@ -332,43 +361,21 @@ class OperationalSpaceControllerAction(ActionTerm):
 
     def process_actions(self, actions: torch.Tensor):
 
+        # Update ee pose, which would be used by relative targets (i.e., pose_rel)
         self._compute_ee_pose()
 
-        # Store the raw actions. Please note that the actions contain task space targets
-        # (in the order of the target_types), and possibly the impedance parameters depending on impedance_mode.
-        self._raw_actions[:] = actions
+        # Update task frame pose w.r.t. the root frame.
+        self._compute_task_frame_pose()
 
-        # Initialize the processed actions with raw actions.
-        self._processed_actions[:] = self._raw_actions
-
-        # Go through the command types one by one, and apply the pre-processing if needed.
-        if self._pose_abs_idx is not None:
-            self._processed_actions[:, self._pose_abs_idx : self._pose_abs_idx + 3] *= self._position_scale
-            self._processed_actions[:, self._pose_abs_idx + 3 : self._pose_abs_idx + 7] *= self._orientation_scale
-        if self._pose_rel_idx is not None:
-            self._processed_actions[:, self._pose_rel_idx : self._pose_rel_idx + 3] *= self._position_scale
-            self._processed_actions[:, self._pose_rel_idx + 3 : self._pose_rel_idx + 6] *= self._orientation_scale
-        if self._wrench_abs_idx is not None:
-            self._processed_actions[:, self._wrench_abs_idx : self._wrench_abs_idx + 6] *= self._wrench_scale
-        if self._stiffness_idx is not None:
-            self._processed_actions[:, self._stiffness_idx : self._stiffness_idx + 6] *= self._stiffness_scale
-            self._processed_actions[:, self._stiffness_idx : self._stiffness_idx + 6] = torch.clamp(
-                self._processed_actions[:, self._stiffness_idx : self._stiffness_idx + 6],
-                min=self.cfg.controller_cfg.motion_stiffness_limits_task[0],
-                max=self.cfg.controller_cfg.motion_stiffness_limits_task[1],
-            )
-        if self._damping_ratio_idx is not None:
-            self._processed_actions[
-                :, self._damping_ratio_idx : self._damping_ratio_idx + 6
-            ] *= self._damping_ratio_scale
-            self._processed_actions[:, self._damping_ratio_idx : self._damping_ratio_idx + 6] = torch.clamp(
-                self._processed_actions[:, self._damping_ratio_idx : self._damping_ratio_idx + 6],
-                min=self.cfg.controller_cfg.motion_damping_ratio_limits_task[0],
-                max=self.cfg.controller_cfg.motion_damping_ratio_limits_task[1],
-            )
+        # Pre-process the raw actions for operational space control.
+        self._preprocess_actions(actions)
 
         # set command into controller
-        self._osc.set_command(command=self._processed_actions, current_ee_pose_b=self._ee_pose_b)
+        self._osc.set_command(
+            command=self._processed_actions,
+            current_ee_pose_b=self._ee_pose_b,
+            current_task_frame_pose_b=self._task_frame_pose_b,
+        )
 
     def apply_actions(self):
 
@@ -393,11 +400,29 @@ class OperationalSpaceControllerAction(ActionTerm):
         self._raw_actions[env_ids] = 0.0
         if self._contact_sensor is not None:
             self._contact_sensor.reset(env_ids)
+        if self._task_frame_transformer is not None:
+            self._task_frame_transformer.reset(env_ids)
 
     """
     Helper functions.
 
     """
+
+    def _first_RigidObject_child_path(self):
+        """Finds the first RigidObject child under the articulation asset."""
+        child_prims = find_matching_prims(self._asset.cfg.prim_path + "/.*")
+        rigid_child_prim = None
+        # Loop through the list and stop at the first RigidObject found
+        for prim in child_prims:
+            if prim.HasAPI(UsdPhysics.RigidBodyAPI):
+                rigid_child_prim = prim
+                break
+        if rigid_child_prim is None:
+            raise ValueError("No child rigid body found under the expression: '{self._asset.cfg.prim_path}'/.")
+        rigid_child_prim_path = rigid_child_prim.GetPath().pathString
+        # Remove the specific env index from the path string
+        rigid_child_prim_path = self._asset.cfg.prim_path + "/" + rigid_child_prim_path.split("/")[-1]
+        return rigid_child_prim_path
 
     def _resolve_command_indexes(self):
         """Resolves the indexes for the various command elements within the command tensor."""
@@ -510,3 +535,49 @@ class OperationalSpaceControllerAction(ActionTerm):
             self._ee_force_w[:] = self._contact_sensor.data.net_forces_w[:, 0, :]  # type: ignore
             # Rotate forces and torques into root frame
             self._ee_force_b[:] = math_utils.quat_rotate_inverse(self._asset.data.root_quat_w, self._ee_force_w)
+
+    def _compute_task_frame_pose(self):
+        """Computes the pose of the task frame in root frame."""
+        # Update task frame pose if task frame rigidbody is provided
+        if self._task_frame_transformer is not None and self._task_frame_pose_b is not None:
+            self._task_frame_transformer.update(self._sim_dt)
+            # Calculate the pose of the task frame in the root frame
+            self._task_frame_pose_b[:, :3], self._task_frame_pose_b[:, 3:] = math_utils.subtract_frame_transforms(
+                self._asset.data.root_pos_w,
+                self._asset.data.root_quat_w,
+                self._task_frame_transformer.data.target_pos_w[:, 0, :],
+                self._task_frame_transformer.data.target_quat_w[:, 0, :],
+            )
+
+    def _preprocess_actions(self, actions: torch.Tensor):
+        """Pre-processes the raw actions for operational space control."""
+        # Store the raw actions. Please note that the actions contain task space targets
+        # (in the order of the target_types), and possibly the impedance parameters depending on impedance_mode.
+        self._raw_actions[:] = actions
+        # Initialize the processed actions with raw actions.
+        self._processed_actions[:] = self._raw_actions
+        # Go through the command types one by one, and apply the pre-processing if needed.
+        if self._pose_abs_idx is not None:
+            self._processed_actions[:, self._pose_abs_idx : self._pose_abs_idx + 3] *= self._position_scale
+            self._processed_actions[:, self._pose_abs_idx + 3 : self._pose_abs_idx + 7] *= self._orientation_scale
+        if self._pose_rel_idx is not None:
+            self._processed_actions[:, self._pose_rel_idx : self._pose_rel_idx + 3] *= self._position_scale
+            self._processed_actions[:, self._pose_rel_idx + 3 : self._pose_rel_idx + 6] *= self._orientation_scale
+        if self._wrench_abs_idx is not None:
+            self._processed_actions[:, self._wrench_abs_idx : self._wrench_abs_idx + 6] *= self._wrench_scale
+        if self._stiffness_idx is not None:
+            self._processed_actions[:, self._stiffness_idx : self._stiffness_idx + 6] *= self._stiffness_scale
+            self._processed_actions[:, self._stiffness_idx : self._stiffness_idx + 6] = torch.clamp(
+                self._processed_actions[:, self._stiffness_idx : self._stiffness_idx + 6],
+                min=self.cfg.controller_cfg.motion_stiffness_limits_task[0],
+                max=self.cfg.controller_cfg.motion_stiffness_limits_task[1],
+            )
+        if self._damping_ratio_idx is not None:
+            self._processed_actions[
+                :, self._damping_ratio_idx : self._damping_ratio_idx + 6
+            ] *= self._damping_ratio_scale
+            self._processed_actions[:, self._damping_ratio_idx : self._damping_ratio_idx + 6] = torch.clamp(
+                self._processed_actions[:, self._damping_ratio_idx : self._damping_ratio_idx + 6],
+                min=self.cfg.controller_cfg.motion_damping_ratio_limits_task[0],
+                max=self.cfg.controller_cfg.motion_damping_ratio_limits_task[1],
+            )
