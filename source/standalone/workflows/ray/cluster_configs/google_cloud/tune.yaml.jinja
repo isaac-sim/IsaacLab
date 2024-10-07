@@ -134,7 +134,7 @@ spec:
               volumeMounts:
                 - mountPath: /tmp/ray
                   name: ray-logs
-              command: ["/usr/bin/bash", "-c", "ray start --address={{ name }}-head.{{ namespace }}.svc.cluster.local:6379 && tail -f /dev/null"]
+              command: ["/bin/bash", "-c", "ray start --address={{ name }}-head.{{ namespace }}.svc.cluster.local:6379 && tail -f /dev/null"]
             - image: fluent/fluent-bit:1.9.6
               name: fluentbit
               resources:
