@@ -53,9 +53,6 @@ class EventManager(ManagerBase):
 
     """
 
-    _env: ManagerBasedEnv
-    """The environment instance."""
-
     def __init__(self, cfg: object, env: ManagerBasedEnv):
         """Initialize the event manager.
 
