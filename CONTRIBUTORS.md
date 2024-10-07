@@ -42,6 +42,7 @@ Guidelines for modifications:
 * Chenyu Yang
 * David Yang
 * HoJin Jeon
+* Hongyu Li
 * Jean Tampon
 * Jia Lin Yuan
 * Jingzhou Liu
