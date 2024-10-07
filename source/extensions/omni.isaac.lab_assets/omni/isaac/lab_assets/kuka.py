@@ -95,7 +95,7 @@ This configuration is useful for task-space control using differential IK.
 
 KUKA_VICTOR_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path="/home/zixuanh/force/Isaacgym_Env/urdf/victor/robots/victor_approx_gripper/victor_approx_gripper.usd",
+        usd_path="assets/victor/victor_approx_gripper/victor_approx_gripper.usd",
         activate_contact_sensors=False,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
