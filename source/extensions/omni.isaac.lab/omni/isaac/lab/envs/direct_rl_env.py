@@ -119,8 +119,9 @@ class DirectRLEnv(gym.Env):
         print("[INFO]: Scene manager: ", self.scene)
 
         # randomization at scene level
-        with Timer("[INFO]: Time taken for scene randomization", "scene_randomization"):
-            self._apply_scene_randomization()
+        if not self.cfg.events:
+            with Timer("[INFO]: Time taken for scene randomization", "scene_randomization"):
+                self._apply_scene_randomization()
 
         # set up camera viewport controller
         # viewport is not available in other rendering modes so the function will throw a warning
@@ -518,10 +519,6 @@ class DirectRLEnv(gym.Env):
 
         It must be called only before the simulation/physics is started.
         """
-        # check if events exist
-        if not self.cfg.events:
-            return
-
         # check if scene randomization is enabled
         applied_scene_randomization = False
         # iterate over all event terms
