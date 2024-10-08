@@ -5,9 +5,6 @@
 
 import argparse
 import os
-import sys
-
-import ray
 from ray import job_submission
 
 
