@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.24.19 (2024-10-07)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added wrappers to enable TorchRL training workflow.
+* Added PPO Runner and configuration for TorchRL.
+* Added ``torchrl`` as `setup.py` required dependency.  
+
+
 0.24.19 (2024-10-05)
 ~~~~~~~~~~~~~~~~~~~~
 
