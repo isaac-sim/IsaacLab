@@ -36,6 +36,17 @@ a fixed base robot. This guide goes over the various considerations and steps to
 
     make_fixed_prim
 
+Multi-Asset Spawning
+--------------------
+
+This guide explains how to import and configure different assets in each environment. This is
+useful when you want to create diverse environments with different objects.
+
+.. toctree::
+    :maxdepth: 1
+
+    multi_asset_spawning
+
 Saving Camera Output
 --------------------
 
