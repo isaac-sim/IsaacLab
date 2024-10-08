@@ -17,7 +17,13 @@ import carb
 import omni.isaac.core.utils.stage as stage_utils
 import omni.kit.commands
 from omni.isaac.cloner import Cloner
-from pxr import PhysxSchema, Sdf, Semantics, Usd, UsdGeom, UsdPhysics, UsdShade
+from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
+
+# from Isaac Sim 4.2 onwards, pxr.Semantics is deprecated
+try:
+    import Semantics
+except ModuleNotFoundError:
+    from pxr import Semantics
 
 from omni.isaac.lab.utils.string import to_camel_case
 

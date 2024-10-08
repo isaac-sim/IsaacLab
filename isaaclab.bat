@@ -81,7 +81,7 @@ if errorlevel 1 (
     set isaacsim_exe=!isaac_path!\isaac-sim.bat
 ) else (
     rem if isaac sim installed from pip
-    set isaacsim_exe=isaacsim
+    set isaacsim_exe=isaacsim omni.isaac.sim
 )
 rem check if there is a python path available
 if not exist "%isaacsim_exe%" (
