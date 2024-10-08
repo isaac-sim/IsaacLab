@@ -18,7 +18,7 @@ from omni.isaac.version import get_version
 from omni.isaac.lab.managers import (
     CommandManager,
     CurriculumManager,
-    EnvLiveVisualizer,
+    ManagerLiveVisualizer,
     RewardManager,
     TerminationManager,
 )
@@ -139,21 +139,16 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             self.event_manager.apply(mode="startup")
 
     def setup_manager_visualizers(self):
-        """Creates live visualizers for manager terms if provided by config."""
-        if self.cfg.live_visualizer is not None:
-            self.env_vis_manager = EnvLiveVisualizer(
-                cfg=self.cfg.live_visualizer,
-                managers={
-                    "action_manager": self.action_manager,
-                    "observation_manager": self.observation_manager,
-                    "command_manager": self.command_manager,
-                    "termination_manager": self.termination_manager,
-                    "reward_manager": self.reward_manager,
-                    "curriculum_manager": self.curriculum_manager,
-                },
-            )
-        else:
-            self.env_vis_manager = None
+        """Creates live visualizers for manager terms."""
+
+        self.manager_visualizers = {
+            "action_manager" : ManagerLiveVisualizer(manager=self.action_manager),
+            "observation_manager" : ManagerLiveVisualizer(manager=self.observation_manager),
+            "command_manager": ManagerLiveVisualizer(manager=self.command_manager),
+            "termination_manager": ManagerLiveVisualizer(manager=self.termination_manager),
+            "reward_manager": ManagerLiveVisualizer(manager=self.reward_manager),
+            "curriculum_manager": ManagerLiveVisualizer(manager=self.curriculum_manager),
+        }
 
     """
     Operations - MDP

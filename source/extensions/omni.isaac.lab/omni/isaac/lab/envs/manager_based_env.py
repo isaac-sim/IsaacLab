@@ -11,7 +11,7 @@ from typing import Any
 import carb
 import omni.isaac.core.utils.torch as torch_utils
 
-from omni.isaac.lab.managers import ActionManager, EnvLiveVisualizer, EventManager, ObservationManager
+from omni.isaac.lab.managers import ActionManager, ManagerLiveVisualizer, EventManager, ObservationManager
 from omni.isaac.lab.scene import InteractiveScene
 from omni.isaac.lab.sim import SimulationContext
 from omni.isaac.lab.utils.timer import Timer
@@ -225,14 +225,12 @@ class ManagerBasedEnv:
             self.event_manager.apply(mode="startup")
 
     def setup_manager_visualizers(self):
-        """Creates live visualizers for manager terms if provided by config."""
-        if self.cfg.live_visualizer is not None:
-            self.env_vis_manager = EnvLiveVisualizer(
-                cfg=self.cfg.live_visualizer,
-                managers={"action_manager": self.action_manager, "observation_manager": self.observation_manager},
-            )
-        else:
-            self.env_vis_manager = None
+        """Creates live visualizers for manager terms."""
+
+        self.manager_visualizers = {
+            "action_manager" : ManagerLiveVisualizer(manager=self.action_manager),
+            "observation_manager" : ManagerLiveVisualizer(manager=self.observation_manager),
+        }
 
     """
     Operations - MDP.

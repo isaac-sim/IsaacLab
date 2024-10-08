@@ -96,10 +96,3 @@ class ManagerBasedEnvCfg:
 
     Please refer to the :class:`omni.isaac.lab.managers.EventManager` class for more details.
     """
-
-    live_visualizer: object = None 
-    """Live visualization configuration settings. Defaults to no visualizers.
-
-    See an example configuration at :class:`omni.isaac.lab.managers.DefaultManagerBasedEnvLiveVisCfg`
-
-    Please refer to the :class:`omni.isaac.lab.managers.EnvLiveVisualizer`"""

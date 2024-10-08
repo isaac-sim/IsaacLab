@@ -248,18 +248,18 @@ class BaseEnvWindow:
             title: The title of the manager visualization frame.
             class_name: The name of the manager to visualize.
         """
-        if self.env.env_vis_manager is not None:
-            if hasattr(self.env, class_name) and class_name in self.env.env_vis_manager.manager_visualizers:
-                manager = self.env.env_vis_manager.manager_visualizers[class_name]
-                if hasattr(manager, "has_debug_vis_implementation"):
-                    self._create_debug_vis_ui_element(title, manager)
-                else:
-                    print(
-                        f"ManagerLiveVisualizer cannot be created for manager: {class_name}, has_debug_vis_implementation"
-                        " does not exist"
-                    )
+
+        if hasattr(self.env, class_name) and class_name in self.env.manager_visualizers:
+            manager = self.env.manager_visualizers[class_name]
+            if hasattr(manager, "has_debug_vis_implementation"):
+                self._create_debug_vis_ui_element(title, manager)
             else:
-                print(f"ManagerLiveVisualizer cannot be created for manager: {class_name}, Manager does not exist")
+                print(
+                    f"ManagerLiveVisualizer cannot be created for manager: {class_name}, has_debug_vis_implementation"
+                    " does not exist"
+                )
+        else:
+            print(f"ManagerLiveVisualizer cannot be created for manager: {class_name}, Manager does not exist")
 
 
     """
