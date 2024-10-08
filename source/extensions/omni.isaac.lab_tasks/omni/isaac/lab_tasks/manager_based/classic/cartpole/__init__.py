@@ -10,7 +10,7 @@ Cartpole balancing environment.
 import gymnasium as gym
 
 from . import agents
-from .cartpole_camera_env_cfg import CartpoleDepthCameraEnvCfg, CartpoleRGBCameraEnvCfg
+from .cartpole_camera_env_cfg import CartpoleDepthCameraEnvCfg, CartpoleResNet18CameraEnv, CartpoleRGBCameraEnvCfg
 from .cartpole_env_cfg import CartpoleEnvCfg
 
 ##
@@ -47,5 +47,15 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": CartpoleDepthCameraEnvCfg,
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
+    },
+)
+
+gym.register(
+    id="Isaac-Cartpole-ResNet18-Camera-v0",
+    entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": CartpoleResNet18CameraEnv,
+        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_feature_ppo_cfg.yaml",
     },
 )
