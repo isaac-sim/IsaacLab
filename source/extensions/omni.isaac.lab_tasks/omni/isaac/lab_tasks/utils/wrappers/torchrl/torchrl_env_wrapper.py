@@ -1,46 +1,36 @@
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 from __future__ import annotations
 
-import torch
-import numpy as np 
 import contextlib
-import os 
-from dataclasses import asdict
-
-import time 
-
-from typing import Any, Dict, Optional, Iterator
-from tensordict.nn import TensorDictModule
-from tensordict import TensorDict, TensorDictBase
-from omni.isaac.lab.envs import ManagerBasedRLEnv
-from torchrl.envs.libs.gym import  default_info_dict_reader
-from torchrl.trainers import Trainer
-from torchrl.envs import GymWrapper
-from torchrl.collectors import SyncDataCollector
-from torchrl.objectives import ClipPPOLoss
-from torchrl.record.loggers.wandb import WandbLogger
-from torchrl.trainers.trainers import LOGGER_METHODS
-from torchrl.trainers import Trainer
+import numpy as np
+import os
+import time
+import torch
 import warnings
+from collections.abc import Iterator
+from dataclasses import asdict
+from tensordict import TensorDict, TensorDictBase
+from tensordict.nn import ProbabilisticTensorDictSequential, TensorDictModule, dispatch
+from typing import Any
 
-from torchrl.data.tensor_specs import (
-    CompositeSpec,
-    UnboundedContinuousTensorSpec,
-)
-
+from torchrl.collectors import SyncDataCollector
 from torchrl.collectors.utils import split_trajectories
+from torchrl.data.tensor_specs import CompositeSpec, UnboundedContinuousTensorSpec
+from torchrl.envs import GymWrapper
+from torchrl.envs.libs.gym import default_info_dict_reader
+from torchrl.envs.utils import _terminated_or_truncated
+from torchrl.objectives import ClipPPOLoss
+from torchrl.objectives.utils import _reduce
+from torchrl.record.loggers.wandb import WandbLogger
+from torchrl.trainers import Trainer
+from torchrl.trainers.trainers import LOGGER_METHODS
 
-from torchrl.envs.utils import (
-    _terminated_or_truncated,
-)
-from torchrl.objectives.utils import (
-    _reduce,
-)
+from omni.isaac.lab.envs import ManagerBasedRLEnv
 
-from tensordict.nn import (
-    dispatch,
-    ProbabilisticTensorDictSequential,
-    TensorDictModule
-)
 
 class TorchRLEnvWrapper(GymWrapper):
     def __init__(self, env: ManagerBasedRLEnv, categorical_action_encoding=False, **kwargs):
@@ -50,10 +40,10 @@ class TorchRLEnvWrapper(GymWrapper):
         self._curr_ep_len = torch.zeros(env.unwrapped.num_envs, device=env.unwrapped.device)
         self._curr_reward_sum = torch.zeros(env.unwrapped.num_envs, device=env.unwrapped.device)
         self._env_reset_mask = torch.zeros(env.unwrapped.num_envs, device=env.unwrapped.device, dtype=torch.bool)
-    
+
     def maybe_reset(self, tensordict: TensorDictBase) -> TensorDictBase:
-        """Checks the done keys of the input tensordict. Unlike the base GymWrapper implementation, we do not 
-        call env.reset() 
+        """Checks the done keys of the input tensordict. Unlike the base GymWrapper implementation, we do not
+        call env.reset()
 
         Args:
             tensordict (TensorDictBase): a tensordict coming from the output of :func:`~torchrl.envs.utils.step_mdp`.
@@ -80,7 +70,7 @@ class TorchRLEnvWrapper(GymWrapper):
                 full_done_spec=self.output_spec["full_done_spec"],
                 key="_reset",
             )
-            
+
         return tensordict
 
     def step(self, tensordict: TensorDictBase) -> TensorDictBase:
@@ -103,7 +93,7 @@ class TorchRLEnvWrapper(GymWrapper):
         """
         # sanity check
         self._assert_tensordict_shape(tensordict)
-        next_preset = tensordict.get("next", None)
+        next_preset = tensordict.get("next", None)  # noqa: SIM910
 
         next_tensordict = self._step(tensordict)
         next_tensordict = self._step_proc_data(next_tensordict)
@@ -111,15 +101,13 @@ class TorchRLEnvWrapper(GymWrapper):
             # tensordict could already have a "next" key
             # this could be done more efficiently by not excluding but just passing
             # the necessary keys
-            next_tensordict.update(
-                next_preset.exclude(*next_tensordict.keys(True, True))
-            )
+            next_tensordict.update(next_preset.exclude(*next_tensordict.keys(True, True)))
         tensordict.set("next", next_tensordict)
         # Information from the "extras" dict of dicts passed from IsaacLab contains reward and metrics information.
         # The _data postfix is added to distinguish the field containing the actual values from the dummy {key} field
         # in the tensordict required for faster rollouts. To get logging to work, we need to move the data from the "next" tensordict
-        # to the top level tensordict. 
-        # TODO: Find a more elegant solution to enable rewards and metrics logging. " 
+        # to the top level tensordict.
+        # TODO: Find a more elegant solution to enable rewards and metrics logging. "
         for key in self.env.unwrapped.extras:
             tensordict[f"{key}_data"] = tensordict["next"][f"{key}_data"]
         return tensordict
@@ -148,7 +136,7 @@ class TorchRLEnvWrapper(GymWrapper):
         reward = self.read_reward(reward)
         obs_dict = self.read_obs(obs)
         obs_dict[self.reward_key] = reward
-        
+
         # if truncated/terminated is not in the keys, we just don't pass it even if it
         # is defined.
         if terminated is None:
@@ -165,8 +153,7 @@ class TorchRLEnvWrapper(GymWrapper):
                 # check if any value has to be recast to something else. If not, we can safely
                 # build the tensordict without running checks
                 self.validated = all(
-                    val is tensordict_out.get(key)
-                    for key, val in TensorDict(obs_dict, []).items(True, True)
+                    val is tensordict_out.get(key) for key, val in TensorDict(obs_dict, []).items(True, True)
                 )
         else:
             tensordict_out = TensorDict._new_unsafe(
@@ -176,13 +163,13 @@ class TorchRLEnvWrapper(GymWrapper):
         if self.device is not None:
             tensordict_out = tensordict_out.to(self.device)
 
-        self._curr_ep_len += 1 
+        self._curr_ep_len += 1
         self._curr_reward_sum += reward
         done_envs = tensordict_out["done"] | tensordict_out["terminated"] | tensordict_out["truncated"]
         new_ids = (done_envs > 0).nonzero(as_tuple=False)
-        
-        self._ep_len_buf = torch.where(self._env_reset_mask == False, self._curr_ep_len.clone(), self._ep_len_buf)
-        self._ep_reward_buf = torch.where(self._env_reset_mask == False, self._curr_reward_sum.clone(), self._ep_reward_buf)
+
+        self._ep_len_buf = torch.where(~self._env_reset_mask, self._curr_ep_len.clone(), self._ep_len_buf)
+        self._ep_reward_buf = torch.where(~self._env_reset_mask, self._curr_reward_sum.clone(), self._ep_reward_buf)
         if len(new_ids) > 0:
             self._env_reset_mask[new_ids] = True
             self._ep_len_buf[new_ids] = self._curr_ep_len[new_ids].clone()
@@ -206,16 +193,12 @@ class TorchRLEnvWrapper(GymWrapper):
                     if out is not None:
                         tensordict_out = out
         return tensordict_out
-    
+
+
 class InfoDictReaderWrapper(default_info_dict_reader):
-    def __call__(
-        self, info_dict: Dict[str, Any], tensordict: TensorDictBase
-    ) -> TensorDictBase:
+    def __call__(self, info_dict: dict[str, Any], tensordict: TensorDictBase) -> TensorDictBase:
         if not isinstance(info_dict, (dict, TensorDictBase)) and len(self.keys):
-            warnings.warn(
-                f"Found an info_dict of type {type(info_dict)} "
-                f"but expected type or subtype `dict`."
-            )
+            warnings.warn(f"Found an info_dict of type {type(info_dict)} but expected type or subtype `dict`.")
         keys = self.keys
         if keys is None:
             keys = info_dict.keys()
@@ -224,7 +207,7 @@ class InfoDictReaderWrapper(default_info_dict_reader):
             self.keys = keys
         # create an info_spec only if there is none
         info_spec = None if self.info_spec is not None else CompositeSpec()
-        
+
         def add_value_to_tensordict(tensordict: TensorDict, key: str, value: torch.Tensor):
             if value.dtype == np.dtype("O"):
                 value = np.stack(value)
@@ -233,14 +216,12 @@ class InfoDictReaderWrapper(default_info_dict_reader):
             tensordict.set(key, value)
             if info_spec is not None:
                 value = tensordict.get(key)
-                info_spec[key] = UnboundedContinuousTensorSpec(
-                    value.shape, device=value.device, dtype=value.dtype
-                )
-                
+                info_spec[key] = UnboundedContinuousTensorSpec(value.shape, device=value.device, dtype=value.dtype)
+
         def _traverse_dict(tensordict: TensorDict, key, val):
             """
-            Recursively traverse key-value pairs of an arbitrarily nested dictionary 
-            and add non-dict leaf values to the info tensordict while preserving structure. 
+            Recursively traverse key-value pairs of an arbitrarily nested dictionary
+            and add non-dict leaf values to the info tensordict while preserving structure.
             """
             if isinstance(val, dict):
                 nested_tensordict = TensorDict(batch_size=tensordict.shape, device=tensordict.device)
@@ -250,13 +231,13 @@ class InfoDictReaderWrapper(default_info_dict_reader):
             else:
                 val = torch.as_tensor(val, device=tensordict.device)
                 add_value_to_tensordict(tensordict, key, val)
-        
+
         for key in keys:
             if key in info_dict:
                 val = info_dict[key]
                 if isinstance(val, dict):
-                    # Add all key strings that map to dictionaries to the tensordict. 
-                    # This is done because sampling throughput is reduced 
+                    # Add all key strings that map to dictionaries to the tensordict.
+                    # This is done because sampling throughput is reduced
                     # if the tensordict key set does not match the expected.
                     tensordict.set(key, torch.tensor(0).expand(tensordict.shape))
                     nested_tensordict = TensorDict(batch_size=tensordict.shape, device=tensordict.device)
@@ -275,10 +256,11 @@ class InfoDictReaderWrapper(default_info_dict_reader):
             if tensordict.device is not None:
                 info_spec = info_spec.to(tensordict.device)
             self._info_spec = info_spec
-        # add episode length field to tensordict for logging 
+        # add episode length field to tensordict for logging
         tensordict.set("episode_length", torch.tensor(0.0).expand(tensordict.shape))
         tensordict.set("episode_reward", torch.tensor(0.0).expand(tensordict.shape))
         return tensordict
+
 
 class SyncDataCollectorWrapper(SyncDataCollector):
     def __init__(self, **kwargs):
@@ -291,7 +273,7 @@ class SyncDataCollectorWrapper(SyncDataCollector):
 
         """
         # The portion of the code handling cuda streams has been removed in this inherited method, which
-        # caused CUDA memory allocation issues with IsaacSim during env stepping.  
+        # caused CUDA memory allocation issues with IsaacSim during env stepping.
         total_frames = self.total_frames
 
         while self._frames < self.total_frames:
@@ -308,9 +290,7 @@ class SyncDataCollectorWrapper(SyncDataCollector):
                 self.env.close()
 
             if self.split_trajs:
-                tensordict_out = split_trajectories(
-                    tensordict_out, prefix="collector"
-                )
+                tensordict_out = split_trajectories(tensordict_out, prefix="collector")
             if self.postproc is not None:
                 tensordict_out = self.postproc(tensordict_out)
             if self._exclude_private_keys:
@@ -318,18 +298,12 @@ class SyncDataCollectorWrapper(SyncDataCollector):
                 def is_private(key):
                     if isinstance(key, str) and key.startswith("_"):
                         return True
-                    if isinstance(key, tuple) and any(
-                        _key.startswith("_") for _key in key
-                    ):
+                    if isinstance(key, tuple) and any(_key.startswith("_") for _key in key):
                         return True
                     return False
 
-                excluded_keys = [
-                    key for key in tensordict_out.keys(True) if is_private(key)
-                ]
-                tensordict_out = tensordict_out.exclude(
-                    *excluded_keys, inplace=True
-                )
+                excluded_keys = [key for key in tensordict_out.keys(True) if is_private(key)]
+                tensordict_out = tensordict_out.exclude(*excluded_keys, inplace=True)
             if self.return_same_td:
                 # This is used with multiprocessed collectors to use the buffers
                 # stored in the tensordict.
@@ -350,6 +324,7 @@ class SyncDataCollectorWrapper(SyncDataCollector):
                 # >>>          break
                 # >>> assert data0["done"] is not data1["done"]
                 yield tensordict_out.clone()
+
 
 class ClipPPOLossWrapper(ClipPPOLoss):
     def __init__(
@@ -385,10 +360,10 @@ class ClipPPOLossWrapper(ClipPPOLoss):
             separate_losses=separate_losses,
             reduction=reduction,
             clip_value=clip_value,
-            **kwargs
+            **kwargs,
         )
-    
-        self.desired_kl = desired_kl 
+
+        self.desired_kl = desired_kl
 
     @dispatch
     def forward(self, tensordict: TensorDictBase) -> TensorDictBase:
@@ -400,7 +375,7 @@ class ClipPPOLossWrapper(ClipPPOLoss):
                 "The parameters of the distribution were not found. "
                 f"Make sure they are provided to {type(self).__name__}."
             ) from err
-        advantage = tensordict.get(self.tensor_keys.advantage, None)
+        advantage = tensordict.get(self.tensor_keys.advantage, None)  # noqa: SIM910
         if advantage is None:
             self.value_estimator(
                 tensordict,
@@ -434,15 +409,13 @@ class ClipPPOLossWrapper(ClipPPOLoss):
         td_out = TensorDict({"loss_objective": -gain.mean()}, batch_size=[])
         td_out.set("clip_fraction", clip_fraction)
 
-        with self.actor_network_params.to_module(
-            self.actor_network
-        ) if self.functional else contextlib.nullcontext():
+        with self.actor_network_params.to_module(self.actor_network) if self.functional else contextlib.nullcontext():
             current_dist = self.actor_network.get_dist(tensordict)
             td_out.set("action_noise", current_dist.scale.mean())
         try:
             kl = torch.distributions.kl.kl_divergence(previous_dist, current_dist).mean()
         except NotImplementedError:
-            x = previous_dist.sample((1))
+            x = previous_dist.sample(1)
             kl = (previous_dist.log_prob(x) - current_dist.log_prob(x)).mean(0)
         kl = kl.unsqueeze(-1)
         td_out.set("kl", kl)
@@ -459,12 +432,13 @@ class ClipPPOLossWrapper(ClipPPOLoss):
 
         td_out.set("ESS", _reduce(ess, self.reduction) / batch)
         td_out = td_out.named_apply(
-            lambda name, value: _reduce(value, reduction=self.reduction).squeeze(-1)
-            if name.startswith("loss_")
-            else value,
+            lambda name, value: (
+                _reduce(value, reduction=self.reduction).squeeze(-1) if name.startswith("loss_") else value
+            ),
             batch_size=[],
         )
         return td_out
+
 
 class TrainerWrapper(Trainer):
     def __init__(self, num_mini_batches, lr_schedule: str, **kwargs):
@@ -476,21 +450,21 @@ class TrainerWrapper(Trainer):
         self.learning_rate = 1e-3
 
     def save_trainer(self, force_save: bool = False) -> None:
-        # overwrite the model name with iteration count 
+        # overwrite the model name with iteration count
         file_name = f"{self.file_name}_{self._optim_count}"
-        self.save_trainer_file = os.path.join(self.log_path, file_name+self.file_ext)
+        self.save_trainer_file = os.path.join(self.log_path, file_name + self.file_ext)
 
         _save = force_save
         if self.save_trainer_file is not None:
             if (self.collected_frames - self._last_save) > self.save_trainer_interval:
                 self._last_save = self.collected_frames
                 _save = True
-        
+
         if _save and self.save_trainer_file:
             file_path, file_ext = os.path.splitext(self.save_trainer_file)
-            # Append iteration count to file name and save 
+            # Append iteration count to file name and save
             file_path += f"_{iter}{file_ext}"
-            
+
             self._save_trainer()
             if hasattr(self.logger, "log_model"):
                 self.logger.log_model(self.save_trainer_file, iter=self._optim_count)
@@ -534,7 +508,7 @@ class TrainerWrapper(Trainer):
                 start = i * mini_batch_size
                 end = start + mini_batch_size
                 batch_indices = indices[start:end]
-                sub_batch = flat_batch[batch_indices] 
+                sub_batch = flat_batch[batch_indices]
                 losses_td = self.loss_module(sub_batch)
                 if self.lr_schedule == "adaptive":
                     desired_kl = self.loss_module.desired_kl
@@ -562,30 +536,30 @@ class TrainerWrapper(Trainer):
 
             del sub_batch, losses_td, losses_detached
         if self.optim_steps_per_batch > 0:
-            self._log(optim_steps=self._optim_count, **average_losses,)
+            self._log(
+                optim_steps=self._optim_count,
+                **average_losses,
+            )
+
 
 class WandbLoggerWrapper(WandbLogger):
-    def __init__(self, 
-                 exp_name: str,
-                 offline: bool = False,
-                 save_dir: str = None,
-                 id: str = None,
-                 project: str = None, 
-                 **kwargs
-        ):
+    def __init__(
+        self, exp_name: str, offline: bool = False, save_dir: str = None, id: str = None, project: str = None, **kwargs
+    ):
         super().__init__(exp_name=exp_name, offline=offline, save_dir=save_dir, id=id, project=project, **kwargs)
-    
+
     def log_model(self, model_path, iter):
         import wandb
+
         # Split the file name and extension
         wandb.save(model_path, base_path=os.path.dirname(model_path))
 
     def log_config(self, env_cfg) -> None:
-        import wandb 
-        wandb.config.update({"env_cfg" : asdict(env_cfg)})
+        import wandb
 
+        wandb.config.update({"env_cfg": asdict(env_cfg)})
 
-    def log_scalar(self, name: str, value: float, step: Optional[int] = None) -> None:
+    def log_scalar(self, name: str, value: float, step: int | None = None) -> None:
         """Logs a scalar value to wandb.
 
         Args:

@@ -7,6 +7,7 @@ import copy
 import os
 import torch
 
+
 def export_policy_as_onnx(
     loss_module: object, path: str, normalizer: object | None = None, filename="policy.onnx", verbose=False
 ):
@@ -23,6 +24,7 @@ def export_policy_as_onnx(
         os.makedirs(path, exist_ok=True)
     policy_exporter = _OnnxPolicyExporter(loss_module, normalizer, verbose)
     policy_exporter.export(path, filename)
+
 
 class _OnnxPolicyExporter(torch.nn.Module):
     """Exporter of actor-critic into ONNX file."""

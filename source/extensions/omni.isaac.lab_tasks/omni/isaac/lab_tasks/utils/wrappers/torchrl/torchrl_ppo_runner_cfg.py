@@ -3,24 +3,26 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import torch
 from dataclasses import MISSING
 from typing import Literal
 
-import torch
 from omni.isaac.lab.utils import configclass
 
-@configclass 
+
+@configclass
 class DistributionCfg:
 
     distribution_class: torch.distributions.Distribution = MISSING
     """A torch.distributions.Distribution class to be used for sampling. """
-    
-    distribution_kwargs: dict | None = None 
+
+    distribution_kwargs: dict | None = None
     """Keyword arguments to be passed to the distribution. """
 
-    return_log_prob: bool = True 
-    """If ``True``, the log-probability of the distribution sample will be written in the tensordict with the key 
+    return_log_prob: bool = True
+    """If ``True``, the log-probability of the distribution sample will be written in the tensordict with the key
     `'sample_log_prob'`. Default is ``True``."""
+
 
 @configclass
 class ProbabilisticActorCfg:
@@ -31,17 +33,17 @@ class ProbabilisticActorCfg:
 
     actor_network: object = MISSING
     """Actor network to use for value estimation"""
-    
+
     in_keys: list[str] = ["policy"]
     """Key(s) that will be read from the input TensorDict and used to build the distribution. Importantly, if it's an
-    iterable of string or a string, those keys must match the keywords used by the distribution class of interest, 
-    e.g. :obj:`"loc"` and :obj:`"scale"` for the Normal distribution and similar. If in_keys is a dictionary, 
-    the keys are the keys of the distribution and the values are the keys in the tensordict that will get match to the 
+    iterable of string or a string, those keys must match the keywords used by the distribution class of interest,
+    e.g. :obj:`"loc"` and :obj:`"scale"` for the Normal distribution and similar. If in_keys is a dictionary,
+    the keys are the keys of the distribution and the values are the keys in the tensordict that will get match to the
     corresponding distribution keys.
     """
-    
+
     out_keys: list[str] = ["loc", "scale"]
-    """Keys where the sampled values will be written. 
+    """Keys where the sampled values will be written.
     Importantly, if these keys are found in the input TensorDict, the sampling step will be skipped.
     """
 
@@ -50,6 +52,7 @@ class ProbabilisticActorCfg:
 
     init_noise_std: float = 1.0
     """The standard deviation of the Gaussian noise added to the policy actions during exploration. """
+
 
 @configclass
 class ValueOperatorCfg:
@@ -63,15 +66,16 @@ class ValueOperatorCfg:
     If it contains more than one element, the values will be passed in the order given by the in_keys iterable.
     Defaults to ``["policy"]``.
     """
-    
-    out_keys: list[str] | None = None 
-    
+
+    out_keys: list[str] | None = None
+
     """Keys to be written to the input tensordict.
-    The length of out_keys must match the 
-    number of tensors returned by the embedded module. Using "_" as a 
-    key avoid writing tensor to output. 
+    The length of out_keys must match the
+    number of tensors returned by the embedded module. Using "_" as a
+    key avoid writing tensor to output.
     Defaults to ``["state_value"]`` or  ``["state_action_value"]`` if ``"action"`` is part of the ``in_keys``.
     """
+
 
 @configclass
 class ClipPPOLossCfg:
@@ -103,11 +107,11 @@ class ClipPPOLossCfg:
 
     entropy_bonus: bool = False
     """If ``True``, an entropy bonus will be added to the loss to favour exploratory policies.."""
-    
+
     loss_critic_type: Literal["l1", "l2", "smooth_l1"] = "l2"
     """loss function for the value discrepancy. Can be one of "l1", "l2" or "smooth_l1"."""
 
-    normalize_advantage: bool = False 
+    normalize_advantage: bool = False
     """Normalize advantages by subtracting the mean and dividing by its std before computing loss. Defaults to False."""
 
     learning_rate: float = MISSING
@@ -122,6 +126,7 @@ class ClipPPOLossCfg:
     max_grad_norm: float = MISSING
     """value to be used for clipping gradients. ."""
 
+
 @configclass
 class CollectorCfg:
     """Configuration for the PPO actor-critic networks."""
@@ -131,8 +136,9 @@ class CollectorCfg:
 
     actor_network: ProbabilisticActorCfg = MISSING
     """The model architecture configuration for the actor network."""
- 
+
     split_trajs: bool = False
+
 
 @configclass
 class OnPolicyPPORunnerCfg:
@@ -196,7 +202,7 @@ class OnPolicyPPORunnerCfg:
     wandb_project: str = "isaaclab"
     """The wandb project name. Default is "isaaclab"."""
 
-    save_trainer_interval: int = 100 
+    save_trainer_interval: int = 100
     """"How often to save the current policy to disk, in number of optimization steps"""
 
     ##
