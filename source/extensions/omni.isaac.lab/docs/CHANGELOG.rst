@@ -7,7 +7,7 @@ Changelog
 Added
 ^^^^^
 
-* Added `play.py` and `train.py` scripts to support new torchrl workflow.   
+* Added ``play.py`` and ``train.py`` scripts to support new torchrl workflow.
 
 
 0.24.19 (2024-10-05)
