@@ -70,9 +70,6 @@ class ArticulationData:
         self._joint_acc = TimestampedBuffer()
         self._joint_vel = TimestampedBuffer()
 
-        # Link center of mass
-        self._com_pos_b, _ = self._root_physx_view.get_coms().to(self.device).split([3, 4], dim=-1)
-
     def update(self, dt: float):
         # update the simulation timestamp
         self._sim_timestamp += dt
@@ -283,7 +280,7 @@ class ArticulationData:
         quat = state[:, 3:7]
         # adjust linear velocity to link
         state[:, 7:10] += torch.linalg.cross(
-            state[:, 10:13], math_utils.quat_rotate(quat, -self._com_pos_b[:, 0, :]), dim=-1
+            state[:, 10:13], math_utils.quat_rotate(quat, -self.com_pos_b[:, 0, :]), dim=-1
         )
         return state
 
@@ -298,7 +295,7 @@ class ArticulationData:
         state = self.root_state_w.clone()
         quat = state[:, 3:7]
         # adjust position to center of mass
-        state[:, :3] += math_utils.quat_rotate(quat, self._com_pos_b[:, 0, :])
+        state[:, :3] += math_utils.quat_rotate(quat, self.com_pos_b[:, 0, :])
         return state
 
     @property
@@ -330,7 +327,7 @@ class ArticulationData:
         quat = state[..., 3:7]
         # adjust linear velocity to link
         state[..., 7:10] += torch.linalg.cross(
-            state[..., 10:13], math_utils.quat_rotate(quat, -self._com_pos_b), dim=-1
+            state[..., 10:13], math_utils.quat_rotate(quat, -self.com_pos_b), dim=-1
         )
         return state
 
@@ -346,7 +343,7 @@ class ArticulationData:
         state = self.body_state_w.clone()
         quat = state[..., 3:7]
         # adjust position to center of mass
-        state[..., :3] -= math_utils.quat_rotate(quat, self._com_pos_b)
+        state[..., :3] -= math_utils.quat_rotate(quat, self.com_pos_b)
         return state
 
     @property
