@@ -4,10 +4,11 @@
 
 Through using Ray, we streamline distributed training runs.
 
-The Ray integration is useful to you if:
+The Ray integration is useful to you if any of the following apply:
 - You want to use the same training setup everywhere (on cloud and local) with minimal overhead
 - You want to tune models' hyperparameters as fast as possible in parallel on multiple GPUs
 	and/or multiple GPU Nodes
+- You want to run several training runs at once
 - You want to simultaneously tune model hyperparameters for different environments/agents (see
 	advanced usage)
 
