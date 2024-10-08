@@ -10,7 +10,7 @@ import torch
 
 import ray
 
-from omni.isaac.lab.app import AppLauncher  # check that you can import Isaac Lab
+from omni.isaac.lab.app import AppLauncher # noqa: F401  # check that you can import Isaac Lab 
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -53,7 +53,9 @@ def get_available_gpus(num_gpus) -> str:
 
     logging.info(f"Number of GPUs allocated to this job: {num_gpus}")
     logging.info(f"GPU Details: {gpu_details}")
-    return f"Job completed with {num_gpus} GPUs, details: {gpu_details}"
+    logging.info("Attempting to read GPUS from torch....")
+    num_gpus = torch.cuda.device_count()
+    return f"Job completed with {num_gpus} GPUs, details: {gpu_details}. Torch sees {num_gpus} GPUs."
 
 
 def main(num_workers, gpus_per_job):
