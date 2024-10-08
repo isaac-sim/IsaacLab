@@ -15,7 +15,7 @@ from omni.isaac.core.simulation_context import SimulationContext
 from omni.ui import CollapsableFrame, Frame, VStack, Window
 
 from omni.isaac.lab.managers import ManagerBase
-from omni.isaac.lab.ui.widgets import ImagePlot, LiveLinePlot, UiVisualizerMixin
+from omni.isaac.lab.ui.widgets import ImagePlot, LiveLinePlot, UiVisualizerBase
 from omni.isaac.lab.utils import configclass
 
 
@@ -35,7 +35,7 @@ class ManagerLiveVisualizerCfg:
     """
 
 
-class ManagerLiveVisualizer(UiVisualizerMixin):
+class ManagerLiveVisualizer(UiVisualizerBase):
     """A interface object used to transfer data from a manager to a UI widget. This class handles the creation of UI
     Widgets for selected terms given a ManagerLiveVisualizerCfg.
     """

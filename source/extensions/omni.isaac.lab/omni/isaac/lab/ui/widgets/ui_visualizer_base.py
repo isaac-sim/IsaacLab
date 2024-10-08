@@ -8,8 +8,9 @@ import inspect
 from omni.ui import Frame, Window
 
 
-class UiVisualizerMixin:
-    """Mixin Class for components that support debug visualizations that requires access to some UI elements.
+class UiVisualizerBase:
+    """Base Class for components that support debug visualizations that requires access to some UI elements.
+    
     This class provides a set of functions that can be used to assign ui interfaces.
     The following functions are provided:
     * :func:`set_debug_vis`: Assigns a debug visualization interface. This function is called by the main UI

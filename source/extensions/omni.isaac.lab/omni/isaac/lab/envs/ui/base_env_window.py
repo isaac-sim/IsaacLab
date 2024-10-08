@@ -16,7 +16,7 @@ import omni.kit.commands
 import omni.usd
 from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics
 
-from omni.isaac.lab.managers import ManagerLiveVisualizer
+from omni.isaac.lab.ui.widgets import ManagerLiveVisualizer
 
 if TYPE_CHECKING:
     import omni.ui
