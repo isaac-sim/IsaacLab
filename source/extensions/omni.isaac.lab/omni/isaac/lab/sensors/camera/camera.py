@@ -435,6 +435,24 @@ class Camera(SensorBase):
         positions, orientations = self._view.get_world_poses(indices=env_ids)
         return positions, orientations
 
+    def get_local_poses(self, env_ids: Sequence[int] | None = None):
+        """Get the local pose of the camera.
+
+        Args:
+            env_ids: indices to specify which prims to query. Defaults to None, which means all sensor indices.
+
+        Raises:
+            RuntimeError: If the camera prim is not set. Need to call :meth:`initialize` method first.
+
+        Returns: the position and orientation of the local camera pose. quaternion is scalar-first (w, x, y, z)
+        """
+        # resolve env_ids
+        if env_ids is None:
+            env_ids = self._ALL_INDICES
+        # set camera poses using the view
+        positions, orientations = self._view.get_local_poses(indices=env_ids)
+        return positions, orientations
+
     """
     Operations
     """
