@@ -51,11 +51,11 @@ from omni.isaac.lab.utils.dict import print_dict
 import omni.isaac.lab_tasks  # noqa: F401
 from omni.isaac.lab_tasks.utils import get_checkpoint_path, parse_env_cfg
 from omni.isaac.lab_tasks.utils.wrappers.torchrl import (
+    OnPolicyPPORunner,
+    OnPolicyPPORunnerCfg,
     TorchRLEnvWrapper,
     export_policy_as_onnx,
 )
-from .ppo.torchrl_ppo_runner_cfg import OnPolicyPPORunnerCfg, 
-from .ppo.torchrl_ppo_runner import OnPolicyPPORunner, 
 
 
 def main():
