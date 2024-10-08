@@ -1,6 +1,65 @@
 Changelog
 ---------
 
+0.10.6 (2024-09-25)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+* Added ``Isaac-Cartpole-RGB-Camera-v0`` and ``Isaac-Cartpole-Depth-Camera-v0``
+  manager based camera cartpole environments.
+
+
+0.10.5 (2024-09-11)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated the skrl RL library integration to the latest release (skrl-v1.3.0)
+
+
+0.10.4 (2024-09-10)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Repose-Cube-Shadow-Vision-Direct-v0`` environment with heterogeneous proprioception and vision observations.
+
+
+0.10.3 (2024-09-05)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added environment config flag ``rerender_on_reset`` to allow updating sensor data after a reset.
+
+
+0.10.2 (2024-08-23)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Shadow-Hand-Over-Direct-v0`` multi-agent environment
+
+
+0.10.1 (2024-08-21)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Cart-Double-Pendulum-Direct-v0`` multi-agent environment
+
+Changed
+^^^^^^^
+
+* Update skrl wrapper to support multi-agent environments.
+
+
 0.10.0 (2024-08-14)
 ~~~~~~~~~~~~~~~~~~~
 

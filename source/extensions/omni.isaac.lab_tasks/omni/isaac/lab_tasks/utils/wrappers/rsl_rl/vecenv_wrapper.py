@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Wrapper to configure an :class:`ManagerBasedRLEnv` instance to RSL-RL vectorized environment.
+"""Wrapper to configure a :class:`ManagerBasedRLEnv` or :class:`DirectRlEnv` instance to RSL-RL vectorized environment.
 
 The following example shows how to wrap an environment for RSL-RL:
 
@@ -43,7 +43,7 @@ class RslRlVecEnvWrapper(VecEnv):
         https://github.com/leggedrobotics/rsl_rl/blob/master/rsl_rl/env/vec_env.py
     """
 
-    def __init__(self, env: ManagerBasedRLEnv):
+    def __init__(self, env: ManagerBasedRLEnv | DirectRLEnv):
         """Initializes the wrapper.
 
         Note:
@@ -53,7 +53,7 @@ class RslRlVecEnvWrapper(VecEnv):
             env: The environment to wrap around.
 
         Raises:
-            ValueError: When the environment is not an instance of :class:`ManagerBasedRLEnv`.
+            ValueError: When the environment is not an instance of :class:`ManagerBasedRLEnv` or :class:`DirectRLEnv`.
         """
         # check that input is valid
         if not isinstance(env.unwrapped, ManagerBasedRLEnv) and not isinstance(env.unwrapped, DirectRLEnv):
@@ -126,7 +126,7 @@ class RslRlVecEnvWrapper(VecEnv):
         return cls.__name__
 
     @property
-    def unwrapped(self) -> ManagerBasedRLEnv:
+    def unwrapped(self) -> ManagerBasedRLEnv | DirectRLEnv:
         """Returns the base environment of the wrapper.
 
         This will be the bare :class:`gymnasium.Env` environment, underneath all layers of wrappers.

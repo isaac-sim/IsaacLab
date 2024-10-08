@@ -7,9 +7,12 @@ from __future__ import annotations
 
 import torch
 
+import omni.isaac.lab.envs.mdp as mdp
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.assets import Articulation, ArticulationCfg
 from omni.isaac.lab.envs import DirectRLEnv, DirectRLEnvCfg
+from omni.isaac.lab.managers import EventTermCfg as EventTerm
+from omni.isaac.lab.managers import SceneEntityCfg
 from omni.isaac.lab.scene import InteractiveSceneCfg
 from omni.isaac.lab.sensors import ContactSensor, ContactSensorCfg, RayCaster, RayCasterCfg, patterns
 from omni.isaac.lab.sim import SimulationCfg
@@ -21,6 +24,33 @@ from omni.isaac.lab.utils import configclass
 ##
 from omni.isaac.lab_assets.anymal import ANYMAL_C_CFG  # isort: skip
 from omni.isaac.lab.terrains.config.rough import ROUGH_TERRAINS_CFG  # isort: skip
+
+
+@configclass
+class EventCfg:
+    """Configuration for randomization."""
+
+    physics_material = EventTerm(
+        func=mdp.randomize_rigid_body_material,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
+            "static_friction_range": (0.8, 0.8),
+            "dynamic_friction_range": (0.6, 0.6),
+            "restitution_range": (0.0, 0.0),
+            "num_buckets": 64,
+        },
+    )
+
+    add_base_mass = EventTerm(
+        func=mdp.randomize_rigid_body_mass,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names="base"),
+            "mass_distribution_params": (-5.0, 5.0),
+            "operation": "add",
+        },
+    )
 
 
 @configclass
@@ -62,6 +92,9 @@ class AnymalCFlatEnvCfg(DirectRLEnvCfg):
 
     # scene
     scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=4096, env_spacing=4.0, replicate_physics=True)
+
+    # events
+    events: EventCfg = EventCfg()
 
     # robot
     robot: ArticulationCfg = ANYMAL_C_CFG.replace(prim_path="/World/envs/env_.*/Robot")
@@ -152,19 +185,7 @@ class AnymalCEnv(DirectRLEnv):
         # Get specific body indices
         self._base_id, _ = self._contact_sensor.find_bodies("base")
         self._feet_ids, _ = self._contact_sensor.find_bodies(".*FOOT")
-        self._underisred_contact_body_ids, _ = self._contact_sensor.find_bodies(".*THIGH")
-
-        # Randomize robot friction
-        env_ids = self._robot._ALL_INDICES
-        mat_props = self._robot.root_physx_view.get_material_properties()
-        mat_props[:, :, :2].uniform_(0.6, 0.8)
-        self._robot.root_physx_view.set_material_properties(mat_props, env_ids.cpu())
-
-        # Randomize base mass
-        base_id, _ = self._robot.find_bodies("base")
-        masses = self._robot.root_physx_view.get_masses()
-        masses[:, base_id] += torch.zeros_like(masses[:, base_id]).uniform_(-5.0, 5.0)
-        self._robot.root_physx_view.set_masses(masses, env_ids.cpu())
+        self._undesired_contact_body_ids, _ = self._contact_sensor.find_bodies(".*THIGH")
 
     def _setup_scene(self):
         self._robot = Articulation(self.cfg.robot)
@@ -245,7 +266,7 @@ class AnymalCEnv(DirectRLEnv):
         # undersired contacts
         net_contact_forces = self._contact_sensor.data.net_forces_w_history
         is_contact = (
-            torch.max(torch.norm(net_contact_forces[:, :, self._underisred_contact_body_ids], dim=-1), dim=1)[0] > 1.0
+            torch.max(torch.norm(net_contact_forces[:, :, self._undesired_contact_body_ids], dim=-1), dim=1)[0] > 1.0
         )
         contacts = torch.sum(is_contact, dim=1)
         # flat orientation

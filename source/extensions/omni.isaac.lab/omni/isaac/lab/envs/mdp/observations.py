@@ -17,7 +17,8 @@ from typing import TYPE_CHECKING
 import omni.isaac.lab.utils.math as math_utils
 from omni.isaac.lab.assets import Articulation, RigidObject
 from omni.isaac.lab.managers import SceneEntityCfg
-from omni.isaac.lab.sensors import Camera, RayCaster, TiledCamera
+from omni.isaac.lab.sensors import Camera, RayCaster, RayCasterCamera, TiledCamera
+
 
 if TYPE_CHECKING:
     from omni.isaac.lab.envs import ManagerBasedEnv, ManagerBasedRLEnv
@@ -182,38 +183,53 @@ def body_incoming_wrench(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg) -> tor
     return link_incoming_forces.view(env.num_envs, -1)
 
 
-def camera_rgb_image(env: ManagerBasedEnv, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
-    """Camera sensor rgb image.
+def image(
+    env: ManagerBasedEnv,
+    sensor_cfg: SceneEntityCfg = SceneEntityCfg("tiled_camera"),
+    data_type: str = "rgb",
+    convert_perspective_to_orthogonal: bool = False,
+    normalize: bool = True,
+) -> torch.Tensor:
+    """Images of a specific datatype from the camera sensor.
+
+    If the flag :attr:`normalize` is True, post-processing of the images are performed based on their
+    data-types:
+
+    - "rgb": Scales the image to (0, 1) and subtracts with the mean of the current image batch.
+    - "depth" or "distance_to_camera" or "distance_to_plane": Replaces infinity values with zero.
 
     Args:
-        env: The IsaacLab environment.
-        sensor_cfg: The config referring to the Camera or TiledCamera sensor
+        env: The environment the cameras are placed within.
+        sensor_cfg: The desired sensor to read from. Defaults to SceneEntityCfg("tiled_camera").
+        data_type: The data type to pull from the desired camera. Defaults to "rgb".
+        convert_perspective_to_orthogonal: Whether to orthogonalize perspective depth images.
+            This is used only when the data type is "distance_to_camera". Defaults to False.
+        normalize: Whether to normalize the images. This depends on the selected data type.
+            Defaults to True.
 
     Returns:
-        RGB camera data if available. Shape is determined by the camera.data.image_shape.
+        The images produced at the last time-step
     """
+    # extract the used quantities (to enable type-hinting)
+    sensor: TiledCamera | Camera | RayCasterCamera = env.scene.sensors[sensor_cfg.name]
 
-    # extract camera or tiled camera sensor
-    camera: Camera | TiledCamera = env.scene.sensors[sensor_cfg.name]
-    # rgb data
-    return camera.data.output["rgb"]
+    # obtain the input image
+    images = sensor.data.output[data_type]
 
+    # depth image conversion
+    if (data_type == "distance_to_camera") and convert_perspective_to_orthogonal:
+        images = math_utils.orthogonalize_perspective_depth(images, sensor.data.intrinsic_matrices)
 
-def camera_depth_image(env: ManagerBasedEnv, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
-    """Camera sensor depth image, this refers to the distance_to_image_plane annotator.
+    # rgb/depth image normalization
+    if normalize:
+        if data_type == "rgb":
+            images = images.float() / 255.0
+            mean_tensor = torch.mean(images, dim=(1, 2), keepdim=True)
+            images -= mean_tensor
+        elif "distance_to" in data_type or "depth" in data_type:
+            images[images == float("inf")] = 0
 
-    Args:
-        env: The IsaacLab environment.
-        sensor_cfg: The config referring to the Camera or TiledCamera sensor
-
-    Returns:
-        Depth image camera data in meters if available. Shape is determined by the camera.data.image_shape.
-    """
-
-    # extract camera or tiled camera sensor
-    camera: Camera | TiledCamera = env.scene.sensors[sensor_cfg.name]
-    # depth data
-    return camera.data.output["distance_to_image_plane"]
+    return images.clone()
 
 
 """

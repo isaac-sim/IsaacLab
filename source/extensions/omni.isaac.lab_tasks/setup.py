@@ -21,7 +21,7 @@ EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extensio
 INSTALL_REQUIRES = [
     # generic
     "numpy",
-    "torch==2.2.2",
+    "torch==2.4.0",
     "torchvision>=0.14.1",  # ensure compatibility with torch 1.13.1
     # 5.26.0 introduced a breaking change, so we restricted it for now.
     # See issue https://github.com/tensorflow/tensorboard/issues/6808 for details.
@@ -41,7 +41,7 @@ PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu118"]
 # Extra dependencies for RL agents
 EXTRAS_REQUIRE = {
     "sb3": ["stable-baselines3>=2.1"],
-    "skrl": ["skrl>=1.2.0"],
+    "skrl": ["skrl>=1.3.0"],
     "rl-games": ["rl-games==1.6.1", "gym"],  # rl-games still needs gym :(
     "rsl-rl": ["rsl-rl@git+https://github.com/leggedrobotics/rsl_rl.git"],
     "robomimic": [],
@@ -78,8 +78,8 @@ setup(
     classifiers=[
         "Natural Language :: English",
         "Programming Language :: Python :: 3.10",
+        "Isaac Sim :: 4.2.0",
         "Isaac Sim :: 4.1.0",
-        "Isaac Sim :: 4.0.0",
     ],
     zip_safe=False,
 )

@@ -76,7 +76,7 @@ class ManagerBasedEnv:
 
         # set the seed for the environment
         if self.cfg.seed is not None:
-            self.seed(self.cfg.seed)
+            self.cfg.seed = self.seed(self.cfg.seed)
         else:
             carb.log_warn("Seed not set for the environment. The environment creation may not be deterministic.")
 
@@ -261,6 +261,10 @@ class ManagerBasedEnv:
         indices = torch.arange(self.num_envs, dtype=torch.int64, device=self.device)
         self._reset_idx(indices)
 
+        # if sensors are added to the scene, make sure we render to reflect changes in reset
+        if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
+            self.sim.render()
+
         # return observations
         return self.observation_manager.compute(), self.extras
 
@@ -360,6 +364,7 @@ class ManagerBasedEnv:
         """
         # reset the internal buffers of the scene elements
         self.scene.reset(env_ids)
+
         # apply events such as randomization for environments that need a reset
         if "reset" in self.event_manager.available_modes:
             env_step_count = self._sim_step_counter // self.cfg.decimation
