@@ -49,7 +49,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/Table",
         init_state=AssetBaseCfg.InitialStateCfg(pos=[0.5, 0, 0], rot=[0.707, 0, 0, 0.707]),
         spawn=UsdFileCfg(
-            usd_path=f"/home/zixuanh/isaac-sim-assets/Assets/Isaac/4.2/Isaac/Props/Mounts/SeattleLabTable/table_instanceable.usd",
+            usd_path=f"assets/table_instanceable.usd",
                           rigid_props=RigidBodyPropertiesCfg(
                                 kinematic_enabled=True,
                             ),
@@ -102,10 +102,8 @@ class CommandsCfg:
 @configclass
 class ActionsCfg:
     """Action specifications for the MDP."""
-
-    # will be set by agent env cfg
-    arm_action: mdp.JointPositionActionCfg | mdp.DifferentialInverseKinematicsActionCfg = MISSING
-    gripper_action: mdp.BinaryJointPositionActionCfg = MISSING
+    arm_action: mdp.JointPositionActionCfg = MISSING
+    # gripper_action: mdp.BinaryJointPositionActionCfg = MISSING
 
 
 @configclass

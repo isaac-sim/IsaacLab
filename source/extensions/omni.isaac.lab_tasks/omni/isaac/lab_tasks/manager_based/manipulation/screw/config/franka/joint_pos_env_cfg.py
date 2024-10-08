@@ -51,9 +51,9 @@ class FrankaScrewEnvCfg(ScrewEnvCfg):
         )
 
         # override rewards
-        self.rewards.end_effector_position_tracking.params["asset_cfg"].body_names = ["panda_hand"]
-        self.rewards.end_effector_position_tracking_fine_grained.params["asset_cfg"].body_names = ["panda_hand"]
-        self.rewards.end_effector_orientation_tracking.params["asset_cfg"].body_names = ["panda_hand"]
+        # self.rewards.end_effector_position_tracking.params["asset_cfg"].body_names = ["panda_hand"]
+        # self.rewards.end_effector_position_tracking_fine_grained.params["asset_cfg"].body_names = ["panda_hand"]
+        # self.rewards.end_effector_orientation_tracking.params["asset_cfg"].body_names = ["panda_hand"]
 
         # override actions
         self.actions.arm_action = mdp.JointPositionActionCfg(
@@ -67,8 +67,8 @@ class FrankaScrewEnvCfg(ScrewEnvCfg):
         )
         # override command generator body
         # end-effector is along z-direction
-        self.commands.ee_pose.body_name = "panda_hand"
-        self.commands.ee_pose.ranges.pitch = (math.pi, math.pi)
+        # self.commands.ee_pose.body_name = "panda_hand"
+        # self.commands.ee_pose.ranges.pitch = (math.pi, math.pi)
 
 
 @configclass

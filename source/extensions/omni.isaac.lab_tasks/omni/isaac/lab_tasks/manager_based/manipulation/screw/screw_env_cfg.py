@@ -6,6 +6,7 @@
 from dataclasses import MISSING
 
 import omni.isaac.lab.sim as sim_utils
+from omni.isaac.lab.sim.simulation_cfg import PhysxCfg, SimulationCfg
 from omni.isaac.lab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from omni.isaac.lab.envs import ManagerBasedRLEnvCfg
 from omni.isaac.lab.managers import ActionTermCfg as ActionTerm
@@ -69,22 +70,6 @@ class ScrewSceneCfg(InteractiveSceneCfg):
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.63, 0.0, 0.0)),
     )
-    wrench:RigidObjectCfg = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Wrench",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=f"/home/zixuanh/force/IsaacLab/factory_socket_wrench.usd",
-            rigid_props=RigidBodyPropertiesCfg(
-                    solver_position_iteration_count=16,
-                    solver_velocity_iteration_count=1,
-                    max_angular_velocity=1000.0,
-                    max_linear_velocity=1000.0,
-                    max_depenetration_velocity=5.0,
-                    disable_gravity=False,
-                ),
-            mass_props=MassPropertiesCfg(mass=1.0),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.63, 0.05, 0.0)),
-    )
 
     # lights
     light = AssetBaseCfg(
@@ -98,31 +83,32 @@ class ScrewSceneCfg(InteractiveSceneCfg):
 ##
 
 
-@configclass
-class CommandsCfg:
-    """Command terms for the MDP."""
+# @configclass
+# class CommandsCfg:
+#     """Command terms for the MDP."""
 
-    ee_pose = mdp.UniformPoseCommandCfg(
-        asset_name="robot",
-        body_name=MISSING,
-        resampling_time_range=(4.0, 4.0),
-        debug_vis=True,
-        ranges=mdp.UniformPoseCommandCfg.Ranges(
-            pos_x=(0.35, 0.65),
-            pos_y=(-0.2, 0.2),
-            pos_z=(0.15, 0.5),
-            roll=(0.0, 0.0),
-            pitch=MISSING,  # depends on end-effector axis
-            yaw=(-3.14, 3.14),
-        ),
-    )
+#     ee_pose = mdp.UniformPoseCommandCfg(
+#         asset_name="robot",
+#         body_name=MISSING,
+#         resampling_time_range=(4.0, 4.0),
+#         debug_vis=True,
+#         ranges=mdp.UniformPoseCommandCfg.Ranges(
+#             pos_x=(0.35, 0.65),
+#             pos_y=(-0.2, 0.2),
+#             pos_z=(0.15, 0.5),
+#             roll=(0.0, 0.0),
+#             pitch=MISSING,  # depends on end-effector axis
+#             yaw=(-3.14, 3.14),
+#         ),
+#     )
 
 
 @configclass
 class ActionsCfg:
     """Action specifications for the MDP."""
 
-    arm_action: ActionTerm = MISSING
+    nut_action: ActionTerm | None = None
+    arm_action: ActionTerm | None = None
     gripper_action: ActionTerm | None = None
 
 
@@ -135,9 +121,10 @@ class ObservationsCfg:
         """Observations for policy group."""
 
         # observation terms (order preserved)
-        joint_pos = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01))
-        joint_vel = ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-0.01, n_max=0.01))
-        pose_command = ObsTerm(func=mdp.generated_commands, params={"command_name": "ee_pose"})
+        # joint_pos = ObsTerm(func=mdp.joint_pos, noise=Unoise(n_min=-0.01, n_max=0.01))
+        # joint_vel = ObsTerm(func=mdp.joint_vel, noise=Unoise(n_min=-0.01, n_max=0.01))
+        bolt_pose = ObsTerm(func=mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("bolt")})
+        nut_pose = ObsTerm(func=mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("nut")})
         actions = ObsTerm(func=mdp.last_action)
 
         def __post_init__(self):
@@ -152,43 +139,43 @@ class ObservationsCfg:
 class EventCfg:
     """Configuration for events."""
 
-    nut_physics_material = EventTerm(
-        func=mdp.randomize_rigid_body_material,
-        mode="startup",
-        params={
-            "asset_cfg": SceneEntityCfg("nut"),
-            "static_friction_range": (0.8, 0.8),
-            "dynamic_friction_range": (0.6, 0.6),
-            "restitution_range": (0.0, 0.0),
-            "num_buckets": 64,
-        },
-    )
+    # nut_physics_material = EventTerm(
+    #     func=mdp.randomize_rigid_body_material,
+    #     mode="startup",
+    #     params={
+    #         "asset_cfg": SceneEntityCfg("nut"),
+    #         "static_friction_range": (0.8, 0.8),
+    #         "dynamic_friction_range": (0.6, 0.6),
+    #         "restitution_range": (0.0, 0.0),
+    #         "num_buckets": 64,
+    #     },
+    # )
 
-    bolt_physics_material = EventTerm(
-        func=mdp.randomize_rigid_body_material,
-        mode="startup",
-        params={
-            "asset_cfg": SceneEntityCfg("bolt"),
-            "static_friction_range": (0.8, 0.8),
-            "dynamic_friction_range": (0.6, 0.6),
-            "restitution_range": (0.0, 0.0),
-            "num_buckets": 64,
-        },
-    )
+    # bolt_physics_material = EventTerm(
+    #     func=mdp.randomize_rigid_body_material,
+    #     mode="startup",
+    #     params={
+    #         "asset_cfg": SceneEntityCfg("bolt"),
+    #         "static_friction_range": (0.8, 0.8),
+    #         "dynamic_friction_range": (0.6, 0.6),
+    #         "restitution_range": (0.0, 0.0),
+    #         "num_buckets": 64,
+    #     },
+    # )
 
     reset_default = EventTerm(
         func=mdp.reset_scene_to_default,
         mode="reset",
     )
 
-    reset_robot_joints = EventTerm(
-        func=mdp.reset_joints_by_scale,
-        mode="reset",
-        params={
-            "position_range": (0.5, 1.5),
-            "velocity_range": (0.0, 0.0),
-        },
-    )
+    # reset_robot_joints = EventTerm(
+    #     func=mdp.reset_joints_by_scale,
+    #     mode="reset",
+    #     params={
+    #         "position_range": (0.5, 1.5),
+    #         "velocity_range": (0.0, 0.0),
+    #     },
+    # )
 
 
 @configclass
@@ -196,29 +183,15 @@ class RewardsCfg:
     """Reward terms for the MDP."""
 
     # task terms
-    end_effector_position_tracking = RewTerm(
-        func=mdp.position_command_error,
-        weight=-0.2,
-        params={"asset_cfg": SceneEntityCfg("robot", body_names=MISSING), "command_name": "ee_pose"},
-    )
-    end_effector_position_tracking_fine_grained = RewTerm(
-        func=mdp.position_command_error_tanh,
-        weight=0.1,
-        params={"asset_cfg": SceneEntityCfg("robot", body_names=MISSING), "std": 0.1, "command_name": "ee_pose"},
-    )
-    end_effector_orientation_tracking = RewTerm(
-        func=mdp.orientation_command_error,
-        weight=-0.1,
-        params={"asset_cfg": SceneEntityCfg("robot", body_names=MISSING), "command_name": "ee_pose"},
-    )
+    
 
     # action penalty
     action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.0001)
-    joint_vel = RewTerm(
-        func=mdp.joint_vel_l2,
-        weight=-0.0001,
-        params={"asset_cfg": SceneEntityCfg("robot")},
-    )
+    # joint_vel = RewTerm(
+    #     func=mdp.joint_vel_l2,
+    #     weight=-0.0001,
+    #     params={"asset_cfg": SceneEntityCfg("robot")},
+    # )
 
 
 @configclass
@@ -232,13 +205,13 @@ class TerminationsCfg:
 class CurriculumCfg:
     """Curriculum terms for the MDP."""
 
-    action_rate = CurrTerm(
-        func=mdp.modify_reward_weight, params={"term_name": "action_rate", "weight": -0.005, "num_steps": 4500}
-    )
+    # action_rate = CurrTerm(
+    #     func=mdp.modify_reward_weight, params={"term_name": "action_rate", "weight": -0.005, "num_steps": 4500}
+    # )
 
-    joint_vel = CurrTerm(
-        func=mdp.modify_reward_weight, params={"term_name": "joint_vel", "weight": -0.001, "num_steps": 4500}
-    )
+    # joint_vel = CurrTerm(
+    #     func=mdp.modify_reward_weight, params={"term_name": "joint_vel", "weight": -0.001, "num_steps": 4500}
+    # )
 
 
 ##
@@ -255,18 +228,24 @@ class ScrewEnvCfg(ManagerBasedRLEnvCfg):
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
-    commands: CommandsCfg = CommandsCfg()
     # MDP settings
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
     events: EventCfg = EventCfg()
     curriculum: CurriculumCfg = CurriculumCfg()
+    
+    sim: SimulationCfg = SimulationCfg(
+        dt =1./60.,
+        physx=PhysxCfg(
+            bounce_threshold_velocity=0.2,
+            gpu_collision_stack_size=2**31,
+        ),
+    )
 
     def __post_init__(self):
         """Post initialization."""
         # general settings
         self.decimation = 2
+        self.sim.render_interval = self.decimation
         self.episode_length_s = 12.0
         self.viewer.eye = (3.5, 3.5, 3.5)
-        # simulation settings
-        self.sim.dt = 1.0 / 60.0

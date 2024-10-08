@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from dataclasses import MISSING
+from typing import Literal
 
 from omni.isaac.lab.controllers import DifferentialIKControllerCfg
 from omni.isaac.lab.managers.action_manager import ActionTerm, ActionTermCfg
@@ -248,3 +249,17 @@ class DifferentialInverseKinematicsActionCfg(ActionTermCfg):
     """Scale factor for the action. Defaults to 1.0."""
     controller: DifferentialIKControllerCfg = MISSING
     """The configuration for the differential IK controller."""
+
+@configclass
+class RigidObjectPoseActionTermCfg(ActionTermCfg):
+    """Configuration for the cube action term."""
+
+    class_type: type = task_space_actions.RigidObjectActionTerm
+    """The class corresponding to the action term."""
+
+    command_type: Literal["position", "pose"] = MISSING
+    use_relative_mode: bool = False
+    p_gain: float =  1
+    """Proportional gain of the PD controller."""
+    d_gain: float = 0.05
+    """Derivative gain of the PD controller."""
