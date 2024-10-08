@@ -527,3 +527,19 @@ class ArticulationData:
         This quantity is the angular acceleration of the rigid bodies' center of mass frame relative to the world.
         """
         return self.body_acc_w[..., 3:6]
+
+    @property
+    def com_pos_b(self) -> torch.Tensor:
+        """Center of mass of all of the bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
+        
+        This quantity is the center of mass location relative to its body frame.
+        """
+        return self._root_physx_view.get_coms().to(self.device)[...,:3]
+    
+    @property
+    def com_quat_b(self) -> torch.Tensor:
+        """Orientation (w,x,y,z) of the prinicple axies of inertia of all of the bodies in simulation world frame. Shape is (num_instances, num_bodies, 4).
+        
+        This quantity is the orientation of the principles axes of inertia relative to its body frame.
+        """
+        return self._root_physx_view.get_coms().to(self.device)[...,3:7]

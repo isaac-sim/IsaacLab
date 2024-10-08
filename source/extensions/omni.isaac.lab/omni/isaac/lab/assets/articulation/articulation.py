@@ -12,6 +12,7 @@ import torch
 from collections.abc import Sequence
 from prettytable import PrettyTable
 from typing import TYPE_CHECKING
+import warnings
 
 import carb
 import omni.isaac.core.utils.stage as stage_utils
@@ -280,12 +281,67 @@ class Articulation(AssetBase):
             root_state: Root state in simulation frame. Shape is (len(env_ids), 13).
             env_ids: Environment indices. If None, then all indices are used.
         """
+        # deprecation warning
+        dep_msg = (
+            """Articluation.write_root_state_to_sim will be removed in a future release. Please use 
+            write_root_link_state_to_sim or write_root_com_state_to_sim instead."""
+        )
+        warnings.warn(dep_msg, DeprecationWarning)
+        carb.log_warn(dep_msg)
+
         # set into simulation
         self.write_root_pose_to_sim(root_state[:, :7], env_ids=env_ids)
         self.write_root_velocity_to_sim(root_state[:, 7:], env_ids=env_ids)
 
+    def write_root_com_state_to_sim(self, root_state: torch.Tensor, env_ids: Sequence[int] | None = None):
+        """Set the root center of mass state over selected environment indices into the simulation.
+
+        The root state comprises of the cartesian position, quaternion orientation in (w, x, y, z), and linear
+        and angular velocity. All the quantities are in the simulation frame.
+
+        Args:
+            root_state: Root state in simulation frame. Shape is (len(env_ids), 13).
+            env_ids: Environment indices. If None, then all indices are used.
+        """
+        # set into simulation
+        self.write_root_com_pose_to_sim(root_state[:, :7], env_ids=env_ids)
+        self.write_root_com_velocity_to_sim(root_state[:, 7:], env_ids=env_ids)
+
+    def write_root_link_state_to_sim(self, root_state: torch.Tensor, env_ids: Sequence[int] | None = None):
+        """Set the root link state over selected environment indices into the simulation.
+
+        The root state comprises of the cartesian position, quaternion orientation in (w, x, y, z), and linear
+        and angular velocity. All the quantities are in the simulation frame.
+
+        Args:
+            root_state: Root state in simulation frame. Shape is (len(env_ids), 13).
+            env_ids: Environment indices. If None, then all indices are used.
+        """
+        # set into simulation
+        self.write_root_link_pose_to_sim(root_state[:, :7], env_ids=env_ids)
+        self.write_root_link_velocity_to_sim(root_state[:, 7:], env_ids=env_ids)
+
     def write_root_pose_to_sim(self, root_pose: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root pose over selected environment indices into the simulation.
+
+        The root pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
+
+        Args:
+            root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7).
+            env_ids: Environment indices. If None, then all indices are used.
+        """
+        # deprecation warning
+        dep_msg = (
+            """Articluation.write_root_pos_to_sim will be removed in a future release. Please use 
+            write_root_link_pose_to_sim or write_root_com_pose_to_sim instead."""
+        )
+        warnings.warn(dep_msg, DeprecationWarning)
+        carb.log_warn(dep_msg)
+
+        self.write_root_link_pose_to_sim(root_pose,env_ids)
+
+    def write_root_link_pose_to_sim(self, root_pose: torch.Tensor, env_ids: Sequence[int] | None = None):
+        """Set the root link pose over selected environment indices into the simulation.
 
         The root pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
 
@@ -305,7 +361,26 @@ class Articulation(AssetBase):
         root_poses_xyzw = self._data.root_state_w[:, :7].clone()
         root_poses_xyzw[:, 3:] = math_utils.convert_quat(root_poses_xyzw[:, 3:], to="xyzw")
         # set into simulation
-        self.root_physx_view.set_root_transforms(root_poses_xyzw, indices=physx_env_ids)
+        self.root_physx_view.set_root_transforms(root_poses_xyzw, indices=physx_env_ids)  
+
+    def write_root_com_pose_to_sim(self, root_pose: torch.Tensor, env_ids: Sequence[int] | None = None):
+        """Set the root center of mass pose over selected environment indices into the simulation.
+
+        The root pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
+        The orientation is the orientation of the principle axes of inertia.
+
+        Args:
+            root_pose: Root center of mass poses in simulation frame. Shape is (len(env_ids), 7).
+            env_ids: Environment indices. If None, then all indices are used.
+        """
+       
+        root_link_pos, root_link_quat = math_utils.combine_frame_transforms(root_pose[...,:3],
+                                                            root_pose[...,3:7],
+                                                            self.data.com_pos_b[env_ids,0,:],
+                                                            self.data.com_quat_b[env_ids,0,:])
+        root_link_pose = torch.cat((root_link_pos,root_link_quat), dim=-1)
+        self.write_root_link_pose_to_sim(root_pose=root_link_pose,env_ids=env_ids)
+        
 
     def write_root_velocity_to_sim(self, root_velocity: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root center of mass velocity over selected environment indices into the simulation.
@@ -317,6 +392,27 @@ class Articulation(AssetBase):
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6). 
             env_ids: Environment indices. If None, then all indices are used.
         """
+        # deprecation warning
+        dep_msg = (
+            """Articluation.write_root_velocity_to_sim will be removed in a future release. Please use 
+            write_root_link_velocity_to_sim or write_root_com_velocity_to_sim instead."""
+        )
+        warnings.warn(dep_msg, DeprecationWarning)
+        carb.log_warn(dep_msg)
+
+        self.write_root_com_velocity_to_sim(root_velocity=root_velocity,env_ids=env_ids)
+
+    def write_root_com_velocity_to_sim(self, root_velocity: torch.Tensor, env_ids: Sequence[int] | None = None):
+        """Set the root center of mass velocity over selected environment indices into the simulation.
+
+        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+        NOTE: This sets the velocity of the root's center of mass rather than the roots frame.
+
+        Args:
+            root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6). 
+            env_ids: Environment indices. If None, then all indices are used.
+        """
+
         # resolve all indices
         physx_env_ids = env_ids
         if env_ids is None:
@@ -347,7 +443,7 @@ class Articulation(AssetBase):
             root_com_velocity[:, 10:13], math_utils.quat_rotate(quat, com_pos_b), dim=-1
         )
         # write center of mass velocity to sim
-        self.write_root_velocity_to_sim(root_velocity=root_com_velocity,env_ids=env_ids)
+        self.write_root_com_velocity_to_sim(root_velocity=root_com_velocity,env_ids=env_ids)
 
     def write_joint_state_to_sim(
         self,
