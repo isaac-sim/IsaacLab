@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.24.20 (2024-10-07)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added torchrl ppo training configuration to Anymal-D velocity environment 
+
+
 0.24.19 (2024-10-05)
 ~~~~~~~~~~~~~~~~~~~~
 
