@@ -12,7 +12,7 @@ import random
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from omni.isaac.lab_tasks.utils.wrappers.torchrl import OnPolicyPPORunnerCfg
+    from .ppo.torchrl_ppo_runner_cfg import OnPolicyPPORunnerCfg
 
 
 def add_torchrl_args(parser: argparse.ArgumentParser):

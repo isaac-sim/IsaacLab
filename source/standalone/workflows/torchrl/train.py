@@ -55,7 +55,9 @@ from omni.isaac.lab.utils.io import dump_pickle, dump_yaml
 
 from omni.isaac.lab_tasks.utils import get_checkpoint_path
 from omni.isaac.lab_tasks.utils.hydra import hydra_task_config
-from omni.isaac.lab_tasks.utils.wrappers.torchrl import OnPolicyPPORunner, OnPolicyPPORunnerCfg, TorchRLEnvWrapper
+from omni.isaac.lab_tasks.utils.wrappers.torchrl import TorchRLEnvWrapper
+from .ppo.torchrl_ppo_runner_cfg import OnPolicyPPORunnerCfg, 
+from .ppo.torchrl_ppo_runner import OnPolicyPPORunner, 
 
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
