@@ -16,7 +16,6 @@ import omni.kit.commands
 import omni.usd
 from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics
 
-# from omni.isaac.lab.ui.widgets.ui_visualizer_mixin import UiVisualizerMixin
 from omni.isaac.lab.managers import ManagerLiveVisualizer
 
 if TYPE_CHECKING:
@@ -260,7 +259,6 @@ class BaseEnvWindow:
                 )
         else:
             print(f"ManagerLiveVisualizer cannot be created for manager: {class_name}, Manager does not exist")
-
 
     """
     Custom callbacks for UI elements.

@@ -5,7 +5,6 @@
 
 from dataclasses import MISSING
 
-from omni.isaac.lab.managers import DefaultManagerBasedRLEnvLiveVisCfg
 from omni.isaac.lab.utils import configclass
 
 from .manager_based_env_cfg import ManagerBasedEnvCfg

@@ -12,7 +12,6 @@ configuring the environment instances, viewer settings, and simulation parameter
 from dataclasses import MISSING
 
 import omni.isaac.lab.envs.mdp as mdp
-from omni.isaac.lab.managers import DefaultManagerBasedEnvLiveVisCfg
 from omni.isaac.lab.managers import EventTermCfg as EventTerm
 from omni.isaac.lab.scene import InteractiveSceneCfg
 from omni.isaac.lab.sim import SimulationCfg

@@ -135,7 +135,7 @@ class CurriculumManager(ManagerBase):
         """Returns the active terms as iterable sequence of tuples.
         The first element of the tuple is the name of the term and the second element is the raw value(s) of the term.
         Args:
-            env_idx: The specific environment to pull the active terms from. 
+            env_idx: The specific environment to pull the active terms from.
         Returns:
             The active terms.
         """

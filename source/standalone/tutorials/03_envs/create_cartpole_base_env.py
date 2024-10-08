@@ -67,15 +67,8 @@ class ObservationsCfg:
             self.enable_corruption = False
             self.concatenate_terms = True
 
-    @configclass
-    class PerceptionCfg(ObsGroup):
-        """Observation for perception group."""
-
-        depth_image = ObsTerm(func=mdp.camera_depth_image, params={"sensor_cfg": SceneEntityCfg("camera")})
-
     # observation groups
     policy: PolicyCfg = PolicyCfg()
-    perception: PerceptionCfg = PerceptionCfg()
 
 
 @configclass
@@ -160,7 +153,7 @@ def main():
             # step the environment
             obs, _ = env.step(joint_efforts)
             # print current orientation of pole
-            # print("[Env 0]: Pole joint: ", obs["policy"][0][1].item())
+            print("[Env 0]: Pole joint: ", obs["policy"][0][1].item())
             # update counter
             count += 1
 

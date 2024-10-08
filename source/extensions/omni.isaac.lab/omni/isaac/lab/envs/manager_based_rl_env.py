@@ -142,8 +142,8 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         """Creates live visualizers for manager terms."""
 
         self.manager_visualizers = {
-            "action_manager" : ManagerLiveVisualizer(manager=self.action_manager),
-            "observation_manager" : ManagerLiveVisualizer(manager=self.observation_manager),
+            "action_manager": ManagerLiveVisualizer(manager=self.action_manager),
+            "observation_manager": ManagerLiveVisualizer(manager=self.observation_manager),
             "command_manager": ManagerLiveVisualizer(manager=self.command_manager),
             "termination_manager": ManagerLiveVisualizer(manager=self.termination_manager),
             "reward_manager": ManagerLiveVisualizer(manager=self.reward_manager),

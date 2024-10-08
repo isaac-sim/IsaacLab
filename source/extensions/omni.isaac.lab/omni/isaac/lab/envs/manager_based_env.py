@@ -11,7 +11,7 @@ from typing import Any
 import carb
 import omni.isaac.core.utils.torch as torch_utils
 
-from omni.isaac.lab.managers import ActionManager, ManagerLiveVisualizer, EventManager, ObservationManager
+from omni.isaac.lab.managers import ActionManager, EventManager, ManagerLiveVisualizer, ObservationManager
 from omni.isaac.lab.scene import InteractiveScene
 from omni.isaac.lab.sim import SimulationContext
 from omni.isaac.lab.utils.timer import Timer
@@ -228,8 +228,8 @@ class ManagerBasedEnv:
         """Creates live visualizers for manager terms."""
 
         self.manager_visualizers = {
-            "action_manager" : ManagerLiveVisualizer(manager=self.action_manager),
-            "observation_manager" : ManagerLiveVisualizer(manager=self.observation_manager),
+            "action_manager": ManagerLiveVisualizer(manager=self.action_manager),
+            "observation_manager": ManagerLiveVisualizer(manager=self.observation_manager),
         }
 
     """
@@ -383,4 +383,3 @@ class ManagerBasedEnv:
         # -- event manager
         info = self.event_manager.reset(env_ids)
         self.extras["log"].update(info)
-

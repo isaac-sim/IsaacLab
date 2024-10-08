@@ -15,7 +15,6 @@ from omni.isaac.lab.managers import RewardTermCfg as RewTerm
 from omni.isaac.lab.managers import SceneEntityCfg
 from omni.isaac.lab.managers import TerminationTermCfg as DoneTerm
 from omni.isaac.lab.scene import InteractiveSceneCfg
-from omni.isaac.lab.sensors import CameraCfg
 from omni.isaac.lab.utils import configclass
 
 import omni.isaac.lab_tasks.manager_based.classic.cartpole.mdp as mdp
@@ -53,18 +52,6 @@ class CartpoleSceneCfg(InteractiveSceneCfg):
         prim_path="/World/DistantLight",
         spawn=sim_utils.DistantLightCfg(color=(0.9, 0.9, 0.9), intensity=2500.0),
         init_state=AssetBaseCfg.InitialStateCfg(rot=(0.738, 0.477, 0.477, 0.0)),
-    )
-
-    camera = CameraCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/front_cam",
-        update_period=0.1,
-        height=150,
-        width=150,
-        data_types=["distance_to_image_plane"],
-        spawn=sim_utils.PinholeCameraCfg(
-            focal_length=24.0, focus_distance=400.0, horizontal_aperture=60.0, clipping_range=(0.1, 1)
-        ),
-        offset=CameraCfg.OffsetCfg(pos=(-0.5, 0.0, 0.015), rot=(0.5, -0.5, 0.5, -0.5), convention="ros"),
     )
 
 
