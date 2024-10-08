@@ -140,7 +140,7 @@ As a result of using Ray, running experiments in the cloud and locally have very
 	If you are using Ray with Kubernetes, you can use the following command:
 
 	```
-	./source/standalone/workflows/ray/grok_ray_address_with_kubectl.sh &&
+	./source/standalone/workflows/ray/grok_cluster_address_with_kubectl.sh &&
 	ray job submit --working-dir source/standalone/workflows/ray \
 	--address=$(awk '!/^#/{print $0}' ~/.ray_address | head -n 1) -- /workspace/isaaclab/_isaac_sim/python.sh \
 	<YOUR_JOB_HERE>
@@ -149,7 +149,7 @@ As a result of using Ray, running experiments in the cloud and locally have very
 	Otherwise, determine the Ray head node address, and run
 
 	```
-	./source/standalone/workflows/ray/grok_ray_address.sh &&
+	./source/standalone/workflows/ray/grok_cluster_address_with_kubectl.sh &&
 	ray job submit --working-dir source/standalone/workflows/ray \
 	--address=<RAY_HEAD_NODE_ADDRESS> -- /workspace/isaaclab/_isaac_sim/python.sh \
 	<YOUR_JOB_HERE>
@@ -168,6 +168,8 @@ As a result of using Ray, running experiments in the cloud and locally have very
 
 Generally, it's best practice to store large files or weights in a storage bucket within the cloud from
 the training runs.
+
+You can do this by
 
 However, for the sake of prototyping, if you want to retrieve files from a Kubernetes/KubeRay
 cluster, this is possible.
