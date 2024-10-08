@@ -90,8 +90,14 @@ extract_isaacsim_exe() {
     local isaacsim_exe=${isaac_path}/isaac-sim.sh
     # check if there is a python path available
     if [ ! -f "${isaacsim_exe}" ]; then
-        echo "[ERROR] No Isaac Sim executable found at path: ${isaacsim_exe}" >&2
-        exit 1
+        # check for installation using Isaac Sim pip
+        if [ $(python -m pip list | grep -c 'isaacsim-rl') -gt 0 ]; then
+            # Isaac Sim - Python packages entry point
+            local isaacsim_exe="isaacsim omni.isaac.sim"
+        else
+            echo "[ERROR] No Isaac Sim executable found at path: ${isaac_path}" >&2
+            exit 1
+        fi
     fi
     # return the result
     echo ${isaacsim_exe}
