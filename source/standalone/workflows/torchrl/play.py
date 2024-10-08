@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Script to play a checkpoint if an RL agent from RSL-RL."""
+"""Script to play a checkpoint for an RL agent from TorchRL."""
 
 """Launch Isaac Sim Simulator first."""
 
@@ -25,7 +25,7 @@ parser.add_argument("--num_envs", type=int, default=None, help="Number of enviro
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
 
-# append RSL-RL cli arguments
+# append torchrl cli arguments
 cli_args.add_torchrl_args(parser)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)

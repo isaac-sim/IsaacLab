@@ -7,8 +7,6 @@
 
 """Launch Isaac Sim Simulator first."""
 
-"""Launch Isaac Sim Simulator first."""
-
 import argparse
 import sys
 
@@ -19,7 +17,7 @@ import cli_args  # isort: skip
 
 
 # add argparse arguments
-parser = argparse.ArgumentParser(description="Train an RL agent with RSL-RL.")
+parser = argparse.ArgumentParser(description="Train an RL agent with torchrl.")
 parser.add_argument("--video", action="store_true", default=False, help="Record videos during training.")
 parser.add_argument("--video_length", type=int, default=200, help="Length of the recorded video (in steps).")
 parser.add_argument("--video_interval", type=int, default=2000, help="Interval between video recordings (in steps).")
@@ -27,7 +25,7 @@ parser.add_argument("--num_envs", type=int, default=None, help="Number of enviro
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
 parser.add_argument("--max_iterations", type=int, default=None, help="RL Policy training iterations.")
-# append RSL-RL cli arguments
+# append torchrl cli arguments
 cli_args.add_torchrl_args(parser)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -67,7 +65,7 @@ torch.backends.cudnn.benchmark = False
 
 @hydra_task_config(args_cli.task, "torchrl_cfg_entry_point")
 def main(env_cfg: ManagerBasedRLEnvCfg, agent_cfg: OnPolicyPPORunnerCfg):
-    """Train with RSL-RL agent."""
+    """Train with torchrl agent."""
     # override configurations with non-hydra CLI arguments
     agent_cfg = cli_args.update_torchrl_cfg(agent_cfg, args_cli)
     env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
