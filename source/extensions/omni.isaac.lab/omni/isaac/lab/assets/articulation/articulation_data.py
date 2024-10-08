@@ -202,13 +202,7 @@ class ArticulationData:
     """Joint stiffness provided to simulation. Shape is (num_instances, num_joints)."""
 
     joint_damping: torch.Tensor = None
-    """Joint damping provided to simulation. Shape is (num_instances, num_joints)."""
-
-    joint_armature: torch.Tensor = None
-    """Joint armature provided to simulation. Shape is (num_instances, num_joints)."""
-
-    joint_friction: torch.Tensor = None
-    """Joint friction provided to simulation. Shape is (num_instances, num_joints)."""
+    """Joint damping provided to simulation. Shape is (num_instanbody_state_wnstances, num_joints)."""
 
     joint_limits: torch.Tensor = None
     """Joint limits provided to simulation. Shape is (num_instances, num_joints, 2)."""
@@ -293,9 +287,12 @@ class ArticulationData:
         orientation of the principle inertia.
         """
         state = self.root_state_w.clone()
-        quat = state[:, 3:7]
-        # adjust position to center of mass
-        state[:, :3] += math_utils.quat_rotate(quat, self.com_pos_b[:, 0, :])
+        # adjust pose to center of mass
+        pos, quat = math_utils.combine_frame_transforms(state[:,:3],
+                                                        state[:,3:7],
+                                                        self.com_pos_b[:,0,:],
+                                                        self.com_quat_b[:,0,:])           
+        state[:, :7] += torch.cat((pos,quat),dim=-1)
         return state
 
     @property
@@ -341,9 +338,12 @@ class ArticulationData:
         principle inertia.
         """
         state = self.body_state_w.clone()
-        quat = state[..., 3:7]
-        # adjust position to center of mass
-        state[..., :3] -= math_utils.quat_rotate(quat, self.com_pos_b)
+        # adjust pose to center of mass
+        pos, quat = math_utils.combine_frame_transforms(state[:,:3],
+                                                        state[:,3:7],
+                                                        self.com_pos_b,
+                                                        self.com_quat_b)           
+        state[..., :7] += torch.cat((pos,quat),dim=-1)
         return state
 
     @property

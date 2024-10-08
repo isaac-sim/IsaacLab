@@ -135,13 +135,15 @@ class RigidObjectData:
         """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).
 
         The position, quaternion, and linear/angular velocity are of the rigid body's center of mass frame
-        relative to the world. Center of mass frame is assumed to be the same orientation as the link rather than the
-        orientation of the principle inertia.
+        relative to the world. Center of mass frame is the orientation principle axes of inertia.
         """
         state = self.root_state_w.clone()
-        quat = state[:, 3:7]
         # adjust position to center of mass
-        state[:, :3] += math_utils.quat_rotate(quat, self.com_pos_b)
+        pos, quat = math_utils.combine_frame_transforms(state[:,:3],
+                                                        state[:,3:7],
+                                                        self.com_pos_b,
+                                                        self.com_quat_b)           
+        state[:, :7] += torch.cat((pos,quat),dim=-1)
         return state
 
     @property
