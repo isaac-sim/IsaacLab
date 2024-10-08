@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2024 Boston Dynamics AI Institute LLC. All rights reserved.
 
 from __future__ import annotations
@@ -111,6 +116,7 @@ def parse_torchrl_cfg(task_name: str, args_cli: argparse.Namespace) -> OnPolicyP
 
     return torchrl_cfg
 
+
 def update_torchrl_cfg(agent_cfg: OnPolicyPPORunnerCfg, args_cli: argparse.Namespace):
     """Update configuration for torchrl agent based on inputs.
 
@@ -142,4 +148,3 @@ def update_torchrl_cfg(agent_cfg: OnPolicyPPORunnerCfg, args_cli: argparse.Names
         agent_cfg.wandb_project = args_cli.log_project_name
 
     return agent_cfg
-

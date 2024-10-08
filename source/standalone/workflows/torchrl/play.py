@@ -44,18 +44,19 @@ import gymnasium as gym
 import os
 import torch
 
+from torchrl.envs.utils import ExplorationType, set_exploration_type
 
 from omni.isaac.lab.utils.dict import print_dict
 
 import omni.isaac.lab_tasks  # noqa: F401
-from torchrl.envs.utils import ExplorationType, set_exploration_type
 from omni.isaac.lab_tasks.utils import get_checkpoint_path, parse_env_cfg
 from omni.isaac.lab_tasks.utils.wrappers.torchrl import (
-    OnPolicyPPORunnerCfg,
     OnPolicyPPORunner,
+    OnPolicyPPORunnerCfg,
     TorchRLEnvWrapper,
-    export_policy_as_onnx
+    export_policy_as_onnx,
 )
+
 
 def main():
     """Play with TorchRL agent."""
@@ -102,9 +103,7 @@ def main():
 
     # export policy to onnx/jit
     export_model_dir = os.path.join(os.path.dirname(resume_path), "exported")
-    export_policy_as_onnx(
-        ppo_runner.loss_module_cfg, normalizer=None, path=export_model_dir, filename="policy.onnx"
-    )
+    export_policy_as_onnx(ppo_runner.loss_module_cfg, normalizer=None, path=export_model_dir, filename="policy.onnx")
 
     # reset environment
     td = env.reset()

@@ -51,20 +51,19 @@ import os
 import torch
 from datetime import datetime
 
-from omni.isaac.lab_tasks.utils.wrappers.torchrl import TorchRLEnvWrapper, OnPolicyPPORunnerCfg, OnPolicyPPORunner
-
-from omni.isaac.lab.envs import (
-    ManagerBasedRLEnvCfg
-)
+from omni.isaac.lab.envs import ManagerBasedRLEnvCfg
 from omni.isaac.lab.utils.dict import print_dict
 from omni.isaac.lab.utils.io import dump_pickle, dump_yaml
+
 from omni.isaac.lab_tasks.utils import get_checkpoint_path
 from omni.isaac.lab_tasks.utils.hydra import hydra_task_config
+from omni.isaac.lab_tasks.utils.wrappers.torchrl import OnPolicyPPORunner, OnPolicyPPORunnerCfg, TorchRLEnvWrapper
 
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
 torch.backends.cudnn.deterministic = False
 torch.backends.cudnn.benchmark = False
+
 
 @hydra_task_config(args_cli.task, "torchrl_cfg_entry_point")
 def main(env_cfg: ManagerBasedRLEnvCfg, agent_cfg: OnPolicyPPORunnerCfg):
@@ -136,4 +135,3 @@ if __name__ == "__main__":
     main()
     # close sim app
     simulation_app.close()
-
