@@ -176,14 +176,14 @@ For example, if you have an MLP agent, and a CNN agent for a task you could tune
 hyperparameter simultaneously in parallel.
 
 ####  Kubernetes / KubeRay Specific : For Cloud or Kubernetes Local
-1. You can create several homogenous ray clusters at once by specifying the ``--num_clusters`` flag to ``launch.py``.
+1. You can create several homogeneous ray clusters at once by specifying the ``--num_clusters`` flag to ``launch.py``.
 	For example,
 
 	```
 	./isaaclab.sh -p source/standalone/workflows/ray/launch.py
 	 --cluster_host google_cloud --namespace <NAMESPACE>  --image <CUSTOM_ISAAC_RAY_IMAGE> --min_workers 4 --max_workers 16 --num_clusters 3
 	 ```
-	 If you want the clusters to have heterogenous resource allocations, like different numbers
+	 If you want the clusters to have heterogeneous resource allocations, like different numbers
 	 of GPUs, you can call ``launch.py`` several times with the desired parameters,
 	 just make sure to change the cluster name each time as otherwise it will reconfigure existing clusters.
 

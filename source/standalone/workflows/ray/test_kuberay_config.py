@@ -10,7 +10,7 @@ import torch
 
 import ray
 
-from omni.isaac.lab.app import AppLauncher # noqa: F401  # check that you can import Isaac Lab 
+from omni.isaac.lab.app import AppLauncher  # noqa: F401  # check that you can import Isaac Lab
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
