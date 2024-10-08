@@ -6,6 +6,11 @@
 """
 This script demonstrates how to simulate a quadcopter.
 
+.. code-block:: bash
+
+    # Usage
+    ./isaaclab.sh -p source/standalone/demos/quadcopter.py
+
 """
 
 """Launch Isaac Sim Simulator first."""
@@ -40,11 +45,11 @@ from omni.isaac.lab_assets import CRAZYFLIE_CFG  # isort:skip
 
 def main():
     """Main function."""
-
     # Load kit helper
-    sim = SimulationContext(sim_utils.SimulationCfg(device="cpu", dt=0.005))
+    sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device)
+    sim = SimulationContext(sim_cfg)
     # Set main camera
-    sim.set_camera_view(eye=[3.5, 3.5, 3.5], target=[0.0, 0.0, 0.0])
+    sim.set_camera_view(eye=[0.5, 0.5, 1.0], target=[0.0, 0.0, 0.5])
 
     # Spawn things into stage
     # Ground-plane
@@ -55,11 +60,11 @@ def main():
     cfg.func("/World/Light", cfg)
 
     # Robots
-    robot_cfg = CRAZYFLIE_CFG
-    robot_cfg.spawn.func("/World/Crazyflie/Robot_1", robot_cfg.spawn, translation=(1.5, 0.5, 0.42))
+    robot_cfg = CRAZYFLIE_CFG.replace(prim_path="/World/Crazyflie")
+    robot_cfg.spawn.func("/World/Crazyflie", robot_cfg.spawn, translation=robot_cfg.init_state.pos)
 
     # create handles for the robots
-    robot = Articulation(robot_cfg.replace(prim_path="/World/Crazyflie/Robot.*"))
+    robot = Articulation(robot_cfg)
 
     # Play the simulator
     sim.reset()
@@ -92,7 +97,7 @@ def main():
             # reset command
             print(">>>>>>>> Reset!")
         # apply action to the robot (make the robot float in place)
-        forces = torch.zeros(1, 4, 3, device=sim.device)
+        forces = torch.zeros(robot.num_instances, 4, 3, device=sim.device)
         torques = torch.zeros_like(forces)
         forces[..., 2] = robot_mass * gravity / 4.0
         robot.set_external_force_and_torque(forces, torques, body_ids=prop_body_ids)

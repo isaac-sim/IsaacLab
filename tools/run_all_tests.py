@@ -231,14 +231,14 @@ def test_all(
             else:
                 stdout_str = stdout.decode("utf-8")
         else:
-            stdout = ""
+            stdout_str = ""
         if stderr is not None:
             if isinstance(stderr, str):
                 stderr_str = stderr
             else:
                 stderr_str = stderr.decode("utf-8")
         else:
-            stderr = ""
+            stderr_str = ""
 
         # Write to log file
         logging.info(stdout_str)
@@ -307,9 +307,54 @@ def test_all(
     return num_failing + num_timing_out == 0
 
 
+def warm_start_app():
+    """Warm start the app to compile shaders before running the tests."""
+    print("[INFO] Warm starting the simulation app before running tests.")
+    before = time.time()
+    # headless experience
+    warm_start_output = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "from omni.isaac.lab.app import AppLauncher; app_launcher = AppLauncher(headless=True);"
+                " app_launcher.app.close()"
+            ),
+        ],
+        capture_output=True,
+    )
+    if len(warm_start_output.stderr) > 0:
+        logging.error(f"Error warm starting the app: {str(warm_start_output.stderr)}")
+        exit(1)
+
+    # headless experience with rendering
+    warm_start_rendering_output = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "from omni.isaac.lab.app import AppLauncher; app_launcher = AppLauncher(headless=True,"
+                " enable_cameras=True); app_launcher.app.close()"
+            ),
+        ],
+        capture_output=True,
+    )
+    if len(warm_start_rendering_output.stderr) > 0:
+        logging.error(f"Error warm starting the app with rendering: {str(warm_start_rendering_output.stderr)}")
+        exit(1)
+
+    after = time.time()
+    time_elapsed = after - before
+    print(f"[INFO] Warm start completed successfully in {time_elapsed:.2f} s")
+
+
 if __name__ == "__main__":
     # parse command line arguments
     args = parse_args()
+
+    # warm start the app
+    warm_start_app()
+
     # add tests to skip to the list of tests to skip
     tests_to_skip = TESTS_TO_SKIP
     tests_to_skip += args.skip_tests

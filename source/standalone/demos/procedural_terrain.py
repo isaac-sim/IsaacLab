@@ -152,11 +152,11 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, AssetBas
 
 def main():
     """Main function."""
-
     # Initialize the simulation context
-    sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01))
+    sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device)
+    sim = sim_utils.SimulationContext(sim_cfg)
     # Set main camera
-    sim.set_camera_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 0.0])
+    sim.set_camera_view(eye=[5.0, 5.0, 5.0], target=[0.0, 0.0, 0.0])
     # design scene
     scene_entities, scene_origins = design_scene()
     # Play the simulator

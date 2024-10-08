@@ -10,13 +10,10 @@ Any parameter of the environment can be modified by adding one or multiple eleme
 to the command line input, where ``a.b.param1`` reflects the parameter's hierarchy, for example ``env.actions.joint_effort.scale=10.0``.
 Similarly, the agent's parameters can be modified by using the ``agent`` prefix, for example ``agent.seed=2024``.
 
-.. note::
-
-    The way these command line arguments are set follow the exact structure of the configuration files. Since the different
-    RL frameworks use different conventions, there might be differences in the way the parameters are set. For example,
-    with `rl_games` the seed will be set with ``agent.params.seed``, while with `rsl_rl`, `skrl` and `sb3` it will be set with
-    ``agent.seed``.
-
+The way these command line arguments are set follow the exact structure of the configuration files. Since the different
+RL frameworks use different conventions, there might be differences in the way the parameters are set. For example,
+with *rl_games* the seed will be set with ``agent.params.seed``, while with *rsl_rl*, *skrl* and *sb3* it will be set with
+``agent.seed``.
 
 As a result, training with hydra arguments can be run with the following syntax:
 
@@ -60,33 +57,6 @@ The above command will run the training script with the task ``Isaac-Cartpole-v0
     of the form ``--param``, for example ``--num_envs``, ``--seed``, ``--max_iterations``. These arguments have precedence
     over the hydra arguments, and will overwrite the values set by the hydra arguments.
 
-.. attention::
-
-    Particular care should be taken when modifying the parameters using command line arguments. Some of the configurations
-    perform intermediate computations based on other parameters. These computations will not be updated when the parameters
-    are modified.
-
-    For example, for the configuration of the Cartpole camera depth environment:
-
-    .. literalinclude:: ../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/cartpole/cartpole_camera_env.py
-        :language: python
-        :start-at: class CartpoleDepthCameraEnvCfg
-        :end-at: tiled_camera.width
-        :emphasize-lines: 16
-
-    If the user were to modify the width of the camera, i.e. ``env.tiled_camera.width=128``, then the parameter
-    ``env.num_observations=10240`` (1*80*128) must be updated and given as input as well.
-
-    Similarly, the ``__post_init__`` method is not updated with the command line inputs. In the ``LocomotionVelocityRoughEnvCfg``, for example,
-    the post init update is as follows:
-
-    .. literalinclude:: ../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/locomotion/velocity/velocity_env_cfg.py
-        :language: python
-        :start-at: class LocomotionVelocityRoughEnvCfg
-        :emphasize-lines: 23, 29, 31
-
-    Here, when modifying ``env.decimation`` or ``env.sim.dt``, the user would have to give the updated ``env.sim.render_interval``,
-    ``env.scene.height_scanner.update_period``, and ``env.scene.contact_forces.update_period`` as input as well.
 
 Modifying advanced parameters
 -----------------------------
@@ -111,7 +81,7 @@ Setting parameters to None
 
 To set parameters to None, use the ``null`` keyword, which is a special keyword in Hydra that is automatically converted to None.
 In the above example, we could also disable the ``joint_pos_rel`` observation by setting it to None with
-``env.observations.policy.joint_pos_rel.func=null``.
+``env.observations.policy.joint_pos_rel=null``.
 
 Dictionaries
 ^^^^^^^^^^^^
@@ -127,3 +97,33 @@ This example shows two noteworthy points:
 
 - The parameter we set has a space, so it must be enclosed in quotes.
 - The parameter is a list while it is a tuple in the config. This is due to the fact that Hydra does not support tuples.
+
+
+Modifying inter-dependent parameters
+------------------------------------
+
+Particular care should be taken when modifying the parameters using command line arguments. Some of the configurations
+perform intermediate computations based on other parameters. These computations will not be updated when the parameters
+are modified.
+
+For example, for the configuration of the Cartpole camera depth environment:
+
+.. literalinclude:: ../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/cartpole/cartpole_camera_env.py
+    :language: python
+    :start-at: class CartpoleDepthCameraEnvCfg
+    :end-at: tiled_camera.width
+    :emphasize-lines: 16
+
+If the user were to modify the width of the camera, i.e. ``env.tiled_camera.width=128``, then the parameter
+``env.num_observations=10240`` (1*80*128) must be updated and given as input as well.
+
+Similarly, the ``__post_init__`` method is not updated with the command line inputs. In the ``LocomotionVelocityRoughEnvCfg``, for example,
+the post init update is as follows:
+
+.. literalinclude:: ../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/locomotion/velocity/velocity_env_cfg.py
+    :language: python
+    :start-at: class LocomotionVelocityRoughEnvCfg
+    :emphasize-lines: 23, 29, 31
+
+Here, when modifying ``env.decimation`` or ``env.sim.dt``, the user needs to give the updated ``env.sim.render_interval``,
+``env.scene.height_scanner.update_period``, and ``env.scene.contact_forces.update_period`` as input as well.
