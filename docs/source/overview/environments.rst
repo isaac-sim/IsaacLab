@@ -57,6 +57,8 @@ Classic environments that are based on IsaacGymEnvs implementation of MuJoCo-sty
     |                  |                             | and perceptive inputs                                                   |
     |                  | |cartpole-depth-link|       |                                                                         |
     |                  |                             |                                                                         |
+    |                  | |cartpole-resnet-link|      |                                                                         |
+    |                  |                             |                                                                         |
     |                  | |cartpole-rgb-direct-link|  |                                                                         |
     |                  |                             |                                                                         |
     |                  | |cartpole-depth-direct-link||                                                                         |
@@ -71,6 +73,7 @@ Classic environments that are based on IsaacGymEnvs implementation of MuJoCo-sty
 .. |cartpole-link| replace:: `Isaac-Cartpole-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/classic/cartpole/cartpole_env_cfg.py>`__
 .. |cartpole-rgb-link| replace:: `Isaac-Cartpole-RGB-Camera-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/classic/cartpole/cartpole_camera_env_cfg.py>`__
 .. |cartpole-depth-link| replace:: `Isaac-Cartpole-Depth-Camera-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/classic/cartpole/cartpole_camera_env_cfg.py>`__
+.. |cartpole-resnet-link| replace:: `Isaac-Cartpole-Depth-Camera-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/classic/cartpole/cartpole_camera_env_cfg.py>`_
 
 .. |humanoid-direct-link| replace:: `Isaac-Humanoid-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/humanoid/humanoid_env.py>`__
 .. |ant-direct-link| replace:: `Isaac-Ant-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/ant/ant_env.py>`__
