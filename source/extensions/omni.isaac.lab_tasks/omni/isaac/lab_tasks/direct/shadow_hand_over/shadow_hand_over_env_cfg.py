@@ -118,9 +118,9 @@ class ShadowHandOverEnvCfg(DirectMARLEnvCfg):
     decimation = 2
     episode_length_s = 7.5
     possible_agents = ["right_hand", "left_hand"]
-    num_actions = {"right_hand": 20, "left_hand": 20}
-    num_observations = {"right_hand": 157, "left_hand": 157}
-    num_states = 290
+    action_spaces = {"right_hand": 20, "left_hand": 20}
+    observation_spaces = {"right_hand": 157, "left_hand": 157}
+    state_space = 290
 
     # simulation
     sim: SimulationCfg = SimulationCfg(

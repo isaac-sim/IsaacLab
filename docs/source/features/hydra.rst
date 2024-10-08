@@ -115,7 +115,7 @@ For example, for the configuration of the Cartpole camera depth environment:
     :emphasize-lines: 16
 
 If the user were to modify the width of the camera, i.e. ``env.tiled_camera.width=128``, then the parameter
-``env.num_observations=10240`` (1*80*128) must be updated and given as input as well.
+``env.observation_space=[80,128,1]`` must be updated and given as input as well.
 
 Similarly, the ``__post_init__`` method is not updated with the command line inputs. In the ``LocomotionVelocityRoughEnvCfg``, for example,
 the post init update is as follows:

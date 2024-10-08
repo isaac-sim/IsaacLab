@@ -22,9 +22,9 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
     # env
     decimation = 4
     episode_length_s = 10.0
-    num_actions = 16
-    num_observations = 124  # (full)
-    num_states = 0
+    action_space = 16
+    observation_space = 124  # (full)
+    state_space = 0
     asymmetric_obs = False
     obs_type = "full"
     # simulation

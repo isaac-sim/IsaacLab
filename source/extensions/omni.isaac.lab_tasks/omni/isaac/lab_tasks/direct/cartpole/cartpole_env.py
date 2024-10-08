@@ -27,9 +27,9 @@ class CartpoleEnvCfg(DirectRLEnvCfg):
     decimation = 2
     episode_length_s = 5.0
     action_scale = 100.0  # [N]
-    num_actions = 1
-    num_observations = 4
-    num_states = 0
+    action_space = 1
+    observation_space = 4
+    state_space = 0
 
     # simulation
     sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation)

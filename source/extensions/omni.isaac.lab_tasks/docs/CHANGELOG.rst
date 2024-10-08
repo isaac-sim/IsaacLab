@@ -1,11 +1,24 @@
 Changelog
 ---------
 
+0.10.7 (2024-10-02)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Replace deprecated :attr:`num_observations`, :attr:`num_actions` and :attr:`num_states` in single-agent direct tasks
+  by :attr:`observation_space`, :attr:`action_space` and :attr:`state_space` respectively.
+* Replace deprecated :attr:`num_observations`, :attr:`num_actions` and :attr:`num_states` in multi-agent direct tasks
+  by :attr:`observation_spaces`, :attr:`action_spaces` and :attr:`state_space` respectively.
+
+
 0.10.6 (2024-09-25)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
+
 * Added ``Isaac-Cartpole-RGB-Camera-v0`` and ``Isaac-Cartpole-Depth-Camera-v0``
   manager based camera cartpole environments.
 
