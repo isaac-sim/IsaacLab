@@ -4,17 +4,19 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import numpy as np
-
+import carb
 import omni.ui as ui
 from omni.isaac.ui.element_wrappers.base_ui_element_wrappers import UIWidgetWrapper
 from omni.kit.window.property.templates import LABEL_WIDTH
 
 
 class ImagePlot(UIWidgetWrapper):
-    def __init__(self, image: np.ndarray, label: str = "", widget_height=200, show_min_max=True, unit=(1, "")):
+    def __init__(self, image: np.ndarray | None, label: str = "", widget_height: int = 200, show_min_max: bool =True, unit : tuple[float, str] = (1, "")):
         """Create an XY plot UI Widget with axis scaling, legends, and support for multiple plots.
+
         Overlapping data is most accurately plotted when centered in the frame with reasonable axis scaling.
         Pressing down the mouse gives the x and y values of each function at an x coordinate.
+
         Args:
             image (np.ndarray): Image to display
             label (str): Short descriptive text to the left of the plot
@@ -33,7 +35,7 @@ class ImagePlot(UIWidgetWrapper):
 
         self._byte_provider = ui.ByteImageProvider()
         if image is None:
-            print("image is NONE")
+            carb.warn("image is NONE")
             image = np.ones((480, 640, 3), dtype=np.uint8) * 255
             image[:, :, 0] = 0
             image[:, :240, 1] = 0
