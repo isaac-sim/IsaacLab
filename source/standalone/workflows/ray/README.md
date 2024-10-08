@@ -216,9 +216,13 @@ hyperparameter simultaneously in parallel.
 	```
 	./isaaclab.sh -p source/standalone/workflows/ray/multicluster_submit.py "<JOB_0>" "<JOB_1>" "<JOB_N>"
 	```
-6. Clean up your cluster to conserve resources
-	(follow single cluster steps for each cluster)
 
+6. Clean up your cluster to conserve resources (follow single cluster steps for each cluster).
+	If you used Kubernetes/KubeRay, and you didn't change the default cluster name,
+	this can be done with
+	```
+	kubectl get raycluster | egrep 'hyperparameter-tuner' | awk '{print $1}' | xargs kubectl delete raycluster
+	```
 ##
 Notes
 https://discuss.ray.io/t/how-to-define-fcnet-hiddens-size-and-number-of-layers-in-rllib-tune/6504/18
