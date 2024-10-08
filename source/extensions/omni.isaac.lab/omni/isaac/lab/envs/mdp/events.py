@@ -537,6 +537,44 @@ def apply_external_force_torque(
     # note: these are only applied when you call: `asset.write_data_to_sim()`
     asset.set_external_force_and_torque(forces, torques, env_ids=env_ids, body_ids=asset_cfg.body_ids)
 
+def apply_external_force_torque_duration(
+    env: ManagerBasedEnv,
+    env_ids: torch.Tensor,
+    open: bool,
+    force_range: tuple[float, float],
+    torque_range: tuple[float, float],
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+):
+    """
+    force/torque维持一段时间 然后取消
+    和原有的apply_external_force_torque在reset以后整个episode一直保持不同
+
+    apply the force/torque for a time, then cancel it
+    changes the above function apply_external_force_torque that apply the force/torque in the whole episode
+    """
+    # extract the used quantities (to enable type-hinting)
+    asset: RigidObject | Articulation = env.scene[asset_cfg.name]
+
+    # resolve environment ids
+    if env_ids is None:
+        env_ids = torch.arange(env.scene.num_envs, device=asset.device)
+    # resolve number of bodies
+    num_bodies = len(asset_cfg.body_ids) if isinstance(asset_cfg.body_ids, list) else asset.num_bodies
+
+    # sample random forces and torques
+    if open:
+        size = (len(env_ids), num_bodies, 3)
+        forces = math_utils.sample_uniform(*force_range, size, asset.device).clone()
+        torques = math_utils.sample_uniform(*torque_range, size, asset.device).clone()
+    else:
+        size = (len(env_ids), num_bodies, 3)
+        forces = torch.zeros(size, asset.device)
+        torques = torch.zeros(size, asset.device)
+
+
+    # set the forces and torques into the buffers
+    # note: these are only applied when you call: `asset.write_data_to_sim()`
+    asset.set_external_force_and_torque(forces, torques, env_ids=env_ids, body_ids=asset_cfg.body_ids)
 
 def push_by_setting_velocity(
     env: ManagerBasedEnv,
