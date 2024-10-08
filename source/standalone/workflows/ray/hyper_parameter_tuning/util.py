@@ -10,9 +10,22 @@ from ray import tune
 # from ray.train import RunConfig
 
 
-class IsaacLabTrainable(tune.Trainable):
+class IsaacLabTuneTrainable(tune.Trainable):
+    def __init__(self, executable_path, workflow_path, args):
+        self.invocation_str = executable_path + " " + workflow_path
+        for arg in args:
+            spaced_arg = " " + arg + " "
+            self.invocation_str += spaced_arg
+        print(f"[INFO] Using base invocation of {self.invocation_str} for all trials")
+
     def setup(self, config):
-        pass
+        print(f"[INFO]: From base invocation of {self.invocation_str}, adding the following config:")
+
+        # invocation_string_with_hydra_hooks
+        for key, value in config.items():
+            print("---")
+            print(f"{key = }: {value = }")
+            print("----")
 
     def step(self):
         pass
@@ -36,18 +49,21 @@ class IsaacLabTrainable(tune.Trainable):
 
 def parse_tune_args() -> argparse.Namespace:
     arg_parser = argparse.ArgumentParser("Submit distributed hyperparameter tuning jobs.")
+
     arg_parser.add_argument(
-        "executable",
+        "--executable_path",
         type=str,
         default="/workspace/isaaclab/_isaac_sim/python.sh",
         help="what executable to run the train script with ",
     )
+
     arg_parser.add_argument(
-        "workflow_path",
+        "--workflow_path",
         type=str,
         required=False,
         default="/workspace/isaaclab/source/standalone/workflows/rl_games/train.py",
     )
+
     arg_parser.add_argument(
         "--args",
         nargs="+",
@@ -56,7 +72,10 @@ def parse_tune_args() -> argparse.Namespace:
         required=False,
         help="Arguments to pass to the training script.For example, you could pass the task here.",
     )
+    return arg_parser.parse_args()
 
 
-# if __name__ == "__main__":
-#     pass
+if __name__ == "__main__":
+    args = parse_tune_args()
+
+    trainable = IsaacLabTuneTrainable(args.executable_path, args.workflow_path, args.args)

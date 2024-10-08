@@ -5,12 +5,16 @@
 Through using Ray, we streamline distributed training runs.
 
 The Ray integration is useful to you if:
+- You want to use the same training setup everywhere (on cloud and local) with minimal overhead
 - You want to tune models' hyperparameters as fast as possible in parallel on multiple GPUs
 	and/or multiple GPU Nodes
 - You want to simultaneously tune model hyperparameters for different environments/agents (see
 	advanced usage)
-- You want to use the same experimental training setup on cloud and local with minimal overhead
 
+
+Notably, this Ray integration is able to leverage the existing Isaac Lab Hydra support
+for changing hyperparameters. See ``hyperparameter_tuning/config/tune_vision_cartpole.py``
+for a demonstration of how easy hyperparameter tuning can be when leveraging Ray and Hydra.
 
 # Installation
 
