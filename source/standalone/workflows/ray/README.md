@@ -164,6 +164,15 @@ As a result of using Ray, running experiments in the cloud and locally have very
 
 	``ray stop``
 
+# Retrieving Files/Weights From Remote
+
+Generally, it's best practice to store large files or weights in a storage bucket within the cloud from
+the training runs.
+
+However, for the sake of prototyping, if you want to retrieve files from a Kubernetes/KubeRay
+cluster, this is possible.
+
+List all pods with ```kubectl get pods```. Use ```kubectl cp``` to fetch information from the GPU enabled pods.
 
 # Advanced Usage
 
