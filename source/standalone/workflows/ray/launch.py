@@ -11,7 +11,7 @@ import yaml
 from jinja2 import Environment, FileSystemLoader
 from kubernetes import config
 
-SCRIPT_DIR = pathlib.Path(__file__).parent.parent
+RAY_DIR = pathlib.Path(__file__).parent
 
 
 def apply_manifest(args: argparse.Namespace) -> None:
@@ -19,12 +19,13 @@ def apply_manifest(args: argparse.Namespace) -> None:
     config.load_kube_config()
 
     # Set up Jinja2 environment for loading templates
-    templates_dir = SCRIPT_DIR / "cluster_configs" / args.cluster_host
+    templates_dir = RAY_DIR / "cluster_configs" / args.cluster_host
+    print(templates_dir)
     file_loader = FileSystemLoader(str(templates_dir))
     jinja_env = Environment(loader=file_loader, keep_trailing_newline=True)
 
     # Define template filename
-    template_file = "tune.yaml.jinja"
+    template_file = "kuberay.yaml.jinja"
 
     # Convert args namespace to a dictionary
     template_params = vars(args)
@@ -56,14 +57,15 @@ def parse_args() -> argparse.Namespace:
         argparse.Namespace: Parsed command-line arguments.
     """
     arg_parser = argparse.ArgumentParser(
-        description="Script to apply manifests to create Kubernetes objects for Ray clusters."
+        description="Script to apply manifests to create Kubernetes objects for Ray clusters.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
     arg_parser.add_argument(
         "--cluster_host",
         type=str,
         default="google_cloud",
-        choices=["google_cloud"],
+        choices=["google_cloud", "local"],
         help=(
             "In the cluster_configs directory, the name of the folder where a tune.yaml.jinja"
             "file exists defining the KubeRay config. Currently only google_cloud is supported."
@@ -141,6 +143,18 @@ def parse_args() -> argparse.Namespace:
     arg_parser.add_argument("--worker_ram_gb", type=int, default=50, help="How many gigs of RAM to use")
 
     arg_parser.add_argument(
+        "--num_clusters",
+        type=int,
+        default=1,
+        help=(
+            "How many Ray Clusters to create."
+            "This should be greater than 1 "
+            "ONLY IF you are tuning several agents "
+            "OR IF you are tuning agents "
+            "in separate environments at the same time."
+        ),
+    )
+    arg_parser.add_argument(
         "--num_head_cpu",
         type=float,  # to be able to schedule partial CPU heads
         default=4,
@@ -158,4 +172,13 @@ if __name__ == "__main__":
     python3 launch.py -h
     """
     args = parse_args()
-    apply_manifest(args)
+
+    if "head" in args.name:
+        raise ValueError("For compatibility with other scripts, do not include head in the name")
+    if args.num_clusters == 1:
+        apply_manifest(args)
+    else:
+        default_name = args.name
+        for i in range(args.num_clusters):
+            args.name = default_name + "-" + str(i)
+            apply_manifest(args)
