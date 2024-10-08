@@ -20,7 +20,6 @@ gym.register(
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:AnymalDFlatPPORunnerCfg",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_flat_ppo_cfg.yaml",
         "torchrl_cfg_entry_point": f"{agents.__name__}.torchrl_ppo_cfg:AnymalDFlatPPORunnerCfg",
-
     },
 )
 
@@ -33,7 +32,6 @@ gym.register(
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:AnymalDFlatPPORunnerCfg",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_flat_ppo_cfg.yaml",
         "torchrl_cfg_entry_point": f"{agents.__name__}.torchrl_ppo_cfg:AnymalDFlatPPORunnerCfg",
-
     },
 )
 
@@ -46,7 +44,6 @@ gym.register(
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:AnymalDRoughPPORunnerCfg",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_rough_ppo_cfg.yaml",
         "torchrl_cfg_entry_point": f"{agents.__name__}.torchrl_ppo_cfg:AnymalDRoughPPORunnerCfg",
-
     },
 )
 

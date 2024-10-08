@@ -1,15 +1,21 @@
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
 
+import torch.nn as nn
 from dataclasses import MISSING
 
 from omni.isaac.lab.utils import configclass
-import torch.nn as nn
 
 from omni.isaac.lab_tasks.utils.wrappers.torchrl.torchrl_ppo_runner_cfg import (
-        ProbabilisticActorCfg,
-        ValueOperatorCfg,
-        ClipPPOLossCfg,
-        CollectorCfg,
-        OnPolicyPPORunnerCfg)
+    ClipPPOLossCfg,
+    CollectorCfg,
+    OnPolicyPPORunnerCfg,
+    ProbabilisticActorCfg,
+    ValueOperatorCfg,
+)
+
 
 class AnymalDActorNN(nn.Module):
     def __init__(self):
@@ -21,11 +27,12 @@ class AnymalDActorNN(nn.Module):
             nn.ELU(alpha=1.0),
             nn.Linear(in_features=256, out_features=128, bias=True),
             nn.ELU(alpha=1.0),
-            nn.Linear(in_features=128, out_features=12*2, bias=True)
+            nn.Linear(in_features=128, out_features=12 * 2, bias=True),
         )
 
     def forward(self, x):
         return self.model(x)
+
 
 class AnymalDCriticNN(nn.Module):
     def __init__(self):
@@ -37,12 +44,13 @@ class AnymalDCriticNN(nn.Module):
             nn.ELU(alpha=1.0),
             nn.Linear(in_features=256, out_features=128, bias=True),
             nn.ELU(alpha=1.0),
-            nn.Linear(in_features=128, out_features=1, bias=True)
+            nn.Linear(in_features=128, out_features=1, bias=True),
         )
 
     def forward(self, x):
         return self.model(x)
-    
+
+
 @configclass
 class AnymalDActorModule(ProbabilisticActorCfg):
 
@@ -62,30 +70,30 @@ class AnymalDCriticModule(ValueOperatorCfg):
 
     in_keys = ["policy"]
 
-    out_keys = ["state_value"] 
-
+    out_keys = ["state_value"]
 
 
 """
 Collector Module Definition
 """
 
+
 @configclass
 class AnymalDCollectorModule(CollectorCfg):
 
     actor_network = AnymalDActorModule()
 
-    split_trajs = False 
-
+    split_trajs = False
 
 
 """
 Loss Module Definition
 """
 
+
 @configclass
 class AnymalDPPOLossModule(ClipPPOLossCfg):
-    
+
     actor_network = AnymalDActorModule()
 
     value_network = AnymalDCriticModule()
@@ -100,9 +108,9 @@ class AnymalDPPOLossModule(ClipPPOLossCfg):
 
     increment = 2.0
 
-    value_loss_coef = 0.5 
+    value_loss_coef = 0.5
 
-    clip_param = 0.2 
+    clip_param = 0.2
 
     entropy_coef = 0.02
 
@@ -125,9 +133,10 @@ class AnymalDPPOLossModule(ClipPPOLossCfg):
 Trainer Module Definition
 """
 
+
 @configclass
 class AnymalDPPORunnerCfg(OnPolicyPPORunnerCfg):
-    
+
     loss_module = AnymalDPPOLossModule()
 
     collector_module = AnymalDCollectorModule()
@@ -147,7 +156,7 @@ class AnymalDPPORunnerCfg(OnPolicyPPORunnerCfg):
     save_interval = 50
 
     save_trainer_interval = 100
-    
+
     experiment_name = MISSING
 
     wandb_project = MISSING
@@ -177,5 +186,3 @@ class AnymalDRoughPPORunnerCfg(AnymalDPPORunnerCfg):
 
         # change wandb project
         self.wandb_project = "anymal_d_rough"
-
-
