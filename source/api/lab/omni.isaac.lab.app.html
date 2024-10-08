@@ -57,7 +57,7 @@
     <link rel="prev" title="API Reference" href="../index.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Oct 07, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 08, 2024"/>
   </head>
   
   
@@ -650,7 +650,7 @@ pipeline enables flags that are internally used by the SimulationContext class.<
 <section id="overriding-the-environment-variables">
 <h2>Overriding the environment variables<a class="headerlink" href="#overriding-the-environment-variables" title="Permalink to this heading">#</a></h2>
 <p>The environment variables can be overridden in the python script itself using the <a class="reference internal" href="#omni.isaac.lab.app.AppLauncher" title="omni.isaac.lab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a>.
-These can be passed as a dictionary, a <a class="reference external" href="https://docs.python.org/3/library/argparse.html#argparse.Namespace" title="(in Python v3.12)"><code class="xref py py-class docutils literal notranslate"><span class="pre">argparse.Namespace</span></code></a> object or as keyword arguments.
+These can be passed as a dictionary, a <a class="reference external" href="https://docs.python.org/3/library/argparse.html#argparse.Namespace" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">argparse.Namespace</span></code></a> object or as keyword arguments.
 When the passed arguments are not the default values, then they override the environment variables.</p>
 <p>The following snippet shows how use the <a class="reference internal" href="#omni.isaac.lab.app.AppLauncher" title="omni.isaac.lab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> in different ways:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">argparser</span>
@@ -724,7 +724,7 @@ value &gt;-1. In other words, if <code class="docutils literal notranslate"><spa
 </div>
 <dl class="py method">
 <dt class="sig sig-object py" id="omni.isaac.lab.app.AppLauncher.__init__">
-<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">launcher_args</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/argparse.html#argparse.Namespace" title="(in Python v3.12)"><span class="pre">Namespace</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.12)"><span class="pre">dict</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/app/app_launcher.html#AppLauncher.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.app.AppLauncher.__init__" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">launcher_args</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/argparse.html#argparse.Namespace" title="(in Python v3.13)"><span class="pre">Namespace</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/app/app_launcher.html#AppLauncher.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.app.AppLauncher.__init__" title="Permalink to this definition">#</a></dt>
 <dd><p>Create a <a class="reference external" href="https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/omni.isaac.kit/docs/index.html">SimulationApp</a> instance based on the input settings.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -740,10 +740,10 @@ the <code class="xref py py-attr docutils literal notranslate"><span class="pre"
 </dd>
 <dt class="field-even">Raises<span class="colon">:</span></dt>
 <dd class="field-even"><ul class="simple">
-<li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.12)"><strong>ValueError</strong></a> – If there are common/duplicated arguments between <code class="docutils literal notranslate"><span class="pre">launcher_args</span></code> and <code class="docutils literal notranslate"><span class="pre">kwargs</span></code>.</p></li>
-<li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.12)"><strong>ValueError</strong></a> – If combination of <code class="docutils literal notranslate"><span class="pre">launcher_args</span></code> and <code class="docutils literal notranslate"><span class="pre">kwargs</span></code> are missing the necessary arguments
+<li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.13)"><strong>ValueError</strong></a> – If there are common/duplicated arguments between <code class="docutils literal notranslate"><span class="pre">launcher_args</span></code> and <code class="docutils literal notranslate"><span class="pre">kwargs</span></code>.</p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.13)"><strong>ValueError</strong></a> – If combination of <code class="docutils literal notranslate"><span class="pre">launcher_args</span></code> and <code class="docutils literal notranslate"><span class="pre">kwargs</span></code> are missing the necessary arguments
     that are needed by the AppLauncher to resolve the desired app configuration.</p></li>
-<li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.12)"><strong>ValueError</strong></a> – If incompatible or undefined values are assigned to relevant environment values,
+<li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.13)"><strong>ValueError</strong></a> – If incompatible or undefined values are assigned to relevant environment values,
     such as <code class="docutils literal notranslate"><span class="pre">LIVESTREAM</span></code>.</p></li>
 </ul>
 </dd>
@@ -758,11 +758,11 @@ the <code class="xref py py-attr docutils literal notranslate"><span class="pre"
 
 <dl class="py method">
 <dt class="sig sig-object py" id="omni.isaac.lab.app.AppLauncher.add_app_launcher_args">
-<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">add_app_launcher_args</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">parser</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/argparse.html#argparse.ArgumentParser" title="(in Python v3.12)"><span class="pre">ArgumentParser</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/app/app_launcher.html#AppLauncher.add_app_launcher_args"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.app.AppLauncher.add_app_launcher_args" title="Permalink to this definition">#</a></dt>
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">add_app_launcher_args</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">parser</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/argparse.html#argparse.ArgumentParser" title="(in Python v3.13)"><span class="pre">ArgumentParser</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/app/app_launcher.html#AppLauncher.add_app_launcher_args"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.app.AppLauncher.add_app_launcher_args" title="Permalink to this definition">#</a></dt>
 <dd><p>Utility function to configure AppLauncher arguments with an existing argument parser object.</p>
 <p>This function takes an <code class="docutils literal notranslate"><span class="pre">argparse.ArgumentParser</span></code> object and does some sanity checking on the existing
 arguments for ingestion by the SimulationApp. It then appends custom command-line arguments relevant
-to the SimulationApp to the input <a class="reference external" href="https://docs.python.org/3/library/argparse.html#argparse.ArgumentParser" title="(in Python v3.12)"><code class="xref py py-class docutils literal notranslate"><span class="pre">argparse.ArgumentParser</span></code></a> instance. This allows overriding the
+to the SimulationApp to the input <a class="reference external" href="https://docs.python.org/3/library/argparse.html#argparse.ArgumentParser" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">argparse.ArgumentParser</span></code></a> instance. This allows overriding the
 environment variables using command-line arguments.</p>
 <p>Currently, it adds the following parameters to the argparser object:</p>
 <ul>
@@ -903,7 +903,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 07, 2024.
+  Last updated on Oct 08, 2024.
   <br/>
 </p>
   </div>

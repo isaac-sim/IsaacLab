@@ -57,7 +57,7 @@
     <link rel="prev" title="Cluster Guide" href="cluster.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Oct 07, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 08, 2024"/>
   </head>
   
   
@@ -716,7 +716,7 @@ The <code class="docutils literal notranslate"><span class="pre">log_time.py</sp
     <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[INFO] Logging experiment to directory: </span><span class="si">{</span><span class="n">log_dir_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>As the comments note, <a class="reference external" href="https://docs.python.org/3/library/os.path.html#os.path.abspath" title="(in Python v3.12)"><code class="xref py py-func docutils literal notranslate"><span class="pre">os.path.abspath()</span></code></a> will prepend <code class="docutils literal notranslate"><span class="pre">/workspace/isaaclab</span></code> because in
+<p>As the comments note, <a class="reference external" href="https://docs.python.org/3/library/os.path.html#os.path.abspath" title="(in Python v3.13)"><code class="xref py py-func docutils literal notranslate"><span class="pre">os.path.abspath()</span></code></a> will prepend <code class="docutils literal notranslate"><span class="pre">/workspace/isaaclab</span></code> because in
 the Docker container all python execution is done through <code class="docutils literal notranslate"><span class="pre">/workspace/isaaclab/isaaclab.sh</span></code>.
 The output will be a file, <code class="docutils literal notranslate"><span class="pre">log.txt</span></code>, with the <code class="docutils literal notranslate"><span class="pre">sim_time</span></code> written on a newline at every simulation step:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span>    <span class="c1"># Prepare to count sim_time</span>
@@ -850,7 +850,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 07, 2024.
+  Last updated on Oct 08, 2024.
   <br/>
 </p>
   </div>

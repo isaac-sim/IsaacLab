@@ -57,7 +57,7 @@
     <link rel="prev" title="Spawning prims into the scene" href="spawn_prims.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Oct 07, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 08, 2024"/>
   </head>
   
   
@@ -703,15 +703,15 @@ for <code class="xref py py-class docutils literal notranslate"><span class="pre
 <h3>Adding arguments to the argparser<a class="headerlink" href="#adding-arguments-to-the-argparser" title="Permalink to this heading">#</a></h3>
 <p><a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher" title="omni.isaac.lab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> is designed to be compatible with custom CLI args that users need for
 their own scripts, while still providing a portable CLI interface.</p>
-<p>In this tutorial, a standard <a class="reference external" href="https://docs.python.org/3/library/argparse.html#argparse.ArgumentParser" title="(in Python v3.12)"><code class="xref py py-class docutils literal notranslate"><span class="pre">argparse.ArgumentParser</span></code></a> is instantiated and given the
+<p>In this tutorial, a standard <a class="reference external" href="https://docs.python.org/3/library/argparse.html#argparse.ArgumentParser" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">argparse.ArgumentParser</span></code></a> is instantiated and given the
 script-specific <code class="docutils literal notranslate"><span class="pre">--size</span></code> argument, as well as the arguments <code class="docutils literal notranslate"><span class="pre">--height</span></code> and <code class="docutils literal notranslate"><span class="pre">--width</span></code>.
 The latter are ingested by <code class="xref py py-class docutils literal notranslate"><span class="pre">SimulationApp</span></code>.</p>
 <p>The argument <code class="docutils literal notranslate"><span class="pre">--size</span></code> is not used by <a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher" title="omni.isaac.lab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a>, but will merge seamlessly
 with the <a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher" title="omni.isaac.lab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> interface. In-script arguments can be merged with the
 <a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher" title="omni.isaac.lab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> interface via the <a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher.add_app_launcher_args" title="omni.isaac.lab.app.AppLauncher.add_app_launcher_args"><code class="xref py py-meth docutils literal notranslate"><span class="pre">add_app_launcher_args()</span></code></a> method,
-which will return a modified <a class="reference external" href="https://docs.python.org/3/library/argparse.html#argparse.ArgumentParser" title="(in Python v3.12)"><code class="xref py py-class docutils literal notranslate"><span class="pre">ArgumentParser</span></code></a> with the <a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher" title="omni.isaac.lab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a>
-arguments appended. This can then be processed into an <a class="reference external" href="https://docs.python.org/3/library/argparse.html#argparse.Namespace" title="(in Python v3.12)"><code class="xref py py-class docutils literal notranslate"><span class="pre">argparse.Namespace</span></code></a> using the
-standard <a class="reference external" href="https://docs.python.org/3/library/argparse.html#argparse.ArgumentParser.parse_args" title="(in Python v3.12)"><code class="xref py py-meth docutils literal notranslate"><span class="pre">argparse.ArgumentParser.parse_args()</span></code></a> method and passed directly to
+which will return a modified <a class="reference external" href="https://docs.python.org/3/library/argparse.html#argparse.ArgumentParser" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">ArgumentParser</span></code></a> with the <a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher" title="omni.isaac.lab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a>
+arguments appended. This can then be processed into an <a class="reference external" href="https://docs.python.org/3/library/argparse.html#argparse.Namespace" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">argparse.Namespace</span></code></a> using the
+standard <a class="reference external" href="https://docs.python.org/3/library/argparse.html#argparse.ArgumentParser.parse_args" title="(in Python v3.13)"><code class="xref py py-meth docutils literal notranslate"><span class="pre">argparse.ArgumentParser.parse_args()</span></code></a> method and passed directly to
 <a class="reference internal" href="../../api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher" title="omni.isaac.lab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> for instantiation.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">argparse</span>
 
@@ -919,7 +919,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 07, 2024.
+  Last updated on Oct 08, 2024.
   <br/>
 </p>
   </div>

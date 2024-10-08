@@ -59,7 +59,7 @@
     <link rel="prev" title="Known Issues" href="issues.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Oct 07, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 08, 2024"/>
   </head>
   
   
@@ -3421,7 +3421,7 @@ buffers when the simulation is reset.</p></li>
 <section id="id279">
 <h4>Changed<a class="headerlink" href="#id279" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
-<li><p>Changed the behavior of passing <a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a> to the <a class="reference internal" href="../api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.ActuatorBaseCfg" title="omni.isaac.lab.actuators.ActuatorBaseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">omni.isaac.lab.actuators.ActuatorBaseCfg</span></code></a>
+<li><p>Changed the behavior of passing <a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a> to the <a class="reference internal" href="../api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.ActuatorBaseCfg" title="omni.isaac.lab.actuators.ActuatorBaseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">omni.isaac.lab.actuators.ActuatorBaseCfg</span></code></a>
 class. Earlier, they were resolved to fixed default values. Now, they imply that the values are loaded
 from the USD joint drive configuration.</p></li>
 </ul>
@@ -3580,7 +3580,7 @@ available immediately. For instance, with deformable meshes.</p></li>
 <li><p>Fixed setting of damping values from the configuration for <code class="xref py py-class docutils literal notranslate"><span class="pre">ActuatorBase</span></code> class. Earlier,
 the stiffness values were being set into damping when a dictionary configuration was passed to the
 actuator model.</p></li>
-<li><p>Added dealing with <a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a> and <a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><code class="xref py py-class docutils literal notranslate"><span class="pre">float</span></code></a> values in the configurations of <code class="xref py py-class docutils literal notranslate"><span class="pre">ActuatorBase</span></code>.
+<li><p>Added dealing with <a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a> and <a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">float</span></code></a> values in the configurations of <code class="xref py py-class docutils literal notranslate"><span class="pre">ActuatorBase</span></code>.
 Earlier, a type-error was thrown when integer values were passed to the actuator model.</p></li>
 </ul>
 </section>
@@ -3821,7 +3821,7 @@ Earlier, a tuple was being created in the constructor instead of the actual obje
 <h4>Added<a class="headerlink" href="#id349" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
 <li><p>Added a <code class="xref py py-class docutils literal notranslate"><span class="pre">omni.isaac.lab.command_generators.NullCommandGenerator</span></code> class for no command environments.
-This is easier to work with than having checks for <a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a> in the command generator.</p></li>
+This is easier to work with than having checks for <a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a> in the command generator.</p></li>
 </ul>
 </section>
 <section id="id350">
@@ -3963,8 +3963,8 @@ Earlier, the buffer was not being updated correctly.</p></li>
 <section id="id372">
 <h4>Fixed<a class="headerlink" href="#id372" title="Permalink to this heading">#</a></h4>
 <ul class="simple">
-<li><p>Fixed the issue with double <a class="reference external" href="https://docs.python.org/3/library/constants.html#Ellipsis" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Ellipsis</span></code></a> when indexing tensors with multiple dimensions.
-The fix now uses <code class="xref py py-obj docutils literal notranslate"><span class="pre">slice(None)</span></code> instead of <a class="reference external" href="https://docs.python.org/3/library/constants.html#Ellipsis" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Ellipsis</span></code></a> to index the tensors.</p></li>
+<li><p>Fixed the issue with double <a class="reference external" href="https://docs.python.org/3/library/constants.html#Ellipsis" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Ellipsis</span></code></a> when indexing tensors with multiple dimensions.
+The fix now uses <code class="xref py py-obj docutils literal notranslate"><span class="pre">slice(None)</span></code> instead of <a class="reference external" href="https://docs.python.org/3/library/constants.html#Ellipsis" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Ellipsis</span></code></a> to index the tensors.</p></li>
 </ul>
 </section>
 </section>
@@ -6690,7 +6690,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 07, 2024.
+  Last updated on Oct 08, 2024.
   <br/>
 </p>
   </div>
