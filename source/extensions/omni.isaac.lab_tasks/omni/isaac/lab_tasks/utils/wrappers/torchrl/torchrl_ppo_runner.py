@@ -194,7 +194,7 @@ class OnPolicyPPORunner:
         self.trainer_module.register_op("pre_steps_log", self.log_episode_stats)
 
         # upload video to wandb
-        if hasattr(self.env.unwrapped, "video_recorder") and self.cfg.logger == "wandb":
+        if hasattr(self.env, "video_recorder") and self.cfg.logger == "wandb":
             self.trainer_module.register_op("post_steps_log", self.upload_training_video, log_name="Video", fps=30)
 
         return self.trainer_module
