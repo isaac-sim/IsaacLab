@@ -3,7 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Script to benchmark loading multiple copies of a robot."""
+"""Script to benchmark loading multiple copies of a robot.
+
+.. code-block python
+
+    ./isaaclab.sh -p source/standalone/benchmarks/benchmark_load_robot.py --num_envs 2048 --robot g1 --headless
+
+"""
 
 """Launch Isaac Sim Simulator first."""
 
