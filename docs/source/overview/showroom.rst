@@ -100,7 +100,7 @@ A few quick showroom scripts to run and checkout:
       :width: 100%
       :alt: Deformable primitive-shaped objects in Isaac Lab
 
-- Use the interactive scene and spawn varying assets in individual environments:
+-  Use the interactive scene and spawn varying assets in individual environments:
 
    .. tab-set::
       :sync-group: os
