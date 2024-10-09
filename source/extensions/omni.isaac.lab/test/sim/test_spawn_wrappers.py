@@ -19,6 +19,7 @@ import omni.isaac.core.utils.stage as stage_utils
 from omni.isaac.core.simulation_context import SimulationContext
 
 import omni.isaac.lab.sim as sim_utils
+from omni.isaac.lab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 
 class TestSpawningWrappers(unittest.TestCase):
@@ -44,7 +45,7 @@ class TestSpawningWrappers(unittest.TestCase):
         self.sim.clear_instance()
 
     """
-    Tests.
+    Tests - Multiple assets.
     """
 
     def test_spawn_multiple_shapes_with_global_settings(self):
@@ -143,6 +144,47 @@ class TestSpawningWrappers(unittest.TestCase):
         for prim_path in prim_paths:
             prim = prim_utils.get_prim_at_path(prim_path)
             self.assertTrue(prim.GetAttribute("physics:mass").Get() in mass_variations)
+
+    """
+    Tests - Multiple USDs.
+    """
+
+    def test_spawn_multiple_files_with_global_settings(self):
+        """Test spawning of files randomly with global articulation settings."""
+        # Define prim parents
+        num_clones = 10
+        for i in range(num_clones):
+            prim_utils.create_prim(f"/World/env_{i}", "Xform", translation=(i, i, 0))
+
+        # Spawn shapes
+        cfg = sim_utils.MultiUsdFileCfg(
+            usd_path=[
+                f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd",
+                f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-D/anymal_d.usd",
+            ],
+            random_choice=True,
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(
+                disable_gravity=False,
+                retain_accelerations=False,
+                linear_damping=0.0,
+                angular_damping=0.0,
+                max_linear_velocity=1000.0,
+                max_angular_velocity=1000.0,
+                max_depenetration_velocity=1.0,
+            ),
+            articulation_props=sim_utils.ArticulationRootPropertiesCfg(
+                enabled_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=0
+            ),
+            activate_contact_sensors=True,
+        )
+        prim = cfg.func("/World/env_.*/Robot", cfg)
+
+        # Check validity
+        self.assertTrue(prim.IsValid())
+        self.assertEqual(prim_utils.get_prim_path(prim), "/World/env_0/Robot")
+        # Find matching prims
+        prim_paths = prim_utils.find_matching_prim_paths("/World/env_*/Robot")
+        self.assertEqual(len(prim_paths), num_clones)
 
 
 if __name__ == "__main__":
