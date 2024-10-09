@@ -36,7 +36,7 @@ def spawn_multi_asset(
         prim_path: The prim path to spawn the assets.
         cfg: The configuration for spawning the assets.
         translation: The translation of the spawned assets. Default is None.
-        orientation: The orientation of the spawned assets. Default is None.
+        orientation: The orientation of the spawned assets in (w, x, y, z) order. Default is None.
 
     Returns:
         The created prim at the first prim path.
@@ -123,7 +123,7 @@ def spawn_multi_usd_file(
         prim_path: The prim path to spawn the assets.
         cfg: The configuration for spawning the assets.
         translation: The translation of the spawned assets. Default is None.
-        orientation: The orientation of the spawned assets. Default is None.
+        orientation: The orientation of the spawned assets in (w, x, y, z) order. Default is None.
 
     Returns:
         The created prim at the first prim path.
