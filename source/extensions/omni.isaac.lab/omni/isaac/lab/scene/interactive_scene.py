@@ -166,6 +166,18 @@ class InteractiveScene:
             If True, clones are independent copies of the source prim and won't reflect its changes (start-up time
             may increase). Defaults to False.
         """
+        # check if user spawned different assets in individual environments
+        # this flag will be None if no multi asset is spawned
+        carb_settings_iface = carb.settings.get_settings()
+        has_multi_assets = carb_settings_iface.get("/isaaclab/spawn/multi_assets")
+        if has_multi_assets and self.cfg.replicate_physics:
+            carb.log_warn(
+                "Varying assets might have been spawned under different environments."
+                " However, the replicate physics flag is enabled in the 'InteractiveScene' configuration."
+                " This may adversely affect PhysX parsing. We recommend disabling this property."
+            )
+
+        # clone the environment
         env_origins = self.cloner.clone(
             source_prim_path=self.env_prim_paths[0],
             prim_paths=self.env_prim_paths,
@@ -187,9 +199,6 @@ class InteractiveScene:
             global_prim_paths: A list of global prim paths to enable collisions with.
                 Defaults to None, in which case no global prim paths are considered.
         """
-        # obtain the current physics scene
-        physics_scene_prim_path = self.physics_scene_path
-
         # validate paths in global prim paths
         if global_prim_paths is None:
             global_prim_paths = []
@@ -203,7 +212,7 @@ class InteractiveScene:
 
         # filter collisions within each environment instance
         self.cloner.filter_collisions(
-            physics_scene_prim_path,
+            self.physics_scene_path,
             "/World/collisions",
             self.env_prim_paths,
             global_paths=self._global_prim_paths,
@@ -224,14 +233,16 @@ class InteractiveScene:
     """
 
     @property
-    def physics_scene_path(self):
-        """Search the stage for the physics scene"""
+    def physics_scene_path(self) -> str:
+        """The path to the USD Physics Scene."""
         if self._physics_scene_path is None:
             for prim in self.stage.Traverse():
                 if prim.HasAPI(PhysxSchema.PhysxSceneAPI):
-                    self._physics_scene_path = prim.GetPrimPath()
+                    self._physics_scene_path = prim.GetPrimPath().pathString
                     carb.log_info(f"Physics scene prim path: {self._physics_scene_path}")
                     break
+            if self._physics_scene_path is None:
+                raise RuntimeError("No physics scene found! Please make sure one exists.")
         return self._physics_scene_path
 
     @property
