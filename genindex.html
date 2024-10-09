@@ -277,6 +277,7 @@
 <li class="toctree-l2"><a class="reference internal" href="source/how-to/import_new_asset.html">Importing a New Asset</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/how-to/write_articulation_cfg.html">Writing an Asset Configuration</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/how-to/make_fixed_prim.html">Making a physics prim fixed in the simulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/how-to/multi_asset_spawning.html">Spawning Multiple Assets</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/how-to/save_camera_output.html">Saving rendered images and 3D re-projection</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/how-to/estimate_how_many_cameras_can_run.html">Find How Many/What Cameras You Should Train With</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/how-to/draw_markers.html">Creating Visualization Markers</a></li>
@@ -757,6 +758,10 @@ document.write(`
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.shapes.SphereCfg.activate_contact_sensors">(omni.isaac.lab.sim.spawners.shapes.SphereCfg attribute)</a>
 </li>
+        <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.activate_contact_sensors">(omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg attribute)</a>
+</li>
+        <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.activate_contact_sensors">(omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg attribute)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.activate_contact_sensors">activate_contact_sensors() (in module omni.isaac.lab.sim.schemas)</a>
 </li>
@@ -951,6 +956,8 @@ document.write(`
       <ul>
         <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.from_files.UsdFileCfg.articulation_props">(omni.isaac.lab.sim.spawners.from_files.UsdFileCfg attribute)</a>
 </li>
+        <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.articulation_props">(omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg attribute)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.ArticulationCfg">ArticulationCfg (class in omni.isaac.lab.assets)</a>
 </li>
@@ -1021,6 +1028,8 @@ document.write(`
       <li><a href="source/api/lab/omni.isaac.lab.sim.converters.html#omni.isaac.lab.sim.converters.AssetConverterBase">AssetConverterBase (class in omni.isaac.lab.sim.converters)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.sim.converters.html#omni.isaac.lab.sim.converters.AssetConverterBaseCfg">AssetConverterBaseCfg (class in omni.isaac.lab.sim.converters)</a>
+</li>
+      <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.assets_cfg">assets_cfg (omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.RayCasterCameraCfg.attach_yaw_only">attach_yaw_only (omni.isaac.lab.sensors.RayCasterCameraCfg attribute)</a>
 
@@ -1407,6 +1416,10 @@ document.write(`
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.shapes.SphereCfg.collision_props">(omni.isaac.lab.sim.spawners.shapes.SphereCfg attribute)</a>
 </li>
+        <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.collision_props">(omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg attribute)</a>
+</li>
+        <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.collision_props">(omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg attribute)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.collision_simplification">collision_simplification (omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg attribute)</a>
 </li>
@@ -1664,6 +1677,10 @@ document.write(`
         <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.shapes.SphereCfg.copy_from_source">(omni.isaac.lab.sim.spawners.shapes.SphereCfg attribute)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.SpawnerCfg.copy_from_source">(omni.isaac.lab.sim.spawners.SpawnerCfg attribute)</a>
+</li>
+        <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.copy_from_source">(omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg attribute)</a>
+</li>
+        <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.copy_from_source">(omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg attribute)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.math.copysign">copysign() (in module omni.isaac.lab.utils.math)</a>
@@ -1962,6 +1979,10 @@ document.write(`
         <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.meshes.MeshCylinderCfg.deformable_props">(omni.isaac.lab.sim.spawners.meshes.MeshCylinderCfg attribute)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.meshes.MeshSphereCfg.deformable_props">(omni.isaac.lab.sim.spawners.meshes.MeshSphereCfg attribute)</a>
+</li>
+        <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.deformable_props">(omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg attribute)</a>
+</li>
+        <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.deformable_props">(omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg attribute)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.materials.DeformableBodyMaterialCfg">DeformableBodyMaterialCfg (class in omni.isaac.lab.sim.spawners.materials)</a>
@@ -2400,6 +2421,8 @@ document.write(`
 
       <ul>
         <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.from_files.UsdFileCfg.fixed_tendons_props">(omni.isaac.lab.sim.spawners.from_files.UsdFileCfg attribute)</a>
+</li>
+        <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.fixed_tendons_props">(omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg attribute)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.FixedTendonPropertiesCfg">FixedTendonPropertiesCfg (class in omni.isaac.lab.sim.schemas)</a>
@@ -3111,6 +3134,8 @@ document.write(`
       <ul>
         <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.from_files.UsdFileCfg.joint_drive_props">(omni.isaac.lab.sim.spawners.from_files.UsdFileCfg attribute)</a>
 </li>
+        <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.joint_drive_props">(omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg attribute)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.terminations.joint_effort_out_of_limit">joint_effort_out_of_limit() (in module omni.isaac.lab.envs.mdp.terminations)</a>
 </li>
@@ -3431,6 +3456,10 @@ document.write(`
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.shapes.SphereCfg.mass_props">(omni.isaac.lab.sim.spawners.shapes.SphereCfg attribute)</a>
 </li>
+        <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.mass_props">(omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg attribute)</a>
+</li>
+        <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.mass_props">(omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg attribute)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.MassPropertiesCfg">MassPropertiesCfg (class in omni.isaac.lab.sim.schemas)</a>
 </li>
@@ -3578,10 +3607,10 @@ document.write(`
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshPitTerrainCfg">MeshPitTerrainCfg (class in omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshPlaneTerrainCfg">MeshPlaneTerrainCfg (class in omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshPyramidStairsTerrainCfg">MeshPyramidStairsTerrainCfg (class in omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRailsTerrainCfg">MeshRailsTerrainCfg (class in omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg)</a>
@@ -3726,6 +3755,8 @@ document.write(`
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#module-omni.isaac.lab.sim.spawners.shapes">omni.isaac.lab.sim.spawners.shapes</a>
 </li>
+        <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#module-omni.isaac.lab.sim.spawners.wrappers">omni.isaac.lab.sim.spawners.wrappers</a>
+</li>
         <li><a href="source/api/lab/omni.isaac.lab.sim.html#module-omni.isaac.lab.sim.utils">omni.isaac.lab.sim.utils</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.terrains.html#module-omni.isaac.lab.terrains">omni.isaac.lab.terrains</a>
@@ -3779,6 +3810,10 @@ document.write(`
         <li><a href="source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#module-omni.isaac.lab_tasks.utils.wrappers.skrl">omni.isaac.lab_tasks.utils.wrappers.skrl</a>
 </li>
       </ul></li>
+      <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg">MultiAssetSpawnerCfg (class in omni.isaac.lab.sim.spawners.wrappers)</a>
+</li>
+      <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg">MultiUsdFileCfg (class in omni.isaac.lab.sim.spawners.wrappers)</a>
+</li>
   </ul></td>
 </tr></table>
 
@@ -4280,8 +4315,6 @@ document.write(`
         <li><a href="source/api/lab/omni.isaac.lab.sim.html#module-omni.isaac.lab.sim">module</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li>
     omni.isaac.lab.sim.converters
 
@@ -4289,6 +4322,8 @@ document.write(`
         <li><a href="source/api/lab/omni.isaac.lab.sim.converters.html#module-omni.isaac.lab.sim.converters">module</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li>
     omni.isaac.lab.sim.schemas
 
@@ -4343,6 +4378,13 @@ document.write(`
 
       <ul>
         <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#module-omni.isaac.lab.sim.spawners.shapes">module</a>
+</li>
+      </ul></li>
+      <li>
+    omni.isaac.lab.sim.spawners.wrappers
+
+      <ul>
+        <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#module-omni.isaac.lab.sim.spawners.wrappers">module</a>
 </li>
       </ul></li>
       <li>
@@ -5007,6 +5049,12 @@ document.write(`
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.trimesh.mesh_terrains.rails_terrain">rails_terrain() (in module omni.isaac.lab.terrains.trimesh.mesh_terrains)</a>
 </li>
+      <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.random_choice">random_choice (omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.random_choice">(omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg attribute)</a>
+</li>
+      </ul></li>
       <li><a href="source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.trimesh.mesh_terrains.random_grid_terrain">random_grid_terrain() (in module omni.isaac.lab.terrains.trimesh.mesh_terrains)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.math.random_orientation">random_orientation() (in module omni.isaac.lab.utils.math)</a>
@@ -5336,6 +5384,10 @@ document.write(`
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.shapes.SphereCfg.rigid_props">(omni.isaac.lab.sim.spawners.shapes.SphereCfg attribute)</a>
 </li>
+        <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.rigid_props">(omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg attribute)</a>
+</li>
+        <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.rigid_props">(omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg attribute)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.materials.RigidBodyMaterialCfg">RigidBodyMaterialCfg (class in omni.isaac.lab.sim.spawners.materials)</a>
 </li>
@@ -5526,6 +5578,8 @@ document.write(`
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.from_files.UsdFileCfg.scale">(omni.isaac.lab.sim.spawners.from_files.UsdFileCfg attribute)</a>
 </li>
+        <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.scale">(omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg attribute)</a>
+</li>
       </ul></li>
       <li><a href="source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.modifiers.scale">scale() (in module omni.isaac.lab.utils.modifiers)</a>
 </li>
@@ -5651,6 +5705,10 @@ document.write(`
         <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.shapes.SphereCfg.semantic_tags">(omni.isaac.lab.sim.spawners.shapes.SphereCfg attribute)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.SpawnerCfg.semantic_tags">(omni.isaac.lab.sim.spawners.SpawnerCfg attribute)</a>
+</li>
+        <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.semantic_tags">(omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg attribute)</a>
+</li>
+        <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.semantic_tags">(omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg attribute)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.SensorBase">SensorBase (class in omni.isaac.lab.sensors)</a>
@@ -5986,6 +6044,10 @@ document.write(`
       <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.meshes.spawn_mesh_cylinder">spawn_mesh_cylinder() (in module omni.isaac.lab.sim.spawners.meshes)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.meshes.spawn_mesh_sphere">spawn_mesh_sphere() (in module omni.isaac.lab.sim.spawners.meshes)</a>
+</li>
+      <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.wrappers.spawn_multi_asset">spawn_multi_asset() (in module omni.isaac.lab.sim.spawners.wrappers)</a>
+</li>
+      <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.wrappers.spawn_multi_usd_file">spawn_multi_usd_file() (in module omni.isaac.lab.sim.spawners.wrappers)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.materials.spawn_preview_surface">spawn_preview_surface() (in module omni.isaac.lab.sim.spawners.materials)</a>
 </li>
@@ -6408,6 +6470,8 @@ document.write(`
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.from_files.UsdFileCfg.usd_path">(omni.isaac.lab.sim.spawners.from_files.UsdFileCfg attribute)</a>
 </li>
+        <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.usd_path">(omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg attribute)</a>
+</li>
         <li><a href="source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.TerrainImporterCfg.usd_path">(omni.isaac.lab.terrains.TerrainImporterCfg attribute)</a>
 </li>
       </ul></li>
@@ -6438,7 +6502,11 @@ document.write(`
       <li><a href="source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.rsl_rl.RslRlPpoAlgorithmCfg.value_loss_coef">value_loss_coef (omni.isaac.lab_tasks.utils.wrappers.rsl_rl.RslRlPpoAlgorithmCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.from_files.UsdFileCfg.variants">variants (omni.isaac.lab.sim.spawners.from_files.UsdFileCfg attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.variants">(omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.ActuatorNetMLPCfg.vel_scale">vel_scale (omni.isaac.lab.actuators.ActuatorNetMLPCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.ActuatorBase.velocity_limit">velocity_limit (omni.isaac.lab.actuators.ActuatorBase attribute)</a>
@@ -6586,6 +6654,10 @@ document.write(`
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.SpawnerCfg.visible">(omni.isaac.lab.sim.spawners.SpawnerCfg attribute)</a>
 </li>
+        <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.visible">(omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg attribute)</a>
+</li>
+        <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.visible">(omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg attribute)</a>
+</li>
       </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
@@ -6620,6 +6692,8 @@ document.write(`
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.shapes.SphereCfg.visual_material">(omni.isaac.lab.sim.spawners.shapes.SphereCfg attribute)</a>
 </li>
+        <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.visual_material">(omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg attribute)</a>
+</li>
         <li><a href="source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.TerrainImporterCfg.visual_material">(omni.isaac.lab.terrains.TerrainImporterCfg attribute)</a>
 </li>
       </ul></li>
@@ -6651,6 +6725,8 @@ document.write(`
         <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.shapes.ShapeCfg.visual_material_path">(omni.isaac.lab.sim.spawners.shapes.ShapeCfg attribute)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.shapes.SphereCfg.visual_material_path">(omni.isaac.lab.sim.spawners.shapes.SphereCfg attribute)</a>
+</li>
+        <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.visual_material_path">(omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg attribute)</a>
 </li>
       </ul></li>
       <li><a href="source/api/lab/omni.isaac.lab.markers.html#omni.isaac.lab.markers.VisualizationMarkers">VisualizationMarkers (class in omni.isaac.lab.markers)</a>

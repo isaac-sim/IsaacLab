@@ -277,6 +277,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../../../source/how-to/import_new_asset.html">Importing a New Asset</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../../source/how-to/write_articulation_cfg.html">Writing an Asset Configuration</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../../source/how-to/make_fixed_prim.html">Making a physics prim fixed in the simulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/how-to/multi_asset_spawning.html">Spawning Multiple Assets</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../../source/how-to/save_camera_output.html">Saving rendered images and 3D re-projection</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../../source/how-to/estimate_how_many_cameras_can_run.html">Find How Many/What Cameras You Should Train With</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../../source/how-to/draw_markers.html">Creating Visualization Markers</a></li>
@@ -661,6 +662,18 @@ document.write(`
 <span class="sd">            If True, clones are independent copies of the source prim and won&#39;t reflect its changes (start-up time</span>
 <span class="sd">            may increase). Defaults to False.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># check if user spawned different assets in individual environments</span>
+        <span class="c1"># this flag will be None if no multi asset is spawned</span>
+        <span class="n">carb_settings_iface</span> <span class="o">=</span> <span class="n">carb</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">get_settings</span><span class="p">()</span>
+        <span class="n">has_multi_assets</span> <span class="o">=</span> <span class="n">carb_settings_iface</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;/isaaclab/spawn/multi_assets&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">has_multi_assets</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">replicate_physics</span><span class="p">:</span>
+            <span class="n">carb</span><span class="o">.</span><span class="n">log_warn</span><span class="p">(</span>
+                <span class="s2">&quot;Varying assets might have been spawned under different environments.&quot;</span>
+                <span class="s2">&quot; However, the replicate physics flag is enabled in the &#39;InteractiveScene&#39; configuration.&quot;</span>
+                <span class="s2">&quot; This may adversely affect PhysX parsing. We recommend disabling this property.&quot;</span>
+            <span class="p">)</span>
+
+        <span class="c1"># clone the environment</span>
         <span class="n">env_origins</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cloner</span><span class="o">.</span><span class="n">clone</span><span class="p">(</span>
             <span class="n">source_prim_path</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">env_prim_paths</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
             <span class="n">prim_paths</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">env_prim_paths</span><span class="p">,</span>
@@ -682,9 +695,6 @@ document.write(`
 <span class="sd">            global_prim_paths: A list of global prim paths to enable collisions with.</span>
 <span class="sd">                Defaults to None, in which case no global prim paths are considered.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># obtain the current physics scene</span>
-        <span class="n">physics_scene_prim_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">physics_scene_path</span>
-
         <span class="c1"># validate paths in global prim paths</span>
         <span class="k">if</span> <span class="n">global_prim_paths</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">global_prim_paths</span> <span class="o">=</span> <span class="p">[]</span>
@@ -698,7 +708,7 @@ document.write(`
 
         <span class="c1"># filter collisions within each environment instance</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">cloner</span><span class="o">.</span><span class="n">filter_collisions</span><span class="p">(</span>
-            <span class="n">physics_scene_prim_path</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">physics_scene_path</span><span class="p">,</span>
             <span class="s2">&quot;/World/collisions&quot;</span><span class="p">,</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">env_prim_paths</span><span class="p">,</span>
             <span class="n">global_paths</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_global_prim_paths</span><span class="p">,</span>
@@ -719,14 +729,16 @@ document.write(`
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">physics_scene_path</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Search the stage for the physics scene&quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">physics_scene_path</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The path to the USD Physics Scene.&quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_physics_scene_path</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">for</span> <span class="n">prim</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">stage</span><span class="o">.</span><span class="n">Traverse</span><span class="p">():</span>
                 <span class="k">if</span> <span class="n">prim</span><span class="o">.</span><span class="n">HasAPI</span><span class="p">(</span><span class="n">PhysxSchema</span><span class="o">.</span><span class="n">PhysxSceneAPI</span><span class="p">):</span>
-                    <span class="bp">self</span><span class="o">.</span><span class="n">_physics_scene_path</span> <span class="o">=</span> <span class="n">prim</span><span class="o">.</span><span class="n">GetPrimPath</span><span class="p">()</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_physics_scene_path</span> <span class="o">=</span> <span class="n">prim</span><span class="o">.</span><span class="n">GetPrimPath</span><span class="p">()</span><span class="o">.</span><span class="n">pathString</span>
                     <span class="n">carb</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Physics scene prim path: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_physics_scene_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
                     <span class="k">break</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_physics_scene_path</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;No physics scene found! Please make sure one exists.&quot;</span><span class="p">)</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_physics_scene_path</span>
 
     <span class="nd">@property</span>

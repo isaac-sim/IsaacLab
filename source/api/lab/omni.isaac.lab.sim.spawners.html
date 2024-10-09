@@ -280,6 +280,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/import_new_asset.html">Importing a New Asset</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/write_articulation_cfg.html">Writing an Asset Configuration</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/make_fixed_prim.html">Making a physics prim fixed in the simulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/multi_asset_spawning.html">Spawning Multiple Assets</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/save_camera_output.html">Saving rendered images and 3D re-projection</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/estimate_how_many_cameras_can_run.html">Find How Many/What Cameras You Should Train With</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../how-to/draw_markers.html">Creating Visualization Markers</a></li>
@@ -1065,6 +1066,44 @@ document.write(`
 </li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-omni.isaac.lab.sim.spawners.wrappers">Wrappers</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.spawn_multi_asset"><code class="docutils literal notranslate"><span class="pre">spawn_multi_asset()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg"><code class="docutils literal notranslate"><span class="pre">MultiAssetSpawnerCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.assets_cfg"><code class="docutils literal notranslate"><span class="pre">MultiAssetSpawnerCfg.assets_cfg</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.random_choice"><code class="docutils literal notranslate"><span class="pre">MultiAssetSpawnerCfg.random_choice</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.visible"><code class="docutils literal notranslate"><span class="pre">MultiAssetSpawnerCfg.visible</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.semantic_tags"><code class="docutils literal notranslate"><span class="pre">MultiAssetSpawnerCfg.semantic_tags</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.copy_from_source"><code class="docutils literal notranslate"><span class="pre">MultiAssetSpawnerCfg.copy_from_source</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.mass_props"><code class="docutils literal notranslate"><span class="pre">MultiAssetSpawnerCfg.mass_props</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.deformable_props"><code class="docutils literal notranslate"><span class="pre">MultiAssetSpawnerCfg.deformable_props</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.rigid_props"><code class="docutils literal notranslate"><span class="pre">MultiAssetSpawnerCfg.rigid_props</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.collision_props"><code class="docutils literal notranslate"><span class="pre">MultiAssetSpawnerCfg.collision_props</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.activate_contact_sensors"><code class="docutils literal notranslate"><span class="pre">MultiAssetSpawnerCfg.activate_contact_sensors</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.spawn_multi_usd_file"><code class="docutils literal notranslate"><span class="pre">spawn_multi_usd_file()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg"><code class="docutils literal notranslate"><span class="pre">MultiUsdFileCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.visible"><code class="docutils literal notranslate"><span class="pre">MultiUsdFileCfg.visible</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.semantic_tags"><code class="docutils literal notranslate"><span class="pre">MultiUsdFileCfg.semantic_tags</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.copy_from_source"><code class="docutils literal notranslate"><span class="pre">MultiUsdFileCfg.copy_from_source</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.mass_props"><code class="docutils literal notranslate"><span class="pre">MultiUsdFileCfg.mass_props</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.deformable_props"><code class="docutils literal notranslate"><span class="pre">MultiUsdFileCfg.deformable_props</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.rigid_props"><code class="docutils literal notranslate"><span class="pre">MultiUsdFileCfg.rigid_props</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.collision_props"><code class="docutils literal notranslate"><span class="pre">MultiUsdFileCfg.collision_props</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.activate_contact_sensors"><code class="docutils literal notranslate"><span class="pre">MultiUsdFileCfg.activate_contact_sensors</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.scale"><code class="docutils literal notranslate"><span class="pre">MultiUsdFileCfg.scale</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.articulation_props"><code class="docutils literal notranslate"><span class="pre">MultiUsdFileCfg.articulation_props</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.fixed_tendons_props"><code class="docutils literal notranslate"><span class="pre">MultiUsdFileCfg.fixed_tendons_props</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.joint_drive_props"><code class="docutils literal notranslate"><span class="pre">MultiUsdFileCfg.joint_drive_props</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.visual_material_path"><code class="docutils literal notranslate"><span class="pre">MultiUsdFileCfg.visual_material_path</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.visual_material"><code class="docutils literal notranslate"><span class="pre">MultiUsdFileCfg.visual_material</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.variants"><code class="docutils literal notranslate"><span class="pre">MultiUsdFileCfg.variants</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.usd_path"><code class="docutils literal notranslate"><span class="pre">MultiUsdFileCfg.usd_path</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.random_choice"><code class="docutils literal notranslate"><span class="pre">MultiUsdFileCfg.random_choice</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
 </ul>
             </nav>
         </div>
@@ -1143,6 +1182,9 @@ only if the parent prim <code class="docutils literal notranslate"><span class="
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#module-omni.isaac.lab.sim.spawners.materials" title="omni.isaac.lab.sim.spawners.materials"><code class="xref py py-obj docutils literal notranslate"><span class="pre">materials</span></code></a></p></td>
 <td><p>Sub-module for spawners that spawn USD-based and PhysX-based materials.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#module-omni.isaac.lab.sim.spawners.wrappers" title="omni.isaac.lab.sim.spawners.wrappers"><code class="xref py py-obj docutils literal notranslate"><span class="pre">wrappers</span></code></a></p></td>
+<td><p>Sub-module for wrapping spawner configurations.</p></td>
 </tr>
 </tbody>
 </table>
@@ -1231,10 +1273,6 @@ spawned asset in the class avocado and the color green, the semantic tags would 
 <dd><p>Whether to copy the asset from the source prim or inherit it. Defaults to True.</p>
 <p>This parameter is only used when cloning prims. If False, then the asset will be inherited from
 the source prim, i.e. all USD changes to the source prim will be reflected in the cloned prims.</p>
-<div class="versionadded">
-<p><span class="versionmodified added">New in version 2023.1: </span>This parameter is only supported from Isaac Sim 2023.1 onwards. If you are using an older
-version of Isaac Sim, this parameter will be ignored.</p>
-</div>
 </dd></dl>
 
 </dd></dl>
@@ -1311,10 +1349,6 @@ spawned asset in the class avocado and the color green, the semantic tags would 
 <dd><p>Whether to copy the asset from the source prim or inherit it. Defaults to True.</p>
 <p>This parameter is only used when cloning prims. If False, then the asset will be inherited from
 the source prim, i.e. all USD changes to the source prim will be reflected in the cloned prims.</p>
-<div class="versionadded">
-<p><span class="versionmodified added">New in version 2023.1: </span>This parameter is only supported from Isaac Sim 2023.1 onwards. If you are using an older
-version of Isaac Sim, this parameter will be ignored.</p>
-</div>
 </dd></dl>
 
 <dl class="py attribute">
@@ -1404,10 +1438,6 @@ spawned asset in the class avocado and the color green, the semantic tags would 
 <dd><p>Whether to copy the asset from the source prim or inherit it. Defaults to True.</p>
 <p>This parameter is only used when cloning prims. If False, then the asset will be inherited from
 the source prim, i.e. all USD changes to the source prim will be reflected in the cloned prims.</p>
-<div class="versionadded">
-<p><span class="versionmodified added">New in version 2023.1: </span>This parameter is only supported from Isaac Sim 2023.1 onwards. If you are using an older
-version of Isaac Sim, this parameter will be ignored.</p>
-</div>
 </dd></dl>
 
 <dl class="py attribute">
@@ -1547,10 +1577,6 @@ spawned asset in the class avocado and the color green, the semantic tags would 
 <dd><p>Whether to copy the asset from the source prim or inherit it. Defaults to True.</p>
 <p>This parameter is only used when cloning prims. If False, then the asset will be inherited from
 the source prim, i.e. all USD changes to the source prim will be reflected in the cloned prims.</p>
-<div class="versionadded">
-<p><span class="versionmodified added">New in version 2023.1: </span>This parameter is only supported from Isaac Sim 2023.1 onwards. If you are using an older
-version of Isaac Sim, this parameter will be ignored.</p>
-</div>
 </dd></dl>
 
 <dl class="py attribute">
@@ -1665,10 +1691,6 @@ spawned asset in the class avocado and the color green, the semantic tags would 
 <dd><p>Whether to copy the asset from the source prim or inherit it. Defaults to True.</p>
 <p>This parameter is only used when cloning prims. If False, then the asset will be inherited from
 the source prim, i.e. all USD changes to the source prim will be reflected in the cloned prims.</p>
-<div class="versionadded">
-<p><span class="versionmodified added">New in version 2023.1: </span>This parameter is only supported from Isaac Sim 2023.1 onwards. If you are using an older
-version of Isaac Sim, this parameter will be ignored.</p>
-</div>
 </dd></dl>
 
 <dl class="py attribute">
@@ -1837,10 +1859,6 @@ spawned asset in the class avocado and the color green, the semantic tags would 
 <dd><p>Whether to copy the asset from the source prim or inherit it. Defaults to True.</p>
 <p>This parameter is only used when cloning prims. If False, then the asset will be inherited from
 the source prim, i.e. all USD changes to the source prim will be reflected in the cloned prims.</p>
-<div class="versionadded">
-<p><span class="versionmodified added">New in version 2023.1: </span>This parameter is only supported from Isaac Sim 2023.1 onwards. If you are using an older
-version of Isaac Sim, this parameter will be ignored.</p>
-</div>
 </dd></dl>
 
 <dl class="py attribute">
@@ -2014,10 +2032,6 @@ spawned asset in the class avocado and the color green, the semantic tags would 
 <dd><p>Whether to copy the asset from the source prim or inherit it. Defaults to True.</p>
 <p>This parameter is only used when cloning prims. If False, then the asset will be inherited from
 the source prim, i.e. all USD changes to the source prim will be reflected in the cloned prims.</p>
-<div class="versionadded">
-<p><span class="versionmodified added">New in version 2023.1: </span>This parameter is only supported from Isaac Sim 2023.1 onwards. If you are using an older
-version of Isaac Sim, this parameter will be ignored.</p>
-</div>
 </dd></dl>
 
 <dl class="py attribute">
@@ -2186,10 +2200,6 @@ spawned asset in the class avocado and the color green, the semantic tags would 
 <dd><p>Whether to copy the asset from the source prim or inherit it. Defaults to True.</p>
 <p>This parameter is only used when cloning prims. If False, then the asset will be inherited from
 the source prim, i.e. all USD changes to the source prim will be reflected in the cloned prims.</p>
-<div class="versionadded">
-<p><span class="versionmodified added">New in version 2023.1: </span>This parameter is only supported from Isaac Sim 2023.1 onwards. If you are using an older
-version of Isaac Sim, this parameter will be ignored.</p>
-</div>
 </dd></dl>
 
 <dl class="py attribute">
@@ -2340,10 +2350,6 @@ spawned asset in the class avocado and the color green, the semantic tags would 
 <dd><p>Whether to copy the asset from the source prim or inherit it. Defaults to True.</p>
 <p>This parameter is only used when cloning prims. If False, then the asset will be inherited from
 the source prim, i.e. all USD changes to the source prim will be reflected in the cloned prims.</p>
-<div class="versionadded">
-<p><span class="versionmodified added">New in version 2023.1: </span>This parameter is only supported from Isaac Sim 2023.1 onwards. If you are using an older
-version of Isaac Sim, this parameter will be ignored.</p>
-</div>
 </dd></dl>
 
 <dl class="py attribute">
@@ -2555,10 +2561,6 @@ spawned asset in the class avocado and the color green, the semantic tags would 
 <dd><p>Whether to copy the asset from the source prim or inherit it. Defaults to True.</p>
 <p>This parameter is only used when cloning prims. If False, then the asset will be inherited from
 the source prim, i.e. all USD changes to the source prim will be reflected in the cloned prims.</p>
-<div class="versionadded">
-<p><span class="versionmodified added">New in version 2023.1: </span>This parameter is only supported from Isaac Sim 2023.1 onwards. If you are using an older
-version of Isaac Sim, this parameter will be ignored.</p>
-</div>
 </dd></dl>
 
 <dl class="py attribute">
@@ -2678,10 +2680,6 @@ spawned asset in the class avocado and the color green, the semantic tags would 
 <dd><p>Whether to copy the asset from the source prim or inherit it. Defaults to True.</p>
 <p>This parameter is only used when cloning prims. If False, then the asset will be inherited from
 the source prim, i.e. all USD changes to the source prim will be reflected in the cloned prims.</p>
-<div class="versionadded">
-<p><span class="versionmodified added">New in version 2023.1: </span>This parameter is only supported from Isaac Sim 2023.1 onwards. If you are using an older
-version of Isaac Sim, this parameter will be ignored.</p>
-</div>
 </dd></dl>
 
 <dl class="py attribute">
@@ -2855,10 +2853,6 @@ spawned asset in the class avocado and the color green, the semantic tags would 
 <dd><p>Whether to copy the asset from the source prim or inherit it. Defaults to True.</p>
 <p>This parameter is only used when cloning prims. If False, then the asset will be inherited from
 the source prim, i.e. all USD changes to the source prim will be reflected in the cloned prims.</p>
-<div class="versionadded">
-<p><span class="versionmodified added">New in version 2023.1: </span>This parameter is only supported from Isaac Sim 2023.1 onwards. If you are using an older
-version of Isaac Sim, this parameter will be ignored.</p>
-</div>
 </dd></dl>
 
 <dl class="py attribute">
@@ -3032,10 +3026,6 @@ spawned asset in the class avocado and the color green, the semantic tags would 
 <dd><p>Whether to copy the asset from the source prim or inherit it. Defaults to True.</p>
 <p>This parameter is only used when cloning prims. If False, then the asset will be inherited from
 the source prim, i.e. all USD changes to the source prim will be reflected in the cloned prims.</p>
-<div class="versionadded">
-<p><span class="versionmodified added">New in version 2023.1: </span>This parameter is only supported from Isaac Sim 2023.1 onwards. If you are using an older
-version of Isaac Sim, this parameter will be ignored.</p>
-</div>
 </dd></dl>
 
 <dl class="py attribute">
@@ -3209,10 +3199,6 @@ spawned asset in the class avocado and the color green, the semantic tags would 
 <dd><p>Whether to copy the asset from the source prim or inherit it. Defaults to True.</p>
 <p>This parameter is only used when cloning prims. If False, then the asset will be inherited from
 the source prim, i.e. all USD changes to the source prim will be reflected in the cloned prims.</p>
-<div class="versionadded">
-<p><span class="versionmodified added">New in version 2023.1: </span>This parameter is only supported from Isaac Sim 2023.1 onwards. If you are using an older
-version of Isaac Sim, this parameter will be ignored.</p>
-</div>
 </dd></dl>
 
 <dl class="py attribute">
@@ -3368,10 +3354,6 @@ spawned asset in the class avocado and the color green, the semantic tags would 
 <dd><p>Whether to copy the asset from the source prim or inherit it. Defaults to True.</p>
 <p>This parameter is only used when cloning prims. If False, then the asset will be inherited from
 the source prim, i.e. all USD changes to the source prim will be reflected in the cloned prims.</p>
-<div class="versionadded">
-<p><span class="versionmodified added">New in version 2023.1: </span>This parameter is only supported from Isaac Sim 2023.1 onwards. If you are using an older
-version of Isaac Sim, this parameter will be ignored.</p>
-</div>
 </dd></dl>
 
 <dl class="py attribute">
@@ -3622,10 +3604,6 @@ spawned asset in the class avocado and the color green, the semantic tags would 
 <dd><p>Whether to copy the asset from the source prim or inherit it. Defaults to True.</p>
 <p>This parameter is only used when cloning prims. If False, then the asset will be inherited from
 the source prim, i.e. all USD changes to the source prim will be reflected in the cloned prims.</p>
-<div class="versionadded">
-<p><span class="versionmodified added">New in version 2023.1: </span>This parameter is only supported from Isaac Sim 2023.1 onwards. If you are using an older
-version of Isaac Sim, this parameter will be ignored.</p>
-</div>
 </dd></dl>
 
 </dd></dl>
@@ -3686,10 +3664,6 @@ spawned asset in the class avocado and the color green, the semantic tags would 
 <dd><p>Whether to copy the asset from the source prim or inherit it. Defaults to True.</p>
 <p>This parameter is only used when cloning prims. If False, then the asset will be inherited from
 the source prim, i.e. all USD changes to the source prim will be reflected in the cloned prims.</p>
-<div class="versionadded">
-<p><span class="versionmodified added">New in version 2023.1: </span>This parameter is only supported from Isaac Sim 2023.1 onwards. If you are using an older
-version of Isaac Sim, this parameter will be ignored.</p>
-</div>
 </dd></dl>
 
 <dl class="py attribute">
@@ -3826,10 +3800,6 @@ spawned asset in the class avocado and the color green, the semantic tags would 
 <dd><p>Whether to copy the asset from the source prim or inherit it. Defaults to True.</p>
 <p>This parameter is only used when cloning prims. If False, then the asset will be inherited from
 the source prim, i.e. all USD changes to the source prim will be reflected in the cloned prims.</p>
-<div class="versionadded">
-<p><span class="versionmodified added">New in version 2023.1: </span>This parameter is only supported from Isaac Sim 2023.1 onwards. If you are using an older
-version of Isaac Sim, this parameter will be ignored.</p>
-</div>
 </dd></dl>
 
 <dl class="py attribute">
@@ -3944,10 +3914,6 @@ spawned asset in the class avocado and the color green, the semantic tags would 
 <dd><p>Whether to copy the asset from the source prim or inherit it. Defaults to True.</p>
 <p>This parameter is only used when cloning prims. If False, then the asset will be inherited from
 the source prim, i.e. all USD changes to the source prim will be reflected in the cloned prims.</p>
-<div class="versionadded">
-<p><span class="versionmodified added">New in version 2023.1: </span>This parameter is only supported from Isaac Sim 2023.1 onwards. If you are using an older
-version of Isaac Sim, this parameter will be ignored.</p>
-</div>
 </dd></dl>
 
 <dl class="py attribute">
@@ -4068,10 +4034,6 @@ spawned asset in the class avocado and the color green, the semantic tags would 
 <dd><p>Whether to copy the asset from the source prim or inherit it. Defaults to True.</p>
 <p>This parameter is only used when cloning prims. If False, then the asset will be inherited from
 the source prim, i.e. all USD changes to the source prim will be reflected in the cloned prims.</p>
-<div class="versionadded">
-<p><span class="versionmodified added">New in version 2023.1: </span>This parameter is only supported from Isaac Sim 2023.1 onwards. If you are using an older
-version of Isaac Sim, this parameter will be ignored.</p>
-</div>
 </dd></dl>
 
 <dl class="py attribute">
@@ -4196,10 +4158,6 @@ spawned asset in the class avocado and the color green, the semantic tags would 
 <dd><p>Whether to copy the asset from the source prim or inherit it. Defaults to True.</p>
 <p>This parameter is only used when cloning prims. If False, then the asset will be inherited from
 the source prim, i.e. all USD changes to the source prim will be reflected in the cloned prims.</p>
-<div class="versionadded">
-<p><span class="versionmodified added">New in version 2023.1: </span>This parameter is only supported from Isaac Sim 2023.1 onwards. If you are using an older
-version of Isaac Sim, this parameter will be ignored.</p>
-</div>
 </dd></dl>
 
 <dl class="py attribute">
@@ -4526,10 +4484,6 @@ spawned asset in the class avocado and the color green, the semantic tags would 
 <dd><p>Whether to copy the asset from the source prim or inherit it. Defaults to True.</p>
 <p>This parameter is only used when cloning prims. If False, then the asset will be inherited from
 the source prim, i.e. all USD changes to the source prim will be reflected in the cloned prims.</p>
-<div class="versionadded">
-<p><span class="versionmodified added">New in version 2023.1: </span>This parameter is only supported from Isaac Sim 2023.1 onwards. If you are using an older
-version of Isaac Sim, this parameter will be ignored.</p>
-</div>
 </dd></dl>
 
 </dd></dl>
@@ -4631,10 +4585,6 @@ spawned asset in the class avocado and the color green, the semantic tags would 
 <dd><p>Whether to copy the asset from the source prim or inherit it. Defaults to True.</p>
 <p>This parameter is only used when cloning prims. If False, then the asset will be inherited from
 the source prim, i.e. all USD changes to the source prim will be reflected in the cloned prims.</p>
-<div class="versionadded">
-<p><span class="versionmodified added">New in version 2023.1: </span>This parameter is only supported from Isaac Sim 2023.1 onwards. If you are using an older
-version of Isaac Sim, this parameter will be ignored.</p>
-</div>
 </dd></dl>
 
 <dl class="py attribute">
@@ -4997,10 +4947,6 @@ spawned asset in the class avocado and the color green, the semantic tags would 
 <dd><p>Whether to copy the asset from the source prim or inherit it. Defaults to True.</p>
 <p>This parameter is only used when cloning prims. If False, then the asset will be inherited from
 the source prim, i.e. all USD changes to the source prim will be reflected in the cloned prims.</p>
-<div class="versionadded">
-<p><span class="versionmodified added">New in version 2023.1: </span>This parameter is only supported from Isaac Sim 2023.1 onwards. If you are using an older
-version of Isaac Sim, this parameter will be ignored.</p>
-</div>
 </dd></dl>
 
 <dl class="py attribute">
@@ -5197,10 +5143,6 @@ spawned asset in the class avocado and the color green, the semantic tags would 
 <dd><p>Whether to copy the asset from the source prim or inherit it. Defaults to True.</p>
 <p>This parameter is only used when cloning prims. If False, then the asset will be inherited from
 the source prim, i.e. all USD changes to the source prim will be reflected in the cloned prims.</p>
-<div class="versionadded">
-<p><span class="versionmodified added">New in version 2023.1: </span>This parameter is only supported from Isaac Sim 2023.1 onwards. If you are using an older
-version of Isaac Sim, this parameter will be ignored.</p>
-</div>
 </dd></dl>
 
 <dl class="py attribute">
@@ -5365,10 +5307,6 @@ spawned asset in the class avocado and the color green, the semantic tags would 
 <dd><p>Whether to copy the asset from the source prim or inherit it. Defaults to True.</p>
 <p>This parameter is only used when cloning prims. If False, then the asset will be inherited from
 the source prim, i.e. all USD changes to the source prim will be reflected in the cloned prims.</p>
-<div class="versionadded">
-<p><span class="versionmodified added">New in version 2023.1: </span>This parameter is only supported from Isaac Sim 2023.1 onwards. If you are using an older
-version of Isaac Sim, this parameter will be ignored.</p>
-</div>
 </dd></dl>
 
 <dl class="py attribute">
@@ -5980,6 +5918,329 @@ to special effects that look similar to water filled soft bodies.</p>
 
 </section>
 </section>
+<section id="module-omni.isaac.lab.sim.spawners.wrappers">
+<span id="wrappers"></span><h2>Wrappers<a class="headerlink" href="#module-omni.isaac.lab.sim.spawners.wrappers" title="Permalink to this heading">#</a></h2>
+<p>Sub-module for wrapping spawner configurations.</p>
+<p>Unlike the other spawner modules, this module provides a way to wrap multiple spawner configurations
+into a single configuration. This is useful when the user wants to spawn multiple assets based on
+different configurations.</p>
+<p class="rubric">Classes</p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg" title="omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">MultiAssetSpawnerCfg</span></code></a></p></td>
+<td><p>Configuration parameters for loading multiple assets from their individual configurations.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg" title="omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">MultiUsdFileCfg</span></code></a></p></td>
+<td><p>Configuration parameters for loading multiple USD files.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py function">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.spawners.wrappers.spawn_multi_asset">
+<span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.sim.spawners.wrappers.</span></span><span class="sig-name descname"><span class="pre">spawn_multi_asset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">prim_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg" title="omni.isaac.lab.sim.spawners.wrappers.wrappers_cfg.MultiAssetSpawnerCfg"><span class="pre">wrappers_cfg.MultiAssetSpawnerCfg</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">translation</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">orientation</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Usd.Prim</span></span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/sim/spawners/wrappers/wrappers.html#spawn_multi_asset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.sim.spawners.wrappers.spawn_multi_asset" title="Permalink to this definition">#</a></dt>
+<dd><p>Spawn multiple assets based on the provided configurations.</p>
+<p>This function spawns multiple assets based on the provided configurations. The assets are spawned
+in the order they are provided in the list. If the <a class="reference internal" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.random_choice" title="omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.random_choice"><code class="xref py py-attr docutils literal notranslate"><span class="pre">random_choice</span></code></a> parameter is
+set to True, a random asset configuration is selected for each spawn.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>prim_path</strong> – The prim path to spawn the assets.</p></li>
+<li><p><strong>cfg</strong> – The configuration for spawning the assets.</p></li>
+<li><p><strong>translation</strong> – The translation of the spawned assets. Default is None.</p></li>
+<li><p><strong>orientation</strong> – The orientation of the spawned assets in (w, x, y, z) order. Default is None.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The created prim at the first prim path.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.sim.spawners.wrappers.</span></span><span class="sig-name descname"><span class="pre">MultiAssetSpawnerCfg</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/sim/spawners/wrappers/wrappers_cfg.html#MultiAssetSpawnerCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg" title="Permalink to this definition">#</a></dt>
+<dd><p>Configuration parameters for loading multiple assets from their individual configurations.</p>
+<p>Specifying values for any properties at the configuration level will override the settings of
+individual assets’ configuration. For instance if the attribute
+<a class="reference internal" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.mass_props" title="omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.mass_props"><code class="xref py py-attr docutils literal notranslate"><span class="pre">MultiAssetSpawnerCfg.mass_props</span></code></a> is specified, its value will overwrite the values of the
+mass properties in each configuration inside <a class="reference internal" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.assets_cfg" title="omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.assets_cfg"><code class="xref py py-attr docutils literal notranslate"><span class="pre">assets_cfg</span></code></a> (wherever applicable).
+This is done to simplify configuring similar properties globally. By default, all properties are set to None.</p>
+<p>The following is an exception to the above:</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.visible" title="omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.visible"><code class="xref py py-attr docutils literal notranslate"><span class="pre">visible</span></code></a>: This parameter is ignored. Its value for the individual assets is used.</p></li>
+<li><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.semantic_tags" title="omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.semantic_tags"><code class="xref py py-attr docutils literal notranslate"><span class="pre">semantic_tags</span></code></a>: If specified, it will be appended to each individual asset’s semantic tags.</p></li>
+</ul>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.assets_cfg" title="omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.assets_cfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">assets_cfg</span></code></a></p></td>
+<td><p>List of asset configurations to spawn.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.random_choice" title="omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.random_choice"><code class="xref py py-obj docutils literal notranslate"><span class="pre">random_choice</span></code></a></p></td>
+<td><p>Whether to randomly select an asset configuration.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.assets_cfg">
+<span class="sig-name descname"><span class="pre">assets_cfg</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#omni.isaac.lab.sim.spawners.SpawnerCfg" title="omni.isaac.lab.sim.spawners.spawner_cfg.SpawnerCfg"><span class="pre">omni.isaac.lab.sim.spawners.spawner_cfg.SpawnerCfg</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.assets_cfg" title="Permalink to this definition">#</a></dt>
+<dd><p>List of asset configurations to spawn.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.random_choice">
+<span class="sig-name descname"><span class="pre">random_choice</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.random_choice" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether to randomly select an asset configuration. Default is True.</p>
+<p>If False, the asset configurations are spawned in the order they are provided in the list.
+If True, a random asset configuration is selected for each spawn.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.visible">
+<span class="sig-name descname"><span class="pre">visible</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.visible" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether the spawned asset should be visible. Defaults to True.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.semantic_tags">
+<span class="sig-name descname"><span class="pre">semantic_tags</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.semantic_tags" title="Permalink to this definition">#</a></dt>
+<dd><p>List of semantic tags to add to the spawned asset. Defaults to None,
+which means no semantic tags will be added.</p>
+<p>The semantic tags follow the <cite>Replicator Semantic</cite> tagging system. Each tag is a tuple of the
+form <code class="docutils literal notranslate"><span class="pre">(type,</span> <span class="pre">data)</span></code>, where <code class="docutils literal notranslate"><span class="pre">type</span></code> is the type of the tag and <code class="docutils literal notranslate"><span class="pre">data</span></code> is the semantic label
+associated with the tag. For example, to annotate a spawned asset in the class avocado, the semantic
+tag would be <code class="docutils literal notranslate"><span class="pre">[(&quot;class&quot;,</span> <span class="pre">&quot;avocado&quot;)]</span></code>.</p>
+<p>You can specify multiple semantic tags by passing in a list of tags. For example, to annotate a
+spawned asset in the class avocado and the color green, the semantic tags would be
+<code class="docutils literal notranslate"><span class="pre">[(&quot;class&quot;,</span> <span class="pre">&quot;avocado&quot;),</span> <span class="pre">(&quot;color&quot;,</span> <span class="pre">&quot;green&quot;)]</span></code>.</p>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p>For more information on the semantics filter, see the documentation for the <a class="reference external" href="https://docs.omniverse.nvidia.com/extensions/latest/ext_replicator/semantics_schema_editor.html#semantics-filtering">semantics schema editor</a>.</p>
+</div>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.copy_from_source">
+<span class="sig-name descname"><span class="pre">copy_from_source</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.copy_from_source" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether to copy the asset from the source prim or inherit it. Defaults to True.</p>
+<p>This parameter is only used when cloning prims. If False, then the asset will be inherited from
+the source prim, i.e. all USD changes to the source prim will be reflected in the cloned prims.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.mass_props">
+<span class="sig-name descname"><span class="pre">mass_props</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.MassPropertiesCfg" title="omni.isaac.lab.sim.schemas.MassPropertiesCfg"><span class="pre">schemas.MassPropertiesCfg</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.mass_props" title="Permalink to this definition">#</a></dt>
+<dd><p>Mass properties.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.deformable_props">
+<span class="sig-name descname"><span class="pre">deformable_props</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg" title="omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg"><span class="pre">schemas.DeformableBodyPropertiesCfg</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.deformable_props" title="Permalink to this definition">#</a></dt>
+<dd><p>Deformable body properties.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.rigid_props">
+<span class="sig-name descname"><span class="pre">rigid_props</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.RigidBodyPropertiesCfg" title="omni.isaac.lab.sim.schemas.RigidBodyPropertiesCfg"><span class="pre">schemas.RigidBodyPropertiesCfg</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.rigid_props" title="Permalink to this definition">#</a></dt>
+<dd><p>Rigid body properties.</p>
+<p>For making a rigid object static, set the <code class="xref py py-attr docutils literal notranslate"><span class="pre">schemas.RigidBodyPropertiesCfg.kinematic_enabled</span></code>
+as True. This will make the object static and will not be affected by gravity or other forces.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.collision_props">
+<span class="sig-name descname"><span class="pre">collision_props</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.CollisionPropertiesCfg" title="omni.isaac.lab.sim.schemas.CollisionPropertiesCfg"><span class="pre">schemas.CollisionPropertiesCfg</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.collision_props" title="Permalink to this definition">#</a></dt>
+<dd><p>Properties to apply to all collision meshes.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.activate_contact_sensors">
+<span class="sig-name descname"><span class="pre">activate_contact_sensors</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.activate_contact_sensors" title="Permalink to this definition">#</a></dt>
+<dd><p>Activate contact reporting on all rigid bodies. Defaults to False.</p>
+<p>This adds the PhysxContactReporter API to all the rigid bodies in the given prim path and its children.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.spawners.wrappers.spawn_multi_usd_file">
+<span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.sim.spawners.wrappers.</span></span><span class="sig-name descname"><span class="pre">spawn_multi_usd_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">prim_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg" title="omni.isaac.lab.sim.spawners.wrappers.wrappers_cfg.MultiUsdFileCfg"><span class="pre">wrappers_cfg.MultiUsdFileCfg</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">translation</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">orientation</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Usd.Prim</span></span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/sim/spawners/wrappers/wrappers.html#spawn_multi_usd_file"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.sim.spawners.wrappers.spawn_multi_usd_file" title="Permalink to this definition">#</a></dt>
+<dd><p>Spawn multiple USD files based on the provided configurations.</p>
+<p>This function creates configuration instances corresponding the individual USD files and
+calls the <a class="reference internal" href="#omni.isaac.lab.sim.spawners.wrappers.spawn_multi_asset" title="omni.isaac.lab.sim.spawners.wrappers.spawn_multi_asset"><code class="xref py py-meth docutils literal notranslate"><span class="pre">spawn_multi_asset()</span></code></a> method to spawn them into the scene.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>prim_path</strong> – The prim path to spawn the assets.</p></li>
+<li><p><strong>cfg</strong> – The configuration for spawning the assets.</p></li>
+<li><p><strong>translation</strong> – The translation of the spawned assets. Default is None.</p></li>
+<li><p><strong>orientation</strong> – The orientation of the spawned assets in (w, x, y, z) order. Default is None.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The created prim at the first prim path.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.sim.spawners.wrappers.</span></span><span class="sig-name descname"><span class="pre">MultiUsdFileCfg</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/sim/spawners/wrappers/wrappers_cfg.html#MultiUsdFileCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg" title="Permalink to this definition">#</a></dt>
+<dd><p>Configuration parameters for loading multiple USD files.</p>
+<p>Specifying values for any properties at the configuration level is applied to all the assets
+imported from their USD files.</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>It is recommended that all the USD based assets follow a similar prim-hierarchy.</p>
+</div>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.usd_path" title="omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.usd_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">usd_path</span></code></a></p></td>
+<td><p>Path or a list of paths to the USD files to spawn asset from.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.random_choice" title="omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.random_choice"><code class="xref py py-obj docutils literal notranslate"><span class="pre">random_choice</span></code></a></p></td>
+<td><p>Whether to randomly select an asset configuration.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.visible">
+<span class="sig-name descname"><span class="pre">visible</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.visible" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether the spawned asset should be visible. Defaults to True.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.semantic_tags">
+<span class="sig-name descname"><span class="pre">semantic_tags</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.semantic_tags" title="Permalink to this definition">#</a></dt>
+<dd><p>List of semantic tags to add to the spawned asset. Defaults to None,
+which means no semantic tags will be added.</p>
+<p>The semantic tags follow the <cite>Replicator Semantic</cite> tagging system. Each tag is a tuple of the
+form <code class="docutils literal notranslate"><span class="pre">(type,</span> <span class="pre">data)</span></code>, where <code class="docutils literal notranslate"><span class="pre">type</span></code> is the type of the tag and <code class="docutils literal notranslate"><span class="pre">data</span></code> is the semantic label
+associated with the tag. For example, to annotate a spawned asset in the class avocado, the semantic
+tag would be <code class="docutils literal notranslate"><span class="pre">[(&quot;class&quot;,</span> <span class="pre">&quot;avocado&quot;)]</span></code>.</p>
+<p>You can specify multiple semantic tags by passing in a list of tags. For example, to annotate a
+spawned asset in the class avocado and the color green, the semantic tags would be
+<code class="docutils literal notranslate"><span class="pre">[(&quot;class&quot;,</span> <span class="pre">&quot;avocado&quot;),</span> <span class="pre">(&quot;color&quot;,</span> <span class="pre">&quot;green&quot;)]</span></code>.</p>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p>For more information on the semantics filter, see the documentation for the <a class="reference external" href="https://docs.omniverse.nvidia.com/extensions/latest/ext_replicator/semantics_schema_editor.html#semantics-filtering">semantics schema editor</a>.</p>
+</div>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.copy_from_source">
+<span class="sig-name descname"><span class="pre">copy_from_source</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.copy_from_source" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether to copy the asset from the source prim or inherit it. Defaults to True.</p>
+<p>This parameter is only used when cloning prims. If False, then the asset will be inherited from
+the source prim, i.e. all USD changes to the source prim will be reflected in the cloned prims.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.mass_props">
+<span class="sig-name descname"><span class="pre">mass_props</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.MassPropertiesCfg" title="omni.isaac.lab.sim.schemas.MassPropertiesCfg"><span class="pre">schemas.MassPropertiesCfg</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.mass_props" title="Permalink to this definition">#</a></dt>
+<dd><p>Mass properties.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.deformable_props">
+<span class="sig-name descname"><span class="pre">deformable_props</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg" title="omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg"><span class="pre">schemas.DeformableBodyPropertiesCfg</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.deformable_props" title="Permalink to this definition">#</a></dt>
+<dd><p>Deformable body properties.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.rigid_props">
+<span class="sig-name descname"><span class="pre">rigid_props</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.RigidBodyPropertiesCfg" title="omni.isaac.lab.sim.schemas.RigidBodyPropertiesCfg"><span class="pre">schemas.RigidBodyPropertiesCfg</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.rigid_props" title="Permalink to this definition">#</a></dt>
+<dd><p>Rigid body properties.</p>
+<p>For making a rigid object static, set the <code class="xref py py-attr docutils literal notranslate"><span class="pre">schemas.RigidBodyPropertiesCfg.kinematic_enabled</span></code>
+as True. This will make the object static and will not be affected by gravity or other forces.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.collision_props">
+<span class="sig-name descname"><span class="pre">collision_props</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.CollisionPropertiesCfg" title="omni.isaac.lab.sim.schemas.CollisionPropertiesCfg"><span class="pre">schemas.CollisionPropertiesCfg</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.collision_props" title="Permalink to this definition">#</a></dt>
+<dd><p>Properties to apply to all collision meshes.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.activate_contact_sensors">
+<span class="sig-name descname"><span class="pre">activate_contact_sensors</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.activate_contact_sensors" title="Permalink to this definition">#</a></dt>
+<dd><p>Activate contact reporting on all rigid bodies. Defaults to False.</p>
+<p>This adds the PhysxContactReporter API to all the rigid bodies in the given prim path and its children.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.scale">
+<span class="sig-name descname"><span class="pre">scale</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.scale" title="Permalink to this definition">#</a></dt>
+<dd><p>Scale of the asset. Defaults to None, in which case the scale is not modified.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.articulation_props">
+<span class="sig-name descname"><span class="pre">articulation_props</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.ArticulationRootPropertiesCfg" title="omni.isaac.lab.sim.schemas.ArticulationRootPropertiesCfg"><span class="pre">schemas.ArticulationRootPropertiesCfg</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.articulation_props" title="Permalink to this definition">#</a></dt>
+<dd><p>Properties to apply to the articulation root.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.fixed_tendons_props">
+<span class="sig-name descname"><span class="pre">fixed_tendons_props</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">schemas.FixedTendonsPropertiesCfg</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.fixed_tendons_props" title="Permalink to this definition">#</a></dt>
+<dd><p>Properties to apply to the fixed tendons (if any).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.joint_drive_props">
+<span class="sig-name descname"><span class="pre">joint_drive_props</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.JointDrivePropertiesCfg" title="omni.isaac.lab.sim.schemas.JointDrivePropertiesCfg"><span class="pre">schemas.JointDrivePropertiesCfg</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.joint_drive_props" title="Permalink to this definition">#</a></dt>
+<dd><p>Properties to apply to a joint.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.visual_material_path">
+<span class="sig-name descname"><span class="pre">visual_material_path</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.visual_material_path" title="Permalink to this definition">#</a></dt>
+<dd><p>Path to the visual material to use for the prim. Defaults to “material”.</p>
+<p>If the path is relative, then it will be relative to the prim’s path.
+This parameter is ignored if <cite>visual_material</cite> is not None.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.visual_material">
+<span class="sig-name descname"><span class="pre">visual_material</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#omni.isaac.lab.sim.spawners.materials.VisualMaterialCfg" title="omni.isaac.lab.sim.spawners.materials.VisualMaterialCfg"><span class="pre">materials.VisualMaterialCfg</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.visual_material" title="Permalink to this definition">#</a></dt>
+<dd><p>Visual material properties to override the visual material properties in the URDF file.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If None, then no visual material will be added.</p>
+</div>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.variants">
+<span class="sig-name descname"><span class="pre">variants</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.13)"><span class="pre">object</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.variants" title="Permalink to this definition">#</a></dt>
+<dd><p>Variants to select from in the input USD file. Defaults to None, in which case no variants are applied.</p>
+<p>This can either be a configclass object, in which case each attribute is used as a variant set name and its specified value,
+or a dictionary mapping between the two. Please check the <a class="reference internal" href="omni.isaac.lab.sim.html#omni.isaac.lab.sim.utils.select_usd_variants" title="omni.isaac.lab.sim.utils.select_usd_variants"><code class="xref py py-meth docutils literal notranslate"><span class="pre">select_usd_variants()</span></code></a> function
+for more information.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.usd_path">
+<span class="sig-name descname"><span class="pre">usd_path</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.usd_path" title="Permalink to this definition">#</a></dt>
+<dd><p>Path or a list of paths to the USD files to spawn asset from.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.random_choice">
+<span class="sig-name descname"><span class="pre">random_choice</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.random_choice" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether to randomly select an asset configuration. Default is True.</p>
+<p>If False, the asset configurations are spawned in the order they are provided in the list.
+If True, a random asset configuration is selected for each spawn.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
 </section>
 
 
@@ -6530,6 +6791,44 @@ to special effects that look similar to water filled soft bodies.</p>
 <li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.materials.DeformableBodyMaterialCfg.damping_scale"><code class="docutils literal notranslate"><span class="pre">DeformableBodyMaterialCfg.damping_scale</span></code></a></li>
 </ul>
 </li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-omni.isaac.lab.sim.spawners.wrappers">Wrappers</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.spawn_multi_asset"><code class="docutils literal notranslate"><span class="pre">spawn_multi_asset()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg"><code class="docutils literal notranslate"><span class="pre">MultiAssetSpawnerCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.assets_cfg"><code class="docutils literal notranslate"><span class="pre">MultiAssetSpawnerCfg.assets_cfg</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.random_choice"><code class="docutils literal notranslate"><span class="pre">MultiAssetSpawnerCfg.random_choice</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.visible"><code class="docutils literal notranslate"><span class="pre">MultiAssetSpawnerCfg.visible</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.semantic_tags"><code class="docutils literal notranslate"><span class="pre">MultiAssetSpawnerCfg.semantic_tags</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.copy_from_source"><code class="docutils literal notranslate"><span class="pre">MultiAssetSpawnerCfg.copy_from_source</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.mass_props"><code class="docutils literal notranslate"><span class="pre">MultiAssetSpawnerCfg.mass_props</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.deformable_props"><code class="docutils literal notranslate"><span class="pre">MultiAssetSpawnerCfg.deformable_props</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.rigid_props"><code class="docutils literal notranslate"><span class="pre">MultiAssetSpawnerCfg.rigid_props</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.collision_props"><code class="docutils literal notranslate"><span class="pre">MultiAssetSpawnerCfg.collision_props</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.activate_contact_sensors"><code class="docutils literal notranslate"><span class="pre">MultiAssetSpawnerCfg.activate_contact_sensors</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.spawn_multi_usd_file"><code class="docutils literal notranslate"><span class="pre">spawn_multi_usd_file()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg"><code class="docutils literal notranslate"><span class="pre">MultiUsdFileCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.visible"><code class="docutils literal notranslate"><span class="pre">MultiUsdFileCfg.visible</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.semantic_tags"><code class="docutils literal notranslate"><span class="pre">MultiUsdFileCfg.semantic_tags</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.copy_from_source"><code class="docutils literal notranslate"><span class="pre">MultiUsdFileCfg.copy_from_source</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.mass_props"><code class="docutils literal notranslate"><span class="pre">MultiUsdFileCfg.mass_props</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.deformable_props"><code class="docutils literal notranslate"><span class="pre">MultiUsdFileCfg.deformable_props</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.rigid_props"><code class="docutils literal notranslate"><span class="pre">MultiUsdFileCfg.rigid_props</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.collision_props"><code class="docutils literal notranslate"><span class="pre">MultiUsdFileCfg.collision_props</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.activate_contact_sensors"><code class="docutils literal notranslate"><span class="pre">MultiUsdFileCfg.activate_contact_sensors</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.scale"><code class="docutils literal notranslate"><span class="pre">MultiUsdFileCfg.scale</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.articulation_props"><code class="docutils literal notranslate"><span class="pre">MultiUsdFileCfg.articulation_props</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.fixed_tendons_props"><code class="docutils literal notranslate"><span class="pre">MultiUsdFileCfg.fixed_tendons_props</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.joint_drive_props"><code class="docutils literal notranslate"><span class="pre">MultiUsdFileCfg.joint_drive_props</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.visual_material_path"><code class="docutils literal notranslate"><span class="pre">MultiUsdFileCfg.visual_material_path</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.visual_material"><code class="docutils literal notranslate"><span class="pre">MultiUsdFileCfg.visual_material</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.variants"><code class="docutils literal notranslate"><span class="pre">MultiUsdFileCfg.variants</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.usd_path"><code class="docutils literal notranslate"><span class="pre">MultiUsdFileCfg.usd_path</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.random_choice"><code class="docutils literal notranslate"><span class="pre">MultiUsdFileCfg.random_choice</span></code></a></li>
 </ul>
 </li>
 </ul>
