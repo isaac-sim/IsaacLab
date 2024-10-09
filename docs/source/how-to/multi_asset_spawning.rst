@@ -45,11 +45,11 @@ It is possible to spawn different assets and USDs in each environment using the 
      :dedent:
 
   This function allows you to define a list of different assets that can be spawned as rigid objects.
-  When :attr:`sim.spawners.wrappers.MultiAssetSpawnerCfg.random_choice` is set to True, one asset from the list
+  When :attr:`~sim.spawners.wrappers.MultiAssetSpawnerCfg.random_choice` is set to True, one asset from the list
   is randomly selected and spawned at the specified prim path.
 
 * Similarly, we set the spawn configuration in :class:`~assets.ArticulationCfg` to be
-  :class:`~sim_utils.MultiUsdFileCfg`:
+  :class:`~sim.spawners.wrappers.MultiUsdFileCfg`:
 
   .. literalinclude:: ../../../source/standalone/demos/multi_asset.py
      :language: python
