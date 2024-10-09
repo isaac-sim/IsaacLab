@@ -123,6 +123,29 @@ A few quick showroom scripts to run and checkout:
       :width: 100%
       :alt: Deformable primitive-shaped objects in Isaac Lab
 
+- Spawn multiple assets and interact with them using the same simulation handles:
+  
+  .. tab-set::
+      :sync-group: os
+
+      .. tab-item:: :icon:`fa-brands fa-linux` Linux
+         :sync: linux
+
+         .. code:: bash
+
+            ./isaaclab.sh -p source/standalone/demos/multi_asset.py
+
+      .. tab-item:: :icon:`fa-brands fa-windows` Windows
+         :sync: windows
+
+         .. code:: batch
+
+            isaaclab.bat -p source\standalone\demos\multi_asset.py
+
+   .. image:: ../_static/demos/multi_asset.jpg
+      :width: 100%
+      :alt: Multiple assets managed through the same simulation handles
+
 -  Spawn multiple markers that are useful for visualizations:
 
    .. tab-set::
