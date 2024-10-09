@@ -84,7 +84,7 @@ def main():
     # create controller
     if args_cli.teleop_device.lower() == "keyboard":
         teleop_interface = Se3Keyboard(
-            pos_sensitivity=0.05 * args_cli.sensitivity, rot_sensitivity=0.05 * args_cli.sensitivity
+            pos_sensitivity=0.05 * args_cli.sensitivity, rot_sensitivity=0.5 * args_cli.sensitivity
         )
     elif args_cli.teleop_device.lower() == "spacemouse":
         teleop_interface = Se3SpaceMouse(
@@ -104,6 +104,7 @@ def main():
     # reset environment
     env.reset()
     teleop_interface.reset()
+    counter = 0
 
     # simulate environment
     while simulation_app.is_running():
@@ -117,7 +118,12 @@ def main():
             # pre-process actions
             actions = pre_process_actions(delta_pose, gripper_command)
             # apply actions
-            env.step(actions)
+            actions[:, 2] = -0.00001
+            actions[:, 5] = -0.05
+            counter +=1
+            obs, reward, termin, timeout, _ = env.step(actions)
+            print("Step: ", counter)
+            print("Reward: ", reward, timeout)
 
     # close the simulator
     env.close()

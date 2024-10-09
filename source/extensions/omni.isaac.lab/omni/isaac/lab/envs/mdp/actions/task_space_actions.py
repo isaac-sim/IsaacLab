@@ -232,6 +232,9 @@ class RigidObjectActionTerm(ActionTerm):
         self.d_gain = cfg.d_gain
         self.initialized = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         
+        self.act_lows = torch.tensor(cfg.act_lows, device=self.device)[None]
+        self.act_highs = torch.tensor(cfg.act_highs, device=self.device)[None]
+        
     """
     Properties.
     """
@@ -343,9 +346,8 @@ class RigidObjectActionTerm(ActionTerm):
         # Rotate arm along x-axis: Z/X
         # Rotate arm along y-axis: T/G
         # Rotate arm along z-axis: C/V
-        print("------------------------------------")
-        print(actions)
-        actions[:, :3] *= 0.005
+        # print("------------------------------------")
+        # print(actions)
         # store the raw actions
         self._raw_actions[:] = actions
         # no-processing of actions
@@ -356,15 +358,17 @@ class RigidObjectActionTerm(ActionTerm):
         self.initialized[~self.initialized] = True
         # set command into controller
         self.set_command(self._processed_actions, self.obj_pos_des, self.obj_quat_des)
-        print("Current ", obj_pos_curr, obj_quat_curr)
-        print("Destination ", self.obj_pos_des, self.obj_quat_des)
+        # self.set_command(self._processed_actions, obj_pos_curr, obj_quat_curr)
+        # print("Current ", obj_pos_curr, obj_quat_curr)
+        # print("Destination ", self.obj_pos_des, self.obj_quat_des)
 
     def apply_actions(self):
         # implement a PD controller to track the target pose
         obj_pos_curr, obj_quat_curr = self._compute_frame_pose()
         pos_error, rot_error = math_utils.compute_pose_error(obj_pos_curr, obj_quat_curr,
                                                              self.obj_pos_des, self.obj_quat_des)
-                                                             
+        pos_error = torch.clamp(pos_error, self.act_lows[:, :3], self.act_highs[:, :3])
+        rot_error = torch.clamp(rot_error, self.act_lows[:, 3:], self.act_highs[:, 3:])                                                   
         pos_vel_error = -self._asset.data.root_lin_vel_w
         rot_vel_error = -self._asset.data.root_ang_vel_w
         

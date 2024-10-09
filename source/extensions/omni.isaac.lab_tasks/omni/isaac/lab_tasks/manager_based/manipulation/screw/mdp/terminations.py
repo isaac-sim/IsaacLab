@@ -1,0 +1,44 @@
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Common functions that can be used to activate certain terminations for the lift task.
+
+The functions can be passed to the :class:`omni.isaac.lab.managers.TerminationTermCfg` object to enable
+the termination introduced by the function.
+"""
+
+from __future__ import annotations
+
+import torch
+from typing import TYPE_CHECKING
+
+from omni.isaac.lab.assets import RigidObject
+from omni.isaac.lab.managers import SceneEntityCfg
+from omni.isaac.lab.utils.math import combine_frame_transforms
+from .rewards import position_error_l2
+
+if TYPE_CHECKING:
+    from omni.isaac.lab.envs import ManagerBasedRLEnv
+
+
+def nut_fully_screwed(
+    env: ManagerBasedRLEnv,
+    src_body_name: str,
+    tgt_body_name: str,
+    threshold: float = 1e-3,
+) -> torch.Tensor:
+    """Termination condition for the object reaching the goal position.
+
+    Args:
+        env: The environment.
+        command_name: The name of the command that is used to control the object.
+        threshold: The threshold for the object to reach the goal position. Defaults to 0.02.
+        robot_cfg: The robot configuration. Defaults to SceneEntityCfg("robot").
+        object_cfg: The object configuration. Defaults to SceneEntityCfg("object").
+
+    """
+    l2_dis = position_error_l2(env, src_body_name, tgt_body_name)
+    return l2_dis < threshold
+

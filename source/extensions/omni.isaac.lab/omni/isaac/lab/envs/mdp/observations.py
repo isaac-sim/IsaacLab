@@ -246,7 +246,17 @@ def last_action(env: ManagerBasedEnv, action_name: str | None = None) -> torch.T
         return env.action_manager.action
     else:
         return env.action_manager.get_term(action_name).raw_actions
+    
+def last_processed_action(env: ManagerBasedEnv, action_name: str | None = None) -> torch.Tensor:
+    """The last processed action to the environment.
 
+    The name of the action term for which the action is required. If None, the
+    entire processed action tensor is returned.
+    """
+    if action_name is None:
+        return env.action_manager.processed_actions
+    else:
+        return env.action_manager.get_term(action_name).processed_actions
 
 """
 Commands.

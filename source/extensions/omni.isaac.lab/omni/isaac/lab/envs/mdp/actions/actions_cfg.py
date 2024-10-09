@@ -259,7 +259,11 @@ class RigidObjectPoseActionTermCfg(ActionTermCfg):
 
     command_type: Literal["position", "pose"] = MISSING
     use_relative_mode: bool = False
-    p_gain: float =  1
+    p_gain: float =  2
     """Proportional gain of the PD controller."""
     d_gain: float = 0.05
     """Derivative gain of the PD controller."""
+    # action limits
+    act_lows = [-0.01, -0.01, -0.01, -0.1, -0.1, -0.1]
+    act_highs = [0.01, 0.01, 0.01, 0.1, 0.1, 0.1]
+    

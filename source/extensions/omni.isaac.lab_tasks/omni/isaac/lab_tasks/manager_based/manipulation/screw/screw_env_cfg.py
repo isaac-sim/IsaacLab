@@ -52,15 +52,17 @@ class ScrewSceneCfg(InteractiveSceneCfg):
     # robots: will be populated by agent env cfg
     robot: ArticulationCfg = MISSING
     # end-effector sensor: will be populated by agent env cfg
-    ee_frame: FrameTransformerCfg = MISSING
+    # ee_frame: FrameTransformerCfg = MISSING
 
     # objects
     nut: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Nut",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_nut_m8_tight/factory_nut_m8_tight.usd",
+            rigid_props= sim_utils.RigidBodyPropertiesCfg(
+            disable_gravity=True, sleep_threshold=0.0, stabilization_threshold=0.0)
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.6, 0.0, 0.0065)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.6, 0.0, 0.0065))
     )
 
     bolt: RigidObjectCfg = RigidObjectCfg(
@@ -76,6 +78,22 @@ class ScrewSceneCfg(InteractiveSceneCfg):
         prim_path="/World/light",
         spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=2500.0),
     )
+    # object_tracker = FrameTransformerCfg(
+    #     prim_path="{ENV_REGEX_NS}",
+    #     debug_vis=True,
+    #     target_frames=[
+    #         FrameTransformerCfg.FrameCfg(
+    #             prim_path="{ENV_REGEX_NS}/Nut",
+    #             name="nut_bottom",
+    #             offset=OffsetCfg(pos=(0.0, 0.0, 1e-3)),
+    #         ),
+    #         FrameTransformerCfg.FrameCfg(
+    #             prim_path="{ENV_REGEX_NS}/Nut",
+    #             name="nut_tip",
+    #             offset=OffsetCfg(pos=(0.0, 0.0, 0.015)),
+    #         )
+    #     ])
+        
 
 
 ##
@@ -124,7 +142,10 @@ class ObservationsCfg:
         # joint_pos = ObsTerm(func=mdp.joint_pos, noise=Unoise(n_min=-0.01, n_max=0.01))
         # joint_vel = ObsTerm(func=mdp.joint_vel, noise=Unoise(n_min=-0.01, n_max=0.01))
         bolt_pose = ObsTerm(func=mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("bolt")})
-        nut_pose = ObsTerm(func=mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("nut")})
+        nut_pos = ObsTerm(func=mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("nut")})
+        nut_quat = ObsTerm(func=mdp.root_quat_w, params={"asset_cfg": SceneEntityCfg("nut")})
+        nut_lin_vel = ObsTerm(func=mdp.root_lin_vel_w, params={"asset_cfg": SceneEntityCfg("nut")})
+        nut_ang_vel = ObsTerm(func=mdp.root_ang_vel_w, params={"asset_cfg": SceneEntityCfg("nut")})
         actions = ObsTerm(func=mdp.last_action)
 
         def __post_init__(self):
@@ -183,10 +204,13 @@ class RewardsCfg:
     """Reward terms for the MDP."""
 
     # task terms
+    coarse_nut = RewTerm(func=mdp.position_error_forge, 
+                         params={"src_body_name": "nut", "tgt_body_name": "bolt", "a":100, "b":2, "tol": 1e-3}, weight=1.0)
+    fine_nut= RewTerm(func=mdp.position_error_forge, 
+                        params={"src_body_name": "nut", "tgt_body_name": "bolt", "a":500, "b":0, "tol": 1e-3}, weight=1.0)
     
-
     # action penalty
-    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.0001)
+    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.00001)
     # joint_vel = RewTerm(
     #     func=mdp.joint_vel_l2,
     #     weight=-0.0001,
@@ -198,7 +222,9 @@ class RewardsCfg:
 class TerminationsCfg:
     """Termination terms for the MDP."""
 
+    nut_screwed = DoneTerm(func=mdp.nut_fully_screwed, params={"src_body_name":"nut", "tgt_body_name":"bolt", "threshold":1e-3})
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
+    
 
 
 @configclass
@@ -239,6 +265,9 @@ class ScrewEnvCfg(ManagerBasedRLEnvCfg):
         physx=PhysxCfg(
             bounce_threshold_velocity=0.2,
             gpu_collision_stack_size=2**31,
+            gpu_heap_capacity=2**31,
+            gpu_temp_buffer_capacity=2**30,
+            gpu_max_rigid_patch_count=2**24,
         ),
     )
 
@@ -247,5 +276,7 @@ class ScrewEnvCfg(ManagerBasedRLEnvCfg):
         # general settings
         self.decimation = 2
         self.sim.render_interval = self.decimation
-        self.episode_length_s = 12.0
-        self.viewer.eye = (3.5, 3.5, 3.5)
+        self.episode_length_s = 24.0
+        self.viewer.origin_type = "asset_root"
+        self.viewer.asset_name = "bolt"
+        self.viewer.eye = (0.1, 0, 0.04)

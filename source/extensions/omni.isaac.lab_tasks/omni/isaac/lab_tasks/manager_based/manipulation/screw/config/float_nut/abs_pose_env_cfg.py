@@ -33,23 +33,19 @@ class AbsFloatScrewEnvCfg(ScrewEnvCfg):
         marker_cfg = FRAME_MARKER_CFG.copy()
         marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
         marker_cfg.prim_path = "/Visuals/FrameTransformer"
-        self.scene.ee_frame = FrameTransformerCfg(
-            prim_path="{ENV_REGEX_NS}/Table",
-            debug_vis=False,
-            visualizer_cfg=marker_cfg,
-            target_frames=[
-                FrameTransformerCfg.FrameCfg(
-                    prim_path="{ENV_REGEX_NS}/Nut",
-                    name="nut",
-                ),
-            ],
-        )
 
+        self.act_lows = [-0.001, -0.001, -0.001, -0.2, -0.2, -0.2]
+        self.act_highs = [0.001, 0.001, 0.001, 0.2, 0.2, 0.2]
+        
         # override actions
         self.actions.nut_action = mdp.RigidObjectPoseActionTermCfg(
             asset_name="nut",
             command_type="pose",
             use_relative_mode=False,
+            p_gain=10,
+            d_gain=0.01,
+            act_lows=self.act_lows,
+            act_highs=self.act_highs,
             )
 
 
