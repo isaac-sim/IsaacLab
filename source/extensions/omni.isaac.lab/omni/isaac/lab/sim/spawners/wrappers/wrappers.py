@@ -29,7 +29,7 @@ def spawn_multi_asset(
     """Spawn multiple assets based on the provided configurations.
 
     This function spawns multiple assets based on the provided configurations. The assets are spawned
-    in the order they are provided in the list. If the `random_choice` parameter in the :class:`~MultiAssetSpawnerCfg` is set to True, a random
+    in the order they are provided in the list. If the :attr:`~MultiAssetSpawnerCfg.random_choice` parameter is set to True, a random
     asset configuration is selected for each spawn.
 
     Args:
