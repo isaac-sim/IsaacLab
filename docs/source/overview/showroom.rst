@@ -124,7 +124,7 @@ A few quick showroom scripts to run and checkout:
       :alt: Deformable primitive-shaped objects in Isaac Lab
 
 - Spawn multiple assets and interact with them using the same simulation handles:
-  
+
   .. tab-set::
       :sync-group: os
 

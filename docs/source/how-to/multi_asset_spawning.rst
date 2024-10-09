@@ -57,7 +57,7 @@ It is possible to spawn different assets and USDs in each environment using the 
      :dedent:
 
   Similar to before, this configuration allows the selection of different USD files representing articulated assets.
-  
+
 
 Things to Note
 --------------
@@ -69,7 +69,7 @@ While spawning and handling multiple assets using the same physics interface (th
 it is essential to have the assets at all the prim locations follow a similar structure. In case of an articulation,
 this means that they all must have the same number of links and joints, the same number of collision bodies and
 the same names for them. If that is not the case, the physics parsing of the prims can get affected and fail.
-  
+
 The main purpose of this functionality is to enable the user to create randomized versions of the same asset,
 for example robots with different link lengths, or rigid objects with different collider shapes.
 
