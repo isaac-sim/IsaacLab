@@ -10,7 +10,7 @@ import re
 from typing import TYPE_CHECKING
 
 import omni.isaac.core.utils.prims as prim_utils
-import omni.usd
+import omni.isaac.core.utils.stage as stage_utils
 from pxr import Sdf, Usd
 
 import omni.isaac.lab.sim as sim_utils
@@ -29,8 +29,8 @@ def spawn_multi_asset(
     """Spawn multiple assets based on the provided configurations.
 
     This function spawns multiple assets based on the provided configurations. The assets are spawned
-    in the order they are provided in the list. If the :attr:`~MultiAssetSpawnerCfg.random_choice` parameter is set to True, a random
-    asset configuration is selected for each spawn.
+    in the order they are provided in the list. If the :attr:`~MultiAssetSpawnerCfg.random_choice` parameter is
+    set to True, a random asset configuration is selected for each spawn.
 
     Args:
         prim_path: The prim path to spawn the assets.
@@ -59,8 +59,11 @@ def spawn_multi_asset(
     else:
         source_prim_paths = [root_path]
 
+    # find a free prim path to hold all the template prims
+    template_prim_path = stage_utils.get_next_free_path("/World/Template")
+    prim_utils.create_prim(template_prim_path, "Scope")
+
     # spawn everything first in a "Dataset" prim
-    prim_utils.create_prim("/World/Dataset", "Scope")
     proto_prim_paths = list()
     for index, asset_cfg in enumerate(cfg.assets_cfg):
         # append semantic tags if specified
@@ -76,15 +79,16 @@ def spawn_multi_asset(
             if hasattr(asset_cfg, attr_name) and attr_value is not None:
                 setattr(asset_cfg, attr_name, attr_value)
         # spawn single instance
-        proto_prim_path = f"/World/Dataset/Asset_{index:04d}"
+        proto_prim_path = f"{template_prim_path}/Asset_{index:04d}"
         asset_cfg.func(proto_prim_path, asset_cfg, translation=translation, orientation=orientation)
         # append to proto prim paths
         proto_prim_paths.append(proto_prim_path)
 
     # resolve prim paths for spawning and cloning
     prim_paths = [f"{source_prim_path}/{asset_path}" for source_prim_path in source_prim_paths]
+
     # acquire stage
-    stage = omni.usd.get_context().get_stage()
+    stage = stage_utils.get_current_stage()
 
     # manually clone prims if the source prim path is a regex expression
     # note: unlike in the cloner API from Isaac Sim, we do not "reset" xforms on the copied prims.
@@ -102,7 +106,7 @@ def spawn_multi_asset(
             Sdf.CopySpec(env_spec.layer, Sdf.Path(proto_path), env_spec.layer, Sdf.Path(prim_path))
 
     # delete the dataset prim after spawning
-    prim_utils.delete_prim("/World/Dataset")
+    prim_utils.delete_prim(template_prim_path)
 
     # return the prim
     return prim_utils.get_prim_at_path(prim_paths[0])

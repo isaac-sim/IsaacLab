@@ -3,7 +3,7 @@ Spawning Multiple Assets
 
 .. currentmodule:: omni.isaac.lab
 
-Typical, spawning configurations (introduced in :ref:`tutorial-spawn-prims`) copy the same
+Typical, spawning configurations (introduced in the :ref:`tutorial-spawn-prims` tutorial) copy the same
 asset (or USD primitive) across the different resolved prim paths from the expressions.
 For instance, if the user specifies to spawn the asset at "/World/Table\_.*/Object", the same
 asset is created at the paths "/World/Table_0/Object", "/World/Table_1/Object" and so on.
