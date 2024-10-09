@@ -173,6 +173,17 @@ class InteractiveScene:
             copy_from_source=copy_from_source,
         )
 
+        # check if user spawned different assets in individual environments
+        # this flag will be None if no multi asset is spawned
+        carb_settings_iface = carb.settings.get_settings()
+        has_multi_assets = carb_settings_iface.get("/isaaclab/spawn/multi_assets")
+        if has_multi_assets and self.cfg.replicate_physics:
+            carb.log_warn(
+                "Varying assets might have been spawned under different environments."
+                " However, the replicate physics flag is enabled in the 'InteractiveScene' configuration."
+                " This may adversely affect PhysX parsing. We recommend disabling this property."
+            )
+
         # in case of heterogeneous cloning, the env origins is specified at init
         if self._default_env_origins is None:
             self._default_env_origins = torch.tensor(env_origins, device=self.device, dtype=torch.float32)

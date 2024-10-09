@@ -9,6 +9,7 @@ import random
 import re
 from typing import TYPE_CHECKING
 
+import carb
 import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.core.utils.stage as stage_utils
 from pxr import Sdf, Usd
@@ -107,6 +108,12 @@ def spawn_multi_asset(
 
     # delete the dataset prim after spawning
     prim_utils.delete_prim(template_prim_path)
+
+    # set carb setting to indicate Isaac Lab's environments that different prims have been spawned
+    # at varying prim paths. In this case, PhysX parser shouldn't optimize the stage parsing.
+    # the flag is mainly used to inform the user that they should disable `InteractiveScene.replicate_physics`
+    carb_settings_iface = carb.settings.get_settings()
+    carb_settings_iface.set_bool("/isaaclab/spawn/multi_assets", True)
 
     # return the prim
     return prim_utils.get_prim_at_path(prim_paths[0])
