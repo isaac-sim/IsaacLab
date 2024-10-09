@@ -151,7 +151,7 @@ def main():
     scene = InteractiveScene(scene_cfg)
     # Stop the timer for creating the scene
     setup_time_end = time.perf_counter_ns()
-    print(f"[INFO]: Scene time: {(setup_time_end - setup_time_begin) / 1e6:.2f} ms")
+    print(f"[INFO]: Scene creation time: {(setup_time_end - setup_time_begin) / 1e6:.2f} ms")
 
     # Start the timer for reset
     reset_time_begin = time.perf_counter_ns()
@@ -159,7 +159,7 @@ def main():
     sim.reset()
     # Stop the timer for reset
     reset_time_end = time.perf_counter_ns()
-    print(f"[INFO]: Reset time: {(reset_time_end - reset_time_begin) / 1e6:.2f} ms")
+    print(f"[INFO]: Sim start time: {(reset_time_end - reset_time_begin) / 1e6:.2f} ms")
 
     # Run the simulator
     run_simulator(sim, scene)
