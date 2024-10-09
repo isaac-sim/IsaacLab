@@ -54,7 +54,7 @@
     <link rel="search" title="Search" href="../../../../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Oct 08, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 09, 2024"/>
   </head>
   
   
@@ -509,7 +509,6 @@ document.write(`
 
 <span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">annotations</span>
 
-<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">import</span> <span class="nn">torch</span>
 <span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Literal</span>
 
@@ -520,22 +519,14 @@ document.write(`
 <span class="kn">import</span> <span class="nn">omni.isaac.lab.utils.math</span> <span class="k">as</span> <span class="nn">math_utils</span>
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.actuators</span> <span class="kn">import</span> <span class="n">ImplicitActuator</span>
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.assets</span> <span class="kn">import</span> <span class="n">Articulation</span><span class="p">,</span> <span class="n">DeformableObject</span><span class="p">,</span> <span class="n">RigidObject</span>
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.managers</span> <span class="kn">import</span> <span class="n">SceneEntityCfg</span>
+<span class="kn">from</span> <span class="nn">omni.isaac.lab.managers</span> <span class="kn">import</span> <span class="n">EventTermCfg</span><span class="p">,</span> <span class="n">ManagerTermBase</span><span class="p">,</span> <span class="n">SceneEntityCfg</span>
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.terrains</span> <span class="kn">import</span> <span class="n">TerrainImporter</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
     <span class="kn">from</span> <span class="nn">omni.isaac.lab.envs</span> <span class="kn">import</span> <span class="n">ManagerBasedEnv</span>
 
 
-<div class="viewcode-block" id="randomize_rigid_body_material"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.randomize_rigid_body_material">[docs]</a><span class="k">def</span> <span class="nf">randomize_rigid_body_material</span><span class="p">(</span>
-    <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span>
-    <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">static_friction_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
-    <span class="n">dynamic_friction_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
-    <span class="n">restitution_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
-    <span class="n">num_buckets</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
-    <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">,</span>
-<span class="p">):</span>
+<div class="viewcode-block" id="randomize_rigid_body_material"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.randomize_rigid_body_material">[docs]</a><span class="k">class</span> <span class="nc">randomize_rigid_body_material</span><span class="p">(</span><span class="n">ManagerTermBase</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Randomize the physics materials on all geometries of the asset.</span>
 
 <span class="sd">    This function creates a set of physics materials with random static friction, dynamic friction, and restitution</span>
@@ -548,6 +539,10 @@ document.write(`
 <span class="sd">    all bodies). The integer values are used as indices to select the material properties from the</span>
 <span class="sd">    material buckets.</span>
 
+<span class="sd">    If the flag ``make_consistent`` is set to ``True``, the dynamic friction is set to be less than or equal to</span>
+<span class="sd">    the static friction. This obeys the physics constraint on friction values. However, it may not always be</span>
+<span class="sd">    essential for the application. Thus, the flag is set to ``False`` by default.</span>
+
 <span class="sd">    .. attention::</span>
 <span class="sd">        This function uses CPU tensors to assign the material properties. It is recommended to use this function</span>
 <span class="sd">        only during the initialization of the environment. Otherwise, it may lead to a significant performance</span>
@@ -555,69 +550,111 @@ document.write(`
 
 <span class="sd">    .. note::</span>
 <span class="sd">        PhysX only allows 64000 unique physics materials in the scene. If the number of materials exceeds this</span>
-<span class="sd">        limit, the simulation will crash.</span>
+<span class="sd">        limit, the simulation will crash. Due to this reason, we sample the materials only once during initialization.</span>
+<span class="sd">        Afterwards, these materials are randomly assigned to the geometries of the asset.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="c1"># extract the used quantities (to enable type-hinting)</span>
-    <span class="n">asset</span><span class="p">:</span> <span class="n">RigidObject</span> <span class="o">|</span> <span class="n">Articulation</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="p">[</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
 
-    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="p">(</span><span class="n">RigidObject</span><span class="p">,</span> <span class="n">Articulation</span><span class="p">)):</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;Randomization term &#39;randomize_rigid_body_material&#39; not supported for asset: &#39;</span><span class="si">{</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&#39;&quot;</span>
-            <span class="sa">f</span><span class="s2">&quot; with type: &#39;</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">asset</span><span class="p">)</span><span class="si">}</span><span class="s2">&#39;.&quot;</span>
-        <span class="p">)</span>
+<div class="viewcode-block" id="randomize_rigid_body_material.__init__"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.randomize_rigid_body_material.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">EventTermCfg</span><span class="p">,</span> <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize the term.</span>
 
-    <span class="c1"># resolve environment ids</span>
-    <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">env_ids</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cpu&quot;</span><span class="p">)</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="n">env_ids</span> <span class="o">=</span> <span class="n">env_ids</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span>
+<span class="sd">        Args:</span>
+<span class="sd">            cfg: The configuration of the event term.</span>
+<span class="sd">            env: The environment instance.</span>
 
-    <span class="c1"># retrieve material buffer</span>
-    <span class="n">materials</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">get_material_properties</span><span class="p">()</span>
+<span class="sd">        Raises:</span>
+<span class="sd">            ValueError: If the asset is not a RigidObject or an Articulation.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">env</span><span class="p">)</span>
 
-    <span class="c1"># sample material properties from the given ranges</span>
-    <span class="n">material_samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">materials</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
-    <span class="n">material_samples</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="o">*</span><span class="n">static_friction_range</span><span class="p">)</span>
-    <span class="n">material_samples</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="o">*</span><span class="n">dynamic_friction_range</span><span class="p">)</span>
-    <span class="n">material_samples</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="o">*</span><span class="n">restitution_range</span><span class="p">)</span>
+        <span class="c1"># extract the used quantities (to enable type-hinting)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s2">&quot;asset_cfg&quot;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">asset</span><span class="p">:</span> <span class="n">RigidObject</span> <span class="o">|</span> <span class="n">Articulation</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
 
-    <span class="c1"># create uniform range tensor for bucketing</span>
-    <span class="n">lo</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">static_friction_range</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">dynamic_friction_range</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">restitution_range</span><span class="p">[</span><span class="mi">0</span><span class="p">]])</span>
-    <span class="n">hi</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">static_friction_range</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">dynamic_friction_range</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">restitution_range</span><span class="p">[</span><span class="mi">1</span><span class="p">]])</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">asset</span><span class="p">,</span> <span class="p">(</span><span class="n">RigidObject</span><span class="p">,</span> <span class="n">Articulation</span><span class="p">)):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Randomization term &#39;randomize_rigid_body_material&#39; not supported for asset: &#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&#39;&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot; with type: &#39;</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">asset</span><span class="p">)</span><span class="si">}</span><span class="s2">&#39;.&quot;</span>
+            <span class="p">)</span>
 
-    <span class="c1"># to avoid 64k material limit in physx, we bucket materials by binning randomized material properties</span>
-    <span class="c1"># into buckets based on the number of buckets specified</span>
-    <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">):</span>
-        <span class="n">buckets</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([(</span><span class="n">hi</span><span class="p">[</span><span class="n">d</span><span class="p">]</span> <span class="o">-</span> <span class="n">lo</span><span class="p">[</span><span class="n">d</span><span class="p">])</span> <span class="o">*</span> <span class="n">i</span> <span class="o">/</span> <span class="n">num_buckets</span> <span class="o">+</span> <span class="n">lo</span><span class="p">[</span><span class="n">d</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_buckets</span><span class="p">)])</span>
-        <span class="n">material_samples</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">d</span><span class="p">]</span> <span class="o">=</span> <span class="n">buckets</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">searchsorted</span><span class="p">(</span><span class="n">buckets</span><span class="p">,</span> <span class="n">material_samples</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">d</span><span class="p">])</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>
-
-    <span class="c1"># update material buffer with new samples</span>
-    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="n">Articulation</span><span class="p">)</span> <span class="ow">and</span> <span class="n">asset_cfg</span><span class="o">.</span><span class="n">body_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
         <span class="c1"># obtain number of shapes per body (needed for indexing the material properties correctly)</span>
         <span class="c1"># note: this is a workaround since the Articulation does not provide a direct way to obtain the number of shapes</span>
         <span class="c1">#  per body. We use the physics simulation view to obtain the number of shapes per body.</span>
-        <span class="n">num_shapes_per_body</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="k">for</span> <span class="n">link_path</span> <span class="ow">in</span> <span class="n">asset</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">link_paths</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
-            <span class="n">link_physx_view</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">_physics_sim_view</span><span class="o">.</span><span class="n">create_rigid_body_view</span><span class="p">(</span><span class="n">link_path</span><span class="p">)</span>  <span class="c1"># type: ignore</span>
-            <span class="n">num_shapes_per_body</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">link_physx_view</span><span class="o">.</span><span class="n">max_shapes</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">asset</span><span class="p">,</span> <span class="n">Articulation</span><span class="p">)</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">body_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">num_shapes_per_body</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">link_path</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">asset</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">link_paths</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+                <span class="n">link_physx_view</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">asset</span><span class="o">.</span><span class="n">_physics_sim_view</span><span class="o">.</span><span class="n">create_rigid_body_view</span><span class="p">(</span><span class="n">link_path</span><span class="p">)</span>  <span class="c1"># type: ignore</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">num_shapes_per_body</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">link_physx_view</span><span class="o">.</span><span class="n">max_shapes</span><span class="p">)</span>
+            <span class="c1"># ensure the parsing is correct</span>
+            <span class="n">num_shapes</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_shapes_per_body</span><span class="p">)</span>
+            <span class="n">expected_shapes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">asset</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">max_shapes</span>
+            <span class="k">if</span> <span class="n">num_shapes</span> <span class="o">!=</span> <span class="n">expected_shapes</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s2">&quot;Randomization term &#39;randomize_rigid_body_material&#39; failed to parse the number of shapes per body.&quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot; Expected total shapes: </span><span class="si">{</span><span class="n">expected_shapes</span><span class="si">}</span><span class="s2">, but got: </span><span class="si">{</span><span class="n">num_shapes</span><span class="si">}</span><span class="s2">.&quot;</span>
+                <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># in this case, we don&#39;t need to do special indexing</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">num_shapes_per_body</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="c1"># obtain parameters for sampling friction and restitution values</span>
+        <span class="n">static_friction_range</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;static_friction_range&quot;</span><span class="p">,</span> <span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">))</span>
+        <span class="n">dynamic_friction_range</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;dynamic_friction_range&quot;</span><span class="p">,</span> <span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">))</span>
+        <span class="n">restitution_range</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;restitution_range&quot;</span><span class="p">,</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">))</span>
+        <span class="n">num_buckets</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;num_buckets&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
 
         <span class="c1"># sample material properties from the given ranges</span>
-        <span class="k">for</span> <span class="n">body_id</span> <span class="ow">in</span> <span class="n">asset_cfg</span><span class="o">.</span><span class="n">body_ids</span><span class="p">:</span>
-            <span class="c1"># start index of shape</span>
-            <span class="n">start_idx</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">num_shapes_per_body</span><span class="p">[:</span><span class="n">body_id</span><span class="p">])</span>
-            <span class="c1"># end index of shape</span>
-            <span class="n">end_idx</span> <span class="o">=</span> <span class="n">start_idx</span> <span class="o">+</span> <span class="n">num_shapes_per_body</span><span class="p">[</span><span class="n">body_id</span><span class="p">]</span>
-            <span class="c1"># assign the new materials</span>
-            <span class="c1"># material ids are of shape: num_env_ids x num_shapes</span>
-            <span class="c1"># material_buckets are of shape: num_buckets x 3</span>
-            <span class="n">materials</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">start_idx</span><span class="p">:</span><span class="n">end_idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">from_numpy</span><span class="p">(</span><span class="n">material_samples</span><span class="p">[:,</span> <span class="n">start_idx</span><span class="p">:</span><span class="n">end_idx</span><span class="p">])</span><span class="o">.</span><span class="n">to</span><span class="p">(</span>
-                <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float</span>
-            <span class="p">)</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="n">materials</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">from_numpy</span><span class="p">(</span><span class="n">material_samples</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float</span><span class="p">)</span>
+        <span class="c1"># note: we only sample the materials once during initialization</span>
+        <span class="c1">#   afterwards these are randomly assigned to the geometries of the asset</span>
+        <span class="n">range_list</span> <span class="o">=</span> <span class="p">[</span><span class="n">static_friction_range</span><span class="p">,</span> <span class="n">dynamic_friction_range</span><span class="p">,</span> <span class="n">restitution_range</span><span class="p">]</span>
+        <span class="n">ranges</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">range_list</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cpu&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">material_buckets</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">sample_uniform</span><span class="p">(</span><span class="n">ranges</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">ranges</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">],</span> <span class="p">(</span><span class="n">num_buckets</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cpu&quot;</span><span class="p">)</span>
 
-    <span class="c1"># apply to simulation</span>
-    <span class="n">asset</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">set_material_properties</span><span class="p">(</span><span class="n">materials</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span></div>
+        <span class="c1"># ensure dynamic friction is always less than static friction</span>
+        <span class="n">make_consistent</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;make_consistent&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">make_consistent</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">material_buckets</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">material_buckets</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">material_buckets</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">])</span></div>
+
+    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span>
+        <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">static_friction_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
+        <span class="n">dynamic_friction_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
+        <span class="n">restitution_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
+        <span class="n">num_buckets</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">,</span>
+        <span class="n">make_consistent</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="c1"># resolve environment ids</span>
+        <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">env_ids</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cpu&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">env_ids</span> <span class="o">=</span> <span class="n">env_ids</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span>
+
+        <span class="c1"># randomly assign material IDs to the geometries</span>
+        <span class="n">total_num_shapes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">asset</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">max_shapes</span>
+        <span class="n">bucket_ids</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">num_buckets</span><span class="p">,</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">env_ids</span><span class="p">),</span> <span class="n">total_num_shapes</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cpu&quot;</span><span class="p">)</span>
+        <span class="n">material_samples</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">material_buckets</span><span class="p">[</span><span class="n">bucket_ids</span><span class="p">]</span>
+
+        <span class="c1"># retrieve material buffer from the physics simulation</span>
+        <span class="n">materials</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">asset</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">get_material_properties</span><span class="p">()</span>
+
+        <span class="c1"># update material buffer with new samples</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_shapes_per_body</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># sample material properties from the given ranges</span>
+            <span class="k">for</span> <span class="n">body_id</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">body_ids</span><span class="p">:</span>
+                <span class="c1"># obtain indices of shapes for the body</span>
+                <span class="n">start_idx</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_shapes_per_body</span><span class="p">[:</span><span class="n">body_id</span><span class="p">])</span>
+                <span class="n">end_idx</span> <span class="o">=</span> <span class="n">start_idx</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_shapes_per_body</span><span class="p">[</span><span class="n">body_id</span><span class="p">]</span>
+                <span class="c1"># assign the new materials</span>
+                <span class="c1"># material samples are of shape: num_env_ids x total_num_shapes x 3</span>
+                <span class="n">materials</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">start_idx</span><span class="p">:</span><span class="n">end_idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">material_samples</span><span class="p">[:,</span> <span class="n">start_idx</span><span class="p">:</span><span class="n">end_idx</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># assign all the materials</span>
+            <span class="n">materials</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">material_samples</span><span class="p">[:]</span>
+
+        <span class="c1"># apply to simulation</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">asset</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">set_material_properties</span><span class="p">(</span><span class="n">materials</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="randomize_rigid_body_mass"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.randomize_rigid_body_mass">[docs]</a><span class="k">def</span> <span class="nf">randomize_rigid_body_mass</span><span class="p">(</span>
@@ -1503,7 +1540,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 08, 2024.
+  Last updated on Oct 09, 2024.
   <br/>
 </p>
   </div>

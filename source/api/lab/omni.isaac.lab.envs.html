@@ -57,7 +57,7 @@
     <link rel="prev" title="omni.isaac.lab.devices" href="omni.isaac.lab.devices.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Oct 08, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 09, 2024"/>
   </head>
   
   
@@ -599,11 +599,14 @@ document.write(`
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.close"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnv.close()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.device"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnv.device</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.get_wrapper_attr"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnv.get_wrapper_attr()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.has_wrapper_attr"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnv.has_wrapper_attr()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.np_random"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnv.np_random</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.np_random_seed"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnv.np_random_seed</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.num_envs"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnv.num_envs</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.physics_dt"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnv.physics_dt</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.reset"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnv.reset()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.seed"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnv.seed()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.set_wrapper_attr"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnv.set_wrapper_attr()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.step_dt"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnv.step_dt</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.unwrapped"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnv.unwrapped</span></code></a></li>
 </ul>
@@ -647,7 +650,10 @@ document.write(`
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.DirectRLEnv.close"><code class="docutils literal notranslate"><span class="pre">DirectRLEnv.close()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.DirectRLEnv.set_debug_vis"><code class="docutils literal notranslate"><span class="pre">DirectRLEnv.set_debug_vis()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.DirectRLEnv.get_wrapper_attr"><code class="docutils literal notranslate"><span class="pre">DirectRLEnv.get_wrapper_attr()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.DirectRLEnv.has_wrapper_attr"><code class="docutils literal notranslate"><span class="pre">DirectRLEnv.has_wrapper_attr()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.DirectRLEnv.np_random"><code class="docutils literal notranslate"><span class="pre">DirectRLEnv.np_random</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.DirectRLEnv.np_random_seed"><code class="docutils literal notranslate"><span class="pre">DirectRLEnv.np_random_seed</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.DirectRLEnv.set_wrapper_attr"><code class="docutils literal notranslate"><span class="pre">DirectRLEnv.set_wrapper_attr()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.DirectRLEnv.unwrapped"><code class="docutils literal notranslate"><span class="pre">DirectRLEnv.unwrapped</span></code></a></li>
 </ul>
 </li>
@@ -1204,16 +1210,19 @@ in a vectorized environment.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.np_random" title="omni.isaac.lab.envs.ManagerBasedRLEnv.np_random"><code class="xref py py-obj docutils literal notranslate"><span class="pre">np_random</span></code></a></p></td>
 <td><p>Returns the environment's internal <code class="xref py py-attr docutils literal notranslate"><span class="pre">_np_random</span></code> that if not set will initialise with a random seed.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.num_envs" title="omni.isaac.lab.envs.ManagerBasedRLEnv.num_envs"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_envs</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.np_random_seed" title="omni.isaac.lab.envs.ManagerBasedRLEnv.np_random_seed"><code class="xref py py-obj docutils literal notranslate"><span class="pre">np_random_seed</span></code></a></p></td>
+<td><p>Returns the environment's internal <code class="xref py py-attr docutils literal notranslate"><span class="pre">_np_random_seed</span></code> that if not set will first initialise with a random int as seed.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.num_envs" title="omni.isaac.lab.envs.ManagerBasedRLEnv.num_envs"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_envs</span></code></a></p></td>
 <td><p>The number of instances of the environment that are running.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.physics_dt" title="omni.isaac.lab.envs.ManagerBasedRLEnv.physics_dt"><code class="xref py py-obj docutils literal notranslate"><span class="pre">physics_dt</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.physics_dt" title="omni.isaac.lab.envs.ManagerBasedRLEnv.physics_dt"><code class="xref py py-obj docutils literal notranslate"><span class="pre">physics_dt</span></code></a></p></td>
 <td><p>The physics time-step (in s).</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.step_dt" title="omni.isaac.lab.envs.ManagerBasedRLEnv.step_dt"><code class="xref py py-obj docutils literal notranslate"><span class="pre">step_dt</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.step_dt" title="omni.isaac.lab.envs.ManagerBasedRLEnv.step_dt"><code class="xref py py-obj docutils literal notranslate"><span class="pre">step_dt</span></code></a></p></td>
 <td><p>The environment stepping time-step (in s).</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.unwrapped" title="omni.isaac.lab.envs.ManagerBasedRLEnv.unwrapped"><code class="xref py py-obj docutils literal notranslate"><span class="pre">unwrapped</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.unwrapped" title="omni.isaac.lab.envs.ManagerBasedRLEnv.unwrapped"><code class="xref py py-obj docutils literal notranslate"><span class="pre">unwrapped</span></code></a></p></td>
 <td><p>Returns the base non-wrapped environment.</p></td>
 </tr>
 </tbody>
@@ -1240,11 +1249,17 @@ in a vectorized environment.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.get_wrapper_attr" title="omni.isaac.lab.envs.ManagerBasedRLEnv.get_wrapper_attr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_wrapper_attr</span></code></a>(name)</p></td>
 <td><p>Gets the attribute <cite>name</cite> from the environment.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.reset" title="omni.isaac.lab.envs.ManagerBasedRLEnv.reset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset</span></code></a>([seed, options])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.has_wrapper_attr" title="omni.isaac.lab.envs.ManagerBasedRLEnv.has_wrapper_attr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">has_wrapper_attr</span></code></a>(name)</p></td>
+<td><p>Checks if the attribute <cite>name</cite> exists in the environment.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.reset" title="omni.isaac.lab.envs.ManagerBasedRLEnv.reset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset</span></code></a>([seed, options])</p></td>
 <td><p>Resets all the environments and returns observations.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.seed" title="omni.isaac.lab.envs.ManagerBasedRLEnv.seed"><code class="xref py py-obj docutils literal notranslate"><span class="pre">seed</span></code></a>([seed])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.seed" title="omni.isaac.lab.envs.ManagerBasedRLEnv.seed"><code class="xref py py-obj docutils literal notranslate"><span class="pre">seed</span></code></a>([seed])</p></td>
 <td><p>Set the seed for the environment.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.set_wrapper_attr" title="omni.isaac.lab.envs.ManagerBasedRLEnv.set_wrapper_attr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_wrapper_attr</span></code></a>(name, value)</p></td>
+<td><p>Sets the attribute <cite>name</cite> on the environment with <cite>value</cite>.</p></td>
 </tr>
 </tbody>
 </table>
@@ -1382,6 +1397,12 @@ Defaults to False.</p>
 <dd><p>Gets the attribute <cite>name</cite> from the environment.</p>
 </dd></dl>
 
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.ManagerBasedRLEnv.has_wrapper_attr">
+<span class="sig-name descname"><span class="pre">has_wrapper_attr</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></span></span><a class="headerlink" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.has_wrapper_attr" title="Permalink to this definition">#</a></dt>
+<dd><p>Checks if the attribute <cite>name</cite> exists in the environment.</p>
+</dd></dl>
+
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.envs.ManagerBasedRLEnv.np_random">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">np_random</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://numpy.org/doc/stable/reference/random/generator.html#numpy.random.Generator" title="(in NumPy v2.1)"><span class="pre">numpy.random.Generator</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.np_random" title="Permalink to this definition">#</a></dt>
@@ -1389,6 +1410,22 @@ Defaults to False.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Returns<span class="colon">:</span></dt>
 <dd class="field-odd"><p>Instances of <cite>np.random.Generator</cite></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.ManagerBasedRLEnv.np_random_seed">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">np_random_seed</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.np_random_seed" title="Permalink to this definition">#</a></dt>
+<dd><p>Returns the environment’s internal <code class="xref py py-attr docutils literal notranslate"><span class="pre">_np_random_seed</span></code> that if not set will first initialise with a random int as seed.</p>
+<p>If <a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.np_random_seed" title="omni.isaac.lab.envs.ManagerBasedRLEnv.np_random_seed"><code class="xref py py-attr docutils literal notranslate"><span class="pre">np_random_seed</span></code></a> was set directly instead of through <a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.reset" title="omni.isaac.lab.envs.ManagerBasedRLEnv.reset"><code class="xref py py-meth docutils literal notranslate"><span class="pre">reset()</span></code></a> or <code class="xref py py-meth docutils literal notranslate"><span class="pre">set_np_random_through_seed()</span></code>,
+the seed will take the value -1.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>the seed of the current <cite>np_random</cite> or -1, if the seed of the rng is unknown</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)">int</a></p>
 </dd>
 </dl>
 </dd></dl>
@@ -1443,6 +1480,12 @@ are not repeated.</p>
 <dd class="field-even"><p>The seed used for random generator.</p>
 </dd>
 </dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.ManagerBasedRLEnv.set_wrapper_attr">
+<span class="sig-name descname"><span class="pre">set_wrapper_attr</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.13)"><span class="pre">Any</span></a></span></em><span class="sig-paren">)</span><a class="headerlink" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.set_wrapper_attr" title="Permalink to this definition">#</a></dt>
+<dd><p>Sets the attribute <cite>name</cite> on the environment with <cite>value</cite>.</p>
 </dd></dl>
 
 <dl class="py property">
@@ -1708,7 +1751,10 @@ in a vectorized environment.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.DirectRLEnv.np_random" title="omni.isaac.lab.envs.DirectRLEnv.np_random"><code class="xref py py-obj docutils literal notranslate"><span class="pre">np_random</span></code></a></p></td>
 <td><p>Returns the environment's internal <code class="xref py py-attr docutils literal notranslate"><span class="pre">_np_random</span></code> that if not set will initialise with a random seed.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.DirectRLEnv.unwrapped" title="omni.isaac.lab.envs.DirectRLEnv.unwrapped"><code class="xref py py-obj docutils literal notranslate"><span class="pre">unwrapped</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.DirectRLEnv.np_random_seed" title="omni.isaac.lab.envs.DirectRLEnv.np_random_seed"><code class="xref py py-obj docutils literal notranslate"><span class="pre">np_random_seed</span></code></a></p></td>
+<td><p>Returns the environment's internal <code class="xref py py-attr docutils literal notranslate"><span class="pre">_np_random_seed</span></code> that if not set will first initialise with a random int as seed.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.DirectRLEnv.unwrapped" title="omni.isaac.lab.envs.DirectRLEnv.unwrapped"><code class="xref py py-obj docutils literal notranslate"><span class="pre">unwrapped</span></code></a></p></td>
 <td><p>Returns the base non-wrapped environment.</p></td>
 </tr>
 </tbody>
@@ -1740,6 +1786,12 @@ in a vectorized environment.</p>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.DirectRLEnv.get_wrapper_attr" title="omni.isaac.lab.envs.DirectRLEnv.get_wrapper_attr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_wrapper_attr</span></code></a>(name)</p></td>
 <td><p>Gets the attribute <cite>name</cite> from the environment.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.DirectRLEnv.has_wrapper_attr" title="omni.isaac.lab.envs.DirectRLEnv.has_wrapper_attr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">has_wrapper_attr</span></code></a>(name)</p></td>
+<td><p>Checks if the attribute <cite>name</cite> exists in the environment.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.DirectRLEnv.set_wrapper_attr" title="omni.isaac.lab.envs.DirectRLEnv.set_wrapper_attr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_wrapper_attr</span></code></a>(name, value)</p></td>
+<td><p>Sets the attribute <cite>name</cite> on the environment with <cite>value</cite>.</p></td>
 </tr>
 </tbody>
 </table>
@@ -1936,6 +1988,12 @@ does not support debug visualization.</p>
 <dd><p>Gets the attribute <cite>name</cite> from the environment.</p>
 </dd></dl>
 
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.DirectRLEnv.has_wrapper_attr">
+<span class="sig-name descname"><span class="pre">has_wrapper_attr</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></span></span><a class="headerlink" href="#omni.isaac.lab.envs.DirectRLEnv.has_wrapper_attr" title="Permalink to this definition">#</a></dt>
+<dd><p>Checks if the attribute <cite>name</cite> exists in the environment.</p>
+</dd></dl>
+
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.envs.DirectRLEnv.np_random">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">np_random</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://numpy.org/doc/stable/reference/random/generator.html#numpy.random.Generator" title="(in NumPy v2.1)"><span class="pre">numpy.random.Generator</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.DirectRLEnv.np_random" title="Permalink to this definition">#</a></dt>
@@ -1945,6 +2003,28 @@ does not support debug visualization.</p>
 <dd class="field-odd"><p>Instances of <cite>np.random.Generator</cite></p>
 </dd>
 </dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.DirectRLEnv.np_random_seed">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">np_random_seed</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.DirectRLEnv.np_random_seed" title="Permalink to this definition">#</a></dt>
+<dd><p>Returns the environment’s internal <code class="xref py py-attr docutils literal notranslate"><span class="pre">_np_random_seed</span></code> that if not set will first initialise with a random int as seed.</p>
+<p>If <a class="reference internal" href="#omni.isaac.lab.envs.DirectRLEnv.np_random_seed" title="omni.isaac.lab.envs.DirectRLEnv.np_random_seed"><code class="xref py py-attr docutils literal notranslate"><span class="pre">np_random_seed</span></code></a> was set directly instead of through <a class="reference internal" href="#omni.isaac.lab.envs.DirectRLEnv.reset" title="omni.isaac.lab.envs.DirectRLEnv.reset"><code class="xref py py-meth docutils literal notranslate"><span class="pre">reset()</span></code></a> or <code class="xref py py-meth docutils literal notranslate"><span class="pre">set_np_random_through_seed()</span></code>,
+the seed will take the value -1.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>the seed of the current <cite>np_random</cite> or -1, if the seed of the rng is unknown</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)">int</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.DirectRLEnv.set_wrapper_attr">
+<span class="sig-name descname"><span class="pre">set_wrapper_attr</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.13)"><span class="pre">Any</span></a></span></em><span class="sig-paren">)</span><a class="headerlink" href="#omni.isaac.lab.envs.DirectRLEnv.set_wrapper_attr" title="Permalink to this definition">#</a></dt>
+<dd><p>Sets the attribute <cite>name</cite> on the environment with <cite>value</cite>.</p>
 </dd></dl>
 
 <dl class="py property">
@@ -2870,11 +2950,14 @@ Default is (1280, 720).</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.close"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnv.close()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.device"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnv.device</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.get_wrapper_attr"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnv.get_wrapper_attr()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.has_wrapper_attr"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnv.has_wrapper_attr()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.np_random"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnv.np_random</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.np_random_seed"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnv.np_random_seed</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.num_envs"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnv.num_envs</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.physics_dt"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnv.physics_dt</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.reset"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnv.reset()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.seed"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnv.seed()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.set_wrapper_attr"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnv.set_wrapper_attr()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.step_dt"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnv.step_dt</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.unwrapped"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnv.unwrapped</span></code></a></li>
 </ul>
@@ -2918,7 +3001,10 @@ Default is (1280, 720).</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.DirectRLEnv.close"><code class="docutils literal notranslate"><span class="pre">DirectRLEnv.close()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.DirectRLEnv.set_debug_vis"><code class="docutils literal notranslate"><span class="pre">DirectRLEnv.set_debug_vis()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.DirectRLEnv.get_wrapper_attr"><code class="docutils literal notranslate"><span class="pre">DirectRLEnv.get_wrapper_attr()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.DirectRLEnv.has_wrapper_attr"><code class="docutils literal notranslate"><span class="pre">DirectRLEnv.has_wrapper_attr()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.DirectRLEnv.np_random"><code class="docutils literal notranslate"><span class="pre">DirectRLEnv.np_random</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.DirectRLEnv.np_random_seed"><code class="docutils literal notranslate"><span class="pre">DirectRLEnv.np_random_seed</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.DirectRLEnv.set_wrapper_attr"><code class="docutils literal notranslate"><span class="pre">DirectRLEnv.set_wrapper_attr()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.DirectRLEnv.unwrapped"><code class="docutils literal notranslate"><span class="pre">DirectRLEnv.unwrapped</span></code></a></li>
 </ul>
 </li>
@@ -3032,7 +3118,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 08, 2024.
+  Last updated on Oct 09, 2024.
   <br/>
 </p>
   </div>
