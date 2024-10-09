@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.24.20 (2024-10-07)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixes
+^^^^^
+
+* Fixed the :meth:`omni.isaac.lab.envs.mdp.events.randomize_rigid_body_material` function to
+  correctly sample friction and restitution from the given ranges.
+
+
 0.24.19 (2024-10-05)
 ~~~~~~~~~~~~~~~~~~~~
 
