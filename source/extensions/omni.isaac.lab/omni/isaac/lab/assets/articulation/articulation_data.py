@@ -292,7 +292,7 @@ class ArticulationData:
                                                         state[:,3:7],
                                                         self.com_pos_b[:,0,:],
                                                         self.com_quat_b[:,0,:])           
-        state[:, :7] += torch.cat((pos,quat),dim=-1)
+        state[:, :7] = torch.cat((pos,quat),dim=-1)
         return state
 
     @property
@@ -315,7 +315,7 @@ class ArticulationData:
 
     @property
     def body_link_state_w(self):
-        """State of all bodies `[pos, quat, lin_vel, ang_vel]` in simulation world frame.
+        """State of all bodies' link frame`[pos, quat, lin_vel, ang_vel]` in simulation world frame.
         Shape is (num_instances, num_bodies, 13).
 
         The position, quaternion, and linear/angular velocity are of the body's link frame relative to the world.
@@ -330,7 +330,7 @@ class ArticulationData:
 
     @property
     def body_com_state_w(self):
-        """State of all bodies `[pos, quat, lin_vel, ang_vel]` in simulation world frame.
+        """State of all bodies center of mass `[pos, quat, lin_vel, ang_vel]` in simulation world frame.
         Shape is (num_instances, num_bodies, 13).
 
         The position, quaternion, and linear/angular velocity are of the body's center of mass frame relative to the
@@ -339,11 +339,11 @@ class ArticulationData:
         """
         state = self.body_state_w.clone()
         # adjust pose to center of mass
-        pos, quat = math_utils.combine_frame_transforms(state[:,:3],
-                                                        state[:,3:7],
+        pos, quat = math_utils.combine_frame_transforms(state[...,:3],
+                                                        state[...,3:7],
                                                         self.com_pos_b,
                                                         self.com_quat_b)           
-        state[..., :7] += torch.cat((pos,quat),dim=-1)
+        state[..., :7] = torch.cat((pos,quat),dim=-1)
         return state
 
     @property
@@ -468,6 +468,10 @@ class ArticulationData:
         """
         return math_utils.quat_rotate_inverse(self.root_quat_w, self.root_ang_vel_w)
 
+    #
+    # Derived Root Link Frame Properties
+    #
+
     @property
     def root_link_pos_w(self) -> torch.Tensor:
         """Root link position in simulation world frame. Shape is (num_instances, 3).
@@ -526,7 +530,10 @@ class ArticulationData:
         rigid body's actor frame.
         """
         return math_utils.quat_rotate_inverse(self.root_link_quat_w, self.root_link_ang_vel_w)
-
+    
+#
+# Root Center of Mass state properties
+#  
 
     @property
     def root_com_pos_w(self) -> torch.Tensor:
@@ -747,4 +754,5 @@ class ArticulationData:
         
         This quantity is the orientation of the principles axes of inertia relative to its body frame.
         """
-        return self._root_physx_view.get_coms().to(self.device)[...,3:7]
+        quat = self._root_physx_view.get_coms().to(self.device)[...,3:7]
+        return math_utils.convert_quat(quat, to="wxyz")
