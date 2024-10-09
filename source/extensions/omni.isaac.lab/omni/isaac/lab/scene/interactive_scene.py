@@ -166,13 +166,6 @@ class InteractiveScene:
             If True, clones are independent copies of the source prim and won't reflect its changes (start-up time
             may increase). Defaults to False.
         """
-        env_origins = self.cloner.clone(
-            source_prim_path=self.env_prim_paths[0],
-            prim_paths=self.env_prim_paths,
-            replicate_physics=self.cfg.replicate_physics,
-            copy_from_source=copy_from_source,
-        )
-
         # check if user spawned different assets in individual environments
         # this flag will be None if no multi asset is spawned
         carb_settings_iface = carb.settings.get_settings()
@@ -183,6 +176,14 @@ class InteractiveScene:
                 " However, the replicate physics flag is enabled in the 'InteractiveScene' configuration."
                 " This may adversely affect PhysX parsing. We recommend disabling this property."
             )
+
+        # clone the environment
+        env_origins = self.cloner.clone(
+            source_prim_path=self.env_prim_paths[0],
+            prim_paths=self.env_prim_paths,
+            replicate_physics=self.cfg.replicate_physics,
+            copy_from_source=copy_from_source,
+        )
 
         # in case of heterogeneous cloning, the env origins is specified at init
         if self._default_env_origins is None:
