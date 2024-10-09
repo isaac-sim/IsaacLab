@@ -222,7 +222,7 @@ class EventManager(ManagerBase):
                     if time_left < 1e-6:
                         lower, upper = term_cfg.interval_range_s
                         sampled_interval = torch.rand(1) * (upper - lower) + lower
-                        self._interval_term_time_left[index][:] = sampled_interval
+                        self._duration_term_interval_time_left[index][:] = sampled_interval
 
                         # call the event term (with None for env_ids)
                         term_cfg.params["open"]=True
@@ -244,7 +244,7 @@ class EventManager(ManagerBase):
                     if len(valid_env_ids) > 0:
                         lower, upper = term_cfg.interval_range_s
                         sampled_time = torch.rand(len(valid_env_ids), device=self.device) * (upper - lower) + lower
-                        self._interval_term_time_left[index][valid_env_ids] = sampled_time
+                        self._duration_term_interval_time_left[index][valid_env_ids] = sampled_time
                         
                         # call the event term
                         term_cfg.params["open"]=True
@@ -255,8 +255,8 @@ class EventManager(ManagerBase):
                     valid_env_ids_duration = (duration_left < 1e-6).nonzero().flatten()
                     if len(valid_env_ids_duration) > 0:
                         term_cfg.params["open"]=False
-                        term_cfg.func(self._env, valid_env_ids, **term_cfg.params)
-                        self._duration_term_started[index][valid_env_ids] = False
+                        term_cfg.func(self._env, valid_env_ids_duration, **term_cfg.params)
+                        self._duration_term_started[index][valid_env_ids_duration] = False
 
                         lower, upper = term_cfg.duration_range_s
                         duration_left = torch.rand(len(valid_env_ids_duration), device=self.device) * (upper - lower) + lower

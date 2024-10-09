@@ -573,9 +573,6 @@ def apply_external_force_torque_duration(
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ):
     """
-    force/torque维持一段时间 然后取消
-    和原有的apply_external_force_torque在reset以后整个episode一直保持不同
-
     apply the force/torque for a time, then cancel it
     changes the above function apply_external_force_torque that apply the force/torque in the whole episode
     """
@@ -595,9 +592,8 @@ def apply_external_force_torque_duration(
         torques = math_utils.sample_uniform(*torque_range, size, asset.device).clone()
     else:
         size = (len(env_ids), num_bodies, 3)
-        forces = torch.zeros(size, asset.device)
-        torques = torch.zeros(size, asset.device)
-
+        forces = torch.zeros(size=size, device=asset.device)
+        torques = torch.zeros(size=size, device=asset.device)
 
     # set the forces and torques into the buffers
     # note: these are only applied when you call: `asset.write_data_to_sim()`
