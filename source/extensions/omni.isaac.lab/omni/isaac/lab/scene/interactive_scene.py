@@ -199,9 +199,6 @@ class InteractiveScene:
             global_prim_paths: A list of global prim paths to enable collisions with.
                 Defaults to None, in which case no global prim paths are considered.
         """
-        # obtain the current physics scene
-        physics_scene_prim_path = self.physics_scene_path
-
         # validate paths in global prim paths
         if global_prim_paths is None:
             global_prim_paths = []
@@ -215,7 +212,7 @@ class InteractiveScene:
 
         # filter collisions within each environment instance
         self.cloner.filter_collisions(
-            physics_scene_prim_path,
+            self.physics_scene_path,
             "/World/collisions",
             self.env_prim_paths,
             global_paths=self._global_prim_paths,
@@ -236,14 +233,16 @@ class InteractiveScene:
     """
 
     @property
-    def physics_scene_path(self):
-        """Search the stage for the physics scene"""
+    def physics_scene_path(self) -> str:
+        """The path to the USD Physics Scene."""
         if self._physics_scene_path is None:
             for prim in self.stage.Traverse():
                 if prim.HasAPI(PhysxSchema.PhysxSceneAPI):
-                    self._physics_scene_path = prim.GetPrimPath()
+                    self._physics_scene_path = prim.GetPrimPath().pathString
                     carb.log_info(f"Physics scene prim path: {self._physics_scene_path}")
                     break
+            if self._physics_scene_path is None:
+                raise RuntimeError("No physics scene found! Please make sure one exists.")
         return self._physics_scene_path
 
     @property
