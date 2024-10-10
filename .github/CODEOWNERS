@@ -64,7 +64,7 @@
 # Github Actions
 # This list is for people wanting to be notified every time there's a change
 # related to Github Actions
-/.github/ @kellyguo11 @jsmith-bdai
+/.github/ @kellyguo11 @jsmith-bdai @pascal-roth
 
 # Visual Studio Code
 /.vscode/ @hhansen-bdai @Mayankm96
