@@ -23,7 +23,12 @@ class RelFloatScrewEazyEnvCfg(abs_pose_env_cfg.AbsFloatScrewEnvCfg):
         # self.scene.nut.init_state.pos = (0.63, 0, 4.7518e-3)
         # self.scene.nut.init_state.rot = (9.4993e-01, -6.4670e-06, -2.1785e-05, -3.1247e-01)
         self.scene.nut.init_state.pos = (6.3000e-01, 2.0661e-06, 3.0895e-03)
+        self.scene.nut.init_state.pos = (6.3000e-01, 2.0661e-06, 0.04)
         self.scene.nut.init_state.rot = (-2.1609e-01,  6.6671e-05, -6.6467e-05,  9.7637e-01)
+        
+        # mated 
+        self.scene.nut.init_state.pos = (6.3016e-01, 4.7342e-04, 1.6750e-02)
+        self.scene.nut.init_state.rot = (-0.0409,  0.0054,  0.0162, -0.9990)
         
 
 @configclass

@@ -118,12 +118,12 @@ def main():
             # pre-process actions
             actions = pre_process_actions(delta_pose, gripper_command)
             # apply actions
-            actions[:, 2] = -0.00001
-            actions[:, 5] = -0.05
-            counter +=1
+            # actions[:, 2] = -0.00001
+            # actions[:, 5] = -0.05
+            counter += 1
             obs, reward, termin, timeout, _ = env.step(actions)
             print("Step: ", counter)
-            print("Reward: ", reward, timeout)
+            print("Reward: ", reward, termin)
 
     # close the simulator
     env.close()

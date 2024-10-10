@@ -367,8 +367,8 @@ class RigidObjectActionTerm(ActionTerm):
         obj_pos_curr, obj_quat_curr = self._compute_frame_pose()
         pos_error, rot_error = math_utils.compute_pose_error(obj_pos_curr, obj_quat_curr,
                                                              self.obj_pos_des, self.obj_quat_des)
-        pos_error = torch.clamp(pos_error, self.act_lows[:, :3], self.act_highs[:, :3])
-        rot_error = torch.clamp(rot_error, self.act_lows[:, 3:], self.act_highs[:, 3:])                                                   
+        # pos_error = torch.clamp(pos_error, self.act_lows[:, :3], self.act_highs[:, :3])
+        # rot_error = torch.clamp(rot_error, self.act_lows[:, 3:], self.act_highs[:, 3:])                                                   
         pos_vel_error = -self._asset.data.root_lin_vel_w
         rot_vel_error = -self._asset.data.root_ang_vel_w
         

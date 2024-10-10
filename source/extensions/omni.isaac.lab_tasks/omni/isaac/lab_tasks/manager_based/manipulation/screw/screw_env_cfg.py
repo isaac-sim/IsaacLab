@@ -19,16 +19,47 @@ from omni.isaac.lab.managers import SceneEntityCfg
 from omni.isaac.lab.managers import TerminationTermCfg as DoneTerm
 from omni.isaac.lab.scene import InteractiveSceneCfg
 from omni.isaac.lab.sensors import FrameTransformerCfg
+from omni.isaac.lab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from omni.isaac.lab.utils import configclass
 from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
 from omni.isaac.lab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 from omni.isaac.lab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg, MassPropertiesCfg
 import omni.isaac.lab_tasks.manager_based.manipulation.screw.mdp as mdp
+from omni.isaac.lab.markers.visualization_markers import VisualizationMarkersCfg
+from omni.isaac.lab.markers.config import FRAME_MARKER_CFG, RED_ARROW_X_MARKER_CFG, DEFORMABLE_TARGET_MARKER_CFG   # isort: skip
 
 ##
 # Scene definition
 ##
-
+FRAME_MARKER_SMALL_CFG = FRAME_MARKER_CFG.copy()
+FRAME_MARKER_SMALL_CFG.markers["frame"].scale = (0.008, 0.008, 0.008)
+PLATE_MARKER_CFG = VisualizationMarkersCfg(
+    markers={
+        "height": sim_utils.CylinderCfg(
+            radius=0.01,
+            height=0.001,
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0, 0), opacity=0.5),
+            )
+    }
+)
+PLATE_ARROW_CFG = VisualizationMarkersCfg(
+    markers={
+        # "height": sim_utils.CylinderCfg(
+        #     radius=0.01,
+        #     height=0.001,
+        #     visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(.0, 0, 1), opacity=0.5),
+        #     ),
+        "frame": sim_utils.UsdFileCfg(
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/UIElements/frame_prim.usd",
+            scale=(0.008, 0.008, 0.008),
+        ),
+        # "direction": sim_utils.UsdFileCfg(
+        #     usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/UIElements/arrow_x.usd",
+        #     scale=(0.015, 0.005, 0.005),
+        #     visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(.0, 0.0, 1)),
+        # )
+    }
+)
 
 @configclass
 class ScrewSceneCfg(InteractiveSceneCfg):
@@ -40,11 +71,23 @@ class ScrewSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.GroundPlaneCfg(),
         init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, -1.05)),
     )
+    origin = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Origin",
+        spawn=sim_utils.SphereCfg(
+            radius=1e-3, 
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(
+                kinematic_enabled=True,
+                disable_gravity=True,
+            ),
+            collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.0)),
+    )
 
     table = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Table",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd",
+            # usd_path=f"/home/zixuanh/force_tool/assets/table_instanceable.usd",
         ),
         init_state=AssetBaseCfg.InitialStateCfg(pos=(0.55, 0.0, 0.0), rot=(0.70711, 0.0, 0.0, 0.70711)),
     )
@@ -59,6 +102,7 @@ class ScrewSceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/Nut",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_nut_m8_tight/factory_nut_m8_tight.usd",
+            # usd_path="/home/zixuanh/force_tool/assets/Factory/factory_nut_m8_tight/factory_nut_m8_tight.usd",
             rigid_props= sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=True, sleep_threshold=0.0, stabilization_threshold=0.0)
         ),
@@ -68,7 +112,8 @@ class ScrewSceneCfg(InteractiveSceneCfg):
     bolt: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Bolt",
         spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_bolt_m8_tight/factory_bolt_m8_tight.usd",
+            # usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_bolt_m8_tight/factory_bolt_m8_tight.usd",
+            usd_path=f"/home/zixuanh/force_tool/assets/Factory/factory_bolt_m8_tight/factory_bolt_m8_tight.usd",
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.63, 0.0, 0.0)),
     )
@@ -78,21 +123,39 @@ class ScrewSceneCfg(InteractiveSceneCfg):
         prim_path="/World/light",
         spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=2500.0),
     )
-    # object_tracker = FrameTransformerCfg(
-    #     prim_path="{ENV_REGEX_NS}",
-    #     debug_vis=True,
-    #     target_frames=[
-    #         FrameTransformerCfg.FrameCfg(
-    #             prim_path="{ENV_REGEX_NS}/Nut",
-    #             name="nut_bottom",
-    #             offset=OffsetCfg(pos=(0.0, 0.0, 1e-3)),
-    #         ),
-    #         FrameTransformerCfg.FrameCfg(
-    #             prim_path="{ENV_REGEX_NS}/Nut",
-    #             name="nut_tip",
-    #             offset=OffsetCfg(pos=(0.0, 0.0, 0.015)),
-    #         )
-    #     ])
+ 
+    nut_frame= FrameTransformerCfg(
+        prim_path="{ENV_REGEX_NS}/Origin",
+        debug_vis=True,
+        visualizer_cfg=PLATE_ARROW_CFG.replace(prim_path="/Visuals/Nut"),
+        target_frames=[
+            FrameTransformerCfg.FrameCfg(
+                prim_path="{ENV_REGEX_NS}/Nut/factory_nut",
+                name="nut",
+                offset=OffsetCfg(pos=(0.0, 0.0, 0.011)),
+            )
+        ])
+    
+    bolt_frame = FrameTransformerCfg(
+        prim_path="{ENV_REGEX_NS}/Origin",
+        debug_vis=True,
+        visualizer_cfg=PLATE_MARKER_CFG.replace(prim_path="/Visuals/Bolt"),
+        target_frames=[
+            FrameTransformerCfg.FrameCfg(
+                prim_path="{ENV_REGEX_NS}/Bolt/factory_bolt",
+                name="bolt_tip",
+                offset=OffsetCfg(pos=(0.0, 0.0, 0.0277)),
+            ),
+            FrameTransformerCfg.FrameCfg(
+                prim_path="{ENV_REGEX_NS}/Bolt/factory_bolt",
+                name="bolt_bottom",
+                offset=OffsetCfg(pos=(0.0, 0.0, 0.012)),
+            ),
+            
+            ]
+        )
+            
+
         
 
 
@@ -205,9 +268,9 @@ class RewardsCfg:
 
     # task terms
     coarse_nut = RewTerm(func=mdp.position_error_forge, 
-                         params={"src_body_name": "nut", "tgt_body_name": "bolt", "a":100, "b":2, "tol": 1e-3}, weight=1.0)
+                         params={"src_body_name": "nut", "tgt_body_name": "bolt", "a":100, "b":2}, weight=1.0)
     fine_nut= RewTerm(func=mdp.position_error_forge, 
-                        params={"src_body_name": "nut", "tgt_body_name": "bolt", "a":500, "b":0, "tol": 1e-3}, weight=1.0)
+                        params={"src_body_name": "nut", "tgt_body_name": "bolt", "a":500, "b":0,}, weight=1.0)
     
     # action penalty
     action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.00001)
@@ -222,7 +285,7 @@ class RewardsCfg:
 class TerminationsCfg:
     """Termination terms for the MDP."""
 
-    nut_screwed = DoneTerm(func=mdp.nut_fully_screwed, params={"src_body_name":"nut", "tgt_body_name":"bolt", "threshold":1e-3})
+    nut_screwed = DoneTerm(func=mdp.nut_fully_screwed, params={"src_body_name":"nut", "tgt_body_name":"bolt", "threshold":0})
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
     
 
@@ -280,3 +343,5 @@ class ScrewEnvCfg(ManagerBasedRLEnvCfg):
         self.viewer.origin_type = "asset_root"
         self.viewer.asset_name = "bolt"
         self.viewer.eye = (0.1, 0, 0.04)
+        self.viewer.lookat = (0, 0, 0.02)
+        

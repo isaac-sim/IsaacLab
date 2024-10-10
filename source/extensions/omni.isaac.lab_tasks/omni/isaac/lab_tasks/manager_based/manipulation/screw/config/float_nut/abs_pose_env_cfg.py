@@ -42,7 +42,7 @@ class AbsFloatScrewEnvCfg(ScrewEnvCfg):
             asset_name="nut",
             command_type="pose",
             use_relative_mode=False,
-            p_gain=10,
+            p_gain=5,
             d_gain=0.01,
             act_lows=self.act_lows,
             act_highs=self.act_highs,
