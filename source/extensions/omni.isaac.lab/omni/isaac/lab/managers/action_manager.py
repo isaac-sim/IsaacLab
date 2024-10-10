@@ -106,6 +106,7 @@ class ActionTerm(ManagerTermBase):
         # check if debug visualization is supported
         if not self.has_debug_vis_implementation:
             return False
+
         # toggle debug visualization objects
         self._set_debug_vis_impl(debug_vis)
         # toggle debug visualization handles
@@ -252,6 +253,22 @@ class ActionManager(ManagerBase):
     """
     Operations.
     """
+
+    def get_active_iterable_terms(self, env_idx: int) -> Sequence[tuple[str, Sequence[float]]]:
+        """Returns the active terms as iterable sequence of tuples.
+        The first element of the tuple is the name of the term and the second element is the raw value(s) of the term.
+        Args:
+            env_idx: The specific environment to pull the active terms from.
+        Returns:
+            The active terms.
+        """
+        terms = []
+        idx = 0
+        for name, term in self._terms.items():
+            term_actions = self._action[env_idx, idx : idx + term.action_dim].cpu()
+            terms.append((name, term_actions.tolist()))
+            idx += term.action_dim
+        return terms
 
     def set_debug_vis(self, debug_vis: bool) -> bool:
         """Sets whether to visualize the action data.
