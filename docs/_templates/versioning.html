@@ -1,0 +1,8 @@
+{% if versions %}
+<h2>{{ _('Versions') }}</h2>
+<ul>
+  {%- for item in versions | reverse %}
+  <li><a href="{{ item.url }}">{{ item.name }}</a></li>
+  {%- endfor %}
+</ul>
+{% endif %}
