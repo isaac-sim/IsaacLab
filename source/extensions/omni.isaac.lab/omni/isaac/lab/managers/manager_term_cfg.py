@@ -213,6 +213,12 @@ class EventTermCfg(ManagerTermBaseCfg):
         This is only used if the mode is ``"interval"``.
     """
 
+    duration_range_s: tuple[float, float] | None = None
+    """
+    range to be sampled of the time duration of the event
+    only used if the mode is ``"duration"``.
+    """
+
     is_global_time: bool = False
     """Whether randomization should be tracked on a per-environment basis. Defaults to False.
 
