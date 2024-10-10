@@ -10,7 +10,6 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import carb
-import warnings
 import omni.physics.tensors.impl.api as physx
 from pxr import UsdPhysics
 
@@ -159,13 +158,7 @@ class RigidObject(AssetBase):
             env_ids: Environment indices. If None, then all indices are used.
         """
         # deprecation warning
-        dep_msg = (
-            """RigidObject.write_root_state_to_sim will be removed in a future release. Please use 
-            write_root_link_state_to_sim or write_root_com_state_to_sim instead."""
-        )
-        warnings.simplefilter("once")
-        warnings.warn(dep_msg, DeprecationWarning)
-        carb.log_warn(dep_msg)
+        carb.log_warn("DeprecationWarning: RigidObject.write_root_state_to_sim will be removed in a future release. Please use write_root_link_state_to_sim or write_root_com_state_to_sim instead.")
 
         # set into simulation
         self.write_root_pose_to_sim(root_state[:, :7], env_ids=env_ids)
@@ -209,13 +202,7 @@ class RigidObject(AssetBase):
             env_ids: Environment indices. If None, then all indices are used.
         """
         # deprecation warning
-        dep_msg = (
-            """RigidObject.write_root_pos_to_sim will be removed in a future release. Please use 
-            write_root_link_pose_to_sim or write_root_com_pose_to_sim instead."""
-        )
-        warnings.simplefilter("once")
-        warnings.warn(dep_msg, DeprecationWarning)
-        carb.log_warn(dep_msg)
+        carb.log_warn("DeprecationWarning: RigidObject.write_root_pose_to_sim will be removed in a future release. Please use write_root_link_pose_to_sim or write_root_com_pose_to_sim instead.")
 
         self.write_root_link_pose_to_sim(root_pose,env_ids)
 
@@ -279,13 +266,7 @@ class RigidObject(AssetBase):
             env_ids: Environment indices. If None, then all indices are used.
         """
         # deprecation warning
-        dep_msg = (
-            """RigidObject.write_root_velocity_to_sim will be removed in a future release. Please use 
-            write_root_link_velocity_to_sim or write_root_com_velocity_to_sim instead."""
-        )
-        warnings.simplefilter("once")
-        warnings.warn(dep_msg, DeprecationWarning)
-        carb.log_warn(dep_msg)
+        carb.log_warn("DeprecationWarning: RigidObject.write_root_velocity_to_sim will be removed in a future release. Please use write_root_link_velocity_to_sim or write_root_com_velocity_to_sim instead.")
 
         self.write_root_com_velocity_to_sim(root_velocity=root_velocity,env_ids=env_ids)
 

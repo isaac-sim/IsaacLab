@@ -10,7 +10,7 @@
 
 from omni.isaac.lab.app import AppLauncher, run_tests
 
-HEADLESS = False
+HEADLESS = True
 
 # launch omniverse app
 app_launcher = AppLauncher(headless=HEADLESS)

@@ -5,7 +5,6 @@
 
 import carb
 import torch
-import warnings
 import weakref
 
 import omni.physics.tensors.impl.api as physx
@@ -14,10 +13,8 @@ import omni.isaac.lab.utils.math as math_utils
 from omni.isaac.lab.utils.buffers import TimestampedBuffer
 
 def single_deprecation_warning(dep_msg: str):
-    """Singlue use deprecation warning"""
-    warnings.simplefilter("once")
-    warnings.warn(dep_msg, DeprecationWarning)
-    carb.log_warn(dep_msg)
+    """Single use deprecation warning"""
+    carb.log_warn("DeprecationWarning: " + dep_msg)
 
 class ArticulationData:
     """Data container for an articulation.
@@ -71,7 +68,11 @@ class ArticulationData:
 
         # Initialize the lazy buffers.
         self._root_state_w = TimestampedBuffer()
+        self._root_link_state_w = TimestampedBuffer()
+        self._root_com_state_w = TimestampedBuffer()
         self._body_state_w = TimestampedBuffer()
+        self._body_link_state_w = TimestampedBuffer()
+        self._body_com_state_w = TimestampedBuffer()
         self._body_acc_w = TimestampedBuffer()
         self._joint_pos = TimestampedBuffer()
         self._joint_acc = TimestampedBuffer()
@@ -261,8 +262,7 @@ class ArticulationData:
         the linear and angular velocities are of the articulation root's center of mass frame.
         """
 
-        single_deprecation_warning("""root_state_w it's derived properties will be deprecated in a future release. 
-                                   Please use root_link_state_w or root_com_state_w.""")
+        carb.log_warn("DeprecationWarning: root_state_w and it's derived properties will be deprecated in a future release. Please use root_link_state_w or root_com_state_w.")
 
         if self._root_state_w.timestamp < self._sim_timestamp:
             # read data from simulation
@@ -281,13 +281,21 @@ class ArticulationData:
         The position, quaternion, and linear/angular velocity are of the articulation root's actor frame relative to the
         world.
         """
-        state = self.root_state_w.clone()
-        quat = state[:, 3:7]
-        # adjust linear velocity to link
-        state[:, 7:10] += torch.linalg.cross(
-            state[:, 10:13], math_utils.quat_rotate(quat, -self.com_pos_b[:, 0, :]), dim=-1
-        )
-        return state
+        if self._root_link_state_w.timestamp < self._sim_timestamp:
+            # read data from simulation
+            pose = self._root_physx_view.get_root_transforms().clone()
+            pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
+            velocity = self._root_physx_view.get_root_velocities()
+
+            # adjust linear velocity to link from center of mass
+            velocity[:, :3] += torch.linalg.cross(
+                velocity[:, 3:], math_utils.quat_rotate(pose[:, 3:7], -self.com_pos_b[:, 0, :]), dim=-1
+            )
+            # set the buffer data and timestamp
+            self._root_link_state_w.data = torch.cat((pose, velocity), dim=-1)
+            self._root_link_state_w.timestamp = self._sim_timestamp
+
+        return self._root_link_state_w.data 
 
     @property
     def root_com_state_w(self):
@@ -297,14 +305,22 @@ class ArticulationData:
         relative to the world. Center of mass frame is assumed to be the same orientation as the link rather than the
         orientation of the principle inertia.
         """
-        state = self.root_state_w.clone()
-        # adjust pose to center of mass
-        pos, quat = math_utils.combine_frame_transforms(state[:,:3],
-                                                        state[:,3:7],
-                                                        self.com_pos_b[:,0,:],
-                                                        self.com_quat_b[:,0,:])           
-        state[:, :7] = torch.cat((pos,quat),dim=-1)
-        return state
+        if self._root_com_state_w.timestamp < self._sim_timestamp:
+            # read data from simulation (pose is of link)
+            pose = self._root_physx_view.get_root_transforms().clone()
+            pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
+            velocity = self._root_physx_view.get_root_velocities()
+
+            # adjust pose to center of mass
+            pos, quat = math_utils.combine_frame_transforms(pose[:,:3],
+                                                            pose[:,3:7],
+                                                            self.com_pos_b[:,0,:],
+                                                            self.com_quat_b[:,0,:])           
+            pose = torch.cat((pos,quat),dim=-1)
+            # set the buffer data and timestamp
+            self._root_com_state_w.data = torch.cat((pose, velocity), dim=-1)
+            self._root_com_state_w.timestamp = self._sim_timestamp
+        return self._root_com_state_w.data 
 
     @property
     def body_state_w(self):
@@ -315,8 +331,7 @@ class ArticulationData:
         velocities are of the articulation links's center of mass frame.
         """
 
-        single_deprecation_warning("""body_state_w and it's derived properties will be deprecated in a future release. 
-                            Please use body_link_state_w or bodt_com_state_w.""")
+        carb.log_warn("DeprecationWarning: body_state_w and it's derived properties will be deprecated in a future release. Please use body_link_state_w or bodt_com_state_w.")
         
         if self._body_state_w.timestamp < self._sim_timestamp:
             # read data from simulation
@@ -335,13 +350,21 @@ class ArticulationData:
 
         The position, quaternion, and linear/angular velocity are of the body's link frame relative to the world.
         """
-        state = self.body_state_w.clone()
-        quat = state[..., 3:7]
-        # adjust linear velocity to link
-        state[..., 7:10] += torch.linalg.cross(
-            state[..., 10:13], math_utils.quat_rotate(quat, -self.com_pos_b), dim=-1
-        )
-        return state
+        if self._body_link_state_w.timestamp < self._sim_timestamp:
+            # read data from simulation
+            pose = self._root_physx_view.get_link_transforms().clone()
+            pose[..., 3:7] = math_utils.convert_quat(pose[..., 3:7], to="wxyz")
+            velocity = self._root_physx_view.get_link_velocities()
+
+            # adjust linear velocity to link from center of mass
+            velocity[..., :3] += torch.linalg.cross(
+                velocity[..., 3:], math_utils.quat_rotate(pose[..., 3:7], -self.com_pos_b), dim=-1
+            )
+            # set the buffer data and timestamp
+            self._body_link_state_w.data = torch.cat((pose, velocity), dim=-1)
+            self._body_link_state_w.timestamp = self._sim_timestamp
+    
+        return self._body_link_state_w.data
 
     @property
     def body_com_state_w(self):
@@ -352,14 +375,22 @@ class ArticulationData:
         world. Center of mass frame is assumed to be the same orientation as the link rather than the orientation of the
         principle inertia.
         """
-        state = self.body_state_w.clone()
-        # adjust pose to center of mass
-        pos, quat = math_utils.combine_frame_transforms(state[...,:3],
-                                                        state[...,3:7],
-                                                        self.com_pos_b,
-                                                        self.com_quat_b)           
-        state[..., :7] = torch.cat((pos,quat),dim=-1)
-        return state
+        if self._body_com_state_w.timestamp < self._sim_timestamp:
+            # read data from simulation (pose is of link)
+            pose = self._root_physx_view.get_link_transforms().clone()
+            pose[..., 3:7] = math_utils.convert_quat(pose[..., 3:7], to="wxyz")
+            velocity = self._root_physx_view.get_link_velocities()
+
+            # adjust pose to center of mass
+            pos, quat = math_utils.combine_frame_transforms(pose[...,:3],
+                                                            pose[...,3:7],
+                                                            self.com_pos_b,
+                                                            self.com_quat_b)           
+            pose = torch.cat((pos,quat),dim=-1)
+            # set the buffer data and timestamp
+            self._body_com_state_w.data = torch.cat((pose, velocity), dim=-1)
+            self._body_com_state_w.timestamp = self._sim_timestamp
+        return self._body_com_state_w.data 
 
     @property
     def body_acc_w(self):
