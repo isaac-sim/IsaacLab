@@ -301,6 +301,9 @@ class DirectRLEnv(gym.Env):
         Returns:
             A tuple containing the observations, rewards, resets (terminated and truncated) and extras.
         """
+        # hard clip the actions
+        action = torch.clamp(action, self.cfg.action_bounds[0], self.cfg.action_bounds[1])
+
         action = action.to(self.device)
         # add action noise
         if self.cfg.action_noise_model:
@@ -517,7 +520,9 @@ class DirectRLEnv(gym.Env):
         self.single_observation_space["policy"] = gym.spaces.Box(
             low=-np.inf, high=np.inf, shape=(self.num_observations,)
         )
-        self.single_action_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(self.num_actions,))
+        self.single_action_space = gym.spaces.Box(
+            low=self.cfg.action_bounds[0], high=self.cfg.action_bounds[1], shape=(self.num_actions,)
+        )
 
         # batch the spaces for vectorized environments
         self.observation_space = gym.vector.utils.batch_space(self.single_observation_space["policy"], self.num_envs)

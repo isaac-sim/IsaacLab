@@ -96,6 +96,12 @@ class ManagerBasedEnvCfg:
     Please refer to the :class:`omni.isaac.lab.managers.EventManager` class for more details.
     """
 
+    action_bounds: tuple[float, float] = (-100, 100)
+    """Clipping bounds for the input actions to the environment. Defaults to (-100, 100).
+
+    All actions are clipped to this range before being applied to the environment.
+    """
+
     rerender_on_reset: bool = False
     """Whether a render step is performed again after at least one environment has been reset.
     Defaults to False, which means no render step will be performed after reset.
@@ -105,5 +111,4 @@ class ManagerBasedEnvCfg:
     * When this is True, an extra render step will be performed to update the sensor data
       to reflect the latest states from the reset. This comes at a cost of performance as an additional render
       step will be performed after each time an environment is reset.
-
     """
