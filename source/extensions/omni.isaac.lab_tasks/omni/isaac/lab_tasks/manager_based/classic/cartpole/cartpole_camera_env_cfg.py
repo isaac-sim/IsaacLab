@@ -88,6 +88,18 @@ class DepthObservationsCfg:
     policy: ObsGroup = DepthCameraPolicyCfg()
 
 
+@configclass
+class ResNet18ObservationCfg:
+    @configclass
+    class FeaturesCameraPolicyCfg(RGBObservationsCfg.RGBCameraPolicyCfg):
+        image = ObsTerm(
+            func=mdp.image_features,
+            params={"sensor_cfg": SceneEntityCfg("tiled_camera"), "data_type": "rgb", "model_name": "ResNet18"},
+        )
+
+    policy: ObsGroup = FeaturesCameraPolicyCfg()
+
+
 ##
 # Environment configuration
 ##
@@ -107,3 +119,8 @@ class CartpoleDepthCameraEnvCfg(CartpoleEnvCfg):
 
     scene: CartpoleSceneCfg = CartpoleDepthCameraSceneCfg(num_envs=1024, env_spacing=20)
     observations: DepthObservationsCfg = DepthObservationsCfg()
+
+
+@configclass
+class CartpoleResNet18CameraEnv(CartpoleRGBCameraEnvCfg):
+    observations: ResNet18ObservationCfg = ResNet18ObservationCfg()

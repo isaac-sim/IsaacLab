@@ -17,10 +17,14 @@ from typing import TYPE_CHECKING
 import omni.isaac.lab.utils.math as math_utils
 from omni.isaac.lab.assets import Articulation, RigidObject
 from omni.isaac.lab.managers import SceneEntityCfg
+from omni.isaac.lab.managers.manager_base import ManagerTermBase
+from omni.isaac.lab.managers.manager_term_cfg import ObservationTermCfg
 from omni.isaac.lab.sensors import Camera, RayCaster, RayCasterCamera, TiledCamera
 
 if TYPE_CHECKING:
     from omni.isaac.lab.envs import ManagerBasedEnv, ManagerBasedRLEnv
+
+from torchvision import models
 
 """
 Root state.
@@ -229,6 +233,75 @@ def image(
             images[images == float("inf")] = 0
 
     return images.clone()
+
+
+class image_features(ManagerTermBase):
+    """Extracted image features with a frozen encoder from images of a specific datatype from the camera sensor.
+
+    Calls :meth:`image` to get the images, then performs inference. On initialization,
+    for a model zoo different from the default, define model_zoo_cfg: A dictionary with string keys and callable values.
+    Should include "model", (mapped to a callable with no arguments to return the model), "preprocess" (mapped to
+    a callable which consumes the images and returns the preprocessed images),
+    and "inference" (mapped to a callable that provided the model, and the preproccessed images, returns the features.)
+    """
+
+    def __init__(
+        self,
+        cfg: ObservationTermCfg,
+        env: ManagerBasedEnv,
+        model_zoo_cfg: dict | None = None,
+        initialize_all: bool = False,
+    ):
+        super().__init__(cfg, env)
+        if model_zoo_cfg is None:
+            self.model_zoo_cfg = {
+                "ResNet18": {
+                    "model": lambda: models.resnet18(pretrained=True).eval().to("cuda:0"),
+                    "preprocess": lambda img: (
+                        img.permute(0, 3, 1, 2)  # Convert [batch, height, width, 3] -> [batch, 3, height, width]
+                        # Normalize in the format expected by pytorch; https://pytorch.org/hub/pytorch_vision_resnet/
+                        - torch.tensor([0.485, 0.456, 0.406], device=img.device).view(1, 3, 1, 1)
+                    ) / torch.tensor([0.229, 0.224, 0.225], device=img.device).view(1, 3, 1, 1),
+                    "inference": lambda model, images: model(images),
+                },
+            }
+        self.reset_model(initialize_all=initialize_all)
+
+    # The following is named reset_model instead of reset as otherwise, it's called at the end of every episode
+    def reset_model(self, model_name: str | None = None, initialize_all: bool = False):
+        if model_name is None:
+            print("[WARNING]: No model name supplied, emptying entire model zoo.")
+            self.model_zoo = {}
+        elif model_name is not None:
+            self.model_zoo[model_name] = self.model_zoo_cfg[model_name]["model"]()
+        if initialize_all:
+            for model_name, model_callables in self.model_zoo_cfg.items():
+                self.model_zoo[model_name] = model_callables["model"]()
+
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        sensor_cfg: SceneEntityCfg = SceneEntityCfg("tiled_camera"),
+        data_type: str = "rgb",
+        convert_perspective_to_orthogonal: bool = False,
+        model_name: str = "ResNet18",
+    ) -> torch.Tensor:
+        if model_name not in self.model_zoo:
+            print(f"[INFO]: Adding {model_name} to the model zoo")
+            self.model_zoo[model_name] = self.model_zoo_cfg[model_name]["model"]()
+
+        images = image(
+            env=env,
+            sensor_cfg=sensor_cfg,
+            data_type=data_type,
+            convert_perspective_to_orthogonal=convert_perspective_to_orthogonal,
+            normalize=True,  # want this for training stability
+        )
+
+        proc_images = self.model_zoo_cfg[model_name]["preprocess"](images)
+        features = self.model_zoo_cfg[model_name]["inference"](self.model_zoo[model_name], proc_images)
+
+        return features
 
 
 """
