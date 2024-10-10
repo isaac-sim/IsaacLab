@@ -16,26 +16,43 @@ from omni.isaac.lab.sensors.frame_transformer.frame_transformer_cfg import Offse
 if TYPE_CHECKING:
     from omni.isaac.lab.envs import ManagerBasedRLEnv
 
-def position_error_l2(env: ManagerBasedRLEnv, src_body_name: str, tgt_body_name: str) -> torch.Tensor:
-    """Penalize tracking of the position error using L2-norm.
 
-    The function computes the position error between the desired position (from the command) and the
-    current position of the asset's body (in world frame). The position error is computed as the L2-norm
-    of the difference between the desired and current positions.
+def l2_norm(diff: torch.Tensor) -> torch.Tensor:
+    """Compute the L2-norm of a tensor."""
+    return torch.norm(diff, dim=1)
+
+def forge_kernel(diff: torch.Tensor, a: float = 100, b: float = 0, tol: float = 0) -> torch.Tensor:
+    """Compute the kernel function using the Forge kernel.
+
+    The kernel function is computed as:
+    .. math::
+        k(x) = \\frac{1}{e^{-a(x - \\text{tol})} + b + e^{a(x - \\text{tol})}}
     """
-    # extract the asset (to enable type hinting)
-    src_asset: RigidObject = env.scene[src_body_name]
-    tgt_asset: RigidObject = env.scene[tgt_body_name]
-    src_pos = src_asset.data.root_pos_w - env.scene.env_origins
-    tgt_pos = tgt_asset.data.root_pos_w - env.scene.env_origins
-    return torch.norm(src_pos - tgt_pos, dim=1)
-
-def position_error_forge(env: ManagerBasedRLEnv, src_body_name: str, tgt_body_name: str,
-                         a=100, b=0, tol=0.) -> torch.Tensor:
-    l2_dis = position_error_l2(env, src_body_name, tgt_body_name)
+    l2_dis = l2_norm(diff)
     clamped_dis = torch.clamp(l2_dis - tol, min=0)
     dis = 1 / (torch.exp(-a * clamped_dis) + b + torch.exp(a * clamped_dis))
     return dis    
+
+# def position_error_l2(env: ManagerBasedRLEnv, src_body_name: str, tgt_body_name: str) -> torch.Tensor:
+#     """Penalize tracking of the position error using L2-norm.
+
+#     The function computes the position error between the desired position (from the command) and the
+#     current position of the asset's body (in world frame). The position error is computed as the L2-norm
+#     of the difference between the desired and current positions.
+#     """
+#     # extract the asset (to enable type hinting)
+#     src_asset: RigidObject = env.scene[src_body_name]
+#     tgt_asset: RigidObject = env.scene[tgt_body_name]
+#     src_pos = src_asset.data.root_pos_w - env.scene.env_origins
+#     tgt_pos = tgt_asset.data.root_pos_w - env.scene.env_origins
+#     return torch.norm(src_pos - tgt_pos, dim=1)
+
+# def position_error_forge(env: ManagerBasedRLEnv, src_body_name: str, tgt_body_name: str,
+#                          a=100, b=0, tol=0.) -> torch.Tensor:
+#     l2_dis = position_error_l2(env, src_body_name, tgt_body_name)
+#     clamped_dis = torch.clamp(l2_dis - tol, min=0)
+#     dis = 1 / (torch.exp(-a * clamped_dis) + b + torch.exp(a * clamped_dis))
+#     return dis    
 
 def orientation_command_error(env: ManagerBasedRLEnv, command_name: str, asset_cfg: SceneEntityCfg) -> torch.Tensor:
     """Penalize tracking orientation error using shortest path.

@@ -10,13 +10,12 @@ from omni.isaac.lab.utils import configclass
 from omni.isaac.lab.assets import AssetBaseCfg, RigidObject, RigidObjectCfg
 from omni.isaac.lab.envs import ManagerBasedEnv
 import omni.isaac.lab_tasks.manager_based.manipulation.screw.mdp as mdp
-from omni.isaac.lab_tasks.manager_based.manipulation.screw.screw_env_cfg import ScrewEnvCfg
+from omni.isaac.lab_tasks.manager_based.manipulation.screw.screw_env_cfg import BaseNutTightenEnvCfg
 from omni.isaac.lab.managers import ActionTerm, ActionTermCfg
 
 ##
 # Pre-defined configs
 ##
-from omni.isaac.lab.markers.config import FRAME_MARKER_CFG  # isort: skip
 
 
 ##
@@ -24,15 +23,11 @@ from omni.isaac.lab.markers.config import FRAME_MARKER_CFG  # isort: skip
 ##
 
 @configclass
-class AbsFloatScrewEnvCfg(ScrewEnvCfg):
+class AbsFloatNutTightenEnvCfg(BaseNutTightenEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
         self.scene.robot = None
-        # Listens to the required transforms
-        marker_cfg = FRAME_MARKER_CFG.copy()
-        marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
-        marker_cfg.prim_path = "/Visuals/FrameTransformer"
 
         self.act_lows = [-0.001, -0.001, -0.001, -0.2, -0.2, -0.2]
         self.act_highs = [0.001, 0.001, 0.001, 0.2, 0.2, 0.2]
@@ -51,7 +46,7 @@ class AbsFloatScrewEnvCfg(ScrewEnvCfg):
 
 
 @configclass
-class FloatScrewEnvCfg_PLAY(AbsFloatScrewEnvCfg):
+class FloatScrewEnvCfg_PLAY(AbsFloatNutTightenEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()

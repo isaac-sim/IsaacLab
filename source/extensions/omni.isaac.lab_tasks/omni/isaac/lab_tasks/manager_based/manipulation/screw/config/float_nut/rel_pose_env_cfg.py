@@ -15,24 +15,28 @@ import omni.isaac.lab.sim as sim_utils
 
 
 @configclass
-class RelFloatScrewEazyEnvCfg(abs_pose_env_cfg.AbsFloatScrewEnvCfg):
+class RelFloatNutTightenEnvCfg(abs_pose_env_cfg.AbsFloatNutTightenEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
-        self.actions.nut_action.use_relative_mode = True
-        # self.scene.nut.init_state.pos = (0.63, 0, 4.7518e-3)
-        # self.scene.nut.init_state.rot = (9.4993e-01, -6.4670e-06, -2.1785e-05, -3.1247e-01)
-        self.scene.nut.init_state.pos = (6.3000e-01, 2.0661e-06, 3.0895e-03)
-        self.scene.nut.init_state.pos = (6.3000e-01, 2.0661e-06, 0.04)
-        self.scene.nut.init_state.rot = (-2.1609e-01,  6.6671e-05, -6.6467e-05,  9.7637e-01)
+        self.act_lows = [-0.001, -0.001, -0.001, -0.5, -0.5, -0.5]
+        self.act_highs = [0.001, 0.001, 0.001, 0.5, 0.5, 0.5]
         
-        # mated 
-        self.scene.nut.init_state.pos = (6.3016e-01, 4.7342e-04, 1.6750e-02)
-        self.scene.nut.init_state.rot = (-0.0409,  0.0054,  0.0162, -0.9990)
+        # override actions
+        self.actions.nut_action = mdp.RigidObjectPoseActionTermCfg(
+            asset_name="nut",
+            command_type="pose",
+            use_relative_mode=True,
+            p_gain=5,
+            d_gain=0.01,
+            act_lows=self.act_lows,
+            act_highs=self.act_highs,
+            )
+
         
 
 @configclass
-class RelFloatScrewEazyEnvCfg_PLAY(RelFloatScrewEazyEnvCfg):
+class RelFloatNutTightenEazyEnvCfg_PLAY(RelFloatNutTightenEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
@@ -44,7 +48,7 @@ class RelFloatScrewEazyEnvCfg_PLAY(RelFloatScrewEazyEnvCfg):
         
 
 @configclass
-class RelFloatScrewMediumEnvCfg(RelFloatScrewEazyEnvCfg):
+class RelFloatScrewMediumEnvCfg(RelFloatNutTightenEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()

@@ -9,7 +9,7 @@ from omni.isaac.lab.sensors.frame_transformer import FrameTransformerCfg, Offset
 from omni.isaac.lab.utils import configclass
 
 import omni.isaac.lab_tasks.manager_based.manipulation.screw.mdp as mdp
-from omni.isaac.lab_tasks.manager_based.manipulation.screw.screw_env_cfg import ScrewEnvCfg
+from omni.isaac.lab_tasks.manager_based.manipulation.screw.screw_env_cfg import BaseScrewEnvCfg
 
 ##
 # Pre-defined configs
@@ -24,7 +24,7 @@ from omni.isaac.lab_assets import FRANKA_PANDA_CFG  # isort: skip
 
 
 @configclass
-class FrankaScrewEnvCfg(ScrewEnvCfg):
+class FrankaScrewEnvCfg(BaseScrewEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()

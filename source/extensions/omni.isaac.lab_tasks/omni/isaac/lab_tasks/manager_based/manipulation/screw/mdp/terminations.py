@@ -17,7 +17,8 @@ from typing import TYPE_CHECKING
 from omni.isaac.lab.assets import RigidObject
 from omni.isaac.lab.managers import SceneEntityCfg
 from omni.isaac.lab.utils.math import combine_frame_transforms
-from .rewards import position_error_l2
+from .observations import rel_nut_bolt_bottom_distance
+from .rewards import l2_norm
 
 if TYPE_CHECKING:
     from omni.isaac.lab.envs import ManagerBasedRLEnv
@@ -25,20 +26,18 @@ if TYPE_CHECKING:
 
 def nut_fully_screwed(
     env: ManagerBasedRLEnv,
-    src_body_name: str,
-    tgt_body_name: str,
     threshold: float = 1e-3,
 ) -> torch.Tensor:
-    """Termination condition for the object reaching the goal position.
+    """_summary_
 
     Args:
-        env: The environment.
-        command_name: The name of the command that is used to control the object.
-        threshold: The threshold for the object to reach the goal position. Defaults to 0.02.
-        robot_cfg: The robot configuration. Defaults to SceneEntityCfg("robot").
-        object_cfg: The object configuration. Defaults to SceneEntityCfg("object").
+        env (ManagerBasedRLEnv): _description_
+        threshold (float, optional): _description_. Defaults to 1e-3.
 
+    Returns:
+        torch.Tensor: _description_
     """
-    l2_dis = position_error_l2(env, src_body_name, tgt_body_name)
-    return l2_dis < threshold
-
+    
+    diff = rel_nut_bolt_bottom_distance(env)
+    dis = l2_norm(diff)
+    return dis < threshold

@@ -263,6 +263,8 @@ class RigidObjectPoseActionTermCfg(ActionTermCfg):
     """Proportional gain of the PD controller."""
     d_gain: float = 0.05
     """Derivative gain of the PD controller."""
+    
+    is_accumulate_action: bool = False
     # action limits
     act_lows = [-0.01, -0.01, -0.01, -0.1, -0.1, -0.1]
     act_highs = [0.01, 0.01, 0.01, 0.1, 0.1, 0.1]

@@ -47,7 +47,7 @@ from omni.isaac.lab.assets.rigid_object.rigid_object_data import RigidObjectData
 
 import omni.isaac.lab_tasks  # noqa: F401
 from omni.isaac.lab.envs import ManagerBasedRLEnv
-from omni.isaac.lab_tasks.manager_based.manipulation.screw.screw_env_cfg import ScrewEnvCfg
+from omni.isaac.lab_tasks.manager_based.manipulation.screw.screw_env_cfg import BaseScrewEnvCfg
 from omni.isaac.lab_tasks.utils.parse_cfg import parse_env_cfg
 from omni.isaac.core.prims import GeometryPrim
 
@@ -291,7 +291,7 @@ class ScrewNutSm:
 
 def main():
     # parse configuration
-    env_cfg: ScrewEnvCfg = parse_env_cfg(
+    env_cfg: BaseScrewEnvCfg = parse_env_cfg(
         "Isaac-Screw-Nut-Franka-IK-Abs-v0",
         num_envs=args_cli.num_envs,
         use_fabric=not args_cli.disable_fabric,

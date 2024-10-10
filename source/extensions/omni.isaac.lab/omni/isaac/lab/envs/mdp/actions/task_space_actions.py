@@ -353,12 +353,15 @@ class RigidObjectActionTerm(ActionTerm):
         # no-processing of actions
         self._processed_actions[:] = self._raw_actions[:]
         obj_pos_curr, obj_quat_curr = self._compute_frame_pose()
-        self.obj_pos_des[~self.initialized] = obj_pos_curr[~self.initialized]
-        self.obj_quat_des[~self.initialized] = obj_quat_curr[~self.initialized]
-        self.initialized[~self.initialized] = True
+     
         # set command into controller
-        self.set_command(self._processed_actions, self.obj_pos_des, self.obj_quat_des)
-        # self.set_command(self._processed_actions, obj_pos_curr, obj_quat_curr)
+        if self.cfg.is_accumulate_action:
+            self.obj_pos_des[~self.initialized] = obj_pos_curr[~self.initialized]
+            self.obj_quat_des[~self.initialized] = obj_quat_curr[~self.initialized]
+            self.initialized[~self.initialized] = True
+            self.set_command(self._processed_actions, self.obj_pos_des, self.obj_quat_des)
+        else:
+            self.set_command(self._processed_actions, obj_pos_curr, obj_quat_curr)
         # print("Current ", obj_pos_curr, obj_quat_curr)
         # print("Destination ", self.obj_pos_des, self.obj_quat_des)
 
@@ -367,8 +370,8 @@ class RigidObjectActionTerm(ActionTerm):
         obj_pos_curr, obj_quat_curr = self._compute_frame_pose()
         pos_error, rot_error = math_utils.compute_pose_error(obj_pos_curr, obj_quat_curr,
                                                              self.obj_pos_des, self.obj_quat_des)
-        # pos_error = torch.clamp(pos_error, self.act_lows[:, :3], self.act_highs[:, :3])
-        # rot_error = torch.clamp(rot_error, self.act_lows[:, 3:], self.act_highs[:, 3:])                                                   
+        pos_error = torch.clamp(pos_error, self.act_lows[:, :3], self.act_highs[:, :3])
+        rot_error = torch.clamp(rot_error, self.act_lows[:, 3:], self.act_highs[:, 3:])                                                   
         pos_vel_error = -self._asset.data.root_lin_vel_w
         rot_vel_error = -self._asset.data.root_ang_vel_w
         
