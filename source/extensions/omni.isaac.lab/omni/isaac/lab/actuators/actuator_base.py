@@ -207,6 +207,7 @@ class ActuatorBase(ABC):
             TypeError: If the parameter value is not of the expected type.
             TypeError: If the default value is not of the expected type.
             ValueError: If the parameter value is None and no default value is provided.
+            ValueError: If the default value tensor is the wrong shape.
         """
 
         # Parse configuration value first
