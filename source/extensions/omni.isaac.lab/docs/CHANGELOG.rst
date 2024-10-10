@@ -94,7 +94,6 @@ Added
   since it expects orthogonal depth images as inputs.
 
 
-
 0.24.13 (2024-09-08)
 ~~~~~~~~~~~~~~~~~~~~
 
