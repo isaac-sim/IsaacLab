@@ -134,34 +134,11 @@ class ScrewSceneCfg(InteractiveSceneCfg):
         ])
     
     bolt_frame : FrameTransformerCfg = MISSING
-            
-
-        
 
 
 ##
 # MDP settings
 ##
-
-
-# @configclass
-# class CommandsCfg:
-#     """Command terms for the MDP."""
-
-#     ee_pose = mdp.UniformPoseCommandCfg(
-#         asset_name="robot",
-#         body_name=MISSING,
-#         resampling_time_range=(4.0, 4.0),
-#         debug_vis=True,
-#         ranges=mdp.UniformPoseCommandCfg.Ranges(
-#             pos_x=(0.35, 0.65),
-#             pos_y=(-0.2, 0.2),
-#             pos_z=(0.15, 0.5),
-#             roll=(0.0, 0.0),
-#             pitch=MISSING,  # depends on end-effector axis
-#             yaw=(-3.14, 3.14),
-#         ),
-#     )
 
 
 @configclass
@@ -354,7 +331,7 @@ class BaseNutTightenEnvCfg(BaseScrewEnvCfg):
                 FrameTransformerCfg.FrameCfg(
                     prim_path="{ENV_REGEX_NS}/Bolt/factory_bolt",
                     name="bolt_bottom",
-                    offset=OffsetCfg(pos=(0.0, 0.0, 0.012)),
+                    offset=OffsetCfg(pos=(0.0, 0.0, 0.011)), # strict 0.01
                 ),
                 ]
             )

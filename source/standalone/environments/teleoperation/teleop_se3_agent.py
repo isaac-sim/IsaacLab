@@ -35,8 +35,11 @@ simulation_app = app_launcher.app
 import gymnasium as gym
 import torch
 
-import omni.log
-
+import carb
+import tqdm
+import numpy as np
+import matplotlib.pyplot as plt
+from force_tool.visualization.plot_utils import get_img_from_fig, save_numpy_as_mp4
 from omni.isaac.lab.devices import Se3Gamepad, Se3Keyboard, Se3SpaceMouse
 from omni.isaac.lab.managers import TerminationTermCfg as DoneTerm
 
@@ -74,7 +77,7 @@ def main():
         # add termination condition for reaching the goal otherwise the environment won't reset
         env_cfg.terminations.object_reached_goal = DoneTerm(func=mdp.object_reached_goal)
     # create environment
-    env = gym.make(args_cli.task, cfg=env_cfg)
+    env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array")
     # check environment name (for reach , we don't allow the gripper)
     if "Reach" in args_cli.task:
         omni.log.warn(
@@ -105,7 +108,8 @@ def main():
     env.reset()
     teleop_interface.reset()
     counter = 0
-
+    record_forces = False
+    forces, frames = [], []
     # simulate environment
     while simulation_app.is_running():
         # run everything in inference mode
@@ -118,10 +122,60 @@ def main():
             # pre-process actions
             actions = pre_process_actions(delta_pose, gripper_command)
             # apply actions
+            # actions[:, 2] = -1.8e-3/250
             actions[:, 2] = -0.00001
             actions[:, 5] = -0.2
             counter += 1
             obs, reward, termin, timeout, _ = env.step(actions)
+            if record_forces:
+                frame = env.unwrapped.render()
+                frames.append(frame)
+                contact_sensor = env.unwrapped.scene["contact_sensor"]
+                dt = contact_sensor._sim_physics_dt
+                friction_data = contact_sensor.contact_physx_view.get_friction_data(dt)
+                contact_data = contact_sensor.contact_physx_view.get_contact_data(dt)
+                nforce_mag, npoint, nnormal, ndist, ncount, nstarts = contact_data
+                tforce, tpoint, tcount, tstarts = friction_data
+                nforce = nnormal * nforce_mag
+                nforce = torch.sum(nforce, dim=0)
+                tforce = torch.sum(tforce, dim=0)
+                total_force = torch.tensor([nforce.norm(), tforce.norm(), torch.norm(nforce+tforce)])
+                print(nforce, tforce, total_force)
+                print("Total force: ", total_force)
+                forces.append(total_force.cpu().numpy())
+            if termin or counter==400:
+                print("Episode terminated.")
+                env.reset()
+                teleop_interface.reset()
+                counter = 0
+                if record_forces:
+                    wrench_frames = []
+                    plot_target = np.array(forces)
+                    labels = ["Normal Force", "Tangential Force", "Total Force"]
+                    max_val = np.max(plot_target)
+                    min_val = np.min(plot_target)
+                    indices = np.arange(len(plot_target))+1
+                    num_plots = plot_target.shape[-1]
+                    plt.plot(indices, plot_target, label=labels)
+                    plt.legend()
+                    plt.show()
+                    plt.close()
+                    for t in tqdm.tqdm(indices):
+                        fig, axs = plt.subplots(1, 1, figsize=(6, 6))
+                        plt.ylim((min_val, max_val))
+                        plt.xlim((0, len(plot_target)))
+                        plt.plot(indices[:t], plot_target[:t], label=labels)
+                        plt.legend()
+                        wrench_frame = get_img_from_fig(fig, width=frame.shape[1]//2, height=frame.shape[0])
+                        wrench_frames.append(wrench_frame)
+                        plt.close()
+                        # combine frames
+                    frames = np.array(frames)
+                    wrench_frames = np.array(wrench_frames)
+                    combined_frames = np.concatenate([frames, wrench_frames], axis=2)
+                    save_numpy_as_mp4(np.array(combined_frames), 'nut.mp4')
+                    frames = []
+
             print("Step: ", counter)
             print("Reward: ", reward, termin)
 
