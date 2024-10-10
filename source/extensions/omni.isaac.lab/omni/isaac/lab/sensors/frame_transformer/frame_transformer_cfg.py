@@ -31,10 +31,15 @@ class FrameTransformerCfg(SensorBaseCfg):
         """Information specific to a coordinate frame."""
 
         prim_path: str = MISSING
-        """The prim path corresponding to the parent rigid body.
+        """The prim path corresponding to a rigid body.
 
-        This prim should be part of the same articulation as :attr:`FrameTransformerCfg.prim_path`.
+        This can be a regex pattern to match multiple prims. For example, "/Robot/.*" will match all prims under "/Robot".
+
+        This means that if the source :attr:`FrameTransformerCfg.prim_path` is "/Robot/base", and the target :attr:`FrameTransformerCfg.FrameCfg.prim_path` is "/Robot/.*",
+        then the frame transformer will track the poses of all the prims under "/Robot",
+        including "/Robot/base" (even though this will result in an identity pose w.r.t. the source frame).
         """
+
         name: str | None = None
         """User-defined name for the new coordinate frame. Defaults to None.
 

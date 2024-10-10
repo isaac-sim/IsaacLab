@@ -141,12 +141,12 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
             single_cam_info = camera.data.info[camera_index]
 
             # Pack data back into replicator format to save them using its writer
-            rep_output = dict()
+            rep_output = {"annotators": {}}
             for key, data, info in zip(single_cam_data.keys(), single_cam_data.values(), single_cam_info.values()):
                 if info is not None:
-                    rep_output[key] = {"data": data, "info": info}
+                    rep_output["annotators"][key] = {"render_product": {"data": data, **info}}
                 else:
-                    rep_output[key] = data
+                    rep_output["annotators"][key] = {"render_product": {"data": data}}
             # Save images
             rep_output["trigger_outputs"] = {"on_time": camera.frame[camera_index]}
             rep_writer.write(rep_output)

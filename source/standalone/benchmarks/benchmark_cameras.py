@@ -5,18 +5,19 @@
 
 """
 This script might help you determine how many cameras your system can realistically run
-at different desired settings. You can supply different task environments
-to inject cameras into, or just test a sample scene. Additionally,
-you can automatically find the maximum amount of cameras you can run a task with through the
-autotune functionality.
+at different desired settings.
+
+You can supply different task environments to inject cameras into, or just test a sample scene.
+Additionally, you can automatically find the maximum amount of cameras you can run a task with
+through the auto-tune functionality.
 
 .. code-block:: bash
 
     # Usage with GUI
-    ./isaaclab.sh -p source/standalone/tutorials/04_sensors/benchmark_cameras.py -h
+    ./isaaclab.sh -p source/standalone/benchmarks/benchmark_cameras.py -h
 
     # Usage with headless
-    ./isaaclab.sh -p source/standalone/tutorials/04_sensors/benchmark_cameras.py -h --headless
+    ./isaaclab.sh -p source/standalone/benchmarks/benchmark_cameras.py -h --headless
 
 """
 
@@ -260,7 +261,7 @@ from omni.isaac.lab.sensors import (
     TiledCameraCfg,
     patterns,
 )
-from omni.isaac.lab.utils.math import convert_perspective_depth_to_orthogonal_depth, unproject_depth
+from omni.isaac.lab.utils.math import orthogonalize_perspective_depth, unproject_depth
 
 from omni.isaac.lab_tasks.utils import load_cfg_from_registry
 
@@ -676,9 +677,8 @@ def run_simulator(
                         depth = camera.data.output[data_type]
                         depth_images[data_label + "_raw"] = depth
                         if perspective_depth_predicate(data_type) and convert_depth_to_camera_to_image_plane:
-                            depth = convert_perspective_depth_to_orthogonal_depth(
-                                perspective_depth=camera.data.output[data_type],
-                                intrinsics=camera.data.intrinsic_matrices,
+                            depth = orthogonalize_perspective_depth(
+                                camera.data.output[data_type], camera.data.intrinsic_matrices
                             )
                             depth_images[data_label + "_undistorted"] = depth
 
@@ -753,7 +753,7 @@ def main():
     print("[INFO]: Designing the scene")
     if args_cli.task is None:
         print("[INFO]: No task environment provided, creating random scene.")
-        sim_cfg = sim_utils.SimulationCfg(device="cpu" if args_cli.cpu else "cuda")
+        sim_cfg = sim_utils.SimulationCfg(device=args_cli.device)
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
         sim.set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
