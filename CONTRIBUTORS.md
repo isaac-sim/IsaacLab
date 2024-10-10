@@ -63,6 +63,7 @@ Guidelines for modifications:
 * Rosario Scalise
 * Shafeef Omar
 * Vladimir Fokow
+* Wei Yang
 * Xavier Nal
 * Yang Jin
 * Zhengyu Zhang
