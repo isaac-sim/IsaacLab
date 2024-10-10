@@ -14,7 +14,7 @@ scene entities. The rest of the environment is similar to the previous tutorials
 .. code-block:: bash
 
     # Run the script
-    ./isaaclab.sh -p source/standalone/tutorials/04_envs/floating_cube.py --num_envs 32
+    ./isaaclab.sh -p source/standalone/tutorials/03_envs/create_cube_base_env.py --num_envs 32
 """
 
 from __future__ import annotations
@@ -236,6 +236,21 @@ class EventCfg:
         },
     )
 
+    randomize_color = EventTerm(
+        func=mdp.randomize_shape_color,
+        mode="scene",
+        params={"asset_cfg": SceneEntityCfg("cube")},
+    )
+
+    randomize_scale = EventTerm(
+        func=mdp.randomize_scale,
+        mode="scene",
+        params={
+            "scale_range": {"x": (0.5, 1.5), "y": (0.5, 1.5), "z": (0.5, 1.5)},
+            "asset_cfg": SceneEntityCfg("cube"),
+        },
+    )
+
 
 ##
 # Environment configuration
@@ -247,7 +262,7 @@ class CubeEnvCfg(ManagerBasedEnvCfg):
     """Configuration for the locomotion velocity-tracking environment."""
 
     # Scene settings
-    scene: MySceneCfg = MySceneCfg(num_envs=args_cli.num_envs, env_spacing=2.5)
+    scene: MySceneCfg = MySceneCfg(num_envs=args_cli.num_envs, env_spacing=2.5, replicate_physics=False)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()

@@ -192,23 +192,14 @@ class ManagerBase(ABC):
         # return the matching names
         return string_utils.resolve_matching_names(name_keys, list_of_strings)[1]
 
-    """
-    Implementation specific.
-    """
+    @staticmethod
+    def resolve_term_cfg(env: ManagerBasedEnv, term_name: str, term_cfg: ManagerTermBaseCfg, min_argc: int = 1):
+        """Resolve common attributes of a manager term configuration.
 
-    @abstractmethod
-    def _prepare_terms(self):
-        """Prepare terms information from the configuration object."""
-        raise NotImplementedError
-
-    """
-    Helper functions.
-    """
-
-    def _resolve_common_term_cfg(self, term_name: str, term_cfg: ManagerTermBaseCfg, min_argc: int = 1):
-        """Resolve common term configuration.
-
-        Usually, called by the :meth:`_prepare_terms` method to resolve common term configuration.
+        This function resolves the common attributes of a manager term configuration. It checks if the
+        term configuration is of type :class:`ManagerTermBaseCfg`, resolves the scene entity defined in the
+        term configuration, checks if the term function is callable, and verifies if the term function's
+        arguments are matched by the parameters.
 
         Note:
             By default, all term functions are expected to have at least one argument, which is the
@@ -218,6 +209,7 @@ class ManagerBase(ABC):
             required by the term function to be called correctly by the manager.
 
         Args:
+            env: The environment instance.
             term_name: The name of the term.
             term_cfg: The term configuration.
             min_argc: The minimum number of arguments required by the term function to be called correctly
@@ -239,11 +231,14 @@ class ManagerBase(ABC):
         for key, value in term_cfg.params.items():
             # deal with string
             if isinstance(value, SceneEntityCfg):
-                # load the entity
-                try:
-                    value.resolve(self._env.scene)
-                except ValueError as e:
-                    raise ValueError(f"Error while parsing '{term_name}:{key}'. {e}")
+                # check if sim is playing and resolve the entity
+                # joint and body names are only available once the sim is playing
+                # hence, we do not resolve the entity if the sim is not playing
+                if env.sim.is_playing():
+                    try:
+                        value.resolve(env.scene)
+                    except ValueError as e:
+                        raise ValueError(f"Error while parsing '{term_name}:{key}'. {e}")
                 # log the entity for checking later
                 msg = f"[{term_cfg.__class__.__name__}:{term_name}] Found entity '{value.name}'."
                 if value.joint_ids is not None:
@@ -266,7 +261,7 @@ class ManagerBase(ABC):
                     f"Configuration for the term '{term_name}' is not of type ManagerTermBase."
                     f" Received: '{type(term_cfg.func)}'."
                 )
-            term_cfg.func = term_cfg.func(cfg=term_cfg, env=self._env)
+            term_cfg.func = term_cfg.func(cfg=term_cfg, env=env)
         # check if function is callable
         if not callable(term_cfg.func):
             raise AttributeError(f"The term '{term_name}' is not callable. Received: {term_cfg.func}")
@@ -285,3 +280,24 @@ class ManagerBase(ABC):
                     f"The term '{term_name}' expects mandatory parameters: {args_without_defaults[min_argc:]}"
                     f" and optional parameters: {args_with_defaults}, but received: {term_params}."
                 )
+
+    """
+    Implementation specific.
+    """
+
+    @abstractmethod
+    def _prepare_terms(self):
+        """Prepare terms information from the configuration object."""
+        raise NotImplementedError
+
+    """
+    Helper functions.
+    """
+
+    def _resolve_common_term_cfg(self, term_name: str, term_cfg: ManagerTermBaseCfg, min_argc: int = 1):
+        """Resolve common attributes of a manager term configuration.
+
+        Usually, called by the :meth:`_prepare_terms` method to resolve common term configuration.
+        It wraps the :meth:`resolve_term_cfg` method and passes the environment instance.
+        """
+        ManagerBase.resolve_term_cfg(self._env, term_name, term_cfg, min_argc)

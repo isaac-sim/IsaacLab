@@ -21,7 +21,7 @@ import omni.isaac.core.utils.torch as torch_utils
 import omni.kit.app
 from omni.isaac.version import get_version
 
-from omni.isaac.lab.managers import EventManager
+from omni.isaac.lab.managers import EventManager, ManagerBase
 from omni.isaac.lab.scene import InteractiveScene
 from omni.isaac.lab.sim import SimulationContext
 from omni.isaac.lab.utils.noise import NoiseModel
@@ -112,6 +112,11 @@ class DirectMARLEnv:
             self.scene = InteractiveScene(self.cfg.scene)
             self._setup_scene()
         print("[INFO]: Scene manager: ", self.scene)
+
+        # randomization at scene level
+        if self.cfg.events:
+            with Timer("[INFO]: Time taken for scene randomization", "scene_randomization"):
+                self._apply_scene_randomization()
 
         # set up camera viewport controller
         # viewport is not available in other rendering modes so the function will throw a warning
@@ -562,6 +567,39 @@ class DirectMARLEnv:
     """
     Helper functions.
     """
+
+    def _apply_scene_randomization(self):
+        """Apply scene-level randomization.
+
+        This function applies the scene-level randomization based on the configuration provided
+        to the event manager. Since the event manager is not initialized at this point, we mimic
+        the operations of the event manager to apply the scene-level randomization.
+
+        It must be called only before the simulation/physics is started.
+        """
+        # check if scene randomization is enabled
+        applied_scene_randomization = False
+        # iterate over all event terms
+        for term_name, term_cfg in self.cfg.events.__dict__.items():
+            # check for non config
+            if term_cfg is None:
+                continue
+            # call event terms corresponding to the scene-level randomization
+            if term_cfg.mode == "scene":
+                # resolve term config
+                ManagerBase.resolve_term_cfg(self, term_name, term_cfg, min_argc=2)
+                # enable scene randomization
+                applied_scene_randomization = True
+                # call the term
+                term_cfg.func(self, None, **term_cfg.params)
+
+        # warn the user that replicate physics may affect PhysX parsing
+        if self.scene.cfg.replicate_physics and applied_scene_randomization:
+            carb.log_warn(
+                "Replicate physics is enabled in the 'InteractiveScene' configuration."
+                " This may adversely affect PhysX parsing of scene information."
+                " We recommend disabling this property."
+            )
 
     def _configure_env_spaces(self):
         """Configure the spaces for the environment."""
