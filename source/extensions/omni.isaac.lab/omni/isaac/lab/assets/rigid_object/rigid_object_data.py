@@ -127,23 +127,23 @@ class RigidObjectData:
         state = self.root_state_w.clone()
         quat = state[:, 3:7]
         # adjust linear velocity to link
-        state[:, 7:10] += torch.linalg.cross(state[:, 10:13], math_utils.quat_rotate(quat, -self.com_pos_b), dim=-1)
+        state[:, 7:10] += torch.linalg.cross(state[:, 10:13], math_utils.quat_rotate(quat, -self.com_pos_b.squeeze(-2)), dim=-1)
         return state
 
     @property
     def root_com_state_w(self):
-        """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).
+        """Root center of mass state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).
 
         The position, quaternion, and linear/angular velocity are of the rigid body's center of mass frame
         relative to the world. Center of mass frame is the orientation principle axes of inertia.
         """
         state = self.root_state_w.clone()
-        # adjust position to center of mass
+        # adjust pose to center of mass
         pos, quat = math_utils.combine_frame_transforms(state[:,:3],
                                                         state[:,3:7],
-                                                        self.com_pos_b,
-                                                        self.com_quat_b)           
-        state[:, :7] += torch.cat((pos,quat),dim=-1)
+                                                        self.com_pos_b.squeeze(-2),
+                                                        self.com_quat_b.squeeze(-2))           
+        state[:, :7] = torch.cat((pos,quat),dim=-1)
         return state
 
     @property
@@ -535,7 +535,7 @@ class RigidObjectData:
         
         This quantity is the center of mass location relative to its body frame.
         """
-        return self._root_physx_view.get_coms().to(self.device)[...,:3]
+        return self._root_physx_view.get_coms().to(self.device)[...,:3].view(-1, 1, 3)
     
     @property
     def com_quat_b(self) -> torch.Tensor:
@@ -543,4 +543,5 @@ class RigidObjectData:
         
         This quantity is the orientation of the principles axes of inertia relative to its body frame.
         """
-        return self._root_physx_view.get_coms().to(self.device)[...,3:7]
+        quat = self._root_physx_view.get_coms().to(self.device)[...,3:7]
+        return math_utils.convert_quat(quat, to="wxyz").view(-1, 1, 4)

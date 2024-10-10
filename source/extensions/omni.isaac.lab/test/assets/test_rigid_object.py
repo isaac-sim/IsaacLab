@@ -32,7 +32,7 @@ from omni.isaac.lab.assets import RigidObject, RigidObjectCfg
 from omni.isaac.lab.sim import build_simulation_context
 from omni.isaac.lab.sim.spawners import materials
 from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
-from omni.isaac.lab.utils.math import default_orientation, quat_rotate_inverse, random_orientation
+from omni.isaac.lab.utils.math import default_orientation, quat_rotate_inverse, random_orientation, quat_mul
 
 
 def generate_cubes_scene(
@@ -673,7 +673,7 @@ class TestRigidObject(unittest.TestCase):
                                 torch.testing.assert_close(cube_object.data.body_acc_w, gravity)
 
     def test_body_root_state_properties(self):
-        """Test the root_state_com_w, root_state_link_w, body_state_com_w, and body_state_link_w properties."""
+        """Test the root_com_state_w, root_link_state_w, body_com_state_w, and body_link_state_w properties."""
         for num_cubes in (1, 2):
             for device in ("cuda:0", "cpu"):
                 for with_offset in [True, False]:
@@ -701,21 +701,17 @@ class TestRigidObject(unittest.TestCase):
                             com[..., :3] = offset.to("cpu")
                             cube_object.root_physx_view.set_coms(com, env_idx)
 
-                            # force update data static member var _com_pos_b after setting
-                            cube_object._data._com_pos_b, _ = (
-                                cube_object.root_physx_view.get_coms().to(device).split([3, 4], dim=-1)
-                            )
-
                             # check ceter of mass has been set
                             torch.testing.assert_close(cube_object.root_physx_view.get_coms(), com)
 
                             # random z spin velocity
                             spin_twist = torch.zeros(6, device=device)
                             spin_twist[5] = torch.randn(1, device=device)
+
                             # Simulate physics
                             for _ in range(100):
                                 # spin the object around Z axis (com)
-                                cube_object.write_root_velocity_to_sim(spin_twist.repeat(num_cubes, 1))
+                                cube_object.write_root_com_velocity_to_sim(spin_twist.repeat(num_cubes, 1))
                                 # perform rendering
                                 sim.step()
                                 # update object
@@ -723,56 +719,60 @@ class TestRigidObject(unittest.TestCase):
 
                                 # get state properties
                                 root_state_w = cube_object.data.root_state_w
-                                root_state_link_w = cube_object.data.root_state_link_w
-                                root_state_com_w = cube_object.data.root_state_com_w
+                                root_link_state_w = cube_object.data.root_link_state_w
+                                root_com_state_w = cube_object.data.root_com_state_w
                                 body_state_w = cube_object.data.body_state_w
-                                body_state_link_w = cube_object.data.body_state_link_w
-                                body_state_com_w = cube_object.data.body_state_com_w
+                                body_link_state_w = cube_object.data.body_link_state_w
+                                body_com_state_w = cube_object.data.body_com_state_w
 
                                 # if offset is [0,0,0] all root_state_%_w will match and all body_%_w will match
                                 if not with_offset:
-                                    torch.testing.assert_close(root_state_w, root_state_com_w)
-                                    torch.testing.assert_close(root_state_w, root_state_link_w)
-                                    torch.testing.assert_close(body_state_w, body_state_com_w)
-                                    torch.testing.assert_close(body_state_w, body_state_link_w)
+                                    torch.testing.assert_close(root_state_w, root_com_state_w)
+                                    torch.testing.assert_close(root_state_w, root_link_state_w)
+                                    torch.testing.assert_close(body_state_w, body_com_state_w)
+                                    torch.testing.assert_close(body_state_w, body_link_state_w)
                                 else:
                                     # cubes are spinning around center of mass
                                     # position will not match
                                     # center of mass position will be constant (i.e. spining around com)
-                                    torch.testing.assert_close(env_pos + offset, root_state_com_w[..., :3])
-                                    torch.testing.assert_close(env_pos + offset, body_state_com_w[..., :3].squeeze(-2))
+                                    torch.testing.assert_close(env_pos + offset, root_com_state_w[..., :3])
+                                    torch.testing.assert_close(env_pos + offset, body_com_state_w[..., :3].squeeze(-2))
                                     # link position will be moving but should stay constant away from center of mass
-                                    root_state_link_pos_rel_com = quat_rotate_inverse(
-                                        root_state_link_w[..., 3:7],
-                                        root_state_link_w[..., :3] - root_state_com_w[..., :3],
+                                    root_link_state_pos_rel_com = quat_rotate_inverse(
+                                        root_link_state_w[..., 3:7],
+                                        root_link_state_w[..., :3] - root_com_state_w[..., :3],
                                     )
-                                    torch.testing.assert_close(-offset, root_state_link_pos_rel_com)
-                                    body_state_link_pos_rel_com = quat_rotate_inverse(
-                                        body_state_link_w[..., 3:7],
-                                        body_state_link_w[..., :3] - body_state_com_w[..., :3],
+                                    torch.testing.assert_close(-offset, root_link_state_pos_rel_com)
+                                    body_link_state_pos_rel_com = quat_rotate_inverse(
+                                        body_link_state_w[..., 3:7],
+                                        body_link_state_w[..., :3] - body_com_state_w[..., :3],
                                     )
-                                    torch.testing.assert_close(-offset, body_state_link_pos_rel_com.squeeze(-2))
+                                    torch.testing.assert_close(-offset, body_link_state_pos_rel_com.squeeze(-2))
 
-                                    # orientation will always match
-                                    torch.testing.assert_close(root_state_w[..., 3:7], root_state_com_w[..., 3:7])
-                                    torch.testing.assert_close(root_state_w[..., 3:7], root_state_link_w[..., 3:7])
-                                    torch.testing.assert_close(body_state_w[..., 3:7], body_state_com_w[..., 3:7])
-                                    torch.testing.assert_close(body_state_w[..., 3:7], body_state_link_w[..., 3:7])
+                                    # orientation of com will be a constant rotation from link orientation
+                                    com_quat_b = cube_object.data.com_quat_b
+                                    com_quat_w = quat_mul(body_link_state_w[...,3:7],com_quat_b)
+                                    torch.testing.assert_close(com_quat_w, body_com_state_w[...,3:7])
+                                    torch.testing.assert_close(com_quat_w.squeeze(-2), root_com_state_w[...,3:7])
+                                    
+                                    # orientation of link will match root state will always match
+                                    torch.testing.assert_close(root_state_w[..., 3:7], root_link_state_w[..., 3:7])
+                                    torch.testing.assert_close(body_state_w[..., 3:7], body_link_state_w[..., 3:7])
 
                                     # lin_vel will not match
                                     # center of mass vel will be constant (i.e. spining around com)
                                     torch.testing.assert_close(
-                                        torch.zeros_like(root_state_com_w[..., 7:10]), root_state_com_w[..., 7:10]
+                                        torch.zeros_like(root_com_state_w[..., 7:10]), root_com_state_w[..., 7:10]
                                     )
                                     torch.testing.assert_close(
-                                        torch.zeros_like(body_state_com_w[..., 7:10]), body_state_com_w[..., 7:10]
+                                        torch.zeros_like(body_com_state_w[..., 7:10]), body_com_state_w[..., 7:10]
                                     )
                                     # link frame will be moving, and should be equal to input angular velocity cross offset
                                     lin_vel_rel_root_gt = quat_rotate_inverse(
-                                        root_state_link_w[..., 3:7], root_state_link_w[..., 7:10]
+                                        root_link_state_w[..., 3:7], root_link_state_w[..., 7:10]
                                     )
                                     lin_vel_rel_body_gt = quat_rotate_inverse(
-                                        body_state_link_w[..., 3:7], body_state_link_w[..., 7:10]
+                                        body_link_state_w[..., 3:7], body_link_state_w[..., 7:10]
                                     )
                                     lin_vel_rel_gt = torch.linalg.cross(
                                         spin_twist.repeat(num_cubes, 1)[..., 3:], -offset
@@ -785,10 +785,66 @@ class TestRigidObject(unittest.TestCase):
                                     )
 
                                     # ang_vel will always match
-                                    torch.testing.assert_close(root_state_w[..., 10:], root_state_com_w[..., 10:])
-                                    torch.testing.assert_close(root_state_w[..., 10:], root_state_link_w[..., 10:])
-                                    torch.testing.assert_close(body_state_w[..., 10:], body_state_com_w[..., 10:])
-                                    torch.testing.assert_close(body_state_w[..., 10:], body_state_link_w[..., 10:])
+                                    torch.testing.assert_close(root_state_w[..., 10:], root_com_state_w[..., 10:])
+                                    torch.testing.assert_close(root_state_w[..., 10:], root_link_state_w[..., 10:])
+                                    torch.testing.assert_close(body_state_w[..., 10:], body_com_state_w[..., 10:])
+                                    torch.testing.assert_close(body_state_w[..., 10:], body_link_state_w[..., 10:])
+
+    def test_write_root_state(self):
+        """Test the setters for root_state using both the link frame and center of mass as reference frame."""
+        for num_cubes in (1, 2):
+            for device in ("cuda:0", "cpu"):
+                for with_offset in [True, False]:
+                    for state_location in ("com","link"):
+                        with self.subTest(num_cubes=num_cubes, device=device, with_offset=with_offset):
+                            with build_simulation_context(
+                                device=device, gravity_enabled=False, auto_add_lighting=True
+                            ) as sim:
+                                # Create a scene with random cubes
+                                cube_object, env_pos = generate_cubes_scene(num_cubes=num_cubes, height=0.0, device=device)
+                                env_idx = torch.tensor([x for x in range(num_cubes)])
+
+                                # Play sim
+                                sim.reset()
+
+                                # Check if cube_object is initialized
+                                self.assertTrue(cube_object.is_initialized)
+
+                                # change center of mass offset from link frame
+                                if with_offset:
+                                    offset = torch.tensor([0.1, 0.0, 0.0], device=device).repeat(num_cubes, 1)
+                                else:
+                                    offset = torch.tensor([0.0, 0.0, 0.0], device=device).repeat(num_cubes, 1)
+
+                                com = cube_object.root_physx_view.get_coms()
+                                com[..., :3] = offset.to("cpu")
+                                cube_object.root_physx_view.set_coms(com, env_idx)
+
+                                # check ceter of mass has been set
+                                torch.testing.assert_close(cube_object.root_physx_view.get_coms(), com)
+
+                                rand_state = torch.zeros_like(cube_object.data.root_link_state_w)
+                                rand_state[...,:7]= cube_object.data.default_root_state[...,:7]
+                                rand_state[...,:3] += env_pos
+                                # make quaternion a unit vector
+                                rand_state[...,3:7] = torch.nn.functional.normalize(rand_state[...,3:7],dim=-1)
+                                
+                                for i in range(10):
+
+                                    # perform step
+                                    sim.step()
+                                    # update buffers
+                                    cube_object.update(sim.cfg.dt)
+
+                                    if state_location is "com":
+                                        cube_object.write_root_com_state_to_sim(rand_state)
+                                    elif state_location is "link":
+                                        cube_object.write_root_link_state_to_sim(rand_state)
+                                    
+                                    if state_location is "com":
+                                        torch.testing.assert_close(rand_state,cube_object.data.root_com_state_w)
+                                    elif state_location is "link":
+                                        torch.testing.assert_close(rand_state,cube_object.data.root_link_state_w)
 
 
 if __name__ == "__main__":

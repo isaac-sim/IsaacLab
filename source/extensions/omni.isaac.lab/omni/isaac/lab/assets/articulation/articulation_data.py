@@ -3,7 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import carb
 import torch
+import warnings
 import weakref
 
 import omni.physics.tensors.impl.api as physx
@@ -11,6 +13,11 @@ import omni.physics.tensors.impl.api as physx
 import omni.isaac.lab.utils.math as math_utils
 from omni.isaac.lab.utils.buffers import TimestampedBuffer
 
+def single_deprecation_warning(dep_msg: str):
+    """Singlue use deprecation warning"""
+    warnings.simplefilter("once")
+    warnings.warn(dep_msg, DeprecationWarning)
+    carb.log_warn(dep_msg)
 
 class ArticulationData:
     """Data container for an articulation.
@@ -253,6 +260,10 @@ class ArticulationData:
         The position and quaternion are of the articulation root's actor frame relative to the world. Meanwhile,
         the linear and angular velocities are of the articulation root's center of mass frame.
         """
+
+        single_deprecation_warning("""root_state_w it's derived properties will be deprecated in a future release. 
+                                   Please use root_link_state_w or root_com_state_w.""")
+
         if self._root_state_w.timestamp < self._sim_timestamp:
             # read data from simulation
             pose = self._root_physx_view.get_root_transforms().clone()
@@ -280,7 +291,7 @@ class ArticulationData:
 
     @property
     def root_com_state_w(self):
-        """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).
+        """Root center of mass state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).
 
         The position, quaternion, and linear/angular velocity are of the articulation root link's center of mass frame
         relative to the world. Center of mass frame is assumed to be the same orientation as the link rather than the
@@ -303,6 +314,10 @@ class ArticulationData:
         The position and quaternion are of all the articulation links's actor frame. Meanwhile, the linear and angular
         velocities are of the articulation links's center of mass frame.
         """
+
+        single_deprecation_warning("""body_state_w and it's derived properties will be deprecated in a future release. 
+                            Please use body_link_state_w or bodt_com_state_w.""")
+        
         if self._body_state_w.timestamp < self._sim_timestamp:
             # read data from simulation
             poses = self._root_physx_view.get_link_transforms().clone()
