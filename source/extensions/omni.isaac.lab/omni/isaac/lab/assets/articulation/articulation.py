@@ -373,15 +373,21 @@ class Articulation(AssetBase):
             root_pose: Root center of mass poses in simulation frame. Shape is (len(env_ids), 7).
             env_ids: Environment indices. If None, then all indices are used.
         """
-       
+        # resolve all indices
+        if env_ids is None:
+            local_env_ids = slice(None)
+
+        com_pos = self.data.com_pos_b[local_env_ids,0,:]
+        com_quat = self.data.com_quat_b[local_env_ids,0,:]
+
         root_link_pos, root_link_quat = math_utils.combine_frame_transforms(root_pose[...,:3],
                                                             root_pose[...,3:7],
-                                                            self.data.com_pos_b[env_ids,0,:],
-                                                            self.data.com_quat_b[env_ids,0,:])
+                                                            math_utils.quat_rotate(math_utils.quat_inv(com_quat),-com_pos),
+                                                            math_utils.quat_inv(com_quat))
+        
         root_link_pose = torch.cat((root_link_pos,root_link_quat), dim=-1)
         self.write_root_link_pose_to_sim(root_pose=root_link_pose,env_ids=env_ids)
         
-
     def write_root_velocity_to_sim(self, root_velocity: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root center of mass velocity over selected environment indices into the simulation.
 
@@ -435,12 +441,16 @@ class Articulation(AssetBase):
             root_velocity: Root frame velocities in simulation world frame. Shape is (len(env_ids), 6). 
             env_ids: Environment indices. If None, then all indices are used.
         """
+        # resolve all indices
+        if env_ids is None:
+            local_env_ids = slice(None)
+
         root_com_velocity = root_velocity.clone()
-        quat = self._data.root_state_w[env_ids, :7]
-        com_pos_b = self._data._com_pos_b[env_ids,:]
+        quat = self.data.root_state_w[local_env_ids, 3:7]
+        com_pos_b = self.data.com_pos_b[local_env_ids,0,:]
         # transform given velocity to center of mass
         root_com_velocity[:,:3] += torch.linalg.cross(
-            root_com_velocity[:, 10:13], math_utils.quat_rotate(quat, com_pos_b), dim=-1
+            root_com_velocity[:, 3:], math_utils.quat_rotate(quat, com_pos_b), dim=-1
         )
         # write center of mass velocity to sim
         self.write_root_com_velocity_to_sim(root_velocity=root_com_velocity,env_ids=env_ids)
