@@ -156,12 +156,63 @@ class RigidObject(AssetBase):
             root_state: Root state in simulation frame. Shape is (len(env_ids), 13).
             env_ids: Environment indices. If None, then all indices are used.
         """
+        # deprecation warning
+        carb.log_warn(
+            "DeprecationWarning: RigidObject.write_root_state_to_sim will be removed in a future release. Please use"
+            " write_root_link_state_to_sim or write_root_com_state_to_sim instead."
+        )
+
         # set into simulation
         self.write_root_pose_to_sim(root_state[:, :7], env_ids=env_ids)
         self.write_root_velocity_to_sim(root_state[:, 7:], env_ids=env_ids)
 
+    def write_root_com_state_to_sim(self, root_state: torch.Tensor, env_ids: Sequence[int] | None = None):
+        """Set the root center of mass state over selected environment indices into the simulation.
+
+        The root state comprises of the cartesian position, quaternion orientation in (w, x, y, z), and linear
+        and angular velocity. All the quantities are in the simulation frame.
+
+        Args:
+            root_state: Root state in simulation frame. Shape is (len(env_ids), 13).
+            env_ids: Environment indices. If None, then all indices are used.
+        """
+        # set into simulation
+        self.write_root_com_pose_to_sim(root_state[:, :7], env_ids=env_ids)
+        self.write_root_com_velocity_to_sim(root_state[:, 7:], env_ids=env_ids)
+
+    def write_root_link_state_to_sim(self, root_state: torch.Tensor, env_ids: Sequence[int] | None = None):
+        """Set the root link state over selected environment indices into the simulation.
+
+        The root state comprises of the cartesian position, quaternion orientation in (w, x, y, z), and linear
+        and angular velocity. All the quantities are in the simulation frame.
+
+        Args:
+            root_state: Root state in simulation frame. Shape is (len(env_ids), 13).
+            env_ids: Environment indices. If None, then all indices are used.
+        """
+        # set into simulation
+        self.write_root_link_pose_to_sim(root_state[:, :7], env_ids=env_ids)
+        self.write_root_link_velocity_to_sim(root_state[:, 7:], env_ids=env_ids)
+
     def write_root_pose_to_sim(self, root_pose: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root pose over selected environment indices into the simulation.
+
+        The root pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
+
+        Args:
+            root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7).
+            env_ids: Environment indices. If None, then all indices are used.
+        """
+        # deprecation warning
+        carb.log_warn(
+            "DeprecationWarning: RigidObject.write_root_pose_to_sim will be removed in a future release. Please use"
+            " write_root_link_pose_to_sim or write_root_com_pose_to_sim instead."
+        )
+
+        self.write_root_link_pose_to_sim(root_pose, env_ids)
+
+    def write_root_link_pose_to_sim(self, root_pose: torch.Tensor, env_ids: Sequence[int] | None = None):
+        """Set the root link pose over selected environment indices into the simulation.
 
         The root pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
 
@@ -183,13 +234,63 @@ class RigidObject(AssetBase):
         # set into simulation
         self.root_physx_view.set_transforms(root_poses_xyzw, indices=physx_env_ids)
 
-    def write_root_velocity_to_sim(self, root_velocity: torch.Tensor, env_ids: Sequence[int] | None = None):
-        """Set the root velocity over selected environment indices into the simulation.
+    def write_root_com_pose_to_sim(self, root_pose: torch.Tensor, env_ids: Sequence[int] | None = None):
+        """Set the root center of mass pose over selected environment indices into the simulation.
+
+        The root pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
+        The orientation is the orientation of the principle axes of inertia.
 
         Args:
-            root_velocity: Root velocities in simulation frame. Shape is (len(env_ids), 6).
+            root_pose: Root center of mass poses in simulation frame. Shape is (len(env_ids), 7).
             env_ids: Environment indices. If None, then all indices are used.
         """
+
+        # resolve all indices
+        if env_ids is None:
+            local_env_ids = slice(None)
+
+        com_pos = self.data.com_pos_b[local_env_ids, 0, :]
+        com_quat = self.data.com_quat_b[local_env_ids, 0, :]
+
+        root_link_pos, root_link_quat = math_utils.combine_frame_transforms(
+            root_pose[..., :3],
+            root_pose[..., 3:7],
+            math_utils.quat_rotate(math_utils.quat_inv(com_quat), -com_pos),
+            math_utils.quat_inv(com_quat),
+        )
+
+        root_link_pose = torch.cat((root_link_pos, root_link_quat), dim=-1)
+        self.write_root_link_pose_to_sim(root_pose=root_link_pose, env_ids=env_ids)
+
+    def write_root_velocity_to_sim(self, root_velocity: torch.Tensor, env_ids: Sequence[int] | None = None):
+        """Set the root center of mass velocity over selected environment indices into the simulation.
+
+        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+        NOTE: This sets the velocity of the root's center of mass rather than the roots frame.
+
+        Args:
+            root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6).
+            env_ids: Environment indices. If None, then all indices are used.
+        """
+        # deprecation warning
+        carb.log_warn(
+            "DeprecationWarning: RigidObject.write_root_velocity_to_sim will be removed in a future release. Please use"
+            " write_root_link_velocity_to_sim or write_root_com_velocity_to_sim instead."
+        )
+
+        self.write_root_com_velocity_to_sim(root_velocity=root_velocity, env_ids=env_ids)
+
+    def write_root_com_velocity_to_sim(self, root_velocity: torch.Tensor, env_ids: Sequence[int] | None = None):
+        """Set the root center of mass velocity over selected environment indices into the simulation.
+
+        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+        NOTE: This sets the velocity of the root's center of mass rather than the roots frame.
+
+        Args:
+            root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6).
+            env_ids: Environment indices. If None, then all indices are used.
+        """
+
         # resolve all indices
         physx_env_ids = env_ids
         if env_ids is None:
@@ -201,6 +302,30 @@ class RigidObject(AssetBase):
         self._data.body_acc_w[env_ids] = 0.0
         # set into simulation
         self.root_physx_view.set_velocities(self._data.root_state_w[:, 7:], indices=physx_env_ids)
+
+    def write_root_link_velocity_to_sim(self, root_velocity: torch.Tensor, env_ids: Sequence[int] | None = None):
+        """Set the root link velocity over selected environment indices into the simulation.
+
+        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+        NOTE: This sets the velocity of the root's frame rather than the roots center of mass.
+
+        Args:
+            root_velocity: Root frame velocities in simulation world frame. Shape is (len(env_ids), 6).
+            env_ids: Environment indices. If None, then all indices are used.
+        """
+        # resolve all indices
+        if env_ids is None:
+            local_env_ids = slice(None)
+
+        root_com_velocity = root_velocity.clone()
+        quat = self.data.root_state_w[local_env_ids, 3:7]
+        com_pos_b = self.data.com_pos_b[local_env_ids, 0, :]
+        # transform given velocity to center of mass
+        root_com_velocity[:, :3] += torch.linalg.cross(
+            root_com_velocity[:, 3:], math_utils.quat_rotate(quat, com_pos_b), dim=-1
+        )
+        # write center of mass velocity to sim
+        self.write_root_com_velocity_to_sim(root_velocity=root_com_velocity, env_ids=env_ids)
 
     """
     Operations - Setters.
