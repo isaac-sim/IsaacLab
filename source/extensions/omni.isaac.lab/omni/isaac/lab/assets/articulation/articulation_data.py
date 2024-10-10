@@ -3,18 +3,20 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import carb
 import torch
 import weakref
 
+import carb
 import omni.physics.tensors.impl.api as physx
 
 import omni.isaac.lab.utils.math as math_utils
 from omni.isaac.lab.utils.buffers import TimestampedBuffer
 
+
 def single_deprecation_warning(dep_msg: str):
     """Single use deprecation warning"""
     carb.log_warn("DeprecationWarning: " + dep_msg)
+
 
 class ArticulationData:
     """Data container for an articulation.
@@ -262,7 +264,10 @@ class ArticulationData:
         the linear and angular velocities are of the articulation root's center of mass frame.
         """
 
-        carb.log_warn("DeprecationWarning: root_state_w and it's derived properties will be deprecated in a future release. Please use root_link_state_w or root_com_state_w.")
+        carb.log_warn(
+            "DeprecationWarning: root_state_w and it's derived properties will be deprecated in a future release."
+            " Please use root_link_state_w or root_com_state_w."
+        )
 
         if self._root_state_w.timestamp < self._sim_timestamp:
             # read data from simulation
@@ -295,7 +300,7 @@ class ArticulationData:
             self._root_link_state_w.data = torch.cat((pose, velocity), dim=-1)
             self._root_link_state_w.timestamp = self._sim_timestamp
 
-        return self._root_link_state_w.data 
+        return self._root_link_state_w.data
 
     @property
     def root_com_state_w(self):
@@ -312,15 +317,14 @@ class ArticulationData:
             velocity = self._root_physx_view.get_root_velocities()
 
             # adjust pose to center of mass
-            pos, quat = math_utils.combine_frame_transforms(pose[:,:3],
-                                                            pose[:,3:7],
-                                                            self.com_pos_b[:,0,:],
-                                                            self.com_quat_b[:,0,:])           
-            pose = torch.cat((pos,quat),dim=-1)
+            pos, quat = math_utils.combine_frame_transforms(
+                pose[:, :3], pose[:, 3:7], self.com_pos_b[:, 0, :], self.com_quat_b[:, 0, :]
+            )
+            pose = torch.cat((pos, quat), dim=-1)
             # set the buffer data and timestamp
             self._root_com_state_w.data = torch.cat((pose, velocity), dim=-1)
             self._root_com_state_w.timestamp = self._sim_timestamp
-        return self._root_com_state_w.data 
+        return self._root_com_state_w.data
 
     @property
     def body_state_w(self):
@@ -331,8 +335,11 @@ class ArticulationData:
         velocities are of the articulation links's center of mass frame.
         """
 
-        carb.log_warn("DeprecationWarning: body_state_w and it's derived properties will be deprecated in a future release. Please use body_link_state_w or bodt_com_state_w.")
-        
+        carb.log_warn(
+            "DeprecationWarning: body_state_w and it's derived properties will be deprecated in a future release."
+            " Please use body_link_state_w or bodt_com_state_w."
+        )
+
         if self._body_state_w.timestamp < self._sim_timestamp:
             # read data from simulation
             poses = self._root_physx_view.get_link_transforms().clone()
@@ -363,7 +370,7 @@ class ArticulationData:
             # set the buffer data and timestamp
             self._body_link_state_w.data = torch.cat((pose, velocity), dim=-1)
             self._body_link_state_w.timestamp = self._sim_timestamp
-    
+
         return self._body_link_state_w.data
 
     @property
@@ -382,15 +389,14 @@ class ArticulationData:
             velocity = self._root_physx_view.get_link_velocities()
 
             # adjust pose to center of mass
-            pos, quat = math_utils.combine_frame_transforms(pose[...,:3],
-                                                            pose[...,3:7],
-                                                            self.com_pos_b,
-                                                            self.com_quat_b)           
-            pose = torch.cat((pos,quat),dim=-1)
+            pos, quat = math_utils.combine_frame_transforms(
+                pose[..., :3], pose[..., 3:7], self.com_pos_b, self.com_quat_b
+            )
+            pose = torch.cat((pos, quat), dim=-1)
             # set the buffer data and timestamp
             self._body_com_state_w.data = torch.cat((pose, velocity), dim=-1)
             self._body_com_state_w.timestamp = self._sim_timestamp
-        return self._body_com_state_w.data 
+        return self._body_com_state_w.data
 
     @property
     def body_acc_w(self):
@@ -538,7 +544,7 @@ class ArticulationData:
     def root_link_vel_w(self) -> torch.Tensor:
         """Root link velocity in simulation world frame. Shape is (num_instances, 6).
 
-        This quantity contains the linear and angular velocities of the actor frame of the root 
+        This quantity contains the linear and angular velocities of the actor frame of the root
         rigid body relative to the world.
         """
         return self.root_link_state_w[:, 7:13]
@@ -576,10 +582,10 @@ class ArticulationData:
         rigid body's actor frame.
         """
         return math_utils.quat_rotate_inverse(self.root_link_quat_w, self.root_link_ang_vel_w)
-    
-#
-# Root Center of Mass state properties
-#  
+
+    #
+    # Root Center of Mass state properties
+    #
 
     @property
     def root_com_pos_w(self) -> torch.Tensor:
@@ -696,10 +702,9 @@ class ArticulationData:
         """
         return self.body_acc_w[..., 3:6]
 
-   
-#
-# Link body properties
-#
+    #
+    # Link body properties
+    #
 
     @property
     def body_link_pos_w(self) -> torch.Tensor:
@@ -721,7 +726,7 @@ class ArticulationData:
     def body_link_vel_w(self) -> torch.Tensor:
         """Velocity of all bodies in simulation world frame. Shape is (num_instances, 1, 6).
 
-        This quantity contains the linear and angular velocities of the rigid bodies' center of mass frame 
+        This quantity contains the linear and angular velocities of the rigid bodies' center of mass frame
         relative to the world.
         """
         return self.body_link_state_w[..., 7:13]
@@ -741,10 +746,10 @@ class ArticulationData:
         This quantity is the angular velocity of the rigid bodies' center of mass frame relative to the world.
         """
         return self.body_link_state_w[..., 10:13]
-    
-#
-# Center of mass body properties
-#
+
+    #
+    # Center of mass body properties
+    #
 
     @property
     def body_com_pos_w(self) -> torch.Tensor:
@@ -756,8 +761,8 @@ class ArticulationData:
 
     @property
     def body_com_quat_w(self) -> torch.Tensor:
-        """Orientation (w, x, y, z) of the prinicple axies of inertia of all bodies in simulation world frame. 
-        
+        """Orientation (w, x, y, z) of the prinicple axies of inertia of all bodies in simulation world frame.
+
         Shape is (num_instances, 1, 4). This quantity is the orientation of the rigid bodies' actor frame.
         """
         return self.body_com_state_w[..., 3:7]
@@ -789,16 +794,16 @@ class ArticulationData:
     @property
     def com_pos_b(self) -> torch.Tensor:
         """Center of mass of all of the bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
-        
+
         This quantity is the center of mass location relative to its body frame.
         """
-        return self._root_physx_view.get_coms().to(self.device)[...,:3]
-    
+        return self._root_physx_view.get_coms().to(self.device)[..., :3]
+
     @property
     def com_quat_b(self) -> torch.Tensor:
         """Orientation (w,x,y,z) of the prinicple axies of inertia of all of the bodies in simulation world frame. Shape is (num_instances, num_bodies, 4).
-        
+
         This quantity is the orientation of the principles axes of inertia relative to its body frame.
         """
-        quat = self._root_physx_view.get_coms().to(self.device)[...,3:7]
+        quat = self._root_physx_view.get_coms().to(self.device)[..., 3:7]
         return math_utils.convert_quat(quat, to="wxyz")

@@ -32,7 +32,7 @@ from omni.isaac.lab.assets import RigidObject, RigidObjectCfg
 from omni.isaac.lab.sim import build_simulation_context
 from omni.isaac.lab.sim.spawners import materials
 from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
-from omni.isaac.lab.utils.math import default_orientation, quat_rotate_inverse, random_orientation, quat_mul
+from omni.isaac.lab.utils.math import default_orientation, quat_mul, quat_rotate_inverse, random_orientation
 
 
 def generate_cubes_scene(
@@ -751,10 +751,10 @@ class TestRigidObject(unittest.TestCase):
 
                                     # orientation of com will be a constant rotation from link orientation
                                     com_quat_b = cube_object.data.com_quat_b
-                                    com_quat_w = quat_mul(body_link_state_w[...,3:7],com_quat_b)
-                                    torch.testing.assert_close(com_quat_w, body_com_state_w[...,3:7])
-                                    torch.testing.assert_close(com_quat_w.squeeze(-2), root_com_state_w[...,3:7])
-                                    
+                                    com_quat_w = quat_mul(body_link_state_w[..., 3:7], com_quat_b)
+                                    torch.testing.assert_close(com_quat_w, body_com_state_w[..., 3:7])
+                                    torch.testing.assert_close(com_quat_w.squeeze(-2), root_com_state_w[..., 3:7])
+
                                     # orientation of link will match root state will always match
                                     torch.testing.assert_close(root_state_w[..., 3:7], root_link_state_w[..., 3:7])
                                     torch.testing.assert_close(body_state_w[..., 3:7], body_link_state_w[..., 3:7])
@@ -795,13 +795,15 @@ class TestRigidObject(unittest.TestCase):
         for num_cubes in (1, 2):
             for device in ("cuda:0", "cpu"):
                 for with_offset in [True, False]:
-                    for state_location in ("com","link"):
+                    for state_location in ("com", "link"):
                         with self.subTest(num_cubes=num_cubes, device=device, with_offset=with_offset):
                             with build_simulation_context(
                                 device=device, gravity_enabled=False, auto_add_lighting=True
                             ) as sim:
                                 # Create a scene with random cubes
-                                cube_object, env_pos = generate_cubes_scene(num_cubes=num_cubes, height=0.0, device=device)
+                                cube_object, env_pos = generate_cubes_scene(
+                                    num_cubes=num_cubes, height=0.0, device=device
+                                )
                                 env_idx = torch.tensor([x for x in range(num_cubes)])
 
                                 # Play sim
@@ -824,11 +826,11 @@ class TestRigidObject(unittest.TestCase):
                                 torch.testing.assert_close(cube_object.root_physx_view.get_coms(), com)
 
                                 rand_state = torch.zeros_like(cube_object.data.root_link_state_w)
-                                rand_state[...,:7]= cube_object.data.default_root_state[...,:7]
-                                rand_state[...,:3] += env_pos
+                                rand_state[..., :7] = cube_object.data.default_root_state[..., :7]
+                                rand_state[..., :3] += env_pos
                                 # make quaternion a unit vector
-                                rand_state[...,3:7] = torch.nn.functional.normalize(rand_state[...,3:7],dim=-1)
-                                
+                                rand_state[..., 3:7] = torch.nn.functional.normalize(rand_state[..., 3:7], dim=-1)
+
                                 for i in range(10):
 
                                     # perform step
@@ -836,15 +838,15 @@ class TestRigidObject(unittest.TestCase):
                                     # update buffers
                                     cube_object.update(sim.cfg.dt)
 
-                                    if state_location is "com":
+                                    if state_location == "com":
                                         cube_object.write_root_com_state_to_sim(rand_state)
-                                    elif state_location is "link":
+                                    elif state_location == "link":
                                         cube_object.write_root_link_state_to_sim(rand_state)
-                                    
-                                    if state_location is "com":
-                                        torch.testing.assert_close(rand_state,cube_object.data.root_com_state_w)
-                                    elif state_location is "link":
-                                        torch.testing.assert_close(rand_state,cube_object.data.root_link_state_w)
+
+                                    if state_location == "com":
+                                        torch.testing.assert_close(rand_state, cube_object.data.root_com_state_w)
+                                    elif state_location == "link":
+                                        torch.testing.assert_close(rand_state, cube_object.data.root_link_state_w)
 
 
 if __name__ == "__main__":

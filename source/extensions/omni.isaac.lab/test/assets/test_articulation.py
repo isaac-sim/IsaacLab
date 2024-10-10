@@ -26,8 +26,8 @@ from typing import Literal
 import omni.isaac.core.utils.prims as prim_utils
 
 import omni.isaac.lab.sim as sim_utils
-import omni.isaac.lab.utils.string as string_utils
 import omni.isaac.lab.utils.math as math_utils
+import omni.isaac.lab.utils.string as string_utils
 from omni.isaac.lab.actuators import ImplicitActuatorCfg
 from omni.isaac.lab.assets import Articulation, ArticulationCfg
 from omni.isaac.lab.sim import build_simulation_context
@@ -797,13 +797,15 @@ class TestArticulation(unittest.TestCase):
     def test_body_root_link_state(self):
         """Test for the root_link_state_w property"""
         for num_articulations in (1, 2):
-        # for num_articulations in ( 2,):
+            # for num_articulations in ( 2,):
             for device in ("cuda:0", "cpu"):
-            # for device in ("cuda:0",):
+                # for device in ("cuda:0",):
                 for with_offset in [True, False]:
-                # for with_offset in [True,]:
+                    # for with_offset in [True,]:
                     with self.subTest(num_articulations=num_articulations, device=device, with_offset=with_offset):
-                        with build_simulation_context(device=device, add_ground_plane=False, auto_add_lighting=True) as sim:
+                        with build_simulation_context(
+                            device=device, add_ground_plane=False, auto_add_lighting=True
+                        ) as sim:
                             articulation_cfg = generate_articulation_cfg(articulation_type="single_joint")
                             articulation, env_pos = generate_articulation(articulation_cfg, num_articulations, device)
                             env_idx = torch.tensor([x for x in range(num_articulations)])
@@ -868,8 +870,10 @@ class TestArticulation(unittest.TestCase):
                                     torch.testing.assert_close(
                                         lin_vel_gt[:, 0, :], root_link_state_w[..., 7:10], atol=1e-3, rtol=1e-1
                                     )
-                                    # linear velocity of pendulum link should be 
-                                    torch.testing.assert_close(lin_vel_gt, body_link_state_w[..., 7:10], atol=1e-3, rtol=1e-1)
+                                    # linear velocity of pendulum link should be
+                                    torch.testing.assert_close(
+                                        lin_vel_gt, body_link_state_w[..., 7:10], atol=1e-3, rtol=1e-1
+                                    )
 
                                     # ang_vel
                                     torch.testing.assert_close(root_state_w[..., 10:], root_link_state_w[..., 10:])
@@ -880,18 +884,20 @@ class TestArticulation(unittest.TestCase):
                                     pos_gt = torch.zeros(num_articulations, num_bodies, 3, device=device)
                                     px = (link_offset[0] + offset[0]) * torch.cos(joint_pos)
                                     py = torch.zeros(num_articulations, 1, 1, device=device)
-                                    pz = (link_offset[0] + offset[0])* torch.sin(joint_pos)
+                                    pz = (link_offset[0] + offset[0]) * torch.sin(joint_pos)
                                     pos_gt[:, 1, :] = torch.cat([px, py, pz], dim=-1).squeeze(-2)
                                     pos_gt += env_pos.unsqueeze(-2).repeat(1, num_bodies, 1)
-                                    torch.testing.assert_close(pos_gt[:, 0, :], root_com_state_w[..., :3], atol=1e-3, rtol=1e-1)
+                                    torch.testing.assert_close(
+                                        pos_gt[:, 0, :], root_com_state_w[..., :3], atol=1e-3, rtol=1e-1
+                                    )
                                     torch.testing.assert_close(pos_gt, body_com_state_w[..., :3], atol=1e-3, rtol=1e-1)
 
                                     # orientation
                                     com_quat_b = articulation.data.com_quat_b
-                                    com_quat_w = math_utils.quat_mul(body_link_state_w[...,3:7],com_quat_b)
-                                    torch.testing.assert_close(com_quat_w, body_com_state_w[...,3:7])
-                                    torch.testing.assert_close(com_quat_w[:,0,:], root_com_state_w[...,3:7])
-   
+                                    com_quat_w = math_utils.quat_mul(body_link_state_w[..., 3:7], com_quat_b)
+                                    torch.testing.assert_close(com_quat_w, body_com_state_w[..., 3:7])
+                                    torch.testing.assert_close(com_quat_w[:, 0, :], root_com_state_w[..., 3:7])
+
                                     # linear vel, and angular vel
                                     torch.testing.assert_close(root_state_w[..., 7:], root_com_state_w[..., 7:])
                                     torch.testing.assert_close(body_state_w[..., 7:], body_com_state_w[..., 7:])
@@ -903,15 +909,24 @@ class TestArticulation(unittest.TestCase):
                                     torch.testing.assert_close(body_state_w, body_com_state_w)
 
     def test_write_root_state(self):
-        """Test the setters for root_state using both the link frame and center of mass as referece frame."""
+        """Test the setters for root_state using both the link frame and center of mass as reference frame."""
         for num_articulations in (1, 2):
             for device in ("cuda:0", "cpu"):
                 for with_offset in [True, False]:
-                    for state_location in ("com","link"):
-                        with self.subTest(num_articulations=num_articulations, device=device, with_offset=with_offset, state_location=state_location):
-                            with build_simulation_context(device=device, add_ground_plane=False, auto_add_lighting=True, gravity_enabled=False) as sim:
+                    for state_location in ("com", "link"):
+                        with self.subTest(
+                            num_articulations=num_articulations,
+                            device=device,
+                            with_offset=with_offset,
+                            state_location=state_location,
+                        ):
+                            with build_simulation_context(
+                                device=device, add_ground_plane=False, auto_add_lighting=True, gravity_enabled=False
+                            ) as sim:
                                 articulation_cfg = generate_articulation_cfg(articulation_type="anymal")
-                                articulation, env_pos = generate_articulation(articulation_cfg, num_articulations, device)
+                                articulation, env_pos = generate_articulation(
+                                    articulation_cfg, num_articulations, device
+                                )
                                 env_idx = torch.tensor([x for x in range(num_articulations)])
 
                                 # Play sim
@@ -928,16 +943,16 @@ class TestArticulation(unittest.TestCase):
                                 new_com = offset
                                 com[:, 0, :3] = new_com.squeeze(-2)
                                 articulation.root_physx_view.set_coms(com, env_idx)
-                                
+
                                 # check they are set
                                 torch.testing.assert_close(articulation.root_physx_view.get_coms(), com)
 
                                 rand_state = torch.zeros_like(articulation.data.root_link_state_w)
-                                rand_state[...,:7]= articulation.data.default_root_state[...,:7]
-                                rand_state[...,:3] += env_pos
+                                rand_state[..., :7] = articulation.data.default_root_state[..., :7]
+                                rand_state[..., :3] += env_pos
                                 # make quaternion a unit vector
-                                rand_state[...,3:7] = torch.nn.functional.normalize(rand_state[...,3:7],dim=-1)
-                                
+                                rand_state[..., 3:7] = torch.nn.functional.normalize(rand_state[..., 3:7], dim=-1)
+
                                 for i in range(10):
 
                                     # perform step
@@ -945,43 +960,39 @@ class TestArticulation(unittest.TestCase):
                                     # update buffers
                                     articulation.update(sim.cfg.dt)
 
-                                    if state_location is "com":
+                                    if state_location == "com":
                                         articulation.write_root_com_state_to_sim(rand_state)
-                                    elif state_location is "link":
+                                    elif state_location == "link":
                                         articulation.write_root_link_state_to_sim(rand_state)
-                                    
-                                    if state_location is "com":
-                                        torch.testing.assert_close(rand_state,articulation.data.root_com_state_w)
-                                    elif state_location is "link":
-                                        torch.testing.assert_close(rand_state,articulation.data.root_link_state_w)
 
+                                    if state_location == "com":
+                                        torch.testing.assert_close(rand_state, articulation.data.root_com_state_w)
+                                    elif state_location == "link":
+                                        torch.testing.assert_close(rand_state, articulation.data.root_link_state_w)
 
     def test_transform_inverses(self):
         """Test if math utilities are true inverses of each other."""
-    
-        pose01 = torch.rand(1,7)
-        pose01[:,3:7] = torch.nn.functional.normalize(pose01[...,3:7],dim=-1)
 
-        pose12 = torch.rand(1,7)
-        pose12[:,3:7] = torch.nn.functional.normalize(pose12[...,3:7],dim=-1)
+        pose01 = torch.rand(1, 7)
+        pose01[:, 3:7] = torch.nn.functional.normalize(pose01[..., 3:7], dim=-1)
 
-       
-        pos02, quat02 = math_utils.combine_frame_transforms(pose01[...,:3],
-                                                        pose01[...,3:7],
-                                                        pose12[:,:3],
-                                                        pose12[:,3:7])     
-        
-        pos01, quat01 = math_utils.combine_frame_transforms(pos02,
-                                                    quat02,
-                                                    math_utils.quat_rotate(math_utils.quat_inv(pose12[:,3:7]),-pose12[:,:3]),
-                                                    math_utils.quat_inv(pose12[:,3:7]))
+        pose12 = torch.rand(1, 7)
+        pose12[:, 3:7] = torch.nn.functional.normalize(pose12[..., 3:7], dim=-1)
+
+        pos02, quat02 = math_utils.combine_frame_transforms(
+            pose01[..., :3], pose01[..., 3:7], pose12[:, :3], pose12[:, 3:7]
+        )
+
+        pos01, quat01 = math_utils.combine_frame_transforms(
+            pos02,
+            quat02,
+            math_utils.quat_rotate(math_utils.quat_inv(pose12[:, 3:7]), -pose12[:, :3]),
+            math_utils.quat_inv(pose12[:, 3:7]),
+        )
         print("")
         print(pose01)
-        print(pos01,quat01)
-        torch.testing.assert_close(pose01,torch.cat((pos01,quat01),dim=-1))
-
-
-
+        print(pos01, quat01)
+        torch.testing.assert_close(pose01, torch.cat((pos01, quat01), dim=-1))
 
 
 if __name__ == "__main__":
