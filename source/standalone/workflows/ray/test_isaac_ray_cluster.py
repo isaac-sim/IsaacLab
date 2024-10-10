@@ -8,9 +8,8 @@ import logging
 import subprocess
 import torch
 
+import isaac_ray_util
 import ray
-
-from omni.isaac.lab.app import AppLauncher  # noqa: F401  # check that you can import Isaac Lab
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -28,7 +27,7 @@ def get_available_gpus(num_gpus) -> str:
         str: A description of GPUs on the system.
     """
     logging.info("Job started.")
-
+    logging.info("Checking GPUS.")
     gpu_details = []
 
     for i in range(num_gpus):
@@ -55,25 +54,28 @@ def get_available_gpus(num_gpus) -> str:
     logging.info(f"GPU Details: {gpu_details}")
     logging.info("Attempting to read GPUS from torch....")
     num_gpus = torch.cuda.device_count()
+
+    logging.info("Checking Isaac...")
+
+    from omni.isaac.lab.app import AppLauncher  # noqa: F401  # check that you can import Isaac Lab
+
+    # app_launcher = AppLauncher(headlesss=True, enable_cameras=True)
+    # app_launcher.app.close() # Ray wull clean this up alone.
     return f"Job completed with {num_gpus} GPUs, details: {gpu_details}. Torch sees {num_gpus} GPUs."
 
 
-def main(num_workers, gpus_per_job):
-    # Define the specific Python environment
-    runtime_env = {
-        "executable": "/workspace/isaaclab/_isaac_sim/python.sh",  # Path to your Python environment
-    }
-
+def main(num_jobs, gpus_per_job):
     # Initialize Ray with the correct runtime environment
-    ray.init(address="auto", runtime_env=runtime_env)
+    ray.init(address="auto")
 
-    logging.info(f"Submitting {num_workers} GPU jobs with {gpus_per_job} GPU(s) per job...")
+    logging.info(f"Submitting {num_jobs} GPU jobs with {gpus_per_job} GPU(s) per job...")
 
     job_results = []
 
     # Submit the jobs with the specified number of GPUs per job
-    for i in range(num_workers):
-        logging.info(f"Submitting job {i+1}/{num_workers}")
+    for i in range(num_jobs):
+        logging.info(f"Submitting job {i+1}/{num_jobs}")
+        logging.info(f"Using {gpus_per_job}")
         job_results.append(get_available_gpus.options(num_gpus=gpus_per_job).remote(gpus_per_job))
 
     # Wait for all jobs to complete
@@ -88,11 +90,13 @@ def main(num_workers, gpus_per_job):
 if __name__ == "__main__":
     # Argument parser
     parser = argparse.ArgumentParser(description="Submit multiple GPU jobs.")
-    parser.add_argument("--num_jobs", type=int, default=2, help="Number of GPU jobs to submit")
-    parser.add_argument(
-        "--gpus_per_job", type=int, default=1, help="Number of GPUs to allocate per job"
-    )  # New argument
+    parser.add_argument("--num_cycles", type=int, default=1, help="Number of times to resubmit GPU jobs")
+    isaac_ray_util.add_cluster_args(parser)  # accept cluster info from submit isaac_ray_job.py
+
+    # When this script is called, cluster_gpu_count will be passed. However, this is overall, not per node.
     args = parser.parse_args()
 
     # Run the main function
-    main(args.num_jobs, args.gpus_per_job)
+    # Assumes evenly distributed resources across workers.
+    # For each worker, issue num_jobs for the number of GPUs available.
+    main(args.num_cycles * args.num_workers, args.cluster_gpu_count // args.num_workers)

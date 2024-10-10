@@ -129,9 +129,7 @@ def parse_args() -> argparse.Namespace:
         help="Initial number of workers to start with.",
     )
 
-    arg_parser.add_argument(
-        "--cpu_per_worker", type=int, default=14, help="Number of CPUs to assign to each worker pod"
-    )
+    arg_parser.add_argument("--cpu_per_worker", type=int, default=8, help="Number of CPUs to assign to each worker pod")
 
     arg_parser.add_argument(
         "--gpu_per_worker",

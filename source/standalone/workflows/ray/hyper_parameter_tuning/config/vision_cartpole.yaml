@@ -1,0 +1,20 @@
+# The following is a setup to perform hyperparameter training
+# For three separate tasks simultaneously across 3 different clusters.
+job0:
+  workflow: "/workspace/isaaclab/workflows/rl_games/train.py"
+  args: ["--task Isaac-RGB-Camera-Cartpole-v0"]
+  num_samples: 1
+  ray_sweep_param: null # Supply null for no sweep
+  custom_sweep_param: null # Supply null for no sweep
+job1:
+  workflow: "/workspace/isaaclab/workflows/rl_games/train.py"
+  args: ["--task Isaac-Cartpole-ResNet18-Camera-v0"]
+  num_samples: 1
+  ray_sweep_param: null # supply null for no sweep
+  custom_sweep_param: null # Supply null for no sweep
+job2:
+  workflow: "/workspace/isaaclab/workflows/rl_games/train.py"
+  args: ["-- task Isaac-Cartpole-Theia-Camera-v0"]
+  num_samples: 1
+  ray_sweep_param: null # Supply null for no sweep
+  custom_sweep_param: null # Supply null for no sweep

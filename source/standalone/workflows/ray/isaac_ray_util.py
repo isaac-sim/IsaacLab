@@ -47,35 +47,32 @@ class IsaacLabTuneTrainable(tune.Trainable):
 # )
 
 
-def parse_tune_args() -> argparse.Namespace:
-    arg_parser = argparse.ArgumentParser("Submit distributed hyperparameter tuning jobs.")
-
-    arg_parser.add_argument(
-        "--executable_path",
-        type=str,
-        default="/workspace/isaaclab/_isaac_sim/python.sh",
-        help="what executable to run the train script with ",
+def add_cluster_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--cluster_gpu_count",
+        type=int,  # can actually do fractional GPUs if so desired
+        help="The total amount of GPUs dispatched across all training job on the cluster",
     )
-
-    arg_parser.add_argument(
-        "--workflow_path",
-        type=str,
-        required=False,
-        default="/workspace/isaaclab/source/standalone/workflows/rl_games/train.py",
+    parser.add_argument(
+        "--cluster_cpu_count",
+        type=float,
+        help="The total amount of CPUs dispatched across all raining job on the cluster",
     )
-
-    arg_parser.add_argument(
-        "--args",
-        nargs="+",
-        type=str,
-        default=[],
-        required=False,
-        help="Arguments to pass to the training script.For example, you could pass the task here.",
+    parser.add_argument(
+        "--cluster_ram_gb",
+        type=float,
+        help="The total gigabytes of RAM dispatched across all training jobs on the cluster",
     )
-    return arg_parser.parse_args()
+    parser.add_argument(
+        "--num_workers",
+        type=int,
+        help=(
+            "The total number of workers available across the entire cluster."
+            "Assumes that resources are equally distributed across cluster workers."
+        ),
+    )
 
 
 if __name__ == "__main__":
-    args = parse_tune_args()
-
-    trainable = IsaacLabTuneTrainable(args.executable_path, args.workflow_path, args.args)
+    pass
+    # trainable = IsaacLabTuneTrainable(args.executable_path, args.workflow_path, args.args)

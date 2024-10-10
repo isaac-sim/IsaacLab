@@ -1,68 +1,66 @@
 #!/bin/bash
 
-# Default cluster name prefix if no argument is provided
+# Default values for the cluster name prefix and result file path
 CLUSTER_NAME_PREFIX="isaac-lab-hyperparameter-tuner"
-CLUSTER_SPEC_FILE="$HOME/.cluster_spec"  # Use absolute path
+CLUSTER_SPEC_FILE="$HOME/.cluster_spec"  # Default absolute path
+echo "./grok_cluster_with_kubectl.sh --name CLUSTER_PREFIX --result_file RESULT_FILE"
 
-# Allow optional name argument for the cluster name prefix
-if [ $# -gt 0 ]; then
-    CLUSTER_NAME_PREFIX="$1"
-fi
+# Parse command-line arguments
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        --name) CLUSTER_NAME_PREFIX="$2"; shift ;;
+        --result_file) CLUSTER_SPEC_FILE="$2"; shift ;;
+        *) echo "Unknown parameter passed: $1"; exit 1 ;;
+    esac
+    shift
+done
 
-# Ensure the cluster spec file exists, if not, create it
+# Ensure the result file exists or create it
 if [ ! -f "$CLUSTER_SPEC_FILE" ]; then
     touch "$CLUSTER_SPEC_FILE"
 fi
 
-# Function to convert memory from MiB to GiB
-convert_memory_mib_to_gib() {
-    RAM_MIB=$1
-    RAM_GIB=$(echo "scale=2; ${RAM_MIB}/1024" | bc)
-    echo $RAM_GIB
+# Function to check if all clusters are running
+check_clusters_running() {
+    all_clusters_running=true
+    for cluster_name in $CLUSTERS; do
+        # Check if the head pod is running for each cluster
+        HEAD_POD=$(kubectl get pods | grep "${cluster_name}-head" | awk '{print $1}')
+        HEAD_POD_STATUS=$(kubectl get pods "$HEAD_POD" -o=jsonpath='{.status.phase}')
+
+        if [ "$HEAD_POD_STATUS" != "Running" ]; then
+            all_clusters_running=false
+            break
+        fi
+    done
+    echo $all_clusters_running
 }
 
-# Function to get total resources (GPU, CPU, RAM) for GPU worker nodes in a specific cluster
+# Function to get total resources (GPU, CPU, RAM) and workers for GPU worker nodes in a specific cluster
 get_gpu_worker_resources() {
     CLUSTER_NAME=$1
     RAY_ADDRESS=$2
-    PENDING_PODS_WARNING=false
 
-    # Get the worker pods for the cluster
-    WORKER_PODS=$(kubectl get pods | grep "${CLUSTER_NAME}-worker" | awk '{print $1}')
+    # Use kubectl get pods to count the number of worker pods
+    WORKER_PODS=$(kubectl get pods | grep "${CLUSTER_NAME}-worker-gpu-group" | wc -l)
 
-    if [ -z "$WORKER_PODS" ]; then
-        echo "Warning: No worker pods found for cluster $CLUSTER_NAME." >> "$CLUSTER_SPEC_FILE"
-        return
+    # Get the Ray status for this cluster
+    ray_status=$(kubectl exec -it "$HEAD_POD" -c ray-head -- ray status 2>/dev/null)
+
+    # Parse the ray status output for resource information
+    TOTAL_CPUS=$(echo "$ray_status" | grep -oP '([0-9.]+)\/[0-9.]+ CPU' | cut -d '/' -f2 | cut -d ' ' -f1)
+    TOTAL_GPUS=$(echo "$ray_status" | grep -oP '([0-9.]+)\/[0-9.]+ GPU' | cut -d '/' -f2 | cut -d ' ' -f1)
+
+    # Extract total memory in GiB, remove the "GiB" suffix and capture only the first occurrence
+    TOTAL_RAM=$(echo "$ray_status" | grep -oP '[0-9.]+GiB' | head -n 1 | sed 's/GiB//')
+
+    # If TOTAL_RAM is blank or missing, set a default value
+    if [ -z "$TOTAL_RAM" ]; then
+        TOTAL_RAM="0"  # Default to 0 if parsing fails
     fi
 
-    # Initialize totals
-    TOTAL_GPUS=0
-    TOTAL_CPUS=0
-    TOTAL_RAM=0
-
-    # Iterate over each worker pod and sum the resources, only for GPU workers
-    for POD in $WORKER_PODS; do
-        POD_STATUS=$(kubectl get pod "$POD" -o jsonpath='{.status.phase}')
-        if [[ "$POD_STATUS" != "Running" ]]; then
-            PENDING_PODS_WARNING=true
-            continue
-        fi
-
-        GPUS=$(kubectl get pod "$POD" -o jsonpath='{.spec.containers[0].resources.limits.nvidia\.com/gpu}')
-        TOTAL_GPUS=$(($TOTAL_GPUS + ${GPUS:-0}))
-
-        CPUS=$(kubectl get pod "$POD" -o jsonpath='{.spec.containers[0].resources.limits.cpu}')
-        if [[ $CPUS == *m ]]; then
-            CPUS=$(echo "scale=2; $CPUS / 1000" | bc)
-        fi
-        TOTAL_CPUS=$(echo "$TOTAL_CPUS + ${CPUS:-0}" | bc)
-
-        RAM_MIB=$(kubectl exec -it "$POD" -c ray-worker -- bash -c "free -m | grep Mem | awk '{print \$2}'" | tr -d '\r')
-        RAM_GIB=$(convert_memory_mib_to_gib "${RAM_MIB:-0}")
-        TOTAL_RAM=$(echo "$TOTAL_RAM + $RAM_GIB" | bc)
-    done
-
-    SINGLE_LINE_OUTPUT="name: $CLUSTER_NAME address: ${RAY_ADDRESS} num_cpu: $TOTAL_CPUS num_gpu: $TOTAL_GPUS ram_gb: $TOTAL_RAM"
+    # Format the output line for the cluster spec file
+    SINGLE_LINE_OUTPUT="name: $CLUSTER_NAME address: ${RAY_ADDRESS} num_cpu: $TOTAL_CPUS num_gpu: $TOTAL_GPUS ram_gb: $TOTAL_RAM total_workers: $WORKER_PODS"
     echo "$SINGLE_LINE_OUTPUT" >> "$CLUSTER_SPEC_FILE"
 }
 
@@ -74,19 +72,33 @@ if [ -z "$CLUSTERS" ]; then
     exit 1
 fi
 
+# Wait for all clusters to spin up
+while true; do
+    if [ "$(check_clusters_running)" == "true" ]; then
+        break
+    else
+        echo "Waiting for all clusters to spin up..."
+        sleep 5
+    fi
+done
+
 # Clear the output file before appending new data
 > "$CLUSTER_SPEC_FILE"
 
-# Extract the RAY_ADDRESS from each head pod's logs and get the cluster name
-head_pods=$(kubectl get pods --no-headers -o custom-columns=":metadata.name" | grep 'head')
+# Iterate over each cluster, find the head pod dynamically, run ray status, and get resources
+for cluster_name in $CLUSTERS; do
+    # Dynamically find the head pod name using kubectl
+    HEAD_POD=$(kubectl get pods | grep "${cluster_name}-head" | awk '{print $1}')
 
-for head_pod in $head_pods; do
-    cluster_name=$(echo "$head_pod" | sed 's/-head.*//')
+    if [ -z "$HEAD_POD" ]; then
+        echo "Error: Could not find head pod for cluster $cluster_name" >> "$CLUSTER_SPEC_FILE"
+        continue
+    fi
 
-    # Get the logs for this pod, defaulting to the ray-head container
-    pod_logs=$(kubectl logs "$head_pod" -c ray-head)
+    # Get the logs for the head pod, defaulting to the ray-head container
+    pod_logs=$(kubectl logs "$HEAD_POD" -c ray-head)
 
-    # Extract the RAY_ADDRESS
+    # Extract the RAY_ADDRESS from the pod logs
     ray_address=$(echo "$pod_logs" | grep -oP "RAY_ADDRESS='http://[^']*'" | sed "s/RAY_ADDRESS='//;s/'//")
 
     if [ -z "$ray_address" ]; then
@@ -94,6 +106,7 @@ for head_pod in $head_pods; do
         continue
     fi
 
+    # Get the GPU, CPU, RAM, and worker information using ray status
     get_gpu_worker_resources "$cluster_name" "$ray_address"
 done
 

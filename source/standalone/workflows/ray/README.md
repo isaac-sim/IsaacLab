@@ -110,6 +110,15 @@ As a result of using Ray, running experiments in the cloud and locally have very
 
 ### Shared Steps for Kubernetes/KubeRay and Ray Clusters
 
+4. Create a ```~/.cluster_config``` file. If you configured your cluster with Kubernetes/KubeRay,
+	you can run the following script and move on to the next step.
+	```
+	./source/standalone/
+	```
+
+	```
+	name: <CLUSTER_NAME> address: http://<RAY_HEAD_IP>.<RAY_DASHBOARD_PORT> num_cpu: <TOTAL_CLUSTER_CPU_COUNT> num_gpu: <TOTAL_CLUSTER_GPU_COUNT>
+	```
 4. Check that you can issue jobs to the cluster, that all GPUs are available,
 	that Ray is installed correctly, nvidia-smi works, and that the needed deps
 	for Ray/Isaac Lab are found on path.

@@ -28,7 +28,6 @@ spec:
       include-dashboard: "true"
       ray-debugger-external: "true"
       object-manager-port: "8076"
-      redis-password: "{{ redis_password }}"
       num-gpus: "0"
       num-cpus: "0" # prevent scheduling jobs to the head node - workers only
     headService:
