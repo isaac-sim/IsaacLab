@@ -74,7 +74,6 @@ Changed
   :meth:`omni.isaac.lab.utils.math.orthogonalize_perspective_depth`.
 
 
-
 0.24.15 (2024-09-20)
 ~~~~~~~~~~~~~~~~~~~~
 
