@@ -263,10 +263,6 @@ def randomize_actuator_gains(
     .. tip::
         For implicit actuators, this function uses CPU tensors to assign the actuator gains into the simulation.
         In such cases, it is recommended to use this function only during the initialization of the environment.
-
-    .. tip::
-        The "abs" operation avoids creating a copy by directly setting values, making it more memory-efficient
-        than "add" or "scale", which require copying tensors.
     """
     # Extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
@@ -285,36 +281,33 @@ def randomize_actuator_gains(
     # Loop through actuators and randomize gains
     for actuator in asset.actuators.values():
         # Resolve joint indices for each actuator
-        if isinstance(actuator.joint_indices, slice):  # All joints in this actuator
-            target_joint_indices = torch.arange(asset.num_joints, dtype=torch.int, device=asset.device)
-        else:  # Create joint indices using intersection
+        # Only target the joints specified by the asset_cfg.joint_ids (joint_ids_list)
+        if isinstance(actuator.joint_indices, slice):  # All joints of the articulation are this actuator type
+            target_joint_indices = torch.tensor(joint_ids_list, dtype=torch.int, device=asset.device)
+        else:
             target_joint_indices = torch.tensor(
                 list(set(actuator.joint_indices).intersection(joint_ids_list)), dtype=torch.int, device=asset.device
             )
-
-        if env_ids != slice(None) and target_joint_indices != slice(None):
-            broadcast_env_ids = env_ids[:, None]  # broadcast env_ids if needed to allow double indexing
-        else:
-            broadcast_env_ids = env_ids
+        if not target_joint_indices.nbytes: # Skip when there are no joints
+            continue
         
         all_envs = torch.arange(env.scene.num_envs, device=asset.device)
         # Randomize stiffness
         if stiffness_distribution_params is not None:
             actuator.stiffness = asset.data.default_joint_stiffness.to(asset.device).clone()
-            x = randomize(actuator.stiffness, stiffness_distribution_params)
-            actuator.stiffness = actuator.stiffness[all_envs[:, None], target_joint_indices]
+            sim_stiffness = randomize(
+                actuator.stiffness, stiffness_distribution_params
+            )[env_ids][:, target_joint_indices]
+            actuator.stiffness = actuator.stiffness[all_envs[:, None], actuator.joint_indices]
             if isinstance(actuator, ImplicitActuator):
-                # TODO: Figure out an efficient way to avoid writing to all envs.
-                asset.write_joint_stiffness_to_sim(actuator.stiffness, joint_ids=target_joint_indices, env_ids=all_envs)
+                asset.write_joint_stiffness_to_sim(sim_stiffness, joint_ids=target_joint_indices, env_ids=env_ids)
         # Randomize damping
         if damping_distribution_params is not None:
             actuator.damping = asset.data.default_joint_damping.to(asset.device).clone()
-            randomize(actuator.damping, damping_distribution_params)
-            actuator.damping = actuator.damping[all_envs[:, None], target_joint_indices]
+            sim_damping = randomize(actuator.damping, damping_distribution_params)[env_ids][:, target_joint_indices]
+            actuator.damping = actuator.damping[all_envs[:, None], actuator.joint_indices]
             if isinstance(actuator, ImplicitActuator):
-                asset.write_joint_damping_to_sim(actuator.damping, joint_ids=target_joint_indices, env_ids=all_envs)
-
-
+                asset.write_joint_damping_to_sim(sim_damping, joint_ids=target_joint_indices, env_ids=env_ids)
 
 def randomize_joint_parameters(
     env: ManagerBasedEnv,

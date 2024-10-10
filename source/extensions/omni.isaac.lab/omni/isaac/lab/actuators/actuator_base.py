@@ -228,12 +228,12 @@ class ActuatorBase(ABC):
                 # If it's a float or int, create a tensor filled with this value
                 param = torch.full((self._num_envs, self.num_joints), float(default_value), device=self._device)
             elif isinstance(default_value, torch.Tensor):
-                # Use the default tensor directly if shapes match, or copy values otherwise
+                # Use the default tensor directly
                 if default_value.shape == (self._num_envs, self.num_joints):
                     param = default_value.float()
                 else:
-                    param = torch.zeros(self._num_envs, self.num_joints, device=self._device)
-                    param[:] = default_value.float()
+                    raise ValueError(f"Invalid default value tensor shape. Got: {default_value.shape} \
+                                     Expected: {(self._num_envs, self.num_joints)}")
             else:
                 raise TypeError(f"Invalid type for default value: {type(default_value)}. Expected float or Tensor.")
         else:
