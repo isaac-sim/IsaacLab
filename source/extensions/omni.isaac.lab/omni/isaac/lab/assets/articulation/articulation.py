@@ -539,6 +539,13 @@ class Articulation(AssetBase):
             env_ids = env_ids[:, None]
         # set into internal buffers
         self._data.joint_limits[env_ids, joint_ids] = limits
+        # update default joint pos to stay within the new limits
+        if torch.any((self._data.default_joint_pos < limits[..., 0]) | (self._data.default_joint_pos > limits[..., 1])):
+            self._data.default_joint_pos = torch.clamp(self._data.default_joint_pos, limits[..., 0], limits[..., 1])
+            carb.log_warn(
+                "Some default joint positions are outside of the range of the new joint limits. Default joint positions"
+                " will be clamped to be within the new joint limits."
+            )
         # set into simulation
         self.root_physx_view.set_dof_limits(self._data.joint_limits.cpu(), indices=physx_env_ids.cpu())
 
