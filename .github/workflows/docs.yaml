@@ -38,7 +38,9 @@ jobs:
     - name: Generate docs
       working-directory: ./docs
       run: |
-        git for-each-ref --format "%(refname)" | sed 's/^refs\///g'
+        git fetch --prune --unshallow --tags
+        echo exit code $?
+        git tag --list
         sphinx-multiversion . _build --dump-metadata
 
     - name: Deploy to gh-pages
