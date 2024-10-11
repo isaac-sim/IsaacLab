@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.25.1 (2024-10-10)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed potential issue where default joint positions can fall outside of the limits being set with Articulation's
+  ``write_joint_limits_to_sim`` API.
+
+
 0.25.0 (2024-10-06)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -14,7 +24,7 @@ Added
 0.24.20 (2024-10-07)
 ~~~~~~~~~~~~~~~~~~~~
 
-Fixes
+Fixed
 ^^^^^
 
 * Fixed the :meth:`omni.isaac.lab.envs.mdp.events.randomize_rigid_body_material` function to
