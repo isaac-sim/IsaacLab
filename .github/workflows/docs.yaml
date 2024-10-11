@@ -42,6 +42,7 @@ jobs:
         echo exit code $?
         git tag --list
         make build
+        cp _redirect/index.html _build/index.html
 
     - name: Deploy to gh-pages
       uses: peaceiris/actions-gh-pages@v3
