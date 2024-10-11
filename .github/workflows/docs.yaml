@@ -37,7 +37,9 @@ jobs:
 
     - name: Generate docs
       working-directory: ./docs
-      run: make build
+      run: |
+        git tag
+        sphinx-multiversion . _build --dump-metadata
 
     - name: Deploy to gh-pages
       uses: peaceiris/actions-gh-pages@v3
