@@ -30,10 +30,7 @@ def constant_noise(data: torch.Tensor, cfg: noise_cfg.ConstantNoiseCfg) -> torch
 
     # fix tensor device for bias on first call and update config parameters
     if isinstance(cfg.bias, torch.Tensor):
-        if cfg.bias.device is not data.device:
-            cfg.bias = cfg.bias.to(
-                data.device,
-            )
+       cfg.bias =  cfg.bias.to(device=data.device)
 
     if cfg.operation == "add":
         return data + cfg.bias
