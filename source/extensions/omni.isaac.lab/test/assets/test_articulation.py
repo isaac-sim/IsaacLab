@@ -148,8 +148,8 @@ class TestArticulation(unittest.TestCase):
                         # Check that is fixed base
                         self.assertFalse(articulation.is_fixed_base)
                         # Check buffers that exists and have correct shapes
-                        self.assertEqual(articulation.data.root_pos_w.shape, (num_articulations, 3))
-                        self.assertEqual(articulation.data.root_quat_w.shape, (num_articulations, 4))
+                        self.assertEqual(articulation.data.root_link_pos_w.shape, (num_articulations, 3))
+                        self.assertEqual(articulation.data.root_link_quat_w.shape, (num_articulations, 4))
                         self.assertEqual(articulation.data.joint_pos.shape, (num_articulations, 21))
 
                         # Check some internal physx data for debugging
@@ -197,8 +197,8 @@ class TestArticulation(unittest.TestCase):
                         # Check that floating base
                         self.assertFalse(articulation.is_fixed_base)
                         # Check buffers that exists and have correct shapes
-                        self.assertEqual(articulation.data.root_pos_w.shape, (num_articulations, 3))
-                        self.assertEqual(articulation.data.root_quat_w.shape, (num_articulations, 4))
+                        self.assertEqual(articulation.data.root_link_pos_w.shape, (num_articulations, 3))
+                        self.assertEqual(articulation.data.root_link_quat_w.shape, (num_articulations, 4))
                         self.assertEqual(articulation.data.joint_pos.shape, (num_articulations, 12))
 
                         # Check some internal physx data for debugging
@@ -244,8 +244,8 @@ class TestArticulation(unittest.TestCase):
                         # Check that fixed base
                         self.assertTrue(articulation.is_fixed_base)
                         # Check buffers that exists and have correct shapes
-                        self.assertEqual(articulation.data.root_pos_w.shape, (num_articulations, 3))
-                        self.assertEqual(articulation.data.root_quat_w.shape, (num_articulations, 4))
+                        self.assertEqual(articulation.data.root_link_pos_w.shape, (num_articulations, 3))
+                        self.assertEqual(articulation.data.root_link_quat_w.shape, (num_articulations, 4))
                         self.assertEqual(articulation.data.joint_pos.shape, (num_articulations, 9))
 
                         # Check some internal physx data for debugging
@@ -297,8 +297,8 @@ class TestArticulation(unittest.TestCase):
                         # Check that fixed base
                         self.assertTrue(articulation.is_fixed_base)
                         # Check buffers that exists and have correct shapes
-                        self.assertEqual(articulation.data.root_pos_w.shape, (num_articulations, 3))
-                        self.assertEqual(articulation.data.root_quat_w.shape, (num_articulations, 4))
+                        self.assertEqual(articulation.data.root_link_pos_w.shape, (num_articulations, 3))
+                        self.assertEqual(articulation.data.root_link_quat_w.shape, (num_articulations, 4))
                         self.assertEqual(articulation.data.joint_pos.shape, (num_articulations, 1))
 
                         # Check some internal physx data for debugging
@@ -350,8 +350,8 @@ class TestArticulation(unittest.TestCase):
                         # Check that fixed base
                         self.assertTrue(articulation.is_fixed_base)
                         # Check buffers that exists and have correct shapes
-                        self.assertTrue(articulation.data.root_pos_w.shape == (num_articulations, 3))
-                        self.assertTrue(articulation.data.root_quat_w.shape == (num_articulations, 4))
+                        self.assertTrue(articulation.data.root_link_pos_w.shape == (num_articulations, 3))
+                        self.assertTrue(articulation.data.root_link_quat_w.shape == (num_articulations, 4))
                         self.assertTrue(articulation.data.joint_pos.shape == (num_articulations, 24))
 
                         # Check some internal physx data for debugging
@@ -394,8 +394,8 @@ class TestArticulation(unittest.TestCase):
                         # Check that is fixed base
                         self.assertTrue(articulation.is_fixed_base)
                         # Check buffers that exists and have correct shapes
-                        self.assertEqual(articulation.data.root_pos_w.shape, (num_articulations, 3))
-                        self.assertEqual(articulation.data.root_quat_w.shape, (num_articulations, 4))
+                        self.assertEqual(articulation.data.root_link_pos_w.shape, (num_articulations, 3))
+                        self.assertEqual(articulation.data.root_link_quat_w.shape, (num_articulations, 4))
                         self.assertEqual(articulation.data.joint_pos.shape, (num_articulations, 12))
 
                         # Check some internal physx data for debugging
@@ -449,8 +449,8 @@ class TestArticulation(unittest.TestCase):
                         # Check that is floating base
                         self.assertFalse(articulation.is_fixed_base)
                         # Check buffers that exists and have correct shapes
-                        self.assertEqual(articulation.data.root_pos_w.shape, (num_articulations, 3))
-                        self.assertEqual(articulation.data.root_quat_w.shape, (num_articulations, 4))
+                        self.assertEqual(articulation.data.root_link_pos_w.shape, (num_articulations, 3))
+                        self.assertEqual(articulation.data.root_link_quat_w.shape, (num_articulations, 4))
                         self.assertEqual(articulation.data.joint_pos.shape, (num_articulations, 9))
 
                         # Check some internal physx data for debugging
@@ -565,7 +565,7 @@ class TestArticulation(unittest.TestCase):
                                 articulation.update(sim.cfg.dt)
                             # check condition that the articulations have fallen down
                             for i in range(num_articulations):
-                                self.assertLess(articulation.data.root_pos_w[i, 2].item(), 0.2)
+                                self.assertLess(articulation.data.root_link_pos_w[i, 2].item(), 0.2)
 
     def test_external_force_on_multiple_bodies(self):
         """Test application of external force on the legs of the articulation."""
@@ -613,7 +613,7 @@ class TestArticulation(unittest.TestCase):
                             # check condition
                             for i in range(num_articulations):
                                 # since there is a moment applied on the articulation, the articulation should rotate
-                                self.assertTrue(articulation.data.root_ang_vel_w[i, 2].item() > 0.1)
+                                self.assertTrue(articulation.data.root_com_ang_vel_w[i, 2].item() > 0.1)
 
     def test_loading_gains_from_usd(self):
         """Test that gains are loaded from USD file if actuator model has them as None."""

@@ -203,8 +203,8 @@ class AnymalCEnv(DirectRLEnv):
             [
                 tensor
                 for tensor in (
-                    self._robot.data.root_lin_vel_b,
-                    self._robot.data.root_ang_vel_b,
+                    self._robot.data.root_com_lin_vel_b,
+                    self._robot.data.root_com_ang_vel_b,
                     self._robot.data.projected_gravity_b,
                     self._commands,
                     self._robot.data.joint_pos - self._robot.data.default_joint_pos,
@@ -221,15 +221,15 @@ class AnymalCEnv(DirectRLEnv):
 
     def _get_rewards(self) -> torch.Tensor:
         # linear velocity tracking
-        lin_vel_error = torch.sum(torch.square(self._commands[:, :2] - self._robot.data.root_lin_vel_b[:, :2]), dim=1)
+        lin_vel_error = torch.sum(torch.square(self._commands[:, :2] - self._robot.data.root_com_lin_vel_b[:, :2]), dim=1)
         lin_vel_error_mapped = torch.exp(-lin_vel_error / 0.25)
         # yaw rate tracking
-        yaw_rate_error = torch.square(self._commands[:, 2] - self._robot.data.root_ang_vel_b[:, 2])
+        yaw_rate_error = torch.square(self._commands[:, 2] - self._robot.data.root_com_ang_vel_b[:, 2])
         yaw_rate_error_mapped = torch.exp(-yaw_rate_error / 0.25)
         # z velocity tracking
-        z_vel_error = torch.square(self._robot.data.root_lin_vel_b[:, 2])
+        z_vel_error = torch.square(self._robot.data.root_com_lin_vel_b[:, 2])
         # angular velocity x/y
-        ang_vel_error = torch.sum(torch.square(self._robot.data.root_ang_vel_b[:, :2]), dim=1)
+        ang_vel_error = torch.sum(torch.square(self._robot.data.root_com_ang_vel_b[:, :2]), dim=1)
         # joint torques
         joint_torques = torch.sum(torch.square(self._robot.data.applied_torque), dim=1)
         # joint acceleration

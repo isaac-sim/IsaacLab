@@ -160,8 +160,8 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
         else:
             # obtain quantities from simulation
             jacobian = robot.root_physx_view.get_jacobians()[:, ee_jacobi_idx, :, robot_entity_cfg.joint_ids]
-            ee_pose_w = robot.data.body_state_w[:, robot_entity_cfg.body_ids[0], 0:7]
-            root_pose_w = robot.data.root_state_w[:, 0:7]
+            ee_pose_w = robot.data.body_link_state_w[:, robot_entity_cfg.body_ids[0], 0:7]
+            root_pose_w = robot.data.root_link_state_w[:, 0:7]
             joint_pos = robot.data.joint_pos[:, robot_entity_cfg.joint_ids]
             # compute frame in root frame
             ee_pos_b, ee_quat_b = subtract_frame_transforms(
@@ -181,7 +181,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
         scene.update(sim_dt)
 
         # obtain quantities from simulation
-        ee_pose_w = robot.data.body_state_w[:, robot_entity_cfg.body_ids[0], 0:7]
+        ee_pose_w = robot.data.body_link_state_w[:, robot_entity_cfg.body_ids[0], 0:7]
         # update marker positions
         ee_marker.visualize(ee_pose_w[:, 0:3], ee_pose_w[:, 3:7])
         goal_marker.visualize(ik_commands[:, 0:3] + scene.env_origins, ik_commands[:, 3:7])

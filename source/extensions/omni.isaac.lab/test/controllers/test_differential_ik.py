@@ -140,8 +140,8 @@ class TestDifferentialIKController(unittest.TestCase):
         ee_pose_b_des = torch.zeros(self.num_envs, diff_ik_controller.action_dim, device=self.sim.device)
         ee_pose_b_des[:] = self.ee_pose_b_des_set[current_goal_idx]
         # Compute current pose of the end-effector
-        ee_pose_w = robot.data.body_state_w[:, ee_frame_idx, 0:7]
-        root_pose_w = robot.data.root_state_w[:, 0:7]
+        ee_pose_w = robot.data.body_link_state_w[:, ee_frame_idx, 0:7]
+        root_pose_w = robot.data.root_link_state_w[:, 0:7]
         ee_pos_b, ee_quat_b = subtract_frame_transforms(
             root_pose_w[:, 0:3], root_pose_w[:, 3:7], ee_pose_w[:, 0:3], ee_pose_w[:, 3:7]
         )
@@ -183,8 +183,8 @@ class TestDifferentialIKController(unittest.TestCase):
                 # so we MUST skip the first step
                 # obtain quantities from simulation
                 jacobian = robot.root_physx_view.get_jacobians()[:, ee_jacobi_idx, :, arm_joint_ids]
-                ee_pose_w = robot.data.body_state_w[:, ee_frame_idx, 0:7]
-                root_pose_w = robot.data.root_state_w[:, 0:7]
+                ee_pose_w = robot.data.body_link_state_w[:, ee_frame_idx, 0:7]
+                root_pose_w = robot.data.root_link_state_w[:, 0:7]
                 joint_pos = robot.data.joint_pos[:, arm_joint_ids]
                 # compute frame in root frame
                 ee_pos_b, ee_quat_b = subtract_frame_transforms(

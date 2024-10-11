@@ -155,8 +155,8 @@ class DifferentialInverseKinematicsAction(ActionTerm):
             A tuple of the body's position and orientation in the root frame.
         """
         # obtain quantities from simulation
-        ee_pose_w = self._asset.data.body_state_w[:, self._body_idx, :7]
-        root_pose_w = self._asset.data.root_state_w[:, :7]
+        ee_pose_w = self._asset.data.body_link_state_w[:, self._body_idx, :7]
+        root_pose_w = self._asset.data.root_link_state_w[:, :7]
         # compute the pose of the body in the root frame
         ee_pose_b, ee_quat_b = math_utils.subtract_frame_transforms(
             root_pose_w[:, 0:3], root_pose_w[:, 3:7], ee_pose_w[:, 0:3], ee_pose_w[:, 3:7]

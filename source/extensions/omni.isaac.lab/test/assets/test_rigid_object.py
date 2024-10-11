@@ -106,8 +106,8 @@ class TestRigidObject(unittest.TestCase):
                         self.assertEqual(len(cube_object.body_names), 1)
 
                         # Check buffers that exists and have correct shapes
-                        self.assertEqual(cube_object.data.root_pos_w.shape, (num_cubes, 3))
-                        self.assertEqual(cube_object.data.root_quat_w.shape, (num_cubes, 4))
+                        self.assertEqual(cube_object.data.root_link_pos_w.shape, (num_cubes, 3))
+                        self.assertEqual(cube_object.data.root_link_quat_w.shape, (num_cubes, 4))
 
                         # Simulate physics
                         for _ in range(2):
@@ -138,8 +138,8 @@ class TestRigidObject(unittest.TestCase):
                         self.assertEqual(len(cube_object.body_names), 1)
 
                         # Check buffers that exists and have correct shapes
-                        self.assertEqual(cube_object.data.root_pos_w.shape, (num_cubes, 3))
-                        self.assertEqual(cube_object.data.root_quat_w.shape, (num_cubes, 4))
+                        self.assertEqual(cube_object.data.root_link_pos_w.shape, (num_cubes, 3))
+                        self.assertEqual(cube_object.data.root_link_quat_w.shape, (num_cubes, 4))
 
                         # Simulate physics
                         for _ in range(2):
@@ -224,10 +224,10 @@ class TestRigidObject(unittest.TestCase):
 
                             # First object should still be at the same Z position (1.0)
                             torch.testing.assert_close(
-                                cube_object.data.root_pos_w[0::2, 2], torch.ones(num_cubes // 2, device=sim.device)
+                                cube_object.data.root_link_pos_w[0::2, 2], torch.ones(num_cubes // 2, device=sim.device)
                             )
                             # Second object should have fallen, so it's Z height should be less than initial height of 1.0
-                            self.assertTrue(torch.all(cube_object.data.root_pos_w[1::2, 2] < 1.0))
+                            self.assertTrue(torch.all(cube_object.data.root_link_pos_w[1::2, 2] < 1.0))
 
     def test_set_rigid_object_state(self):
         """Test setting the state of the rigid object.

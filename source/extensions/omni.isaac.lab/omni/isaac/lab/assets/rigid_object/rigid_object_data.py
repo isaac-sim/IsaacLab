@@ -221,7 +221,7 @@ class RigidObjectData:
     @property
     def projected_gravity_b(self):
         """Projection of the gravity direction on base frame. Shape is (num_instances, 3)."""
-        return math_utils.quat_rotate_inverse(self.root_quat_w, self.GRAVITY_VEC_W)
+        return math_utils.quat_rotate_inverse(self.root_link_quat_w, self.GRAVITY_VEC_W)
 
     @property
     def heading_w(self):
@@ -231,7 +231,7 @@ class RigidObjectData:
             This quantity is computed by assuming that the forward-direction of the base
             frame is along x-direction, i.e. :math:`(1, 0, 0)`.
         """
-        forward_w = math_utils.quat_apply(self.root_quat_w, self.FORWARD_VEC_B)
+        forward_w = math_utils.quat_apply(self.root_link_quat_w, self.FORWARD_VEC_B)
         return torch.atan2(forward_w[:, 1], forward_w[:, 0])
 
     ##
@@ -285,7 +285,7 @@ class RigidObjectData:
         This quantity is the linear velocity of the root rigid body's center of mass frame with respect to the
         rigid body's actor frame.
         """
-        return math_utils.quat_rotate_inverse(self.root_quat_w, self.root_lin_vel_w)
+        return math_utils.quat_rotate_inverse(self.root_link_quat_w, self.root_lin_vel_w)
 
     @property
     def root_ang_vel_b(self) -> torch.Tensor:
@@ -294,7 +294,7 @@ class RigidObjectData:
         This quantity is the angular velocity of the root rigid body's center of mass frame with respect to the
         rigid body's actor frame.
         """
-        return math_utils.quat_rotate_inverse(self.root_quat_w, self.root_ang_vel_w)
+        return math_utils.quat_rotate_inverse(self.root_link_quat_w, self.root_ang_vel_w)
 
     @property
     def root_link_pos_w(self) -> torch.Tensor:

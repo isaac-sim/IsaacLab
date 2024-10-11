@@ -227,9 +227,9 @@ class RigidObject(AssetBase):
             physx_env_ids = self._ALL_INDICES
         # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
-        self._data.root_state_w[env_ids, :7] = root_pose.clone()
+        self._data.root_link_state_w[env_ids, :7] = root_pose.clone()
         # convert root quaternion from wxyz to xyzw
-        root_poses_xyzw = self._data.root_state_w[:, :7].clone()
+        root_poses_xyzw = self._data.root_link_state_w[:, :7].clone()
         root_poses_xyzw[:, 3:] = math_utils.convert_quat(root_poses_xyzw[:, 3:], to="xyzw")
         # set into simulation
         self.root_physx_view.set_transforms(root_poses_xyzw, indices=physx_env_ids)
@@ -298,10 +298,10 @@ class RigidObject(AssetBase):
             physx_env_ids = self._ALL_INDICES
         # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
-        self._data.root_state_w[env_ids, 7:] = root_velocity.clone()
+        self._data.root_com_state_w[env_ids, 7:] = root_velocity.clone()
         self._data.body_acc_w[env_ids] = 0.0
         # set into simulation
-        self.root_physx_view.set_velocities(self._data.root_state_w[:, 7:], indices=physx_env_ids)
+        self.root_physx_view.set_velocities(self._data.root_com_state_w[:, 7:], indices=physx_env_ids)
 
     def write_root_link_velocity_to_sim(self, root_velocity: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root link velocity over selected environment indices into the simulation.
@@ -318,7 +318,7 @@ class RigidObject(AssetBase):
             local_env_ids = slice(None)
 
         root_com_velocity = root_velocity.clone()
-        quat = self.data.root_state_w[local_env_ids, 3:7]
+        quat = self.data.root_link_state_w[local_env_ids, 3:7]
         com_pos_b = self.data.com_pos_b[local_env_ids, 0, :]
         # transform given velocity to center of mass
         root_com_velocity[:, :3] += torch.linalg.cross(

@@ -557,7 +557,7 @@ def push_by_setting_velocity(
     asset: RigidObject | Articulation = env.scene[asset_cfg.name]
 
     # velocities
-    vel_w = asset.data.root_vel_w[env_ids]
+    vel_w = asset.data.root_com_vel_w[env_ids]
     # sample random velocities
     range_list = [velocity_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
     ranges = torch.tensor(range_list, device=asset.device)

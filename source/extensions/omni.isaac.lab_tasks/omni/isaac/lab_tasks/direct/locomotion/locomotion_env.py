@@ -68,8 +68,8 @@ class LocomotionEnv(DirectRLEnv):
         self.robot.set_joint_effort_target(forces, joint_ids=self._joint_dof_idx)
 
     def _compute_intermediate_values(self):
-        self.torso_position, self.torso_rotation = self.robot.data.root_pos_w, self.robot.data.root_quat_w
-        self.velocity, self.ang_velocity = self.robot.data.root_lin_vel_w, self.robot.data.root_ang_vel_w
+        self.torso_position, self.torso_rotation = self.robot.data.root_link_pos_w, self.robot.data.root_link_quat_w
+        self.velocity, self.ang_velocity = self.robot.data.root_com_lin_vel_w, self.robot.data.root_com_ang_vel_w
         self.dof_pos, self.dof_vel = self.robot.data.joint_pos, self.robot.data.joint_vel
 
         (

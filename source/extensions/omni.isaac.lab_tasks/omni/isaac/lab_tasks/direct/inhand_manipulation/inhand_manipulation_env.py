@@ -258,8 +258,8 @@ class InHandManipulationEnv(DirectRLEnv):
 
     def _compute_intermediate_values(self):
         # data for hand
-        self.fingertip_pos = self.hand.data.body_pos_w[:, self.finger_bodies]
-        self.fingertip_rot = self.hand.data.body_quat_w[:, self.finger_bodies]
+        self.fingertip_pos = self.hand.data.body_link_pos_w[:, self.finger_bodies]
+        self.fingertip_rot = self.hand.data.body_link_quat_w[:, self.finger_bodies]
         self.fingertip_pos -= self.scene.env_origins.repeat((1, self.num_fingertips)).reshape(
             self.num_envs, self.num_fingertips, 3
         )
@@ -269,11 +269,11 @@ class InHandManipulationEnv(DirectRLEnv):
         self.hand_dof_vel = self.hand.data.joint_vel
 
         # data for object
-        self.object_pos = self.object.data.root_pos_w - self.scene.env_origins
-        self.object_rot = self.object.data.root_quat_w
-        self.object_velocities = self.object.data.root_vel_w
-        self.object_linvel = self.object.data.root_lin_vel_w
-        self.object_angvel = self.object.data.root_ang_vel_w
+        self.object_pos = self.object.data.root_link_pos_w - self.scene.env_origins
+        self.object_rot = self.object.data.root_link_quat_w
+        self.object_velocities = self.object.data.root_com_vel_w
+        self.object_linvel = self.object.data.root_com_lin_vel_w
+        self.object_angvel = self.object.data.root_com_ang_vel_w
 
     def compute_reduced_observations(self):
         # Per https://arxiv.org/pdf/1808.00177.pdf Table 2
