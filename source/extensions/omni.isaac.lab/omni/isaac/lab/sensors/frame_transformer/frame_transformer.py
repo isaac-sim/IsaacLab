@@ -10,7 +10,7 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import carb
+import omni.log
 import omni.physics.tensors.impl.api as physx
 from pxr import UsdPhysics
 
@@ -114,10 +114,10 @@ class FrameTransformer(SensorBase):
         self._apply_source_frame_offset = True
         # Handle source frame offsets
         if is_identity_pose(source_frame_offset_pos, source_frame_offset_quat):
-            carb.log_verbose(f"No offset application needed for source frame as it is identity: {self.cfg.prim_path}")
+            omni.log.verbose(f"No offset application needed for source frame as it is identity: {self.cfg.prim_path}")
             self._apply_source_frame_offset = False
         else:
-            carb.log_verbose(f"Applying offset to source frame as it is not identity: {self.cfg.prim_path}")
+            omni.log.verbose(f"Applying offset to source frame as it is not identity: {self.cfg.prim_path}")
             # Store offsets as tensors (duplicating each env's offsets for ease of multiplication later)
             self._source_frame_offset_pos = source_frame_offset_pos.unsqueeze(0).repeat(self._num_envs, 1)
             self._source_frame_offset_quat = source_frame_offset_quat.unsqueeze(0).repeat(self._num_envs, 1)
@@ -194,12 +194,12 @@ class FrameTransformer(SensorBase):
                     target_offsets[frame_name] = {"pos": offset_pos, "quat": offset_quat}
 
         if not self._apply_target_frame_offset:
-            carb.log_info(
+            omni.log.info(
                 f"No offsets application needed from '{self.cfg.prim_path}' to target frames as all"
                 f" are identity: {frames[1:]}"
             )
         else:
-            carb.log_info(
+            omni.log.info(
                 f"Offsets application needed from '{self.cfg.prim_path}' to the following target frames:"
                 f" {non_identity_offset_frames}"
             )

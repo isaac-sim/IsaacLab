@@ -336,7 +336,7 @@ class SimulationContext(_SimulationContext):
         """
         # check if mode change is possible -- not possible when no GUI is available
         if not self._has_gui:
-            carb.log_warn(
+            omni.log.warn(
                 f"Cannot change render mode when GUI is disabled. Using the default render mode: {self.render_mode}."
             )
             return
@@ -758,7 +758,7 @@ def build_simulation_context(
         yield sim
 
     except Exception:
-        carb.log_error(traceback.format_exc())
+        omni.log.error(traceback.format_exc())
         raise
     finally:
         if not sim.has_gui():

@@ -43,7 +43,7 @@ import torch
 import traceback
 from collections.abc import Sequence
 
-import carb
+import omni.log
 import warp as wp
 
 from omni.isaac.lab.sensors import FrameTransformer
@@ -317,8 +317,8 @@ if __name__ == "__main__":
         # run the main execution
         main()
     except Exception as err:
-        carb.log_error(err)
-        carb.log_error(traceback.format_exc())
+        omni.log.error(err)
+        omni.log.error(traceback.format_exc())
         raise
     finally:
         # close sim app
