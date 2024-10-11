@@ -393,7 +393,7 @@ class OperationalSpaceController:
             if self.cfg.inertial_dynamics_decoupling:
                 # check input is provided
                 if mass_matrix is None:
-                    raise ValueError("Mass matrix is required for inertial compensation.")
+                    raise ValueError("Mass matrix is required for inertial decoupling.")
                 # Compute operational space mass matrix
                 mass_matrix_inv = torch.inverse(mass_matrix)
                 if self.cfg.partial_inertial_dynamics_decoupling:
