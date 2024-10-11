@@ -330,6 +330,37 @@ class NestedDictAndListCfg:
 
 
 """
+Dummy configuration: Missing attributes
+"""
+
+
+@configclass
+class MissingParentDemoCfg:
+    """Dummy parent configuration with missing fields."""
+
+    a: int = MISSING
+
+    @configclass
+    class InsideClassCfg:
+        """Inner dummy configuration."""
+
+        inside: str = MISSING
+        inside_dict = {"a": MISSING}
+        inside_nested_dict = {"a": {"b": "hello", "c": MISSING}}
+        inside_tuple = (10, MISSING, 20)
+        inside_list = [MISSING, MISSING, 2]
+
+    b: InsideClassCfg = InsideClassCfg()
+
+
+@configclass
+class MissingChildDemoCfg(MissingParentDemoCfg):
+    """Dummy child configuration with missing fields."""
+
+    c: Callable = MISSING
+
+
+"""
 Test solutions: Basic
 """
 
@@ -403,6 +434,20 @@ functions_demo_cfg_for_updating = {
     "wrapped_func": "__main__:wrapped_dummy_function4",
     "func_in_dict": {"func": "__main__:dummy_function2"},
 }
+
+"""
+Test solutions: Missing attributes
+"""
+
+validity_expected_fields = [
+    "a",
+    "b.inside",
+    "b.inside_dict.a",
+    "b.inside_nested_dict.a.c",
+    "b.inside_tuple[1]",
+    "b.inside_list[0]",
+    "c",
+]
 
 """
 Test fixtures.
@@ -887,6 +932,16 @@ class TestConfigClass(unittest.TestCase):
         md5_hash_2 = dict_to_md5_hash(cfg.to_dict())
 
         self.assertEqual(md5_hash_1, md5_hash_2)
+
+    def test_validity(self):
+        cfg = MissingChildDemoCfg()
+
+        with self.assertRaises(TypeError) as context:
+            cfg.assert_valid()
+
+        error_message = str(context.exception)
+        for elem in validity_expected_fields:
+            self.assertIn(elem, error_message, f"Missing field '{elem}' not found in error message")
 
 
 if __name__ == "__main__":

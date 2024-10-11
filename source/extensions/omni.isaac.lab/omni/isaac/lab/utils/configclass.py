@@ -7,14 +7,14 @@
 
 import inspect
 import types
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from copy import deepcopy
 from dataclasses import MISSING, Field, dataclass, field, replace
 from typing import Any, ClassVar
 
 from .dict import class_to_dict, update_class_from_dict
 
-_CONFIGCLASS_METHODS = ["to_dict", "from_dict", "replace", "copy"]
+_CONFIGCLASS_METHODS = ["to_dict", "from_dict", "replace", "copy", "assert_valid"]
 """List of class methods added at runtime to dataclass."""
 
 """
@@ -98,6 +98,7 @@ def configclass(cls, **kwargs):
     setattr(cls, "from_dict", _update_class_from_dict)
     setattr(cls, "replace", _replace_class_with_kwargs)
     setattr(cls, "copy", _copy_class)
+    setattr(cls, "assert_valid", _assert_valid)
     # wrap around dataclass
     cls = dataclass(cls, **kwargs)
     # return wrapped class
@@ -238,6 +239,55 @@ def _add_annotation_types(cls):
     #   `cls.__annotations__` because of inheritance.
     cls.__annotations__ = cls.__dict__.get("__annotations__", {})
     cls.__annotations__ = hints
+
+
+def _assert_valid(obj: object, prefix: str = "") -> list:
+    """Check the validity of configclass object.
+
+    This function checks if the object is a valid configclass object. A valid configclass object contains no MISSING
+    entries.
+
+    Args:
+        obj: The object to check.
+        prefix: The prefix to add to the missing fields. Defaults to ''.
+
+    Returns:
+        A list of missing fields.
+
+    Raises:
+        TypeError: When the object is not a valid configuration object.
+    """
+    missing_fields = []
+
+    if prefix == "":
+        obj = obj.to_dict()
+
+    if isinstance(obj, Mapping):
+        # check each key-value pair
+        for key, value in obj.items():
+            current_path = f"{prefix}.{key}" if prefix else key
+            if type(value) is type(MISSING) or not value:
+                missing_fields.append(current_path)
+            else:
+                # recursively check nested dictionaries, lists, tuples, or other iterables
+                missing_fields.extend(_assert_valid(value, prefix=current_path))
+    elif isinstance(obj, (list, tuple)):
+        # check each element
+        for index, item in enumerate(obj):
+            current_path = f"{prefix}[{index}]"
+            if type(item) is type(MISSING):
+                missing_fields.append(current_path)
+            else:
+                # recursively check each element in the list or tuple
+                missing_fields.extend(_assert_valid(item, prefix=current_path))
+
+    # raise an error only once at the top-level call
+    if prefix == "" and missing_fields:
+        formatted_message = "\n".join(f"  - {field}" for field in missing_fields)
+        raise TypeError(
+            f"Missing values detected in object {obj.__class__.__name__} for the following fields:\n{formatted_message}"
+        )
+    return missing_fields
 
 
 def _process_mutable_types(cls):
