@@ -248,7 +248,7 @@ templates_path = [
 smv_branch_whitelist = r"^(main)$"
 
 # Whitelist pattern for tags (set to None to ignore all tags)
-# smv_tag_whitelist = r"^.*$"
+smv_tag_whitelist = r"^.*$"
 
 html_sidebars = {
     "**": ["navbar-logo.html", "icon-links.html", "search-field.html", "sbt-sidebar-nav.html", "versioning.html"]
