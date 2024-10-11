@@ -276,30 +276,30 @@ class OperationalSpaceControllerActionCfg(ActionTermCfg):
 
     joint_names: list[str] = MISSING
     """List of joint names or regex expressions that the action will be mapped to."""
-    
+
     body_name: str = MISSING
-     """Name of the body or frame for which motion/force control is performed."""
-     
+    """Name of the body or frame for which motion/force control is performed."""
+
     body_offset: OffsetCfg | None = None
     """Offset of target frame w.r.t. to the body frame. Defaults to None, in which case no offset is applied."""
-    
+
     task_frame_rel_path: str = None
     """The path of a RigidObject, relative to the sub-environment, that represents the task frame. Defaults to None."""
-    
+
     controller_cfg: OperationalSpaceControllerCfg = MISSING
     """The configuration for the operational space controller."""
-    
+
     position_scale: float = 1.0
     """Scale factor for the position targets. Defaults to 1.0."""
-    
+
     orientation_scale: float = 1.0
     """Scale factor for the orientation/rotation (quad for pose_abs and or axis-angle for pose_rel) targets. Defaults to 1.0."""
-    
+
     wrench_scale: float = 1.0
     """Scale factor for the wrench targets. Defaults to 1.0."""
-    
+
     stiffness_scale: float = 1.0
     """Scale factor for the stiffness commands. Defaults to 1.0."""
-    
+
     damping_ratio_scale: float = 1.0
     """Scale factor for the damping ratio commands. Defaults to 1.0."""
