@@ -22,8 +22,11 @@ from omni.isaac.lab.sensors import Camera, RayCaster, RayCasterCamera, TiledCame
 if TYPE_CHECKING:
     from omni.isaac.lab.envs import ManagerBasedEnv, ManagerBasedRLEnv
 
+<<<<<<< HEAD
 from torchvision import models
 
+=======
+>>>>>>> parent of 2d207b5a (add feature extraction)
 """
 Root state.
 """
@@ -233,6 +236,7 @@ def image(
     return images.clone()
 
 
+<<<<<<< HEAD
 def image_features(
     env: ManagerBasedEnv,
     sensor_cfg: SceneEntityCfg = SceneEntityCfg("tiled_camera"),
@@ -290,6 +294,8 @@ def image_features(
     return features
 
 
+=======
+>>>>>>> parent of 2d207b5a (add feature extraction)
 """
 Actions.
 """

@@ -137,7 +137,6 @@ class ContainerInterface:
         """
         if self.is_container_running():
             print(f"[INFO] Entering the existing '{self.container_name}' container in a bash session...\n")
-            print(os.environ["dis"])
             subprocess.run([
                 "docker",
                 "exec",
