@@ -344,9 +344,15 @@ class MissingParentDemoCfg:
     class InsideClassCfg:
         """Inner dummy configuration."""
 
+        @configclass
+        class InsideInsideClassCfg:
+            """Inner inner dummy configuration."""
+
+            a: str = MISSING
+
         inside: str = MISSING
         inside_dict = {"a": MISSING}
-        inside_nested_dict = {"a": {"b": "hello", "c": MISSING}}
+        inside_nested_dict = {"a": {"b": "hello", "c": MISSING, "d": InsideInsideClassCfg()}}
         inside_tuple = (10, MISSING, 20)
         inside_list = [MISSING, MISSING, 2]
 
@@ -444,6 +450,7 @@ validity_expected_fields = [
     "b.inside",
     "b.inside_dict.a",
     "b.inside_nested_dict.a.c",
+    "b.inside_nested_dict.a.d.a",
     "b.inside_tuple[1]",
     "b.inside_list[0]",
     "b.inside_list[1]",
