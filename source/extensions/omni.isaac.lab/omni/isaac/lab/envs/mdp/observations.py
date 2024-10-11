@@ -262,7 +262,7 @@ class image_features(ManagerTermBase):
                 "TheiaTiny": {
                     "model": (
                         lambda: AutoModel.from_pretrained(
-                            "theaiinstitute/theia-tiny-patch16-224-cdiv", trust_remote_code=True
+                            "theaiinstitute/theia-tiny-patch16-224-cddsv", trust_remote_code=True
                         )
                         .eval()
                         .to(device)
