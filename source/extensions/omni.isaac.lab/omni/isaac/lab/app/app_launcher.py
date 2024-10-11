@@ -254,7 +254,12 @@ class AppLauncher:
         arg_group.add_argument(
             "--verbose",  # Note: This is read by SimulationApp through sys.argv
             action="store_true",
-            help="Enable verbose terminal output from the SimulationApp.",
+            help="Enable verbose-level log output from the SimulationApp.",
+        )
+        arg_group.add_argument(
+            "--info",  # Note: This is read by SimulationApp through sys.argv
+            action="store_true",
+            help="Enable info-level log output from the SimulationApp.",
         )
         arg_group.add_argument(
             "--experience",
