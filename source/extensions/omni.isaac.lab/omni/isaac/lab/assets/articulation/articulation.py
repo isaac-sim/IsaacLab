@@ -186,7 +186,7 @@ class Articulation(AssetBase):
                 torque_data=self._external_torque_b.view(-1, 3),
                 position_data=None,
                 indices=self._ALL_INDICES,
-                is_global=False,
+                is_global=True, # Maybe we can expose this flag?
             )
 
         # apply actuator models
