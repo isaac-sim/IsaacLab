@@ -293,9 +293,12 @@ class CommandManager(ManagerBase):
 
     def get_active_iterable_terms(self, env_idx: int) -> Sequence[tuple[str, Sequence[float]]]:
         """Returns the active terms as iterable sequence of tuples.
+        
         The first element of the tuple is the name of the term and the second element is the raw value(s) of the term.
+        
         Args:
             env_idx: The specific environment to pull the active terms from.
+        
         Returns:
             The active terms.
         """
@@ -303,12 +306,11 @@ class CommandManager(ManagerBase):
         terms = []
         idx = 0
         for name, term in self._terms.items():
-            term_commands = self._commands[env_idx, idx : idx + term.command.shape[1]].cpu()
-            terms.append((name, term_commands.tolist()))
+            terms.append((name, term.command[env_idx].cpu().tolist()))
             idx += term.command.shape[1]
         return terms
 
-    def set_debug_vis(self, debug_vis: bool) -> bool:
+    def set_debug_vis(self, debug_vis: bool):
         """Sets whether to visualize the command data.
 
         Args:

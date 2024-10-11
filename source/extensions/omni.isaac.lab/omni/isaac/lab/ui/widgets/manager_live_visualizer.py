@@ -15,7 +15,9 @@ from omni.isaac.core.simulation_context import SimulationContext
 from omni.ui import CollapsableFrame, Frame, VStack, Window
 
 from omni.isaac.lab.managers import ManagerBase
-from omni.isaac.lab.ui.widgets import ImagePlot, LiveLinePlot, UiVisualizerBase
+from .image_plot import ImagePlot
+from .line_plot import LiveLinePlot
+from .ui_visualizer_base import UiVisualizerBase
 from omni.isaac.lab.utils import configclass
 
 
@@ -205,7 +207,7 @@ class ManagerLiveVisualizer(UiVisualizerBase):
                         )
                         with frame:
                             # create line plot for single or multivariable signals
-                            if len(term) <= 2:
+                            if isinstance(term[0], float | int):
                                 plot = LiveLinePlot(
                                     y_data=[[elem] for elem in term],
                                     plot_height=150,
@@ -213,12 +215,17 @@ class ManagerLiveVisualizer(UiVisualizerBase):
                                 )
                                 self._term_visualizers.append(plot)
                             # create an image plot for 2d and greater data (i.e. mono and rgb images)
-                            elif len(term) > 2:
+                            elif isinstance(term[0], list) and isinstance(term[0][0], float | int):
                                 image = ImagePlot(
                                     image=numpy.array(term),
                                     label=name,
                                 )
                                 self._term_visualizers.append(image)
+                            else:
+                                carb.log_warn(
+                                    f"ManagerLiveVisualizer: Term ({name}) is not a supported data type for"
+                                    " visualization."
+                                )
                         frame.collapsed = True
 
         self._debug_vis = debug_vis

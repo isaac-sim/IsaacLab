@@ -256,9 +256,12 @@ class ActionManager(ManagerBase):
 
     def get_active_iterable_terms(self, env_idx: int) -> Sequence[tuple[str, Sequence[float]]]:
         """Returns the active terms as iterable sequence of tuples.
+        
         The first element of the tuple is the name of the term and the second element is the raw value(s) of the term.
+        
         Args:
             env_idx: The specific environment to pull the active terms from.
+        
         Returns:
             The active terms.
         """
@@ -270,7 +273,7 @@ class ActionManager(ManagerBase):
             idx += term.action_dim
         return terms
 
-    def set_debug_vis(self, debug_vis: bool) -> bool:
+    def set_debug_vis(self, debug_vis: bool):
         """Sets whether to visualize the action data.
         Args:
             debug_vis: Whether to visualize the action data.

@@ -194,7 +194,9 @@ class ManagerBase(ABC):
 
     def get_active_iterable_terms(self, env_idx: int) -> Sequence[tuple[str, Sequence[float]]]:
         """Returns the active terms as iterable sequence of tuples.
+        
         The first element of the tuple is the name of the term and the second element is the raw value(s) of the term.
+        
         Returns:
             The active terms.
         """
