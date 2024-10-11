@@ -90,14 +90,34 @@ class DepthObservationsCfg:
 
 @configclass
 class ResNet18ObservationCfg:
+    """Observation specifications for the MDP."""
+
     @configclass
-    class FeaturesCameraPolicyCfg(RGBObservationsCfg.RGBCameraPolicyCfg):
+    class ResNet18FeaturesCameraPolicyCfg(RGBObservationsCfg.RGBCameraPolicyCfg):
+        """Observations for policy group with features extracted from RGB images with a frozen ResNet18."""
+
         image = ObsTerm(
             func=mdp.image_features,
             params={"sensor_cfg": SceneEntityCfg("tiled_camera"), "data_type": "rgb", "model_name": "ResNet18"},
         )
 
-    policy: ObsGroup = FeaturesCameraPolicyCfg()
+    policy: ObsGroup = ResNet18FeaturesCameraPolicyCfg()
+
+
+@configclass
+class TheiaTinyObservationCfg:
+    """Observation specifications for the MDP."""
+
+    @configclass
+    class TheiaTinyFeaturesCameraPolicyCfg(RGBObservationsCfg.RGBCameraPolicyCfg):
+        """Observations for policy group with features extracted from RGB images with a frozen Theia-Tiny Transformer"""
+
+        image = ObsTerm(
+            func=mdp.image_features,
+            params={"sensor_cfg": SceneEntityCfg("tiled_camera"), "data_type": "rgb", "model_name": "TheiaTiny"},
+        )
+
+    policy: ObsGroup = TheiaTinyFeaturesCameraPolicyCfg()
 
 
 ##
@@ -124,3 +144,15 @@ class CartpoleDepthCameraEnvCfg(CartpoleEnvCfg):
 @configclass
 class CartpoleResNet18CameraEnv(CartpoleRGBCameraEnvCfg):
     observations: ResNet18ObservationCfg = ResNet18ObservationCfg()
+
+
+@configclass
+class CartpoleTheiaTinyCameraEnv(CartpoleRGBCameraEnvCfg):
+    """
+    Due to TheiaTiny's size in GPU memory, we reduce the number of environments by default.
+    This helps reduce the possibility of crashing on more modest hardware.
+    The following configuration uses ~12gb VRAM at peak.
+    """
+
+    scene: CartpoleSceneCfg = CartpoleRGBCameraSceneCfg(num_envs=128, env_spacing=20)
+    observations: TheiaTinyObservationCfg = TheiaTinyObservationCfg()

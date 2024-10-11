@@ -36,6 +36,7 @@ extra_standard_library = [
     "toml",
     "trimesh",
     "tqdm",
+    "transformers"
 ]
 # Imports from Isaac Sim and Omniverse
 known_third_party = [

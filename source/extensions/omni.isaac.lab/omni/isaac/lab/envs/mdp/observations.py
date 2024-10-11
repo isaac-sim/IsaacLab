@@ -24,6 +24,8 @@ from omni.isaac.lab.sensors import Camera, RayCaster, RayCasterCamera, TiledCame
 if TYPE_CHECKING:
     from omni.isaac.lab.envs import ManagerBasedEnv, ManagerBasedRLEnv
 
+from transformers import AutoModel
+
 from torchvision import models
 
 """
@@ -251,15 +253,32 @@ class image_features(ManagerTermBase):
         env: ManagerBasedEnv,
         model_zoo_cfg: dict | None = None,
         initialize_all: bool = False,
+        device: str = "cuda:0",
     ):
         super().__init__(cfg, env)
         if model_zoo_cfg is None:
             self.model_zoo_cfg = {
+                # For more info about Theia, see: https://theia.theaiinstitute.com/
+                "TheiaTiny": {
+                    "model": (
+                        lambda: AutoModel.from_pretrained(
+                            "theaiinstitute/theia-tiny-patch16-224-cdiv", trust_remote_code=True
+                        )
+                        .eval()
+                        .to(device)
+                    ),
+                    "preprocess": lambda img: (img - torch.amin(img, dim=(1, 2), keepdim=True)) / (
+                        torch.amax(img, dim=(1, 2), keepdim=True) - torch.amin(img, dim=(1, 2), keepdim=True)
+                    ),  # Rescale to [0, 1]
+                    "inference": lambda model, images: model.forward_feature(
+                        images, do_rescale=False, interpolate_pos_encoding=True
+                    ),
+                },
                 "ResNet18": {
-                    "model": lambda: models.resnet18(pretrained=True).eval().to("cuda:0"),
+                    "model": lambda: models.resnet18(pretrained=True).eval().to(device),
                     "preprocess": lambda img: (
                         img.permute(0, 3, 1, 2)  # Convert [batch, height, width, 3] -> [batch, 3, height, width]
-                        # Normalize in the format expected by pytorch; https://pytorch.org/hub/pytorch_vision_resnet/
+                        # Normalize in the format expected by pytorch: https://pytorch.org/hub/pytorch_vision_resnet/
                         - torch.tensor([0.485, 0.456, 0.406], device=img.device).view(1, 3, 1, 1)
                     ) / torch.tensor([0.229, 0.224, 0.225], device=img.device).view(1, 3, 1, 1),
                     "inference": lambda model, images: model(images),
@@ -268,7 +287,7 @@ class image_features(ManagerTermBase):
         self.reset_model(initialize_all=initialize_all)
 
     # The following is named reset_model instead of reset as otherwise, it's called at the end of every episode
-    def reset_model(self, model_name: str | None = None, initialize_all: bool = False):
+    def reset_model(self, model_name: str | None = None, initialize_all: bool = False) -> None:
         if model_name is None:
             print("[WARNING]: No model name supplied, emptying entire model zoo.")
             self.model_zoo = {}
