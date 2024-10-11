@@ -41,7 +41,7 @@ jobs:
         git fetch --prune --unshallow --tags
         echo exit code $?
         git tag --list
-        sphinx-multiversion . _build --dump-metadata
+        make build
 
     - name: Deploy to gh-pages
       uses: peaceiris/actions-gh-pages@v3
