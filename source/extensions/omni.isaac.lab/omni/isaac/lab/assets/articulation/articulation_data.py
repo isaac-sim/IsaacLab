@@ -6,7 +6,11 @@
 import torch
 import weakref
 
+<<<<<<< HEAD
 import omni.log
+=======
+import carb
+>>>>>>> b7cb73cec (formatting)
 import omni.physics.tensors.impl.api as physx
 
 import omni.isaac.lab.utils.math as math_utils
@@ -266,7 +270,11 @@ class ArticulationData:
         the linear and angular velocities are of the articulation root's center of mass frame.
         """
 
+<<<<<<< HEAD
         omni.log.warn(
+=======
+        carb.log_warn(
+>>>>>>> b7cb73cec (formatting)
             "DeprecationWarning: root_state_w and it's derived properties will be deprecated in a future release."
             " Please use root_link_state_w or root_com_state_w."
         )
@@ -337,7 +345,11 @@ class ArticulationData:
         velocities are of the articulation links's center of mass frame.
         """
 
+<<<<<<< HEAD
         omni.log.warn(
+=======
+        carb.log_warn(
+>>>>>>> b7cb73cec (formatting)
             "DeprecationWarning: body_state_w and it's derived properties will be deprecated in a future release."
             " Please use body_link_state_w or bodt_com_state_w."
         )
