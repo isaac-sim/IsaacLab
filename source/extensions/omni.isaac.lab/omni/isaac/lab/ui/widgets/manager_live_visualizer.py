@@ -15,10 +15,11 @@ from omni.isaac.core.simulation_context import SimulationContext
 from omni.ui import CollapsableFrame, Frame, VStack, Window
 
 from omni.isaac.lab.managers import ManagerBase
+from omni.isaac.lab.utils import configclass
+
 from .image_plot import ImagePlot
 from .line_plot import LiveLinePlot
 from .ui_visualizer_base import UiVisualizerBase
-from omni.isaac.lab.utils import configclass
 
 
 @configclass
