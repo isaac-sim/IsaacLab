@@ -26,11 +26,11 @@ class ImagePlot(UIWidgetWrapper):
         Pressing down the mouse gives the x and y values of each function at an x coordinate.
 
         Args:
-            image (np.ndarray): Image to display
-            label (str): Short descriptive text to the left of the plot
-            widget_height (int): Height of the plot in pixels
-            show_min_max (bool): Whether to show the min and max values of the image
-            unit (tuple): Tuple of (scale, name) for the unit of the image
+            image: Image to display
+            label: Short descriptive text to the left of the plot
+            widget_height: Height of the plot in pixels
+            show_min_max: Whether to show the min and max values of the image
+            unit: Tuple of (scale, name) for the unit of the image
         """
 
         self._show_min_max = show_min_max

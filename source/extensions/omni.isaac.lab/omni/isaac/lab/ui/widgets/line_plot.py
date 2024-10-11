@@ -64,16 +64,13 @@ class LiveLinePlot(UIWidgetWrapper):
         """Create a new LiveLinePlot widget.
 
         Args:
-            y_data (list[list[float]]): A list of lists of floats containing the data to plot. Each list of floats
-                represents a series in the plot.
-            y_min (float, optional): The minimum y value to display. Defaults to -10.
-            y_max (float, optional): The maximum y value to display. Defaults to 10.
-            plot_height (int, optional): The height of the plot in pixels. Defaults to 150.
-            show_legend (bool, optional): Whether to display the legend. Defaults to True.
-            legends (list[str], optional): A list of strings containing the legend labels for each series. If None,
-                the default labels are "Series_0", "Series_1", etc. Defaults to None.
-            max_datapoints (int, optional): The maximum number of data points to display. If the number of data points
-                exceeds this value, the oldest data points are removed. Defaults to 200.
+            y_data: A list of lists of floats containing the data to plot. Each list of floats represents a series in the plot.
+            y_min: The minimum y value to display. Defaults to -10.
+            y_max: The maximum y value to display. Defaults to 10.
+            plot_height: The height of the plot in pixels. Defaults to 150.
+            show_legend: Whether to display the legend. Defaults to True.
+            legends: A list of strings containing the legend labels for each series. If None, the default labels are "Series_0", "Series_1", etc. Defaults to None.
+            max_datapoints: The maximum number of data points to display. If the number of data points exceeds this value, the oldest data points are removed. Defaults to 200.
         """
         super().__init__(self._create_ui_widget())
         self.plot_height = plot_height
@@ -144,10 +141,10 @@ class LiveLinePlot(UIWidgetWrapper):
         The data point is added to the end of the plot. If the number of data points exceeds the maximum number
         of data points, the oldest data point is removed.
 
-        y_coords is assumed to be a list of floats with the same length as the number of series in the plot.
+        ``y_coords`` is assumed to be a list of floats with the same length as the number of series in the plot.
 
         Args:
-            y_coords (List[float]): A list of floats containing the y coordinates of the new data points.
+            y_coords: A list of floats containing the y coordinates of the new data points.
         """
 
         for idx, y_coord in enumerate(y_coords):
@@ -215,7 +212,7 @@ class LiveLinePlot(UIWidgetWrapper):
 
 
         Args:
-            grid (bool, optional): Whether to display grid lines. Defaults to True.
+            grid: Whether to display grid lines. Defaults to True.
         """
 
         # Reset lists which are populated in the build function
@@ -229,8 +226,8 @@ class LiveLinePlot(UIWidgetWrapper):
             should only be called from within the build function of a frame.
 
             Args:
-                y_data (list[float]): The data to plot.
-                color (int): The color of the plot.
+                y_data: The data to plot.
+                color: The color of the plot.
             """
             plot = ui.Plot(
                 ui.Type.LINE,
@@ -329,13 +326,6 @@ class LiveLinePlot(UIWidgetWrapper):
                 )
 
                 self._tooltip_frame.set_mouse_pressed_fn(self._mouse_moved_on_plot)
-                # self._tooltip_frame.set_mouse_released_fn(self._on_mouse_released)
-                # self._tooltip_frame.set_computed_content_size_changed_fn(
-                #     lambda *args: [plot.rebuild() for plot in self._plots]
-                # )
-
-                # Make the tooltip invisible
-                # self._on_mouse_released()
 
                 # Create top label for the y-axis
                 with ui.Placer(offset_x=-20, offset_y=-8):

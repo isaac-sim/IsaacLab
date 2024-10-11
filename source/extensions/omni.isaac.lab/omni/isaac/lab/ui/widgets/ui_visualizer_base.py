@@ -12,7 +12,9 @@ class UiVisualizerBase:
     """Base Class for components that support debug visualizations that requires access to some UI elements.
 
     This class provides a set of functions that can be used to assign ui interfaces.
+
     The following functions are provided:
+
     * :func:`set_debug_vis`: Assigns a debug visualization interface. This function is called by the main UI
         when the checkbox for debug visualization is toggled.
     * :func:`set_vis_frame`: Assigns a small frame within the isaac lab tab that can be used to visualize debug
@@ -59,9 +61,12 @@ class UiVisualizerBase:
 
     def set_env_selection(self, env_selection: int) -> bool:
         """Sets the selected environment id.
+
         This function is called by the main UI when the user selects a different environment.
+
         Args:
             env_selection: The currently selected environment id.
+
         Returns:
             Whether the environment selection was successfully set. False if the component
             does not support environment selection.
@@ -75,10 +80,13 @@ class UiVisualizerBase:
 
     def set_window(self, window: Window) -> bool:
         """Sets the current main ui window.
+
         This function is called by the main UI when the window is created. It allows the component
         to add custom UI elements to the window or to control the window and its elements.
+
         Args:
             window: The ui window.
+
         Returns:
             Whether the window was successfully set. False if the component
             does not support this functionality.
@@ -92,10 +100,13 @@ class UiVisualizerBase:
 
     def set_vis_frame(self, vis_frame: Frame) -> bool:
         """Sets the debug visualization frame.
+
         This function is called by the main UI when the window is created. It allows the component
         to modify a small frame within the orbit tab that can be used to visualize debug information.
+
         Args:
             vis_frame: The debug visualization frame.
+
         Returns:
             Whether the debug visualization frame was successfully set. False if the component
             does not support debug visualization.
@@ -125,6 +136,7 @@ class UiVisualizerBase:
 
     def _set_vis_frame_impl(self, vis_frame: Frame):
         """Set debug visualization into visualization objects.
+
         This function is responsible for creating the visualization objects if they don't exist
         and input ``debug_vis`` is True. If the visualization objects exist, the function should
         set their visibility into the stage.
