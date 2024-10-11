@@ -394,26 +394,24 @@ class OperationalSpaceController:
                 # check input is provided
                 if mass_matrix is None:
                     raise ValueError("Mass matrix is required for inertial compensation.")
-                # compute task-space dynamics quantities
-                # operational space command force = (J M^(-1) J^T)^(-1) * \ddot(x_des)
+                # Compute operational space mass matrix
                 mass_matrix_inv = torch.inverse(mass_matrix)
                 if self.cfg.partial_inertial_dynamics_decoupling:
-                    # Separate mass matrices for translational and rotational dynamics
-                    os_mass_matrix_translation = torch.inverse(
+                    # Create a zero tensor representing the mass matrix, to fill in the non-zero elements later
+                    os_mass_matrix = torch.zeros(self.num_envs, 6, 6, device=self._device)
+                    # Fill in the translational and rotational parts of the inertia separately, ignoring their coupling
+                    os_mass_matrix[:, 0:3, 0:3] = torch.inverse(
                         jacobian_b[:, 0:3] @ mass_matrix_inv @ jacobian_b[:, 0:3].mT
                     )
-                    os_mass_matrix_rotation = torch.inverse(
+                    os_mass_matrix[:, 3:6, 3:6] = torch.inverse(
                         jacobian_b[:, 3:6] @ mass_matrix_inv @ jacobian_b[:, 3:6].mT
                     )
-                    # (Generalized) operational space command forces (from pseudo-dynamics)
-                    translational_command_force_b = os_mass_matrix_translation @ des_ee_acc_b[:, 0:3]
-                    rotational_command_force_b = os_mass_matrix_rotation @ des_ee_acc_b[:, 3:6]
-                    os_command_forces_b = torch.cat([translational_command_force_b, rotational_command_force_b], dim=1)
                 else:
-                    # Full-decoupled dynamics
-                    os_mass_matrix_full = torch.inverse(jacobian_b @ mass_matrix_inv @ jacobian_b.mT)
-                    # (Generalized) operational space command forces
-                    os_command_forces_b = os_mass_matrix_full @ des_ee_acc_b
+                    # Calculate the operational space mass matrix fully accounting for the couplings
+                    os_mass_matrix = torch.inverse(jacobian_b @ mass_matrix_inv @ jacobian_b.mT)
+                # (Generalized) operational space command forces
+                # F = (J M^(-1) J^T)^(-1) * \ddot(x_des) = M_task * \ddot(x_des)
+                os_command_forces_b = os_mass_matrix @ des_ee_acc_b
             else:
                 # Task-space impedance control: command forces = \ddot(x_des).
                 # Please note that the definition of task-space impedance control varies in literature.
