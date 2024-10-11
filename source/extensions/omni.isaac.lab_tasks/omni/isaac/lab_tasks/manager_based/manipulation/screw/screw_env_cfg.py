@@ -331,7 +331,7 @@ class BaseNutTightenEnvCfg(BaseScrewEnvCfg):
                 FrameTransformerCfg.FrameCfg(
                     prim_path="{ENV_REGEX_NS}/Bolt/factory_bolt",
                     name="bolt_bottom",
-                    offset=OffsetCfg(pos=(0.0, 0.0, 0.011)), # strict 0.01
+                    offset=OffsetCfg(pos=(0.0, 0.0, 0.012)), # strict 0.01
                 ),
                 ]
             )

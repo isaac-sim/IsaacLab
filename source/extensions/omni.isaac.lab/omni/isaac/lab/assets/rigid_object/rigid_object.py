@@ -143,8 +143,72 @@ class RigidObject(AssetBase):
         return string_utils.resolve_matching_names(name_keys, self.body_names, preserve_order)
 
     """
+    Operations - Read from simulation.
+    """
+    
+    def read_state_from_sim(self, env_ids: Sequence[int] | None = None) -> dict[str, torch.Tensor]:
+        """Read the state from the simulation."""
+        if env_ids is None:
+            env_ids = slice(None)
+        root_state = self.read_root_state_from_sim(env_ids)
+        return {"root_state": root_state}
+    
+    def read_root_state_from_sim(self, env_ids: Sequence[int] | None = None) -> torch.Tensor:
+        if env_ids is None:
+            env_ids = slice(None)
+        root_state = self._data.root_state_w[env_ids]
+        return root_state.clone()
+        
+    def read_root_pose_from_sim(self, env_ids: Sequence[int] | None = None) -> torch.Tensor:
+        """Read the root pose from the simulation.
+
+        The root pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
+
+        Args:
+            env_ids: Environment indices. If None, then all indices are used.
+
+        Returns:
+            Root poses in simulation frame. Shape is (len(env_ids), 7).
+        """
+        # resolve all indices
+        physx_env_ids = env_ids
+        if env_ids is None:
+            env_ids = slice(None)
+            physx_env_ids = self._ALL_INDICES
+        # read from simulation
+        root_poses_xyzw = self.root_physx_view.get_transforms()
+        # convert root quaternion from xyzw to wxyz
+        root_poses_xyzw[:, 3:] = math_utils.convert_quat(root_poses_xyzw[:, 3:], to="wxyz")
+        buffer = self._data.root_state_w[env_ids, :7]
+        assert torch.norm(root_poses_xyzw - buffer) < 1e-6, "Mismatch in root pose."
+        return root_poses_xyzw
+    
+    def read_root_velocity_from_sim(self, env_ids: Sequence[int] | None = None) -> torch.Tensor:
+        """Read the root velocity from the simulation.
+
+        Args:
+            env_ids: Environment indices. If None, then all indices are used.
+
+        Returns:
+            Root velocities in simulation frame. Shape is (len(env_ids), 6).
+        """
+        # resolve all indices
+        physx_env_ids = env_ids
+        if env_ids is None:
+            env_ids = slice(None)
+            physx_env_ids = self._ALL_INDICES
+        # read from simulation
+        root_velocities = self.root_physx_view.get_velocities(indices=physx_env_ids)
+        buffer = self._data.root_state_w[env_ids, 7:]
+        assert torch.norm(root_velocities - buffer) < 1e-6, "Mismatch in root velocity."
+        return root_velocities
+    
+    """
     Operations - Write to simulation.
     """
+    
+    def write_state_to_sim(self, state: dict[str, torch.Tensor], env_ids: Sequence[int] | None = None):
+        self.write_root_state_to_sim(state["root_state"], env_ids)
 
     def write_root_state_to_sim(self, root_state: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root state over selected environment indices into the simulation.

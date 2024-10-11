@@ -334,7 +334,23 @@ class InteractiveScene:
     """
     Operations.
     """
-
+    def read_state(self) -> dict[str, torch.Tensor]:
+        state_dict = {}
+        for asset_family in [
+            self._articulations,
+            self._rigid_objects,
+        ]:
+            for asset_name, asset in asset_family.items():
+                asset_state = asset.read_state_from_sim()
+                asset_state["root_state"][:, :3] -= self.env_origins
+                state_dict[asset_name] = asset_state
+        return state_dict
+    
+    def write_state(self, state_dict: dict[str, torch.Tensor]):
+        for asset_name, asset_state in state_dict.items():
+            asset_state["root_state"][:, :3] += self.env_origins
+            self[asset_name].write_state_to_sim(asset_state)
+        
     def reset(self, env_ids: Sequence[int] | None = None):
         """Resets the scene entities.
 

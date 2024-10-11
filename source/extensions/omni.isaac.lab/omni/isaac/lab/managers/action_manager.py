@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import inspect
 import torch
+import numpy as np
+import gymnasium as gym
 import weakref
 from abc import abstractmethod
 from collections.abc import Sequence
@@ -48,6 +50,9 @@ class ActionTerm(ManagerTermBase):
         """
         # call the base class constructor
         super().__init__(cfg, env)
+        self.lows = cfg.lows
+        self.highs = cfg.highs
+
         # parse config to obtain asset to which the term is applied
         self._asset: AssetBase = self._env.scene[self.cfg.asset_name]
 
@@ -190,6 +195,9 @@ class ActionManager(ManagerBase):
         self.cfg.debug_vis = False
         for term in self._terms.values():
             self.cfg.debug_vis |= term.cfg.debug_vis
+        lows = [term.lows for term in self._terms.values()]
+        highs = [term.highs for term in  self._terms.values()]
+        self.single_action_space = gym.spaces.Box(low=np.concatenate(lows), high=np.concatenate(highs), dtype=np.float32)
 
     def __str__(self) -> str:
         """Returns: A string representation for action manager."""

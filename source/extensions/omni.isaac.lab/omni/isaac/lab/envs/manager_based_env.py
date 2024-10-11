@@ -226,6 +226,24 @@ class ManagerBasedEnv:
     Operations - MDP.
     """
 
+    def read_state(self) -> dict:
+        """Get the current state of the environment.
+
+        Returns:
+            A dictionary containing the state of the environment.
+        """
+        return self.scene.read_state()
+    
+    
+    def write_state(self, state: dict):
+        """Set the state of the environment.
+
+        Args:
+            state: The state of the environment.
+        """
+        self.scene.write_state(state)
+        
+        
     def reset(self, seed: int | None = None, options: dict[str, Any] | None = None) -> tuple[VecEnvObs, dict]:
         """Resets all the environments and returns observations.
 

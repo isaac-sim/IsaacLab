@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import torch
+import numpy as np
 from collections.abc import Callable
 from dataclasses import MISSING
 from typing import TYPE_CHECKING, Any
@@ -75,6 +76,9 @@ class ActionTermCfg:
 
     debug_vis: bool = False
     """Whether to visualize debug information. Defaults to False."""
+    
+    lows: list[float] = [np.inf]
+    highs: list[float] = [np.inf]
 
 
 ##

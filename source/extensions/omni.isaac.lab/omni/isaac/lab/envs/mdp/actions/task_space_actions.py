@@ -232,8 +232,8 @@ class RigidObjectActionTerm(ActionTerm):
         self.d_gain = cfg.d_gain
         self.initialized = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         
-        self.act_lows = torch.tensor(cfg.act_lows, device=self.device)[None]
-        self.act_highs = torch.tensor(cfg.act_highs, device=self.device)[None]
+        self.act_lows = torch.tensor(cfg.lows, device=self.device)[None]
+        self.act_highs = torch.tensor(cfg.highs, device=self.device)[None]
         
     """
     Properties.

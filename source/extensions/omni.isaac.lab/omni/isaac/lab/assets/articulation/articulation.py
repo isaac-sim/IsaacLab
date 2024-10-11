@@ -267,6 +267,42 @@ class Articulation(AssetBase):
         return string_utils.resolve_matching_names(name_keys, tendon_subsets, preserve_order)
 
     """
+    Operations - Getters.
+    """
+    def read_root_state_from_sim(self, env_ids: Sequence[int] | None = None) -> torch.Tensor:
+        if env_ids is None:
+            env_ids = slice(None)
+        root_state = self._data.root_state_w[env_ids]
+        return root_state
+    
+    def read_joint_state_from_sim(
+        self, 
+        env_ids: Sequence[int] | None = None,
+        joint_ids: Sequence[int] | slice | None = None) -> dict[str, torch.Tensor]:
+        if env_ids is None:
+            env_ids = slice(None)
+        if joint_ids is None:
+            joint_ids = slice(None)
+        # broadcast env_ids if needed to allow double indexing
+        if env_ids != slice(None) and joint_ids != slice(None):
+            env_ids = env_ids[:, None]
+        position = self._data.joint_pos[env_ids, joint_ids]
+        velocity = self._data.joint_vel[env_ids, joint_ids]
+        return {"position": position, "velocity": velocity}
+    
+    def read_state_from_sim(self, env_ids: Sequence[int] | None = None):
+        """Read the state of the articulation from the simulation.
+
+        Args:
+            env_ids: Environment indices. If None, then all indices are used.
+        """
+        assert False, "Get state and set state for articulation is not implemented yet."
+        root_state = self.read_root_state_from_sim(env_ids)
+        joint_state = self.read_joint_state_from_sim(env_ids)
+        return {"root_state": root_state, "joint_state": joint_state}
+    
+    
+    """
     Operations - Writers.
     """
 

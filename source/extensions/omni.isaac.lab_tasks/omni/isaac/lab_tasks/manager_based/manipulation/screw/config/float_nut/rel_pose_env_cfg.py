@@ -34,10 +34,10 @@ class RelFloatNutTightenEnvCfg(abs_pose_env_cfg.AbsFloatNutTightenEnvCfg):
             asset_name="nut",
             command_type="pose",
             use_relative_mode=True,
-            p_gain=5,
+            p_gain=10,
             d_gain=0.01,
-            act_lows=self.act_lows,
-            act_highs=self.act_highs,
+            lows=self.act_lows,
+            highs=self.act_highs,
             )
         
         # self.scene.nut.spawn.activate_contact_sensors = True
