@@ -614,7 +614,7 @@ class SimulationContext(_SimulationContext):
         if event.type == int(omni.timeline.TimelineEventType.STOP):
             # keep running the simulator when configured to not shutdown the app
             if self._has_gui and sys.exc_info()[0] is None:
-                self.app.print_and_log(
+                omni.log.warn(
                     "Simulation is stopped. The app will keep running with physics disabled."
                     " Press Ctrl+C or close the window to exit the app."
                 )
