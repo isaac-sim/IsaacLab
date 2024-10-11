@@ -54,6 +54,7 @@ extensions = [
     "sphinxcontrib.icon",
     "sphinx_copybutton",
     "sphinx_design",
+    "sphinx_multiversion",
 ]
 
 # mathjax hacks
@@ -239,7 +240,19 @@ html_theme_options = {
     "icon_links_label": "Quick Links",
 }
 
-html_sidebars = {"**": ["navbar-logo.html", "icon-links.html", "search-field.html", "sbt-sidebar-nav.html"]}
+templates_path = [
+    "_templates",
+]
+
+# Whitelist pattern for branches (set to None to ignore all branches)
+smv_branch_whitelist = r"^(main)$"
+
+# Whitelist pattern for tags (set to None to ignore all tags)
+smv_tag_whitelist = r"^.*$"
+
+html_sidebars = {
+    "**": ["navbar-logo.html", "icon-links.html", "search-field.html", "sbt-sidebar-nav.html", "versioning.html"]
+}
 
 
 # -- Advanced configuration -------------------------------------------------
