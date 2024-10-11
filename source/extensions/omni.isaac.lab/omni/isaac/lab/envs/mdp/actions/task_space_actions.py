@@ -345,14 +345,17 @@ class OperationalSpaceControllerAction(ActionTerm):
 
     @property
     def action_dim(self) -> int:
+        """Dimension of the action space of operational space control."""
         return self._osc.action_dim
 
     @property
     def raw_actions(self) -> torch.Tensor:
+        """Raw actions for operational space control."""
         return self._raw_actions
 
     @property
     def processed_actions(self) -> torch.Tensor:
+        """Processed actions for operational space control."""
         return self._processed_actions
 
     """
@@ -360,6 +363,12 @@ class OperationalSpaceControllerAction(ActionTerm):
     """
 
     def process_actions(self, actions: torch.Tensor):
+        """Pre-processes the raw actions and sets them as commands for for operational space control.
+
+        Args:
+            actions (torch.Tensor): The raw actions for operational space control. It is a tensor of
+                shape (num_envs, action_dim).
+        """
 
         # Update ee pose, which would be used by relative targets (i.e., pose_rel)
         self._compute_ee_pose()
@@ -378,6 +387,7 @@ class OperationalSpaceControllerAction(ActionTerm):
         )
 
     def apply_actions(self):
+        """Computes the joint efforts for operational space control and applies them to the articulation."""
 
         # Update the relevant states and dynamical quantities
         self._compute_dynamic_quantities()
@@ -397,6 +407,11 @@ class OperationalSpaceControllerAction(ActionTerm):
         self._asset.set_joint_effort_target(self._joint_efforts, joint_ids=self._joint_ids)
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
+        """Resets the raw actions and the sensors if available.
+
+        Args:
+            env_ids (Sequence[int] | None): The environment indices to reset. If None, all environments are reset.
+        """
         self._raw_actions[env_ids] = 0.0
         if self._contact_sensor is not None:
             self._contact_sensor.reset(env_ids)
@@ -409,7 +424,14 @@ class OperationalSpaceControllerAction(ActionTerm):
     """
 
     def _first_RigidObject_child_path(self):
-        """Finds the first RigidObject child under the articulation asset."""
+        """Finds the first RigidObject child under the articulation asset.
+
+        Raises:
+            ValueError: If no child RigidObject is found under the articulation asset.
+
+        Returns:
+            str: The path to the first RigidObject child under the articulation asset.
+        """
         child_prims = find_matching_prims(self._asset.cfg.prim_path + "/.*")
         rigid_child_prim = None
         # Loop through the list and stop at the first RigidObject found
@@ -425,7 +447,11 @@ class OperationalSpaceControllerAction(ActionTerm):
         return rigid_child_prim_path
 
     def _resolve_command_indexes(self):
-        """Resolves the indexes for the various command elements within the command tensor."""
+        """Resolves the indexes for the various command elements within the command tensor.
+
+        Raises:
+            ValueError: If any command index is left unresolved.
+        """
         # First iterate over the target types to find the indexes of the different command elements
         cmd_idx = 0
         for target_type in self.cfg.controller_cfg.target_types:
@@ -550,7 +576,12 @@ class OperationalSpaceControllerAction(ActionTerm):
             )
 
     def _preprocess_actions(self, actions: torch.Tensor):
-        """Pre-processes the raw actions for operational space control."""
+        """Pre-processes the raw actions for operational space control.
+
+        Args:
+            actions (torch.Tensor): The raw actions for operational space control. It is a tensor of
+                shape (num_envs, action_dim).
+        """
         # Store the raw actions. Please note that the actions contain task space targets
         # (in the order of the target_types), and possibly the impedance parameters depending on impedance_mode.
         self._raw_actions[:] = actions

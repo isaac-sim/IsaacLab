@@ -191,6 +191,11 @@ class OperationalSpaceController:
                 Stiffness: shape ('num_envs', 6)
                 Damping ratio: shape ('num_envs', 6)
 
+        Raises:
+            ValueError: When the command dimensions are invalid.
+            ValueError: When an invalid impedance mode is provided.
+            ValueError: When the current end-effector pose is not provided for the 'pose_rel' command.
+            ValueError: When an invalid control command is provided.
         """
         # Check the input dimensions
         if command.shape != (self.num_envs, self.action_dim):
@@ -352,15 +357,14 @@ class OperationalSpaceController:
             gravity: The joint-space gravity vector. It is a tensor of shape (num_envs, num_DoF). Defaults to None.
 
         Raises:
-            ValueError: When the current end-effector pose is not provided for the 'pose_rel' command.
-            ValueError: When an invalid task-space target type is provided.
             ValueError: When motion-control is enabled but the current end-effector pose or velocity is not provided.
-            ValueError: When force-control is enabled but the current end-effector force is not provided.
-            ValueError: When inertial compensation is enabled but the mass matrix  is not provided.
+            ValueError: When inertial dynamics decoupling is enabled but the mass matrix is not provided.
+            ValueError: When the current end-effector pose is not provided for the 'pose_rel' command.
+            ValueError: When closed-loop force control is enabled but the current end-effector force is not provided.
             ValueError: When gravity compensation is enabled but the gravity vector is not provided.
 
         Returns:
-            The target joint torques commands.
+            joint_efforts: The joint efforts computed by the controller. It is a tensor of shape (num_envs, num_DoF).
         """
 
         # deduce number of DoF

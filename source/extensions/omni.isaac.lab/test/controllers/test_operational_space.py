@@ -586,6 +586,15 @@ class TestOperationalSpaceController(unittest.TestCase):
         arm_joint_names: list[str],
         target_set: torch.tensor,
     ):
+        """Run the operational space controller with the given parameters.
+
+        Args:
+            robot (Articulation): The robot to control.
+            osc (OperationalSpaceController): The operational space controller.
+            ee_frame_name (str): The name of the end-effector frame.
+            arm_joint_names (list[str]): The names of the arm joints.
+            target_set (torch.tensor): The target set to track.
+        """
         # Initialize the masks for evaluating target convergence according to selection matrices
         self.pos_mask = torch.tensor(osc.cfg.motion_control_axes_task[:3], device=self.sim.device).view(1, 3)
         self.rot_mask = torch.tensor(osc.cfg.motion_control_axes_task[3:], device=self.sim.device).view(1, 3)
@@ -690,6 +699,23 @@ class TestOperationalSpaceController(unittest.TestCase):
         ee_frame_idx: int,
         arm_joint_ids: list[int],
     ):
+        """Update the states of the robot and obtain the relevant quantities for the operational space controller.
+
+        Args:
+            robot (Articulation): The robot to control.
+            ee_frame_idx (int): The index of the end-effector frame.
+            arm_joint_ids (list[int]): The indices of the arm joints.
+
+        Returns:
+            jacobian_b (torch.tensor): The Jacobian in the root frame.
+            mass_matrix (torch.tensor): The mass matrix.
+            gravity (torch.tensor): The gravity vector.
+            ee_pose_b (torch.tensor): The end-effector pose in the root frame.
+            ee_vel_b (torch.tensor): The end-effector velocity in the root frame.
+            root_pose_w (torch.tensor): The root pose in the world frame.
+            ee_pose_w (torch.tensor): The end-effector pose in the world frame.
+            ee_force_b (torch.tensor): The end-effector force in the root frame.
+        """
         # obtain dynamics related quantities from simulation
         ee_jacobi_idx = ee_frame_idx - 1
         jacobian_w = robot.root_physx_view.get_jacobians()[:, ee_jacobi_idx, :, arm_joint_ids]
@@ -739,6 +765,24 @@ class TestOperationalSpaceController(unittest.TestCase):
         target_set: torch.tensor,
         current_goal_idx: int,
     ):
+        """Update the target for the operational space controller.
+
+        Args:
+            osc (OperationalSpaceController): The operational space controller.
+            root_pose_w (torch.tensor): The root pose in the world frame.
+            ee_pose_b (torch.tensor): The end-effector pose in the body frame.
+            target_set (torch.tensor): The target set to track.
+            current_goal_idx (int): The current goal index.
+
+        Returns:
+            command (torch.tensor): The target command.
+            ee_target_pose_b (torch.tensor): The end-effector target pose in the body frame.
+            ee_target_pose_w (torch.tensor): The end-effector target pose in the world frame.
+            next_goal_idx (int): The next goal index.
+
+        Raises:
+            ValueError: If the target type is undefined.
+        """
         # update the ee desired command
         command = torch.zeros(self.num_envs, osc.action_dim, device=self.sim.device)
         command[:] = target_set[current_goal_idx]
@@ -770,6 +814,20 @@ class TestOperationalSpaceController(unittest.TestCase):
     def _convert_to_task_frame(
         self, osc: OperationalSpaceController, command: torch.tensor, ee_target_pose_b: torch.tensor
     ):
+        """Convert the target command to the task frame if required.
+
+        Args:
+            osc (OperationalSpaceController): The operational space controller.
+            command (torch.tensor): The target command to convert.
+            ee_target_pose_b (torch.tensor): The end-effector target pose in the body frame.
+
+        Returns:
+            command (torch.tensor): The converted target command.
+            task_frame_pose_b (torch.tensor): The task frame pose in the body frame.
+
+        Raises:
+            ValueError: If the frame is invalid.
+        """
         command = command.clone()
         task_frame_pose_b = None
         if self.frame == "root":
@@ -815,6 +873,19 @@ class TestOperationalSpaceController(unittest.TestCase):
         ee_force_b: torch.tensor,
         ee_target_b: torch.tensor,
     ):
+        """Check the convergence to the target.
+
+        Args:
+            osc (OperationalSpaceController): The operational space controller.
+            ee_pose_b (torch.tensor): The end-effector pose in the body frame.
+            ee_target_pose_b (torch.tensor): The end-effector target pose in the body frame.
+            ee_force_b (torch.tensor): The end-effector force in the body frame.
+            ee_target_b (torch.tensor): The end-effector target in the body frame.
+
+        Raises:
+            AssertionError: If the convergence is not achieved.
+            ValueError: If the target type is undefined.
+        """
         cmd_idx = 0
         for target_type in osc.cfg.target_types:
             if target_type == "pose_abs":
