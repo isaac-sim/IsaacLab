@@ -1,2 +1,4 @@
 Ray Caster
 =============
+
+The Ray Caster sensor (and the ray caster camera) are similar to RTX based rendering in that they both involve casting rays.  The difference here is that the rays cast by the Ray Caster sensor return strictly collision information along the cast, and the direction of each individual ray can be specified.  They do not bounce, nor are they affected by things like materials or opacity. For each ray specified by the sensor, a line is traced along the path of the ray and the location of first collision with the specified mesh is returned. This is the method used by some of our quadruped examples to measure the local height field 
