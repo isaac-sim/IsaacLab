@@ -583,7 +583,7 @@ class AppLauncher:
         # disable sys stdout and stderr to avoid printing the warning messages
         # this is mainly done to purge the print statements from the simulation app
         if "--verbose" not in sys.argv and "--info" not in sys.argv:
-            sys.stdout = open(os.devnull, "w")
+            sys.stdout = open(os.devnull, "w")  # noqa: SIM115
         # launch simulation app
         self._app = SimulationApp(self._sim_app_config, experience=self._sim_experience_file)
         # enable sys stdout and stderr
