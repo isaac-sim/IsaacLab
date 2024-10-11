@@ -13,7 +13,6 @@ jobs:
         env:
           REPO_NAME: ${{ secrets.REPO_NAME }}
           BRANCH_REF: ${{ secrets.BRANCH_REF }}
-        if: "${{ github.repository == env.REPO_NAME && github.ref == env.BRANCH_REF }}"
         run: echo "defined=true" >> "$GITHUB_OUTPUT"
 
   build-docs:
@@ -38,10 +37,10 @@ jobs:
 
     - name: Generate docs
       working-directory: ./docs
-      run: make html
+      run: make
 
     - name: Deploy to gh-pages
       uses: peaceiris/actions-gh-pages@v3
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./docs/_build/html
+        publish_dir: ./docs/_build
