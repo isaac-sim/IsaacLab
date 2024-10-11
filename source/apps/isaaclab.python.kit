@@ -141,6 +141,9 @@ exts."omni.kit.window.viewport".blockingGetViewportDrawable = false
 
 exts."omni.kit.test".includeTests = [ "*isaac*" ]
 
+# set the default ros bridge to disable on startup
+isaac.startup.ros_bridge_extension = ""
+
 [settings.app.python]
 # These disable the kit app from also printing out python output, which gets confusing
 interceptSysStdOutput = false
