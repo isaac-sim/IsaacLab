@@ -446,6 +446,7 @@ validity_expected_fields = [
     "b.inside_nested_dict.a.c",
     "b.inside_tuple[1]",
     "b.inside_list[0]",
+    "b.inside_list[1]",
     "c",
 ]
 
@@ -934,6 +935,8 @@ class TestConfigClass(unittest.TestCase):
         self.assertEqual(md5_hash_1, md5_hash_2)
 
     def test_validity(self):
+        """Check that invalid configurations raise errors."""
+
         cfg = MissingChildDemoCfg()
 
         with self.assertRaises(TypeError) as context:
