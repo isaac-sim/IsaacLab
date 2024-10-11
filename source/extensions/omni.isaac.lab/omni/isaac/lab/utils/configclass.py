@@ -258,7 +258,7 @@ def _assert_valid(obj: object, prefix: str = "") -> list:
         TypeError: When the object is not a valid configuration object.
     """
     missing_fields = []
-
+    obj_type_name = obj.__class__.__name__
     if prefix == "":
         obj = obj.to_dict()
 
@@ -285,7 +285,7 @@ def _assert_valid(obj: object, prefix: str = "") -> list:
     if prefix == "" and missing_fields:
         formatted_message = "\n".join(f"  - {field}" for field in missing_fields)
         raise TypeError(
-            f"Missing values detected in object {obj.__class__.__name__} for the following fields:\n{formatted_message}"
+            f"Missing values detected in object {obj_type_name} for the following fields:\n{formatted_message}"
         )
     return missing_fields
 
