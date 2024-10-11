@@ -23,7 +23,7 @@ import argparse
 from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
-parser = argparse.ArgumentParser(description="Tutorial on using the differential IK controller.")
+parser = argparse.ArgumentParser(description="Tutorial on using the operational space controller.")
 parser.add_argument("--num_envs", type=int, default=128, help="Number of environments to spawn.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -106,7 +106,12 @@ class SceneCfg(InteractiveSceneCfg):
 
 
 def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
-    """Runs the simulation loop."""
+    """Runs the simulation loop.
+
+    Args:
+        sim: (SimulationContext) Simulation context.
+        scene: (InteractiveScene) Interactive scene.
+    """
 
     # Extract scene entities for readability.
     robot = scene["robot"]
@@ -209,7 +214,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
                 sim, scene, robot, ee_frame_idx, arm_joint_ids, contact_forces
             )  # at reset, the jacobians are not updated to the latest state
             command, ee_target_pose_b, ee_target_pose_w, current_goal_idx = update_target(
-                sim, scene, osc, root_pose_w, ee_pose_b, ee_target_set, current_goal_idx
+                sim, scene, osc, root_pose_w, ee_target_set, current_goal_idx
             )
             # set the osc command
             osc.reset()
@@ -256,6 +261,29 @@ def update_states(
     arm_joint_ids: list[int],
     contact_forces,
 ):
+    """Update the robot states.
+
+    Args:
+        sim: (SimulationContext) Simulation context.
+        scene: (InteractiveScene) Interactive scene.
+        robot: (Articulation) Robot articulation.
+        ee_frame_idx: (int) End-effector frame index.
+        arm_joint_ids: (list[int]) Arm joint indices.
+        contact_forces: (ContactSensor) Contact sensor.
+
+    Returns:
+        jacobian_b (torch.tensor): Jacobian in the body frame.
+        mass_matrix (torch.tensor): Mass matrix.
+        gravity (torch.tensor): Gravity vector.
+        ee_pose_b (torch.tensor): End-effector pose in the body frame.
+        ee_vel_b (torch.tensor): End-effector velocity in the body frame.
+        root_pose_w (torch.tensor): Root pose in the world frame.
+        ee_pose_w (torch.tensor): End-effector pose in the world frame.
+        ee_force_b (torch.tensor): End-effector force in the body frame.
+
+    Raises:
+        ValueError: Undefined target_type.
+    """
     # obtain dynamics related quantities from simulation
     ee_jacobi_idx = ee_frame_idx - 1
     jacobian_w = robot.root_physx_view.get_jacobians()[:, ee_jacobi_idx, :, arm_joint_ids]
@@ -303,10 +331,29 @@ def update_target(
     scene: InteractiveScene,
     osc: OperationalSpaceController,
     root_pose_w: torch.tensor,
-    ee_pose_b: torch.tensor,
     ee_target_set: torch.tensor,
     current_goal_idx: int,
 ):
+    """Update the targets for the operational space controller.
+
+    Args:
+        sim: (SimulationContext) Simulation context.
+        scene: (InteractiveScene) Interactive scene.
+        osc: (OperationalSpaceController) Operational space controller.
+        root_pose_w: (torch.tensor) Root pose in the world frame.
+        ee_target_set: (torch.tensor) End-effector target set.
+        current_goal_idx: (int) Current goal index.
+
+    Returns:
+        command (torch.tensor): Updated target command.
+        ee_target_pose_b (torch.tensor): Updated target pose in the body frame.
+        ee_target_pose_w (torch.tensor): Updated target pose in the world frame.
+        next_goal_idx (int): Next goal index.
+
+    Raises:
+        ValueError: Undefined target_type.
+    """
+
     # update the ee desired command
     command = torch.zeros(scene.num_envs, osc.action_dim, device=sim.device)
     command[:] = ee_target_set[current_goal_idx]
@@ -334,6 +381,20 @@ def update_target(
 
 # Convert the target commands to the task frame
 def convert_to_task_frame(osc: OperationalSpaceController, command: torch.tensor, ee_target_pose_b: torch.tensor):
+    """Converts the target commands to the task frame.
+
+    Args:
+        osc: OperationalSpaceController object.
+        command: Command to be converted.
+        ee_target_pose_b: Target pose in the body frame.
+
+    Returns:
+        command (torch.tensor): Target command in the task frame.
+        task_frame_pose_b (torch.tensor): Target pose in the task frame.
+
+    Raises:
+        ValueError: Undefined target_type.
+    """
     command = command.clone()
     task_frame_pose_b = ee_target_pose_b.clone()
 
