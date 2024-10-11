@@ -4,10 +4,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import omni.isaac.lab.sim as sim_utils
-<<<<<<< HEAD
-=======
-from omni.isaac.lab.envs.mdp.observations import grab_images
->>>>>>> parent of 2d207b5a (add feature extraction)
 from omni.isaac.lab.managers import ObservationGroupCfg as ObsGroup
 from omni.isaac.lab.managers import ObservationTermCfg as ObsTerm
 from omni.isaac.lab.managers import SceneEntityCfg
@@ -92,27 +88,12 @@ class DepthObservationsCfg:
     policy: ObsGroup = DepthCameraPolicyCfg()
 
 
-@configclass
-<<<<<<< HEAD
-class ResNet18ObservationCfg:
-    @configclass
-    class FeaturesCameraPolicyCfg(RGBObservationsCfg.RGBCameraPolicyCfg):
-        image = ObsTerm(
-            func=mdp.image_features,
-            params={"sensor_cfg": SceneEntityCfg("tiled_camera"), "data_type": "rgb", "model_name": "ResNet18"},
-        )
-
-    policy: ObsGroup = FeaturesCameraPolicyCfg()
-
-
 ##
 # Environment configuration
 ##
 
 
 @configclass
-=======
->>>>>>> parent of 2d207b5a (add feature extraction)
 class CartpoleRGBCameraEnvCfg(CartpoleEnvCfg):
     """Configuration for the cartpole environment with RGB camera."""
 
@@ -125,13 +106,4 @@ class CartpoleDepthCameraEnvCfg(CartpoleEnvCfg):
     """Configuration for the cartpole environment with depth camera."""
 
     scene: CartpoleSceneCfg = CartpoleDepthCameraSceneCfg(num_envs=1024, env_spacing=20)
-<<<<<<< HEAD
     observations: DepthObservationsCfg = DepthObservationsCfg()
-
-
-@configclass
-class CartpoleResNet18CameraEnv(CartpoleRGBCameraEnvCfg):
-    observations: ResNet18ObservationCfg = ResNet18ObservationCfg()
-=======
-    observations = DepthObservationsCfg()
->>>>>>> parent of 2d207b5a (add feature extraction)
