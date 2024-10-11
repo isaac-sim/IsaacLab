@@ -216,13 +216,13 @@ class TestOperationalSpaceController(unittest.TestCase):
     Test fixtures.
     """
 
-    def test_franka_pose_abs_without_inertial_compensation(self):
-        """Test absolute pose control with fixed impedance and without inertial compensation."""
+    def test_franka_pose_abs_without_inertial_decoupling(self):
+        """Test absolute pose control with fixed impedance and without inertial dynamics decoupling."""
         robot = Articulation(cfg=self.robot_cfg)
         osc_cfg = OperationalSpaceControllerCfg(
             target_types=["pose_abs"],
             impedance_mode="fixed",
-            inertial_compensation=False,
+            inertial_dynamics_decoupling=False,
             gravity_compensation=False,
             motion_stiffness_task=[400.0, 400.0, 400.0, 100.0, 100.0, 100.0],
             motion_damping_ratio_task=[5.0, 5.0, 5.0, 0.001, 0.001, 0.001],
@@ -231,14 +231,14 @@ class TestOperationalSpaceController(unittest.TestCase):
 
         self._run_op_space_controller(robot, osc, "panda_hand", ["panda_joint.*"], self.target_abs_pose_set_b)
 
-    def test_franka_pose_abs_with_decoupled_motion(self):
-        """Test absolute pose control with fixed impedance and decoupled motion inertia compensation."""
+    def test_franka_pose_abs_with_partial_inertial_decoupling(self):
+        """Test absolute pose control with fixed impedance and partial inertial dynamics decoupling.."""
         robot = Articulation(cfg=self.robot_cfg)
         osc_cfg = OperationalSpaceControllerCfg(
             target_types=["pose_abs"],
             impedance_mode="fixed",
-            inertial_compensation=True,
-            decoupled_motion_calculations=True,
+            inertial_dynamics_decoupling=True,
+            partial_inertial_dynamics_decoupling=True,
             gravity_compensation=False,
             motion_stiffness_task=1000.0,
             motion_damping_ratio_task=1.0,
@@ -248,14 +248,14 @@ class TestOperationalSpaceController(unittest.TestCase):
         self._run_op_space_controller(robot, osc, "panda_hand", ["panda_joint.*"], self.target_abs_pose_set_b)
 
     def test_franka_pose_abs_fixed_impedance_with_gravity_compensation(self):
-        """Test absolute pose control with fixed impedance, inertial and gravity compensation."""
+        """Test absolute pose control with fixed impedance, gravity compensation, and inertial dynamics decoupling."""
         self.robot_cfg.spawn.rigid_props.disable_gravity = False
         robot = Articulation(cfg=self.robot_cfg)
         osc_cfg = OperationalSpaceControllerCfg(
             target_types=["pose_abs"],
             impedance_mode="fixed",
-            inertial_compensation=True,
-            decoupled_motion_calculations=False,
+            inertial_dynamics_decoupling=True,
+            partial_inertial_dynamics_decoupling=False,
             gravity_compensation=True,
             motion_stiffness_task=500.0,
             motion_damping_ratio_task=1.0,
@@ -265,13 +265,13 @@ class TestOperationalSpaceController(unittest.TestCase):
         self._run_op_space_controller(robot, osc, "panda_hand", ["panda_joint.*"], self.target_abs_pose_set_b)
 
     def test_franka_pose_abs(self):
-        """Test absolute pose control with fixed impedance and inertial compensation."""
+        """Test absolute pose control with fixed impedance and inertial dynamics decoupling."""
         robot = Articulation(cfg=self.robot_cfg)
         osc_cfg = OperationalSpaceControllerCfg(
             target_types=["pose_abs"],
             impedance_mode="fixed",
-            inertial_compensation=True,
-            decoupled_motion_calculations=False,
+            inertial_dynamics_decoupling=True,
+            partial_inertial_dynamics_decoupling=False,
             gravity_compensation=False,
             motion_stiffness_task=500.0,
             motion_damping_ratio_task=1.0,
@@ -281,13 +281,13 @@ class TestOperationalSpaceController(unittest.TestCase):
         self._run_op_space_controller(robot, osc, "panda_hand", ["panda_joint.*"], self.target_abs_pose_set_b)
 
     def test_franka_pose_rel(self):
-        """Test relative pose control with fixed impedance and inertial compensation."""
+        """Test relative pose control with fixed impedance and inertial dynamics decoupling."""
         robot = Articulation(cfg=self.robot_cfg)
         osc_cfg = OperationalSpaceControllerCfg(
             target_types=["pose_rel"],
             impedance_mode="fixed",
-            inertial_compensation=True,
-            decoupled_motion_calculations=False,
+            inertial_dynamics_decoupling=True,
+            partial_inertial_dynamics_decoupling=False,
             gravity_compensation=False,
             motion_stiffness_task=500.0,
             motion_damping_ratio_task=1.0,
@@ -297,13 +297,13 @@ class TestOperationalSpaceController(unittest.TestCase):
         self._run_op_space_controller(robot, osc, "panda_hand", ["panda_joint.*"], self.target_rel_pose_set_b)
 
     def test_franka_pose_abs_variable_impedance(self):
-        """Test absolute pose control with variable impedance and inertial compensation."""
+        """Test absolute pose control with variable impedance and inertial dynamics decoupling."""
         robot = Articulation(cfg=self.robot_cfg)
         osc_cfg = OperationalSpaceControllerCfg(
             target_types=["pose_abs"],
             impedance_mode="variable",
-            inertial_compensation=True,
-            decoupled_motion_calculations=False,
+            inertial_dynamics_decoupling=True,
+            partial_inertial_dynamics_decoupling=False,
             gravity_compensation=False,
         )
         osc = OperationalSpaceController(osc_cfg, num_envs=self.num_envs, device=self.sim.device)
@@ -413,7 +413,7 @@ class TestOperationalSpaceController(unittest.TestCase):
         self._run_op_space_controller(robot, osc, "panda_hand", ["panda_joint.*"], self.target_abs_wrench_set)
 
     def test_franka_hybrid_decoupled_motion(self):
-        """Test hybrid control with fixed impedance and decoupled motion inertia compensation."""
+        """Test hybrid control with fixed impedance and partial inertial dynamics decoupling."""
         robot = Articulation(cfg=self.robot_cfg)
 
         obstacle_spawn_cfg = sim_utils.CuboidCfg(
@@ -441,8 +441,8 @@ class TestOperationalSpaceController(unittest.TestCase):
         osc_cfg = OperationalSpaceControllerCfg(
             target_types=["pose_abs", "wrench_abs"],
             impedance_mode="fixed",
-            inertial_compensation=True,
-            decoupled_motion_calculations=True,
+            inertial_dynamics_decoupling=True,
+            partial_inertial_dynamics_decoupling=True,
             gravity_compensation=False,
             motion_stiffness_task=300.0,
             motion_damping_ratio_task=1.0,
@@ -455,7 +455,7 @@ class TestOperationalSpaceController(unittest.TestCase):
         self._run_op_space_controller(robot, osc, "panda_leftfinger", ["panda_joint.*"], self.target_hybrid_set_b)
 
     def test_franka_hybrid_variable_kp_impedance(self):
-        """Test hybrid control with variable kp impedance and inertial compensation."""
+        """Test hybrid control with variable kp impedance and inertial dynamics decoupling."""
         robot = Articulation(cfg=self.robot_cfg)
 
         obstacle_spawn_cfg = sim_utils.CuboidCfg(
@@ -483,8 +483,8 @@ class TestOperationalSpaceController(unittest.TestCase):
         osc_cfg = OperationalSpaceControllerCfg(
             target_types=["pose_abs", "wrench_abs"],
             impedance_mode="variable_kp",
-            inertial_compensation=True,
-            decoupled_motion_calculations=False,
+            inertial_dynamics_decoupling=True,
+            partial_inertial_dynamics_decoupling=False,
             gravity_compensation=False,
             motion_damping_ratio_task=0.8,
             contact_wrench_stiffness_task=[0.1, 0.0, 0.0, 0.0, 0.0, 0.0],
@@ -498,14 +498,14 @@ class TestOperationalSpaceController(unittest.TestCase):
         )
 
     def test_franka_taskframe_pose_abs(self):
-        """Test absolute pose control in task frame with fixed impedance and inertial compensation."""
+        """Test absolute pose control in task frame with fixed impedance and inertial dynamics decoupling."""
         robot = Articulation(cfg=self.robot_cfg)
         self.frame = "task"
         osc_cfg = OperationalSpaceControllerCfg(
             target_types=["pose_abs"],
             impedance_mode="fixed",
-            inertial_compensation=True,
-            decoupled_motion_calculations=False,
+            inertial_dynamics_decoupling=True,
+            partial_inertial_dynamics_decoupling=False,
             gravity_compensation=False,
             motion_stiffness_task=500.0,
             motion_damping_ratio_task=1.0,
@@ -515,14 +515,14 @@ class TestOperationalSpaceController(unittest.TestCase):
         self._run_op_space_controller(robot, osc, "panda_hand", ["panda_joint.*"], self.target_abs_pose_set_b)
 
     def test_franka_taskframe_pose_rel(self):
-        """Test relative pose control in task frame with fixed impedance and inertial compensation."""
+        """Test relative pose control in task frame with fixed impedance and inertial dynamics decoupling."""
         robot = Articulation(cfg=self.robot_cfg)
         self.frame = "task"
         osc_cfg = OperationalSpaceControllerCfg(
             target_types=["pose_rel"],
             impedance_mode="fixed",
-            inertial_compensation=True,
-            decoupled_motion_calculations=False,
+            inertial_dynamics_decoupling=True,
+            partial_inertial_dynamics_decoupling=False,
             gravity_compensation=False,
             motion_stiffness_task=500.0,
             motion_damping_ratio_task=1.0,
@@ -532,7 +532,7 @@ class TestOperationalSpaceController(unittest.TestCase):
         self._run_op_space_controller(robot, osc, "panda_hand", ["panda_joint.*"], self.target_rel_pose_set_b)
 
     def test_franka_taskframe_hybrid(self):
-        """Test hybrid control in task frame with fixed impedance and inertial compensation."""
+        """Test hybrid control in task frame with fixed impedance and inertial dynamics decoupling."""
         robot = Articulation(cfg=self.robot_cfg)
         self.frame = "task"
 
@@ -561,8 +561,8 @@ class TestOperationalSpaceController(unittest.TestCase):
         osc_cfg = OperationalSpaceControllerCfg(
             target_types=["pose_abs", "wrench_abs"],
             impedance_mode="fixed",
-            inertial_compensation=True,
-            decoupled_motion_calculations=False,
+            inertial_dynamics_decoupling=True,
+            partial_inertial_dynamics_decoupling=False,
             gravity_compensation=False,
             motion_stiffness_task=400.0,
             motion_damping_ratio_task=1.0,

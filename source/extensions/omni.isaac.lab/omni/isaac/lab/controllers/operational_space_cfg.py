@@ -26,23 +26,23 @@ class OperationalSpaceControllerCfg:
         - reference for the task-space targets: "abs" (absolute), "rel" (relative, only for pose)
     """
 
-    impedance_mode: str = "fixed"
-    """Type of gains for motion control: "fixed", "variable", "variable_kp"."""
-
-    decoupled_motion_calculations: bool = False
-    """Whether to decouple the translational & rotational parts of (operational space) command force calculations."""
-
     motion_control_axes_task: Sequence[int] = (1, 1, 1, 1, 1, 1)
     """Motion direction to control in task reference frame. Mark as 0/1 for each axis."""
 
     contact_wrench_control_axes_task: Sequence[int] = (0, 0, 0, 0, 0, 0)
     """Contact wrench direction to control in task reference frame. Mark as 0/1 for each axis."""
 
-    inertial_compensation: bool = False
-    """Whether to perform inertial compensation for motion control (inverse dynamics)."""
+    inertial_dynamics_decoupling: bool = False
+    """Whether to perform inertial dynamics decoupling for motion control (inverse dynamics)."""
+
+    partial_inertial_dynamics_decoupling: bool = False
+    """Whether to ignore the inertial coupling between the translational & rotational motions."""
 
     gravity_compensation: bool = False
     """Whether to perform gravity compensation."""
+
+    impedance_mode: str = "fixed"
+    """Type of gains for motion control: "fixed", "variable", "variable_kp"."""
 
     motion_stiffness_task: float | Sequence[float] = (100.0, 100.0, 100.0, 100.0, 100.0, 100.0)
     """The positional gain for determining operational space command forces based on task-space pose error."""

@@ -75,11 +75,11 @@ of six scalars. Please note that, currently, only the linear part of the contact
 elements of the contact_wrench_stiffness_task) is considered in the closed-loop control, as the rotational part
 cannot be measured with the contact sensors.
 
-For the motion control, inertial_compensation should be set to True to include the robot's inertia matrix in the
-calculation of operational space command forces. This is important for the motion control to be accurate,
-especially for rapid movements. This inertia compensation includes the coupling between all the six motion axes.
+For the motion control, inertial_dynamics_decoupling should be set to True to use the robot's inertia matrix
+to decouple the desired accelerations in the task space. This is important for the motion control to be accurate,
+especially for rapid movements. This inertial decoupling accounts for the coupling between all the six motion axes.
 If desired, the inertial coupling between the translational and rotational axes could be ignored by setting the
-decoupled_motion_calculations to True.
+partial_inertial_dynamics_decoupling to True.
 
 If it is desired to include the gravity compensation in the operational space command, the gravity_compensation
 should be set to True.
@@ -87,8 +87,8 @@ should be set to True.
 The included OSC implementation performs the computation in a batched format and uses PyTorch operations.
 
 In this tutorial, we will use "pose_abs" for controlling the motion in all axes except the z-axis and "wrench_abs"
-for controlling the force in the z-axis. Moreover, we will include the full inertia model in the motion control and
-not include the gravity compensation, as the gravity is disabled from the robot configuration. Finally, we set the
+for controlling the force in the z-axis. Moreover, we will include the full inertia decoupling in the motion control
+and not include the gravity compensation, as the gravity is disabled from the robot configuration. Finally, we set the
 impedance mode to "variable_kp" to dynamically change the stiffness values (motion_damping_ratio_task is set to 1: the
 kd values adapt according to kp values to maintain a critically damped response).
 

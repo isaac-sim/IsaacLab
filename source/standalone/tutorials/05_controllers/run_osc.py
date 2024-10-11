@@ -122,8 +122,8 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
     osc_cfg = OperationalSpaceControllerCfg(
         target_types=["pose_abs", "wrench_abs"],
         impedance_mode="variable_kp",
-        inertial_compensation=True,
-        decoupled_motion_calculations=False,
+        inertial_dynamics_decoupling=True,
+        partial_inertial_dynamics_decoupling=False,
         gravity_compensation=False,
         motion_damping_ratio_task=1.0,
         contact_wrench_stiffness_task=[0.0, 0.0, 0.1, 0.0, 0.0, 0.0],

@@ -384,34 +384,41 @@ class OperationalSpaceController:
                 ),
                 dim=-1,
             )
-            velocity_error_b = -current_ee_vel_b  # zero target velocity
-            # -- desired end-effector acceleration (spring damped system)
+            velocity_error_b = -current_ee_vel_b  # zero target velocity. The target is assumed to be stationary.
+            # -- desired end-effector acceleration (spring-damper system)
             des_ee_acc_b = self._motion_p_gains_b @ pose_error_b.unsqueeze(
                 -1
             ) + self._motion_d_gains_b @ velocity_error_b.unsqueeze(-1)
-            # -- inertial compensation
-            if self.cfg.inertial_compensation:
+            # -- Inertial dynamics decoupling
+            if self.cfg.inertial_dynamics_decoupling:
                 # check input is provided
                 if mass_matrix is None:
                     raise ValueError("Mass matrix is required for inertial compensation.")
                 # compute task-space dynamics quantities
                 # operational space command force = (J M^(-1) J^T)^(-1) * \ddot(x_des)
                 mass_matrix_inv = torch.inverse(mass_matrix)
-                if self.cfg.decoupled_motion_calculations:
-                    # decoupled-mass matrices
-                    os_mass_matrix_pos = torch.inverse(jacobian_b[:, 0:3] @ mass_matrix_inv @ jacobian_b[:, 0:3].mT)
-                    os_mass_matrix_ori = torch.inverse(jacobian_b[:, 3:6] @ mass_matrix_inv @ jacobian_b[:, 3:6].mT)
+                if self.cfg.partial_inertial_dynamics_decoupling:
+                    # Separate mass matrices for translational and rotational dynamics
+                    os_mass_matrix_translation = torch.inverse(
+                        jacobian_b[:, 0:3] @ mass_matrix_inv @ jacobian_b[:, 0:3].mT
+                    )
+                    os_mass_matrix_rotation = torch.inverse(
+                        jacobian_b[:, 3:6] @ mass_matrix_inv @ jacobian_b[:, 3:6].mT
+                    )
                     # (Generalized) operational space command forces (from pseudo-dynamics)
-                    decoupled_command_force_b = os_mass_matrix_pos @ des_ee_acc_b[:, 0:3]
-                    decoupled_command_torque_b = os_mass_matrix_ori @ des_ee_acc_b[:, 3:6]
-                    os_command_forces_b = torch.cat([decoupled_command_force_b, decoupled_command_torque_b], dim=1)
+                    translational_command_force_b = os_mass_matrix_translation @ des_ee_acc_b[:, 0:3]
+                    rotational_command_force_b = os_mass_matrix_rotation @ des_ee_acc_b[:, 3:6]
+                    os_command_forces_b = torch.cat([translational_command_force_b, rotational_command_force_b], dim=1)
                 else:
-                    # coupled dynamics
+                    # Full-decoupled dynamics
                     os_mass_matrix_full = torch.inverse(jacobian_b @ mass_matrix_inv @ jacobian_b.mT)
                     # (Generalized) operational space command forces
                     os_command_forces_b = os_mass_matrix_full @ des_ee_acc_b
             else:
-                # task-space impedance control: command forces = \ddot(x_des)
+                # Task-space impedance control: command forces = \ddot(x_des).
+                # Please note that the definition of task-space impedance control varies in literature.
+                # This implementation ignores the inertial term. For inertial decoupling,
+                # use inertial_dynamics_decoupling=True.
                 os_command_forces_b = des_ee_acc_b
             # -- joint-space commands
             joint_efforts += (jacobian_b.mT @ self._selection_matrix_motion_b @ os_command_forces_b).squeeze(-1)
