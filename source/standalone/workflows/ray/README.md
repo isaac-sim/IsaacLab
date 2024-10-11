@@ -14,7 +14,7 @@ The Ray integration is useful to you if any of the following apply:
 
 
 Notably, this Ray integration is able to leverage the existing Isaac Lab Hydra support
-for changing hyperparameters. See ``hyperparameter_tuning/config/tune_vision_cartpole.py``
+for changing hyperparameters. See ``hyperparameter_tuning/config/vision_cartpole.yaml``
 for a demonstration of how easy hyperparameter tuning can be when leveraging Ray and Hydra.
 
 # Installation
@@ -106,63 +106,37 @@ As a result of using Ray, running experiments in the cloud and locally have very
 3. Check that your KubeRay cluster worked with `kubectl get pods` and `kubectl describe pods`.
 	It may take a few minutes for the cluster to spin up. If there is an error, or a crash loop backup,
 	you can inspect the logs further with ``kubectl logs <POD_NAME>``. When all pods
-	say ``Running`` as their status, the cluster is ready to tune hyperparameters.
+	say ``Running`` as their status, the cluster is ready to tune hyperparameters. Do not proceed until all Pods say ``Running``
 
 ### Shared Steps for Kubernetes/KubeRay and Ray Clusters
 
 4. Create a ```~/.cluster_config``` file. If you configured your cluster with Kubernetes/KubeRay,
 	you can run the following script and move on to the next step.
 	```
-	./source/standalone/
+	./source/standalone/workflows/ray/grok_cluster_with_kubectl.sh
 	```
-
+	If your cluster was created in pure Ray, you must create the file manually with the following contents, one on each
+	line for every Ray Cluster.
 	```
 	name: <CLUSTER_NAME> address: http://<RAY_HEAD_IP>.<RAY_DASHBOARD_PORT> num_cpu: <TOTAL_CLUSTER_CPU_COUNT> num_gpu: <TOTAL_CLUSTER_GPU_COUNT>
 	```
-4. Check that you can issue jobs to the cluster, that all GPUs are available,
+6. Check that you can issue jobs to the cluster, that all GPUs are available,
 	that Ray is installed correctly, nvidia-smi works, and that the needed deps
 	for Ray/Isaac Lab are found on path.
 
-	If you are using Ray with Kubernetes, you can use the following command
-	(after the containers are running, check with ``kubectl get pods``)
-
 	```
-	./source/standalone/workflows/ray/grok_cluster_address_with_kubectl.sh  && \
-	ray job submit --working-dir source/standalone/workflows/ray \
-	--address=$(awk '!/^#/{print $0}' ~/.ray_address | head -n 1) -- /workspace/isaaclab/_isaac_sim/python.sh \
-	test_kuberay_config.py --num_jobs 4
-	```
-
-	Otherwise, determine the Ray head node address , and run
-
-	```
-	ray job submit --working-dir source/standalone/workflows/ray \
-	--address=<RAY_HEAD_NODE_ADDRESS> -- /workspace/isaaclab/_isaac_sim/python.sh \
-	test_kuberay_config.py --num_jobs 4
+	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py "test_isaac_ray_cluster.py"
 	```
 
 5. Define your desired Ray job as a script on your local machine.
-	For a hyperparameter tuning example, see ``source/standalone/workflows/ray/hyper_parameter_tuning/config/cartpole_sweep.py`` #TODO: ACTUALLY WRITE THIS BAD BOY
+   	For a hyperparameter tuning job, see ```isaac_ray_tune.py cfg=hyper_parameter_tuning/config/vision_cartpole.yaml``` # TODO: Actually write this bad boy
 
 6. Start your distributed Ray job.
 
-	If you are using Ray with Kubernetes, you can use the following command:
-
 	```
-	./source/standalone/workflows/ray/grok_cluster_address_with_kubectl.sh &&
-	ray job submit --working-dir source/standalone/workflows/ray \
-	--address=$(awk '!/^#/{print $0}' ~/.ray_address | head -n 1) -- /workspace/isaaclab/_isaac_sim/python.sh \
-	<YOUR_JOB_HERE>
+	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py "<YOUR_JOB_HERE>"
 	```
 
-	Otherwise, determine the Ray head node address, and run
-
-	```
-	./source/standalone/workflows/ray/grok_cluster_address_with_kubectl.sh &&
-	ray job submit --working-dir source/standalone/workflows/ray \
-	--address=<RAY_HEAD_NODE_ADDRESS> -- /workspace/isaaclab/_isaac_sim/python.sh \
-	<YOUR_JOB_HERE>
-	```
 7. When you have completed your distributed job, stop the cluster to conserve resources.
 
 	If you are using Kubernetes/KubeRay, this can be done with
@@ -178,7 +152,7 @@ As a result of using Ray, running experiments in the cloud and locally have very
 Generally, it's best practice to store large files or weights in a storage bucket within the cloud from
 the training runs.
 
-You can do this by
+You can do this by supplying the storage_path option to the ``isaac_ray_tune.py`` job.
 
 However, for the sake of prototyping, if you want to retrieve files from a Kubernetes/KubeRay
 cluster, this is possible.
@@ -210,36 +184,33 @@ hyperparameter simultaneously in parallel.
 	 ```
 	 If you want the clusters to have heterogeneous resource allocations, like different numbers
 	 of GPUs, you can call ``launch.py`` several times with the desired parameters,
-	 just make sure to change the cluster name each time as otherwise it will reconfigure existing clusters.
+	 just make sure to change the cluster name each time as otherwise it will reconfigure existing clusters. Make sure that all pods
+         are running before completing the next step with ``kubectl get pods``
 
-2. Get and store all Ray Cluster IPs with the following command
+3. Get and store all Ray Cluster info with the following command
 
 	```
-	./source/standalone/workflows/ray/grok_cluster_address_with_kubectl.sh
+	./source/standalone/workflows/ray/grok_cluster_with_kubectl.sh
 	```
 
 #### Assuming that you have already set up several Ray Clusters with unique IPs
 
-3. If you used Kubernetes/KubeRay, you can skip this step. Otherwise,
-	you should create a ``~/.ray_address`` file, that contains the address
-	of each ray cluster with the corresponding port. The file should look something like
-
+3. If you used Kubernetes/KubeRay, you can skip this step. OtherwiseCreate a ```~/.cluster_config``` file.
+	If your cluster was created in pure Ray, you must create the file manually with the following contents, one on each
+	line for every Ray Cluster.
 	```
-	# Cluster: isaac-lab-hyperparameter-tuner-1
-	10.21.16.30:6379
-	# Cluster: isaac-lab-hyperparameter-tuner-2
-	10.21.70.164:6379
+	name: <CLUSTER_NAME> address: http://<RAY_HEAD_IP>.<RAY_DASHBOARD_PORT> num_cpu: <TOTAL_CLUSTER_CPU_COUNT> num_gpu: <TOTAL_CLUSTER_GPU_COUNT>
 	```
 
 4. Check that you can issue a test job to all clusters with
 	```
-	./isaaclab.sh -p source/standalone/workflows/ray/multicluster_submit.py "test_kuberay_config.py --num_jobs 4"
+	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py "test_isaac_ray_cluster.py"
 	```
 
 5. Batch submit your desired jobs. Each desired job is paired with the IP addresses
 	in the order that they appear.
 	```
-	./isaaclab.sh -p source/standalone/workflows/ray/multicluster_submit.py "<JOB_0>" "<JOB_1>" "<JOB_N>"
+	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py "<JOB_0>" "<JOB_1>" "<JOB_N>"
 	```
 
 6. Clean up your cluster to conserve resources (follow single cluster steps for each cluster).
