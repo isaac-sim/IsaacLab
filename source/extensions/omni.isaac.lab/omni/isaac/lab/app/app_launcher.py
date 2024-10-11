@@ -552,6 +552,8 @@ class AppLauncher:
                 " The file does not exist."
             )
 
+        # Resolve the absolute path of the experience file
+        self._sim_experience_file = os.path.abspath(self._sim_experience_file)
         print(f"[INFO][AppLauncher]: Loading experience file: {self._sim_experience_file}")
         # Remove all values from input keyword args which are not meant for SimulationApp
         # Assign all the passed settings to a dictionary for the simulation app
