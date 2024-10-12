@@ -64,11 +64,6 @@ class SpawnerCfg:
 
     This parameter is only used when cloning prims. If False, then the asset will be inherited from
     the source prim, i.e. all USD changes to the source prim will be reflected in the cloned prims.
-
-    .. versionadded:: 2023.1
-
-        This parameter is only supported from Isaac Sim 2023.1 onwards. If you are using an older
-        version of Isaac Sim, this parameter will be ignored.
     """
 
 
