@@ -54,7 +54,7 @@
     <link rel="search" title="Search" href="../../../../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Oct 11, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 12, 2024"/>
   </head>
   
   
@@ -514,7 +514,20 @@ document.write(`
 
 
 <div class="viewcode-block" id="constant_noise"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.noise.constant_noise">[docs]</a><span class="k">def</span> <span class="nf">constant_noise</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">noise_cfg</span><span class="o">.</span><span class="n">ConstantNoiseCfg</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Constant noise.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Applies a constant noise bias to a given data set.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        data: The unmodified data set to apply noise to.</span>
+<span class="sd">        cfg: The configuration parameters for constant noise.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        The data modified by the noise parameters provided.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># fix tensor device for bias on first call and update config parameters</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">bias</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+        <span class="n">cfg</span><span class="o">.</span><span class="n">bias</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">bias</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+
     <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">operation</span> <span class="o">==</span> <span class="s2">&quot;add&quot;</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">data</span> <span class="o">+</span> <span class="n">cfg</span><span class="o">.</span><span class="n">bias</span>
     <span class="k">elif</span> <span class="n">cfg</span><span class="o">.</span><span class="n">operation</span> <span class="o">==</span> <span class="s2">&quot;scale&quot;</span><span class="p">:</span>
@@ -526,7 +539,23 @@ document.write(`
 
 
 <div class="viewcode-block" id="uniform_noise"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.noise.uniform_noise">[docs]</a><span class="k">def</span> <span class="nf">uniform_noise</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">noise_cfg</span><span class="o">.</span><span class="n">UniformNoiseCfg</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Uniform noise.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Applies a uniform noise to a given data set.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        data: The unmodified data set to apply noise to.</span>
+<span class="sd">        cfg: The configuration parameters for uniform noise.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        The data modified by the noise parameters provided.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># fix tensor device for n_max on first call and update config parameters</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">n_max</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+        <span class="n">cfg</span><span class="o">.</span><span class="n">n_max</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">n_max</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+    <span class="c1"># fix tensor device for n_min on first call and update config parameters</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">n_min</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+        <span class="n">cfg</span><span class="o">.</span><span class="n">n_min</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">n_min</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+
     <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">operation</span> <span class="o">==</span> <span class="s2">&quot;add&quot;</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">data</span> <span class="o">+</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand_like</span><span class="p">(</span><span class="n">data</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">n_max</span> <span class="o">-</span> <span class="n">cfg</span><span class="o">.</span><span class="n">n_min</span><span class="p">)</span> <span class="o">+</span> <span class="n">cfg</span><span class="o">.</span><span class="n">n_min</span>
     <span class="k">elif</span> <span class="n">cfg</span><span class="o">.</span><span class="n">operation</span> <span class="o">==</span> <span class="s2">&quot;scale&quot;</span><span class="p">:</span>
@@ -538,7 +567,23 @@ document.write(`
 
 
 <div class="viewcode-block" id="gaussian_noise"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.noise.gaussian_noise">[docs]</a><span class="k">def</span> <span class="nf">gaussian_noise</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">noise_cfg</span><span class="o">.</span><span class="n">GaussianNoiseCfg</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Gaussian noise.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Applies a gaussian noise to a given data set.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        data: The unmodified data set to apply noise to.</span>
+<span class="sd">        cfg: The configuration parameters for gaussian noise.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        The data modified by the noise parameters provided.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># fix tensor device for mean on first call and update config parameters</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">mean</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+        <span class="n">cfg</span><span class="o">.</span><span class="n">mean</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">mean</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+    <span class="c1"># fix tensor device for std on first call and update config parameters</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">std</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+        <span class="n">cfg</span><span class="o">.</span><span class="n">std</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">std</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+
     <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">operation</span> <span class="o">==</span> <span class="s2">&quot;add&quot;</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">data</span> <span class="o">+</span> <span class="n">cfg</span><span class="o">.</span><span class="n">mean</span> <span class="o">+</span> <span class="n">cfg</span><span class="o">.</span><span class="n">std</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn_like</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
     <span class="k">elif</span> <span class="n">cfg</span><span class="o">.</span><span class="n">operation</span> <span class="o">==</span> <span class="s2">&quot;scale&quot;</span><span class="p">:</span>
@@ -678,7 +723,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 11, 2024.
+  Last updated on Oct 12, 2024.
   <br/>
 </p>
   </div>
