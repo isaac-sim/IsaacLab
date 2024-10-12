@@ -84,6 +84,11 @@ def double(x):
     """Dummy function."""
     return 2 * x
 
+@configclass
+class ModifierCfg:
+    func: Callable = MISSING
+    params: dict[str, Any] = {"A":1,"B":2}
+
 
 @configclass
 class ViewerCfg:
@@ -113,6 +118,8 @@ class BasicDemoCfg:
     device_id: int = 0
     env: EnvCfg = EnvCfg()
     robot_default_state: RobotDefaultStateCfg = RobotDefaultStateCfg()
+    list_config = [ModifierCfg(func=dummy_function1),
+                    ModifierCfg(func=dummy_function2, params={"A":3,"B":4})]
 
 
 @configclass
@@ -342,6 +349,8 @@ basic_demo_cfg_correct = {
         "dof_vel": [0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
     },
     "device_id": 0,
+    "list_configs": [{"func": "__main__:dummy_function1" , "params" :  {"A":1,"B":2}},
+                    {"func": "__main__:dummy_function2" , "params" :  {"A":3,"B":4}}],
 }
 
 basic_demo_cfg_change_correct = {
@@ -353,6 +362,8 @@ basic_demo_cfg_change_correct = {
         "dof_vel": [0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
     },
     "device_id": 0,
+    "list_configs": [{"func": "__main__:dummy_function1" , "params" :  {"A":1,"B":2}},
+                    {"func": "__main__:dummy_function2" , "params" :  {"A":3,"B":4}}],
 }
 
 basic_demo_cfg_change_with_none_correct = {
@@ -364,6 +375,8 @@ basic_demo_cfg_change_with_none_correct = {
         "dof_vel": [0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
     },
     "device_id": 0,
+    "list_configs": [{"func": "__main__:dummy_function1" , "params" :  {"A":1,"B":2}},
+                    {"func": "__main__:dummy_function2" , "params" :  {"A":3,"B":4}}],
 }
 
 basic_demo_cfg_nested_dict_and_list = {
