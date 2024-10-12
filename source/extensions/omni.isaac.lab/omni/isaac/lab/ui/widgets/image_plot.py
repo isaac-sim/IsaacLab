@@ -81,7 +81,7 @@ class ImagePlot(UIWidgetWrapper):
                 # Normalize the depth image to a range [0, 1]
                 image = (image - image.min()) / (image.max() - image.min())
                 # Apply a colormap from Matplotlib (e.g., 'jet', 'viridis', etc.)
-                colormap = cm.get_cmap('jet')
+                colormap = cm.get_cmap("jet")
                 # Map normalized depth values to colors
                 image = (colormap(image).squeeze(2) * 255).astype(np.uint8)
 
