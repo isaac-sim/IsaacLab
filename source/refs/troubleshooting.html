@@ -558,6 +558,7 @@ document.write(`
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#checking-the-internal-logs-from-the-simulator">Checking the internal logs from the simulator</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#changing-logging-channel-levels-for-the-simulator">Changing logging channel levels for the simulator</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#using-cpu-scaling-governor-for-performance">Using CPU Scaling Governor for performance</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#observing-long-load-times-at-the-start-of-the-simulation">Observing long load times at the start of the simulation</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#receiving-a-physx-error-when-running-simulation-on-gpu">Receiving a “PhysX error” when running simulation on GPU</a></li>
@@ -601,6 +602,23 @@ Loading<span class="w"> </span>user<span class="w"> </span>config<span class="w"
 <code class="docutils literal notranslate"><span class="pre">...</span></code> is the path to the user’s log directory. The log file is named <code class="docutils literal notranslate"><span class="pre">kit_20240328_183346.log</span></code></p>
 <p>You can open this file to check the internal logs from the simulator. Also when reporting issues, please include
 this log file to help us debug the issue.</p>
+</section>
+<section id="changing-logging-channel-levels-for-the-simulator">
+<h2>Changing logging channel levels for the simulator<a class="headerlink" href="#changing-logging-channel-levels-for-the-simulator" title="Permalink to this heading">#</a></h2>
+<p>By default, the simulator logs messages at the <code class="docutils literal notranslate"><span class="pre">WARN</span></code> level and above on the terminal. You can change the logging
+channel levels to get more detailed logs. The logging channel levels can be set through Omniverse’s logging system.</p>
+<p>To obtain more detailed logs, you can run your application with the following flags:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">--info</span></code>: This flag logs messages at the <code class="docutils literal notranslate"><span class="pre">INFO</span></code> level and above.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--verbose</span></code>: This flag logs messages at the <code class="docutils literal notranslate"><span class="pre">VERBOSE</span></code> level and above.</p></li>
+</ul>
+<p>For instance, to run a standalone script with verbose logging, you can use the following command:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Run the standalone script with info logging</span>
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/tutorials/00_sim/create_empty.py<span class="w"> </span>--headless<span class="w"> </span>--info
+</pre></div>
+</div>
+<p>For more fine-grained control, you can modify the logging channels through the <code class="docutils literal notranslate"><span class="pre">omni.log</span></code> module.
+For more information, please refer to its <a class="reference external" href="https://docs.omniverse.nvidia.com/kit/docs/carbonite/latest/docs/omni.log/Logging.html">documentation</a>.</p>
 </section>
 <section id="using-cpu-scaling-governor-for-performance">
 <h2>Using CPU Scaling Governor for performance<a class="headerlink" href="#using-cpu-scaling-governor-for-performance" title="Permalink to this heading">#</a></h2>
@@ -829,6 +847,7 @@ TypeError:<span class="w"> </span>expected<span class="w"> </span>Tensor<span cl
   <nav class="bd-toc-nav page-toc">
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#checking-the-internal-logs-from-the-simulator">Checking the internal logs from the simulator</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#changing-logging-channel-levels-for-the-simulator">Changing logging channel levels for the simulator</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#using-cpu-scaling-governor-for-performance">Using CPU Scaling Governor for performance</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#observing-long-load-times-at-the-start-of-the-simulation">Observing long load times at the start of the simulation</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#receiving-a-physx-error-when-running-simulation-on-gpu">Receiving a “PhysX error” when running simulation on GPU</a></li>

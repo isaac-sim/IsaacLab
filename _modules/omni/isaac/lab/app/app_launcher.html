@@ -750,7 +750,12 @@ document.write(`
         <span class="n">arg_group</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
             <span class="s2">&quot;--verbose&quot;</span><span class="p">,</span>  <span class="c1"># Note: This is read by SimulationApp through sys.argv</span>
             <span class="n">action</span><span class="o">=</span><span class="s2">&quot;store_true&quot;</span><span class="p">,</span>
-            <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Enable verbose terminal output from the SimulationApp.&quot;</span><span class="p">,</span>
+            <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Enable verbose-level log output from the SimulationApp.&quot;</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">arg_group</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+            <span class="s2">&quot;--info&quot;</span><span class="p">,</span>  <span class="c1"># Note: This is read by SimulationApp through sys.argv</span>
+            <span class="n">action</span><span class="o">=</span><span class="s2">&quot;store_true&quot;</span><span class="p">,</span>
+            <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Enable info-level log output from the SimulationApp.&quot;</span><span class="p">,</span>
         <span class="p">)</span>
         <span class="n">arg_group</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
             <span class="s2">&quot;--experience&quot;</span><span class="p">,</span>
@@ -1048,6 +1053,8 @@ document.write(`
                 <span class="s2">&quot; The file does not exist.&quot;</span>
             <span class="p">)</span>
 
+        <span class="c1"># Resolve the absolute path of the experience file</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sim_experience_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_sim_experience_file</span><span class="p">)</span>
         <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[INFO][AppLauncher]: Loading experience file: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_sim_experience_file</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
         <span class="c1"># Remove all values from input keyword args which are not meant for SimulationApp</span>
         <span class="c1"># Assign all the passed settings to a dictionary for the simulation app</span>
@@ -1068,8 +1075,16 @@ document.write(`
         <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">found_modules</span><span class="p">:</span>
             <span class="n">hacked_modules</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">modules</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
             <span class="k">del</span> <span class="n">sys</span><span class="o">.</span><span class="n">modules</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+
+        <span class="c1"># disable sys stdout and stderr to avoid printing the warning messages</span>
+        <span class="c1"># this is mainly done to purge the print statements from the simulation app</span>
+        <span class="k">if</span> <span class="s2">&quot;--verbose&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">argv</span> <span class="ow">and</span> <span class="s2">&quot;--info&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">:</span>
+            <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">devnull</span><span class="p">,</span> <span class="s2">&quot;w&quot;</span><span class="p">)</span>  <span class="c1"># noqa: SIM115</span>
         <span class="c1"># launch simulation app</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_app</span> <span class="o">=</span> <span class="n">SimulationApp</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_sim_app_config</span><span class="p">,</span> <span class="n">experience</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_sim_experience_file</span><span class="p">)</span>
+        <span class="c1"># enable sys stdout and stderr</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">__stdout__</span>
+
         <span class="c1"># add Isaac Lab modules back to sys.modules</span>
         <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">hacked_modules</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
             <span class="n">sys</span><span class="o">.</span><span class="n">modules</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>

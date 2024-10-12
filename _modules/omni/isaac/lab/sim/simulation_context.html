@@ -793,8 +793,8 @@ document.write(`
 <span class="sd">    Operations - New utilities.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="SimulationContext.set_camera_view"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext.set_camera_view">[docs]</a>    <span class="nd">@staticmethod</span>
-    <span class="k">def</span> <span class="nf">set_camera_view</span><span class="p">(</span>
+<div class="viewcode-block" id="SimulationContext.set_camera_view"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext.set_camera_view">[docs]</a>    <span class="k">def</span> <span class="nf">set_camera_view</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
         <span class="n">eye</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
         <span class="n">target</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
         <span class="n">camera_prim_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;/OmniverseKit_Persp&quot;</span><span class="p">,</span>
@@ -811,7 +811,9 @@ document.write(`
 <span class="sd">            camera_prim_path: The path to the camera primitive in the stage. Defaults to</span>
 <span class="sd">                &quot;/OmniverseKit_Persp&quot;.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">set_camera_view</span><span class="p">(</span><span class="n">eye</span><span class="p">,</span> <span class="n">target</span><span class="p">,</span> <span class="n">camera_prim_path</span><span class="p">)</span></div>
+        <span class="c1"># safe call only if we have a GUI or viewport rendering enabled</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_has_gui</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_offscreen_render</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_render_viewport</span><span class="p">:</span>
+            <span class="n">set_camera_view</span><span class="p">(</span><span class="n">eye</span><span class="p">,</span> <span class="n">target</span><span class="p">,</span> <span class="n">camera_prim_path</span><span class="p">)</span></div>
 
 <div class="viewcode-block" id="SimulationContext.set_render_mode"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext.set_render_mode">[docs]</a>    <span class="k">def</span> <span class="nf">set_render_mode</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mode</span><span class="p">:</span> <span class="n">RenderMode</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Change the current render mode of the simulation.</span>
@@ -1110,7 +1112,7 @@ document.write(`
         <span class="k">if</span> <span class="n">event</span><span class="o">.</span><span class="n">type</span> <span class="o">==</span> <span class="nb">int</span><span class="p">(</span><span class="n">omni</span><span class="o">.</span><span class="n">timeline</span><span class="o">.</span><span class="n">TimelineEventType</span><span class="o">.</span><span class="n">STOP</span><span class="p">):</span>
             <span class="c1"># keep running the simulator when configured to not shutdown the app</span>
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_has_gui</span> <span class="ow">and</span> <span class="n">sys</span><span class="o">.</span><span class="n">exc_info</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">print_and_log</span><span class="p">(</span>
+                <span class="n">carb</span><span class="o">.</span><span class="n">log_warn</span><span class="p">(</span>
                     <span class="s2">&quot;Simulation is stopped. The app will keep running with physics disabled.&quot;</span>
                     <span class="s2">&quot; Press Ctrl+C or close the window to exit the app.&quot;</span>
                 <span class="p">)</span>
@@ -1145,7 +1147,7 @@ document.write(`
             <span class="n">omni</span><span class="o">.</span><span class="n">usd</span><span class="o">.</span><span class="n">get_context</span><span class="p">()</span><span class="o">.</span><span class="n">close_stage</span><span class="p">()</span>
 
         <span class="c1"># print logging information</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">print_and_log</span><span class="p">(</span><span class="s2">&quot;Simulation is stopped. Shutting down the app...&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Simulation is stopped. Shutting down the app.&quot;</span><span class="p">)</span>
 
         <span class="c1"># Cleanup any running tracy instances so data is not lost</span>
         <span class="k">try</span><span class="p">:</span>

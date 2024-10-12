@@ -509,6 +509,9 @@ document.write(`
 
 <span class="kn">import</span> <span class="nn">warp</span> <span class="k">as</span> <span class="nn">wp</span>
 
+<span class="c1"># disable warp module initialization messages</span>
+<span class="n">wp</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">quiet</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="c1"># initialize the warp module</span>
 <span class="n">wp</span><span class="o">.</span><span class="n">init</span><span class="p">()</span>
 
 <span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">kernels</span>
