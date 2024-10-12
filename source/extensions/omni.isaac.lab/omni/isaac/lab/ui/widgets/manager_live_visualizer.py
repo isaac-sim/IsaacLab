@@ -208,7 +208,8 @@ class ManagerLiveVisualizer(UiVisualizerBase):
                         )
                         with frame:
                             # create line plot for single or multivariable signals
-                            if isinstance(term[0], float | int):
+                            len_term_shape = len(numpy.array(term).shape)
+                            if len_term_shape <= 2:
                                 plot = LiveLinePlot(
                                     y_data=[[elem] for elem in term],
                                     plot_height=150,
@@ -216,7 +217,7 @@ class ManagerLiveVisualizer(UiVisualizerBase):
                                 )
                                 self._term_visualizers.append(plot)
                             # create an image plot for 2d and greater data (i.e. mono and rgb images)
-                            elif isinstance(term[0], list) and isinstance(term[0][0], float | int):
+                            elif len_term_shape == 3:
                                 image = ImagePlot(
                                     image=numpy.array(term),
                                     label=name,

@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import numpy as np
+from matplotlib import cm
 
 import carb
 import omni.ui as ui
@@ -64,6 +65,10 @@ class ImagePlot(UIWidgetWrapper):
         if not self._enabled:
             return
 
+        # if image is channel first, convert to channel last
+        if image.ndim == 3 and image.shape[0] in [1, 3, 4]:
+            image = np.moveaxis(image, 0, -1)
+
         height, width = image.shape[:2]
 
         # convert image to 4-channel RGBA
@@ -72,6 +77,13 @@ class ImagePlot(UIWidgetWrapper):
         elif image.ndim == 3:
             if image.shape[2] == 3:
                 image = np.dstack((image, np.full((height, width, 1), 255, dtype=np.uint8)))
+            elif image.shape[2] == 1:  # depth image
+                # Normalize the depth image to a range [0, 1]
+                image = (image - image.min()) / (image.max() - image.min())
+                # Apply a colormap from Matplotlib (e.g., 'jet', 'viridis', etc.)
+                colormap = cm.get_cmap('jet')
+                # Map normalized depth values to colors
+                image = (colormap(image).squeeze(2) * 255).astype(np.uint8)
 
         self._byte_provider.set_bytes_data(image.flatten().data, [width, height])
 
