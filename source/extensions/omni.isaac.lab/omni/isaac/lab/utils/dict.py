@@ -38,13 +38,11 @@ def class_to_dict(obj: object) -> dict[str, Any]:
     if not hasattr(obj, "__class__"):
         raise ValueError(f"Expected a class instance. Received: {type(obj)}.")
     # convert object to dictionary
-    obj_dict = None
     if isinstance(obj, dict):
         obj_dict = obj
     elif hasattr(obj, '__dict__'):
         obj_dict = obj.__dict__
-
-    if obj_dict is None:
+    else:
         return obj
 
     # convert to dictionary
