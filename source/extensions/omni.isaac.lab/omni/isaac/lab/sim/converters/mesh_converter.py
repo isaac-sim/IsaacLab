@@ -10,7 +10,7 @@ import omni
 import omni.kit.commands
 import omni.usd
 from omni.isaac.core.utils.extensions import enable_extension
-from pxr import Usd, UsdGeom, UsdPhysics, UsdUtils
+from pxr import Gf, Usd, UsdGeom, UsdPhysics, UsdUtils
 
 from omni.isaac.lab.sim.converters.asset_converter_base import AssetConverterBase
 from omni.isaac.lab.sim.converters.mesh_converter_cfg import MeshConverterCfg
@@ -111,6 +111,20 @@ class MeshConverter(AssetConverterBase):
                     )
         # Delete the old Xform and make the new Xform the default prim
         stage.SetDefaultPrim(xform_prim)
+        # Apply default Xform rotation to mesh -> enable to set rotation and scale
+        omni.kit.commands.execute(
+            "CreateDefaultXformOnPrimCommand",
+            prim_path=xform_prim.GetPath(),
+            **{"stage": stage},
+        )
+        if cfg.rotation:
+            # Rotate mesh so that it is Z-up in the world
+            attr_rotate = xform_prim.GetAttribute("xformOp:orient")
+            assert attr_rotate.Set(Gf.Quatd(*cfg.rotation))
+        if cfg.scale:
+            # Scale mesh to meters
+            attr_scale = xform_prim.GetAttribute("xformOp:scale")
+            assert attr_scale.Set(Gf.Vec3d(*cfg.scale))
         # Handle instanceable
         # Create a new Xform prim that will be the prototype prim
         if cfg.make_instanceable:
