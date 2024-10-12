@@ -82,6 +82,7 @@ for more information. This guide does not explicitly support SLURM, but it shoul
 As a result of using Ray, running experiments in the cloud and locally have very similar steps.
 
 ### Kubernetes / KubeRay Specific (You can skip these steps if you've already set up the Ray Cluster)
+
 1. Start your kubernetes server and verify you have access
 
 	``kubectl get nodes`` should list your nodes
@@ -91,7 +92,7 @@ As a result of using Ray, running experiments in the cloud and locally have very
 	``kubectl get crds | grep ray`` should list rayclusters.ray.io , rayjobs.ray.io , and
 	rayservices.ray.io
 
-2. Spin up your KubeRay integration from the template cluster configuration file
+3. Spin up your KubeRay integration from the template cluster configuration file
 
 	See ``./isaaclab.sh -p source/standalone/workflows/ray/launch.py -h``
 	for all possible arguments
@@ -103,23 +104,29 @@ As a result of using Ray, running experiments in the cloud and locally have very
 	 --cluster_host google_cloud --namespace <NAMESPACE>  --image <CUSTOM_ISAAC_RAY_IMAGE> --min_workers 4 --max_workers 16
 	 ```
 
-3. Check that your KubeRay cluster worked with `kubectl get pods` and `kubectl describe pods`.
+4. Check that your KubeRay cluster worked with `kubectl get pods` and `kubectl describe pods`.
 	It may take a few minutes for the cluster to spin up. If there is an error, or a crash loop backup,
 	you can inspect the logs further with ``kubectl logs <POD_NAME>``. When all pods
 	say ``Running`` as their status, the cluster is ready to tune hyperparameters. Do not proceed until all Pods say ``Running``
 
 ### Shared Steps for Kubernetes/KubeRay and Ray Clusters
 
-4. Create a ```~/.cluster_config``` file. If you configured your cluster with Kubernetes/KubeRay,
-	you can run the following script and move on to the next step.
+5. Create a ```~/.cluster_config``` file. If you configured your cluster with Kubernetes/KubeRay,
+	you can run the following script and move on to the next step. This command may
+	take a moment to run, and is provided for your convenience. If it is taking too long,
+	feel free to do it the manual way shown below the command.
+
 	```
 	./source/standalone/workflows/ray/grok_cluster_with_kubectl.sh
 	```
+
 	If your cluster was created in pure Ray, you must create the file manually with the following contents, one on each
 	line for every Ray Cluster.
+
 	```
 	name: <CLUSTER_NAME> address: http://<RAY_HEAD_IP>.<RAY_DASHBOARD_PORT> num_cpu: <TOTAL_CLUSTER_CPU_COUNT> num_gpu: <TOTAL_CLUSTER_GPU_COUNT>
 	```
+
 6. Check that you can issue jobs to the cluster, that all GPUs are available,
 	that Ray is installed correctly, nvidia-smi works, and that the needed deps
 	for Ray/Isaac Lab are found on path.
@@ -128,16 +135,16 @@ As a result of using Ray, running experiments in the cloud and locally have very
 	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py "test_isaac_ray_cluster.py"
 	```
 
-5. Define your desired Ray job as a script on your local machine.
+7. Define your desired Ray job as a script on your local machine.
    	For a hyperparameter tuning job, see ```isaac_ray_tune.py cfg=hyper_parameter_tuning/config/vision_cartpole.yaml``` # TODO: Actually write this bad boy
 
-6. Start your distributed Ray job.
+8. Start your distributed Ray job.
 
 	```
 	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py "<YOUR_JOB_HERE>"
 	```
 
-7. When you have completed your distributed job, stop the cluster to conserve resources.
+8. When you have completed your distributed job, stop the cluster to conserve resources.
 
 	If you are using Kubernetes/KubeRay, this can be done with
 
@@ -187,7 +194,9 @@ hyperparameter simultaneously in parallel.
 	 just make sure to change the cluster name each time as otherwise it will reconfigure existing clusters. Make sure that all pods
          are running before completing the next step with ``kubectl get pods``
 
-3. Get and store all Ray Cluster info with the following command
+2. Get and store all Ray Cluster info with the following command. This command may
+	take a moment to run, and is provided for your convenience. If it is taking too long,
+	feel free to do it the manual way shown in the next step.
 
 	```
 	./source/standalone/workflows/ray/grok_cluster_with_kubectl.sh

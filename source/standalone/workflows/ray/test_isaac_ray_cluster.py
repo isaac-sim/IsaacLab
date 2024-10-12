@@ -59,7 +59,7 @@ def get_available_gpus(num_gpus) -> str:
 
     from omni.isaac.lab.app import AppLauncher  # noqa: F401  # check that you can import Isaac Lab
 
-    # app_launcher = AppLauncher(headlesss=True, enable_cameras=True)
+    app_launcher = AppLauncher(headlesss=True, enable_cameras=True)
     # app_launcher.app.close() # Ray wull clean this up alone.
     return f"Job completed with {num_gpus} GPUs, details: {gpu_details}. Torch sees {num_gpus} GPUs."
 
