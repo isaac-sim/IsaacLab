@@ -100,18 +100,15 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
     robot = scene["robot"]
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
-    count = 0
 
     # Start the timer for creating the scene
     step_time_begin = time.perf_counter_ns()
     num_steps = 2000
 
     # Simulation loop
-    for _ in range(num_steps):
+    for count in range(num_steps):
         # Reset
         if count % 500 == 0:
-            # reset counter
-            count = 0
             # reset the scene entities
             # root state
             # we offset the root state by the origin since the states are written in simulation world frame
@@ -134,8 +131,6 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
         scene.write_data_to_sim()
         # Perform step
         sim.step()
-        # Increment counter
-        count += 1
         # Update buffers
         scene.update(sim_dt)
 
