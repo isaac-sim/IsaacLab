@@ -11,9 +11,9 @@ import gymnasium as gym
 
 from . import agents
 from .cartpole_camera_env_cfg import (
+    CartpoleRGBCameraEnvCfg,
     CartpoleDepthCameraEnvCfg,
     CartpoleResNet18CameraEnvCfg,
-    CartpoleRGBCameraEnvCfg,
     CartpoleTheiaTinyCameraEnvCfg,
 )
 from .cartpole_env_cfg import CartpoleEnvCfg
