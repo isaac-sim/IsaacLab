@@ -297,8 +297,8 @@ class SimulationContext(_SimulationContext):
     Operations - New utilities.
     """
 
-    @staticmethod
     def set_camera_view(
+        self,
         eye: tuple[float, float, float],
         target: tuple[float, float, float],
         camera_prim_path: str = "/OmniverseKit_Persp",
@@ -315,7 +315,9 @@ class SimulationContext(_SimulationContext):
             camera_prim_path: The path to the camera primitive in the stage. Defaults to
                 "/OmniverseKit_Persp".
         """
-        set_camera_view(eye, target, camera_prim_path)
+        # safe call only if we have a GUI or viewport rendering enabled
+        if self._has_gui or self._offscreen_render or self._render_viewport:
+            set_camera_view(eye, target, camera_prim_path)
 
     def set_render_mode(self, mode: RenderMode):
         """Change the current render mode of the simulation.
@@ -614,7 +616,7 @@ class SimulationContext(_SimulationContext):
         if event.type == int(omni.timeline.TimelineEventType.STOP):
             # keep running the simulator when configured to not shutdown the app
             if self._has_gui and sys.exc_info()[0] is None:
-                self.app.print_and_log(
+                carb.log_warn(
                     "Simulation is stopped. The app will keep running with physics disabled."
                     " Press Ctrl+C or close the window to exit the app."
                 )
@@ -649,7 +651,7 @@ class SimulationContext(_SimulationContext):
             omni.usd.get_context().close_stage()
 
         # print logging information
-        self.app.print_and_log("Simulation is stopped. Shutting down the app...")
+        print("[INFO]: Simulation is stopped. Shutting down the app.")
 
         # Cleanup any running tracy instances so data is not lost
         try:
