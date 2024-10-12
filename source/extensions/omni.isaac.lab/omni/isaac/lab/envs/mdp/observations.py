@@ -24,9 +24,6 @@ from omni.isaac.lab.sensors import Camera, RayCaster, RayCasterCamera, TiledCame
 if TYPE_CHECKING:
     from omni.isaac.lab.envs import ManagerBasedEnv, ManagerBasedRLEnv
 
-from transformers import AutoModel
-
-from torchvision import models
 
 """
 Root state.
@@ -238,64 +235,46 @@ def image(
 
 
 class image_features(ManagerTermBase):
-    """Extracted image features with a frozen encoder from images of a specific datatype from the camera sensor.
+    """Extracted image features from a pre-trained frozen encoder.
 
-    Calls :meth:`image` to get the images, then performs inference. On initialization,
-    for a model zoo different from the default, define model_zoo_cfg: A dictionary with string keys and callable values.
-    Should include "model", (mapped to a callable with no arguments to return the model), "preprocess" (mapped to
-    a callable which consumes the images and returns the preprocessed images),
-    and "inference" (mapped to a callable that provided the model, and the preproccessed images, returns the features.)
+    This method calls the :meth:`image` function to retrieve images, and then performs
+    inference on those images.
     """
 
-    def __init__(
-        self,
-        cfg: ObservationTermCfg,
-        env: ManagerBasedEnv,
-        model_zoo_cfg: dict | None = None,
-        initialize_all: bool = False,
-        device: str = "cuda:0",
-    ):
+    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
-        if model_zoo_cfg is None:
-            self.model_zoo_cfg = {
-                # For more info about Theia, see: https://theia.theaiinstitute.com/
-                "TheiaTiny": {
-                    "model": (
-                        lambda: AutoModel.from_pretrained(
-                            "theaiinstitute/theia-tiny-patch16-224-cddsv", trust_remote_code=True
-                        )
-                        .eval()
-                        .to(device)
-                    ),
-                    "preprocess": lambda img: (img - torch.amin(img, dim=(1, 2), keepdim=True)) / (
-                        torch.amax(img, dim=(1, 2), keepdim=True) - torch.amin(img, dim=(1, 2), keepdim=True)
-                    ),  # Rescale to [0, 1]
-                    "inference": lambda model, images: model.forward_feature(
-                        images, do_rescale=False, interpolate_pos_encoding=True
-                    ),
-                },
-                "ResNet18": {
-                    "model": lambda: models.resnet18(pretrained=True).eval().to(device),
-                    "preprocess": lambda img: (
-                        img.permute(0, 3, 1, 2)  # Convert [batch, height, width, 3] -> [batch, 3, height, width]
-                        # Normalize in the format expected by pytorch: https://pytorch.org/hub/pytorch_vision_resnet/
-                        - torch.tensor([0.485, 0.456, 0.406], device=img.device).view(1, 3, 1, 1)
-                    ) / torch.tensor([0.229, 0.224, 0.225], device=img.device).view(1, 3, 1, 1),
-                    "inference": lambda model, images: model(images),
-                },
-            }
-        self.reset_model(initialize_all=initialize_all)
+        from torchvision import models
+        from transformers import AutoModel
 
-    # The following is named reset_model instead of reset as otherwise, it's called at the end of every episode
-    def reset_model(self, model_name: str | None = None, initialize_all: bool = False) -> None:
-        if model_name is None:
-            print("[WARNING]: No model name supplied, emptying entire model zoo.")
-            self.model_zoo = {}
-        elif model_name is not None:
-            self.model_zoo[model_name] = self.model_zoo_cfg[model_name]["model"]()
-        if initialize_all:
-            for model_name, model_callables in self.model_zoo_cfg.items():
-                self.model_zoo[model_name] = model_callables["model"]()
+        self.default_model_zoo_cfg = {
+            # For more info about Theia, see: https://theia.theaiinstitute.com/
+            "TheiaTiny": {
+                "model": (
+                    lambda: AutoModel.from_pretrained(
+                        "theaiinstitute/theia-tiny-patch16-224-cddsv", trust_remote_code=True
+                    )
+                    .eval()
+                    .to("cuda:0")
+                ),
+                "preprocess": lambda img: (img - torch.amin(img, dim=(1, 2), keepdim=True)) / (
+                    torch.amax(img, dim=(1, 2), keepdim=True) - torch.amin(img, dim=(1, 2), keepdim=True)
+                ),  # Rescale to [0, 1]
+                "inference": lambda model, images: model.forward_feature(
+                    images, do_rescale=False, interpolate_pos_encoding=True
+                ),
+            },
+            "ResNet18": {
+                "model": lambda: models.resnet18(pretrained=True).eval().to("cuda:0"),
+                "preprocess": lambda img: (
+                    img.permute(0, 3, 1, 2)  # Convert [batch, height, width, 3] -> [batch, 3, height, width]
+                    # Normalize in the format expected by pytorch: https://pytorch.org/hub/pytorch_vision_resnet/
+                    - torch.tensor([0.485, 0.456, 0.406], device=img.device).view(1, 3, 1, 1)
+                ) / torch.tensor([0.229, 0.224, 0.225], device=img.device).view(1, 3, 1, 1),
+                "inference": lambda model, images: model(images),
+            },
+        }
+        self.model_zoo_cfg = self.default_model_zoo_cfg
+        self.model_zoo = {}
 
     def __call__(
         self,
@@ -303,11 +282,45 @@ class image_features(ManagerTermBase):
         sensor_cfg: SceneEntityCfg = SceneEntityCfg("tiled_camera"),
         data_type: str = "rgb",
         convert_perspective_to_orthogonal: bool = False,
+        model_zoo_cfg: dict | None = None,
         model_name: str = "ResNet18",
+        model_device: str | None = None,
+        reset_model: bool = False,
     ) -> torch.Tensor:
-        if model_name not in self.model_zoo:
+        """Extracted image features from a pre-trained frozen encoder.
+
+        Args:
+            env: The environment.
+            sensor_cfg: The sensor configuration to poll. Defaults to SceneEntityCfg("tiled_camera").
+            data_type: THe sensor configuration datatype. Defaults to "rgb".
+            convert_perspective_to_orthogonal: Whether to orthogonalize perspective depth images.
+                This is used only when the data type is "distance_to_camera". Defaults to False.
+            model_zoo_cfg: Map from model name to model configuration dictionary. Each model
+                configuration dictionary should include the following entries:
+                - "model": A callable that returns the model when invoked without arguments.
+                - "preprocess": A callable that processes the images and returns the preprocessed results.
+                - "inference": A callable that, when given the model and preprocessed images,
+                    returns the extracted features.
+            model_name: The model to use for inference. Defaults to "ResNet18".
+            model_device: The device to store and infer models on. This can be used help offload
+                computation from the main environment GPU. Defaults to "cuda:0".
+            reset_model: Initialize the model even if it already exists. Defaults to False.
+
+        Returns:
+            torch.Tensor: the image features, on the same device as the image
+        """
+        if model_zoo_cfg is not None:  # use other than default
+            self.model_zoo_cfg.update(model_zoo_cfg)
+
+        if model_name not in self.model_zoo or reset_model:
+            # The following allows to only load a desired subset of a model zoo into GPU memory
+            # as it becomes needed, in a "lazy" evaluation.
             print(f"[INFO]: Adding {model_name} to the model zoo")
             self.model_zoo[model_name] = self.model_zoo_cfg[model_name]["model"]()
+
+        if model_device is not None and self.model_zoo[model_name].device != model_device:
+            # want to offload vision model inference to another device
+            self.model_zoo[model_name] = self.model_zoo[model_name].to(model_device)
 
         images = image(
             env=env,
@@ -317,10 +330,15 @@ class image_features(ManagerTermBase):
             normalize=True,  # want this for training stability
         )
 
+        image_device = images.device
+
+        if model_device is not None:
+            images = images.to(model_device)
+
         proc_images = self.model_zoo_cfg[model_name]["preprocess"](images)
         features = self.model_zoo_cfg[model_name]["inference"](self.model_zoo[model_name], proc_images)
 
-        return features
+        return features.to(image_device).clone()
 
 
 """

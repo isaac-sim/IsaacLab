@@ -12,9 +12,9 @@ import gymnasium as gym
 from . import agents
 from .cartpole_camera_env_cfg import (
     CartpoleDepthCameraEnvCfg,
-    CartpoleResNet18CameraEnv,
+    CartpoleResNet18CameraEnvCfg,
     CartpoleRGBCameraEnvCfg,
-    CartpoleTheiaTinyCameraEnv,
+    CartpoleTheiaTinyCameraEnvCfg,
 )
 from .cartpole_env_cfg import CartpoleEnvCfg
 
@@ -36,7 +36,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Cartpole-RGB-Camera-v0",
+    id="Isaac-Cartpole-RGB-v0",
     entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
@@ -46,7 +46,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Cartpole-Depth-Camera-v0",
+    id="Isaac-Cartpole-Depth-v0",
     entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
@@ -56,21 +56,21 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Cartpole-ResNet18-Camera-v0",
+    id="Isaac-Cartpole-RGB-ResNet18-v0",
     entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": CartpoleResNet18CameraEnv,
+        "env_cfg_entry_point": CartpoleResNet18CameraEnvCfg,
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_feature_ppo_cfg.yaml",
     },
 )
 
 gym.register(
-    id="Isaac-Cartpole-TheiaTiny-Camera-v0",
+    id="Isaac-Cartpole-RGB-TheiaTiny-v0",
     entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": CartpoleTheiaTinyCameraEnv,
+        "env_cfg_entry_point": CartpoleTheiaTinyCameraEnvCfg,
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_feature_ppo_cfg.yaml",
     },
 )

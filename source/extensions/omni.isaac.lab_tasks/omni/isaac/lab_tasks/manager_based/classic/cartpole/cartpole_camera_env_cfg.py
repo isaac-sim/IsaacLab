@@ -78,7 +78,7 @@ class DepthObservationsCfg:
     """Observation specifications for the MDP."""
 
     @configclass
-    class DepthCameraPolicyCfg(RGBObservationsCfg.RGBCameraPolicyCfg):
+    class DepthCameraPolicyCfg:
         """Observations for policy group with depth images."""
 
         image = ObsTerm(
@@ -93,7 +93,7 @@ class ResNet18ObservationCfg:
     """Observation specifications for the MDP."""
 
     @configclass
-    class ResNet18FeaturesCameraPolicyCfg(RGBObservationsCfg.RGBCameraPolicyCfg):
+    class ResNet18FeaturesCameraPolicyCfg:
         """Observations for policy group with features extracted from RGB images with a frozen ResNet18."""
 
         image = ObsTerm(
@@ -109,7 +109,7 @@ class TheiaTinyObservationCfg:
     """Observation specifications for the MDP."""
 
     @configclass
-    class TheiaTinyFeaturesCameraPolicyCfg(RGBObservationsCfg.RGBCameraPolicyCfg):
+    class TheiaTinyFeaturesCameraPolicyCfg:
         """Observations for policy group with features extracted from RGB images with a frozen Theia-Tiny Transformer"""
 
         image = ObsTerm(
@@ -142,12 +142,12 @@ class CartpoleDepthCameraEnvCfg(CartpoleEnvCfg):
 
 
 @configclass
-class CartpoleResNet18CameraEnv(CartpoleRGBCameraEnvCfg):
+class CartpoleResNet18CameraEnvCfg(CartpoleRGBCameraEnvCfg):
     observations: ResNet18ObservationCfg = ResNet18ObservationCfg()
 
 
 @configclass
-class CartpoleTheiaTinyCameraEnv(CartpoleRGBCameraEnvCfg):
+class CartpoleTheiaTinyCameraEnvCfg(CartpoleRGBCameraEnvCfg):
     """
     Due to TheiaTiny's size in GPU memory, we reduce the number of environments by default.
     This helps reduce the possibility of crashing on more modest hardware.
