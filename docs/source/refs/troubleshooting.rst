@@ -35,6 +35,26 @@ In the above example, the log file is located at ``.../logs/Kit/Isaac-Sim/2023.1
 You can open this file to check the internal logs from the simulator. Also when reporting issues, please include
 this log file to help us debug the issue.
 
+Changing logging channel levels for the simulator
+-------------------------------------------------
+
+By default, the simulator logs messages at the ``WARN`` level and above on the terminal. You can change the logging
+channel levels to get more detailed logs. The logging channel levels can be set through Omniverse's logging system.
+
+To obtain more detailed logs, you can run your application with the following flags:
+
+* ``--info``: This flag logs messages at the ``INFO`` level and above.
+* ``--verbose``: This flag logs messages at the ``VERBOSE`` level and above.
+
+For instance, to run a standalone script with verbose logging, you can use the following command:
+
+.. code-block:: bash
+
+    # Run the standalone script with info logging
+    ./isaaclab.sh -p source/standalone/tutorials/00_sim/create_empty.py --headless --info
+
+For more fine-grained control, you can modify the logging channels through the ``omni.log`` module.
+For more information, please refer to its `documentation <https://docs.omniverse.nvidia.com/kit/docs/carbonite/latest/docs/omni.log/Logging.html>`__.
 
 Using CPU Scaling Governor for performance
 ------------------------------------------
