@@ -16,6 +16,7 @@ from typing import Any
 
 import carb
 import omni.isaac.core.utils.stage as stage_utils
+import omni.log
 import omni.physx
 from omni.isaac.core.simulation_context import SimulationContext as _SimulationContext
 from omni.isaac.core.utils.viewports import set_camera_view
@@ -297,8 +298,8 @@ class SimulationContext(_SimulationContext):
     Operations - New utilities.
     """
 
-    @staticmethod
     def set_camera_view(
+        self,
         eye: tuple[float, float, float],
         target: tuple[float, float, float],
         camera_prim_path: str = "/OmniverseKit_Persp",
@@ -315,7 +316,9 @@ class SimulationContext(_SimulationContext):
             camera_prim_path: The path to the camera primitive in the stage. Defaults to
                 "/OmniverseKit_Persp".
         """
-        set_camera_view(eye, target, camera_prim_path)
+        # safe call only if we have a GUI or viewport rendering enabled
+        if self._has_gui or self._offscreen_render or self._render_viewport:
+            set_camera_view(eye, target, camera_prim_path)
 
     def set_render_mode(self, mode: RenderMode):
         """Change the current render mode of the simulation.
@@ -649,7 +652,7 @@ class SimulationContext(_SimulationContext):
             omni.usd.get_context().close_stage()
 
         # print logging information
-        self.app.print_and_log("Simulation is stopped. Shutting down the app...")
+        print("[INFO]: Simulation is stopped. Shutting down the app.")
 
         # Cleanup any running tracy instances so data is not lost
         try:
