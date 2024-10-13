@@ -40,13 +40,15 @@ def register_task_to_hydra(
     """
     # load the configurations
     env_cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
-    agent_cfg = load_cfg_from_registry(task_name, agent_cfg_entry_point)
-    # replace gymnasium spaces with strings because OmegaConf does not support them.
-    # this must be done before converting the env configs to dictionary to avoid internal reinterpretations
-    replace_env_cfg_spaces_with_strings(env_cfg)
+    agent_cfg = None
+    if agent_cfg_entry_point:
+        agent_cfg = load_cfg_from_registry(task_name, agent_cfg_entry_point)
+        # replace gymnasium spaces with strings because OmegaConf does not support them.
+        # this must be done before converting the env configs to dictionary to avoid internal reinterpretations
+        replace_env_cfg_spaces_with_strings(env_cfg)
     # convert the configs to dictionary
     env_cfg_dict = env_cfg.to_dict()
-    if isinstance(agent_cfg, dict):
+    if isinstance(agent_cfg, dict) or agent_cfg is None:
         agent_cfg_dict = agent_cfg
     else:
         agent_cfg_dict = agent_cfg.to_dict()
@@ -91,7 +93,7 @@ def hydra_task_config(task_name: str, agent_cfg_entry_point: str) -> Callable:
                 # this must be done after converting the env configs from dictionary to avoid internal reinterpretations
                 replace_strings_with_env_cfg_spaces(env_cfg)
                 # get agent configs
-                if isinstance(agent_cfg, dict):
+                if isinstance(agent_cfg, dict) or agent_cfg is None:
                     agent_cfg = hydra_env_cfg["agent"]
                 else:
                     agent_cfg.from_dict(hydra_env_cfg["agent"])

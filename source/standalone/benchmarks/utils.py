@@ -7,8 +7,8 @@
 import glob
 import os
 
-from omni.isaac.benchmark.services import BaseIsaacBenchmark
-from omni.isaac.benchmark.services.metrics.measurements import DictMeasurement, ListMeasurement, SingleMeasurement
+from isaacsim.benchmark.services import BaseIsaacBenchmark
+from isaacsim.benchmark.services.metrics.measurements import DictMeasurement, ListMeasurement, SingleMeasurement
 from tensorboard.backend.event_processing import event_accumulator
 
 
