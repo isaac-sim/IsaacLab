@@ -80,27 +80,27 @@ def invoke_run(workflow: str,
 
     log_output = ""
     
-    try:
-        while proc.poll() is None:
-            # Read output line by line
-            line = proc.stdout.readline()
-            if line:
-                print(line.strip())  # Optionally print or log the output
-                log_output += line
+    # try:
+    #     while proc.poll() is None:
+    #         # Read output line by line
+    #         line = proc.stdout.readline()
+    #         if line:
+    #             print(line.strip())  # Optionally print or log the output
+    #             log_output += line
 
-            # Check for early stopping by Ray Tune
-            if tune.get_trial_resources().trial_runner.should_stop_trial():
-                break
+    #         # Check for early stopping by Ray Tune
+    #         if tune.get_trial_resources().trial_runner.should_stop_trial():
+    #             break
 
-            time.sleep(.1)
+    #         time.sleep(.1)
 
-        # Extract experiment info from the subprocess output
-        experiment_name, logdir = extract_experiment_info(log_output)
+    #     # Extract experiment info from the subprocess output
+    #     experiment_name, logdir = extract_experiment_info(log_output)
 
-        if experiment_name and logdir:
-            # Log this info into Ray Tune
-            return {"experiment_name": experiment_name, 
-                    "logdir": logdir}
+    #     if experiment_name and logdir:
+    #         # Log this info into Ray Tune
+    #         return {"experiment_name": experiment_name, 
+    #                 "logdir": logdir}
 
 def add_cluster_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(

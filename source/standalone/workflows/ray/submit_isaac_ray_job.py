@@ -91,11 +91,11 @@ def submit_job(cluster, job_command):
 
     # Print the final result once the job finishes
     final_logs = client.get_job_logs(job_id)
-    print(f"\n----- Final result from cluster '{cluster_name}' -----")
+    print("----------------------------------------------------")
+    print(f"Cluster {cluster_name} Logs: \n")
     print(final_logs)
     print("----------------------------------------------------")
 
-    print(f"Job {job_id} completed on cluster '{cluster_name}'.\n")
 
 
 def submit_jobs_to_clusters(jobs, clusters):
@@ -117,14 +117,6 @@ def submit_jobs_to_clusters(jobs, clusters):
     with ThreadPoolExecutor(max_workers=len(clusters)) as executor:
         futures = [executor.submit(submit_job, cluster, jobs[idx]) for idx, cluster in enumerate(clusters)]
 
-        for future in as_completed(futures):
-            try:
-                logs = future.result()
-                logging.info(f"Job completed with logs: \n{logs}")
-            except Exception as e:
-                logging.error(f"Job submission failed: {e}")
-
-    logging.info("All jobs completed across all clusters.")
 
 
 if __name__ == "__main__":

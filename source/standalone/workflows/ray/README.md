@@ -107,7 +107,7 @@ As a result of using Ray, running experiments in the cloud and locally have very
 4. Check that your KubeRay cluster worked with `kubectl get pods` and `kubectl describe pods`.
 	It may take a few minutes for the cluster to spin up. If there is an error, or a crash loop backup,
 	you can inspect the logs further with ``kubectl logs <POD_NAME>``. When all pods
-	say ``Running`` as their status, the cluster is ready to tune hyperparameters. Do not proceed until all Pods say ``Running``
+	say ``Running`` as their status, the cluster is ready to tune hyperparameters.
 
 ### Shared Steps for Kubernetes/KubeRay and Ray Clusters
 
@@ -117,11 +117,12 @@ As a result of using Ray, running experiments in the cloud and locally have very
 	feel free to do it the manual way shown below the command.
 
 	```
-	./source/standalone/workflows/ray/grok_cluster_with_kubectl.sh
+	./isaaclab.sh -p /source/standalone/workflows/ray/grok_cluster_with_kubectl.py
 	```
 
 	If your cluster was created in pure Ray, you must create the file manually with the following contents, one on each
-	line for every Ray Cluster.
+	line for every Ray Cluster. If you are developing locally, you likely only have one ray cluster,
+	and only need one line in this file
 
 	```
 	name: <CLUSTER_NAME> address: http://<RAY_HEAD_IP>.<RAY_DASHBOARD_PORT> num_cpu: <TOTAL_CLUSTER_CPU_COUNT> num_gpu: <TOTAL_CLUSTER_GPU_COUNT>
@@ -194,12 +195,10 @@ hyperparameter simultaneously in parallel.
 	 just make sure to change the cluster name each time as otherwise it will reconfigure existing clusters. Make sure that all pods
          are running before completing the next step with ``kubectl get pods``
 
-2. Get and store all Ray Cluster info with the following command. This command may
-	take a moment to run, and is provided for your convenience. If it is taking too long,
-	feel free to do it the manual way shown in the next step.
+2. Get and store all Ray Cluster info with the following command.
 
 	```
-	./source/standalone/workflows/ray/grok_cluster_with_kubectl.sh
+	./source/standalone/workflows/ray/grok_cluster_with_kubectl.py
 	```
 
 #### Assuming that you have already set up several Ray Clusters with unique IPs

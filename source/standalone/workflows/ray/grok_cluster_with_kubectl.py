@@ -1,9 +1,15 @@
-#!/usr/bin/env python3
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
 
 import subprocess
 import re
 import time
+import argparse
+import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
 
 def get_pods(namespace='default'):
     cmd = ['kubectl', 'get', 'pods', '-n', namespace, '--no-headers']
@@ -59,20 +65,16 @@ def parse_ray_status(ray_status):
     num_cpu = None
     num_gpu = None
     ram_gb = None
-    total_workers = None
 
     lines = ray_status.split('\n')
     in_resources = False
-    in_node_status = False
+
     for line in lines:
+        # Toggle when in resources section
         if 'Resources' in line:
             in_resources = True
-            in_node_status = False
             continue
-        if 'Node status' in line:
-            in_node_status = True
-            in_resources = False
-            continue
+        # Parse resource section
         if in_resources:
             cpu_match = re.match(r'\s*([0-9.]+)/([0-9.]+) CPU', line)
             if cpu_match:
@@ -83,13 +85,11 @@ def parse_ray_status(ray_status):
             ram_match = re.match(r'\s*0B/([0-9.]+)GiB memory', line)
             if ram_match:
                 ram_gb = float(ram_match.group(1))
-        if in_node_status:
-            if 'Active:' in line:
-                continue
-            gpu_group_match = re.match(r'\s*(\d+) gpu-group', line)
-            if gpu_group_match:
-                total_workers = int(gpu_group_match.group(1))
-    return num_cpu, num_gpu, ram_gb, total_workers
+
+    return num_cpu, num_gpu, ram_gb
+
+def count_worker_pods(pods, cluster):
+    return sum(1 for pod_name, status in pods if pod_name.startswith(cluster + '-worker') and status == 'Running')
 
 def process_cluster(cluster_info):
     cluster, pods, namespace = cluster_info
@@ -113,16 +113,29 @@ def process_cluster(cluster_info):
         return f"Error: Could not get ray status for cluster {cluster}\n"
 
     # Parse ray status
-    num_cpu, num_gpu, ram_gb, total_workers = parse_ray_status(ray_status)
+    num_cpu, num_gpu, ram_gb = parse_ray_status(ray_status)
+
+    # Count worker pods
+    total_workers = count_worker_pods(pods, cluster)
 
     # Format output
     output_line = f"name: {cluster} address: {ray_address} num_cpu: {num_cpu} num_gpu: {num_gpu} ram_gb: {ram_gb} total_workers: {total_workers}\n"
     return output_line
 
 def main():
-    CLUSTER_NAME_PREFIX = 'isaac-lab-hyperparameter-tuner'
-    CLUSTER_SPEC_FILE = '/home/glvov/.cluster_spec'
-    MAX_WORKERS = 5  # Adjust based on your system's capability
+    # Parse command-line arguments
+    parser = argparse.ArgumentParser(description="Process Ray clusters and save their specifications.")
+    parser.add_argument('--cluster-prefix', 
+                        default="isaac-lab-hyperparameter-tuner",
+                        help="The prefix for the cluster names.")
+    parser.add_argument('--output-file', 
+                        default='~/.cluster_config', 
+                        help="The file to save cluster specifications.")
+    args = parser.parse_args()
+
+    CLUSTER_NAME_PREFIX = args.cluster_prefix
+    # Expand user directory for output file
+    CLUSTER_SPEC_FILE = os.path.expanduser(args.output_file)
 
     # Get current namespace
     try:
@@ -144,12 +157,12 @@ def main():
 
     # Wait for clusters to be running
     while True:
+        pods = get_pods(namespace=CURRENT_NAMESPACE)  # Refresh pods list inside loop
         if check_clusters_running(pods, clusters):
             break
         else:
             print("Waiting for all clusters to spin up...")
             time.sleep(5)
-            pods = get_pods(namespace=CURRENT_NAMESPACE)
 
     # Prepare cluster info for parallel processing
     cluster_infos = []
@@ -159,17 +172,23 @@ def main():
 
     # Use ThreadPoolExecutor to process clusters in parallel
     results = []
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+    results_lock = threading.Lock()  # Create a lock for thread-safe results collection
+
+    with ThreadPoolExecutor() as executor:
         future_to_cluster = {executor.submit(process_cluster, info): info[0] for info in cluster_infos}
         for future in as_completed(future_to_cluster):
             cluster_name = future_to_cluster[future]
             try:
                 result = future.result()
-                results.append(result)
+                with results_lock:
+                    results.append(result)
             except Exception as exc:
                 print(f"{cluster_name} generated an exception: {exc}")
 
-    # Write results to the output file
+    # Sort results alphabetically by cluster name
+    results.sort()
+
+    # Write sorted results to the output file
     with open(CLUSTER_SPEC_FILE, 'w') as f:
         for result in results:
             f.write(result)
@@ -181,4 +200,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
