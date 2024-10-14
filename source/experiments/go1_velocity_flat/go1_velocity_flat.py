@@ -7,7 +7,7 @@ import math
 
 import omni.isaac.lab.sim as sim_utils
 import omni.isaac.lab_tasks.manager_based.locomotion.velocity.mdp as mdp
-from omni.isaac.lab.actuators import ActuatorNetMLPCfg
+from omni.isaac.lab.actuators import DelayedActuatorNetMLPCfg
 from omni.isaac.lab.assets import ArticulationCfg, AssetBaseCfg
 from omni.isaac.lab.envs import ManagerBasedRLEnvCfg
 from omni.isaac.lab.managers import EventTermCfg as EventTerm
@@ -22,13 +22,18 @@ from omni.isaac.lab.terrains import TerrainImporterCfg
 from omni.isaac.lab.utils import configclass
 from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from omni.isaac.lab.utils.noise import AdditiveUniformNoiseCfg as Unoise
+import omni.isaac.lab.terrains as terrain_gen
 
 ##
 # Configuration - Actuators.
 ##
 
-GO1_ACTUATOR_CFG = ActuatorNetMLPCfg(
-    joint_names_expr=[".*_hip_joint", ".*_thigh_joint", ".*_calf_joint"],
+
+GO1_ACTUATOR_CFG = DelayedActuatorNetMLPCfg(
+    joint_names_expr=[
+        ".*_hip_joint",
+        ".*_thigh_joint",
+    ],
     network_file=f"{ISAACLAB_NUCLEUS_DIR}/ActuatorNets/Unitree/unitree_go1.pt",
     pos_scale=-1.0,
     vel_scale=1.0,
@@ -38,7 +43,25 @@ GO1_ACTUATOR_CFG = ActuatorNetMLPCfg(
     effort_limit=23.7,  # taken from spec sheet
     velocity_limit=30.0,  # taken from spec sheet
     saturation_effort=23.7,  # same as effort limit
+    min_delay=4,
+    max_delay=5,
 )
+
+GO1_ACTUATOR_CFG_KNEE = DelayedActuatorNetMLPCfg(
+    joint_names_expr=[".*_calf_joint"],
+    network_file=f"{ISAACLAB_NUCLEUS_DIR}/ActuatorNets/Unitree/unitree_go1.pt",
+    pos_scale=-1.0,
+    vel_scale=1.0,
+    torque_scale=1.0,
+    input_order="pos_vel",
+    input_idx=[0, 1, 2],
+    effort_limit=35.55,
+    velocity_limit=30.0,  # taken from spec sheet
+    saturation_effort=35.55,  # same as effort limit
+    min_delay=4,
+    max_delay=5,  # number of dT (~20ms)
+)
+
 """Configuration of Go1 actuators using MLP model.
 
 Actuator specifications: https://shop.unitree.com/products/go1-motor
@@ -81,9 +104,32 @@ UNITREE_GO1_CFG = ArticulationCfg(
     soft_joint_pos_limit_factor=0.9,
     actuators={
         "base_legs": GO1_ACTUATOR_CFG,
+        "knee": GO1_ACTUATOR_CFG_KNEE,
     },
 )
 """Configuration of Unitree Go1 using MLP-based actuator model."""
+
+COBBLESTONE_ROAD_CFG = terrain_gen.TerrainGeneratorCfg(
+    size=(10.0, 10.0),
+    border_width=20.0,
+    num_rows=50,
+    num_cols=50,
+    horizontal_scale=0.25,
+    vertical_scale=0.01,
+    slope_threshold=0.75,
+    difficulty_range=(0.0, 1.0),
+    use_cache=False,
+    sub_terrains={
+        "random_rough": terrain_gen.HfSteppingStonesTerrainCfg(
+            #proportion=0.2,
+            stone_height_max=0.1,
+            stone_width_range=(0.25, 2),
+            stone_distance_range=(0.25, 2),
+            holes_depth=-.05,
+            platform_width=3,
+        ),
+    },
+)
 
 
 @configclass
@@ -93,8 +139,8 @@ class MySceneCfg(InteractiveSceneCfg):
     # ground terrain
     terrain = TerrainImporterCfg(
         prim_path="/World/ground",
-        terrain_type="plane",
-        terrain_generator=None,
+        terrain_type="generator",
+        terrain_generator=COBBLESTONE_ROAD_CFG,
         collision_group=-1,
         physics_material=sim_utils.RigidBodyMaterialCfg(
             friction_combine_mode="multiply",
@@ -122,8 +168,7 @@ class MySceneCfg(InteractiveSceneCfg):
             intensity=750.0,
             texture_file=f"{ISAAC_NUCLEUS_DIR}/Materials/Textures/Skies/PolyHaven/kloofendal_43d_clear_puresky_4k.hdr",
         ),
-    )
-
+    ) 
 
 ##
 # MDP settings
@@ -141,8 +186,8 @@ class CommandsCfg:
         heading_control_stiffness=0.5,
         debug_vis=True,
         ranges=mdp.UniformVelocityCommandCfg.Ranges(
-            lin_vel_x=(-1.0, 1.0),
-            lin_vel_y=(-1.0, 1.0),
+            lin_vel_x=(-.50, 1.5),
+            lin_vel_y=(-.10, .10),
             ang_vel_z=(-1.0, 1.0),
             heading=(-math.pi, math.pi),
         ),
@@ -187,7 +232,7 @@ class ObservationsCfg:
         actions = ObsTerm(func=mdp.last_action)
 
         def __post_init__(self):
-            self.enable_corruption = True
+            self.enable_corruption = False
             self.concatenate_terms = True
 
     # observation groups
@@ -325,7 +370,7 @@ class UnitreeGo1FlatEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the locomotion velocity-tracking environment."""
 
     # Scene settings
-    scene: MySceneCfg = MySceneCfg(num_envs=4096, env_spacing=25)
+    scene: MySceneCfg = MySceneCfg(num_envs=4096, env_spacing=10)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
@@ -361,6 +406,10 @@ class UnitreeGo1FlatEnvCfg_PLAY(UnitreeGo1FlatEnvCfg):
         # make a smaller scene for play
         self.scene.num_envs = 50
         self.scene.env_spacing = 2.5
+        self.scene.terrain.terrain_generator.num_cols = 8
+        self.scene.terrain.terrain_generator.num_rows = 8
+        self.scene.terrain.terrain_generator.size = (2, 2)
+        
         # disable randomization for play
         self.observations.policy.enable_corruption = False
         # remove random pushing event

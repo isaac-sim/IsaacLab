@@ -155,6 +155,49 @@ class ActuatorNetMLPCfg(DCMotorCfg):
     time-step in the past. The allocated history length is `max(input_idx) + 1`.
     """
 
+@configclass
+class DelayedActuatorNetMLPCfg(ActuatorNetMLPCfg):
+    """Configuration for a delayed MLP-based actuator."""
+
+    class_type: type = actuator_net.DelayedActuatorNetMLP
+    # we don't use stiffness and damping for actuator net
+    stiffness = None
+    damping = None
+
+    network_file: str = MISSING
+    """Path to the file containing network weights."""
+
+    pos_scale: float = MISSING
+    """Scaling of the joint position errors input to the network."""
+    vel_scale: float = MISSING
+    """Scaling of the joint velocities input to the network."""
+    torque_scale: float = MISSING
+    """Scaling of the joint efforts output from the network."""
+
+    input_order: Literal["pos_vel", "vel_pos"] = MISSING
+    """Order of the inputs to the network.
+
+    The order can be one of the following:
+
+    * ``"pos_vel"``: joint position errors followed by joint velocities
+    * ``"vel_pos"``: joint velocities followed by joint position errors
+    """
+
+    input_idx: Iterable[int] = MISSING
+    """
+    Indices of the actuator history buffer passed as inputs to the network.
+
+    The index *0* corresponds to current time-step, while *n* corresponds to n-th
+    time-step in the past. The allocated history length is `max(input_idx) + 1`.
+    """
+    
+    min_delay: int = 0
+    """Minimum number of physics time-steps with which the actuator command may be delayed. Defaults to 0."""
+
+    max_delay: int = 0
+    """Maximum number of physics time-steps with which the actuator command may be delayed. Defaults to 0."""
+
+
 
 @configclass
 class DelayedPDActuatorCfg(IdealPDActuatorCfg):

@@ -15,7 +15,7 @@ models:
     network:
       - name: net
         input: STATES
-        layers: [128, 128, 128]
+        layers: [512, 258, 128]
         activations: elu
     output: ACTIONS
   value:  # see deterministic_model parameters
@@ -24,7 +24,7 @@ models:
     network:
       - name: net
         input: STATES
-        layers: [128, 128, 128]
+        layers: [512, 258, 128]
         activations: elu
     output: ONE
 
