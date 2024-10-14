@@ -154,25 +154,25 @@ case $command in
         fi
         # Check if Docker image exists
         check_image_exists isaac-lab-$profile:latest
-        # Check if Docker version is greater than 25
+        # Check docker and apptainer version
         check_docker_version
         # source env file to get cluster login and path information
-        # source $SCRIPT_DIR/.env.cluster
-        # # make sure exports directory exists
-        # mkdir -p /$SCRIPT_DIR/exports
-        # # clear old exports for selected profile
-        # rm -rf /$SCRIPT_DIR/exports/isaac-lab-$profile*
-        # # create singularity image
-        # # NOTE: we create the singularity image as non-root user to allow for more flexibility. If this causes
-        # # issues, remove the --fakeroot flag and open an issue on the IsaacLab repository.
-        # cd /$SCRIPT_DIR/exports
-        # APPTAINER_NOHTTPS=1 apptainer build --sandbox --fakeroot isaac-lab-$profile.sif docker-daemon://isaac-lab-$profile:latest
-        # # tar image (faster to send single file as opposed to directory with many files)
-        # tar -cvf /$SCRIPT_DIR/exports/isaac-lab-$profile.tar isaac-lab-$profile.sif
-        # # make sure target directory exists
-        # ssh $CLUSTER_LOGIN "mkdir -p $CLUSTER_SIF_PATH"
-        # # send image to cluster
-        # scp $SCRIPT_DIR/exports/isaac-lab-$profile.tar $CLUSTER_LOGIN:$CLUSTER_SIF_PATH/isaac-lab-$profile.tar
+        source $SCRIPT_DIR/.env.cluster
+        # make sure exports directory exists
+        mkdir -p /$SCRIPT_DIR/exports
+        # clear old exports for selected profile
+        rm -rf /$SCRIPT_DIR/exports/isaac-lab-$profile*
+        # create singularity image
+        # NOTE: we create the singularity image as non-root user to allow for more flexibility. If this causes
+        # issues, remove the --fakeroot flag and open an issue on the IsaacLab repository.
+        cd /$SCRIPT_DIR/exports
+        APPTAINER_NOHTTPS=1 apptainer build --sandbox --fakeroot isaac-lab-$profile.sif docker-daemon://isaac-lab-$profile:latest
+        # tar image (faster to send single file as opposed to directory with many files)
+        tar -cvf /$SCRIPT_DIR/exports/isaac-lab-$profile.tar isaac-lab-$profile.sif
+        # make sure target directory exists
+        ssh $CLUSTER_LOGIN "mkdir -p $CLUSTER_SIF_PATH"
+        # send image to cluster
+        scp $SCRIPT_DIR/exports/isaac-lab-$profile.tar $CLUSTER_LOGIN:$CLUSTER_SIF_PATH/isaac-lab-$profile.tar
         ;;
     job)
         if [ $# -ge 1 ]; then
