@@ -9,7 +9,7 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import carb
+import omni.log
 
 import omni.isaac.lab.utils.math as math_utils
 import omni.isaac.lab.utils.string as string_utils
@@ -53,7 +53,7 @@ class JointPositionToLimitsAction(ActionTerm):
         self._joint_ids, self._joint_names = self._asset.find_joints(self.cfg.joint_names)
         self._num_joints = len(self._joint_ids)
         # log the resolved joint names for debugging
-        carb.log_info(
+        omni.log.info(
             f"Resolved joint names for the action term {self.__class__.__name__}:"
             f" {self._joint_names} [{self._joint_ids}]"
         )
