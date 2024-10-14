@@ -26,25 +26,25 @@ class ImuData:
     """
 
     lin_vel_b: torch.Tensor = None
-    """Root angular velocity in base frame.
+    """IMU frame angular velocity relative to the world expressed in IMU frame.
 
     Shape is (N, 3), where ``N`` is the number of environments.
     """
 
     ang_vel_b: torch.Tensor = None
-    """Root angular velocity in base frame.
+    """IMU frame angular velocity relative to the world expressed in IMU frame.
 
     Shape is (N, 3), where ``N`` is the number of environments.
     """
 
     lin_acc_b: torch.Tensor = None
-    """Root linear acceleration in base frame.
+    """IMU frame linear acceleration relative to the world expressed in IMU frame.
 
     Shape is (N, 3), where ``N`` is the number of environments.
     """
 
     ang_acc_b: torch.Tensor = None
-    """Root angular acceleration in base frame.
+    """IMU frame angular acceleration relative to the world expressed in IMU frame.
 
     Shape is (N, 3), where ``N`` is the number of environments.
     """
