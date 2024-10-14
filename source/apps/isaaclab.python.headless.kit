@@ -34,6 +34,10 @@ renderer.active = "rtx"
 
 app.content.emptyStageOnStart = false
 
+# Disable print outs on extension startup information
+# this only disables the app print_and_log function
+app.enableStdoutOutput = false
+
 # Setting the port for the embedded http server
 exts."omni.services.transport.server.http".port = 8211
 
