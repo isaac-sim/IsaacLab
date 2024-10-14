@@ -14,7 +14,7 @@ from typing import Any, ClassVar
 
 from .dict import class_to_dict, update_class_from_dict
 
-_CONFIGCLASS_METHODS = ["to_dict", "from_dict", "replace", "copy", "assert_valid"]
+_CONFIGCLASS_METHODS = ["to_dict", "from_dict", "replace", "copy", "validate"]
 """List of class methods added at runtime to dataclass."""
 
 """
