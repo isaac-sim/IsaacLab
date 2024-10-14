@@ -124,6 +124,10 @@ exts."omni.kit.menu.utils".logDeprecated = false
 # app.content.emptyStageOnStart = false
 app.file.ignoreUnsavedOnExit = true # prevents save dialog when exiting
 
+# disable print outs on extension startup information
+# this only disables the app print_and_log function
+app.enableStdoutOutput = false
+
 # deprecate support for old kit.ui.menu
 app.menu.legacy_mode = false
 # use omni.ui.Menu for the MenuBar
@@ -136,6 +140,9 @@ app.runLoops.rendering_0.fillResolution = false
 exts."omni.kit.window.viewport".blockingGetViewportDrawable = false
 
 exts."omni.kit.test".includeTests = [ "*isaac*" ]
+
+# set the default ros bridge to disable on startup
+isaac.startup.ros_bridge_extension = ""
 
 [settings.app.python]
 # These disable the kit app from also printing out python output, which gets confusing
