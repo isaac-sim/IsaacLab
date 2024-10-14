@@ -98,7 +98,7 @@ def configclass(cls, **kwargs):
     setattr(cls, "from_dict", _update_class_from_dict)
     setattr(cls, "replace", _replace_class_with_kwargs)
     setattr(cls, "copy", _copy_class)
-    setattr(cls, "assert_valid", _assert_valid)
+    setattr(cls, "validate", _validate)
     # wrap around dataclass
     cls = dataclass(cls, **kwargs)
     # return wrapped class
