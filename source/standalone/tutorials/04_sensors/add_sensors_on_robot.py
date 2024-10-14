@@ -44,7 +44,7 @@ import torch
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.assets import ArticulationCfg, AssetBaseCfg
 from omni.isaac.lab.scene import InteractiveScene, InteractiveSceneCfg
-from omni.isaac.lab.sensors import CameraCfg, ContactSensorCfg, RayCasterCfg, patterns
+from omni.isaac.lab.sensors import CameraCfg, ContactSensorCfg, RayCasterCfg, patterns, RTXRayCasterCfg
 from omni.isaac.lab.utils import configclass
 
 ##
@@ -92,7 +92,11 @@ class SensorsSceneCfg(InteractiveSceneCfg):
     contact_forces = ContactSensorCfg(
         prim_path="{ENV_REGEX_NS}/Robot/.*_FOOT", update_period=0.0, history_length=6, debug_vis=True
     )
-
+    lidar = RTXRayCasterCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/base/lidar",
+        offset=RTXRayCasterCfg.OffsetCfg(),
+        spawn=sim_utils.LidarCfg(lidar_type=sim_utils.LidarCfg.LidarType.VELODYNE_VLS128)
+    )
 
 def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
     """Run the simulator."""
@@ -150,7 +154,11 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
         print("-------------------------------")
         print(scene["contact_forces"])
         print("Received max contact force of: ", torch.max(scene["contact_forces"].data.net_forces_w).item())
-
+        print("-------------------------------")
+        for key, value in scene["lidar"].data.items():
+            for lidar_data in value:
+                print(f"Data for {key}: {lidar_data.data}")
+                print(f"Distance for {key}: {lidar_data.distance}")
 
 def main():
     """Main function."""
