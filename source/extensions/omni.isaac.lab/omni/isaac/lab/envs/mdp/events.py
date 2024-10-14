@@ -136,14 +136,10 @@ class randomize_rigid_body_material(ManagerTermBase):
         else:
             env_ids = env_ids.cpu()
 
-    # retrieve material buffer
-    materials = asset.root_physx_view.get_material_properties()
-
-    # sample material properties from the given ranges
-    material_samples = np.zeros(materials[env_ids].shape)
-    material_samples[..., 0] = np.random.uniform(*static_friction_range)
-    material_samples[..., 1] = np.random.uniform(*dynamic_friction_range)
-    material_samples[..., 2] = np.random.uniform(*restitution_range)
+        # randomly assign material IDs to the geometries
+        total_num_shapes = self.asset.root_physx_view.max_shapes
+        bucket_ids = torch.randint(0, num_buckets, (len(env_ids), total_num_shapes), device="cpu")
+        material_samples = self.material_buckets[bucket_ids]
 
         # retrieve material buffer from the physics simulation
         materials = self.asset.root_physx_view.get_material_properties()
