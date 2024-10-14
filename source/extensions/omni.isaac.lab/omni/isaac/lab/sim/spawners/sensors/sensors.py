@@ -7,9 +7,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import carb
 import omni.isaac.core.utils.prims as prim_utils
 import omni.kit.commands
+import omni.log
 from pxr import Sdf, Usd
 
 from omni.isaac.lab.sim.utils import clone
@@ -104,7 +104,7 @@ def spawn_camera(
     # TODO: Adjust to handle aperture offsets once supported by omniverse
     #   Internal ticket from rendering team: OM-42611
     if cfg.horizontal_aperture_offset > 1e-4 or cfg.vertical_aperture_offset > 1e-4:
-        carb.log_warn("Camera aperture offsets are not supported by Omniverse. These parameters will be ignored.")
+        omni.log.warn("Camera aperture offsets are not supported by Omniverse. These parameters will be ignored.")
 
     # custom attributes in the config that are not USD Camera parameters
     non_usd_cfg_param_names = [

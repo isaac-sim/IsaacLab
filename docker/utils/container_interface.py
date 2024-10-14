@@ -142,8 +142,7 @@ class ContainerInterface:
                 "exec",
                 "--interactive",
                 "--tty",
-                "-e",
-                f"DISPLAY={os.environ['DISPLAY']}",
+                *(["-e", f"DISPLAY={os.environ['DISPLAY']}"] if "DISPLAY" in os.environ else []),
                 f"{self.container_name}",
                 "bash",
             ])
