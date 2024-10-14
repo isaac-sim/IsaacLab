@@ -947,7 +947,7 @@ class TestConfigClass(unittest.TestCase):
         cfg = MissingChildDemoCfg()
 
         with self.assertRaises(TypeError) as context:
-            cfg.assert_valid()
+            cfg.validate()
 
         error_message = str(context.exception)
         for elem in validity_expected_fields:
