@@ -22,9 +22,9 @@ from omni.isaac.lab.app import AppLauncher
 parser = argparse.ArgumentParser(description="Benchmark loading different robots.")
 parser.add_argument("--num_envs", type=int, default=32, help="Number of robots to simulate.")
 parser.add_argument(
-    "--robot", 
-    type=str, 
-    choices=['anymal_d', 'h1', 'g1'], 
+    "--robot",
+    type=str,
+    choices=["anymal_d", "h1", "g1"],
     default="h1",
     help="Choose which robot to load: anymal_d, h1, or g1.",
 )
@@ -69,6 +69,7 @@ imports_time_end = time.perf_counter_ns()
 
 print(f"[INFO]: Imports time: {(imports_time_end - imports_time_begin) / 1e6:.2f} ms")
 
+
 @configclass
 class RobotSceneCfg(InteractiveSceneCfg):
     """Configuration for a simple scene with a robot."""
@@ -91,6 +92,7 @@ class RobotSceneCfg(InteractiveSceneCfg):
     else:
         raise ValueError(f"Unsupported robot type: {args_cli.robot}.")
 
+
 def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
     """Runs the simulation loop."""
     # Extract scene entities
@@ -98,18 +100,15 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
     robot = scene["robot"]
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
-    count = 0
 
     # Start the timer for creating the scene
     step_time_begin = time.perf_counter_ns()
     num_steps = 2000
 
     # Simulation loop
-    for _ in range(num_steps):
+    for count in range(num_steps):
         # Reset
         if count % 500 == 0:
-            # reset counter
-            count = 0
             # reset the scene entities
             # root state
             # we offset the root state by the origin since the states are written in simulation world frame
@@ -132,11 +131,9 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
         scene.write_data_to_sim()
         # Perform step
         sim.step()
-        # Increment counter
-        count += 1
         # Update buffers
         scene.update(sim_dt)
-    
+
     # Stop the timer for reset
     step_time_end = time.perf_counter_ns()
     print(f"[INFO]: Per step time: {(step_time_end - step_time_begin) / num_steps / 1e6:.2f} ms")
@@ -149,7 +146,7 @@ def main():
     sim = SimulationContext(sim_cfg)
     # Set main camera
     sim.set_camera_view([2.5, 0.0, 4.0], [0.0, 0.0, 2.0])
-    
+
     # Start the timer for creating the scene
     setup_time_begin = time.perf_counter_ns()
     # Design scene
