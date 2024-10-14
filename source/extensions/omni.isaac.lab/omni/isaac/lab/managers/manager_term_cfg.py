@@ -77,7 +77,7 @@ class ActionTermCfg:
     debug_vis: bool = False
     """Whether to visualize debug information. Defaults to False."""
     
-    lows: list[float] = [np.inf]
+    lows: list[float] = [-np.inf]
     highs: list[float] = [np.inf]
 
 

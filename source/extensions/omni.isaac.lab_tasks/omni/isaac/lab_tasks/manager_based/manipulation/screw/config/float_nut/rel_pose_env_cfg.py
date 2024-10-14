@@ -11,6 +11,7 @@ from omni.isaac.lab.managers import RewardTermCfg as RewTerm
 from omni.isaac.lab.utils import configclass
 import omni.isaac.lab_tasks.manager_based.manipulation.screw.mdp as mdp
 from omni.isaac.lab.sensors import ContactSensorCfg
+from omni.isaac.lab_tasks.manager_based.manipulation.screw.screw_env_cfg import BaseNutTightenEnvCfg, BaseNutThreadEnvCfg
 from . import abs_pose_env_cfg
 import omni.isaac.lab.sim as sim_utils
 ##
@@ -53,7 +54,42 @@ class RelFloatNutTightenEnvCfg(abs_pose_env_cfg.AbsFloatNutTightenEnvCfg):
         #     params={"threshold":0, "sensor_cfg": SceneEntityCfg(name="contact_sensor")},
         #     weight=0.01)
 
+
+@configclass
+class RelFloatNutThreadEnv(BaseNutThreadEnvCfg):
+    def __post_init__(self):
+        # post init of parent
+        super().__post_init__()
+        self.scene.robot = None
+        # self.act_lows = [-0.0001, -0.0001, -0.005, -0.0001, -0.0001, -0.5]
+        # self.act_highs = [0.0010, 0.0001, 0.005, 0.0001, 0.0001, 0.5]
+        self.act_lows = [-0.001, -0.001, -0.001, -0.2, -0.2, -0.2]
+        self.act_highs = [0.001, 0.001, 0.001, 0.2, 0.2, 0.2]
         
+        # override actions
+        self.actions.nut_action = mdp.RigidObjectPoseActionTermCfg(
+            asset_name="nut",
+            command_type="pose",
+            use_relative_mode=True,
+            p_gain=10,
+            d_gain=0.01,
+            lows=self.act_lows,
+            highs=self.act_highs,
+            )
+
+        # self.scene.bolt.spawn.activate_contact_sensors = True
+        # self.scene.nut.spawn.activate_contact_sensors = True
+        # self.scene.contact_sensor = ContactSensorCfg(
+        #     prim_path="{ENV_REGEX_NS}/Nut/factory_nut",
+        #     filter_prim_paths_expr= ["{ENV_REGEX_NS}/Bolt/factory_bolt"],
+        #     update_period=0.0,
+        # )
+        # self.rewards.contact_force_penalty = RewTerm(
+        #     func=mdp.contact_forces,
+        #     params={"threshold":0, "sensor_cfg": SceneEntityCfg(name="contact_sensor")},
+        #     weight=0.01)
+
+   
 
 @configclass
 class RelFloatNutTightenEnvCfg_PLAY(RelFloatNutTightenEnvCfg):
@@ -67,10 +103,5 @@ class RelFloatNutTightenEnvCfg_PLAY(RelFloatNutTightenEnvCfg):
         self.observations.policy.enable_corruption = False
         
 
-@configclass
-class RelFloatScrewMediumEnvCfg(RelFloatNutTightenEnvCfg):
-    def __post_init__(self):
-        # post init of parent
-        super().__post_init__()
-        self.scene.nut.init_state.pos = (6.3000e-01, 4.0586e-06, 1.4904e-02)
-        self.scene.nut.init_state.rot = (9.9833e-01,  1.2417e-04, -1.2629e-05,  5.7803e-02)
+
+

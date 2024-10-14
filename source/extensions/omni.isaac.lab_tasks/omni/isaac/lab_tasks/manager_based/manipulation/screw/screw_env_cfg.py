@@ -34,7 +34,7 @@ from omni.isaac.lab.envs import ManagerBasedRLEnv
 ##
 FRAME_MARKER_SMALL_CFG = FRAME_MARKER_CFG.copy()
 FRAME_MARKER_SMALL_CFG.markers["frame"].scale = (0.008, 0.008, 0.008)
-PLATE_MARKER_CFG = VisualizationMarkersCfg(
+RED_PLATE_MARKER_CFG = VisualizationMarkersCfg(
     markers={
         "height": sim_utils.CylinderCfg(
             radius=0.01,
@@ -43,6 +43,8 @@ PLATE_MARKER_CFG = VisualizationMarkersCfg(
             )
     }
 )
+BLUE_PLATE_MARKER_CFG = RED_PLATE_MARKER_CFG.copy()
+BLUE_PLATE_MARKER_CFG.markers["height"].visual_material = sim_utils.PreviewSurfaceCfg(diffuse_color=(0, 0, 1.0), opacity=0.5) 
 PLATE_ARROW_CFG = VisualizationMarkersCfg(
     markers={
         # "height": sim_utils.CylinderCfg(
@@ -301,7 +303,7 @@ class NutTightenTerminationsCfg:
     """Termination terms for screw tightening."""
     nut_screwed = DoneTerm(func=mdp.nut_fully_screwed, params={"threshold":1e-4})
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
-    
+
 
 @configclass
 class BaseNutTightenEnvCfg(BaseScrewEnvCfg):
@@ -321,7 +323,7 @@ class BaseNutTightenEnvCfg(BaseScrewEnvCfg):
         self.scene.bolt_frame = FrameTransformerCfg(
             prim_path="{ENV_REGEX_NS}/Origin",
             debug_vis=True,
-            visualizer_cfg=PLATE_MARKER_CFG.replace(prim_path="/Visuals/Bolt"),
+            visualizer_cfg=RED_PLATE_MARKER_CFG.replace(prim_path="/Visuals/Bolt"),
             target_frames=[
                 # FrameTransformerCfg.FrameCfg(
                 #     prim_path="{ENV_REGEX_NS}/Bolt/factory_bolt",
@@ -331,8 +333,69 @@ class BaseNutTightenEnvCfg(BaseScrewEnvCfg):
                 FrameTransformerCfg.FrameCfg(
                     prim_path="{ENV_REGEX_NS}/Bolt/factory_bolt",
                     name="bolt_bottom",
-                    offset=OffsetCfg(pos=(0.0, 0.0, 0.012)), # strict 0.01
+                    offset=OffsetCfg(pos=(0.0, 0.0, 0.012)), # strict 0.011 + 0.001
                 ),
                 ]
             )
+
+###################################
+#           Nut Thread           #
+def nut_thread_reward_forge(env:ManagerBasedRLEnv, a: float=100, b:float=0, tol: float=0):
+    diff = mdp.rel_nut_bolt_tip_distance(env)
+    rewards = mdp.forge_kernel(diff, a, b, tol)
+    return rewards
+
+
+@configclass
+class NutThreadRewardsCfg:
+    """Reward terms for the MDP."""
+
+    # task terms
+    coarse_nut = RewTerm(func=nut_thread_reward_forge, 
+                         params={"a":100, "b":2}, weight=1.0)
+    fine_nut= RewTerm(func=nut_thread_reward_forge, 
+                        params={ "a":500, "b":0,}, weight=1.0)
+    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.00001)
+
+
+
+@configclass
+class NutThreadTerminationsCfg:
+    """Termination terms for screw tightening."""
+    nut_screwed = DoneTerm(func=mdp.nut_successfully_threaded, params={"threshold":1e-4})
+    time_out = DoneTerm(func=mdp.time_out, time_out=True)
+
+
+@configclass
+class BaseNutThreadEnvCfg(BaseScrewEnvCfg):
+    rewards: NutThreadRewardsCfg = NutThreadRewardsCfg()
+    terminations: NutThreadTerminationsCfg = NutThreadTerminationsCfg()
+    
+    def __post_init__(self):
+        super().__post_init__()
+        self.scene.nut.init_state.pos = (6.3000e-01, 4.0586e-06, 0.02)
+        self.scene.nut.init_state.rot = (9.9833e-01,  1.2417e-04, -1.2629e-05,  5.7803e-02)
         
+        self.scene.nut_frame = FrameTransformerCfg(
+        prim_path="{ENV_REGEX_NS}/Origin",
+        debug_vis=True,
+        visualizer_cfg=BLUE_PLATE_MARKER_CFG.replace(prim_path="/Visuals/Nut"),
+        target_frames=[
+            FrameTransformerCfg.FrameCfg(
+                prim_path="{ENV_REGEX_NS}/Nut/factory_nut",
+                name="nut",
+                offset=OffsetCfg(pos=(0.0, 0.0, 0.011)),
+            )
+        ])
+        self.scene.bolt_frame = FrameTransformerCfg(
+            prim_path="{ENV_REGEX_NS}/Origin",
+            debug_vis=True,
+            visualizer_cfg=RED_PLATE_MARKER_CFG.replace(prim_path="/Visuals/Bolt"),
+            target_frames=[
+                FrameTransformerCfg.FrameCfg(
+                    prim_path="{ENV_REGEX_NS}/Bolt/factory_bolt",
+                    name="bolt_tip",
+                    offset=OffsetCfg(pos=(0.0, 0.0, 0.0261)),  # 0.011 + 0.0161
+                )]
+            )
+

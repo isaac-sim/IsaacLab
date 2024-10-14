@@ -123,7 +123,7 @@ def main():
             actions = pre_process_actions(delta_pose, gripper_command)
             # apply actions
             # actions[:, 2] = -1.8e-3/250
-            actions[:, 2] = -0.00001
+            actions[:, 2] = -0.001
             actions[:, 5] = -0.2
             counter += 1
             obs, reward, termin, timeout, _ = env.step(actions)
@@ -143,7 +143,7 @@ def main():
                 print(nforce, tforce, total_force)
                 print("Total force: ", total_force)
                 forces.append(total_force.cpu().numpy())
-            if termin or counter==400:
+            if termin:
                 print("Episode terminated.")
                 env.reset()
                 teleop_interface.reset()
