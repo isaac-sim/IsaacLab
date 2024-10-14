@@ -4,12 +4,17 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import numpy as np
-from matplotlib import cm
+from typing import TYPE_CHECKING
 
 import carb
-import omni.ui as ui
-from omni.isaac.ui.element_wrappers.base_ui_element_wrappers import UIWidgetWrapper
-from omni.kit.window.property.templates import LABEL_WIDTH
+import omni
+from matplotlib import cm
+
+from .ui_widget_wrapper import UIWidgetWrapper
+
+if TYPE_CHECKING:
+    import omni.ui
+    import omni.isaac.ui
 
 
 class ImagePlot(UIWidgetWrapper):
@@ -42,9 +47,9 @@ class ImagePlot(UIWidgetWrapper):
 
         self._enabled = True
 
-        self._byte_provider = ui.ByteImageProvider()
+        self._byte_provider = omni.ui.ByteImageProvider()
         if image is None:
-            carb.warn("image is NONE")
+            carb.log_warn("image is NONE")
             image = np.ones((480, 640, 3), dtype=np.uint8) * 255
             image[:, :, 0] = 0
             image[:, :240, 1] = 0
@@ -98,7 +103,7 @@ class ImagePlot(UIWidgetWrapper):
                 self._min_max_label.text = self._get_unit_description(0, 0)
 
     def _create_ui_widget(self):
-        containing_frame = ui.Frame(build_fn=self._build_widget)
+        containing_frame = omni.ui.Frame(build_fn=self._build_widget)
         return containing_frame
 
     def _get_unit_description(self, min_value: float, max_value: float, median_value: float = None):
@@ -110,14 +115,14 @@ class ImagePlot(UIWidgetWrapper):
 
     def _build_widget(self):
 
-        with ui.VStack(spacing=3):
-            with ui.HStack():
+        with omni.ui.VStack(spacing=3):
+            with omni.ui.HStack():
                 # Write the leftmost label for what this plot is
-                ui.Label(self._label, width=LABEL_WIDTH, alignment=ui.Alignment.LEFT_TOP)
-                with ui.Frame(width=self._aspect_ratio * self._widget_height, height=self._widget_height):
-                    self._base_plot = ui.ImageWithProvider(self._byte_provider)
+                omni.ui.Label(self._label, width=omni.isaac.ui.ui_utils.LABEL_WIDTH, alignment=omni.ui.Alignment.LEFT_TOP)
+                with omni.ui.Frame(width=self._aspect_ratio * self._widget_height, height=self._widget_height):
+                    self._base_plot = omni.ui.ImageWithProvider(self._byte_provider)
 
             if self._show_min_max:
-                self._min_max_label = ui.Label(self._get_unit_description(0, 0))
-            ui.Spacer(width=5)
+                self._min_max_label = omni.ui.Label(self._get_unit_description(0, 0))
+            omni.ui.Spacer(width=5)
         self._has_built = True

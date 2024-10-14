@@ -7,12 +7,16 @@ from __future__ import annotations
 
 import colorsys
 import numpy as np
+from typing import TYPE_CHECKING
 
-import omni.isaac.ui.ui_utils as ui_utils
-import omni.ui as ui
+import omni
 from omni.isaac.core.simulation_context import SimulationContext
-from omni.isaac.ui.element_wrappers import UIWidgetWrapper
-from omni.ui import color as cl
+
+from .ui_widget_wrapper import UIWidgetWrapper
+
+if TYPE_CHECKING:
+    import omni.ui
+    import omni.isaac.ui
 
 
 class LiveLinePlot(UIWidgetWrapper):
@@ -95,7 +99,7 @@ class LiveLinePlot(UIWidgetWrapper):
         # Gets populated when widget is built
         self._main_plot_frame = None
 
-        self._autoscale_model = ui.SimpleBoolModel(True)
+        self._autoscale_model = omni.ui.SimpleBoolModel(True)
 
     """Properties"""
 
@@ -229,8 +233,8 @@ class LiveLinePlot(UIWidgetWrapper):
                 y_data: The data to plot.
                 color: The color of the plot.
             """
-            plot = ui.Plot(
-                ui.Type.LINE,
+            plot = omni.ui.Plot(
+                omni.ui.Type.LINE,
                 self._y_min,
                 self._y_max,
                 *y_data,
@@ -240,23 +244,23 @@ class LiveLinePlot(UIWidgetWrapper):
 
             if len(self._plots) <= plot_idx:
                 self._plots.append(plot)
-                self._plot_selected_values.append(ui.SimpleStringModel(""))
+                self._plot_selected_values.append(omni.ui.SimpleStringModel(""))
             else:
                 self._plots[plot_idx] = plot
 
         # Begin building the widget
-        with ui.HStack():
+        with omni.ui.HStack():
             # Space to the left to add y-axis labels
-            ui.Spacer(width=20)
+            omni.ui.Spacer(width=20)
 
             # Built plots for each time series stacked on top of each other
-            with ui.ZStack():
+            with omni.ui.ZStack():
                 # Background rectangle
-                ui.Rectangle(
+                omni.ui.Rectangle(
                     height=self.plot_height,
                     style={
                         "background_color": 0x0,
-                        "border_color": cl.white,
+                        "border_color": omni.ui.color.white,
                         "border_width": 0.4,
                         "margin": 0.0,
                     },
@@ -280,29 +284,29 @@ class LiveLinePlot(UIWidgetWrapper):
 
                     plot_resolution = self.plot_height / plot_range
 
-                    with ui.VStack():
-                        ui.Spacer(height=plot_resolution * first_space)
+                    with omni.ui.VStack():
+                        omni.ui.Spacer(height=plot_resolution * first_space)
 
                         # Draw grid lines
-                        with ui.VGrid(row_height=plot_resolution):
+                        with omni.ui.VGrid(row_height=plot_resolution):
                             for grid_line_idx in range(n_lines):
                                 # Create grid line
-                                with ui.ZStack():
-                                    ui.Line(
+                                with omni.ui.ZStack():
+                                    omni.ui.Line(
                                         style={
                                             "color": 0xAA8A8777,
                                             "background_color": 0x0,
                                             "border_width": 0.4,
                                         },
-                                        alignment=ui.Alignment.CENTER_TOP,
+                                        alignment=omni.ui.Alignment.CENTER_TOP,
                                         height=0,
                                     )
-                                    with ui.Placer(offset_x=-20):
-                                        ui.Label(
+                                    with omni.ui.Placer(offset_x=-20):
+                                        omni.ui.Label(
                                             f"{(self._y_max - first_space * grid_resolution - grid_line_idx * grid_resolution):.3f}",
                                             width=8,
                                             height=8,
-                                            alignment=ui.Alignment.RIGHT_TOP,
+                                            alignment=omni.ui.Alignment.RIGHT_TOP,
                                             style={
                                                 "color": 0xFFFFFFFF,
                                                 "font_size": 8,
@@ -311,7 +315,7 @@ class LiveLinePlot(UIWidgetWrapper):
 
                 # Create plots for each series
                 for idx, (data, color) in enumerate(zip(self._y_data, self._colors)):
-                    plot_frame = ui.Frame(
+                    plot_frame = omni.ui.Frame(
                         build_fn=lambda y_data=data, plot_idx=idx, color=color: _build_single_plot(
                             y_data, color, plot_idx
                         ),
@@ -320,7 +324,7 @@ class LiveLinePlot(UIWidgetWrapper):
                     self._plot_frames.append(plot_frame)
 
                 # Create an invisible frame on top that will give a helpful tooltip
-                self._tooltip_frame = ui.Plot(
+                self._tooltip_frame = omni.ui.Plot(
                     height=self.plot_height,
                     style={"color": 0xFFFFFFFF, "background_color": 0x0},
                 )
@@ -328,22 +332,22 @@ class LiveLinePlot(UIWidgetWrapper):
                 self._tooltip_frame.set_mouse_pressed_fn(self._mouse_moved_on_plot)
 
                 # Create top label for the y-axis
-                with ui.Placer(offset_x=-20, offset_y=-8):
-                    ui.Label(
+                with omni.ui.Placer(offset_x=-20, offset_y=-8):
+                    omni.ui.Label(
                         f"{self._y_max:.3f}",
                         width=8,
                         height=2,
-                        alignment=ui.Alignment.LEFT_TOP,
+                        alignment=omni.ui.Alignment.LEFT_TOP,
                         style={"color": 0xFFFFFFFF, "font_size": 8},
                     )
 
                 # Create bottom label for the y-axis
-                with ui.Placer(offset_x=-20, offset_y=self.plot_height):
-                    ui.Label(
+                with omni.ui.Placer(offset_x=-20, offset_y=self.plot_height):
+                    omni.ui.Label(
                         f"{self._y_min:.3f}",
                         width=8,
                         height=2,
-                        alignment=ui.Alignment.LEFT_BOTTOM,
+                        alignment=omni.ui.Alignment.LEFT_BOTTOM,
                         style={"color": 0xFFFFFFFF, "font_size": 8},
                     )
 
@@ -386,34 +390,34 @@ class LiveLinePlot(UIWidgetWrapper):
         if not self._show_legend:
             return
 
-        with ui.HStack():
-            ui.Spacer(width=32)
+        with omni.ui.HStack():
+            omni.ui.Spacer(width=32)
 
             # Find the longest legend to determine the width of the frame
             max_legend = max([len(legend) for legend in self._legends])
             CHAR_WIDTH = 8
-            with ui.VGrid(
-                row_height=ui_utils.LABEL_HEIGHT,
+            with omni.ui.VGrid(
+                row_height=omni.isaac.ui.ui_utils.LABEL_HEIGHT,
                 column_width=max_legend * CHAR_WIDTH + 6,
             ):
                 for idx in range(len(self._y_data)):
-                    with ui.HStack():
-                        model = ui.SimpleBoolModel()
+                    with omni.ui.HStack():
+                        model = omni.ui.SimpleBoolModel()
                         model.set_value(self._series_visible[idx])
-                        ui.CheckBox(model=model, tooltip="", width=4)
+                        omni.ui.CheckBox(model=model, tooltip="", width=4)
                         model.add_value_changed_fn(lambda val, idx=idx: self._change_plot_visibility(idx, val.as_bool))
-                        ui.Spacer(width=2)
-                        with ui.VStack():
-                            ui.Label(
+                        omni.ui.Spacer(width=2)
+                        with omni.ui.VStack():
+                            omni.ui.Label(
                                 self._legends[idx],
                                 width=max_legend * CHAR_WIDTH,
-                                alignment=ui.Alignment.LEFT,
+                                alignment=omni.ui.Alignment.LEFT,
                                 style={"color": self._colors[idx], "font_size": 12},
                             )
-                            ui.StringField(
+                            omni.ui.StringField(
                                 model=self._plot_selected_values[idx],
                                 width=max_legend * CHAR_WIDTH,
-                                alignment=ui.Alignment.LEFT,
+                                alignment=omni.ui.Alignment.LEFT,
                                 style={"color": self._colors[idx], "font_size": 10},
                                 read_only=True,
                             )
@@ -434,40 +438,40 @@ class LiveLinePlot(UIWidgetWrapper):
         |||    -------------------------------------------    |||
         |||+-------------------------------------------------+|||
         """
-        with ui.VStack():
-            with ui.HStack():
-                ui.Label(
+        with omni.ui.VStack():
+            with omni.ui.HStack():
+                omni.ui.Label(
                     "Limits",
-                    width=ui_utils.LABEL_WIDTH,
-                    alignment=ui.Alignment.LEFT_CENTER,
+                    width=omni.isaac.ui.ui_utils.LABEL_WIDTH,
+                    alignment=omni.ui.Alignment.LEFT_CENTER,
                 )
 
-                self.lower_limit_drag = ui.FloatDrag(name="min", enabled=True, alignment=ui.Alignment.CENTER)
+                self.lower_limit_drag = omni.ui.FloatDrag(name="min", enabled=True, alignment=omni.ui.Alignment.CENTER)
                 y_min_model = self.lower_limit_drag.model
                 y_min_model.set_value(self._y_min)
                 y_min_model.add_value_changed_fn(lambda x: self._set_y_min(x.as_float))
-                ui.Spacer(width=2)
+                omni.ui.Spacer(width=2)
 
-                self.upper_limit_drag = ui.FloatDrag(name="max", enabled=True, alignment=ui.Alignment.CENTER)
+                self.upper_limit_drag = omni.ui.FloatDrag(name="max", enabled=True, alignment=omni.ui.Alignment.CENTER)
                 y_max_model = self.upper_limit_drag.model
                 y_max_model.set_value(self._y_max)
                 y_max_model.add_value_changed_fn(lambda x: self._set_y_max(x.as_float))
-                ui.Spacer(width=2)
+                omni.ui.Spacer(width=2)
 
-                ui.Button(
+                omni.ui.Button(
                     "Re-Scale",
-                    width=ui_utils.BUTTON_WIDTH,
+                    width=omni.isaac.ui.ui_utils.BUTTON_WIDTH,
                     clicked_fn=self._rescale_btn_pressed,
-                    alignment=ui.Alignment.LEFT_CENTER,
-                    style=ui_utils.get_style(),
+                    alignment=omni.ui.Alignment.LEFT_CENTER,
+                    style=omni.isaac.ui.ui_utils.get_style(),
                 )
 
-                ui.CheckBox(model=self._autoscale_model, tooltip="", width=4)
+                omni.ui.CheckBox(model=self._autoscale_model, tooltip="", width=4)
 
-            ui.Line(
+            omni.ui.Line(
                 style={"color": 0x338A8777},
-                width=ui.Fraction(1),
-                alignment=ui.Alignment.CENTER,
+                width=omni.ui.Fraction(1),
+                alignment=omni.ui.Alignment.CENTER,
             )
 
     def _build_filter_frame(self):
@@ -487,14 +491,14 @@ class LiveLinePlot(UIWidgetWrapper):
         |+-----------------------------------------------------+|
         +-------------------------------------------------------+
         """
-        with ui.VStack():
-            with ui.HStack():
+        with omni.ui.VStack():
+            with omni.ui.HStack():
 
                 def _filter_changed(value):
                     self.clear()
                     self._filter_mode = value
 
-                ui_utils.dropdown_builder(
+                omni.isaac.ui.ui_utils.dropdown_builder(
                     label="Filter",
                     type="dropdown",
                     items=["None", "Lowpass", "Integrate", "Derivative"],
@@ -506,12 +510,12 @@ class LiveLinePlot(UIWidgetWrapper):
                     self._is_paused = not self._is_paused
 
                 # Button
-                ui.Button(
+                omni.ui.Button(
                     "Play/Pause",
-                    width=ui_utils.BUTTON_WIDTH,
+                    width=omni.isaac.ui.ui_utils.BUTTON_WIDTH,
                     clicked_fn=_toggle_paused,
-                    alignment=ui.Alignment.LEFT_CENTER,
-                    style=ui_utils.get_style(),
+                    alignment=omni.ui.Alignment.LEFT_CENTER,
+                    style=omni.isaac.ui.ui_utils.get_style(),
                 )
 
     def _create_ui_widget(self):
@@ -519,17 +523,17 @@ class LiveLinePlot(UIWidgetWrapper):
 
         def _build_widget():
             self._is_built = False
-            with ui.VStack():
-                self._main_plot_frame = ui.Frame(build_fn=self._build_stacked_plots)
-                ui.Spacer(height=8)
-                self._legends_frame = ui.Frame(build_fn=self._build_legends_frame)
-                ui.Spacer(height=8)
-                self._limits_frame = ui.Frame(build_fn=self._build_limits_frame)
-                ui.Spacer(height=8)
-                self._filter_frame = ui.Frame(build_fn=self._build_filter_frame)
+            with omni.ui.VStack():
+                self._main_plot_frame = omni.ui.Frame(build_fn=self._build_stacked_plots)
+                omni.ui.Spacer(height=8)
+                self._legends_frame = omni.ui.Frame(build_fn=self._build_legends_frame)
+                omni.ui.Spacer(height=8)
+                self._limits_frame = omni.ui.Frame(build_fn=self._build_limits_frame)
+                omni.ui.Spacer(height=8)
+                self._filter_frame = omni.ui.Frame(build_fn=self._build_filter_frame)
             self._is_built = True
 
-        containing_frame = ui.Frame(build_fn=_build_widget)
+        containing_frame = omni.ui.Frame(build_fn=_build_widget)
 
         return containing_frame
 

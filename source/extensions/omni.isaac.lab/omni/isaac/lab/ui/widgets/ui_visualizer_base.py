@@ -3,9 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import inspect
 
-from omni.ui import Frame, Window
+if TYPE_CHECKING:
+    import omni.ui
 
 
 class UiVisualizerBase:
@@ -126,7 +131,7 @@ class UiVisualizerBase:
         """Set the environment selection."""
         raise NotImplementedError(f"Environment selection is not implemented for {self.__class__.__name__}.")
 
-    def _set_window_impl(self, window: Window):
+    def _set_window_impl(self, window: omni.ui.Window):
         """Set the window."""
         raise NotImplementedError(f"Window is not implemented for {self.__class__.__name__}.")
 
@@ -134,7 +139,7 @@ class UiVisualizerBase:
         """Set debug visualization state."""
         raise NotImplementedError(f"Debug visualization is not implemented for {self.__class__.__name__}.")
 
-    def _set_vis_frame_impl(self, vis_frame: Frame):
+    def _set_vis_frame_impl(self, vis_frame: omni.ui.Frame):
         """Set debug visualization into visualization objects.
 
         This function is responsible for creating the visualization objects if they don't exist

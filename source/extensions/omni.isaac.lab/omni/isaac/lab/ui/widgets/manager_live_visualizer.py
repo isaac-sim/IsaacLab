@@ -8,11 +8,11 @@ from __future__ import annotations
 import numpy
 import weakref
 from dataclasses import MISSING
+from typing import TYPE_CHECKING
 
 import carb
 import omni.kit.app
 from omni.isaac.core.simulation_context import SimulationContext
-from omni.ui import CollapsableFrame, Frame, VStack, Window
 
 from omni.isaac.lab.managers import ManagerBase
 from omni.isaac.lab.utils import configclass
@@ -20,6 +20,9 @@ from omni.isaac.lab.utils import configclass
 from .image_plot import ImagePlot
 from .line_plot import LiveLinePlot
 from .ui_visualizer_base import UiVisualizerBase
+
+if TYPE_CHECKING:
+    import omni.ui
 
 
 @configclass
@@ -56,8 +59,8 @@ class ManagerLiveVisualizer(UiVisualizerBase):
         self._env_idx: int = 0
         self.cfg = cfg
         self._viewer_env_idx = 0
-        self._vis_frame: Frame
-        self._vis_window: Window
+        self._vis_frame: omni.ui.Frame
+        self._vis_window: omni.ui.Window
 
         # evaluate chosen terms if no terms provided use all available.
         self.term_names = []
@@ -104,12 +107,12 @@ class ManagerLiveVisualizer(UiVisualizerBase):
     #
 
     @property
-    def get_vis_frame(self) -> Frame:
+    def get_vis_frame(self) -> omni.ui.Frame:
         """Getter for the UI Frame object tied to this visualizer."""
         return self._vis_frame
 
     @property
-    def get_vis_window(self) -> Window:
+    def get_vis_window(self) -> omni.ui.Window:
         """Getter for the UI Window object tied to this visualizer."""
         return self._vis_window
 
@@ -117,7 +120,7 @@ class ManagerLiveVisualizer(UiVisualizerBase):
     # Setters
     #
 
-    def set_debug_vis(self, debug_vis: bool) -> None:
+    def set_debug_vis(self, debug_vis: bool):
         """Set the debug visualization external facing function.
 
         Args:
@@ -129,7 +132,7 @@ class ManagerLiveVisualizer(UiVisualizerBase):
     # Implementations
     #
 
-    def _set_env_selection_impl(self, env_idx: int) -> None:
+    def _set_env_selection_impl(self, env_idx: int):
         """Update the index of the selected environment to display.
 
         Args:
@@ -140,7 +143,7 @@ class ManagerLiveVisualizer(UiVisualizerBase):
         else:
             carb.log_warn(f"Environment index is out of range (0,{self._manager.num_envs})")
 
-    def _set_vis_frame_impl(self, frame: Frame) -> None:
+    def _set_vis_frame_impl(self, frame: omni.ui.Frame):
         """Updates the assigned frame that can be used for visualizations.
 
         Args:
@@ -148,7 +151,7 @@ class ManagerLiveVisualizer(UiVisualizerBase):
         """
         self._vis_frame = frame
 
-    def _debug_vis_callback(self, event) -> None:
+    def _debug_vis_callback(self, event):
         """Callback for the debug visualization event."""
 
         if not SimulationContext.instance().is_playing():
@@ -164,7 +167,7 @@ class ManagerLiveVisualizer(UiVisualizerBase):
             elif isinstance(vis, ImagePlot):
                 vis.update_image(numpy.array(term))
 
-    def _set_debug_vis_impl(self, debug_vis: bool) -> None:
+    def _set_debug_vis_impl(self, debug_vis: bool):
         """Set the debug visualization implementation.
 
         Args:
@@ -197,11 +200,11 @@ class ManagerLiveVisualizer(UiVisualizerBase):
         self._vis_frame.visible = True
 
         with self._vis_frame:
-            with VStack():
+            with omni.ui.VStack():
                 # Add a plot in a collapsible frame for each term available
                 for name, term in self._manager.get_active_iterable_terms(env_idx=self._env_idx):
                     if name in self.term_names or len(self.term_names) == 0:
-                        frame = CollapsableFrame(
+                        frame = omni.ui.CollapsableFrame(
                             name,
                             collapsed=False,
                             style={"border_color": 0xFF8A8777, "padding": 4},
