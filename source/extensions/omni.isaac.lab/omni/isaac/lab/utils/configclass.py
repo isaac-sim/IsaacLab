@@ -241,7 +241,7 @@ def _add_annotation_types(cls):
     cls.__annotations__ = hints
 
 
-def _assert_valid(obj: object, prefix: str = "") -> list:
+def _validate(obj: object, prefix: str = "") -> list[str]:
     """Check the validity of configclass object.
 
     This function checks if the object is a valid configclass object. A valid configclass object contains no MISSING
