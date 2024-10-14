@@ -220,7 +220,7 @@ class ManagerLiveVisualizer(UiVisualizerBase):
                                 )
                                 self._term_visualizers.append(plot)
                             # create an image plot for 2d and greater data (i.e. mono and rgb images)
-                            elif len_term_shape == 3:
+                            elif len_term_shape == 2 or  len_term_shape == 3:
                                 image = ImagePlot(
                                     image=numpy.array(term),
                                     label=name,
