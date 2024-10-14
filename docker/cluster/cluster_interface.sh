@@ -62,11 +62,9 @@ submit_job() {
 
     case $CLUSTER_JOB_SCHEDULER in
         "SLURM")
-            CMD=sbatch
             job_script_file=submit_job_slurm.sh
             ;;
         "PBS")
-            CMD=bash
             job_script_file=submit_job_pbs.sh
             ;;
         *)
@@ -75,7 +73,7 @@ submit_job() {
             ;;
     esac
 
-    ssh $CLUSTER_LOGIN "cd $CLUSTER_ISAACLAB_DIR && $CMD $CLUSTER_ISAACLAB_DIR/docker/cluster/$job_script_file \"$CLUSTER_ISAACLAB_DIR\" \"isaac-lab-$profile\" ${@}"
+    ssh $CLUSTER_LOGIN "cd $CLUSTER_ISAACLAB_DIR && bash $CLUSTER_ISAACLAB_DIR/docker/cluster/$job_script_file \"$CLUSTER_ISAACLAB_DIR\" \"isaac-lab-$profile\" ${@}"
 }
 
 #==
@@ -162,11 +160,17 @@ case $command in
         scp $SCRIPT_DIR/exports/isaac-lab-$profile.tar $CLUSTER_LOGIN:$CLUSTER_SIF_PATH/isaac-lab-$profile.tar
         ;;
     job)
-        [ $# -ge 1 ] && profile=$1 && shift
+        if [ $# -ge 1 ]; then
+            passed_profile=$1
+            if [ -f ".env.$passed_profile" ]; then
+                profile=$passed_profile
+                shift
+            fi
+        fi
         job_args="$@"
-        echo "Executing job command"
-        [ -n "$profile" ] && echo "Using profile: $profile"
-        [ -n "$job_args" ] && echo "Job arguments: $job_args"
+        echo "[INFO] Executing job command"
+        [ -n "$profile" ] && echo -e "\tUsing profile: $profile"
+        [ -n "$job_args" ] && echo -e "\tJob arguments: $job_args"
         source $SCRIPT_DIR/.env.cluster
         # Get current date and time
         current_datetime=$(date +"%Y%m%d_%H%M%S")

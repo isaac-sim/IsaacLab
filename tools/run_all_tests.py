@@ -231,14 +231,14 @@ def test_all(
             else:
                 stdout_str = stdout.decode("utf-8")
         else:
-            stdout = ""
+            stdout_str = ""
         if stderr is not None:
             if isinstance(stderr, str):
                 stderr_str = stderr
             else:
                 stderr_str = stderr.decode("utf-8")
         else:
-            stderr = ""
+            stderr_str = ""
 
         # Write to log file
         logging.info(stdout_str)

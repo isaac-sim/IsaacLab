@@ -6,8 +6,8 @@
 # needed to import for allowing type-hinting: Usd.Stage | None
 from __future__ import annotations
 
-import carb
 import omni.isaac.core.utils.stage as stage_utils
+import omni.log
 import omni.physx.scripts.utils as physx_utils
 from omni.physx.scripts import deformableUtils as deformable_utils
 from pxr import PhysxSchema, Usd, UsdPhysics
@@ -131,12 +131,12 @@ def modify_articulation_root_properties(
         # if we found a fixed joint, enable/disable it based on the input
         # otherwise, create a fixed joint between the world and the root link
         if existing_fixed_joint_prim is not None:
-            carb.log_info(
+            omni.log.info(
                 f"Found an existing fixed joint for the articulation: '{prim_path}'. Setting it to: {fix_root_link}."
             )
             existing_fixed_joint_prim.GetJointEnabledAttr().Set(fix_root_link)
         elif fix_root_link:
-            carb.log_info(f"Creating a fixed joint for the articulation: '{prim_path}'.")
+            omni.log.info(f"Creating a fixed joint for the articulation: '{prim_path}'.")
 
             # note: we have to assume that the root prim is a rigid body,
             #   i.e. we don't handle the case where the root prim is not a rigid body but has articulation api on it
@@ -500,10 +500,10 @@ def activate_contact_sensors(prim_path: str, threshold: float = 0.0, stage: Usd.
             rb.CreateSleepThresholdAttr().Set(0.0)
             # add contact report API with threshold of zero
             if not child_prim.HasAPI(PhysxSchema.PhysxContactReportAPI):
-                carb.log_verbose(f"Adding contact report API to prim: '{child_prim.GetPrimPath()}'")
+                omni.log.verbose(f"Adding contact report API to prim: '{child_prim.GetPrimPath()}'")
                 cr_api = PhysxSchema.PhysxContactReportAPI.Apply(child_prim)
             else:
-                carb.log_verbose(f"Contact report API already exists on prim: '{child_prim.GetPrimPath()}'")
+                omni.log.verbose(f"Contact report API already exists on prim: '{child_prim.GetPrimPath()}'")
                 cr_api = PhysxSchema.PhysxContactReportAPI.Get(stage, child_prim.GetPrimPath())
             # set threshold to zero
             cr_api.CreateThresholdAttr().Set(threshold)
