@@ -270,7 +270,7 @@ def _validate(obj: object, prefix: str = "") -> list[str]:
                 missing_fields.append(current_path)
             else:
                 # recursively check nested dictionaries, lists, tuples, or other iterables
-                missing_fields.extend(_assert_valid(value, prefix=current_path))
+                missing_fields.extend(_validate(value, prefix=current_path))
     elif isinstance(obj, (list, tuple)):
         # check each element
         for index, item in enumerate(obj):
@@ -279,7 +279,7 @@ def _validate(obj: object, prefix: str = "") -> list[str]:
                 missing_fields.append(current_path)
             else:
                 # recursively check each element in the list or tuple
-                missing_fields.extend(_assert_valid(item, prefix=current_path))
+                missing_fields.extend(_validate(item, prefix=current_path))
 
     # raise an error only once at the top-level call
     if prefix == "" and missing_fields:
