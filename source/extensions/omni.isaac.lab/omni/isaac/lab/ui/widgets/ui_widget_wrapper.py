@@ -1,3 +1,7 @@
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
 
 # This file has been adapted from _isaac_sim/exts/omni.isaac.ui/omni/isaac/ui/element_wrappers/base_ui_element_wrappers.py
 
@@ -9,6 +13,7 @@ import omni
 
 if TYPE_CHECKING:
     import omni.ui
+
 
 class UIWidgetWrapper:
     """

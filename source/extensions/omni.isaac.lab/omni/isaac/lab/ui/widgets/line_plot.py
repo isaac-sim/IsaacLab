@@ -15,8 +15,8 @@ from omni.isaac.core.simulation_context import SimulationContext
 from .ui_widget_wrapper import UIWidgetWrapper
 
 if TYPE_CHECKING:
-    import omni.ui
     import omni.isaac.ui
+    import omni.ui
 
 
 class LiveLinePlot(UIWidgetWrapper):

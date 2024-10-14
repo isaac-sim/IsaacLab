@@ -4,17 +4,17 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import numpy as np
+from matplotlib import cm
 from typing import TYPE_CHECKING
 
 import carb
 import omni
-from matplotlib import cm
 
 from .ui_widget_wrapper import UIWidgetWrapper
 
 if TYPE_CHECKING:
-    import omni.ui
     import omni.isaac.ui
+    import omni.ui
 
 
 class ImagePlot(UIWidgetWrapper):
@@ -118,7 +118,9 @@ class ImagePlot(UIWidgetWrapper):
         with omni.ui.VStack(spacing=3):
             with omni.ui.HStack():
                 # Write the leftmost label for what this plot is
-                omni.ui.Label(self._label, width=omni.isaac.ui.ui_utils.LABEL_WIDTH, alignment=omni.ui.Alignment.LEFT_TOP)
+                omni.ui.Label(
+                    self._label, width=omni.isaac.ui.ui_utils.LABEL_WIDTH, alignment=omni.ui.Alignment.LEFT_TOP
+                )
                 with omni.ui.Frame(width=self._aspect_ratio * self._widget_height, height=self._widget_height):
                     self._base_plot = omni.ui.ImageWithProvider(self._byte_provider)
 

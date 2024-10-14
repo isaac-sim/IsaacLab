@@ -5,9 +5,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 import inspect
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     import omni.ui
@@ -83,7 +82,7 @@ class UiVisualizerBase:
         self._set_env_selection_impl(env_selection)
         return True
 
-    def set_window(self, window: Window) -> bool:
+    def set_window(self, window: omni.ui.Window) -> bool:
         """Sets the current main ui window.
 
         This function is called by the main UI when the window is created. It allows the component
@@ -103,7 +102,7 @@ class UiVisualizerBase:
         self._set_window_impl(window)
         return True
 
-    def set_vis_frame(self, vis_frame: Frame) -> bool:
+    def set_vis_frame(self, vis_frame: omni.ui.Frame) -> bool:
         """Sets the debug visualization frame.
 
         This function is called by the main UI when the window is created. It allows the component
