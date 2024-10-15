@@ -89,7 +89,11 @@ class SubTerrainBaseCfg:
     """
 
     size: tuple[float, float] = (10.0, 10.0)
-    """The width (along x) and length (along y) of the terrain (in m)."""
+    """The width (along x) and length (along y) of the terrain (in m). Defaults to (10.0, 10.0).
+    
+    In case the :class:`~omni.isaac.lab.terrains.TerrainImporterCfg` is used, this parameter gets overidden by
+    :attr:`omni.isaac.lab.scene.TerrainImporterCfg.size` attribute.
+    """
 
     flat_patch_sampling: dict[str, FlatPatchSamplingCfg] | None = None
     """Dictionary of configurations for sampling flat patches on the sub-terrain. Defaults to None,
