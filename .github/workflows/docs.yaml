@@ -38,6 +38,16 @@ jobs:
         if: "${{ github.repository == env.REPO_NAME && github.ref == env.BRANCH_REF }}"
         run: echo "defined=true" >> "$GITHUB_OUTPUT"
 
+  deploy-docs-preview:
+    name: Deploy Docs Preview
+    runs-on: ubuntu-latest
+    needs: [build-docs]
+    steps:
+      - name: Deploy preview
+        uses: rossjrw/pr-preview-action@v1
+        with:
+          source-dir: ./docs/_build/html
+
   deploy-docs:
     name: Deploy Docs
     runs-on: ubuntu-latest
