@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.25.2 (2024-10-14)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a method to :class:`~omni.isaac.lab.utils.configclass` to check for attributes with values of
+  type ``MISSING``. This is useful when the user wants to check if a certain attribute has been set or not.
+
+
 0.25.1 (2024-10-10)
 ~~~~~~~~~~~~~~~~~~~
 
