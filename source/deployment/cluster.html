@@ -615,16 +615,12 @@ development machine and the cluster. Such a connection will simplify the file tr
 the user cluster password from being requested multiple times.</p>
 <div class="admonition attention">
 <p class="admonition-title">Attention</p>
-<p>The workflow has been tested with <code class="docutils literal notranslate"><span class="pre">apptainer</span> <span class="pre">version</span> <span class="pre">1.2.5-1.el7</span></code> and <code class="docutils literal notranslate"><span class="pre">docker</span> <span class="pre">version</span> <span class="pre">24.0.7</span></code>.</p>
-<ul>
-<li><p><code class="docutils literal notranslate"><span class="pre">apptainer</span></code>:
-There have been reported binding issues with previous versions (such as <code class="docutils literal notranslate"><span class="pre">apptainer</span> <span class="pre">version</span> <span class="pre">1.1.3-1.el7</span></code>). Please
-ensure that you are using the latest version.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">Docker</span></code>:
-The latest versions (<code class="docutils literal notranslate"><span class="pre">25.x</span></code>) cannot be used as they are not compatible yet with apptainer/ singularity.</p>
-<p>We are waiting for an update from the apptainer team. To track this issue, please check the <a class="reference external" href="https://forums.docker.com/t/trouble-after-upgrade-to-docker-ce-25-0-1-on-debian-12/139613">forum post</a>.</p>
-</li>
+<p>The workflow has been tested with:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">apptainer</span> <span class="pre">version</span> <span class="pre">1.2.5-1.el7</span></code> and <code class="docutils literal notranslate"><span class="pre">docker</span> <span class="pre">version</span> <span class="pre">24.0.7</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">apptainer</span> <span class="pre">version</span> <span class="pre">1.3.4</span></code> and <code class="docutils literal notranslate"><span class="pre">docker</span> <span class="pre">version</span> <span class="pre">27.3.1</span></code></p></li>
 </ul>
+<p>In the case of issues, please try to switch to those versions.</p>
 </div>
 <section id="configuring-the-cluster-parameters">
 <h3>Configuring the cluster parameters<a class="headerlink" href="#configuring-the-cluster-parameters" title="Permalink to this heading">#</a></h3>
