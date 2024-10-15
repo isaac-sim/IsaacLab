@@ -124,7 +124,7 @@ class MySceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/pendulum/imu_link",
         debug_vis=not app_launcher._headless,
         visualizer_cfg=RED_ARROW_X_MARKER_CFG.replace(prim_path="/Visuals/Acceleration/imu_link"),
-        gravity_bias=(0.0, 0.0, 0.0),
+        gravity_bias=(0.0, 0.0, 9.81),
     )
     imu_pendulum_base: ImuCfg = ImuCfg(
         prim_path="{ENV_REGEX_NS}/pendulum/link_1",
@@ -134,7 +134,7 @@ class MySceneCfg(InteractiveSceneCfg):
         ),
         debug_vis=not app_launcher._headless,
         visualizer_cfg=GREEN_ARROW_X_MARKER_CFG.replace(prim_path="/Visuals/Acceleration/base"),
-        gravity_bias=(0.0, 0.0, 0.0),
+        gravity_bias=(0.0, 0.0, 9.81),
     )
 
     def __post_init__(self):
@@ -346,7 +346,11 @@ class TestImu(unittest.TestCase):
 
             ax = -joint_acc * pend_length * torch.sin(joint_pos) - joint_vel**2 * pend_length * torch.cos(joint_pos)
             ay = torch.zeros(2, 1, device=self.scene.device)
-            az = -joint_acc * pend_length * torch.cos(joint_pos) + joint_vel**2 * pend_length * torch.sin(joint_pos)
+            az = (
+                -joint_acc * pend_length * torch.cos(joint_pos)
+                + joint_vel**2 * pend_length * torch.sin(joint_pos)
+                + 9.81
+            )
             gt_linear_acc_w = torch.cat([ax, ay, az], dim=-1)
 
             # skip first step where initial velocity is zero
@@ -430,6 +434,7 @@ class TestImu(unittest.TestCase):
             )
 
     def test_offset_calculation(self):
+        """Test offset configuration argument."""
         # should achieve same results between the two imu sensors on the robot
         for idx in range(500):
             # set acceleration
@@ -492,6 +497,35 @@ class TestImu(unittest.TestCase):
                 rtol=1e-4,
                 atol=1e-4,
             )
+
+
+def test_env_ids_propogation(self):
+    """Test that env_ids argument propagates through update and reset methods"""
+    self.scene.reset()
+
+    for idx in range(10):
+        # set acceleration
+        self.scene.articulations["robot"].write_root_velocity_to_sim(
+            torch.tensor([[0.5, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=self.scene.device).repeat(
+                self.scene.num_envs, 1
+            )
+            * (idx + 1)
+        )
+        # write data to sim
+        self.scene.write_data_to_sim()
+        # perform step
+        self.sim.step()
+        # read data from sim
+        self.scene.update(self.sim.get_physics_dt())
+
+    # reset scene for env 1
+    self.scene.reset(env_ids=[1])
+    # read data from sim
+    self.scene.update(self.sim.get_physics_dt())
+    # perform step
+    self.sim.step()
+    # read data from sim
+    self.scene.update(self.sim.get_physics_dt())
 
 
 if __name__ == "__main__":

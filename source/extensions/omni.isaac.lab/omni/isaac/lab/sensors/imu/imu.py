@@ -170,7 +170,7 @@ class Imu(SensorBase):
 
         # numerical derivative
         lin_acc_w = (lin_vel_w - self._prev_lin_vel_w[env_ids]) / self._dt + self._gravity_bias_w[env_ids]
-        ang_acc_w = (ang_vel_w - self._prev_ang_vel_w[env_ids) / self._dt
+        ang_acc_w = (ang_vel_w - self._prev_ang_vel_w[env_ids]) / self._dt
         # store the velocities
         self._data.lin_vel_b[env_ids] = math_utils.quat_rotate_inverse(self._data.quat_w[env_ids], lin_vel_w)
         self._data.ang_vel_b[env_ids] = math_utils.quat_rotate_inverse(self._data.quat_w[env_ids], ang_vel_w)
