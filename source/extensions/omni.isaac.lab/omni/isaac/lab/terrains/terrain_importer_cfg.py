@@ -36,8 +36,12 @@ class TerrainImporterCfg:
     All sub-terrains are imported relative to this prim path.
     """
 
-    num_envs: int = MISSING
-    """The number of environment origins to consider."""
+    num_envs: int = 1
+    """The number of environment origins to consider. Defaults to 1.
+
+    In case, the :class:`~omni.isaac.lab.scene.InteractiveSceneCfg` is used, this parameter gets overridden by
+    :attr:`omni.isaac.lab.scene.InteractiveSceneCfg.num_envs` attribute.
+    """
 
     terrain_type: Literal["generator", "plane", "usd"] = "generator"
     """The type of terrain to generate. Defaults to "generator".

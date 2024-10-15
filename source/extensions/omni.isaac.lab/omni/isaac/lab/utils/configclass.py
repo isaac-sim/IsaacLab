@@ -14,7 +14,7 @@ from typing import Any, ClassVar
 
 from .dict import class_to_dict, update_class_from_dict
 
-_CONFIGCLASS_METHODS = ["to_dict", "from_dict", "replace", "copy"]
+_CONFIGCLASS_METHODS = ["to_dict", "from_dict", "replace", "copy", "validate"]
 """List of class methods added at runtime to dataclass."""
 
 """
@@ -98,6 +98,7 @@ def configclass(cls, **kwargs):
     setattr(cls, "from_dict", _update_class_from_dict)
     setattr(cls, "replace", _replace_class_with_kwargs)
     setattr(cls, "copy", _copy_class)
+    setattr(cls, "validate", _validate)
     # wrap around dataclass
     cls = dataclass(cls, **kwargs)
     # return wrapped class
@@ -238,6 +239,56 @@ def _add_annotation_types(cls):
     #   `cls.__annotations__` because of inheritance.
     cls.__annotations__ = cls.__dict__.get("__annotations__", {})
     cls.__annotations__ = hints
+
+
+def _validate(obj: object, prefix: str = "") -> list[str]:
+    """Check the validity of configclass object.
+
+    This function checks if the object is a valid configclass object. A valid configclass object contains no MISSING
+    entries.
+
+    Args:
+        obj: The object to check.
+        prefix: The prefix to add to the missing fields. Defaults to ''.
+
+    Returns:
+        A list of missing fields.
+
+    Raises:
+        TypeError: When the object is not a valid configuration object.
+    """
+    missing_fields = []
+
+    if type(obj) is type(MISSING):
+        missing_fields.append(prefix)
+        return missing_fields
+    elif isinstance(obj, (list, tuple)):
+        for index, item in enumerate(obj):
+            current_path = f"{prefix}[{index}]"
+            missing_fields.extend(_validate(item, prefix=current_path))
+        return missing_fields
+    elif isinstance(obj, dict):
+        obj_dict = obj
+    elif hasattr(obj, "__dict__"):
+        obj_dict = obj.__dict__
+    else:
+        return missing_fields
+
+    for key, value in obj_dict.items():
+        # disregard builtin attributes
+        if key.startswith("__"):
+            continue
+        current_path = f"{prefix}.{key}" if prefix else key
+        missing_fields.extend(_validate(value, prefix=current_path))
+
+    # raise an error only once at the top-level call
+    if prefix == "" and missing_fields:
+        formatted_message = "\n".join(f"  - {field}" for field in missing_fields)
+        raise TypeError(
+            f"Missing values detected in object {obj.__class__.__name__} for the following"
+            f" fields:\n{formatted_message}\n"
+        )
+    return missing_fields
 
 
 def _process_mutable_types(cls):

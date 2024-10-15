@@ -48,6 +48,8 @@ class SensorBase(ABC):
         # check that config is valid
         if cfg.history_length < 0:
             raise ValueError(f"History length must be greater than 0! Received: {cfg.history_length}")
+        # check that the config is valid
+        cfg.validate()
         # store inputs
         self.cfg = cfg
         # flag for whether the sensor is initialized
