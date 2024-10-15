@@ -4,17 +4,28 @@ job0:
   workflow: "/workspace/isaaclab/workflows/rl_games/train.py"
   args: ["--task Isaac-RGB-Camera-Cartpole-v0 --headless --enable_cameras"]
   num_samples: 1
-  ray_sweep_param: null # Supply null for no sweep
-  custom_sweep_param: null # Supply null for no sweep
+  ray_sweep_param: 
+    search_space_0: # Supply null for no sweep
+      type: "constant" # 
+      key: "env.observations.image.params.model_device"
+      value: "cuda:1"
+
 job1:
   workflow: "/workspace/isaaclab/workflows/rl_games/train.py"
   args: ["--task Isaac-Cartpole-ResNet18-Camera-v0  --headless --enable_cameras"]
   num_samples: 1
-  ray_sweep_param: null # supply null for no sweep
-  custom_sweep_param: null # Supply null for no sweep
+  ray_sweep_param:
+    search_space_0: # Supply null for no sweep
+      type: "constant" # 
+      key: "env.observations.image.params.model_device"
+      value: "cuda:1" # supply null for no sweep
+
 job2:
   workflow: "/workspace/isaaclab/workflows/rl_games/train.py"
-  args: ["-- task Isaac-Cartpole-Theia-Camera-v0  --headless --enable_cameras"]
+  args: ["--task Isaac-Cartpole-Theia-Camera-v0  --headless --enable_cameras"]
   num_samples: 1
-  ray_sweep_param: null # Supply null for no sweep
-  custom_sweep_param: null # Supply null for no sweep
+  ray_sweep_param: 
+    search_space_0: # Supply null for no sweep
+      type: "constant" # 
+      key: "env.observations.image.params.model_device"
+      value: "cuda:1" # Supply null for no sweep

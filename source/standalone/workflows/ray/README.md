@@ -122,10 +122,10 @@ As a result of using Ray, running experiments in the cloud and locally have very
 
 	If your cluster was created in pure Ray, you must create the file manually with the following contents, one on each
 	line for every Ray Cluster. If you are developing locally, you likely only have one ray cluster,
-	and only need one line in this file
+	and only need one line in this file. If you only have 1 gpu, then you can only have 1 worker.
 
 	```
-	name: <CLUSTER_NAME> address: http://<RAY_HEAD_IP>.<RAY_DASHBOARD_PORT> num_cpu: <TOTAL_CLUSTER_CPU_COUNT> num_gpu: <TOTAL_CLUSTER_GPU_COUNT>
+	name: <CLUSTER_NAME> address: http://<RAY_HEAD_IP>.<RAY_DASHBOARD_PORT> num_cpu: <TOTAL_CLUSTER_CPU_COUNT> num_gpu: <TOTAL_CLUSTER_GPU_COUNT> rm_gb: <TOTAL_GIGABYTES_RAM> num_workers: <NUM_WORKERS>
 	```
 
 6. Check that you can issue jobs to the cluster, that all GPUs are available,

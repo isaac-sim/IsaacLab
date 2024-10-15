@@ -4,38 +4,30 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import argparse
-
 from ray import tune
+import subprocess
+import ray
+import time
+#from functools import partial 
+# PartialMyTrainableClass = partial(MyTrainableClass, additional_arg1="Some value", additional_arg2=42)
+
+MAX_LINES_BEFORE_EXPERIMENT_START = 2000
+
+def construct_cnn(filters_range: tuple[int],
+                  kernel_range: tuple[int]):
+    pass
+
+def construct_mlp():
+    pass
+
+def check_minibatch_compatibility(num_envs: int, 
+                                    minibatch_size: int,
+                                    horizon_length: int = 16):
+    pass
+
+
 
 # from ray.train import RunConfig
-
-
-class IsaacLabTuneTrainable(tune.Trainable):
-    def __init__(self, executable_path, workflow_path, args):
-        self.invocation_str = executable_path + " " + workflow_path
-        for arg in args:
-            spaced_arg = " " + arg + " "
-            self.invocation_str += spaced_arg
-        print(f"[INFO] Using base invocation of {self.invocation_str} for all trials")
-
-    def setup(self, config):
-        print(f"[INFO]: From base invocation of {self.invocation_str}, adding the following config:")
-
-        # invocation_string_with_hydra_hooks
-        for key, value in config.items():
-            print("---")
-            print(f"{key = }: {value = }")
-            print("----")
-
-    def step(self):
-        pass
-
-import subprocess
-import re
-import time
-import ray
-from ray import tune
-
 def extract_experiment_info(output):
     """Extract experiment name and log directory from the subprocess output."""
     experiment_name_pattern = r'Exact experiment name requested from command line: (\S+)'
@@ -61,46 +53,89 @@ def extract_experiment_info(output):
     return experiment_name, logdir
 
 
-def invoke_run(workflow: str, 
-    run_cmd_args: list[str], 
-    hydra_param_args: list[str]):
-    """Invoke a training run with the desired parameters.
-    
-    This is a subprocess, as opposed to calling a method, due to
-    """
-    """Ray Tune trainable function that monitors the subprocess and extracts logs."""
-    
-    # Start the subprocess
-    proc = subprocess.Popen(
-        ["./workspace/isaaclab.sh -p ", workflow, *run_cmd_args, *hydra_param_args],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True
-    )
+class IsaacLabTuneTrainable(tune.Trainable):
+    def __init__(self):
+        pass
+        # self.invocation_str = executable_path + " " + workflow_path
+        # for arg in args:
+        #     spaced_arg = " " + arg + " "
+        #     self.invocation_str += spaced_arg
+        # print(f"[INFO] Using base invocation of {self.invocation_str} for all trials")
 
-    log_output = ""
-    
-    # try:
-    #     while proc.poll() is None:
-    #         # Read output line by line
-    #         line = proc.stdout.readline()
-    #         if line:
-    #             print(line.strip())  # Optionally print or log the output
-    #             log_output += line
+    def setup(self, config):
+        pass
 
-    #         # Check for early stopping by Ray Tune
-    #         if tune.get_trial_resources().trial_runner.should_stop_trial():
-    #             break
+    def step(self):
+        pass
 
-    #         time.sleep(.1)
+    def invoke_run(self, cfg, max_line_count=2000):
+        runner_args = []
+        hydra_args = []
+        def process_args(args, target_list):
+            for key, value in args.items():
+                # for example, key: singletons | value: List
+                if isinstance(value, dict):
+                    target_list.append(f" {key}={value} ")
+                elif isinstance(value, list):
+                    target_list.extend(value)
+                else:
+                    target_list.append(f"{value}")
+                print(f"{target_list[-1]}")
+        
+        print(f"[INFO]: Starting workflow {cfg['workflow']}")
+        print("[INFO]: Retrieving workflow runner args:")
+        process_args(cfg["runner_args"], runner_args)
+        print("[INFO]: Retrieving hydra args:")
+        process_args(cfg["hydra_args"], hydra_args)
 
-    #     # Extract experiment info from the subprocess output
-    #     experiment_name, logdir = extract_experiment_info(log_output)
+        self.proc = subprocess.Popen(
+            ["./workspace/isaaclab.sh -p ", cfg["workflow"], *runner_args, *hydra_args],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True
+        )
 
-    #     if experiment_name and logdir:
-    #         # Log this info into Ray Tune
-    #         return {"experiment_name": experiment_name, 
-    #                 "logdir": logdir}
+        log_output = ""
+        lines_read = 0
+        experiment_name = None
+        logdir = None
+        success_detected = False
+        error_detected = False
+
+        error_message = "There was an error running python"
+        success_message = "epoch: 1/"  # Check for the first epoch start
+
+        while lines_read < max_line_count and not (experiment_name and logdir and success_detected):
+            line = self.proc.stdout.readline()
+            if line:
+                log_output += line
+                lines_read += 1
+
+                # Check for experiment info
+                if not experiment_name or not logdir:
+                    experiment_match = re.search(r'Exact experiment name requested from command line: (\S+)', line)
+                    logdir_match = re.search(r'\[INFO\] Logging experiment in directory: (.+)', line)
+                    if experiment_match:
+                        experiment_name = experiment_match.group(1)
+                    if logdir_match:
+                        logdir = logdir_match.group(1)
+
+                # Check for success or error
+                if success_message in line:
+                    success_detected = True
+                if error_message in line:
+                    error_detected = True
+                    break  # Stop processing if an error is detected
+
+            time.sleep(0.1)  # Sleep to avoid busy wait
+
+        if error_detected:
+            raise RuntimeError(f"Error during experiment run: {log_output}")
+        elif not (experiment_name and logdir and success_detected):
+            raise ValueError("Could not extract experiment details or verify successful execution within the line limit.")
+        
+        return {"experiment_name": experiment_name, "logdir": logdir}
+
 
 def add_cluster_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
