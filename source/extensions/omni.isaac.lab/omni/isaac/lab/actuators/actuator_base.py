@@ -221,7 +221,10 @@ class ActuatorBase(ABC):
                 # note: need to specify type to be safe (e.g. values are ints, but we want floats)
                 param[:, indices] = torch.tensor(values, dtype=torch.float, device=self._device)
             else:
-                raise TypeError(f"Invalid type for parameter value: {type(cfg_value)}. Expected float or dict.")
+                raise TypeError(
+                    f"Invalid type for parameter value: {type(cfg_value)} for "
+                    + f"actuator on joints {self.joint_names}. Expected float or dict."
+                )
         elif default_value is not None:
             if isinstance(default_value, (float, int)):
                 # if float, then use the same value for all joints
@@ -230,7 +233,10 @@ class ActuatorBase(ABC):
                 # if tensor, then use the same tensor for all joints
                 param[:] = default_value.float()
             else:
-                raise TypeError(f"Invalid type for default value: {type(default_value)}. Expected float or Tensor.")
+                raise TypeError(
+                    f"Invalid type for default value: {type(default_value)} for "
+                    + f"actuator on joints {self.joint_names}. Expected float or Tensor."
+                )
         else:
             raise ValueError("The parameter value is None and no default value is provided.")
 
