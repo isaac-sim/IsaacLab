@@ -18,7 +18,20 @@ if TYPE_CHECKING:
 
 
 def constant_noise(data: torch.Tensor, cfg: noise_cfg.ConstantNoiseCfg) -> torch.Tensor:
-    """Constant noise."""
+    """Applies a constant noise bias to a given data set.
+
+    Args:
+        data: The unmodified data set to apply noise to.
+        cfg: The configuration parameters for constant noise.
+
+    Returns:
+        The data modified by the noise parameters provided.
+    """
+
+    # fix tensor device for bias on first call and update config parameters
+    if isinstance(cfg.bias, torch.Tensor):
+        cfg.bias = cfg.bias.to(device=data.device)
+
     if cfg.operation == "add":
         return data + cfg.bias
     elif cfg.operation == "scale":
@@ -30,7 +43,23 @@ def constant_noise(data: torch.Tensor, cfg: noise_cfg.ConstantNoiseCfg) -> torch
 
 
 def uniform_noise(data: torch.Tensor, cfg: noise_cfg.UniformNoiseCfg) -> torch.Tensor:
-    """Uniform noise."""
+    """Applies a uniform noise to a given data set.
+
+    Args:
+        data: The unmodified data set to apply noise to.
+        cfg: The configuration parameters for uniform noise.
+
+    Returns:
+        The data modified by the noise parameters provided.
+    """
+
+    # fix tensor device for n_max on first call and update config parameters
+    if isinstance(cfg.n_max, torch.Tensor):
+        cfg.n_max = cfg.n_max.to(data.device)
+    # fix tensor device for n_min on first call and update config parameters
+    if isinstance(cfg.n_min, torch.Tensor):
+        cfg.n_min = cfg.n_min.to(data.device)
+
     if cfg.operation == "add":
         return data + torch.rand_like(data) * (cfg.n_max - cfg.n_min) + cfg.n_min
     elif cfg.operation == "scale":
@@ -42,7 +71,23 @@ def uniform_noise(data: torch.Tensor, cfg: noise_cfg.UniformNoiseCfg) -> torch.T
 
 
 def gaussian_noise(data: torch.Tensor, cfg: noise_cfg.GaussianNoiseCfg) -> torch.Tensor:
-    """Gaussian noise."""
+    """Applies a gaussian noise to a given data set.
+
+    Args:
+        data: The unmodified data set to apply noise to.
+        cfg: The configuration parameters for gaussian noise.
+
+    Returns:
+        The data modified by the noise parameters provided.
+    """
+
+    # fix tensor device for mean on first call and update config parameters
+    if isinstance(cfg.mean, torch.Tensor):
+        cfg.mean = cfg.mean.to(data.device)
+    # fix tensor device for std on first call and update config parameters
+    if isinstance(cfg.std, torch.Tensor):
+        cfg.std = cfg.std.to(data.device)
+
     if cfg.operation == "add":
         return data + cfg.mean + cfg.std * torch.randn_like(data)
     elif cfg.operation == "scale":
