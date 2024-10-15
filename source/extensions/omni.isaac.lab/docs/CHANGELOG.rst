@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+
+0.25.2 (2024-10-15)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed issues with using list or tuples of ``configclass`` within a ``configclass`` when using Modifiers.
+
+
 0.25.1 (2024-10-10)
 ~~~~~~~~~~~~~~~~~~~
 
