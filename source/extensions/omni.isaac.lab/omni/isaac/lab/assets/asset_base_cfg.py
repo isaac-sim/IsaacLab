@@ -39,8 +39,8 @@ class AssetBaseCfg:
         Defaults to (1.0, 0.0, 0.0, 0.0).
         """
 
-    class_type: type[AssetBase] = MISSING
-    """The associated asset class.
+    class_type: type[AssetBase] = None
+    """The associated asset class. Defaults to None.
 
     The class should inherit from :class:`omni.isaac.lab.assets.asset_base.AssetBase`.
     """

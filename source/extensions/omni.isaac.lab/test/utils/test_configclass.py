@@ -364,6 +364,8 @@ class MissingChildDemoCfg(MissingParentDemoCfg):
     """Dummy child configuration with missing fields."""
 
     c: Callable = MISSING
+    d: int | None = None
+    e: dict = {}
 
 
 """
@@ -949,9 +951,13 @@ class TestConfigClass(unittest.TestCase):
         with self.assertRaises(TypeError) as context:
             cfg.validate()
 
+        # check that the expected missing fields are in the error message
         error_message = str(context.exception)
         for elem in validity_expected_fields:
-            self.assertIn(elem, error_message, f"Missing field '{elem}' not found in error message")
+            self.assertIn(elem, error_message)
+
+        # check that no more than the expected missing fields are in the error message
+        self.assertEqual(len(error_message.split("\n")) - 2, len(validity_expected_fields))
 
 
 if __name__ == "__main__":

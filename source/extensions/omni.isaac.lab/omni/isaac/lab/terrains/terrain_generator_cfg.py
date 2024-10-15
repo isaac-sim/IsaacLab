@@ -88,7 +88,7 @@ class SubTerrainBaseCfg:
     is 0.7.
     """
 
-    size: tuple[float, float] = MISSING
+    size: tuple[float, float] = (10.0, 10.0)
     """The width (along x) and length (along y) of the terrain (in m)."""
 
     flat_patch_sampling: dict[str, FlatPatchSamplingCfg] | None = None

@@ -7,7 +7,7 @@
 
 import inspect
 import types
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import MISSING, Field, dataclass, field, replace
 from typing import Any, ClassVar
@@ -258,34 +258,35 @@ def _validate(obj: object, prefix: str = "") -> list[str]:
         TypeError: When the object is not a valid configuration object.
     """
     missing_fields = []
-    obj_type_name = obj.__class__.__name__
-    if prefix == "":
-        obj = obj.to_dict()
 
-    if isinstance(obj, Mapping):
-        # check each key-value pair
-        for key, value in obj.items():
-            current_path = f"{prefix}.{key}" if prefix else key
-            if type(value) is type(MISSING) or not value:
-                missing_fields.append(current_path)
-            else:
-                # recursively check nested dictionaries, lists, tuples, or other iterables
-                missing_fields.extend(_validate(value, prefix=current_path))
+    if type(obj) is type(MISSING):
+        missing_fields.append(prefix)
+        return missing_fields
     elif isinstance(obj, (list, tuple)):
-        # check each element
         for index, item in enumerate(obj):
             current_path = f"{prefix}[{index}]"
-            if type(item) is type(MISSING):
-                missing_fields.append(current_path)
-            else:
-                # recursively check each element in the list or tuple
-                missing_fields.extend(_validate(item, prefix=current_path))
+            missing_fields.extend(_validate(item, prefix=current_path))
+        return missing_fields
+    elif isinstance(obj, dict):
+        obj_dict = obj
+    elif hasattr(obj, "__dict__"):
+        obj_dict = obj.__dict__
+    else:
+        return missing_fields
+
+    for key, value in obj_dict.items():
+        # disregard builtin attributes
+        if key.startswith("__"):
+            continue
+        current_path = f"{prefix}.{key}" if prefix else key
+        missing_fields.extend(_validate(value, prefix=current_path))
 
     # raise an error only once at the top-level call
     if prefix == "" and missing_fields:
         formatted_message = "\n".join(f"  - {field}" for field in missing_fields)
         raise TypeError(
-            f"Missing values detected in object {obj_type_name} for the following fields:\n{formatted_message}"
+            f"Missing values detected in object {obj.__class__.__name__} for the following"
+            f" fields:\n{formatted_message}\n"
         )
     return missing_fields
 

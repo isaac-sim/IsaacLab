@@ -36,7 +36,7 @@ class TerrainImporterCfg:
     All sub-terrains are imported relative to this prim path.
     """
 
-    num_envs: int = MISSING
+    num_envs: int = 1
     """The number of environment origins to consider."""
 
     terrain_type: Literal["generator", "plane", "usd"] = "generator"
