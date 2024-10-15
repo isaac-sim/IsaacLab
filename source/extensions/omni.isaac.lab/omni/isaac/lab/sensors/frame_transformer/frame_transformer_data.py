@@ -15,8 +15,8 @@ class FrameTransformerData:
     """Target frame names (this denotes the order in which that frame data is ordered).
 
     The frame names are resolved from the :attr:`FrameTransformerCfg.FrameCfg.name` field.
-    This usually follows the order in which the frames are defined in the config. However, in
-    the case of regex matching, the order may be different.
+    This does not necessarily follow the order in which the frames are defined in the config due to
+    the regex matching.
     """
 
     target_pos_source: torch.Tensor = None
