@@ -9,6 +9,8 @@ Added
 
 * Added a method to :class:`~omni.isaac.lab.utils.configclass` to check for attributes with values of
   type ``MISSING``. This is useful when the user wants to check if a certain attribute has been set or not.
+* Added the configuration validation check inside the constructor of all the core classes
+  (such as sensor base, asset base, scene and environment base classes).
 
 
 0.25.1 (2024-10-10)
