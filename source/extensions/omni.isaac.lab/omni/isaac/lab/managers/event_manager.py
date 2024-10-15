@@ -12,7 +12,7 @@ from collections.abc import Sequence
 from prettytable import PrettyTable
 from typing import TYPE_CHECKING
 
-import carb
+import omni.log
 
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import EventTermCfg
@@ -157,7 +157,7 @@ class EventManager(ManagerBase):
         """
         # check if mode is valid
         if mode not in self._mode_term_names:
-            carb.log_warn(f"Event mode '{mode}' is not defined. Skipping event.")
+            omni.log.warn(f"Event mode '{mode}' is not defined. Skipping event.")
             return
         # check if mode is interval and dt is not provided
         if mode == "interval" and dt is None:
@@ -324,7 +324,7 @@ class EventManager(ManagerBase):
                 )
 
             if term_cfg.mode != "reset" and term_cfg.min_step_count_between_reset != 0:
-                carb.log_warn(
+                omni.log.warn(
                     f"Event term '{term_name}' has 'min_step_count_between_reset' set to a non-zero value"
                     " but the mode is not 'reset'. Ignoring the 'min_step_count_between_reset' value."
                 )

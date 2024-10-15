@@ -174,7 +174,7 @@ Now that we have gone through the code, let's run the script and see the result:
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p source/standalone/tutorials/04_sensors/add_sensors_on_robot.py --num_envs 2
+   ./isaaclab.sh -p source/standalone/tutorials/04_sensors/add_sensors_on_robot.py --num_envs 2 --enable_cameras
 
 
 This command should open a stage with a ground plane, lights, and two quadrupedal robots.
