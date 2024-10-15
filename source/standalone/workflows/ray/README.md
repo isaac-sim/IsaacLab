@@ -14,8 +14,8 @@ The Ray integration is useful to you if any of the following apply:
 
 
 Notably, this Ray integration is able to leverage the existing Isaac Lab Hydra support
-for changing hyperparameters. See ``hyperparameter_tuning/config/vision_cartpole.yaml``
-for a demonstration of how easy hyperparameter tuning can be when leveraging Ray and Hydra.
+for changing hyperparameters. See ``hyperparameter_tuning/config/vision_cartpole.py``
+for a demonstration of how easy hyperparameter tuning can be when leveraging Isaac-Ray and Hydra.
 
 # Installation
 
@@ -56,7 +56,7 @@ An example of what a cloud deploy might look look like is in ``cloud_cluster_con
 
 
 ### Local and Other Setups
-#### Option A: With Ray Clusters (Recommended)
+#### Option A: With Ray Clusters
 On the head machine, run ``ray start --head --port 6379``. On any worker machines,
 make sure you can connect to the head machine, and then run
 ```ray start --address='HEAD_NODE_IP:6379'``` . For more info see
@@ -113,8 +113,7 @@ As a result of using Ray, running experiments in the cloud and locally have very
 
 5. Create a ```~/.cluster_config``` file. If you configured your cluster with Kubernetes/KubeRay,
 	you can run the following script and move on to the next step. This command may
-	take a moment to run, and is provided for your convenience. If it is taking too long,
-	feel free to do it the manual way shown below the command.
+	take a moment to run.
 
 	```
 	./isaaclab.sh -p /source/standalone/workflows/ray/grok_cluster_with_kubectl.py
@@ -137,12 +136,18 @@ As a result of using Ray, running experiments in the cloud and locally have very
 	```
 
 7. Define your desired Ray job as a script on your local machine.
-   	For a hyperparameter tuning job, see ```isaac_ray_tune.py cfg=hyper_parameter_tuning/config/vision_cartpole.yaml``` # TODO: Actually write this bad boy
+   	For a hyperparameter tuning job, see ```hyper_parameter_tuning/config/vision_cartpole.py```
 
 8. Start your distributed Ray job.
 
 	```
 	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py "<YOUR_JOB_HERE>"
+	```
+
+	For example,
+
+	```
+	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py "isaac_ray_tune.py --cfg=hyper_parameter_tuning/config/vision_cartpole.py"
 	```
 
 8. When you have completed your distributed job, stop the cluster to conserve resources.
@@ -219,6 +224,12 @@ hyperparameter simultaneously in parallel.
 	in the order that they appear.
 	```
 	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py "<JOB_0>" "<JOB_1>" "<JOB_N>"
+	```
+
+	For example if you have three clusters, and would like to tune three cartpole variants at once,
+
+	```
+	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py "isaac_ray_tune.py --cfg=hyper_parameter_tuning/config/vision_cartpole.py --tune_type standard" "isaac_ray_tune.py --cfg=hyper_parameter_tuning/config/vision_cartpole.py --tune_type resnet" "isaac_ray_tune.py --cfg=hyper_parameter_tuning/config/vision_cartpole.py --tune_type theia"
 	```
 
 6. Clean up your cluster to conserve resources (follow single cluster steps for each cluster).

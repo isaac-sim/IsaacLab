@@ -8,25 +8,22 @@ import re
 import subprocess
 import time
 
-# import ray
-# from ray import tune
-
-# from functools import partial
-# PartialMyTrainableClass = partial(MyTrainableClass, additional_arg1="Some value", additional_arg2=42)
-
-MAX_LINES_BEFORE_EXPERIMENT_START = 2000
+from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 
 
-def construct_cnn(filters_range: tuple[int], kernel_range: tuple[int]):
-    pass
+def load_tensorboard_logs(directory, max_entries=100):
+    # Initialize the event accumulator with a size guidance
+    size_guidance = {"scalars": max_entries}  # Limit the number of entries for scalars
+    event_acc = EventAccumulator(directory, size_guidance=size_guidance)
+    event_acc.Reload()  # Load all data from the directory
 
-
-def construct_mlp():
-    pass
-
-
-def check_minibatch_compatibility(num_envs: int, minibatch_size: int, horizon_length: int = 16):
-    pass
+    # Extract all scalars logged
+    scalars = {}
+    for tag in event_acc.Tags()["scalars"]:
+        events = event_acc.Scalars(tag)
+        values = [event.value for event in events]
+        scalars[tag] = values
+    return scalars
 
 
 def extract_experiment_info(output):
@@ -62,7 +59,8 @@ def invoke_run(cfg, max_line_count=2000):
         for key, value in args.items():
             # for example, key: singletons | value: List
             if isinstance(value, dict):
-                target_list.append(f" {key}={value} ")
+                for subkey, subvalue in value.items():
+                    target_list.append(f" {subkey}={subvalue} ")
             elif isinstance(value, list):
                 target_list.extend(value)
             else:
@@ -116,12 +114,10 @@ def invoke_run(cfg, max_line_count=2000):
 
         time.sleep(0.1)  # Sleep to avoid busy wait
 
-    if error_detected:
-        raise RuntimeError(f"Error during experiment run: {log_output}")
-    # elif not (experiment_name and logdir and success_detected):
-    #     raise ValueError("Could not extract experiment details or verify successful execution within the line limit.")
-
-    return {"experiment_name": experiment_name, "logdir": logdir}
+    if error_detected or experiment_name is None or logdir is None:
+        print(f"Error during experiment run, or could not find logdir: \n {log_output}")
+        return {"proc": None, "experiment_name": None, "logdir": None}
+    return {"proc": proc, "experiment_name": experiment_name, "logdir": logdir}
 
 
 def add_cluster_args(parser: argparse.ArgumentParser) -> None:
