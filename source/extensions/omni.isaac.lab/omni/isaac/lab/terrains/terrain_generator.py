@@ -8,7 +8,7 @@ import os
 import torch
 import trimesh
 
-import carb
+import omni.log
 
 from omni.isaac.lab.utils.dict import dict_to_md5_hash
 from omni.isaac.lab.utils.io import dump_yaml
@@ -119,7 +119,7 @@ class TerrainGenerator:
 
         # throw a warning if the cache is enabled but the seed is not set
         if self.cfg.use_cache and self.cfg.seed is None:
-            carb.log_warn(
+            omni.log.warn(
                 "Cache is enabled but the seed is not set. The terrain generation will not be reproducible."
                 " Please set the seed in the terrain generator configuration to make the generation reproducible."
             )
@@ -295,7 +295,7 @@ class TerrainGenerator:
         """
         # sample flat patches if specified
         if sub_terrain_cfg.flat_patch_sampling is not None:
-            carb.log_info(f"Sampling flat patches for sub-terrain at (row, col):  ({row}, {col})")
+            omni.log.info(f"Sampling flat patches for sub-terrain at (row, col):  ({row}, {col})")
             # convert the mesh to warp mesh
             wp_mesh = convert_to_warp_mesh(mesh.vertices, mesh.faces, device=self.device)
             # sample flat patches based on each patch configuration for that sub-terrain

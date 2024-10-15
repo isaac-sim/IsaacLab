@@ -127,6 +127,7 @@ autodoc_mock_imports = [
     "warp",
     "pxr",
     "omni.kit",
+    "omni.log",
     "omni.usd",
     "omni.client",
     "omni.physx",
