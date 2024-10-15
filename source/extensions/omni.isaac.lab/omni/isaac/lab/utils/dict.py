@@ -40,7 +40,7 @@ def class_to_dict(obj: object) -> dict[str, Any]:
     # convert object to dictionary
     if isinstance(obj, dict):
         obj_dict = obj
-    elif hasattr(obj, '__dict__'):
+    elif hasattr(obj, "__dict__"):
         obj_dict = obj.__dict__
     else:
         return obj
