@@ -1,0 +1,913 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+    <title>Tricks and Troubleshooting &#8212; Isaac Lab documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../../_static/styles/bootstrap.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+
+  
+  <link href="../../_static/vendor/fontawesome/6.5.2/css/all.min.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="../../_static/vendor/fontawesome/6.5.2/webfonts/fa-solid-900.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css" />
+    <link rel="stylesheet" href="../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.10.15/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.4cbf315f70debaebd550c87a6162cf0f.min.css" />
+  
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
+  <script src="../../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+    <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+    <script src="../../_static/doctools.js"></script>
+    <script src="../../_static/sphinx_highlight.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.10.15/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="../../_static/clipboard.min.js"></script>
+    <script src="../../_static/copybutton.js"></script>
+    <script src="../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
+    <script src="../../_static/design-tabs.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'source/refs/troubleshooting';</script>
+    <link rel="icon" href="../../_static/favicon.ico"/>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Known Issues" href="issues.html" />
+    <link rel="prev" title="Contribution Guidelines" href="contributing.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+    <meta name="docbuild:last-update" content="Oct 15, 2024"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-primary-sidebar-checkbox"/>
+  <label class="overlay overlay-primary" for="pst-primary-sidebar-checkbox"></label>
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-secondary-sidebar-checkbox"/>
+  <label class="overlay overlay-secondary" for="pst-secondary-sidebar-checkbox"></label>
+  
+  <div class="search-button__wrapper">
+    <div class="search-button__overlay"></div>
+    <div class="search-button__search-container">
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         id="search-input"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+  </div>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <div class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/NVIDIA-logo-white.png" class="logo__image only-light" alt=""/>
+    <script>document.write(`<img src="../../_static/NVIDIA-logo-black.png" class="logo__image only-dark" alt=""/>`);</script>
+  
+  
+    <p class="title logo__title">Isaac Lab documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item"><ul class="navbar-icon-links"
+    aria-label="Quick Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/isaac-sim/IsaacLab" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://img.shields.io/github/stars/isaac-sim/IsaacLab?color=fedcba" title="Stars" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/github/stars/isaac-sim/IsaacLab?color=fedcba" class="icon-link-image" alt="Stars"/></a>
+        </li>
+</ul></div>
+        <div class="sidebar-primary-item">
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         id="search-input"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../setup/installation/index.html">Installation Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../setup/installation/pip_installation.html">Option 1: Installation using Isaac Sim pip</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../setup/installation/binaries_installation.html">Option 2: Installation using Isaac Sim binaries</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../setup/faq.html">Frequently Asked Questions</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Overview</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../overview/developer-guide/index.html">Developer’s Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
+
+<li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/repo_structure.html">Repository organization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/development.html">Application Development</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/template.html">Building your Own Project</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../overview/core-concepts/index.html">Core Concepts</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../overview/core-concepts/task_workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/core-concepts/actuators.html">Actuators</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../overview/environments.html">Available Environments</a></li>
+
+<li class="toctree-l1 has-children"><a class="reference internal" href="../overview/reinforcement-learning/index.html">Reinforcement Learning</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../overview/reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Wrappers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/reinforcement-learning/rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/reinforcement-learning/performance_benchmarks.html">Performance Benchmarks</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../overview/teleop_imitation.html">Teleoperation and Imitation Learning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../overview/showroom.html">Showroom Demos</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../overview/simple_agents.html">Simple Agents</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../features/hydra.html">Hydra Configuration System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../features/tiled_rendering.html">Tiled-Camera Rendering</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../features/reproducibility.html">Reproducibility and Determinism</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/00_sim/spawn_prims.html">Spawning prims into the scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/00_sim/launch_app.html">Deep-dive into AppLauncher</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/01_assets/run_rigid_object.html">Interacting with a rigid object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/01_assets/run_articulation.html">Interacting with an articulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/01_assets/run_deformable_object.html">Interacting with a deformable object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/02_scene/create_scene.html">Using the Interactive Scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/create_manager_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/create_manager_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../how-to/index.html">How-to Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/import_new_asset.html">Importing a New Asset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/write_articulation_cfg.html">Writing an Asset Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/make_fixed_prim.html">Making a physics prim fixed in the simulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/multi_asset_spawning.html">Spawning Multiple Assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/save_camera_output.html">Saving rendered images and 3D re-projection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/estimate_how_many_cameras_can_run.html">Find How Many/What Cameras You Should Train With</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/draw_markers.html">Creating Visualization Markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/wrap_rl_env.html">Wrapping environments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/add_own_library.html">Adding your own learning library</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/record_animation.html">Recording Animations of Simulations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/record_video.html">Recording video clips during training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../deployment/index.html">Container Deployment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../deployment/docker.html">Docker Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../deployment/cluster.html">Cluster Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../deployment/run_docker_example.html">Running an example with Docker</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Migration Guides</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../migration/migrating_from_isaacgymenvs.html">From IsaacGymEnvs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../migration/migrating_from_omniisaacgymenvs.html">From OmniIsaacGymEnvs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../migration/migrating_from_orbit.html">From Orbit</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Source API</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../api/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.app.html">omni.isaac.lab.app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.actuators.html">omni.isaac.lab.actuators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html">omni.isaac.lab.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.controllers.html">omni.isaac.lab.controllers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.devices.html">omni.isaac.lab.devices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.envs.html">omni.isaac.lab.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.managers.html">omni.isaac.lab.managers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.markers.html">omni.isaac.lab.markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.scene.html">omni.isaac.lab.scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.html">omni.isaac.lab.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.sim.html">omni.isaac.lab.sim</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.terrains.html">omni.isaac.lab.terrains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.utils.html">omni.isaac.lab.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.envs.mdp.html">omni.isaac.lab.envs.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.envs.ui.html">omni.isaac.lab.envs.ui</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.patterns.html">omni.isaac.lab.sensors.patterns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.sim.converters.html">omni.isaac.lab.sim.converters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.sim.schemas.html">omni.isaac.lab.sim.schemas</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.sim.spawners.html">omni.isaac.lab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab_tasks/omni.isaac.lab_tasks.utils.html">omni.isaac.lab_tasks.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html">omni.isaac.lab_tasks.utils.wrappers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab_tasks/omni.isaac.lab_tasks.utils.data_collector.html">omni.isaac.lab_tasks.utils.data_collector</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="additional_resources.html">Additional Resources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contribution Guidelines</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Tricks and Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="issues.html">Known Issues</a></li>
+<li class="toctree-l1"><a class="reference internal" href="changelog.html">Extensions Changelog</a></li>
+<li class="toctree-l1"><a class="reference internal" href="license.html">License</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bibliography.html">Bibliography</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/index.html">NVIDIA PhysX</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+  
+  <div id="rtd-footer-container"></div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</label></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-source-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Source repositories">
+    <i class="fab fa-github"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab" target="_blank"
+   class="btn btn-sm btn-source-repository-button dropdown-item"
+   title="Source repository"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+<span class="btn__text-container">Repository</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab/edit/main/source/refs/troubleshooting.rst" target="_blank"
+   class="btn btn-sm btn-source-edit-button dropdown-item"
+   title="Suggest edit"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-pencil-alt"></i>
+  </span>
+<span class="btn__text-container">Suggest edit</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2Fsource/refs/troubleshooting.html&body=Your%20issue%20content%20here." target="_blank"
+   class="btn btn-sm btn-source-issues-button dropdown-item"
+   title="Open an issue"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-lightbulb"></i>
+  </span>
+<span class="btn__text-container">Open issue</span>
+</a>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../../_sources/source/refs/troubleshooting.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button" title="light/dark" aria-label="light/dark" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"></i>
+  </button>
+`);
+</script>
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm pst-navbar-icon search-button search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+  </button>
+`);
+</script>
+<label class="sidebar-toggle secondary-toggle btn btn-sm" for="__secondary"title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</label>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Tricks and Troubleshooting</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#checking-the-internal-logs-from-the-simulator">Checking the internal logs from the simulator</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#changing-logging-channel-levels-for-the-simulator">Changing logging channel levels for the simulator</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#using-cpu-scaling-governor-for-performance">Using CPU Scaling Governor for performance</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#observing-long-load-times-at-the-start-of-the-simulation">Observing long load times at the start of the simulation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#receiving-a-physx-error-when-running-simulation-on-gpu">Receiving a “PhysX error” when running simulation on GPU</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#preventing-memory-leaks-in-the-simulator">Preventing memory leaks in the simulator</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#understanding-the-error-logs-from-crashes">Understanding the error logs from crashes</a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="tricks-and-troubleshooting">
+<h1>Tricks and Troubleshooting<a class="headerlink" href="#tricks-and-troubleshooting" title="Permalink to this heading">#</a></h1>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The following lists some of the common tricks and troubleshooting methods that we use in our common workflows.
+Please also check the <a class="reference external" href="https://docs.omniverse.nvidia.com/kit/docs/kit-manual/latest/guide/linux_troubleshooting.html">troubleshooting page on Omniverse</a> for more
+assistance.</p>
+</div>
+<section id="checking-the-internal-logs-from-the-simulator">
+<h2>Checking the internal logs from the simulator<a class="headerlink" href="#checking-the-internal-logs-from-the-simulator" title="Permalink to this heading">#</a></h2>
+<p>When running the simulator from a standalone script, it logs warnings and errors to the terminal. At the same time,
+it also logs internal messages to a file. These are useful for debugging and understanding the internal state of the
+simulator. Depending on your system, the log file can be found in the locations listed
+<a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/installation/install_faq.html#common-path-locations">here</a>.</p>
+<p>To obtain the exact location of the log file, you need to check the first few lines of the terminal output when
+you run the standalone script. The log file location is printed at the start of the terminal output. For example:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">[</span>INFO<span class="o">]</span><span class="w"> </span>Using<span class="w"> </span>python<span class="w"> </span>from:<span class="w"> </span>/home/<span class="si">${</span><span class="nv">USER</span><span class="si">}</span>/git/IsaacLab/_isaac_sim/python.sh
+...
+Passing<span class="w"> </span>the<span class="w"> </span>following<span class="w"> </span>args<span class="w"> </span>to<span class="w"> </span>the<span class="w"> </span>base<span class="w"> </span>kit<span class="w"> </span>application:<span class="w">  </span><span class="o">[]</span>
+Loading<span class="w"> </span>user<span class="w"> </span>config<span class="w"> </span>located<span class="w"> </span>at:<span class="w"> </span><span class="s1">&#39;.../data/Kit/Isaac-Sim/2023.1/user.config.json&#39;</span>
+<span class="o">[</span>Info<span class="o">]</span><span class="w"> </span><span class="o">[</span>carb<span class="o">]</span><span class="w"> </span>Logging<span class="w"> </span>to<span class="w"> </span>file:<span class="w"> </span><span class="s1">&#39;.../logs/Kit/Isaac-Sim/2023.1/kit_20240328_183346.log&#39;</span>
+</pre></div>
+</div>
+<p>In the above example, the log file is located at <code class="docutils literal notranslate"><span class="pre">.../logs/Kit/Isaac-Sim/2023.1/kit_20240328_183346.log</span></code>,
+<code class="docutils literal notranslate"><span class="pre">...</span></code> is the path to the user’s log directory. The log file is named <code class="docutils literal notranslate"><span class="pre">kit_20240328_183346.log</span></code></p>
+<p>You can open this file to check the internal logs from the simulator. Also when reporting issues, please include
+this log file to help us debug the issue.</p>
+</section>
+<section id="changing-logging-channel-levels-for-the-simulator">
+<h2>Changing logging channel levels for the simulator<a class="headerlink" href="#changing-logging-channel-levels-for-the-simulator" title="Permalink to this heading">#</a></h2>
+<p>By default, the simulator logs messages at the <code class="docutils literal notranslate"><span class="pre">WARN</span></code> level and above on the terminal. You can change the logging
+channel levels to get more detailed logs. The logging channel levels can be set through Omniverse’s logging system.</p>
+<p>To obtain more detailed logs, you can run your application with the following flags:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">--info</span></code>: This flag logs messages at the <code class="docutils literal notranslate"><span class="pre">INFO</span></code> level and above.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--verbose</span></code>: This flag logs messages at the <code class="docutils literal notranslate"><span class="pre">VERBOSE</span></code> level and above.</p></li>
+</ul>
+<p>For instance, to run a standalone script with verbose logging, you can use the following command:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Run the standalone script with info logging</span>
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/tutorials/00_sim/create_empty.py<span class="w"> </span>--headless<span class="w"> </span>--info
+</pre></div>
+</div>
+<p>For more fine-grained control, you can modify the logging channels through the <code class="docutils literal notranslate"><span class="pre">omni.log</span></code> module.
+For more information, please refer to its <a class="reference external" href="https://docs.omniverse.nvidia.com/kit/docs/carbonite/latest/docs/omni.log/Logging.html">documentation</a>.</p>
+</section>
+<section id="using-cpu-scaling-governor-for-performance">
+<h2>Using CPU Scaling Governor for performance<a class="headerlink" href="#using-cpu-scaling-governor-for-performance" title="Permalink to this heading">#</a></h2>
+<p>By default on many systems, the CPU frequency governor is set to
+“powersave” mode, which sets the CPU to lowest static frequency. To
+increase the maximum performance, we recommend setting the CPU frequency
+governor to “performance” mode. For more details, please check the the
+link
+<a class="reference external" href="https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/power_management_guide/cpufreq_governors">here</a>.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>We advice not to set the governor to “performance” mode on a system with poor
+cooling (such as laptops), since it may cause the system to overheat.</p>
+</div>
+<ul>
+<li><p>To view existing <code class="docutils literal notranslate"><span class="pre">scaling_governor</span></code> value per CPU:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cat<span class="w"> </span>/sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
+</pre></div>
+</div>
+</li>
+<li><p>To change the governor to “performance” mode for each CPU:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">echo</span><span class="w"> </span>performance<span class="w"> </span><span class="p">|</span><span class="w"> </span>sudo<span class="w"> </span>tee<span class="w"> </span>/sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
+</pre></div>
+</div>
+</li>
+</ul>
+</section>
+<section id="observing-long-load-times-at-the-start-of-the-simulation">
+<h2>Observing long load times at the start of the simulation<a class="headerlink" href="#observing-long-load-times-at-the-start-of-the-simulation" title="Permalink to this heading">#</a></h2>
+<p>The first time you run the simulator, it will take a long time to load up. This is because the
+simulator is compiling shaders and loading assets. Subsequent runs should be faster to start up,
+but may still take some time.</p>
+<p>Please note that once the Isaac Sim app loads, the environment creation time may scale linearly with
+the number of environments. Please expect a longer load time if running with thousands of
+environments or if each environment contains a larger number of assets. We are continually working
+on improving the time needed for this.</p>
+<p>When an instance of Isaac Sim is already running, launching another Isaac Sim instance in a different
+process may appear to hang at startup for the first time. Please be patient and give it some time as
+the second process will take longer to start up due to slower shader compilation.</p>
+</section>
+<section id="receiving-a-physx-error-when-running-simulation-on-gpu">
+<h2>Receiving a “PhysX error” when running simulation on GPU<a class="headerlink" href="#receiving-a-physx-error-when-running-simulation-on-gpu" title="Permalink to this heading">#</a></h2>
+<p>When using the GPU pipeline, the buffers used for the physics simulation are allocated on the GPU only
+once at the start of the simulation. This means that they do not grow dynamically as the number of
+collisions or objects in the scene changes. If the number of collisions or objects in the scene
+exceeds the size of the buffers, the simulation will fail with an error such as the following:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>PhysX<span class="w"> </span>error:<span class="w"> </span>the<span class="w"> </span>application<span class="w"> </span>need<span class="w"> </span>to<span class="w"> </span>increase<span class="w"> </span>the<span class="w"> </span>PxgDynamicsMemoryConfig::foundLostPairsCapacity
+parameter<span class="w"> </span>to<span class="w"> </span><span class="m">3072</span>,<span class="w"> </span>otherwise<span class="w"> </span>the<span class="w"> </span>simulation<span class="w"> </span>will<span class="w"> </span>miss<span class="w"> </span>interactions
+</pre></div>
+</div>
+<p>In this case, you need to increase the size of the buffers passed to the
+<a class="reference internal" href="../api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext" title="omni.isaac.lab.sim.SimulationContext"><code class="xref py py-class docutils literal notranslate"><span class="pre">SimulationContext</span></code></a> class. The size of the buffers can be increased by setting
+the <a class="reference internal" href="../api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.PhysxCfg.gpu_found_lost_pairs_capacity" title="omni.isaac.lab.sim.PhysxCfg.gpu_found_lost_pairs_capacity"><code class="xref py py-attr docutils literal notranslate"><span class="pre">gpu_found_lost_pairs_capacity</span></code></a> parameter in the
+<a class="reference internal" href="../api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.PhysxCfg" title="omni.isaac.lab.sim.PhysxCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">PhysxCfg</span></code></a> class. For example, to increase the size of the buffers to
+4096, you can use the following code:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">omni.isaac.lab.sim</span> <span class="k">as</span> <span class="nn">sim_utils</span>
+
+<span class="n">sim_cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationConfig</span><span class="p">()</span>
+<span class="n">sim_cfg</span><span class="o">.</span><span class="n">physx</span><span class="o">.</span><span class="n">gpu_found_lost_pairs_capacity</span> <span class="o">=</span> <span class="mi">4096</span>
+<span class="n">sim</span> <span class="o">=</span> <span class="n">SimulationContext</span><span class="p">(</span><span class="n">sim_params</span><span class="o">=</span><span class="n">sim_cfg</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Please see the documentation for <a class="reference internal" href="../api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationCfg" title="omni.isaac.lab.sim.SimulationCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">SimulationCfg</span></code></a> for more details
+on the parameters that can be used to configure the simulation.</p>
+</section>
+<section id="preventing-memory-leaks-in-the-simulator">
+<h2>Preventing memory leaks in the simulator<a class="headerlink" href="#preventing-memory-leaks-in-the-simulator" title="Permalink to this heading">#</a></h2>
+<p>Memory leaks in the Isaac Sim simulator can occur when C++ callbacks are registered with Python objects.
+This happens when callback functions within classes maintain references to the Python objects they are
+associated with. As a result, Python’s garbage collection is unable to reclaim memory associated with
+these objects, preventing the corresponding C++ objects from being destroyed. Over time, this can lead
+to memory leaks and increased resource usage.</p>
+<p>To prevent memory leaks in the Isaac Sim simulator, it is essential to use weak references when registering
+callbacks with the simulator. This ensures that Python objects can be garbage collected when they are no
+longer needed, thereby avoiding memory leaks. The <a class="reference external" href="https://docs.python.org/3/library/weakref.html">weakref</a>
+module from the Python standard library can be employed for this purpose.</p>
+<p>For example, consider a class with a callback function <code class="docutils literal notranslate"><span class="pre">on_event_callback</span></code> that needs to be registered
+with the simulator. If you use a strong reference to the <code class="docutils literal notranslate"><span class="pre">MyClass</span></code> object when passing the callback,
+the reference count of the <code class="docutils literal notranslate"><span class="pre">MyClass</span></code> object will be incremented. This prevents the <code class="docutils literal notranslate"><span class="pre">MyClass</span></code> object
+from being garbage collected when it is no longer needed, i.e., the <code class="docutils literal notranslate"><span class="pre">__del__</span></code> destructor will not be
+called.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">omni.kit</span>
+
+<span class="k">class</span> <span class="nc">MyClass</span><span class="p">:</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">app_interface</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">kit</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">get_app_interface</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_handle</span> <span class="o">=</span> <span class="n">app_interface</span><span class="o">.</span><span class="n">get_post_update_event_stream</span><span class="p">()</span><span class="o">.</span><span class="n">create_subscription_to_pop</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">on_event_callback</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__del__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_handle</span><span class="o">.</span><span class="n">unsubscribe</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_handle</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span> <span class="nf">on_event_callback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>
+        <span class="c1"># do something with the message</span>
+</pre></div>
+</div>
+<p>To fix this issue, it’s crucial to employ weak references when registering the callback. While this approach
+adds some verbosity to the code, it ensures that the <code class="docutils literal notranslate"><span class="pre">MyClass</span></code> object can be garbage collected when no longer
+in use. Here’s the modified code:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">omni.kit</span>
+<span class="kn">import</span> <span class="nn">weakref</span>
+
+<span class="k">class</span> <span class="nc">MyClass</span><span class="p">:</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">app_interface</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">kit</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">get_app_interface</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_handle</span> <span class="o">=</span> <span class="n">app_interface</span><span class="o">.</span><span class="n">get_post_update_event_stream</span><span class="p">()</span><span class="o">.</span><span class="n">create_subscription_to_pop</span><span class="p">(</span>
+            <span class="k">lambda</span> <span class="n">event</span><span class="p">,</span> <span class="n">obj</span><span class="o">=</span><span class="n">weakref</span><span class="o">.</span><span class="n">proxy</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span> <span class="n">obj</span><span class="o">.</span><span class="n">on_event_callback</span><span class="p">(</span><span class="n">event</span><span class="p">)</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__del__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_handle</span><span class="o">.</span><span class="n">unsubscribe</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_handle</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span> <span class="nf">on_event_callback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>
+        <span class="c1"># do something with the message</span>
+</pre></div>
+</div>
+<p>In this revised code, the weak reference <code class="docutils literal notranslate"><span class="pre">weakref.proxy(self)</span></code> is used when registering the callback,
+allowing the <code class="docutils literal notranslate"><span class="pre">MyClass</span></code> object to be properly garbage collected.</p>
+<p>By following this pattern, you can prevent memory leaks and maintain a more efficient and stable simulation.</p>
+</section>
+<section id="understanding-the-error-logs-from-crashes">
+<h2>Understanding the error logs from crashes<a class="headerlink" href="#understanding-the-error-logs-from-crashes" title="Permalink to this heading">#</a></h2>
+<p>Many times the simulator crashes due to a bug in the implementation.
+This swamps the terminal with exceptions, some of which are coming from
+the python interpreter calling <code class="docutils literal notranslate"><span class="pre">__del__()</span></code> destructor of the
+simulation application. These typically look like the following:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>...
+
+<span class="o">[</span>INFO<span class="o">]</span>:<span class="w"> </span>Completed<span class="w"> </span>setting<span class="w"> </span>up<span class="w"> </span>the<span class="w"> </span>environment...
+
+Traceback<span class="w"> </span><span class="o">(</span>most<span class="w"> </span>recent<span class="w"> </span>call<span class="w"> </span>last<span class="o">)</span>:
+File<span class="w"> </span><span class="s2">&quot;source/standalone/workflows/robomimic/collect_demonstrations.py&quot;</span>,<span class="w"> </span>line<span class="w"> </span><span class="m">166</span>,<span class="w"> </span><span class="k">in</span><span class="w"> </span>&lt;module&gt;
+<span class="w">    </span>main<span class="o">()</span>
+File<span class="w"> </span><span class="s2">&quot;source/standalone/workflows/robomimic/collect_demonstrations.py&quot;</span>,<span class="w"> </span>line<span class="w"> </span><span class="m">126</span>,<span class="w"> </span><span class="k">in</span><span class="w"> </span>main
+<span class="w">    </span><span class="nv">actions</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>pre_process_actions<span class="o">(</span>delta_pose,<span class="w"> </span>gripper_command<span class="o">)</span>
+File<span class="w"> </span><span class="s2">&quot;source/standalone/workflows/robomimic/collect_demonstrations.py&quot;</span>,<span class="w"> </span>line<span class="w"> </span><span class="m">57</span>,<span class="w"> </span><span class="k">in</span><span class="w"> </span>pre_process_actions
+<span class="w">    </span><span class="k">return</span><span class="w"> </span>torch.concat<span class="o">([</span>delta_pose,<span class="w"> </span>gripper_vel<span class="o">]</span>,<span class="w"> </span><span class="nv">dim</span><span class="o">=</span><span class="m">1</span><span class="o">)</span>
+TypeError:<span class="w"> </span>expected<span class="w"> </span>Tensor<span class="w"> </span>as<span class="w"> </span>element<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="k">in</span><span class="w"> </span>argument<span class="w"> </span><span class="m">0</span>,<span class="w"> </span>but<span class="w"> </span>got<span class="w"> </span>int
+Exception<span class="w"> </span>ignored<span class="w"> </span><span class="k">in</span>:<span class="w"> </span>&lt;<span class="k">function</span><span class="w"> </span>_make_registry.&lt;locals&gt;._Registry.__del__<span class="w"> </span>at<span class="w"> </span>0x7f94ac097f80&gt;
+Traceback<span class="w"> </span><span class="o">(</span>most<span class="w"> </span>recent<span class="w"> </span>call<span class="w"> </span>last<span class="o">)</span>:
+File<span class="w"> </span><span class="s2">&quot;../IsaacLab/_isaac_sim/kit/extscore/omni.kit.viewport.registry/omni/kit/viewport/registry/registry.py&quot;</span>,<span class="w"> </span>line<span class="w"> </span><span class="m">103</span>,<span class="w"> </span><span class="k">in</span><span class="w"> </span>__del__
+File<span class="w"> </span><span class="s2">&quot;../IsaacLab/_isaac_sim/kit/extscore/omni.kit.viewport.registry/omni/kit/viewport/registry/registry.py&quot;</span>,<span class="w"> </span>line<span class="w"> </span><span class="m">98</span>,<span class="w"> </span><span class="k">in</span><span class="w"> </span>destroy
+TypeError:<span class="w"> </span><span class="s1">&#39;NoneType&#39;</span><span class="w"> </span>object<span class="w"> </span>is<span class="w"> </span>not<span class="w"> </span>callable
+Exception<span class="w"> </span>ignored<span class="w"> </span><span class="k">in</span>:<span class="w"> </span>&lt;<span class="k">function</span><span class="w"> </span>_make_registry.&lt;locals&gt;._Registry.__del__<span class="w"> </span>at<span class="w"> </span>0x7f94ac097f80&gt;
+Traceback<span class="w"> </span><span class="o">(</span>most<span class="w"> </span>recent<span class="w"> </span>call<span class="w"> </span>last<span class="o">)</span>:
+File<span class="w"> </span><span class="s2">&quot;../IsaacLab/_isaac_sim/kit/extscore/omni.kit.viewport.registry/omni/kit/viewport/registry/registry.py&quot;</span>,<span class="w"> </span>line<span class="w"> </span><span class="m">103</span>,<span class="w"> </span><span class="k">in</span><span class="w"> </span>__del__
+File<span class="w"> </span><span class="s2">&quot;../IsaacLab/_isaac_sim/kit/extscore/omni.kit.viewport.registry/omni/kit/viewport/registry/registry.py&quot;</span>,<span class="w"> </span>line<span class="w"> </span><span class="m">98</span>,<span class="w"> </span><span class="k">in</span><span class="w"> </span>destroy
+TypeError:<span class="w"> </span><span class="s1">&#39;NoneType&#39;</span><span class="w"> </span>object<span class="w"> </span>is<span class="w"> </span>not<span class="w"> </span>callable
+Exception<span class="w"> </span>ignored<span class="w"> </span><span class="k">in</span>:<span class="w"> </span>&lt;<span class="k">function</span><span class="w"> </span>SettingChangeSubscription.__del__<span class="w"> </span>at<span class="w"> </span>0x7fa2ea173e60&gt;
+Traceback<span class="w"> </span><span class="o">(</span>most<span class="w"> </span>recent<span class="w"> </span>call<span class="w"> </span>last<span class="o">)</span>:
+File<span class="w"> </span><span class="s2">&quot;../IsaacLab/_isaac_sim/kit/kernel/py/omni/kit/app/_impl/__init__.py&quot;</span>,<span class="w"> </span>line<span class="w"> </span><span class="m">114</span>,<span class="w"> </span><span class="k">in</span><span class="w"> </span>__del__
+AttributeError:<span class="w"> </span><span class="s1">&#39;NoneType&#39;</span><span class="w"> </span>object<span class="w"> </span>has<span class="w"> </span>no<span class="w"> </span>attribute<span class="w"> </span><span class="s1">&#39;get_settings&#39;</span>
+Exception<span class="w"> </span>ignored<span class="w"> </span><span class="k">in</span>:<span class="w"> </span>&lt;<span class="k">function</span><span class="w"> </span>RegisteredActions.__del__<span class="w"> </span>at<span class="w"> </span>0x7f935f5cae60&gt;
+Traceback<span class="w"> </span><span class="o">(</span>most<span class="w"> </span>recent<span class="w"> </span>call<span class="w"> </span>last<span class="o">)</span>:
+File<span class="w"> </span><span class="s2">&quot;../IsaacLab/_isaac_sim/extscache/omni.kit.viewport.menubar.lighting-104.0.7/omni/kit/viewport/menubar/lighting/actions.py&quot;</span>,<span class="w"> </span>line<span class="w"> </span><span class="m">345</span>,<span class="w"> </span><span class="k">in</span><span class="w"> </span>__del__
+File<span class="w"> </span><span class="s2">&quot;../IsaacLab/_isaac_sim/extscache/omni.kit.viewport.menubar.lighting-104.0.7/omni/kit/viewport/menubar/lighting/actions.py&quot;</span>,<span class="w"> </span>line<span class="w"> </span><span class="m">350</span>,<span class="w"> </span><span class="k">in</span><span class="w"> </span>destroy
+TypeError:<span class="w"> </span><span class="s1">&#39;NoneType&#39;</span><span class="w"> </span>object<span class="w"> </span>is<span class="w"> </span>not<span class="w"> </span>callable
+<span class="m">2022</span>-12-02<span class="w"> </span><span class="m">15</span>:41:54<span class="w"> </span><span class="o">[</span><span class="m">18</span>,514ms<span class="o">]</span><span class="w"> </span><span class="o">[</span>Warning<span class="o">]</span><span class="w"> </span><span class="o">[</span>carb.audio.context<span class="o">]</span><span class="w"> </span><span class="m">1</span><span class="w"> </span>contexts<span class="w"> </span>were<span class="w"> </span>leaked
+../IsaacLab/_isaac_sim/python.sh:<span class="w"> </span>line<span class="w"> </span><span class="m">41</span>:<span class="w"> </span><span class="m">414372</span><span class="w"> </span>Segmentation<span class="w"> </span>fault<span class="w">      </span><span class="o">(</span>core<span class="w"> </span>dumped<span class="o">)</span><span class="w"> </span><span class="nv">$python_exe</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$@</span><span class="s2">&quot;</span><span class="w"> </span><span class="nv">$args</span>
+There<span class="w"> </span>was<span class="w"> </span>an<span class="w"> </span>error<span class="w"> </span>running<span class="w"> </span>python
+</pre></div>
+</div>
+<p>This is a known error with running standalone scripts with the Isaac Sim
+simulator. Please scroll above the exceptions thrown with
+<code class="docutils literal notranslate"><span class="pre">registry</span></code> to see the actual error log.</p>
+<p>In the above case, the actual error is:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>Traceback<span class="w"> </span><span class="o">(</span>most<span class="w"> </span>recent<span class="w"> </span>call<span class="w"> </span>last<span class="o">)</span>:
+File<span class="w"> </span><span class="s2">&quot;source/standalone/workflows/robomimic/tools/collect_demonstrations.py&quot;</span>,<span class="w"> </span>line<span class="w"> </span><span class="m">166</span>,<span class="w"> </span><span class="k">in</span><span class="w"> </span>&lt;module&gt;
+<span class="w">    </span>main<span class="o">()</span>
+File<span class="w"> </span><span class="s2">&quot;source/standalone/workflows/robomimic/tools/collect_demonstrations.py&quot;</span>,<span class="w"> </span>line<span class="w"> </span><span class="m">126</span>,<span class="w"> </span><span class="k">in</span><span class="w"> </span>main
+<span class="w">    </span><span class="nv">actions</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>pre_process_actions<span class="o">(</span>delta_pose,<span class="w"> </span>gripper_command<span class="o">)</span>
+File<span class="w"> </span><span class="s2">&quot;source/standalone/workflows/robomimic/tools/collect_demonstrations.py&quot;</span>,<span class="w"> </span>line<span class="w"> </span><span class="m">57</span>,<span class="w"> </span><span class="k">in</span><span class="w"> </span>pre_process_actions
+<span class="w">    </span><span class="k">return</span><span class="w"> </span>torch.concat<span class="o">([</span>delta_pose,<span class="w"> </span>gripper_vel<span class="o">]</span>,<span class="w"> </span><span class="nv">dim</span><span class="o">=</span><span class="m">1</span><span class="o">)</span>
+TypeError:<span class="w"> </span>expected<span class="w"> </span>Tensor<span class="w"> </span>as<span class="w"> </span>element<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="k">in</span><span class="w"> </span>argument<span class="w"> </span><span class="m">0</span>,<span class="w"> </span>but<span class="w"> </span>got<span class="w"> </span>int
+</pre></div>
+</div>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="contributing.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Contribution Guidelines</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="issues.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Known Issues</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#checking-the-internal-logs-from-the-simulator">Checking the internal logs from the simulator</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#changing-logging-channel-levels-for-the-simulator">Changing logging channel levels for the simulator</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#using-cpu-scaling-governor-for-performance">Using CPU Scaling Governor for performance</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#observing-long-load-times-at-the-start-of-the-simulation">Observing long load times at the start of the simulation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#receiving-a-physx-error-when-running-simulation-on-gpu">Receiving a “PhysX error” when running simulation on GPU</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#preventing-memory-leaks-in-the-simulator">Preventing memory leaks in the simulator</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#understanding-the-error-logs-from-crashes">Understanding the error logs from crashes</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By The Isaac Lab Project Developers.
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2022-2024, The Isaac Lab Project Developers..
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    <p class="last-updated">
+  Last updated on Oct 15, 2024.
+  <br/>
+</p>
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="../../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b"></script>
+<script src="../../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>
