@@ -57,8 +57,8 @@ def class_to_dict(obj: object) -> dict[str, Any]:
         # check if attribute is a dictionary
         elif hasattr(value, "__dict__") or isinstance(value, dict):
             data[key] = class_to_dict(value)
-        elif isinstance(value, list):
-            data[key] = [class_to_dict(v) for v in value]
+        elif isinstance(value, (list, tuple)):
+            data[key] = type(value)([class_to_dict(v) for v in value])
         else:
             data[key] = value
     return data
