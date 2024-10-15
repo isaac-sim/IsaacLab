@@ -38,8 +38,8 @@ class TerrainImporterCfg:
 
     num_envs: int = 1
     """The number of environment origins to consider. Defaults to 1.
-    
-    In case, the :class:`~omni.isaac.lab.scene.InteractiveSceneCfg` is used, this parameter gets overidden by
+
+    In case, the :class:`~omni.isaac.lab.scene.InteractiveSceneCfg` is used, this parameter gets overridden by
     :class:`~omni.isaac.lab.scene.InteractiveSceneCfg.num_envs` attribute.
     """
 

@@ -90,8 +90,8 @@ class SubTerrainBaseCfg:
 
     size: tuple[float, float] = (10.0, 10.0)
     """The width (along x) and length (along y) of the terrain (in m). Defaults to (10.0, 10.0).
-    
-    In case the :class:`~omni.isaac.lab.terrains.TerrainImporterCfg` is used, this parameter gets overidden by
+
+    In case the :class:`~omni.isaac.lab.terrains.TerrainImporterCfg` is used, this parameter gets overridden by
     :attr:`omni.isaac.lab.scene.TerrainImporterCfg.size` attribute.
     """
 
