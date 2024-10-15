@@ -41,7 +41,7 @@ jobs:
   deploy-docs:
     name: Deploy Docs
     runs-on: ubuntu-latest
-    needs: [check-secrets]
+    needs: [check-secrets, build-docs]
     if: needs.check-secrets.outputs.trigger-deploy == 'true'
 
     steps:
