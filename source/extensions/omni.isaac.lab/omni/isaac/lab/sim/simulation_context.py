@@ -16,6 +16,7 @@ from typing import Any
 
 import carb
 import omni.isaac.core.utils.stage as stage_utils
+import omni.log
 import omni.physx
 from omni.isaac.core.simulation_context import SimulationContext as _SimulationContext
 from omni.isaac.core.utils.viewports import set_camera_view
@@ -338,7 +339,7 @@ class SimulationContext(_SimulationContext):
         """
         # check if mode change is possible -- not possible when no GUI is available
         if not self._has_gui:
-            carb.log_warn(
+            omni.log.warn(
                 f"Cannot change render mode when GUI is disabled. Using the default render mode: {self.render_mode}."
             )
             return
@@ -616,7 +617,7 @@ class SimulationContext(_SimulationContext):
         if event.type == int(omni.timeline.TimelineEventType.STOP):
             # keep running the simulator when configured to not shutdown the app
             if self._has_gui and sys.exc_info()[0] is None:
-                carb.log_warn(
+                omni.log.warn(
                     "Simulation is stopped. The app will keep running with physics disabled."
                     " Press Ctrl+C or close the window to exit the app."
                 )
@@ -760,7 +761,7 @@ def build_simulation_context(
         yield sim
 
     except Exception:
-        carb.log_error(traceback.format_exc())
+        omni.log.error(traceback.format_exc())
         raise
     finally:
         if not sim.has_gui():
