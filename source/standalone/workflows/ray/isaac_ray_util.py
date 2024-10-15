@@ -4,34 +4,35 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import argparse
-from ray import tune
+import re
 import subprocess
-import ray
 import time
-#from functools import partial 
+
+# import ray
+# from ray import tune
+
+# from functools import partial
 # PartialMyTrainableClass = partial(MyTrainableClass, additional_arg1="Some value", additional_arg2=42)
 
 MAX_LINES_BEFORE_EXPERIMENT_START = 2000
 
-def construct_cnn(filters_range: tuple[int],
-                  kernel_range: tuple[int]):
+
+def construct_cnn(filters_range: tuple[int], kernel_range: tuple[int]):
     pass
+
 
 def construct_mlp():
     pass
 
-def check_minibatch_compatibility(num_envs: int, 
-                                    minibatch_size: int,
-                                    horizon_length: int = 16):
+
+def check_minibatch_compatibility(num_envs: int, minibatch_size: int, horizon_length: int = 16):
     pass
 
 
-
-# from ray.train import RunConfig
 def extract_experiment_info(output):
     """Extract experiment name and log directory from the subprocess output."""
-    experiment_name_pattern = r'Exact experiment name requested from command line: (\S+)'
-    logdir_pattern = r'\[INFO\] Logging experiment in directory: (.+)'
+    experiment_name_pattern = r"Exact experiment name requested from command line: (\S+)"
+    logdir_pattern = r"\[INFO\] Logging experiment in directory: (.+)"
 
     experiment_name = None
     logdir = None
@@ -53,95 +54,78 @@ def extract_experiment_info(output):
     return experiment_name, logdir
 
 
-class IsaacLabTuneTrainable(tune.Trainable):
-    def __init__(self):
-        pass
-        # self.invocation_str = executable_path + " " + workflow_path
-        # for arg in args:
-        #     spaced_arg = " " + arg + " "
-        #     self.invocation_str += spaced_arg
-        # print(f"[INFO] Using base invocation of {self.invocation_str} for all trials")
+def invoke_run(cfg, max_line_count=2000):
+    runner_args = []
+    hydra_args = []
 
-    def setup(self, config):
-        pass
+    def process_args(args, target_list):
+        for key, value in args.items():
+            # for example, key: singletons | value: List
+            if isinstance(value, dict):
+                target_list.append(f" {key}={value} ")
+            elif isinstance(value, list):
+                target_list.extend(value)
+            else:
+                target_list.append(f"{value}")
+            print(f"{target_list[-1]}")
 
-    def step(self):
-        pass
+    print(f"[INFO]: Starting workflow {cfg['workflow']}")
+    print("[INFO]: Retrieving workflow runner args:")
+    process_args(cfg["runner_args"], runner_args)
+    print("[INFO]: Retrieving hydra args:")
+    process_args(cfg["hydra_args"], hydra_args)
 
-    def invoke_run(self, cfg, max_line_count=2000):
-        runner_args = []
-        hydra_args = []
-        def process_args(args, target_list):
-            for key, value in args.items():
-                # for example, key: singletons | value: List
-                if isinstance(value, dict):
-                    target_list.append(f" {key}={value} ")
-                elif isinstance(value, list):
-                    target_list.extend(value)
-                else:
-                    target_list.append(f"{value}")
-                print(f"{target_list[-1]}")
-        
-        print(f"[INFO]: Starting workflow {cfg['workflow']}")
-        print("[INFO]: Retrieving workflow runner args:")
-        process_args(cfg["runner_args"], runner_args)
-        print("[INFO]: Retrieving hydra args:")
-        process_args(cfg["hydra_args"], hydra_args)
+    proc = subprocess.Popen(
+        ["./workspace/isaaclab.sh -p ", cfg["workflow"], *runner_args, *hydra_args],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
 
-        self.proc = subprocess.Popen(
-            ["./workspace/isaaclab.sh -p ", cfg["workflow"], *runner_args, *hydra_args],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True
-        )
+    log_output = ""
+    lines_read = 0
+    experiment_name = None
+    logdir = None
+    success_detected = False
+    error_detected = False
 
-        log_output = ""
-        lines_read = 0
-        experiment_name = None
-        logdir = None
-        success_detected = False
-        error_detected = False
+    error_message = "There was an error running python"
+    success_message = "epoch: 1/"  # Check for the first epoch start
 
-        error_message = "There was an error running python"
-        success_message = "epoch: 1/"  # Check for the first epoch start
+    while lines_read < max_line_count and not (experiment_name and logdir and success_detected):
+        line = proc.stdout.readline()
+        if line:
+            log_output += line
+            lines_read += 1
 
-        while lines_read < max_line_count and not (experiment_name and logdir and success_detected):
-            line = self.proc.stdout.readline()
-            if line:
-                log_output += line
-                lines_read += 1
+            # Check for experiment info
+            if not experiment_name or not logdir:
+                experiment_match = re.search(r"Exact experiment name requested from command line: (\S+)", line)
+                logdir_match = re.search(r"\[INFO\] Logging experiment in directory: (.+)", line)
+                if experiment_match:
+                    experiment_name = experiment_match.group(1)
+                if logdir_match:
+                    logdir = logdir_match.group(1)
 
-                # Check for experiment info
-                if not experiment_name or not logdir:
-                    experiment_match = re.search(r'Exact experiment name requested from command line: (\S+)', line)
-                    logdir_match = re.search(r'\[INFO\] Logging experiment in directory: (.+)', line)
-                    if experiment_match:
-                        experiment_name = experiment_match.group(1)
-                    if logdir_match:
-                        logdir = logdir_match.group(1)
+            # Check for success or error
+            if success_message in line:
+                success_detected = True
+            if error_message in line:
+                error_detected = True
+                break  # Stop processing if an error is detected
 
-                # Check for success or error
-                if success_message in line:
-                    success_detected = True
-                if error_message in line:
-                    error_detected = True
-                    break  # Stop processing if an error is detected
+        time.sleep(0.1)  # Sleep to avoid busy wait
 
-            time.sleep(0.1)  # Sleep to avoid busy wait
+    if error_detected:
+        raise RuntimeError(f"Error during experiment run: {log_output}")
+    # elif not (experiment_name and logdir and success_detected):
+    #     raise ValueError("Could not extract experiment details or verify successful execution within the line limit.")
 
-        if error_detected:
-            raise RuntimeError(f"Error during experiment run: {log_output}")
-        elif not (experiment_name and logdir and success_detected):
-            raise ValueError("Could not extract experiment details or verify successful execution within the line limit.")
-        
-        return {"experiment_name": experiment_name, "logdir": logdir}
+    return {"experiment_name": experiment_name, "logdir": logdir}
 
 
 def add_cluster_args(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        "--name",
-        type=str,
-        help="The name of the Ray Cluster you'd like to train on.")
+    parser.add_argument("--name", type=str, help="The name of the Ray Cluster you'd like to train on.")
 
     parser.add_argument(
         "--cluster_gpu_count",
