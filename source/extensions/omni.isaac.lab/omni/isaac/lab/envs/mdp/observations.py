@@ -246,35 +246,51 @@ class image_features(ManagerTermBase):
         from torchvision import models
         from transformers import AutoModel
 
-        self.default_model_zoo_cfg = {
-            # For more info about Theia, see: https://theia.theaiinstitute.com/
-            "TheiaTiny": {
-                "model": (
-                    lambda: AutoModel.from_pretrained(
-                        "theaiinstitute/theia-tiny-patch16-224-cddsv", trust_remote_code=True
-                    )
-                    .eval()
-                    .to("cuda:0")
-                ),
+        def create_theia_model(model_name):
+            return {
+                "model": lambda: AutoModel.from_pretrained(
+                    f"theaiinstitute/{model_name}", trust_remote_code=True
+                ).eval().to("cuda:0"),
                 "preprocess": lambda img: (img - torch.amin(img, dim=(1, 2), keepdim=True)) / (
                     torch.amax(img, dim=(1, 2), keepdim=True) - torch.amin(img, dim=(1, 2), keepdim=True)
-                ),  # Rescale to [0, 1]
+                ),
                 "inference": lambda model, images: model.forward_feature(
                     images, do_rescale=False, interpolate_pos_encoding=True
                 ),
-            },
-            "ResNet18": {
-                "model": lambda: models.resnet18(pretrained=True).eval().to("cuda:0"),
+            }
+
+        def create_resnet_model(resnet_name):
+            return {
+                "model": lambda: getattr(models, resnet_name)(pretrained=True).eval().to("cuda:0"),
                 "preprocess": lambda img: (
                     img.permute(0, 3, 1, 2)  # Convert [batch, height, width, 3] -> [batch, 3, height, width]
-                    # Normalize in the format expected by pytorch: https://pytorch.org/hub/pytorch_vision_resnet/
                     - torch.tensor([0.485, 0.456, 0.406], device=img.device).view(1, 3, 1, 1)
                 ) / torch.tensor([0.229, 0.224, 0.225], device=img.device).view(1, 3, 1, 1),
                 "inference": lambda model, images: model(images),
-            },
-        }
+            }
+
+        # List of Theia models
+        theia_models = [
+            "theia-tiny-patch16-224-cddsv", "theia-tiny-patch16-224-cdiv", "theia-small-patch16-224-cdiv",
+            "theia-base-patch16-224-cdiv", "theia-small-patch16-224-cddsv", "theia-base-patch16-224-cddsv",
+        ]
+
+        # List of ResNet models
+        resnet_models = ["resnet18", "resnet34", "resnet50", "resnet101"]
+
+        self.default_model_zoo_cfg = {}
+
+        # Add Theia models to the zoo
+        for model_name in theia_models:
+            self.default_model_zoo_cfg[model_name] = create_theia_model(model_name)
+
+        # Add ResNet models to the zoo
+        for resnet_name in resnet_models:
+            self.default_model_zoo_cfg[resnet_name] = create_resnet_model(resnet_name)
+
         self.model_zoo_cfg = self.default_model_zoo_cfg
         self.model_zoo = {}
+
 
     def __call__(
         self,
