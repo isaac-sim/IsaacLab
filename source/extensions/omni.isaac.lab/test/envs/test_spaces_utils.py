@@ -26,7 +26,7 @@ import torch
 import unittest
 from gymnasium.spaces import Box, Dict, Discrete, MultiDiscrete, Tuple
 
-from omni.isaac.lab.envs.utils import sample_space, spec_to_gym_space
+from omni.isaac.lab.envs.utils.spaces import sample_space, spec_to_gym_space
 
 
 class TestSpacesUtils(unittest.TestCase):

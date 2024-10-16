@@ -31,6 +31,7 @@ from omni.isaac.lab.utils.timer import Timer
 from .common import ActionType, AgentID, EnvStepReturn, ObsType, StateType
 from .direct_marl_env_cfg import DirectMARLEnvCfg
 from .ui import ViewportCameraController
+from .utils.spaces import sample_space, spec_to_gym_space
 
 
 class DirectMARLEnv:
@@ -564,9 +565,6 @@ class DirectMARLEnv:
     """
 
     def _configure_env_spaces(self):
-        # defer import to avoid circular import error
-        from omni.isaac.lab.envs.utils import sample_space, spec_to_gym_space
-
         """Configure the spaces for the environment."""
         self.agents = self.cfg.possible_agents
         self.possible_agents = self.cfg.possible_agents
