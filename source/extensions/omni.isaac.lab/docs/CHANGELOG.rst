@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.24.20 (2024-10-07)
+0.25.2 (2024-10-16)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -18,6 +18,36 @@ Changed
   in favor of :attr:`observation_space`, :attr:`action_space` and :attr:`state_space` respectively.
 * Mark the :attr:`num_observations`, :attr:`num_actions` and :attr:`num_states` in :class:`DirectMARLEnvCfg` as deprecated
   in favor of :attr:`observation_spaces`, :attr:`action_spaces` and :attr:`state_space` respectively.
+
+
+0.25.1 (2024-10-10)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed potential issue where default joint positions can fall outside of the limits being set with Articulation's
+  ``write_joint_limits_to_sim`` API.
+
+
+0.25.0 (2024-10-06)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added configuration classes for spawning assets from a list of individual asset configurations randomly
+  at the specified prim paths.
+
+
+0.24.20 (2024-10-07)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the :meth:`omni.isaac.lab.envs.mdp.events.randomize_rigid_body_material` function to
+  correctly sample friction and restitution from the given ranges.
 
 
 0.24.19 (2024-10-05)

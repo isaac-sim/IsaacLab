@@ -542,6 +542,48 @@ class TestArticulation(unittest.TestCase):
             # Check if articulation is initialized
             self.assertFalse(articulation._is_initialized)
 
+    def test_joint_limits(self):
+        """Test write_joint_limits_to_sim API and when default pos falls outside of the new limits."""
+        for num_articulations in (1, 2):
+            for device in ("cuda:0", "cpu"):
+                with self.subTest(num_articulations=num_articulations, device=device):
+                    with build_simulation_context(device=device, add_ground_plane=True, auto_add_lighting=True) as sim:
+                        # Create articulation
+                        articulation_cfg = generate_articulation_cfg(articulation_type="panda")
+                        articulation, _ = generate_articulation(articulation_cfg, num_articulations, device)
+
+                        # Play sim
+                        sim.reset()
+                        # Check if articulation is initialized
+                        self.assertTrue(articulation._is_initialized)
+
+                        # Get current default joint pos
+                        default_joint_pos = articulation._data.default_joint_pos.clone()
+
+                        # Set new joint limits
+                        limits = torch.zeros(num_articulations, articulation.num_joints, 2, device=device)
+                        limits[..., 0] = (
+                            torch.rand(num_articulations, articulation.num_joints, device=device) + 5.0
+                        ) * -1.0
+                        limits[..., 1] = torch.rand(num_articulations, articulation.num_joints, device=device) + 5.0
+                        articulation.write_joint_limits_to_sim(limits)
+
+                        # Check new limits are in place
+                        torch.testing.assert_close(articulation._data.joint_limits, limits)
+                        torch.testing.assert_close(articulation._data.default_joint_pos, default_joint_pos)
+
+                        # Set new joint limits that invalidate default joint pos
+                        limits = torch.zeros(num_articulations, articulation.num_joints, 2, device=device)
+                        limits[..., 0] = torch.rand(num_articulations, articulation.num_joints, device=device) * -0.1
+                        limits[..., 1] = torch.rand(num_articulations, articulation.num_joints, device=device) * 0.1
+                        articulation.write_joint_limits_to_sim(limits)
+
+                        # Check if all values are within the bounds
+                        within_bounds = (articulation._data.default_joint_pos >= limits[..., 0]) & (
+                            articulation._data.default_joint_pos <= limits[..., 1]
+                        )
+                        self.assertTrue(torch.all(within_bounds))
+
     def test_external_force_on_single_body(self):
         """Test application of external force on the base of the articulation."""
         for num_articulations in (1, 2):
