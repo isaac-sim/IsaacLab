@@ -21,13 +21,13 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
+import numpy as np
 import torch
 import unittest
-import numpy as np
-
-from gymnasium.spaces import Box, Discrete, MultiDiscrete, Tuple, Dict
+from gymnasium.spaces import Box, Dict, Discrete, MultiDiscrete, Tuple
 
 from omni.isaac.lab.envs.utils import sample_space, spec_to_gym_space
+
 
 class TestSpacesUtils(unittest.TestCase):
     """Test for spaces utils' functions"""
@@ -116,6 +116,7 @@ class TestSpacesUtils(unittest.TestCase):
         else:
             self.assertIsInstance(sample, torch.Tensor)
             self.assertEqual(sample.shape[0], batch_size)
+
 
 if __name__ == "__main__":
     run_tests()
