@@ -13,9 +13,9 @@ import re
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
-import carb
 import omni.isaac.core.utils.stage as stage_utils
 import omni.kit.commands
+import omni.log
 from omni.isaac.cloner import Cloner
 from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
@@ -70,7 +70,7 @@ def safe_set_attribute_on_usd_schema(schema_api: Usd.APISchemaBase, name: str, v
     else:
         # think: do we ever need to create the attribute if it doesn't exist?
         #   currently, we are not doing this since the schemas are already created with some defaults.
-        carb.log_error(f"Attribute '{attr_name}' does not exist on prim '{schema_api.GetPath()}'.")
+        omni.log.error(f"Attribute '{attr_name}' does not exist on prim '{schema_api.GetPath()}'.")
         raise TypeError(f"Attribute '{attr_name}' does not exist on prim '{schema_api.GetPath()}'.")
 
 
@@ -189,7 +189,7 @@ def apply_nested(func: Callable) -> Callable:
                 count_success += 1
         # check if we were successful in applying the function to any prim
         if count_success == 0:
-            carb.log_warn(
+            omni.log.warn(
                 f"Could not perform '{func.__name__}' on any prims under: '{prim_path}'."
                 " This might be because of the following reasons:"
                 "\n\t(1) The desired attribute does not exist on any of the prims."
@@ -391,7 +391,7 @@ def bind_physics_material(
     has_deformable_body = prim.HasAPI(PhysxSchema.PhysxDeformableBodyAPI)
     has_particle_system = prim.IsA(PhysxSchema.PhysxParticleSystem)
     if not (has_physics_scene_api or has_collider or has_deformable_body or has_particle_system):
-        carb.log_verbose(
+        omni.log.verbose(
             f"Cannot apply physics material '{material_path}' on prim '{prim_path}'. It is neither a"
             " PhysX scene, collider, a deformable body, nor a particle system."
         )
@@ -851,14 +851,14 @@ def select_usd_variants(prim_path: str, variants: object | dict[str, str], stage
     for variant_set_name, variant_selection in variants.items():
         # Check if the variant set exists on the prim.
         if not existing_variant_sets.HasVariantSet(variant_set_name):
-            carb.log_warn(f"Variant set '{variant_set_name}' does not exist on prim '{prim_path}'.")
+            omni.log.warn(f"Variant set '{variant_set_name}' does not exist on prim '{prim_path}'.")
             continue
 
         variant_set = existing_variant_sets.GetVariantSet(variant_set_name)
         # Only set the variant selection if it is different from the current selection.
         if variant_set.GetVariantSelection() != variant_selection:
             variant_set.SetVariantSelection(variant_selection)
-            carb.log_info(
+            omni.log.info(
                 f"Setting variant selection '{variant_selection}' for variant set '{variant_set_name}' on"
                 f" prim '{prim_path}'."
             )
