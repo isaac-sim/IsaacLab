@@ -191,7 +191,7 @@ language = "en"
 
 import sphinx_book_theme
 
-html_title = "Isaac Lab documentation"
+html_title = "Isaac Lab Documentation"
 html_theme_path = [sphinx_book_theme.get_html_theme_path()]
 html_theme = "sphinx_book_theme"
 html_favicon = "source/_static/favicon.ico"
@@ -214,7 +214,7 @@ html_theme_options = {
     "show_toc_level": 1,
     "use_sidenotes": True,
     "logo": {
-        "text": "Isaac Lab documentation",
+        "text": "Isaac Lab Documentation",
         "image_light": "source/_static/NVIDIA-logo-white.png",
         "image_dark": "source/_static/NVIDIA-logo-black.png",
     },
@@ -252,7 +252,7 @@ smv_branch_whitelist = r"^(main)$"
 smv_tag_whitelist = r"^v[1-9]\d*\.\d+\.\d+$"
 
 html_sidebars = {
-    "**": ["navbar-logo.html", "icon-links.html", "search-field.html", "sbt-sidebar-nav.html", "versioning.html"]
+    "**": ["navbar-logo.html", "versioning.html", "icon-links.html", "search-field.html", "sbt-sidebar-nav.html"]
 }
 
 

@@ -1,8 +1,21 @@
 {% if versions %}
-<h5>{{ _('Versions') }}</h5>
-<ul>
-  {%- for item in versions | reverse %}
-  <li><a href="{{ item.url }}">{{ item.name }}</a></li>
-  {%- endfor %}
-</ul>
+<nav class="bd-links bd-docs-nav">
+    <div class="bd-toc-item navbar-nav">
+      <ul class="nav bd-sidenav">
+        <li class="toctree-l1 has-children">
+          <p class="caption" aria-level="2" role="heading">
+            <span type="button" class="caption-text">Version: {{ current_version.name }}</span>
+          </p>
+          <ul>
+            {%- for item in versions.branches %}
+            <li class="toctree-l2 {% if item == current_version %}current{% endif %} "><a class="reference" href="{{item.url}}">{{item.name}}</a></li>
+            {%- endfor %}
+            {%- for item in versions.tags|reverse %}
+            <li class="toctree-l2 {% if item == current_version %}current{% endif %} "><a class="reference" href="{{item.url}}">{{item.name}}</a></li>
+            {%- endfor %}
+          </ul>
+        </li>
+      </ul>
+    </div>
+</nav>
 {% endif %}
