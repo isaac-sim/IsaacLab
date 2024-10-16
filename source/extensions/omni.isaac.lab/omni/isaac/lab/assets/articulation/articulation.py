@@ -296,7 +296,6 @@ class Articulation(AssetBase):
         Args:
             env_ids: Environment indices. If None, then all indices are used.
         """
-        assert False, "Get state and set state for articulation is not implemented yet."
         root_state = self.read_root_state_from_sim(env_ids)
         joint_state = self.read_joint_state_from_sim(env_ids)
         return {"root_state": root_state, "joint_state": joint_state}
@@ -400,6 +399,16 @@ class Articulation(AssetBase):
         self.root_physx_view.set_dof_positions(self._data.joint_pos, indices=physx_env_ids)
         self.root_physx_view.set_dof_velocities(self._data.joint_vel, indices=physx_env_ids)
 
+    def write_state_to_sim(self, state: dict, env_ids: Sequence[int] | None = None):
+        """Write the state of the articulation to the simulation.
+
+        Args:
+            state: A dictionary containing the root and joint states.
+            env_ids: Environment indices. If None, then all indices are used.
+        """
+        self.write_root_state_to_sim(state["root_state"], env_ids)
+        self.write_joint_state_to_sim(state["joint_state"]["position"], state["joint_state"]["velocity"], env_ids)
+        
     def write_joint_stiffness_to_sim(
         self,
         stiffness: torch.Tensor | float,

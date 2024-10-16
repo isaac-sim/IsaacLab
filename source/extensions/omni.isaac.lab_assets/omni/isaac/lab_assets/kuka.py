@@ -12,11 +12,16 @@ The following configurations are available:
 
 Reference: https://github.com/frankaemika/franka_ros
 """
-
+from math import radians
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.actuators import ImplicitActuatorCfg
 from omni.isaac.lab.assets.articulation import ArticulationCfg
 from omni.isaac.lab.utils.assets import ISAACLAB_NUCLEUS_DIR
+from omni.isaac.lab.managers.action_manager import ActionTerm, ActionTermCfg
+from omni.isaac.lab.assets.articulation import Articulation
+
+import omni.log
+import torch
 
 ##
 # Configuration
@@ -217,63 +222,143 @@ KUKA_VICTOR_HIGH_PD_CFG.actuators["victor_right_arm"].damping = 80.0
 
 This configuration is useful for task-space control using differential IK.
 """
-
-
-
-from math import radians
-
-
-def compute_finger_angles(control):
+from omni.isaac.lab.utils import configclass
+from typing import Literal
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from omni.isaac.lab.envs import ManagerBasedEnv
+    
+@configclass
+class Robotiq3FingerActionCfg(ActionTermCfg):
+    """Configuration for the Robotiq 3-finger gripper action term
     """
-    Returns the joint angles for the Robotiq 3-finger gripper based on the control value.
+    side: Literal["left", "right"] = "left"
+
+
+class Robotiq3FingerAction(ActionTerm):
+    """
+    Class for the Robotiq 3-finger gripper action term.
+    The commands are sent as two values from zero to one, one for the finger opening and one for the scissor opening.
+    """
+    _asset: Articulation
+    """The articulation asset on which the action term is applied."""
+    
+    def __init__(self, cfg: Robotiq3FingerActionCfg, env: ManagerBasedEnv) ->None:
+        # initialize the action term
+        super().__init__(cfg, env)
+        
+        side = "left"
+        joint_names = []
+        for finger_name in ["a", "b", "c"]:
+            for joint in range(1, 4):
+                joint_name = f"victor_{side}_finger_{finger_name}_joint_{joint}"
+                joint_names.append(joint_name)
+        joint_names.append(f"victor_{side}_palm_finger_b_joint")
+        joint_names.append(f"victor_{side}_palm_finger_c_joint")
+        self._joint_ids, self._joint_names = self._asset.find_joints(self.cfg.joint_names)
+        self._num_joints = len(self._joint_ids)
+        # log the resolved joint names for debugging
+        omni.log.info(
+            f"Resolved joint names for the action term {self.__class__.__name__}:"
+            f" {self._joint_names} [{self._joint_ids}]"
+        )
+        
+        # create tensors for raw and processed actions
+        self._raw_actions = torch.zeros(self.num_envs, 1, device=self.device)
+        self._processed_actions = torch.zeros(self.num_envs, self._num_joints, device=self.device)
+        # "victor_left_finger_a_joint_1": 0.890168571428571,
+        # "victor_left_finger_a_joint_2": 0,
+        # "victor_left_finger_a_joint_3": -0.8901685714285714,
+        # "victor_left_finger_b_joint_1": 0.890168571428571,
+        # "victor_left_finger_b_joint_2": 0,
+        # "victor_left_finger_b_joint_3": -0.8901685714285714,
+        # "victor_left_finger_c_joint_1": 0.890168571428571,
+        # "victor_left_finger_c_joint_2": 0,
+        # "victor_left_finger_c_joint_3": -0.8901685714285714,
+        # # gripper scissors states
+        # "victor_left_palm_finger_b_joint": 0.115940392156862,
+        # "victor_left_palm_finger_c_joint": -0.11594039215686275,
+    
+    """
+    Properties.
+    """
+    
+    @property
+    def action_dim(self) -> int:
+        return 2
+    
+    @property
+    def raw_actions(self) -> torch.Tensor:
+        return self._raw_actions
+    
+    @property
+    def processed_actions(self) -> torch.Tensor:
+        return self._processed_actions
+    
+    """
+    Operations
+    """
+    def process_actions(self, actions:torch.Tensor):
+        """ Compute joint angles based on opening and scissor values """
+        compute_finger_angles_jit(actions, self._processed_actions)
+        # copy the joint angles to finger b and c
+        self._processed_actions[:, 3:6] = self._processed_actions[:, 0:3]
+        self._processed_actions[:, 6:9] = self._processed_actions[:, 0:3]
+        
+        # compute scissors angle
+        compute_scissor_angle_jit(actions[:, 1], self._processed_actions[:, 9:11])
+        
+    
+    def apply_actions(self):
+        self._asset.set_joint_position_target(self._processed_actions, joint_ids=self._joint_ids)
+    
+
+@torch.jit.script
+def compute_finger_angles_jit(control, finger_angles): 
+    """Compute joint angles based on opening and scissor values 
 
     Args:
-        control: the control is from 0 to 1. 0 corresponds to fully open, 1 is fully closed.
+        control (torch.Tesnor): B x 2, representing the opening and scissor values. 0 corresponds to fully open, 1 is fully closed.
+        
     """
-    g = control * 255
-    max_angle = [70.0, 90.0, 43.0]
+    # Convert control input to g (range from 0 to 255)
+    g_batch = control * 255
+
+    max_angle = torch.tensor([70.0, 90.0, 43.0])
     min_3 = -55.0
     m1 = max_angle[0] / 140.0
     m2 = max_angle[1] / 100.0
 
-    # http://motion.pratt.duke.edu/papers/IUCS-TR711-Franchi-gripper.pdf
-    # Based on the relationship from the documentation, set each joint angle based on the "phase" of the motion
-    if g <= 110.0:
-        theta1 = m1 * g
-        theta2 = 0
-        theta3 = -m1 * g
-    elif 110.0 < g <= 140.0:
-        theta1 = m1 * g
-        theta2 = 0
-        theta3 = min_3
-    elif 140.0 < g <= 240.0:
-        theta1 = max_angle[0]
-        theta2 = m2 * (g - 140)
-        theta3 = min_3
-    else:
-        theta1 = max_angle[0]
-        theta2 = max_angle[1]
-        theta3 = min_3
+    # Conditions based on g_batch values
+    cond1 = g_batch <= 110.0
+    cond2 = (g_batch > 110.0) & (g_batch <= 140.0)
+    cond3 = (g_batch > 140.0) & (g_batch <= 240.0)
+    cond4 = g_batch > 240.0
 
-    return [radians(theta1), radians(theta2), radians(theta3)]
+    # Calculate angles for each phase and store them directly into the tensor
+    finger_angles[cond1, 0] = m1 * g_batch[cond1]  # theta1
+    finger_angles[cond1, 1] = 0  # theta2
+    finger_angles[cond1, 2] = -m1 * g_batch[cond1]  # theta3
 
+    finger_angles[cond2, 0] = m1 * g_batch[cond2]  # theta1
+    finger_angles[cond2, 1] = 0  # theta2
+    finger_angles[cond2, 2] = min_3  # theta3
 
-def get_finger_angle_names(side: str, finger: str):
-    """
-    Returns the names of the finger joints for the specified side.
+    finger_angles[cond3, 0] = max_angle[0]  # theta1
+    finger_angles[cond3, 1] = m2 * (g_batch[cond3] - 140)  # theta2
+    finger_angles[cond3, 2] = min_3  # theta3
 
-    Args:
-        side: The side of the robot (left or right).
-    """
-    return [
-        f"victor_{side}_{finger}_joint_1",
-        f"victor_{side}_{finger}_joint_2",
-        f"victor_{side}_{finger}_joint_3",
-    ]
+    finger_angles[cond4, 0] = max_angle[0]  # theta1
+    finger_angles[cond4, 1] = max_angle[1]  # theta2
+    finger_angles[cond4, 2] = min_3  # theta3
 
-def get_scissor_joint_name(side: str, finger: str):
-    return f"victor_{side}_palm_{finger}_joint"
+    # Convert angles to radians
+    finger_angles = torch.deg2rad(finger_angles)
 
-def compute_scissor_angle(control):
+    return finger_angles
+
+@torch.jit.script
+def compute_scissor_angle_jit(control, scissor_angle):
     # 0 corresponds to fully open at -16 degrees, 1 is fully closed with at +10 degrees
-    return radians(26.0 * control - 16.0)
+    scissor_angle[:, 0] = torch.deg2rad(16 - 26.0 * control)
+    scissor_angle[:, 1] = -scissor_angle[:, 0]

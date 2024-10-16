@@ -103,7 +103,7 @@ class CommandsCfg:
 class ActionsCfg:
     """Action specifications for the MDP."""
     arm_action: mdp.JointPositionActionCfg = MISSING
-    # gripper_action: mdp.BinaryJointPositionActionCfg = MISSING
+    gripper_action: mdp.BinaryJointPositionActionCfg = MISSING
 
 
 @configclass
