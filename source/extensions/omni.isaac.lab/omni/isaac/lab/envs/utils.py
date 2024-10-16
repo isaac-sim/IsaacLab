@@ -44,7 +44,7 @@ def spec_to_gym_space(spec: SpaceType) -> gym.spaces.Space:
     # Tuple
     elif isinstance(spec, tuple):
         return gym.spaces.Tuple([spec_to_gym_space(x) for x in spec])
-    # Tuple
+    # Dict
     elif isinstance(spec, dict):
         return gym.spaces.Dict({k: spec_to_gym_space(v) for k, v in spec.items()})
     raise ValueError(f"Unsupported space specification: {spec}")
