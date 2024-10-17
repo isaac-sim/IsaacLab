@@ -23,7 +23,7 @@ jobs:
       working-directory: ./docs
       run: pip install -r requirements.txt
 
-    - name: Generate docs
+    - name: Generate multi-version docs
       working-directory: ./docs
       run: |
         git fetch --prune --unshallow --tags
