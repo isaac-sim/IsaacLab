@@ -26,7 +26,9 @@ jobs:
     - name: Check branch docs building
       if: ${{ github.event_name == 'pull_request' }}
       working-directory: ./docs
-      run: make single-docs
+      run: |
+        make single-docs
+        rm -rf _build/latest
 
     - name: Generate multi-version docs
       working-directory: ./docs
