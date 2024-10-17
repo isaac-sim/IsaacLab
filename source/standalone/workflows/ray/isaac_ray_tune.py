@@ -7,9 +7,12 @@ import subprocess
 import time
 
 import isaac_ray_util
-
-# import ray
-from ray import tune
+import ray
+from ray import air, tune
+from ray.tune.schedulers import HyperBandForBOHB
+from ray.tune.search.bohb import TuneBOHB
+from ray.tune.search.concurrency_limiter import ConcurrencyLimiter
+from ray.tune.search.repeater import Repeater
 
 
 class IsaacLabTuneTrainable(tune.Trainable):
@@ -34,6 +37,7 @@ class IsaacLabTuneTrainable(tune.Trainable):
             while self.data == data:
                 time.sleep(0.1)  # avoid busy wait...
                 data = isaac_ray_util.load_tensorboard_logs(self.tensorboard_logdir)
+            print(f"New data {data}")
             return data
 
     def save_checkpoint(self, checkpoint_dir):
@@ -45,6 +49,56 @@ class IsaacLabTuneTrainable(tune.Trainable):
     def load_checkpoint(self, checkpoint_dir):
         model_name = checkpoint_dir.split("/")[-2]
         self.checkpoint = checkpoint_dir / model_name + ".pth"
+
+
+def invoke_tuning_run(args, cfg):
+    num_gpu_per_worker = args.cluster_gpu_count // args.num_workers
+    num_cpu_per_worker = args.cluster_cpu_count // args.num_workers
+    ray.init(address="auto")
+
+    # Define trainable with specific resource allocation
+    isaac_lab_trainable_with_resources = tune.with_resources(
+        IsaacLabTuneTrainable, {"cpu": num_cpu_per_worker, "gpu": num_gpu_per_worker}
+    )
+
+    # Define BOHB Search Algorithm
+    bohb_search = TuneBOHB(
+        metric="rewards/time",
+        mode="max",
+    )
+
+    # Define HyperBand Scheduler tailored for BOHB
+    hyperband_scheduler = HyperBandForBOHB(
+        time_attr="info/epochs", max_t=args.max_iterations, reduction_factor=2, stop_last_trials=False
+    )
+
+    # Limit the number of concurrent trials
+    limited_search = ConcurrencyLimiter(bohb_search, max_concurrent=4)
+
+    # Repeat each configuration 3 times
+    repeat_search = Repeater(limited_search, repeat=3)
+
+    # Running the experiment using the new Ray Tune API
+    tuner = tune.Tuner(
+        isaac_lab_trainable_with_resources,
+        param_space=cfg,
+        tune_config=tune.TuneConfig(
+            search_alg=repeat_search,
+            scheduler=hyperband_scheduler,
+            num_samples=args.num_samples,
+        ),
+        run_config=air.RunConfig(
+            name="BOHB_test", local_dir="./ray_results", verbose=1, failure_config=air.FailureConfig(fail_fast=True)
+        ),
+    )
+
+    # Get results
+    results = tuner.fit()
+
+    print("Best hyperparameters found were: ", results.get_best_result().config)
+
+
+# You can add the args parsing and cfg loading part here if necessary.
 
 
 class JobCfg:

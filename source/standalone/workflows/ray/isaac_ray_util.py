@@ -146,6 +146,9 @@ def add_cluster_args(parser: argparse.ArgumentParser) -> None:
             "Assumes that resources are equally distributed across cluster workers."
         ),
     )
+    parser.add_argument("--max_iterations", default=10000, type=int, help="Max epoch count for tuning per job.")
+
+    parser.add_argument("--num_samples", default=1000, type=int, help="How many different configurations to try.")
 
 
 if __name__ == "__main__":

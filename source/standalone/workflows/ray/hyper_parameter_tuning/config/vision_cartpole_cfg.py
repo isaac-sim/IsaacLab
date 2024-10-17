@@ -53,3 +53,7 @@ if __name__ == "__main__":
         cfg = CartpoleResNetJobCfg()
     elif args.type == "theia":
         cfg = CartpoleTheiaJobCfg()
+    else:
+        raise ValueError("Unknown desired tune.")
+
+    isaac_ray_tune.invoke_tuning_run(args=args, cfg=cfg)
