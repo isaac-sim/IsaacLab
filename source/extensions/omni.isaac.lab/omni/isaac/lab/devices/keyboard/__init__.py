@@ -7,3 +7,4 @@
 
 from .se2_keyboard import Se2Keyboard
 from .se3_keyboard import Se3Keyboard
+from .se3_robotiq_keyboard import Se3RobotiqKeyboard

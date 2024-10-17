@@ -271,10 +271,10 @@ class BaseScrewEnvCfg(ManagerBasedRLEnvCfg):
         self.decimation = 2
         self.sim.render_interval = self.decimation
         self.episode_length_s = 24.0
-        self.viewer.origin_type = "asset_root"
-        self.viewer.asset_name = "bolt"
-        self.viewer.eye = (0.1, 0, 0.04)
-        self.viewer.lookat = (0, 0, 0.02)
+        # self.viewer.origin_type = "asset_root"
+        # self.viewer.asset_name = "bolt"
+        # self.viewer.eye = (0.1, 0, 0.04)
+        # self.viewer.lookat = (0, 0, 0.02)
         
 
 ###################################

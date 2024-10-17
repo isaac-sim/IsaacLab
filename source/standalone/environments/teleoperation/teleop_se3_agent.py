@@ -40,7 +40,7 @@ import tqdm
 import numpy as np
 import matplotlib.pyplot as plt
 from force_tool.visualization.plot_utils import get_img_from_fig, save_numpy_as_mp4
-from omni.isaac.lab.devices import Se3Gamepad, Se3Keyboard, Se3SpaceMouse
+from omni.isaac.lab.devices import Se3Gamepad, Se3Keyboard, Se3SpaceMouse, Se3RobotiqKeyboard
 from omni.isaac.lab.managers import TerminationTermCfg as DoneTerm
 
 import omni.isaac.lab_tasks  # noqa: F401
@@ -51,10 +51,12 @@ from omni.isaac.lab_tasks.utils import parse_env_cfg
 def pre_process_actions(delta_pose: torch.Tensor, gripper_command: bool) -> torch.Tensor:
     """Pre-process actions for the environment."""
     # compute actions based on environment
-    if "Reach" in args_cli.task or "Kuka" in args_cli.task or "Float" in args_cli.task:
+    if "Reach" in args_cli.task or "Float" in args_cli.task:
         # note: reach is the only one that uses a different action space
         # compute actions
         return delta_pose
+    elif "Kuka" in args_cli.task:
+        return torch.concat([delta_pose, gripper_command], dim=1).float()
     else:
         # resolve gripper command
         gripper_vel = torch.zeros(delta_pose.shape[0], 1, device=delta_pose.device)
@@ -86,9 +88,15 @@ def main():
 
     # create controller
     if args_cli.teleop_device.lower() == "keyboard":
-        teleop_interface = Se3Keyboard(
-            pos_sensitivity=0.05 * args_cli.sensitivity, rot_sensitivity=0.5 * args_cli.sensitivity
-        )
+        if "Kuka" in args_cli.task:
+            teleop_interface = Se3RobotiqKeyboard(
+                pos_sensitivity=0.05 * args_cli.sensitivity, rot_sensitivity=0.5 * args_cli.sensitivity,
+                gripper_sensitivity=0.02 * args_cli.sensitivity,
+            )
+        else:
+            teleop_interface = Se3Keyboard(
+                pos_sensitivity=0.05 * args_cli.sensitivity, rot_sensitivity=0.5 * args_cli.sensitivity
+            )
     elif args_cli.teleop_device.lower() == "spacemouse":
         teleop_interface = Se3SpaceMouse(
             pos_sensitivity=0.05 * args_cli.sensitivity, rot_sensitivity=0.005 * args_cli.sensitivity
@@ -110,6 +118,9 @@ def main():
     counter = 0
     record_forces = False
     forces, frames = [], []
+    gripper_deltas = torch.zeros(100, 1, 2, device=env.unwrapped.device)
+    gripper_deltas[10:50]= 0.025
+    gripper_deltas[50:90]= -0.025
     # simulate environment
     while simulation_app.is_running():
         # run everything in inference mode
@@ -119,12 +130,15 @@ def main():
             delta_pose = delta_pose.astype("float32")
             # convert to torch
             delta_pose = torch.tensor(delta_pose, device=env.unwrapped.device).repeat(env.unwrapped.num_envs, 1)
+            gripper_command = torch.tensor(gripper_command, device=env.unwrapped.device).repeat(env.unwrapped.num_envs, 1)
             # pre-process actions
             actions = pre_process_actions(delta_pose, gripper_command)
             # apply actions
             # actions[:, 2] = -1.8e-3/250
-            actions[:, 2] = -0.001
-            actions[:, 5] = -0.2
+            # actions[:, 2] = -0.001
+            # actions[:, 5] = -0.2
+            # actions[:, -2:] = torch.rand_like(actions[:, -2:])
+            # actions[:, -2:] = gripper_deltas[counter%100]
             counter += 1
             obs, reward, termin, timeout, _ = env.step(actions)
             if record_forces:
@@ -176,8 +190,8 @@ def main():
                     save_numpy_as_mp4(np.array(combined_frames), 'nut.mp4')
                     frames = []
 
-            print("Step: ", counter)
-            print("Reward: ", reward, termin)
+            # print("Step: ", counter)
+            # print("Reward: ", reward, termin)
 
     # close the simulator
     env.close()
