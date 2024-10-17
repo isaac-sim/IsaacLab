@@ -32,9 +32,6 @@ jobs:
       working-directory: ./docs
       run: |
         git fetch --prune --unshallow --tags
-        git branch -r
-        echo exit code $?
-        git tag --list
         make multi-docs
 
     - name: Upload docs artifact
