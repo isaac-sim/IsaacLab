@@ -7,8 +7,9 @@ Changelog
 Changed
 ^^^^^^^
 
-* initialize ``EventManager`` and trigger startup events before ``ObservationManager`` in ``load_managers`` API of 
+* Initialize ``EventManager`` and trigger startup events before ``ObservationManager`` in ``load_managers`` API of 
   ``ManagerBasedEnv``. This allows observations that may depend on a startup event. 
+* Enable startup events in ``load_managers`` for child classes. 
 
 0.25.2 (2024-10-16)
 ~~~~~~~~~~~~~~~~~~~~
