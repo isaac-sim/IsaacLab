@@ -8,7 +8,11 @@ SPHINXBUILD   ?= sphinx-multiversion
 SOURCEDIR     = .
 BUILDDIR      = _build
 
-# Catch-all target: route all unknown targets to Sphinx using the new
-# "make mode" option.  $(O) is meant as a shortcut for $(SPHINXOPTS).
-%: Makefile
-	@$(SPHINXBUILD) "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
+.PHONY: multi-docs
+multi-docs:
+	@$(SPHINXBUILD) "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS)
+	@cp _redirect/index.html $(BUILDDIR)/index.html
+
+.PHONY: single-docs
+single-docs:
+	@sphinx-build "$(SOURCEDIR)" "$(BUILDDIR)/latest" $(SPHINXOPTS)
