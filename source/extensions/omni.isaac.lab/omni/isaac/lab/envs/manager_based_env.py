@@ -209,18 +209,18 @@ class ManagerBasedEnv:
         # -- action manager
         self.action_manager = ActionManager(self.cfg.actions, self)
         print("[INFO] Action Manager: ", self.action_manager)
-        # -- observation manager
-        self.observation_manager = ObservationManager(self.cfg.observations, self)
-        print("[INFO] Observation Manager:", self.observation_manager)
+
         # -- event manager
         self.event_manager = EventManager(self.cfg.events, self)
         print("[INFO] Event Manager: ", self.event_manager)
-
         # perform events at the start of the simulation
-        # in-case a child implementation creates other managers, the randomization should happen
-        # when all the other managers are created
-        if self.__class__ == ManagerBasedEnv and "startup" in self.event_manager.available_modes:
+        if "startup" in self.event_manager.available_modes:
             self.event_manager.apply(mode="startup")
+
+        # -- observation manager
+        self.observation_manager = ObservationManager(self.cfg.observations, self)
+        print("[INFO] Observation Manager:", self.observation_manager)
+
 
     """
     Operations - MDP.
