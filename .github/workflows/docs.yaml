@@ -1,6 +1,6 @@
 name: Build & deploy docs
 
-on: 
+on:
   push:
   pull_request:
 
