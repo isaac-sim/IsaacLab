@@ -7,10 +7,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import carb
 import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.core.utils.stage as stage_utils
 import omni.kit.commands
+import omni.log
 from pxr import Gf, Sdf, Usd
 
 from omni.isaac.lab.sim import converters, schemas
@@ -226,7 +226,7 @@ def _spawn_from_usd_file(
             scale=cfg.scale,
         )
     else:
-        carb.log_warn(f"A prim already exists at prim path: '{prim_path}'.")
+        omni.log.warn(f"A prim already exists at prim path: '{prim_path}'.")
 
     # modify variants
     if hasattr(cfg, "variants") and cfg.variants is not None:

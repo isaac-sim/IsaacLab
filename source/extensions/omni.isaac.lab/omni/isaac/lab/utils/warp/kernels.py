@@ -10,7 +10,7 @@ from typing import Any
 import warp as wp
 
 
-@wp.kernel
+@wp.kernel(enable_backward=False)
 def raycast_mesh_kernel(
     mesh: wp.uint64,
     ray_starts: wp.array(dtype=wp.vec3),
@@ -75,7 +75,7 @@ def raycast_mesh_kernel(
             ray_face_id[tid] = f
 
 
-@wp.kernel
+@wp.kernel(enable_backward=False)
 def reshape_tiled_image(
     tiled_image_buffer: Any,
     batched_image: Any,

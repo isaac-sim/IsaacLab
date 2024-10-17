@@ -171,7 +171,7 @@ class InteractiveScene:
         carb_settings_iface = carb.settings.get_settings()
         has_multi_assets = carb_settings_iface.get("/isaaclab/spawn/multi_assets")
         if has_multi_assets and self.cfg.replicate_physics:
-            carb.log_warn(
+            omni.log.warn(
                 "Varying assets might have been spawned under different environments."
                 " However, the replicate physics flag is enabled in the 'InteractiveScene' configuration."
                 " This may adversely affect PhysX parsing. We recommend disabling this property."
@@ -239,7 +239,7 @@ class InteractiveScene:
             for prim in self.stage.Traverse():
                 if prim.HasAPI(PhysxSchema.PhysxSceneAPI):
                     self._physics_scene_path = prim.GetPrimPath().pathString
-                    carb.log_info(f"Physics scene prim path: {self._physics_scene_path}")
+                    omni.log.info(f"Physics scene prim path: {self._physics_scene_path}")
                     break
             if self._physics_scene_path is None:
                 raise RuntimeError("No physics scene found! Please make sure one exists.")

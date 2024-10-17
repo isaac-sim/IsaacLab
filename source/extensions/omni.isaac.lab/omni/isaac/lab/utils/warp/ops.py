@@ -13,6 +13,9 @@ import torch
 
 import warp as wp
 
+# disable warp module initialization messages
+wp.config.quiet = True
+# initialize the warp module
 wp.init()
 
 from . import kernels
