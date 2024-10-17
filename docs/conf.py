@@ -250,7 +250,7 @@ templates_path = [
 smv_branch_whitelist = "pull/1247/merge"
 
 # Whitelist pattern for tags (set to None to ignore all tags)
-smv_tag_whitelist = r"^v[1-9]\d*\.\d+\.\d+$"
+smv_tag_whitelist = "tmp"
 print(f"smv_branch_whitelist {smv_branch_whitelist}, smv_tag_whitelist {smv_tag_whitelist}")
 html_sidebars = {
     "**": ["navbar-logo.html", "versioning.html", "icon-links.html", "search-field.html", "sbt-sidebar-nav.html"]
