@@ -26,7 +26,7 @@ jobs:
     - name: Check branch docs building
       if: ${{ github.event_name == 'pull_request' }}
       working-directory: ./docs
-      run: make build SPHINXBUILD=sphinx-build BUILDDIR=_build/html
+      run: make single-docs
 
     - name: Generate multi-version docs
       working-directory: ./docs
@@ -35,8 +35,7 @@ jobs:
         git branch -r
         echo exit code $?
         git tag --list
-        make build
-        cp _redirect/index.html _build/index.html
+        make multi-docs
 
     - name: Upload docs artifact
       uses: actions/upload-artifact@v4
