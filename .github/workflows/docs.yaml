@@ -23,6 +23,11 @@ jobs:
       working-directory: ./docs
       run: pip install -r requirements.txt
 
+    - name: Check branch docs building
+      if: ${{ github.event_name == 'pull_request' }}
+      working-directory: ./docs
+      run: make build SPHINXBUILD=sphinx-build BUILDDIR=_build/html
+
     - name: Generate multi-version docs
       working-directory: ./docs
       run: |
@@ -32,11 +37,6 @@ jobs:
         git tag --list
         make build
         cp _redirect/index.html _build/index.html
-
-    - name: Check branch docs building
-      if: ${{ github.event_name == 'pull_request' }}
-      working-directory: ./docs
-      run: make build SPHINXBUILD=sphinx-build BUILDDIR=_build/html
 
     - name: Upload docs artifact
       uses: actions/upload-artifact@v4
