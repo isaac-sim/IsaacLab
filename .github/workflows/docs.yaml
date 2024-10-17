@@ -26,7 +26,7 @@ jobs:
     - name: Generate docs
       working-directory: ./docs
       run: |
-        git fetch --prune --unshallow origin main:refs/remotes/origin/main --tags
+        git fetch --prune --unshallow origin main --tags
         git branch -r
         echo exit code $?
         git tag --list
