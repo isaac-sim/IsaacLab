@@ -23,6 +23,7 @@
 import argparse
 import logging
 import os
+import re
 import subprocess
 import sys
 import time
@@ -118,57 +119,9 @@ def test_all(
     # Set up logger
     logging.basicConfig(level=logging.INFO, format="%(message)s", handlers=logging_handlers)
 
-    # Discover all tests under current directory
-    all_test_paths = [str(path) for path in Path(test_dir).resolve().rglob("*test_*.py")]
-    skipped_test_paths = []
-    test_paths = []
-    # Check that all tests to skip are actually in the tests
-    for test_to_skip in tests_to_skip:
-        for test_path in all_test_paths:
-            if test_to_skip in test_path:
-                break
-        else:
-            raise ValueError(f"Test to skip '{test_to_skip}' not found in tests.")
-
-    # Filter tests by extension
-    if extension is not None:
-        all_tests_in_selected_extension = []
-
-        for test_path in all_test_paths:
-            # Extract extension name from test path
-            extension_name = test_path[test_path.find("extensions") :].split("/")[1]
-
-            # Skip tests that are not in the selected extension
-            if extension_name != extension:
-                continue
-
-            all_tests_in_selected_extension.append(test_path)
-
-        all_test_paths = all_tests_in_selected_extension
-
-    # Remove tests to skip from the list of tests to run
-    if len(tests_to_skip) != 0:
-        for test_path in all_test_paths:
-            if any([test_to_skip in test_path for test_to_skip in tests_to_skip]):
-                skipped_test_paths.append(test_path)
-            else:
-                test_paths.append(test_path)
-    else:
-        test_paths = all_test_paths
-
-    # Sort test paths so they're always in the same order
-    all_test_paths.sort()
-    test_paths.sort()
-    skipped_test_paths.sort()
-
-    # Initialize all tests to have the same timeout
-    test_timeouts = {test_path: timeout for test_path in all_test_paths}
-
-    # Overwrite timeouts for specific tests
-    for test_path_with_timeout, test_timeout in per_test_timeouts.items():
-        for test_path in all_test_paths:
-            if test_path_with_timeout in test_path:
-                test_timeouts[test_path] = test_timeout
+    all_test_paths, test_paths, skipped_test_paths, test_timeouts = extract_tests_and_timeouts(
+        test_dir, extension, tests_to_skip, timeout, per_test_timeouts
+    )
 
     # Print tests to be run
     logging.info("\n" + "=" * 60 + "\n")
@@ -213,36 +166,31 @@ def test_all(
         except Exception as e:
             logging.error(f"Unexpected exception {e}. Please report this issue on the repository.")
             result = "FAILED"
-            stdout = str(e)
-            stderr = str(e)
+            stdout = None
+            stderr = None
         else:
-            # Should only get here if the process ran successfully, e.g. no exceptions were raised
-            # but we still check the returncode just in case
-            result = "PASSED" if completed_process.returncode == 0 else "FAILED"
+            result = "COMPLETED"
             stdout = completed_process.stdout
             stderr = completed_process.stderr
 
         after = time.time()
         time_elapsed = after - before
-        # Decode stdout and stderr and write to file and print to console if desired
-        if stdout is not None:
-            if isinstance(stdout, str):
-                stdout_str = stdout
+
+        # Decode stdout and stderr
+        stdout = stdout.decode("utf-8") if stdout is not None else ""
+        stderr = stderr.decode("utf-8") if stderr is not None else ""
+
+        if result == "COMPLETED":
+            # Check for success message in the output
+            success_pattern = r"Ran \d+ tests? in [\d.]+s\s+OK"
+            if re.search(success_pattern, stdout) or re.search(success_pattern, stderr):
+                result = "PASSED"
             else:
-                stdout_str = stdout.decode("utf-8")
-        else:
-            stdout_str = ""
-        if stderr is not None:
-            if isinstance(stderr, str):
-                stderr_str = stderr
-            else:
-                stderr_str = stderr.decode("utf-8")
-        else:
-            stderr_str = ""
+                result = "FAILED"
 
         # Write to log file
-        logging.info(stdout_str)
-        logging.info(stderr_str)
+        logging.info(stdout)
+        logging.info(stderr)
         logging.info(f"[INFO] Time elapsed: {time_elapsed:.2f} s")
         logging.info(f"[INFO] Result '{test_path}': {result}")
         # Collect results
@@ -307,8 +255,89 @@ def test_all(
     return num_failing + num_timing_out == 0
 
 
+def extract_tests_and_timeouts(
+    test_dir: str,
+    extension: str | None = None,
+    tests_to_skip: list[str] = [],
+    timeout: float = DEFAULT_TIMEOUT,
+    per_test_timeouts: dict[str, float] = {},
+) -> tuple[list[str], list[str], list[str], dict[str, float]]:
+    """Extract all tests under the given directory or extension and their respective timeouts.
+
+    Args:
+        test_dir: Path to the directory containing the tests.
+        extension: Run tests only for the given extension. Defaults to None, which means all extensions'
+            tests will be run.
+        tests_to_skip: List of tests to skip.
+        timeout: Timeout for each test in seconds. Defaults to DEFAULT_TIMEOUT.
+        per_test_timeouts: A dictionary of tests and their timeouts in seconds. Any tests not listed here will use the
+            timeout specified by `timeout`. Defaults to an empty dictionary.
+
+    Returns:
+        A tuple containing the paths of all tests, tests to run, tests to skip, and their respective timeouts.
+
+    Raises:
+        ValueError: If any test to skip is not found under the given `test_dir`.
+    """
+
+    # Discover all tests under current directory
+    all_test_paths = [str(path) for path in Path(test_dir).resolve().rglob("*test_*.py")]
+    skipped_test_paths = []
+    test_paths = []
+    # Check that all tests to skip are actually in the tests
+    for test_to_skip in tests_to_skip:
+        for test_path in all_test_paths:
+            if test_to_skip in test_path:
+                break
+        else:
+            raise ValueError(f"Test to skip '{test_to_skip}' not found in tests.")
+
+    # Filter tests by extension
+    if extension is not None:
+        all_tests_in_selected_extension = []
+
+        for test_path in all_test_paths:
+            # Extract extension name from test path
+            extension_name = test_path[test_path.find("extensions") :].split("/")[1]
+
+            # Skip tests that are not in the selected extension
+            if extension_name != extension:
+                continue
+
+            all_tests_in_selected_extension.append(test_path)
+
+        all_test_paths = all_tests_in_selected_extension
+
+    # Remove tests to skip from the list of tests to run
+    if len(tests_to_skip) != 0:
+        for test_path in all_test_paths:
+            if any([test_to_skip in test_path for test_to_skip in tests_to_skip]):
+                skipped_test_paths.append(test_path)
+            else:
+                test_paths.append(test_path)
+    else:
+        test_paths = all_test_paths
+
+    # Sort test paths so they're always in the same order
+    all_test_paths.sort()
+    test_paths.sort()
+    skipped_test_paths.sort()
+
+    # Initialize all tests to have the same timeout
+    test_timeouts = {test_path: timeout for test_path in all_test_paths}
+
+    # Overwrite timeouts for specific tests
+    for test_path_with_timeout, test_timeout in per_test_timeouts.items():
+        for test_path in all_test_paths:
+            if test_path_with_timeout in test_path:
+                test_timeouts[test_path] = test_timeout
+
+    return all_test_paths, test_paths, skipped_test_paths, test_timeouts
+
+
 def warm_start_app():
     """Warm start the app to compile shaders before running the tests."""
+
     print("[INFO] Warm starting the simulation app before running tests.")
     before = time.time()
     # headless experience
