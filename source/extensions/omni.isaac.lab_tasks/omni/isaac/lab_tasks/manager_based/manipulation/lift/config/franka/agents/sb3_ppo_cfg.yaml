@@ -16,7 +16,7 @@ learning_rate: !!float 3e-4
 clip_range: 0.2
 policy_kwargs: "dict(
                   activation_fn=nn.ELU,
-                  net_arch=[32, 32, dict(pi=[256, 128, 64], vf=[256, 128, 64])]
+                  net_arch=dict(pi=[256, 128, 64], vf=[256, 128, 64])
                 )"
 target_kl: 0.01
 max_grad_norm: 1.0
