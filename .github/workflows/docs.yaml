@@ -30,7 +30,7 @@ jobs:
         git branch -r
         echo exit code $?
         git tag --list
-        echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}"
+        echo "PR Source Branch: ${{ github.event.pull_request.head.ref }}"
         make build
         cp _redirect/index.html _build/index.html
 
