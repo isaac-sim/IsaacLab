@@ -30,8 +30,6 @@ jobs:
         git branch -r
         echo exit code $?
         git tag --list
-        current_branch=$(git branch 2> /dev/null | sed -e '/^[^*]/d' | awk '{print $2}')
-        echo "Current branch: $current_branch"
         make build
         cp _redirect/index.html _build/index.html
 
