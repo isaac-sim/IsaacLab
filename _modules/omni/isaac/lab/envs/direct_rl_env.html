@@ -54,7 +54,7 @@
     <link rel="search" title="Search" href="../../../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Oct 15, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 17, 2024"/>
   </head>
   
   
@@ -510,6 +510,7 @@ document.write(`
 <span class="kn">import</span> <span class="nn">weakref</span>
 <span class="kn">from</span> <span class="nn">abc</span> <span class="kn">import</span> <span class="n">abstractmethod</span>
 <span class="kn">from</span> <span class="nn">collections.abc</span> <span class="kn">import</span> <span class="n">Sequence</span>
+<span class="kn">from</span> <span class="nn">dataclasses</span> <span class="kn">import</span> <span class="n">MISSING</span>
 <span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">ClassVar</span>
 
 <span class="kn">import</span> <span class="nn">omni.isaac.core.utils.torch</span> <span class="k">as</span> <span class="nn">torch_utils</span>
@@ -526,6 +527,7 @@ document.write(`
 <span class="kn">from</span> <span class="nn">.common</span> <span class="kn">import</span> <span class="n">VecEnvObs</span><span class="p">,</span> <span class="n">VecEnvStepReturn</span>
 <span class="kn">from</span> <span class="nn">.direct_rl_env_cfg</span> <span class="kn">import</span> <span class="n">DirectRLEnvCfg</span>
 <span class="kn">from</span> <span class="nn">.ui</span> <span class="kn">import</span> <span class="n">ViewportCameraController</span>
+<span class="kn">from</span> <span class="nn">.utils.spaces</span> <span class="kn">import</span> <span class="n">sample_space</span><span class="p">,</span> <span class="n">spec_to_gym_space</span>
 
 
 <div class="viewcode-block" id="DirectRLEnv"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnv">[docs]</a><span class="k">class</span> <span class="nc">DirectRLEnv</span><span class="p">(</span><span class="n">gym</span><span class="o">.</span><span class="n">Env</span><span class="p">):</span>
@@ -667,7 +669,6 @@ document.write(`
         <span class="bp">self</span><span class="o">.</span><span class="n">reset_terminated</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">bool</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">reset_time_outs</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">reset_terminated</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">reset_buf</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">bool</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">actions</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">num_actions</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
 
         <span class="c1"># setup the action and observation spaces for Gym</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_configure_gym_env_spaces</span><span class="p">()</span>
@@ -1003,26 +1004,39 @@ document.write(`
 
     <span class="k">def</span> <span class="nf">_configure_gym_env_spaces</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Configure the action and observation spaces for the Gym environment.&quot;&quot;&quot;</span>
-        <span class="c1"># observation space (unbounded since we don&#39;t impose any limits)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">num_actions</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">num_actions</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">num_observations</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">num_observations</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">num_states</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">num_states</span>
+        <span class="c1"># show deprecation message and overwrite configuration</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">num_actions</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s2">&quot;DirectRLEnvCfg.num_actions is deprecated. Use DirectRLEnvCfg.action_space instead.&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">action_space</span><span class="p">,</span> <span class="nb">type</span><span class="p">(</span><span class="n">MISSING</span><span class="p">)):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">action_space</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">num_actions</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">num_observations</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+                <span class="s2">&quot;DirectRLEnvCfg.num_observations is deprecated. Use DirectRLEnvCfg.observation_space instead.&quot;</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">observation_space</span><span class="p">,</span> <span class="nb">type</span><span class="p">(</span><span class="n">MISSING</span><span class="p">)):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">observation_space</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">num_observations</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">num_states</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s2">&quot;DirectRLEnvCfg.num_states is deprecated. Use DirectRLEnvCfg.state_space instead.&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">state_space</span><span class="p">,</span> <span class="nb">type</span><span class="p">(</span><span class="n">MISSING</span><span class="p">)):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">state_space</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">num_states</span>
 
         <span class="c1"># set up spaces</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">single_observation_space</span> <span class="o">=</span> <span class="n">gym</span><span class="o">.</span><span class="n">spaces</span><span class="o">.</span><span class="n">Dict</span><span class="p">()</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">single_observation_space</span><span class="p">[</span><span class="s2">&quot;policy&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">gym</span><span class="o">.</span><span class="n">spaces</span><span class="o">.</span><span class="n">Box</span><span class="p">(</span>
-            <span class="n">low</span><span class="o">=-</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">,</span> <span class="n">high</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_observations</span><span class="p">,)</span>
-        <span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">single_action_space</span> <span class="o">=</span> <span class="n">gym</span><span class="o">.</span><span class="n">spaces</span><span class="o">.</span><span class="n">Box</span><span class="p">(</span><span class="n">low</span><span class="o">=-</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">,</span> <span class="n">high</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_actions</span><span class="p">,))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">single_observation_space</span><span class="p">[</span><span class="s2">&quot;policy&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">spec_to_gym_space</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">observation_space</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">single_action_space</span> <span class="o">=</span> <span class="n">spec_to_gym_space</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">action_space</span><span class="p">)</span>
 
         <span class="c1"># batch the spaces for vectorized environments</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">observation_space</span> <span class="o">=</span> <span class="n">gym</span><span class="o">.</span><span class="n">vector</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">batch_space</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">single_observation_space</span><span class="p">[</span><span class="s2">&quot;policy&quot;</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">action_space</span> <span class="o">=</span> <span class="n">gym</span><span class="o">.</span><span class="n">vector</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">batch_space</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">single_action_space</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">)</span>
 
         <span class="c1"># optional state space for asymmetric actor-critic architectures</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_states</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">single_observation_space</span><span class="p">[</span><span class="s2">&quot;critic&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">gym</span><span class="o">.</span><span class="n">spaces</span><span class="o">.</span><span class="n">Box</span><span class="p">(</span><span class="n">low</span><span class="o">=-</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">,</span> <span class="n">high</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_states</span><span class="p">,))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">state_space</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">state_space</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">single_observation_space</span><span class="p">[</span><span class="s2">&quot;critic&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">spec_to_gym_space</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">state_space</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">state_space</span> <span class="o">=</span> <span class="n">gym</span><span class="o">.</span><span class="n">vector</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">batch_space</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">single_observation_space</span><span class="p">[</span><span class="s2">&quot;critic&quot;</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">)</span>
+
+        <span class="c1"># instantiate actions (needed for tasks for which the observations computation is dependent on the actions)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">actions</span> <span class="o">=</span> <span class="n">sample_space</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">single_action_space</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">fill_value</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">_reset_idx</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Reset environments based on specified indices.</span>
@@ -1097,7 +1111,7 @@ document.write(`
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Compute and return the states for the environment.</span>
 
 <span class="sd">        The state-space is used for asymmetric actor-critic architectures. It is configured</span>
-<span class="sd">        using the :attr:`DirectRLEnvCfg.num_states` parameter.</span>
+<span class="sd">        using the :attr:`DirectRLEnvCfg.state_space` parameter.</span>
 
 <span class="sd">        Returns:</span>
 <span class="sd">            The states for the environment. If the environment does not have a state-space, the function</span>
@@ -1179,7 +1193,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 15, 2024.
+  Last updated on Oct 17, 2024.
   <br/>
 </p>
   </div>

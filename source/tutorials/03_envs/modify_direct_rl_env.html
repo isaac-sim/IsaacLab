@@ -57,7 +57,7 @@
     <link rel="prev" title="Training with an RL Agent" href="run_rl_training.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Oct 15, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 17, 2024"/>
   </head>
   
   
@@ -615,9 +615,9 @@ humanoid model to the Unitree H1 humanoid robot without affecting the original c
 <span class="linenos">24</span>    <span class="n">episode_length_s</span> <span class="o">=</span> <span class="mf">15.0</span>
 <span class="linenos">25</span>    <span class="n">decimation</span> <span class="o">=</span> <span class="mi">2</span>
 <span class="linenos">26</span>    <span class="n">action_scale</span> <span class="o">=</span> <span class="mf">1.0</span>
-<span class="linenos">27</span>    <span class="n">num_actions</span> <span class="o">=</span> <span class="mi">21</span>
-<span class="linenos">28</span>    <span class="n">num_observations</span> <span class="o">=</span> <span class="mi">75</span>
-<span class="linenos">29</span>    <span class="n">num_states</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="linenos">27</span>    <span class="n">action_space</span> <span class="o">=</span> <span class="mi">21</span>
+<span class="linenos">28</span>    <span class="n">observation_space</span> <span class="o">=</span> <span class="mi">75</span>
+<span class="linenos">29</span>    <span class="n">state_space</span> <span class="o">=</span> <span class="mi">0</span>
 <span class="linenos">30</span>
 <span class="linenos">31</span>    <span class="c1"># simulation</span>
 <span class="linenos">32</span>    <span class="n">sim</span><span class="p">:</span> <span class="n">SimulationCfg</span> <span class="o">=</span> <span class="n">SimulationCfg</span><span class="p">(</span><span class="n">dt</span><span class="o">=</span><span class="mi">1</span> <span class="o">/</span> <span class="mi">120</span><span class="p">,</span> <span class="n">render_interval</span><span class="o">=</span><span class="n">decimation</span><span class="p">)</span>
@@ -771,8 +771,8 @@ by using the <a class="reference internal" href="../../api/lab/omni.isaac.lab.as
 <p>The robot changed, and with it the number of joints to control or the number of rigid bodies that compose the articulation, for example.
 Therefore, it is also necessary to adjust other values in the environment configuration that depend on the characteristics of the robot,
 such as the number of elements in the observation and action space.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">num_actions</span> <span class="o">=</span> <span class="mi">19</span>
-<span class="n">num_observations</span> <span class="o">=</span> <span class="mi">69</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">action_space</span> <span class="o">=</span> <span class="mi">19</span>
+<span class="n">observation_space</span> <span class="o">=</span> <span class="mi">69</span>
 </pre></div>
 </div>
 </section>
@@ -884,7 +884,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 15, 2024.
+  Last updated on Oct 17, 2024.
   <br/>
 </p>
   </div>

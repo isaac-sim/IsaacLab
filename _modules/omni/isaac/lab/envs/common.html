@@ -54,7 +54,7 @@
     <link rel="search" title="Search" href="../../../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Oct 15, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 17, 2024"/>
   </head>
   
   
@@ -501,6 +501,7 @@ document.write(`
 
 <span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">annotations</span>
 
+<span class="kn">import</span> <span class="nn">gymnasium</span> <span class="k">as</span> <span class="nn">gym</span>
 <span class="kn">import</span> <span class="nn">torch</span>
 <span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">Literal</span><span class="p">,</span> <span class="n">TypeVar</span>
 
@@ -557,6 +558,9 @@ document.write(`
 <span class="c1">##</span>
 <span class="c1"># Types.</span>
 <span class="c1">##</span>
+
+<span class="n">SpaceType</span> <span class="o">=</span> <span class="n">TypeVar</span><span class="p">(</span><span class="s2">&quot;SpaceType&quot;</span><span class="p">,</span> <span class="n">gym</span><span class="o">.</span><span class="n">spaces</span><span class="o">.</span><span class="n">Space</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">set</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">,</span> <span class="nb">list</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span>
+<span class="sd">&quot;&quot;&quot;A sentinel object to indicate a valid space type to specify states, observations and actions.&quot;&quot;&quot;</span>
 
 <span class="n">VecEnvObs</span> <span class="o">=</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]]</span>
 <span class="sd">&quot;&quot;&quot;Observation returned by the environment.</span>
@@ -676,7 +680,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 15, 2024.
+  Last updated on Oct 17, 2024.
   <br/>
 </p>
   </div>

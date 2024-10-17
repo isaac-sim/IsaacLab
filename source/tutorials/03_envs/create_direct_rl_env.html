@@ -57,7 +57,7 @@
     <link rel="prev" title="Creating a Manager-Based RL Environment" href="create_manager_rl_env.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Oct 15, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 17, 2024"/>
   </head>
   
   
@@ -630,9 +630,9 @@ for scene creation, actions, resets, rewards and observations.</p>
 <span class="linenos"> 27</span>    <span class="n">decimation</span> <span class="o">=</span> <span class="mi">2</span>
 <span class="linenos"> 28</span>    <span class="n">episode_length_s</span> <span class="o">=</span> <span class="mf">5.0</span>
 <span class="linenos"> 29</span>    <span class="n">action_scale</span> <span class="o">=</span> <span class="mf">100.0</span>  <span class="c1"># [N]</span>
-<span class="linenos"> 30</span>    <span class="n">num_actions</span> <span class="o">=</span> <span class="mi">1</span>
-<span class="linenos"> 31</span>    <span class="n">num_observations</span> <span class="o">=</span> <span class="mi">4</span>
-<span class="linenos"> 32</span>    <span class="n">num_states</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="linenos"> 30</span>    <span class="n">action_space</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="linenos"> 31</span>    <span class="n">observation_space</span> <span class="o">=</span> <span class="mi">4</span>
+<span class="linenos"> 32</span>    <span class="n">state_space</span> <span class="o">=</span> <span class="mi">0</span>
 <span class="linenos"> 33</span>
 <span class="linenos"> 34</span>    <span class="c1"># simulation</span>
 <span class="linenos"> 35</span>    <span class="n">sim</span><span class="p">:</span> <span class="n">SimulationCfg</span> <span class="o">=</span> <span class="n">SimulationCfg</span><span class="p">(</span><span class="n">dt</span><span class="o">=</span><span class="mi">1</span> <span class="o">/</span> <span class="mi">120</span><span class="p">,</span> <span class="n">render_interval</span><span class="o">=</span><span class="n">decimation</span><span class="p">)</span>
@@ -785,9 +785,9 @@ config should define the number of actions and observations for the environment.
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@configclass</span>
 <span class="k">class</span> <span class="nc">CartpoleEnvCfg</span><span class="p">(</span><span class="n">DirectRLEnvCfg</span><span class="p">):</span>
    <span class="o">...</span>
-   <span class="n">num_actions</span> <span class="o">=</span> <span class="mi">1</span>
-   <span class="n">num_observations</span> <span class="o">=</span> <span class="mi">4</span>
-   <span class="n">num_states</span> <span class="o">=</span> <span class="mi">0</span>
+   <span class="n">action_space</span> <span class="o">=</span> <span class="mi">1</span>
+   <span class="n">observation_space</span> <span class="o">=</span> <span class="mi">4</span>
+   <span class="n">state_space</span> <span class="o">=</span> <span class="mi">0</span>
 </pre></div>
 </div>
 <p>The config class can also be used to define task-specific attributes, such as scaling for reward terms
@@ -1176,7 +1176,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 15, 2024.
+  Last updated on Oct 17, 2024.
   <br/>
 </p>
   </div>

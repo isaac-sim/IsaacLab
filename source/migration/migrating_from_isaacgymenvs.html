@@ -57,7 +57,7 @@
     <link rel="prev" title="Running an example with Docker" href="../deployment/run_docker_example.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Oct 15, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 17, 2024"/>
   </head>
   
   
@@ -637,9 +637,9 @@ parameters, environment scene parameters, robot parameters, and task-specific pa
    <span class="c1"># env</span>
    <span class="n">decimation</span> <span class="o">=</span> <span class="mi">2</span>
    <span class="n">episode_length_s</span> <span class="o">=</span> <span class="mf">5.0</span>
-   <span class="n">num_actions</span> <span class="o">=</span> <span class="mi">1</span>
-   <span class="n">num_observations</span> <span class="o">=</span> <span class="mi">4</span>
-   <span class="n">num_states</span> <span class="o">=</span> <span class="mi">0</span>
+   <span class="n">action_space</span> <span class="o">=</span> <span class="mi">1</span>
+   <span class="n">observation_space</span> <span class="o">=</span> <span class="mi">4</span>
+   <span class="n">state_space</span> <span class="o">=</span> <span class="mi">0</span>
    <span class="c1"># task-specific parameters</span>
    <span class="o">...</span>
 </pre></div>
@@ -756,9 +756,9 @@ observation and action buffers. Reward term scaling parameters can also be speci
 <p>The following parameters must be set for each environment config:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">decimation</span> <span class="o">=</span> <span class="mi">2</span>
 <span class="n">episode_length_s</span> <span class="o">=</span> <span class="mf">5.0</span>
-<span class="n">num_actions</span> <span class="o">=</span> <span class="mi">1</span>
-<span class="n">num_observations</span> <span class="o">=</span> <span class="mi">4</span>
-<span class="n">num_states</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="n">action_space</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="n">observation_space</span> <span class="o">=</span> <span class="mi">4</span>
+<span class="n">state_space</span> <span class="o">=</span> <span class="mi">0</span>
 </pre></div>
 </div>
 <p>Note that the maximum episode length parameter (now <code class="docutils literal notranslate"><span class="pre">episode_length_s</span></code>) is in seconds instead of steps as it was
@@ -1228,9 +1228,9 @@ Observations will also be computed with the correct states after resets.</p>
     <span class="n">decimation</span> <span class="o">=</span> <span class="mi">2</span>
     <span class="n">episode_length_s</span> <span class="o">=</span> <span class="mf">5.0</span>
     <span class="n">action_scale</span> <span class="o">=</span> <span class="mf">100.0</span>  <span class="c1"># [N]</span>
-    <span class="n">num_actions</span> <span class="o">=</span> <span class="mi">1</span>
-    <span class="n">num_observations</span> <span class="o">=</span> <span class="mi">4</span>
-    <span class="n">num_states</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">action_space</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">observation_space</span> <span class="o">=</span> <span class="mi">4</span>
+    <span class="n">state_space</span> <span class="o">=</span> <span class="mi">0</span>
     <span class="c1"># reset</span>
     <span class="n">max_cart_pos</span> <span class="o">=</span> <span class="mf">3.0</span>
     <span class="n">initial_pole_angle_range</span> <span class="o">=</span> <span class="p">[</span><span class="o">-</span><span class="mf">0.25</span><span class="p">,</span> <span class="mf">0.25</span><span class="p">]</span>
@@ -1856,7 +1856,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 15, 2024.
+  Last updated on Oct 17, 2024.
   <br/>
 </p>
   </div>

@@ -57,7 +57,7 @@
     <link rel="prev" title="Simple Agents" href="../overview/simple_agents.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Oct 15, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 17, 2024"/>
   </head>
   
   
@@ -704,13 +704,12 @@ are modified.</p>
         <span class="n">height</span><span class="o">=</span><span class="mi">80</span><span class="p">,</span>
     <span class="p">)</span>
 
-    <span class="c1"># env</span>
-    <span class="n">num_channels</span> <span class="o">=</span> <span class="mi">1</span>
-<span class="hll">    <span class="n">num_observations</span> <span class="o">=</span> <span class="n">num_channels</span> <span class="o">*</span> <span class="n">tiled_camera</span><span class="o">.</span><span class="n">height</span> <span class="o">*</span> <span class="n">tiled_camera</span><span class="o">.</span><span class="n">width</span>
-</span></pre></div>
+    <span class="c1"># spaces</span>
+    <span class="n">observation_space</span> <span class="o">=</span> <span class="p">[</span><span class="n">tiled_camera</span><span class="o">.</span><span class="n">height</span><span class="p">,</span> <span class="n">tiled_camera</span><span class="o">.</span><span class="n">width</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+</pre></div>
 </div>
 <p>If the user were to modify the width of the camera, i.e. <code class="docutils literal notranslate"><span class="pre">env.tiled_camera.width=128</span></code>, then the parameter
-<code class="docutils literal notranslate"><span class="pre">env.num_observations=10240</span></code> (1*80*128) must be updated and given as input as well.</p>
+<code class="docutils literal notranslate"><span class="pre">env.observation_space=[80,128,1]</span></code> must be updated and given as input as well.</p>
 <p>Similarly, the <code class="docutils literal notranslate"><span class="pre">__post_init__</span></code> method is not updated with the command line inputs. In the <code class="docutils literal notranslate"><span class="pre">LocomotionVelocityRoughEnvCfg</span></code>, for example,
 the post init update is as follows:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">LocomotionVelocityRoughEnvCfg</span><span class="p">(</span><span class="n">ManagerBasedRLEnvCfg</span><span class="p">):</span>
@@ -845,7 +844,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 15, 2024.
+  Last updated on Oct 17, 2024.
   <br/>
 </p>
   </div>
