@@ -221,7 +221,6 @@ class ManagerBasedEnv:
         self.observation_manager = ObservationManager(self.cfg.observations, self)
         print("[INFO] Observation Manager:", self.observation_manager)
 
-
     """
     Operations - MDP.
     """
