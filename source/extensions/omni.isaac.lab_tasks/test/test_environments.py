@@ -22,6 +22,7 @@ import carb
 import omni.usd
 
 from omni.isaac.lab.envs import ManagerBasedRLEnvCfg
+from omni.isaac.lab.envs.utils import sample_space
 
 import omni.isaac.lab_tasks  # noqa: F401
 from omni.isaac.lab_tasks.utils.parse_cfg import parse_env_cfg
@@ -116,12 +117,12 @@ class TestEnvironments(unittest.TestCase):
         # simulate environment for num_steps steps
         with torch.inference_mode():
             for _ in range(num_steps):
-                # sample actions from -1 to 1
-                actions = 2 * torch.rand(env.action_space.shape, device=env.unwrapped.device) - 1
+                # sample actions according to the defined space
+                actions = sample_space(env.single_action_space, device=env.unwrapped.device, batch_size=num_envs)
                 # apply actions
                 transition = env.step(actions)
                 # check signals
-                for data in transition:
+                for data in transition[:-1]:  # exclude info
                     self.assertTrue(self._check_valid_tensor(data), msg=f"Invalid data: {data}")
 
         # close the environment
@@ -139,14 +140,10 @@ class TestEnvironments(unittest.TestCase):
         """
         if isinstance(data, torch.Tensor):
             return not torch.any(torch.isnan(data))
+        elif isinstance(data, (tuple, list)):
+            return all(TestEnvironments._check_valid_tensor(value) for value in data)
         elif isinstance(data, dict):
-            valid_tensor = True
-            for value in data.values():
-                if isinstance(value, dict):
-                    valid_tensor &= TestEnvironments._check_valid_tensor(value)
-                elif isinstance(value, torch.Tensor):
-                    valid_tensor &= not torch.any(torch.isnan(value))
-            return valid_tensor
+            return all(TestEnvironments._check_valid_tensor(value) for value in data.values())
         else:
             raise ValueError(f"Input data of invalid type: {type(data)}.")
 

@@ -70,19 +70,19 @@ class RslRlVecEnvWrapper(VecEnv):
         if hasattr(self.unwrapped, "action_manager"):
             self.num_actions = self.unwrapped.action_manager.total_action_dim
         else:
-            self.num_actions = self.unwrapped.num_actions
+            self.num_actions = gym.spaces.flatdim(self.unwrapped.single_action_space)
         if hasattr(self.unwrapped, "observation_manager"):
             self.num_obs = self.unwrapped.observation_manager.group_obs_dim["policy"][0]
         else:
-            self.num_obs = self.unwrapped.num_observations
+            self.num_obs = gym.spaces.flatdim(self.unwrapped.single_observation_space["policy"])
         # -- privileged observations
         if (
             hasattr(self.unwrapped, "observation_manager")
             and "critic" in self.unwrapped.observation_manager.group_obs_dim
         ):
             self.num_privileged_obs = self.unwrapped.observation_manager.group_obs_dim["critic"][0]
-        elif hasattr(self.unwrapped, "num_states"):
-            self.num_privileged_obs = self.unwrapped.num_states
+        elif hasattr(self.unwrapped, "num_states") and "critic" in self.unwrapped.single_observation_space:
+            self.num_privileged_obs = gym.spaces.flatdim(self.unwrapped.single_observation_space["critic"])
         else:
             self.num_privileged_obs = 0
         # reset at the start since the RSL-RL runner does not call reset
