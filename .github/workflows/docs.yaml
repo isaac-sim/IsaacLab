@@ -30,7 +30,13 @@ jobs:
         git branch -r
         echo exit code $?
         git tag --list
-        make build
+if [ -n "${secrets.SMV_BRANCH_WHITELIST}" ]; then
+  echo "Running make build with the secret"
+  make build SMV_BRANCH_WHITELIST=${secrets.SMV_BRANCH_WHITELIST}
+else
+  echo "Running make build without the secret"
+  make build
+fi
         cp _redirect/index.html _build/index.html
 
     - name: Upload docs artifact
