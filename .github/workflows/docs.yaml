@@ -25,19 +25,22 @@ jobs:
 
     - name: Generate docs
       working-directory: ./docs
+      env:
+        SMV_BRANCH_WHITELIST: ${{ secrets.SMV_BRANCH_WHITELIST }}
       run: |
         git fetch --prune --unshallow --tags
         git branch -r
         echo exit code $?
         git tag --list
-        if [ -n "${secrets.SMV_BRANCH_WHITELIST}" ]; then
+        if [ -n "${SMV_BRANCH_WHITELIST}" ]; then
           echo "Running make build with the secret"
-          make build SMV_BRANCH_WHITELIST=${secrets.SMV_BRANCH_WHITELIST}
+          make build SMV_BRANCH_WHITELIST=${SMV_BRANCH_WHITELIST}
         else
           echo "Running make build without the secret"
           make build
         fi
         cp _redirect/index.html _build/index.html
+        
 
     - name: Upload docs artifact
       uses: actions/upload-artifact@v4
