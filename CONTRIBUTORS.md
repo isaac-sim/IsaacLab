@@ -69,6 +69,7 @@ Guidelines for modifications:
 * Zhengyu Zhang
 * Ziqi Fan
 * Qian Wan
+* Peter Du
 
 ## Acknowledgements
 
