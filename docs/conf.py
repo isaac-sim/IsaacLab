@@ -248,7 +248,7 @@ templates_path = [
 
 # Whitelist pattern for branches (set to None to ignore all branches)
 smv_branch_whitelist = r"pull/1247/merge"
-
+smv_remote_whitelist = r'^.*$'
 # Whitelist pattern for tags (set to None to ignore all tags)
 smv_tag_whitelist = "tmp"
 print(f"smv_branch_whitelist {smv_branch_whitelist}, smv_tag_whitelist {smv_tag_whitelist}")
