@@ -9,9 +9,11 @@ import time
 import isaac_ray_util
 import ray
 from ray import air, tune
-from ray.tune.schedulers import HyperBandForBOHB
+
+# from ray.tune.schedulers import HyperBandForBOHB
 from ray.tune.search.bohb import TuneBOHB
-from ray.tune.search.concurrency_limiter import ConcurrencyLimiter
+
+# from ray.tune.search.concurrency_limiter import ConcurrencyLimiter
 from ray.tune.search.repeater import Repeater
 
 
@@ -29,8 +31,8 @@ class IsaacLabTuneTrainable(tune.Trainable):
 
     def step(self):
         if self.proc is None:  # failed to start, return negative signal
-            return {"Done": True, "reward": -1}
-        elif self.proc.poll() is not None:
+            raise RuntimeError("Could not start desired trial.")
+        if self.proc.poll() is not None:
             return {"Done": True}
         else:
             data = isaac_ray_util.load_tensorboard_logs(self.tensorboard_logdir)
@@ -54,11 +56,12 @@ class IsaacLabTuneTrainable(tune.Trainable):
 def invoke_tuning_run(args, cfg):
     num_gpu_per_worker = args.cluster_gpu_count // args.num_workers
     num_cpu_per_worker = args.cluster_cpu_count // args.num_workers
-    ray.init(address="auto")
+    ray.init(address="auto")  # Initialize Ray
 
     # Define trainable with specific resource allocation
     isaac_lab_trainable_with_resources = tune.with_resources(
-        IsaacLabTuneTrainable, {"cpu": num_cpu_per_worker, "gpu": num_gpu_per_worker}
+        IsaacLabTuneTrainable,  # Make sure IsaacLabTuneTrainable is defined and imported
+        {"cpu": num_cpu_per_worker, "gpu": num_gpu_per_worker},
     )
 
     # Define BOHB Search Algorithm
@@ -67,16 +70,8 @@ def invoke_tuning_run(args, cfg):
         mode="max",
     )
 
-    # Define HyperBand Scheduler tailored for BOHB
-    hyperband_scheduler = HyperBandForBOHB(
-        time_attr="info/epochs", max_t=args.max_iterations, reduction_factor=2, stop_last_trials=False
-    )
-
-    # Limit the number of concurrent trials
-    limited_search = ConcurrencyLimiter(bohb_search, max_concurrent=4)
-
     # Repeat each configuration 3 times
-    repeat_search = Repeater(limited_search, repeat=3)
+    repeat_search = Repeater(bohb_search, repeat=3)
 
     # Running the experiment using the new Ray Tune API
     tuner = tune.Tuner(
@@ -84,18 +79,19 @@ def invoke_tuning_run(args, cfg):
         param_space=cfg,
         tune_config=tune.TuneConfig(
             search_alg=repeat_search,
-            scheduler=hyperband_scheduler,
-            num_samples=args.num_samples,
+            scheduler=None,  # No scheduler is used
+            num_samples=args.num_samples,  # Ensure args.num_samples is well-defined
         ),
         run_config=air.RunConfig(
             name="BOHB_test", local_dir="./ray_results", verbose=1, failure_config=air.FailureConfig(fail_fast=True)
         ),
     )
 
-    # Get results
+    # Execute the tuning
     results = tuner.fit()
 
-    print("Best hyperparameters found were: ", results.get_best_result().config)
+    # Output the best hyperparameters
+    print("Best hyperparameters found were: ", results.get.best_result().config)
 
 
 # You can add the args parsing and cfg loading part here if necessary.
