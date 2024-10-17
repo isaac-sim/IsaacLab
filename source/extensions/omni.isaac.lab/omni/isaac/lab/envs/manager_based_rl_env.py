@@ -16,6 +16,7 @@ from typing import Any, ClassVar
 from omni.isaac.version import get_version
 
 from omni.isaac.lab.managers import CommandManager, CurriculumManager, RewardManager, TerminationManager
+from omni.isaac.lab.ui.widgets import ManagerLiveVisualizer
 
 from .common import VecEnvStepReturn
 from .manager_based_env import ManagerBasedEnv
@@ -131,6 +132,18 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # perform events at the start of the simulation
         if "startup" in self.event_manager.available_modes:
             self.event_manager.apply(mode="startup")
+
+    def setup_manager_visualizers(self):
+        """Creates live visualizers for manager terms."""
+
+        self.manager_visualizers = {
+            "action_manager": ManagerLiveVisualizer(manager=self.action_manager),
+            "observation_manager": ManagerLiveVisualizer(manager=self.observation_manager),
+            "command_manager": ManagerLiveVisualizer(manager=self.command_manager),
+            "termination_manager": ManagerLiveVisualizer(manager=self.termination_manager),
+            "reward_manager": ManagerLiveVisualizer(manager=self.reward_manager),
+            "curriculum_manager": ManagerLiveVisualizer(manager=self.curriculum_manager),
+        }
 
     """
     Operations - MDP
