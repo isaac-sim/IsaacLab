@@ -252,7 +252,6 @@ smv_remote_whitelist = r"^.*$"
 smv_branch_whitelist = os.getenv("SMV_BRANCH_WHITELIST", r"^(main)$")
 # Whitelist pattern for tags (set to None to ignore all tags)
 smv_tag_whitelist = os.getenv("SMV_TAG_WHITELIST", r"^v[1-9]\d*\.\d+\.\d+$")
-print(f"smv_branch_whitelist {smv_branch_whitelist}, smv_tag_whitelist {smv_tag_whitelist}")
 html_sidebars = {
     "**": ["navbar-logo.html", "versioning.html", "icon-links.html", "search-field.html", "sbt-sidebar-nav.html"]
 }
