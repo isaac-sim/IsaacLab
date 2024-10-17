@@ -26,7 +26,7 @@ jobs:
     - name: Generate docs
       working-directory: ./docs
       run: |
-        git fetch --unshallow --tags
+        git fetch --unshallow
         git branch -r
         echo exit code $?
         git tag --list
