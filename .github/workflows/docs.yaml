@@ -30,7 +30,7 @@ jobs:
         git branch -r
         echo exit code $?
         git tag --list
-        echo "Current Branch: ${{ github.ref }}"
+        echo "Current branch: $(git rev-parse --abbrev-ref HEAD)"
         make build
         cp _redirect/index.html _build/index.html
 
