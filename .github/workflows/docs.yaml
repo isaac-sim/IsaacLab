@@ -32,6 +32,7 @@ jobs:
         git branch -r
         echo exit code $?
         git tag --list
+        echo "SMV_BRANCH_WHITELIST is set to: ${SMV_BRANCH_WHITELIST}"
         if [ -n "${SMV_BRANCH_WHITELIST}" ]; then
           echo "Running make build with the secret"
           make build SMV_BRANCH_WHITELIST=${SMV_BRANCH_WHITELIST}
