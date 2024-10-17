@@ -42,3 +42,9 @@ class MeshConverterCfg(AssetConverterBaseCfg):
 
     "none" causes no collision mesh to be added.
     """
+
+    rotation: tuple[float, float, float, float] | None = None
+    """The rotation of the mesh in quaternion format (w, x, y, z). Defaults to None."""
+
+    scale: tuple[float, float, float] | None = None
+    """The scale of the mesh. Defaults to None."""
