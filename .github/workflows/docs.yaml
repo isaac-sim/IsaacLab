@@ -27,6 +27,7 @@ jobs:
       working-directory: ./docs
       run: |
         git fetch --prune --unshallow origin main --tags
+        git branch -r
         echo exit code $?
         git tag --list
         make build
