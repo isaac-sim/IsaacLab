@@ -268,7 +268,7 @@ class TerrainGenerator:
         border_center = (
             self.cfg.num_rows * self.cfg.size[0] / 2,
             self.cfg.num_cols * self.cfg.size[1] / 2,
-            -self.cfg.border_height / 2,
+            self.cfg.border_height / 2,
         )
         # border mesh
         border_meshes = make_border(border_size, inner_size, height=self.cfg.border_height, position=border_center)
