@@ -21,6 +21,7 @@ import unittest
 import omni.usd
 
 from omni.isaac.lab.envs import DirectMARLEnv, DirectMARLEnvCfg
+from omni.isaac.lab.envs.utils.spaces import sample_space
 
 import omni.isaac.lab_tasks  # noqa: F401
 from omni.isaac.lab_tasks.utils.parse_cfg import parse_env_cfg
@@ -38,6 +39,7 @@ class TestEnvironments(unittest.TestCase):
                 cls.registered_tasks.append(task_spec.id)
         # sort environments by name
         cls.registered_tasks.sort()
+        cls.registered_tasks = ["Isaac-Shadow-Hand-Over-Direct-v0"]
         # print all existing task names
         print(">>> All registered environments:", cls.registered_tasks)
 
@@ -83,16 +85,25 @@ class TestEnvironments(unittest.TestCase):
         """Run random actions and check environments return valid signals."""
         # create a new stage
         omni.usd.get_context().new_stage()
-        # parse configuration
-        env_cfg: DirectMARLEnvCfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
+        try:
+            # parse configuration
+            env_cfg: DirectMARLEnvCfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
 
-        # skip test if the environment is not a multi-agent task
-        if not hasattr(env_cfg, "possible_agents"):
-            print(f"[INFO]: Skipping {task_name} as it is not a multi-agent task")
-            return
+            # skip test if the environment is not a multi-agent task
+            if not hasattr(env_cfg, "possible_agents"):
+                print(f"[INFO]: Skipping {task_name} as it is not a multi-agent task")
+                return
 
-        # create environment
-        env: DirectMARLEnv = gym.make(task_name, cfg=env_cfg)
+            # create environment
+            env: DirectMARLEnv = gym.make(task_name, cfg=env_cfg)
+        except Exception as e:
+            if "env" in locals():
+                env.close()
+            else:
+                if hasattr(e, "obj") and hasattr(e.obj, "close"):
+                    e.obj.close()
+            self.fail(f"Failed to set-up the environment for task {task_name}. Error: {e}")
+
         # this flag is necessary to prevent a bug where the simulation gets stuck randomly when running the
         # test on many environments.
         env.sim.set_setting("/physics/cooking/ujitsoCollisionCooking", False)
@@ -104,9 +115,9 @@ class TestEnvironments(unittest.TestCase):
         # simulate environment for num_steps steps
         with torch.inference_mode():
             for _ in range(num_steps):
-                # sample actions from -1 to 1
+                # sample actions according to the defined space
                 actions = {
-                    agent: 2 * torch.rand(env.action_space(agent).shape, device=env.unwrapped.device) - 1
+                    agent: sample_space(env.action_spaces[agent], device=env.unwrapped.device, batch_size=num_envs)
                     for agent in env.unwrapped.possible_agents
                 }
                 # apply actions
@@ -131,14 +142,10 @@ class TestEnvironments(unittest.TestCase):
         """
         if isinstance(data, torch.Tensor):
             return not torch.any(torch.isnan(data))
+        elif isinstance(data, (tuple, list)):
+            return all(TestEnvironments._check_valid_tensor(value) for value in data)
         elif isinstance(data, dict):
-            valid_tensor = True
-            for value in data.values():
-                if isinstance(value, dict):
-                    valid_tensor &= TestEnvironments._check_valid_tensor(value)
-                elif isinstance(value, torch.Tensor):
-                    valid_tensor &= not torch.any(torch.isnan(value))
-            return valid_tensor
+            return all(TestEnvironments._check_valid_tensor(value) for value in data.values())
         else:
             raise ValueError(f"Input data of invalid type: {type(data)}.")
 

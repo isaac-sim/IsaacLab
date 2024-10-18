@@ -1,16 +1,32 @@
 Changelog
 ---------
 
-0.25.2 (2024-10-14)
+0.25.3 (2024-10-14)
 ~~~~~~~~~~~~~~~~~~~
-
-Added
-^^^^^
 
 * Added a method to :class:`~omni.isaac.lab.utils.configclass` to check for attributes with values of
   type ``MISSING``. This is useful when the user wants to check if a certain attribute has been set or not.
 * Added the configuration validation check inside the constructor of all the core classes
   (such as sensor base, asset base, scene and environment base classes).
+
+
+0.25.2 (2024-10-16)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added support for different Gymnasium spaces (``Box``, ``Discrete``, ``MultiDiscrete``, ``Tuple`` and ``Dict``)
+  to define observation, action and state spaces in the direct workflow.
+* Added :meth:`sample_space` to environment utils to sample supported spaces where data containers are torch tensors.
+
+Changed
+^^^^^^^
+
+* Mark the :attr:`num_observations`, :attr:`num_actions` and :attr:`num_states` in :class:`DirectRLEnvCfg` as deprecated
+  in favor of :attr:`observation_space`, :attr:`action_space` and :attr:`state_space` respectively.
+* Mark the :attr:`num_observations`, :attr:`num_actions` and :attr:`num_states` in :class:`DirectMARLEnvCfg` as deprecated
+  in favor of :attr:`observation_spaces`, :attr:`action_spaces` and :attr:`state_space` respectively.
 
 
 0.25.1 (2024-10-10)
