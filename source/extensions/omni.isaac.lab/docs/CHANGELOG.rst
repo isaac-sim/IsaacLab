@@ -1,4 +1,13 @@
 Changelog
+
+
+0.26.1 (2024-10-18)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Updated installation path instructions for Windows in the Isaac Lab documentation to remove redundancy in the use of %USERPROFILE% for path definitions.
 ---------
 
 0.26.0 (2024-10-16)
