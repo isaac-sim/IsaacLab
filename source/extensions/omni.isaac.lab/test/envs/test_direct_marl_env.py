@@ -52,6 +52,7 @@ def get_empty_base_env_cfg(device: str = "cuda:0", num_envs: int = 1, env_spacin
         action_spaces = {"agent_0": 1, "agent_1": 2}
         observation_spaces = {"agent_0": 3, "agent_1": 4}
         state_space = -1
+        episode_length_s = 100.0
 
     return EmptyEnvCfg()
 
