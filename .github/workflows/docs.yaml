@@ -28,7 +28,6 @@ jobs:
       working-directory: ./docs
       run: |
         make current-docs
-        rm -rf _build/current
 
     - name: Generate multi-version docs
       working-directory: ./docs
@@ -67,12 +66,6 @@ jobs:
       with:
         name: docs-html
         path: ./docs/_build
-
-    - name: Clean up docs artifact
-      run: |
-        if [ -d "./docs/_build/current" ]; then
-          rm -r ./docs/_build/current
-        fi
 
     - name: Deploy to gh-pages
       uses: peaceiris/actions-gh-pages@v3
