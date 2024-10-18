@@ -2,18 +2,18 @@
 <nav class="bd-links bd-docs-nav">
     <div class="bd-toc-item navbar-nav">
       <ul class="nav bd-sidenav">
-        <li class="toctree-l1 has-children">
-          <p class="caption" aria-level="2" role="heading">
-            <span type="button" class="caption-text">Version: {{ current_version.name }}</span>
-          </p>
-          <ul>
+        <li class="toctree-l1 has-children" style="display: flex; justify-content: center; align-items: center;">
+          <div  style ="text-align:center;">
+            <label for="version-select" style="font-weight: bold;">Version</label>
+          </div>
+          <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
             {%- for item in versions.branches %}
-            <li class="toctree-l2 {% if item == current_version %}current{% endif %} "><a class="reference" href="{{item.url}}">{{item.name}}</a></li>
+            <option value="{{ item.url }}" {% if item == current_version %}selected{% endif %}>{{ item.name }}</option>
             {%- endfor %}
             {%- for item in versions.tags|reverse %}
-            <li class="toctree-l2 {% if item == current_version %}current{% endif %} "><a class="reference" href="{{item.url}}">{{item.name}}</a></li>
+            <option value="{{ item.url }}" {% if item == current_version %}selected{% endif %}>{{ item.name }}</option>
             {%- endfor %}
-          </ul>
+          </select>
         </li>
       </ul>
     </div>
