@@ -68,6 +68,12 @@ jobs:
         name: docs-html
         path: ./docs/_build
 
+    - name: Clean up docs artifact
+      run: |
+        if [ -d "./docs/_build/current" ]; then
+          rm -r ./docs/_build/current
+        fi
+
     - name: Deploy to gh-pages
       uses: peaceiris/actions-gh-pages@v3
       with:
