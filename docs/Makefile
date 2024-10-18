@@ -4,15 +4,15 @@
 # You can set these variables from the command line, and also
 # from the environment for the first two.
 SPHINXOPTS    ?=
-SPHINXBUILD   ?= sphinx-multiversion
+SPHINXBUILD   ?= sphinx-build
 SOURCEDIR     = .
 BUILDDIR      = _build
 
 .PHONY: multi-docs
 multi-docs:
-	@$(SPHINXBUILD) "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS)
+	@sphinx-multiversion "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS)
 	@cp _redirect/index.html $(BUILDDIR)/index.html
 
-.PHONY: single-docs
-single-docs:
-	@sphinx-build "$(SOURCEDIR)" "$(BUILDDIR)/latest" $(SPHINXOPTS)
+.PHONY: current-docs
+current-docs:
+	@$(SPHINXBUILD) "$(SOURCEDIR)" "$(BUILDDIR)/current" $(SPHINXOPTS)
