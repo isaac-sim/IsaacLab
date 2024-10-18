@@ -701,6 +701,8 @@ document.write(`
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.sample_log_uniform"><code class="docutils literal notranslate"><span class="pre">sample_log_uniform()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.sample_gaussian"><code class="docutils literal notranslate"><span class="pre">sample_gaussian()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.sample_cylinder"><code class="docutils literal notranslate"><span class="pre">sample_cylinder()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.convert_camera_frame_orientation_convention"><code class="docutils literal notranslate"><span class="pre">convert_camera_frame_orientation_convention()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.create_rotation_matrix_from_view"><code class="docutils literal notranslate"><span class="pre">create_rotation_matrix_from_view()</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-omni.isaac.lab.utils.modifiers">Modifier operations</a><ul class="nav section-nav flex-column">
@@ -2013,6 +2015,12 @@ Shape is (num_samples,)</p></li>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.math.sample_cylinder" title="omni.isaac.lab.utils.math.sample_cylinder"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sample_cylinder</span></code></a>(radius, h_range, size, device)</p></td>
 <td><p>Sample 3D points uniformly on a cylinder's surface.</p></td>
 </tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.math.convert_camera_frame_orientation_convention" title="omni.isaac.lab.utils.math.convert_camera_frame_orientation_convention"><code class="xref py py-obj docutils literal notranslate"><span class="pre">convert_camera_frame_orientation_convention</span></code></a>(...)</p></td>
+<td><p>Converts a quaternion representing a rotation from one convention to another.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.math.create_rotation_matrix_from_view" title="omni.isaac.lab.utils.math.create_rotation_matrix_from_view"><code class="xref py py-obj docutils literal notranslate"><span class="pre">create_rotation_matrix_from_view</span></code></a>(eyes, targets)</p></td>
+<td><p>Compute the rotation matrix from world to view coordinates.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -2915,6 +2923,81 @@ contains the x, y, and z coordinates of the sampled points.</p>
 <dd class="field-even"><p>Sampled tensor. Shape is <code class="xref py py-obj docutils literal notranslate"><span class="pre">(*size,</span> <span class="pre">3)</span></code>.</p>
 </dd>
 </dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="omni.isaac.lab.utils.math.convert_camera_frame_orientation_convention">
+<span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.utils.math.</span></span><span class="sig-name descname"><span class="pre">convert_camera_frame_orientation_convention</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">orientation</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">origin</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.13)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'opengl'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'ros'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'world'</span></span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'opengl'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.13)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'opengl'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'ros'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'world'</span></span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'ros'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a></span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/utils/math.html#convert_camera_frame_orientation_convention"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.utils.math.convert_camera_frame_orientation_convention" title="Permalink to this definition">#</a></dt>
+<dd><p>Converts a quaternion representing a rotation from one convention to another.</p>
+<p>In USD, the camera follows the <code class="docutils literal notranslate"><span class="pre">&quot;opengl&quot;</span></code> convention. Thus, it is always in <strong>Y up</strong> convention.
+This means that the camera is looking down the -Z axis with the +Y axis pointing up , and +X axis pointing right.
+However, in ROS, the camera is looking down the +Z axis with the +Y axis pointing down, and +X axis pointing right.
+Thus, the camera needs to be rotated by <span class="math notranslate nohighlight">\(180^{\circ}\)</span> around the X axis to follow the ROS convention.</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}T_{ROS} = \begin{bmatrix} 1 &amp; 0 &amp; 0 &amp; 0 \\ 0 &amp; -1 &amp; 0 &amp; 0 \\ 0 &amp; 0 &amp; -1 &amp; 0 \\ 0 &amp; 0 &amp; 0 &amp; 1 \end{bmatrix} T_{USD}\end{split}\]</div>
+<p>On the other hand, the typical world coordinate system is with +X pointing forward, +Y pointing left,
+and +Z pointing up. The camera can also be set in this convention by rotating the camera by <span class="math notranslate nohighlight">\(90^{\circ}\)</span>
+around the X axis and <span class="math notranslate nohighlight">\(-90^{\circ}\)</span> around the Y axis.</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}T_{WORLD} = \begin{bmatrix} 0 &amp; 0 &amp; -1 &amp; 0 \\ -1 &amp; 0 &amp; 0 &amp; 0 \\ 0 &amp; 1 &amp; 0 &amp; 0 \\ 0 &amp; 0 &amp; 0 &amp; 1 \end{bmatrix} T_{USD}\end{split}\]</div>
+<p>Thus, based on their application, cameras follow different conventions for their orientation. This function
+converts a quaternion from one convention to another.</p>
+<p>Possible conventions are:</p>
+<ul class="simple">
+<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">&quot;opengl&quot;</span></code> - forward axis: -Z - up axis +Y - Offset is applied in the OpenGL (Usd.Camera) convention</p></li>
+<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">&quot;ros&quot;</span></code>    - forward axis: +Z - up axis -Y - Offset is applied in the ROS convention</p></li>
+<li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">&quot;world&quot;</span></code>  - forward axis: +X - up axis +Z - Offset is applied in the World Frame convention</p></li>
+</ul>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>orientation</strong> – Quaternion of form <cite>(w, x, y, z)</cite> with shape (…, 4) in source convention.</p></li>
+<li><p><strong>origin</strong> – Convention to convert from. Defaults to “opengl”.</p></li>
+<li><p><strong>target</strong> – Convention to convert to. Defaults to “ros”.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Quaternion of form <cite>(w, x, y, z)</cite> with shape (…, 4) in target convention</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="omni.isaac.lab.utils.math.create_rotation_matrix_from_view">
+<span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.utils.math.</span></span><span class="sig-name descname"><span class="pre">create_rotation_matrix_from_view</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">eyes</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">targets</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">up_axis</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.13)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'Y'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'Z'</span></span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'Z'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">device</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'cpu'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a></span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/utils/math.html#create_rotation_matrix_from_view"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.utils.math.create_rotation_matrix_from_view" title="Permalink to this definition">#</a></dt>
+<dd><p>Compute the rotation matrix from world to view coordinates.</p>
+<p>This function takes a vector ‘’eyes’’ which specifies the location
+of the camera in world coordinates and the vector ‘’targets’’ which
+indicate the position of the object.
+The output is a rotation matrix representing the transformation
+from world coordinates -&gt; view coordinates.</p>
+<blockquote>
+<div><p>The inputs eyes and targets can each be a
+- 3 element tuple/list
+- torch tensor of shape (1, 3)
+- torch tensor of shape (N, 3)</p>
+</div></blockquote>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>eyes</strong> – Position of the camera in world coordinates.</p></li>
+<li><p><strong>targets</strong> – Position of the object in world coordinates.</p></li>
+<li><p><strong>up_axis</strong> – The up axis of the camera. Defaults to “Z”.</p></li>
+<li><p><strong>device</strong> – The device to create torch tensors on. Defaults to “cpu”.</p></li>
+</ul>
+</dd>
+</dl>
+<p>The vectors are broadcast against each other so they all have shape (N, 3).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>(N, 3, 3) batched rotation matrices</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>R</p>
+</dd>
+</dl>
+<p>Reference:
+Based on PyTorch3D (<a class="github reference external" href="https://github.com/facebookresearch/pytorch3d/blob/eaf0709d6af0025fe94d1ee7cec454bc3054826a/pytorch3d/renderer/cameras.py#L1635-L1685">facebookresearch/pytorch3d</a>)</p>
 </dd></dl>
 
 </section>
@@ -4451,6 +4534,8 @@ The returned tensor contains <code class="xref py py-obj docutils literal notran
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.sample_log_uniform"><code class="docutils literal notranslate"><span class="pre">sample_log_uniform()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.sample_gaussian"><code class="docutils literal notranslate"><span class="pre">sample_gaussian()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.sample_cylinder"><code class="docutils literal notranslate"><span class="pre">sample_cylinder()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.convert_camera_frame_orientation_convention"><code class="docutils literal notranslate"><span class="pre">convert_camera_frame_orientation_convention()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.create_rotation_matrix_from_view"><code class="docutils literal notranslate"><span class="pre">create_rotation_matrix_from_view()</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-omni.isaac.lab.utils.modifiers">Modifier operations</a><ul class="nav section-nav flex-column">

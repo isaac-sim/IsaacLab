@@ -8,7 +8,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>omni.isaac.lab.sensors.camera.camera_data &#8212; Isaac Lab Documentation</title>
+    <title>omni.isaac.lab.sensors.imu.imu_cfg &#8212; Isaac Lab Documentation</title>
   
   
   
@@ -48,7 +48,7 @@
     <script src="../../../../../../_static/copybutton.js"></script>
     <script src="../../../../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
     <script src="../../../../../../_static/design-tabs.js"></script>
-    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/omni/isaac/lab/sensors/camera/camera_data';</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/omni/isaac/lab/sensors/imu/imu_cfg';</script>
     <link rel="icon" href="../../../../../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../../../../../genindex.html" />
     <link rel="search" title="Search" href="../../../../../../search.html" />
@@ -162,7 +162,7 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
-            <option value="camera_data.html" selected>main</option>
+            <option value="imu_cfg.html" selected>main</option>
             <option value="../../../../../../../v1.2.0/index.html" >v1.2.0</option>
             <option value="../../../../../../../v1.1.0/index.html" >v1.1.0</option>
             <option value="../../../../../../../v1.0.0/index.html" >v1.0.0</option>
@@ -434,7 +434,7 @@
       
       
       
-      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2F_modules/omni/isaac/lab/sensors/camera/camera_data.html&body=Your%20issue%20content%20here." target="_blank"
+      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2F_modules/omni/isaac/lab/sensors/imu/imu_cfg.html&body=Your%20issue%20content%20here." target="_blank"
    class="btn btn-sm btn-source-issues-button dropdown-item"
    title="Open an issue"
    data-bs-placement="left" data-bs-toggle="tooltip"
@@ -512,99 +512,53 @@ document.write(`
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <h1>Source code for omni.isaac.lab.sensors.camera.camera_data</h1><div class="highlight"><pre>
+  <h1>Source code for omni.isaac.lab.sensors.imu.imu_cfg</h1><div class="highlight"><pre>
 <span></span><span class="c1"># Copyright (c) 2022-2024, The Isaac Lab Project Developers.</span>
 <span class="c1"># All rights reserved.</span>
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
-<span class="kn">import</span> <span class="nn">torch</span>
-<span class="kn">from</span> <span class="nn">dataclasses</span> <span class="kn">import</span> <span class="n">dataclass</span>
-<span class="kn">from</span> <span class="nn">tensordict</span> <span class="kn">import</span> <span class="n">TensorDict</span>
-<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Any</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">annotations</span>
 
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.utils.math</span> <span class="kn">import</span> <span class="n">convert_camera_frame_orientation_convention</span>
+<span class="kn">from</span> <span class="nn">omni.isaac.lab.markers</span> <span class="kn">import</span> <span class="n">VisualizationMarkersCfg</span>
+<span class="kn">from</span> <span class="nn">omni.isaac.lab.markers.config</span> <span class="kn">import</span> <span class="n">RED_ARROW_X_MARKER_CFG</span>
+<span class="kn">from</span> <span class="nn">omni.isaac.lab.utils</span> <span class="kn">import</span> <span class="n">configclass</span>
+
+<span class="kn">from</span> <span class="nn">..sensor_base_cfg</span> <span class="kn">import</span> <span class="n">SensorBaseCfg</span>
+<span class="kn">from</span> <span class="nn">.imu</span> <span class="kn">import</span> <span class="n">Imu</span>
 
 
-<div class="viewcode-block" id="CameraData"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.CameraData">[docs]</a><span class="nd">@dataclass</span>
-<span class="k">class</span> <span class="nc">CameraData</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Data container for the camera sensor.&quot;&quot;&quot;</span>
+<div class="viewcode-block" id="ImuCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.ImuCfg">[docs]</a><span class="nd">@configclass</span>
+<span class="k">class</span> <span class="nc">ImuCfg</span><span class="p">(</span><span class="n">SensorBaseCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for an Inertial Measurement Unit (IMU) sensor.&quot;&quot;&quot;</span>
 
-    <span class="c1">##</span>
-    <span class="c1"># Frame state.</span>
-    <span class="c1">##</span>
+    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">=</span> <span class="n">Imu</span>
 
-    <span class="n">pos_w</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Position of the sensor origin in world frame, following ROS convention.</span>
+<div class="viewcode-block" id="ImuCfg.OffsetCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.ImuCfg.OffsetCfg">[docs]</a>    <span class="nd">@configclass</span>
+    <span class="k">class</span> <span class="nc">OffsetCfg</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The offset pose of the sensor&#39;s frame from the sensor&#39;s parent frame.&quot;&quot;&quot;</span>
 
-<span class="sd">    Shape is (N, 3) where N is the number of sensors.</span>
+        <span class="n">pos</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Translation w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0).&quot;&quot;&quot;</span>
+
+        <span class="n">rot</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Quaternion rotation (w, x, y, z) w.r.t. the parent frame. Defaults to (1.0, 0.0, 0.0, 0.0).&quot;&quot;&quot;</span></div>
+
+    <span class="n">offset</span><span class="p">:</span> <span class="n">OffsetCfg</span> <span class="o">=</span> <span class="n">OffsetCfg</span><span class="p">()</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The offset pose of the sensor&#39;s frame from the sensor&#39;s parent frame. Defaults to identity.&quot;&quot;&quot;</span>
+
+    <span class="n">visualizer_cfg</span><span class="p">:</span> <span class="n">VisualizationMarkersCfg</span> <span class="o">=</span> <span class="n">RED_ARROW_X_MARKER_CFG</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/Visuals/Command/velocity_goal&quot;</span><span class="p">)</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The configuration object for the visualization markers. Defaults to RED_ARROW_X_MARKER_CFG.</span>
+
+<span class="sd">    This attribute is only used when debug visualization is enabled.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">gravity_bias</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">9.81</span><span class="p">)</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The linear acceleration bias applied to the linear acceleration in the world frame (x,y,z).</span>
 
-    <span class="n">quat_w_world</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Quaternion orientation `(w, x, y, z)` of the sensor origin in world frame, following the world coordinate frame</span>
-
-<span class="sd">    .. note::</span>
-<span class="sd">        World frame convention follows the camera aligned with forward axis +X and up axis +Z.</span>
-
-<span class="sd">    Shape is (N, 4) where N is the number of sensors.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="c1">##</span>
-    <span class="c1"># Camera data</span>
-    <span class="c1">##</span>
-
-    <span class="n">image_shape</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;A tuple containing (height, width) of the camera sensor.&quot;&quot;&quot;</span>
-
-    <span class="n">intrinsic_matrices</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The intrinsic matrices for the camera.</span>
-
-<span class="sd">    Shape is (N, 3, 3) where N is the number of sensors.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="n">output</span><span class="p">:</span> <span class="n">TensorDict</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The retrieved sensor data with sensor types as key.</span>
-
-<span class="sd">    The format of the data is available in the `Replicator Documentation`_. For semantic-based data,</span>
-<span class="sd">    this corresponds to the ``&quot;data&quot;`` key in the output of the sensor.</span>
-
-<span class="sd">    .. _Replicator Documentation: https://docs.omniverse.nvidia.com/prod_extensions/prod_extensions/ext_replicator/annotators_details.html#annotator-output</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="n">info</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The retrieved sensor info with sensor types as key.</span>
-
-<span class="sd">    This contains extra information provided by the sensor such as semantic segmentation label mapping, prim paths.</span>
-<span class="sd">    For semantic-based data, this corresponds to the ``&quot;info&quot;`` key in the output of the sensor. For other sensor</span>
-<span class="sd">    types, the info is empty.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="c1">##</span>
-    <span class="c1"># Additional Frame orientation conventions</span>
-    <span class="c1">##</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">quat_w_ros</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Quaternion orientation `(w, x, y, z)` of the sensor origin in the world frame, following ROS convention.</span>
-
-<span class="sd">        .. note::</span>
-<span class="sd">            ROS convention follows the camera aligned with forward axis +Z and up axis -Y.</span>
-
-<span class="sd">        Shape is (N, 4) where N is the number of sensors.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="n">convert_camera_frame_orientation_convention</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">quat_w_world</span><span class="p">,</span> <span class="n">origin</span><span class="o">=</span><span class="s2">&quot;world&quot;</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="s2">&quot;ros&quot;</span><span class="p">)</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">quat_w_opengl</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Quaternion orientation `(w, x, y, z)` of the sensor origin in the world frame, following</span>
-<span class="sd">        Opengl / USD Camera convention.</span>
-
-<span class="sd">        .. note::</span>
-<span class="sd">            OpenGL convention follows the camera aligned with forward axis -Z and up axis +Y.</span>
-
-<span class="sd">        Shape is (N, 4) where N is the number of sensors.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="n">convert_camera_frame_orientation_convention</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">quat_w_world</span><span class="p">,</span> <span class="n">origin</span><span class="o">=</span><span class="s2">&quot;world&quot;</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="s2">&quot;opengl&quot;</span><span class="p">)</span></div>
+<span class="sd">    Imu sensors typically output a positive gravity acceleration in opposition to the direction of gravity. This</span>
+<span class="sd">    config parameter allows users to subtract that bias if set to (0.,0.,0.). By default this is set to (0.0,0.0,9.81)</span>
+<span class="sd">    which results in a positive acceleration reading in the world Z.</span>
+<span class="sd">    &quot;&quot;&quot;</span></div>
 </pre></div>
 
                 </article>
