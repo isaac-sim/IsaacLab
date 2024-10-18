@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import gymnasium as gym
 import torch
 
 import omni.isaac.lab.envs.mdp as mdp
@@ -59,9 +60,9 @@ class AnymalCFlatEnvCfg(DirectRLEnvCfg):
     episode_length_s = 20.0
     decimation = 4
     action_scale = 0.5
-    num_actions = 12
-    num_observations = 48
-    num_states = 0
+    action_space = 12
+    observation_space = 48
+    state_space = 0
 
     # simulation
     sim: SimulationCfg = SimulationCfg(
@@ -118,7 +119,7 @@ class AnymalCFlatEnvCfg(DirectRLEnvCfg):
 @configclass
 class AnymalCRoughEnvCfg(AnymalCFlatEnvCfg):
     # env
-    num_observations = 235
+    observation_space = 235
 
     terrain = TerrainImporterCfg(
         prim_path="/World/ground",
@@ -160,8 +161,10 @@ class AnymalCEnv(DirectRLEnv):
         super().__init__(cfg, render_mode, **kwargs)
 
         # Joint position command (deviation from default joint positions)
-        self._actions = torch.zeros(self.num_envs, self.cfg.num_actions, device=self.device)
-        self._previous_actions = torch.zeros(self.num_envs, self.cfg.num_actions, device=self.device)
+        self._actions = torch.zeros(self.num_envs, gym.spaces.flatdim(self.single_action_space), device=self.device)
+        self._previous_actions = torch.zeros(
+            self.num_envs, gym.spaces.flatdim(self.single_action_space), device=self.device
+        )
 
         # X/Y linear velocity and yaw angular velocity commands
         self._commands = torch.zeros(self.num_envs, 3, device=self.device)
