@@ -330,6 +330,45 @@ class NestedDictAndListCfg:
 
 
 """
+Dummy configuration: Missing attributes
+"""
+
+
+@configclass
+class MissingParentDemoCfg:
+    """Dummy parent configuration with missing fields."""
+
+    a: int = MISSING
+
+    @configclass
+    class InsideClassCfg:
+        """Inner dummy configuration."""
+
+        @configclass
+        class InsideInsideClassCfg:
+            """Inner inner dummy configuration."""
+
+            a: str = MISSING
+
+        inside: str = MISSING
+        inside_dict = {"a": MISSING}
+        inside_nested_dict = {"a": {"b": "hello", "c": MISSING, "d": InsideInsideClassCfg()}}
+        inside_tuple = (10, MISSING, 20)
+        inside_list = [MISSING, MISSING, 2]
+
+    b: InsideClassCfg = InsideClassCfg()
+
+
+@configclass
+class MissingChildDemoCfg(MissingParentDemoCfg):
+    """Dummy child configuration with missing fields."""
+
+    c: Callable = MISSING
+    d: int | None = None
+    e: dict = {}
+
+
+"""
 Test solutions: Basic
 """
 
@@ -403,6 +442,22 @@ functions_demo_cfg_for_updating = {
     "wrapped_func": "__main__:wrapped_dummy_function4",
     "func_in_dict": {"func": "__main__:dummy_function2"},
 }
+
+"""
+Test solutions: Missing attributes
+"""
+
+validity_expected_fields = [
+    "a",
+    "b.inside",
+    "b.inside_dict.a",
+    "b.inside_nested_dict.a.c",
+    "b.inside_nested_dict.a.d.a",
+    "b.inside_tuple[1]",
+    "b.inside_list[0]",
+    "b.inside_list[1]",
+    "c",
+]
 
 """
 Test fixtures.
@@ -887,6 +942,22 @@ class TestConfigClass(unittest.TestCase):
         md5_hash_2 = dict_to_md5_hash(cfg.to_dict())
 
         self.assertEqual(md5_hash_1, md5_hash_2)
+
+    def test_validity(self):
+        """Check that invalid configurations raise errors."""
+
+        cfg = MissingChildDemoCfg()
+
+        with self.assertRaises(TypeError) as context:
+            cfg.validate()
+
+        # check that the expected missing fields are in the error message
+        error_message = str(context.exception)
+        for elem in validity_expected_fields:
+            self.assertIn(elem, error_message)
+
+        # check that no more than the expected missing fields are in the error message
+        self.assertEqual(len(error_message.split("\n")) - 2, len(validity_expected_fields))
 
 
 if __name__ == "__main__":
