@@ -152,7 +152,7 @@ class ObservationTermCfg(ManagerTermBaseCfg):
     """The clipping range for the observation after adding noise. Defaults to None,
     in which case no clipping is applied."""
 
-    scale: float | None = None
+    scale: tuple[float, ...] | float | None = None
     """The scale to apply to the observation after clipping. Defaults to None,
     in which case no scaling is applied (same as setting scale to :obj:`1`)."""
 
