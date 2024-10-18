@@ -27,8 +27,8 @@ jobs:
       if: ${{ github.event_name == 'pull_request' }}
       working-directory: ./docs
       run: |
-        make single-docs
-        rm -rf _build/latest
+        make current-docs
+        rm -rf _build/current
 
     - name: Generate multi-version docs
       working-directory: ./docs
