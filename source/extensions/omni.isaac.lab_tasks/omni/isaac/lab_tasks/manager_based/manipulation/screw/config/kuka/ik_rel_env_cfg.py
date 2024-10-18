@@ -89,6 +89,8 @@ def reset_scene_with_grasping(env: ManagerBasedEnv, env_ids: torch.Tensor):
     new_env_state = cached_env_state.apply(lambda x: repeat(x, "1 ... -> n ...", n=env.num_envs).clone())
     env.unwrapped.write_state(new_env_state)
 
+
+
 @configclass
 class EventCfg:
     """Configuration for events."""

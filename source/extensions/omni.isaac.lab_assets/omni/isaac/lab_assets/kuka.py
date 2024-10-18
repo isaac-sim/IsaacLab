@@ -16,25 +16,48 @@ import torch
 from typing import TYPE_CHECKING, Literal
 
 import omni.log
-
 import omni.isaac.lab.sim as sim_utils
+import omni.isaac.core.utils.prims as prim_utils
+from omni.isaac.lab.sim import schemas
 from omni.isaac.lab.actuators import ImplicitActuatorCfg
 from omni.isaac.lab.assets.articulation import Articulation, ArticulationCfg
 from omni.isaac.lab.envs import ManagerBasedEnv
 from omni.isaac.lab.managers.action_manager import ActionTerm, ActionTermCfg
 from omni.isaac.lab.utils import configclass
 from omni.isaac.lab.utils.assets import ISAACLAB_NUCLEUS_DIR
-
+from pxr import Gf, Sdf, Usd
+from pxr import UsdGeom, UsdPhysics
 ##
 # Configuration
 ##
+def spawn_sdf_kuka(
+    prim_path: str,
+    cfg: sim_utils.UsdFileCfg,
+    translation: tuple[float, float, float] | None = None,
+    orientation: tuple[float, float, float, float] | None = None,
+) -> Usd.Prim:
+    robot_prim = sim_utils.spawn_from_usd(prim_path, cfg)
+    robot_path = prim_utils.get_prim_path(robot_prim)
+    collision_approximation = "sdf"
+    predicate = lambda path: "link_3/collisions" in path and "finger" in path
+    sdf_prims = prim_utils.get_all_matching_child_prims(robot_path, predicate)
+    for prim in sdf_prims:
+        mesh_collision_api = UsdPhysics.MeshCollisionAPI.Apply(prim)
+        mesh_collision_api.GetApproximationAttr().Set(collision_approximation)
+    return robot_prim
 
+    
+    
+    
+    
+sim_utils.spawn_from_usd
 KUKA_VICTOR_LEFT_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         # usd_path="assets/victor/victor_left_arm_with_gripper_v2/victor_left_arm_with_gripper_v2.usd",
         usd_path="assets/victor/victor_left_arm_with_gripper_sdf_v2/victor_left_arm_with_gripper_sdf_v2.usd",
         # usd_path="assets/victor/victor_left_arm_with_approx_gripper/victor_left_arm_with_approx_gripper.usd",
         # usd_path="assets/victor/victor_left_arm_with_approx_gripper_sdf/victor_left_arm_with_approx_gripper_sdf.usd",
+        func=spawn_sdf_kuka,
         activate_contact_sensors=False,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,

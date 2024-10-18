@@ -53,22 +53,19 @@ BLUE_PLATE_MARKER_CFG.markers["height"].visual_material = sim_utils.PreviewSurfa
 )
 PLATE_ARROW_CFG = VisualizationMarkersCfg(
     markers={
-        # "height": sim_utils.CylinderCfg(
-        #     radius=0.01,
-        #     height=0.001,
-        #     visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(.0, 0, 1), opacity=0.5),
-        #     ),
         "frame": sim_utils.UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/UIElements/frame_prim.usd",
             scale=(0.008, 0.008, 0.008),
         ),
-        # "direction": sim_utils.UsdFileCfg(
-        #     usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/UIElements/arrow_x.usd",
-        #     scale=(0.015, 0.005, 0.005),
-        #     visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(.0, 0.0, 1)),
-        # )
     }
 )
+
+asset_factory = {
+    "m8_loose": {},
+    "m8_tight": {"nut_path": "", "bolt_path": "", "nut_init_pos": ()},
+    "m16_tight": {},
+    "m16_loose": {},
+}
 
 
 @configclass
