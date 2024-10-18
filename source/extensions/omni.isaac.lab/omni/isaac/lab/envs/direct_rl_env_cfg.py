@@ -135,7 +135,7 @@ class DirectRLEnvCfg:
         This attribute is deprecated. Use :attr:`~omni.isaac.lab.envs.DirectRLEnvCfg.observation_space` instead.
     """
 
-    state_space: SpaceType = MISSING
+    state_space: SpaceType | None = None
     """State space definition.
 
     This is useful for asymmetric actor-critic and defines the observation space for the critic.

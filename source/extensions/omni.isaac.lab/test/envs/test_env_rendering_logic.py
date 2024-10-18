@@ -79,8 +79,8 @@ def create_direct_rl_env(render_interval: int):
         """Configuration for the test environment."""
 
         decimation: int = 4
-        num_actions: int = 0
-        num_observations: int = 0
+        action_space: int = 0
+        observation_space: int = 0
         sim: SimulationCfg = SimulationCfg(dt=0.005, render_interval=render_interval)
         scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1, env_spacing=1.0)
 
@@ -131,14 +131,21 @@ class TestEnvRenderingLogic(unittest.TestCase):
 
                     # create a new stage
                     omni.usd.get_context().new_stage()
-
-                    # create environment
-                    if env_type == "manager_based_env":
-                        env = create_manager_based_env(render_interval)
-                    elif env_type == "manager_based_rl_env":
-                        env = create_manager_based_rl_env(render_interval)
-                    else:
-                        env = create_direct_rl_env(render_interval)
+                    try:
+                        # create environment
+                        if env_type == "manager_based_env":
+                            env = create_manager_based_env(render_interval)
+                        elif env_type == "manager_based_rl_env":
+                            env = create_manager_based_rl_env(render_interval)
+                        else:
+                            env = create_direct_rl_env(render_interval)
+                    except Exception as e:
+                        if "env" in locals():
+                            env.close()
+                        else:
+                            if hasattr(e, "obj") and hasattr(e.obj, "close"):
+                                e.obj.close()
+                        self.fail(f"Failed to set-up the environment {env_type}. Error: {e}")
 
                     # enable the flag to render the environment
                     # note: this is only done for the unit testing to "fake" camera rendering.

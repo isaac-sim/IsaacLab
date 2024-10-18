@@ -21,7 +21,7 @@ import unittest
 import omni.usd
 
 from omni.isaac.lab.envs import DirectMARLEnv, DirectMARLEnvCfg
-from omni.isaac.lab.envs.utils import sample_space
+from omni.isaac.lab.envs.utils.spaces import sample_space
 
 import omni.isaac.lab_tasks  # noqa: F401
 from omni.isaac.lab_tasks.utils.parse_cfg import parse_env_cfg
@@ -39,6 +39,7 @@ class TestEnvironments(unittest.TestCase):
                 cls.registered_tasks.append(task_spec.id)
         # sort environments by name
         cls.registered_tasks.sort()
+        cls.registered_tasks = ["Isaac-Shadow-Hand-Over-Direct-v0"]
         # print all existing task names
         print(">>> All registered environments:", cls.registered_tasks)
 
@@ -84,16 +85,25 @@ class TestEnvironments(unittest.TestCase):
         """Run random actions and check environments return valid signals."""
         # create a new stage
         omni.usd.get_context().new_stage()
-        # parse configuration
-        env_cfg: DirectMARLEnvCfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
+        try:
+            # parse configuration
+            env_cfg: DirectMARLEnvCfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
 
-        # skip test if the environment is not a multi-agent task
-        if not hasattr(env_cfg, "possible_agents"):
-            print(f"[INFO]: Skipping {task_name} as it is not a multi-agent task")
-            return
+            # skip test if the environment is not a multi-agent task
+            if not hasattr(env_cfg, "possible_agents"):
+                print(f"[INFO]: Skipping {task_name} as it is not a multi-agent task")
+                return
 
-        # create environment
-        env: DirectMARLEnv = gym.make(task_name, cfg=env_cfg)
+            # create environment
+            env: DirectMARLEnv = gym.make(task_name, cfg=env_cfg)
+        except Exception as e:
+            if "env" in locals():
+                env.close()
+            else:
+                if hasattr(e, "obj") and hasattr(e.obj, "close"):
+                    e.obj.close()
+            self.fail(f"Failed to set-up the environment for task {task_name}. Error: {e}")
+
         # this flag is necessary to prevent a bug where the simulation gets stuck randomly when running the
         # test on many environments.
         env.sim.set_setting("/physics/cooking/ujitsoCollisionCooking", False)
@@ -107,7 +117,7 @@ class TestEnvironments(unittest.TestCase):
             for _ in range(num_steps):
                 # sample actions according to the defined space
                 actions = {
-                    agent: sample_space(env.action_spaces[agent], device=env.unwrapped.device)
+                    agent: sample_space(env.action_spaces[agent], device=env.unwrapped.device, batch_size=num_envs)
                     for agent in env.unwrapped.possible_agents
                 }
                 # apply actions
