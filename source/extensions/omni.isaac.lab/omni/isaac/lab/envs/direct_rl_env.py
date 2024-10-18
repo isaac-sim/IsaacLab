@@ -535,7 +535,7 @@ class DirectRLEnv(gym.Env):
 
         # optional state space for asymmetric actor-critic architectures
         self.state_space = None
-        if self.cfg.state_space > 0:
+        if self.cfg.state_space:
             self.single_observation_space["critic"] = spec_to_gym_space(self.cfg.state_space)
             self.state_space = gym.vector.utils.batch_space(self.single_observation_space["critic"], self.num_envs)
 
