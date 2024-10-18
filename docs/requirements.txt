@@ -7,6 +7,8 @@ sphinx-copybutton
 sphinx-icon
 sphinx_design
 sphinxemoji
+sphinx-tabs # backwards compatibility for building docs on v1.0.0
+sphinx-multiversion==0.2.4
 
 # basic python
 numpy
