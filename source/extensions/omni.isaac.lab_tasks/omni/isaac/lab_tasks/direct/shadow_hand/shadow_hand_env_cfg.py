@@ -119,9 +119,9 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
     # env
     decimation = 2
     episode_length_s = 10.0
-    num_actions = 20
-    num_observations = 157  # (full)
-    num_states = 0
+    action_space = 20
+    observation_space = 157  # (full)
+    state_space = 0
     asymmetric_obs = False
     obs_type = "full"
 
@@ -232,9 +232,9 @@ class ShadowHandOpenAIEnvCfg(ShadowHandEnvCfg):
     # env
     decimation = 3
     episode_length_s = 8.0
-    num_actions = 20
-    num_observations = 42
-    num_states = 187
+    action_space = 20
+    observation_space = 42
+    state_space = 187
     asymmetric_obs = True
     obs_type = "openai"
     # simulation
