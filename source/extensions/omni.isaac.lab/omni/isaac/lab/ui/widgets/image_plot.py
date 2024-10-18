@@ -54,6 +54,10 @@ class ImagePlot(UIWidgetWrapper):
             image[:, :, 0] = 0
             image[:, :240, 1] = 0
 
+        # if image is channel first, convert to channel last
+        if image.ndim == 3 and image.shape[0] in [1, 3, 4]:
+            image = np.moveaxis(image, 0, -1)
+
         self._aspect_ratio = image.shape[1] / image.shape[0]
         self._widget_height = widget_height
         self._label = label
@@ -89,7 +93,6 @@ class ImagePlot(UIWidgetWrapper):
                 colormap = cm.get_cmap("jet")
                 # Map normalized depth values to colors
                 image = (colormap(image).squeeze(2) * 255).astype(np.uint8)
-
         self._byte_provider.set_bytes_data(image.flatten().data, [width, height])
 
     def update_min_max(self, image: np.ndarray):
