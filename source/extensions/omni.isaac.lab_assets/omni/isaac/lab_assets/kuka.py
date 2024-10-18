@@ -56,19 +56,33 @@ KUKA_VICTOR_LEFT_CFG = ArticulationCfg(
             "victor_left_arm_joint_5": -2.2058,
             "victor_left_arm_joint_6": 1.0290,
             "victor_left_arm_joint_7": 0.42154,
-            # gripper finger states
-            "victor_left_finger_a_joint_1": 0.890168571428571,
+            # # gripper finger states
+            # "victor_left_finger_a_joint_1": 0.890168571428571,
+            # "victor_left_finger_a_joint_2": 0,
+            # "victor_left_finger_a_joint_3": -0.8901685714285714,
+            # "victor_left_finger_b_joint_1": 0.890168571428571,
+            # "victor_left_finger_b_joint_2": 0,
+            # "victor_left_finger_b_joint_3": -0.8901685714285714,
+            # "victor_left_finger_c_joint_1": 0.890168571428571,
+            # "victor_left_finger_c_joint_2": 0,
+            # "victor_left_finger_c_joint_3": -0.8901685714285714,
+            # # gripper scissors states
+            # "victor_left_palm_finger_b_joint": 0.115940392156862,
+            # "victor_left_palm_finger_c_joint": -0.11594039215686275,
+            
+            "victor_left_finger_a_joint_1": 0.73443,
             "victor_left_finger_a_joint_2": 0,
-            "victor_left_finger_a_joint_3": -0.8901685714285714,
-            "victor_left_finger_b_joint_1": 0.890168571428571,
+            "victor_left_finger_a_joint_3": -0.73443,
+            "victor_left_finger_b_joint_1": 0.73443,
             "victor_left_finger_b_joint_2": 0,
-            "victor_left_finger_b_joint_3": -0.8901685714285714,
-            "victor_left_finger_c_joint_1": 0.890168571428571,
+            "victor_left_finger_b_joint_3": -0.73443,
+            "victor_left_finger_c_joint_1": 0.73443,
             "victor_left_finger_c_joint_2": 0,
-            "victor_left_finger_c_joint_3": -0.8901685714285714,
+            "victor_left_finger_c_joint_3": -0.73443,
             # gripper scissors states
-            "victor_left_palm_finger_b_joint": 0.115940392156862,
-            "victor_left_palm_finger_c_joint": -0.11594039215686275,
+            "victor_left_palm_finger_b_joint": 0.088712,
+            "victor_left_palm_finger_c_joint": -0.088712,
+            
         },
     ),
     actuators={
@@ -82,7 +96,7 @@ KUKA_VICTOR_LEFT_CFG = ArticulationCfg(
             joint_names_expr=["victor_left.*finger.*"],
             effort_limit=200.0,
             velocity_limit=0.2,
-            stiffness=2e3,
+            stiffness=2e2,
             damping=1e2,
         )
     },

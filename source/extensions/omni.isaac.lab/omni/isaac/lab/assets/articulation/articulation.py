@@ -286,12 +286,19 @@ class Articulation(AssetBase):
         # broadcast env_ids if needed to allow double indexing
         if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
-        position = self._data.joint_pos[env_ids, joint_ids]
-        velocity = self._data.joint_vel[env_ids, joint_ids]
-        return {"position": position, "velocity": velocity}
+        position = self._data.joint_pos[env_ids, joint_ids].clone()
+        velocity = self._data.joint_vel[env_ids, joint_ids].clone()
+        position_target = self._data.joint_pos_target[env_ids, joint_ids].clone()
+        velocity_target = self._data.joint_vel_target[env_ids, joint_ids].clone()
+        effort_target = self._data.joint_effort_target[env_ids, joint_ids].clone()
+        return {
+            "position": position, "velocity": velocity,
+            "position_target": position_target, "velocity_target": velocity_target, "effort_target": effort_target
+            }
     
     def read_state_from_sim(self, env_ids: Sequence[int] | None = None):
         """Read the state of the articulation from the simulation.
+        Note: doesn't include external wrench
 
         Args:
             env_ids: Environment indices. If None, then all indices are used.
@@ -406,8 +413,15 @@ class Articulation(AssetBase):
             state: A dictionary containing the root and joint states.
             env_ids: Environment indices. If None, then all indices are used.
         """
-        self.write_root_state_to_sim(state["root_state"], env_ids)
-        self.write_joint_state_to_sim(state["joint_state"]["position"], state["joint_state"]["velocity"], env_ids)
+        root_state, joint_state = state["root_state"], state["joint_state"]
+        self.write_root_state_to_sim(root_state, env_ids)
+        self.write_joint_state_to_sim(joint_state["position"], joint_state["velocity"], env_ids)
+        
+        self.set_joint_position_target(joint_state["position_target"], env_ids)
+        self.set_joint_velocity_target(joint_state["velocity_target"], env_ids)
+        self.set_joint_effort_target(joint_state["effort_target"], env_ids)
+        self.write_data_to_sim()
+        
         
     def write_joint_stiffness_to_sim(
         self,

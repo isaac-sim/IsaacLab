@@ -277,4 +277,5 @@ class Robotiq3FingerActionCfg(ActionTermCfg):
     side: Literal["left", "right"] = "left"
     class_type: type[ActionTerm] = robotiq_3f_actions.Robotiq3FingerAction
     use_relative_mode: bool = True
+    is_accumulate_action: bool = False
     

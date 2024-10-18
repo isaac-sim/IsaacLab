@@ -134,9 +134,6 @@ def main():
             # pre-process actions
             actions = pre_process_actions(delta_pose, gripper_command)
             # apply actions
-            # actions[:, 2] = -1.8e-3/250
-            # actions[:, 2] = -0.001
-            # actions[:, 5] = -0.2
             # actions[:, -2:] = torch.rand_like(actions[:, -2:])
             # actions[:, -2:] = gripper_deltas[counter%100]
             counter += 1

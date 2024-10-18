@@ -226,16 +226,16 @@ class ManagerBasedEnv:
     Operations - MDP.
     """
 
-    def read_state(self) -> dict:
+    def read_state(self, env_ids: Sequence[int] | None = None) -> dict:
         """Get the current state of the environment.
 
         Returns:
             A dictionary containing the state of the environment.
         """
-        return self.scene.read_state()
+        return self.scene.read_state(env_ids)
     
     
-    def write_state(self, state: dict):
+    def write_state(self, state: dict, env_ids: Sequence[int] | None = None):
         """Set the state of the environment.
 
         Args:

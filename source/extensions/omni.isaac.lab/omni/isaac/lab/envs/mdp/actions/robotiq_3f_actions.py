@@ -49,7 +49,12 @@ class Robotiq3FingerAction(ActionTerm):
         # create tensors for raw and processed actions
         self._raw_actions = torch.zeros(self.num_envs, 2, device=self.device)
         self._processed_actions = torch.zeros(self.num_envs, self._num_joints, device=self.device)
-        print("Robotiq3FingerAction initialized")
+        self.initialized = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+        if self.cfg.is_accumulate_action:
+            omni.log.warn(
+                f"Accumulate action is enabled for action term {self.__class__.__name__} "
+                "MPPI will result in error since action term is not synchronized"
+            )
     
     """
     Properties.
@@ -70,16 +75,26 @@ class Robotiq3FingerAction(ActionTerm):
     """
     Operations
     """
+    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+        self._raw_actions[env_ids] = 0.0
+        self.initialized[env_ids] = False
+        
     def process_actions(self, actions:torch.Tensor):
         """ Compute joint angles based on opening and scissor values """
-        self._raw_actions[:] = actions
         joint_pos_curr = self._asset.read_joint_state_from_sim(joint_ids=self._joint_ids)["position"]
         openness_curr = inverse_compute_finger_angles_jit(joint_pos_curr)
         scissor_curr = inverse_compute_scissor_angle_jit(joint_pos_curr[:, -2:])
+
         if self.cfg.use_relative_mode:
-            actions[:, 0] += openness_curr[:, 0]
-            actions[:, 1] += scissor_curr[:, 0]
-        
+            if self.cfg.is_accumulate_action:
+                self.raw_actions[~self.initialized, 0]= openness_curr[~self.initialized, 0]
+                self.raw_actions[~self.initialized, 1]= scissor_curr[~self.initialized, 0]
+                self.initialized[~self.initialized] = True
+                actions += self._raw_actions
+            else:
+                actions[:, 0] += openness_curr[:, 0]
+                actions[:, 1] += scissor_curr[:, 0]
+        self._raw_actions[:] = actions
         compute_finger_angles_jit(actions[:, 0], self._processed_actions)
         
         # # debugging

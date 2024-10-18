@@ -69,8 +69,8 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         self.act_highs = [0.001, 0.001, 0.001, 0.5, 0.5, 0.5]
         self.scene.robot = KUKA_VICTOR_LEFT_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.robot.init_state.pos = [-0.15, -0.5, -0.8]
-        self.scene.nut.spawn.rigid_props.disable_gravity = False
-        self.scene.nut.init_state.pos = (0.5, 0, 0)
+        # self.scene.nut.spawn.rigid_props.disable_gravity = False
+        # self.scene.nut.init_state.pos = (0.5, 0, 0)
         # override actions
         self.actions.arm_action = DifferentialInverseKinematicsActionCfg(
             asset_name="robot",
@@ -78,11 +78,23 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
             body_name="victor_left_tool0",
             controller=DifferentialIKControllerCfg(command_type="pose", use_relative_mode=True, ik_method="dls"),
         )
+        
+        arm_joint_angles = [ 1.5202e+00, -3.5097e-01,  2.2632e+00,  1.5006e+00, -2.0696e+00,
+          1.0335e+00,  3.7628e-01,  1.1594e-01, -1.1594e-01,  7.3437e-01,
+          7.3437e-01,  7.3437e-01,  2.3933e-11, -3.4038e-12,  7.6929e-11,
+         -7.3437e-01, -7.3437e-01, -7.3437e-01]
+        ori_init_joints = self.scene.robot.init_state.joint_pos
+        for key, value in zip(ori_init_joints.keys(), arm_joint_angles):
+            if "arm" in key:
+                ori_init_joints[key] = value
+        self.scene.robot.init_state.joint_pos = ori_init_joints
         self.actions.gripper_action = mdp.Robotiq3FingerActionCfg(
             asset_name="robot",
             side="left",
             lows=self.act_lows,
             highs=self.act_highs,
+            use_relative_mode=True,
+            is_accumulate_action=True
         )
 
         # self.scene.bolt.spawn.activate_contact_sensors = True
