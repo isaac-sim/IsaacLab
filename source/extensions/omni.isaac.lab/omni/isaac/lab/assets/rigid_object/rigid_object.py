@@ -145,20 +145,20 @@ class RigidObject(AssetBase):
     """
     Operations - Read from simulation.
     """
-    
+
     def read_state_from_sim(self, env_ids: Sequence[int] | None = None) -> dict[str, torch.Tensor]:
         """Read the state from the simulation."""
         if env_ids is None:
             env_ids = slice(None)
         root_state = self.read_root_state_from_sim(env_ids)
         return {"root_state": root_state}
-    
+
     def read_root_state_from_sim(self, env_ids: Sequence[int] | None = None) -> torch.Tensor:
         if env_ids is None:
             env_ids = slice(None)
         root_state = self._data.root_state_w[env_ids]
         return root_state.clone()
-        
+
     def read_root_pose_from_sim(self, env_ids: Sequence[int] | None = None) -> torch.Tensor:
         """Read the root pose from the simulation.
 
@@ -182,7 +182,7 @@ class RigidObject(AssetBase):
         buffer = self._data.root_state_w[env_ids, :7]
         assert torch.norm(root_poses_xyzw - buffer) < 1e-6, "Mismatch in root pose."
         return root_poses_xyzw
-    
+
     def read_root_velocity_from_sim(self, env_ids: Sequence[int] | None = None) -> torch.Tensor:
         """Read the root velocity from the simulation.
 
@@ -202,11 +202,11 @@ class RigidObject(AssetBase):
         buffer = self._data.root_state_w[env_ids, 7:]
         assert torch.norm(root_velocities - buffer) < 1e-6, "Mismatch in root velocity."
         return root_velocities
-    
+
     """
     Operations - Write to simulation.
     """
-    
+
     def write_state_to_sim(self, state: dict[str, torch.Tensor], env_ids: Sequence[int] | None = None):
         self.write_root_state_to_sim(state["root_state"], env_ids)
 

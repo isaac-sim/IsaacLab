@@ -3,16 +3,18 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import torch
+
 from omni.isaac.lab.assets import DeformableObjectCfg
 from omni.isaac.lab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
 from omni.isaac.lab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
+from omni.isaac.lab.sensors import ContactSensor, ContactSensorCfg
 from omni.isaac.lab.sim.spawners import UsdFileCfg
 from omni.isaac.lab.utils import configclass
-from omni.isaac.lab.utils.math import quat_from_euler_xyz
 from omni.isaac.lab.utils.assets import ISAACLAB_NUCLEUS_DIR
-from omni.isaac.lab.sensors import ContactSensor, ContactSensorCfg
+from omni.isaac.lab.utils.math import quat_from_euler_xyz
+
 from . import joint_pos_env_cfg
-import torch
 
 ##
 # Pre-defined configs
@@ -30,16 +32,14 @@ class KukaCubeLiftEnvCfg(joint_pos_env_cfg.KukaCubeLiftEnvCfg):
         # We switch here to a stiffer PD controller for IK tracking to be better.
         self.scene.robot = KUKA_VICTOR_LEFT_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
-
         # Set actions for the specific robot type (franka)
         self.actions.arm_action = DifferentialInverseKinematicsActionCfg(
             asset_name="robot",
             joint_names=["victor_left_arm_joint.*"],
             body_name="victor_left_tool0",
             controller=DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls"),
-            body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(
-                pos=[0.0, 0.0, 0.0]))
-        
+            body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.0]),
+        )
 
 
 @configclass

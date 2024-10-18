@@ -10,7 +10,14 @@ from omni.isaac.lab.controllers import DifferentialIKControllerCfg
 from omni.isaac.lab.managers.action_manager import ActionTerm, ActionTermCfg
 from omni.isaac.lab.utils import configclass
 
-from . import binary_joint_actions, joint_actions, joint_actions_to_limits, non_holonomic_actions, task_space_actions, robotiq_3f_actions
+from . import (
+    binary_joint_actions,
+    joint_actions,
+    joint_actions_to_limits,
+    non_holonomic_actions,
+    robotiq_3f_actions,
+    task_space_actions,
+)
 
 ##
 # Joint actions.
@@ -250,6 +257,7 @@ class DifferentialInverseKinematicsActionCfg(ActionTermCfg):
     controller: DifferentialIKControllerCfg = MISSING
     """The configuration for the differential IK controller."""
 
+
 @configclass
 class RigidObjectPoseActionTermCfg(ActionTermCfg):
     """Configuration for the cube action term."""
@@ -259,23 +267,22 @@ class RigidObjectPoseActionTermCfg(ActionTermCfg):
 
     command_type: Literal["position", "pose"] = MISSING
     use_relative_mode: bool = False
-    p_gain: float =  2
+    p_gain: float = 2
     """Proportional gain of the PD controller."""
     d_gain: float = 0.05
     """Derivative gain of the PD controller."""
-    
+
     is_accumulate_action: bool = False
     # action limits
     lows = [-0.01, -0.01, -0.01, -0.1, -0.1, -0.1]
     highs = [0.01, 0.01, 0.01, 0.1, 0.1, 0.1]
-    
+
 
 @configclass
 class Robotiq3FingerActionCfg(ActionTermCfg):
-    """Configuration for the Robotiq 3-finger gripper action term
-    """
+    """Configuration for the Robotiq 3-finger gripper action term"""
+
     side: Literal["left", "right"] = "left"
     class_type: type[ActionTerm] = robotiq_3f_actions.Robotiq3FingerAction
     use_relative_mode: bool = True
     is_accumulate_action: bool = False
-    

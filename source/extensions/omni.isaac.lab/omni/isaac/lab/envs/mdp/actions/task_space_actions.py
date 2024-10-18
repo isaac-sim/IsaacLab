@@ -19,6 +19,7 @@ from omni.isaac.lab.managers.action_manager import ActionTerm
 
 if TYPE_CHECKING:
     from omni.isaac.lab.envs import ManagerBasedEnv
+
     from . import actions_cfg
 
 
@@ -222,19 +223,19 @@ class RigidObjectActionTerm(ActionTerm):
         self._raw_actions = torch.zeros(self.num_envs, self.action_dim, device=self.device)
         self._processed_actions = torch.zeros_like(self.raw_actions)
         self._vel_command = torch.zeros(self.num_envs, 6, device=self.device)
-        
+
         self.obj_pos_des = torch.zeros(self.num_envs, 3, device=self.device)
         self.obj_quat_des = torch.zeros(self.num_envs, 4, device=self.device)
         self._command = torch.zeros(self.num_envs, self.action_dim, device=self.device)
-        
+
         # gains of controller
         self.p_gain = cfg.p_gain
         self.d_gain = cfg.d_gain
         self.initialized = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
-        
+
         self.act_lows = torch.tensor(cfg.lows, device=self.device)[None]
         self.act_highs = torch.tensor(cfg.highs, device=self.device)[None]
-        
+
     """
     Properties.
     """
@@ -260,10 +261,11 @@ class RigidObjectActionTerm(ActionTerm):
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         self._raw_actions[env_ids] = 0.0
         self.initialized[env_ids] = False
-        
+
     """
     Operations
     """
+
     def _compute_frame_pose(self) -> tuple[torch.Tensor, torch.Tensor]:
         """Computes the pose of the target frame in the root frame.
 
@@ -336,7 +338,7 @@ class RigidObjectActionTerm(ActionTerm):
             else:
                 self.obj_pos_des = self._command[:, 0:3]
                 self.obj_quat_des = self._command[:, 3:7]
-                
+
     def process_actions(self, actions: torch.Tensor):
         #         ----------------------------------------------
         # Toggle gripper (open/close): K
@@ -352,12 +354,12 @@ class RigidObjectActionTerm(ActionTerm):
         # actions[:] = 0
         # actions[:, 2] = -0.00001
         # actions[:, 5] = -0.2
-        
+
         self._raw_actions[:] = actions
         # no-processing of actions
         self._processed_actions[:] = self._raw_actions[:]
         obj_pos_curr, obj_quat_curr = self._compute_frame_pose()
-     
+
         # set command into controller
         if self.cfg.is_accumulate_action:
             self.obj_pos_des[~self.initialized] = obj_pos_curr[~self.initialized]
@@ -372,15 +374,15 @@ class RigidObjectActionTerm(ActionTerm):
     def apply_actions(self):
         # implement a PD controller to track the target pose
         obj_pos_curr, obj_quat_curr = self._compute_frame_pose()
-        pos_error, rot_error = math_utils.compute_pose_error(obj_pos_curr, obj_quat_curr,
-                                                             self.obj_pos_des, self.obj_quat_des)
+        pos_error, rot_error = math_utils.compute_pose_error(
+            obj_pos_curr, obj_quat_curr, self.obj_pos_des, self.obj_quat_des
+        )
         pos_error = torch.clamp(pos_error, self.act_lows[:, :3], self.act_highs[:, :3])
-        rot_error = torch.clamp(rot_error, self.act_lows[:, 3:], self.act_highs[:, 3:])                                                   
+        rot_error = torch.clamp(rot_error, self.act_lows[:, 3:], self.act_highs[:, 3:])
         pos_vel_error = -self._asset.data.root_lin_vel_w
         rot_vel_error = -self._asset.data.root_ang_vel_w
-        
+
         # set velocity targets
         self._vel_command[:, :3] = self.p_gain * pos_error + self.d_gain * pos_vel_error
         self._vel_command[:, 3:] = self.p_gain * rot_error + self.d_gain * rot_vel_error
         self._asset.write_root_velocity_to_sim(self._vel_command)
-        

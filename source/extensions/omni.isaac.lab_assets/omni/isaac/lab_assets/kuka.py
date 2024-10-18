@@ -13,17 +13,17 @@ The following configurations are available:
 Reference: https://github.com/frankaemika/franka_ros
 """
 import torch
+from typing import TYPE_CHECKING, Literal
+
+import omni.log
+
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.actuators import ImplicitActuatorCfg
-from omni.isaac.lab.assets.articulation import ArticulationCfg
-from omni.isaac.lab.utils.assets import ISAACLAB_NUCLEUS_DIR
-from omni.isaac.lab.managers.action_manager import ActionTerm, ActionTermCfg
-from omni.isaac.lab.assets.articulation import Articulation
-from omni.isaac.lab.utils import configclass
-import omni.log
-from typing import TYPE_CHECKING, Literal
+from omni.isaac.lab.assets.articulation import Articulation, ArticulationCfg
 from omni.isaac.lab.envs import ManagerBasedEnv
-
+from omni.isaac.lab.managers.action_manager import ActionTerm, ActionTermCfg
+from omni.isaac.lab.utils import configclass
+from omni.isaac.lab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 ##
 # Configuration
@@ -31,20 +31,20 @@ from omni.isaac.lab.envs import ManagerBasedEnv
 
 KUKA_VICTOR_LEFT_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        # usd_path="assets/victor/victor_left_arm_with_gripper.usd",
-        usd_path="assets/victor/victor_left_arm_with_approx_gripper/victor_left_arm_with_approx_gripper.usd",
+        # usd_path="assets/victor/victor_left_arm_with_gripper_v2/victor_left_arm_with_gripper_v2.usd",
+        usd_path="assets/victor/victor_left_arm_with_gripper_sdf_v2/victor_left_arm_with_gripper_sdf_v2.usd",
+        # usd_path="assets/victor/victor_left_arm_with_approx_gripper/victor_left_arm_with_approx_gripper.usd",
+        # usd_path="assets/victor/victor_left_arm_with_approx_gripper_sdf/victor_left_arm_with_approx_gripper_sdf.usd",
         activate_contact_sensors=False,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
-            max_depenetration_velocity=5.0,
+            max_depenetration_velocity=0.5,
         ),
         articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=True, solver_position_iteration_count=8, solver_velocity_iteration_count=0
+            enabled_self_collisions=False, solver_position_iteration_count=8, solver_velocity_iteration_count=4
         ),
-        collision_props=sim_utils.CollisionPropertiesCfg(
-            contact_offset=0.001)
+        collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.002),
     ),
-    
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0, 0, 0),
         joint_pos={
@@ -69,7 +69,6 @@ KUKA_VICTOR_LEFT_CFG = ArticulationCfg(
             # # gripper scissors states
             # "victor_left_palm_finger_b_joint": 0.115940392156862,
             # "victor_left_palm_finger_c_joint": -0.11594039215686275,
-            
             "victor_left_finger_a_joint_1": 0.73443,
             "victor_left_finger_a_joint_2": 0,
             "victor_left_finger_a_joint_3": -0.73443,
@@ -80,9 +79,8 @@ KUKA_VICTOR_LEFT_CFG = ArticulationCfg(
             "victor_left_finger_c_joint_2": 0,
             "victor_left_finger_c_joint_3": -0.73443,
             # gripper scissors states
-            "victor_left_palm_finger_b_joint": 0.088712,
-            "victor_left_palm_finger_c_joint": -0.088712,
-            
+            "victor_left_palm_finger_b_joint": 0.13408,
+            "victor_left_palm_finger_c_joint": -0.13408,
         },
     ),
     actuators={
@@ -98,7 +96,7 @@ KUKA_VICTOR_LEFT_CFG = ArticulationCfg(
             velocity_limit=0.2,
             stiffness=2e2,
             damping=1e2,
-        )
+        ),
     },
     soft_joint_pos_limit_factor=1.0,
 )
@@ -129,7 +127,6 @@ KUKA_VICTOR_CFG = ArticulationCfg(
         collision_props=sim_utils.CollisionPropertiesCfg(
             contact_offset=0.001, rest_offset=0)
     ),
-    
     init_state=ArticulationCfg.InitialStateCfg(
         # pos=(-0.4, -0.35, -0.8),
         pos=(0, 0, 0),
@@ -149,7 +146,6 @@ KUKA_VICTOR_CFG = ArticulationCfg(
             # "victor_right_arm_joint_5": 0.472,
             # "victor_right_arm_joint_6": 0.777,
             # "victor_right_arm_joint_7": -0.809,
-            
             "victor_left_arm_joint_1": 1.3661269501533881,
             "victor_left_arm_joint_2": -0.5341374194622199,
             "victor_left_arm_joint_3": 2.383251686578518,
@@ -164,7 +160,6 @@ KUKA_VICTOR_CFG = ArticulationCfg(
             "victor_right_arm_joint_5": 0.472,
             "victor_right_arm_joint_6": 0.777,
             "victor_right_arm_joint_7": -0.809,
-            
             # gripper finger states
             "victor_left_finger_a_joint_1": 0.890168571428571,
             "victor_left_finger_a_joint_2": 0,
@@ -175,7 +170,6 @@ KUKA_VICTOR_CFG = ArticulationCfg(
             "victor_left_finger_c_joint_1": 0.890168571428571,
             "victor_left_finger_c_joint_2": 0,
             "victor_left_finger_c_joint_3": -0.8901685714285714,
-            
             "victor_right_finger_a_joint_1": 0.890168571428571,
             "victor_right_finger_a_joint_2": 0,
             "victor_right_finger_a_joint_3": -0.8901685714285714,
@@ -185,7 +179,6 @@ KUKA_VICTOR_CFG = ArticulationCfg(
             "victor_right_finger_c_joint_1": 0.890168571428571,
             "victor_right_finger_c_joint_2": 0,
             "victor_right_finger_c_joint_3": -0.8901685714285714,
-            
             # gripper scissors states
             "victor_left_palm_finger_b_joint": 0.115940392156862,
             "victor_left_palm_finger_c_joint": -0.11594039215686275,
@@ -235,4 +228,3 @@ KUKA_VICTOR_HIGH_PD_CFG.actuators["victor_right_arm"].damping = 80.0
 
 This configuration is useful for task-space control using differential IK.
 """
-

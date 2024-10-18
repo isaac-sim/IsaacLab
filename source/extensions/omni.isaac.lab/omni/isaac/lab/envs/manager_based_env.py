@@ -233,17 +233,15 @@ class ManagerBasedEnv:
             A dictionary containing the state of the environment.
         """
         return self.scene.read_state(env_ids)
-    
-    
+
     def write_state(self, state: dict, env_ids: Sequence[int] | None = None):
         """Set the state of the environment.
 
         Args:
             state: The state of the environment.
         """
-        self.scene.write_state(state)
-        
-        
+        self.scene.write_state(state, env_ids)
+
     def reset(self, seed: int | None = None, options: dict[str, Any] | None = None) -> tuple[VecEnvObs, dict]:
         """Resets all the environments and returns observations.
 

@@ -10,8 +10,8 @@ from typing import TYPE_CHECKING
 
 from omni.isaac.lab.assets import RigidObject
 from omni.isaac.lab.managers import SceneEntityCfg
-from omni.isaac.lab.utils.math import combine_frame_transforms, quat_error_magnitude, quat_mul
 from omni.isaac.lab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
+from omni.isaac.lab.utils.math import combine_frame_transforms, quat_error_magnitude, quat_mul
 
 if TYPE_CHECKING:
     from omni.isaac.lab.envs import ManagerBasedRLEnv
@@ -20,6 +20,7 @@ if TYPE_CHECKING:
 def l2_norm(diff: torch.Tensor) -> torch.Tensor:
     """Compute the L2-norm of a tensor."""
     return torch.norm(diff, dim=1)
+
 
 def forge_kernel(diff: torch.Tensor, a: float = 100, b: float = 0, tol: float = 0) -> torch.Tensor:
     """Compute the kernel function using the Forge kernel.
@@ -31,7 +32,8 @@ def forge_kernel(diff: torch.Tensor, a: float = 100, b: float = 0, tol: float = 
     l2_dis = l2_norm(diff)
     clamped_dis = torch.clamp(l2_dis - tol, min=0)
     dis = 1 / (torch.exp(-a * clamped_dis) + b + torch.exp(a * clamped_dis))
-    return dis    
+    return dis
+
 
 # def position_error_l2(env: ManagerBasedRLEnv, src_body_name: str, tgt_body_name: str) -> torch.Tensor:
 #     """Penalize tracking of the position error using L2-norm.
@@ -52,7 +54,8 @@ def forge_kernel(diff: torch.Tensor, a: float = 100, b: float = 0, tol: float = 
 #     l2_dis = position_error_l2(env, src_body_name, tgt_body_name)
 #     clamped_dis = torch.clamp(l2_dis - tol, min=0)
 #     dis = 1 / (torch.exp(-a * clamped_dis) + b + torch.exp(a * clamped_dis))
-#     return dis    
+#     return dis
+
 
 def orientation_command_error(env: ManagerBasedRLEnv, command_name: str, asset_cfg: SceneEntityCfg) -> torch.Tensor:
     """Penalize tracking orientation error using shortest path.

@@ -8,13 +8,13 @@ from omni.isaac.lab.controllers.differential_ik_cfg import DifferentialIKControl
 from omni.isaac.lab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
 from omni.isaac.lab.managers import EventTermCfg as EventTerm
 from omni.isaac.lab.managers import SceneEntityCfg
+from omni.isaac.lab.sensors import ContactSensor, ContactSensorCfg
 from omni.isaac.lab.sim.spawners import UsdFileCfg
 from omni.isaac.lab.utils import configclass
 from omni.isaac.lab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 import omni.isaac.lab_tasks.manager_based.manipulation.lift.mdp as mdp
 
-from omni.isaac.lab.sensors import ContactSensor, ContactSensorCfg
 from . import joint_pos_env_cfg
 
 ##

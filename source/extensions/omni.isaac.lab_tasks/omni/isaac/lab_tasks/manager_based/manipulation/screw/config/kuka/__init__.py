@@ -7,6 +7,7 @@ import gymnasium as gym
 
 # from . import abs_pose_env_cfg, rel_pose_env_cfg, agents
 from . import agents, ik_rel_env_cfg
+
 ##
 # Register Gym environments.
 ##

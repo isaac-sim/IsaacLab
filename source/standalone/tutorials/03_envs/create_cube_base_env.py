@@ -41,23 +41,26 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import torch
 import numpy as np
-from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
+import torch
+
+from source.utils.data_utils import store_h5_dict
+
 import omni.isaac.lab.envs.mdp as mdp
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.assets import AssetBaseCfg, RigidObject, RigidObjectCfg
 from omni.isaac.lab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
-from omni.isaac.lab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 from omni.isaac.lab.managers import ActionTerm, ActionTermCfg
 from omni.isaac.lab.managers import EventTermCfg as EventTerm
 from omni.isaac.lab.managers import ObservationGroupCfg as ObsGroup
 from omni.isaac.lab.managers import ObservationTermCfg as ObsTerm
 from omni.isaac.lab.managers import SceneEntityCfg
 from omni.isaac.lab.scene import InteractiveSceneCfg
+from omni.isaac.lab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 from omni.isaac.lab.terrains import TerrainImporterCfg
 from omni.isaac.lab.utils import configclass
-from source.utils.data_utils import store_h5_dict   
+from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
+
 ##
 # Custom action term
 ##
@@ -127,7 +130,7 @@ class CubeActionTerm(ActionTerm):
         # # set velocity targets
         # self._vel_command[:, :3] = self.p_gain * pos_error + self.d_gain * vel_error
         # self._asset.write_root_velocity_to_sim(self._vel_command)
-        
+
         forces = self._processed_actions[..., :3]
         torques = self._processed_actions[..., 3:]
         self._asset.set_external_force_and_torque(forces[:, None], torques[:, None])
@@ -167,8 +170,8 @@ def sys_params(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
     materials = asset.root_physx_view.get_material_properties()[:, 0]
     mass = asset.root_physx_view.get_masses()
     return torch.cat([materials, mass], dim=-1).to(env.device)
-    
-    
+
+
 ##
 # Scene definition
 ##
@@ -197,17 +200,17 @@ class MySceneCfg(InteractiveSceneCfg):
     #     init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 5)),
     # )
     cube = RigidObjectCfg(
-            prim_path="{ENV_REGEX_NS}/Object",
-            init_state=RigidObjectCfg.InitialStateCfg(pos=(0., 0., 0.), rot=(1, 0, 0, 0)),
-            spawn=UsdFileCfg(
-                usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-                scale=(0.8, 0.8, 0.8),
-                rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                    max_depenetration_velocity=1.0,
-                    disable_gravity=False,
-                ),
+        prim_path="{ENV_REGEX_NS}/Object",
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.0), rot=(1, 0, 0, 0)),
+        spawn=UsdFileCfg(
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
+            scale=(0.8, 0.8, 0.8),
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(
+                max_depenetration_velocity=1.0,
+                disable_gravity=False,
             ),
-        )
+        ),
+    )
 
     # lights
     light = AssetBaseCfg(
@@ -239,6 +242,7 @@ class ObservationsCfg:
         # cube velocity
         position = ObsTerm(func=base_position, params={"asset_cfg": SceneEntityCfg("cube")})
         sys_params = ObsTerm(func=sys_params, params={"asset_cfg": SceneEntityCfg("cube")})
+
         def __post_init__(self):
             self.enable_corruption = True
             self.concatenate_terms = True
@@ -287,6 +291,7 @@ class EventCfg:
         },
     )
 
+
 ##
 # Environment configuration
 ##
@@ -317,19 +322,25 @@ def get_random_actions(env: ManagerBasedEnv, episode_length: int) -> torch.Tenso
     force_range = (0.1, 1.5)
     torque_range = (0.01, 0.1)
     # generates random force torque trajectories using uniform distribution
-    forces = torch.rand(num_envs, episode_length, 3, device=env.device) * (force_range[1] - force_range[0]) + force_range[0]
-    torques = torch.rand(num_envs, episode_length, 3, device=env.device) * (torque_range[1] - torque_range[0]) + torque_range[0]
+    forces = (
+        torch.rand(num_envs, episode_length, 3, device=env.device) * (force_range[1] - force_range[0]) + force_range[0]
+    )
+    torques = (
+        torch.rand(num_envs, episode_length, 3, device=env.device) * (torque_range[1] - torque_range[0])
+        + torque_range[0]
+    )
     torques *= 0.1
-    actions =  torch.cat([forces, torques], dim=-1)
+    actions = torch.cat([forces, torques], dim=-1)
     # smooth the actions using gaussian filters
     # actions = torch.nn.functional.conv1d(actions, torch.ones(1, 1, 5, device=env.device) / 5, padding=2)
     return actions
-    
+
 
 def to_numpy(tensor: torch.Tensor) -> np.ndarray:
     """Converts a torch tensor to a numpy array."""
     return tensor.detach().cpu().numpy()
-    
+
+
 def main():
     """Main function."""
     episode_length = 200
@@ -339,7 +350,7 @@ def main():
 
     # setup target position commands
     target_position = torch.rand(env.num_envs, 3, device=env.device) * 2
-    target_position[:, 2]  = 0
+    target_position[:, 2] = 0
     # offset all targets so that they move to the world origin
     # target_position -= env.scene.env_origins
 
@@ -348,7 +359,7 @@ def main():
     obs, _ = env.reset()
     action_trajs = None
     # [s0, a0, r0, ]
-    all_trajs = {"cur_state": [], "action": [], "is_slip":[]}
+    all_trajs = {"cur_state": [], "action": [], "is_slip": []}
     while simulation_app.is_running():
         with torch.inference_mode():
             # reset
@@ -358,25 +369,24 @@ def main():
                 print("-" * 80)
                 print("[INFO]: Resetting environment...")
                 action_trajs = get_random_actions(env, episode_length)
-                
+
             # step env
             cur_state = to_numpy(obs["policy"])
             action = action_trajs[:, count]
             obs, _ = env.step(action)
             new_state = to_numpy(obs["policy"])
-            is_slip = np.any(new_state[:, 7:13]>0.03, axis=-1)
+            is_slip = np.any(new_state[:, 7:13] > 0.03, axis=-1)
             print(f"Step: {count}, Slip: {is_slip.mean()}")
             all_trajs["cur_state"].append(cur_state)
             all_trajs["action"].append(to_numpy(action))
             all_trajs["is_slip"].append(is_slip)
-            
-            
+
             # update counter
             count += 1
             if len(all_trajs["cur_state"]) == ds_length:
                 break
     for k, v in all_trajs.items():
-        all_trajs[k] = np.concatenate(v) 
+        all_trajs[k] = np.concatenate(v)
     store_h5_dict("data.h5", all_trajs)
     # close the environment
     env.close()

@@ -33,7 +33,7 @@ class Se3RobotiqKeyboard(DeviceBase):
         Description                    Key (+ve axis)    Key (-ve axis)
         ============================== ================= =================
         Gripper open/close             J                 K
-        Gripper scissor                U                 I  
+        Gripper scissor                U                 I
         Move along x-axis              W                 S
         Move along y-axis              A                 D
         Move along z-axis              Q                 E
@@ -59,7 +59,7 @@ class Se3RobotiqKeyboard(DeviceBase):
         self.pos_sensitivity = pos_sensitivity
         self.rot_sensitivity = rot_sensitivity
         self.gripper_sensitivity = gripper_sensitivity
-        
+
         # acquire omniverse interfaces
         self._appwindow = omni.appwindow.get_default_app_window()
         self._input = carb.input.acquire_input_interface()

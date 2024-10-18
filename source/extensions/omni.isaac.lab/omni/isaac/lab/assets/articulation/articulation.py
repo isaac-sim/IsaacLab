@@ -269,16 +269,16 @@ class Articulation(AssetBase):
     """
     Operations - Getters.
     """
+
     def read_root_state_from_sim(self, env_ids: Sequence[int] | None = None) -> torch.Tensor:
         if env_ids is None:
             env_ids = slice(None)
         root_state = self._data.root_state_w[env_ids]
         return root_state
-    
+
     def read_joint_state_from_sim(
-        self, 
-        env_ids: Sequence[int] | None = None,
-        joint_ids: Sequence[int] | slice | None = None) -> dict[str, torch.Tensor]:
+        self, env_ids: Sequence[int] | None = None, joint_ids: Sequence[int] | slice | None = None
+    ) -> dict[str, torch.Tensor]:
         if env_ids is None:
             env_ids = slice(None)
         if joint_ids is None:
@@ -292,10 +292,13 @@ class Articulation(AssetBase):
         velocity_target = self._data.joint_vel_target[env_ids, joint_ids].clone()
         effort_target = self._data.joint_effort_target[env_ids, joint_ids].clone()
         return {
-            "position": position, "velocity": velocity,
-            "position_target": position_target, "velocity_target": velocity_target, "effort_target": effort_target
-            }
-    
+            "position": position,
+            "velocity": velocity,
+            "position_target": position_target,
+            "velocity_target": velocity_target,
+            "effort_target": effort_target,
+        }
+
     def read_state_from_sim(self, env_ids: Sequence[int] | None = None):
         """Read the state of the articulation from the simulation.
         Note: doesn't include external wrench
@@ -306,8 +309,7 @@ class Articulation(AssetBase):
         root_state = self.read_root_state_from_sim(env_ids)
         joint_state = self.read_joint_state_from_sim(env_ids)
         return {"root_state": root_state, "joint_state": joint_state}
-    
-    
+
     """
     Operations - Writers.
     """
@@ -416,13 +418,12 @@ class Articulation(AssetBase):
         root_state, joint_state = state["root_state"], state["joint_state"]
         self.write_root_state_to_sim(root_state, env_ids)
         self.write_joint_state_to_sim(joint_state["position"], joint_state["velocity"], env_ids)
-        
+
         self.set_joint_position_target(joint_state["position_target"], env_ids)
         self.set_joint_velocity_target(joint_state["velocity_target"], env_ids)
         self.set_joint_effort_target(joint_state["effort_target"], env_ids)
         self.write_data_to_sim()
-        
-        
+
     def write_joint_stiffness_to_sim(
         self,
         stiffness: torch.Tensor | float,

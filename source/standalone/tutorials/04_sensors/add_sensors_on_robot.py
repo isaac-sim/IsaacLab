@@ -90,7 +90,10 @@ class SensorsSceneCfg(InteractiveSceneCfg):
         mesh_prim_paths=["/World/defaultGroundPlane"],
     )
     contact_forces = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/LF_FOOT", update_period=0.0, history_length=6, debug_vis=True,
+        prim_path="{ENV_REGEX_NS}/Robot/LF_FOOT",
+        update_period=0.0,
+        history_length=6,
+        debug_vis=True,
         filter_prim_paths_expr=["/World/defaultGroundPlane/GroundPlane/CollisionPlane"],
         # filter_prim_paths_expr=["/World/defaultGroundPlane/GroundPlane/*"],
         # filter_prim_paths_expr=["/World/defaultGroundPlane"],
@@ -158,6 +161,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
         print("Received max contact force of: ", torch.max(scene["contact_forces"].data.net_forces_w).item())
         print(scene["contact_forces"].data.force_matrix_w)
         print("-------------------------------")
+
 
 def main():
     """Main function."""

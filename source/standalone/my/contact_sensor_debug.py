@@ -1,13 +1,20 @@
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
 
 from omni.isaac.lab.app import AppLauncher
+
 # launch omniverse app
 app_launcher = AppLauncher()
 simulation_app = app_launcher.app
 import asyncio
 import numpy as np
-from omni.isaac.core.world import World
-from omni.isaac.core.prims import RigidPrimView
+
 from omni.isaac.core.objects import DynamicCuboid
+from omni.isaac.core.prims import RigidPrimView
+from omni.isaac.core.world import World
+
 
 async def example():
     if World.instance():
@@ -45,4 +52,6 @@ async def example():
     # contact forces between the top and the bottom boxes
     print(bottom_box_view.get_contact_force_matrix())
     time.sleep(15)
+
+
 asyncio.ensure_future(example())

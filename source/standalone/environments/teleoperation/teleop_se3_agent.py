@@ -33,14 +33,16 @@ simulation_app = app_launcher.app
 
 
 import gymnasium as gym
-import torch
-
-import carb
-import tqdm
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
+import torch
+import tqdm
+import pickle
+
+from force_tool.utils.data_utils import SmartDict
 from force_tool.visualization.plot_utils import get_img_from_fig, save_numpy_as_mp4
-from omni.isaac.lab.devices import Se3Gamepad, Se3Keyboard, Se3SpaceMouse, Se3RobotiqKeyboard
+
+from omni.isaac.lab.devices import Se3Gamepad, Se3Keyboard, Se3RobotiqKeyboard, Se3SpaceMouse
 from omni.isaac.lab.managers import TerminationTermCfg as DoneTerm
 
 import omni.isaac.lab_tasks  # noqa: F401
@@ -90,7 +92,8 @@ def main():
     if args_cli.teleop_device.lower() == "keyboard":
         if "Kuka" in args_cli.task:
             teleop_interface = Se3RobotiqKeyboard(
-                pos_sensitivity=0.05 * args_cli.sensitivity, rot_sensitivity=0.5 * args_cli.sensitivity,
+                pos_sensitivity=0.05 * args_cli.sensitivity,
+                rot_sensitivity=0.5 * args_cli.sensitivity,
                 gripper_sensitivity=0.02 * args_cli.sensitivity,
             )
         else:
@@ -119,8 +122,12 @@ def main():
     record_forces = False
     forces, frames = [], []
     gripper_deltas = torch.zeros(100, 1, 2, device=env.unwrapped.device)
-    gripper_deltas[10:50]= 0.025
-    gripper_deltas[50:90]= -0.025
+    gripper_deltas[10:50] = 0.025
+    gripper_deltas[50:90] = -0.025
+    for i in range(10):
+        frame = env.unwrapped.render()
+    cached_env_state = SmartDict(pickle.load(open("data/kuka_nut_thread_pre_grasp.pkl", "rb")))
+    env.unwrapped.write_state(cached_env_state)
     # simulate environment
     while simulation_app.is_running():
         # run everything in inference mode
@@ -130,7 +137,9 @@ def main():
             delta_pose = delta_pose.astype("float32")
             # convert to torch
             delta_pose = torch.tensor(delta_pose, device=env.unwrapped.device).repeat(env.unwrapped.num_envs, 1)
-            gripper_command = torch.tensor(gripper_command, device=env.unwrapped.device).repeat(env.unwrapped.num_envs, 1)
+            gripper_command = torch.tensor(gripper_command, device=env.unwrapped.device).repeat(
+                env.unwrapped.num_envs, 1
+            )
             # pre-process actions
             actions = pre_process_actions(delta_pose, gripper_command)
             # apply actions
@@ -138,9 +147,10 @@ def main():
             # actions[:, -2:] = gripper_deltas[counter%100]
             counter += 1
             obs, reward, termin, timeout, _ = env.step(actions)
+            # frame = env.unwrapped.render()
+            # frames.append(frame)
             if record_forces:
-                frame = env.unwrapped.render()
-                frames.append(frame)
+              
                 contact_sensor = env.unwrapped.scene["contact_sensor"]
                 dt = contact_sensor._sim_physics_dt
                 friction_data = contact_sensor.contact_physx_view.get_friction_data(dt)
@@ -150,7 +160,7 @@ def main():
                 nforce = nnormal * nforce_mag
                 nforce = torch.sum(nforce, dim=0)
                 tforce = torch.sum(tforce, dim=0)
-                total_force = torch.tensor([nforce.norm(), tforce.norm(), torch.norm(nforce+tforce)])
+                total_force = torch.tensor([nforce.norm(), tforce.norm(), torch.norm(nforce + tforce)])
                 print(nforce, tforce, total_force)
                 print("Total force: ", total_force)
                 forces.append(total_force.cpu().numpy())
@@ -165,7 +175,7 @@ def main():
                     labels = ["Normal Force", "Tangential Force", "Total Force"]
                     max_val = np.max(plot_target)
                     min_val = np.min(plot_target)
-                    indices = np.arange(len(plot_target))+1
+                    indices = np.arange(len(plot_target)) + 1
                     num_plots = plot_target.shape[-1]
                     plt.plot(indices, plot_target, label=labels)
                     plt.legend()
@@ -177,14 +187,14 @@ def main():
                         plt.xlim((0, len(plot_target)))
                         plt.plot(indices[:t], plot_target[:t], label=labels)
                         plt.legend()
-                        wrench_frame = get_img_from_fig(fig, width=frame.shape[1]//2, height=frame.shape[0])
+                        wrench_frame = get_img_from_fig(fig, width=frame.shape[1] // 2, height=frame.shape[0])
                         wrench_frames.append(wrench_frame)
                         plt.close()
                         # combine frames
                     frames = np.array(frames)
                     wrench_frames = np.array(wrench_frames)
                     combined_frames = np.concatenate([frames, wrench_frames], axis=2)
-                    save_numpy_as_mp4(np.array(combined_frames), 'nut.mp4')
+                    save_numpy_as_mp4(np.array(combined_frames), "nut.mp4")
                     frames = []
 
             # print("Step: ", counter)

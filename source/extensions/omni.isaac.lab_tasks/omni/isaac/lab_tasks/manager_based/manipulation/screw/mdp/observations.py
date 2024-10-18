@@ -27,9 +27,9 @@ def rel_nut_bolt_distance(env: ManagerBasedRLEnv, bolt_part_name: str) -> torch.
 def rel_nut_bolt_bottom_distance(env: ManagerBasedRLEnv) -> torch.Tensor:
     return rel_nut_bolt_distance(env, "bolt_bottom")
 
+
 def rel_nut_bolt_tip_distance(env: ManagerBasedRLEnv) -> torch.Tensor:
     return rel_nut_bolt_distance(env, "bolt_tip")
-    
 
 
 # def rel_ee_object_distance(env: ManagerBasedRLEnv) -> torch.Tensor:

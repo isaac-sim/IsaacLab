@@ -5,7 +5,7 @@
 import gymnasium as gym
 import os
 
-from . import agents, ik_abs_env_cfg, joint_pos_env_cfg, ik_rel_env_cfg
+from . import agents, ik_abs_env_cfg, ik_rel_env_cfg, joint_pos_env_cfg
 
 ##
 # Register Gym environments.

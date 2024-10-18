@@ -5,13 +5,14 @@
 
 import math
 
-from omni.isaac.lab.sensors.frame_transformer import FrameTransformerCfg, OffsetCfg
-from omni.isaac.lab.utils import configclass
 from omni.isaac.lab.assets import AssetBaseCfg, RigidObject, RigidObjectCfg
 from omni.isaac.lab.envs import ManagerBasedEnv
+from omni.isaac.lab.managers import ActionTerm, ActionTermCfg
+from omni.isaac.lab.sensors.frame_transformer import FrameTransformerCfg, OffsetCfg
+from omni.isaac.lab.utils import configclass
+
 import omni.isaac.lab_tasks.manager_based.manipulation.screw.mdp as mdp
 from omni.isaac.lab_tasks.manager_based.manipulation.screw.screw_env_cfg import BaseNutTightenEnvCfg
-from omni.isaac.lab.managers import ActionTerm, ActionTermCfg
 
 ##
 # Pre-defined configs
@@ -22,6 +23,7 @@ from omni.isaac.lab.managers import ActionTerm, ActionTermCfg
 # Environment configuration
 ##
 
+
 @configclass
 class AbsFloatNutTightenEnvCfg(BaseNutTightenEnvCfg):
     def __post_init__(self):
@@ -31,7 +33,7 @@ class AbsFloatNutTightenEnvCfg(BaseNutTightenEnvCfg):
 
         self.act_lows = [-0.001, -0.001, -0.001, -0.2, -0.2, -0.2]
         self.act_highs = [0.001, 0.001, 0.001, 0.2, 0.2, 0.2]
-        
+
         # override actions
         self.actions.nut_action = mdp.RigidObjectPoseActionTermCfg(
             asset_name="nut",
@@ -41,8 +43,7 @@ class AbsFloatNutTightenEnvCfg(BaseNutTightenEnvCfg):
             d_gain=0.01,
             lows=self.act_lows,
             highs=self.act_highs,
-            )
-
+        )
 
 
 @configclass

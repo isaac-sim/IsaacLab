@@ -42,14 +42,14 @@ import torch
 from collections.abc import Sequence
 
 import warp as wp
+from omni.isaac.core.prims import GeometryPrim
 
 from omni.isaac.lab.assets.rigid_object.rigid_object_data import RigidObjectData
+from omni.isaac.lab.envs import ManagerBasedRLEnv
 
 import omni.isaac.lab_tasks  # noqa: F401
-from omni.isaac.lab.envs import ManagerBasedRLEnv
 from omni.isaac.lab_tasks.manager_based.manipulation.screw.screw_env_cfg import BaseScrewEnvCfg
 from omni.isaac.lab_tasks.utils.parse_cfg import parse_env_cfg
-from omni.isaac.core.prims import GeometryPrim
 
 # initialize warp
 wp.init()

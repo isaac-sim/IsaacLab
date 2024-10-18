@@ -16,9 +16,9 @@ from omni.isaac.lab.managers import RewardTermCfg as RewTerm
 from omni.isaac.lab.managers import SceneEntityCfg
 from omni.isaac.lab.managers import TerminationTermCfg as DoneTerm
 from omni.isaac.lab.scene import InteractiveSceneCfg
-from omni.isaac.lab.sensors.frame_transformer.frame_transformer_cfg import FrameTransformerCfg
-from omni.isaac.lab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg, MassPropertiesCfg
 from omni.isaac.lab.sensors import CameraCfg, ContactSensorCfg, RayCasterCfg, patterns
+from omni.isaac.lab.sensors.frame_transformer.frame_transformer_cfg import FrameTransformerCfg
+from omni.isaac.lab.sim.schemas.schemas_cfg import MassPropertiesCfg, RigidBodyPropertiesCfg
 from omni.isaac.lab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from omni.isaac.lab.utils import configclass
 from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
@@ -50,11 +50,10 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         init_state=AssetBaseCfg.InitialStateCfg(pos=[0.5, 0, 0], rot=[0.707, 0, 0, 0.707]),
         spawn=UsdFileCfg(
             usd_path=f"/home/zixuanh/force_tool/assets/table_instanceable.usd",
-                          rigid_props=RigidBodyPropertiesCfg(
-                                kinematic_enabled=True,
-                            ),
-
-                         ),
+            rigid_props=RigidBodyPropertiesCfg(
+                kinematic_enabled=True,
+            ),
+        ),
     )
 
     # plane
@@ -79,6 +78,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     #     update_period=0.0, debug_vis=True
     # )
 
+
 ##
 # MDP settings
 ##
@@ -102,6 +102,7 @@ class CommandsCfg:
 @configclass
 class ActionsCfg:
     """Action specifications for the MDP."""
+
     arm_action: mdp.JointPositionActionCfg = MISSING
     # gripper_action: mdp.BinaryJointPositionActionCfg = MISSING
 

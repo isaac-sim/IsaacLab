@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING
 from omni.isaac.lab.assets import RigidObject
 from omni.isaac.lab.managers import SceneEntityCfg
 from omni.isaac.lab.utils.math import combine_frame_transforms
+
 from .observations import rel_nut_bolt_bottom_distance, rel_nut_bolt_tip_distance
 from .rewards import l2_norm
 
@@ -37,10 +38,11 @@ def nut_fully_screwed(
     Returns:
         torch.Tensor: _description_
     """
-    
+
     diff = rel_nut_bolt_bottom_distance(env)
     dis = l2_norm(diff)
     return dis < threshold
+
 
 def nut_successfully_threaded(
     env: ManagerBasedRLEnv,
@@ -55,7 +57,7 @@ def nut_successfully_threaded(
     Returns:
         torch.Tensor: _description_
     """
-    
+
     diff = rel_nut_bolt_tip_distance(env)
     dis = l2_norm(diff)
     return dis < threshold

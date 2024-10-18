@@ -6,9 +6,8 @@
 from dataclasses import MISSING
 
 import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.sim.simulation_cfg import PhysxCfg, SimulationCfg
 from omni.isaac.lab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
-from omni.isaac.lab.envs import ManagerBasedRLEnvCfg
+from omni.isaac.lab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg
 from omni.isaac.lab.managers import ActionTermCfg as ActionTerm
 from omni.isaac.lab.managers import CurriculumTermCfg as CurrTerm
 from omni.isaac.lab.managers import EventTermCfg as EventTerm
@@ -17,17 +16,22 @@ from omni.isaac.lab.managers import ObservationTermCfg as ObsTerm
 from omni.isaac.lab.managers import RewardTermCfg as RewTerm
 from omni.isaac.lab.managers import SceneEntityCfg
 from omni.isaac.lab.managers import TerminationTermCfg as DoneTerm
+from omni.isaac.lab.markers.config import (  # isort: skip
+    DEFORMABLE_TARGET_MARKER_CFG,
+    FRAME_MARKER_CFG,
+    RED_ARROW_X_MARKER_CFG,
+)
+from omni.isaac.lab.markers.visualization_markers import VisualizationMarkersCfg
 from omni.isaac.lab.scene import InteractiveSceneCfg
 from omni.isaac.lab.sensors import FrameTransformerCfg
 from omni.isaac.lab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
+from omni.isaac.lab.sim.schemas.schemas_cfg import MassPropertiesCfg, RigidBodyPropertiesCfg
+from omni.isaac.lab.sim.simulation_cfg import PhysxCfg, SimulationCfg
 from omni.isaac.lab.utils import configclass
 from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
 from omni.isaac.lab.utils.noise import AdditiveUniformNoiseCfg as Unoise
-from omni.isaac.lab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg, MassPropertiesCfg
+
 import omni.isaac.lab_tasks.manager_based.manipulation.screw.mdp as mdp
-from omni.isaac.lab.markers.visualization_markers import VisualizationMarkersCfg
-from omni.isaac.lab.markers.config import FRAME_MARKER_CFG, RED_ARROW_X_MARKER_CFG, DEFORMABLE_TARGET_MARKER_CFG   # isort: skip
-from omni.isaac.lab.envs import ManagerBasedRLEnv
 
 ##
 # Scene definition
@@ -40,11 +44,13 @@ RED_PLATE_MARKER_CFG = VisualizationMarkersCfg(
             radius=0.01,
             height=0.001,
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0, 0), opacity=0.5),
-            )
+        )
     }
 )
 BLUE_PLATE_MARKER_CFG = RED_PLATE_MARKER_CFG.copy()
-BLUE_PLATE_MARKER_CFG.markers["height"].visual_material = sim_utils.PreviewSurfaceCfg(diffuse_color=(0, 0, 1.0), opacity=0.5) 
+BLUE_PLATE_MARKER_CFG.markers["height"].visual_material = sim_utils.PreviewSurfaceCfg(
+    diffuse_color=(0, 0, 1.0), opacity=0.5
+)
 PLATE_ARROW_CFG = VisualizationMarkersCfg(
     markers={
         # "height": sim_utils.CylinderCfg(
@@ -64,6 +70,7 @@ PLATE_ARROW_CFG = VisualizationMarkersCfg(
     }
 )
 
+
 @configclass
 class ScrewSceneCfg(InteractiveSceneCfg):
     """Configuration for the scene with a robotic arm."""
@@ -77,12 +84,13 @@ class ScrewSceneCfg(InteractiveSceneCfg):
     origin = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Origin",
         spawn=sim_utils.SphereCfg(
-            radius=1e-3, 
+            radius=1e-3,
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
                 kinematic_enabled=True,
                 disable_gravity=True,
             ),
-            collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True)),
+            collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
+        ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.0)),
     )
 
@@ -103,10 +111,11 @@ class ScrewSceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/Nut",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_nut_m8_tight/factory_nut_m8_tight.usd",
-            rigid_props= sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=True, sleep_threshold=0.0, stabilization_threshold=0.0)
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(
+                disable_gravity=True, 
+            ),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.6, 0.0, 0.0065))
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.6, 0.0, 0.0065)),
     )
 
     bolt: RigidObjectCfg = RigidObjectCfg(
@@ -122,7 +131,7 @@ class ScrewSceneCfg(InteractiveSceneCfg):
         prim_path="/World/light",
         spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=2500.0),
     )
- 
+
     nut_frame = FrameTransformerCfg(
         prim_path="{ENV_REGEX_NS}/Origin",
         debug_vis=True,
@@ -133,9 +142,10 @@ class ScrewSceneCfg(InteractiveSceneCfg):
                 name="nut",
                 offset=OffsetCfg(pos=(0.0, 0.0, 0.011)),
             )
-        ])
-    
-    bolt_frame : FrameTransformerCfg = MISSING
+        ],
+    )
+
+    bolt_frame: FrameTransformerCfg = MISSING
 
 
 ##
@@ -253,9 +263,9 @@ class BaseScrewEnvCfg(ManagerBasedRLEnvCfg):
     terminations = MISSING
     events: EventCfg = EventCfg()
     curriculum: CurriculumCfg = CurriculumCfg()
-    
+
     sim: SimulationCfg = SimulationCfg(
-        dt =1./60.,
+        dt=1.0 / 60.0,
         physx=PhysxCfg(
             bounce_threshold_velocity=0.2,
             gpu_collision_stack_size=2**31,
@@ -271,37 +281,42 @@ class BaseScrewEnvCfg(ManagerBasedRLEnvCfg):
         self.decimation = 2
         self.sim.render_interval = self.decimation
         self.episode_length_s = 24.0
-        # self.viewer.origin_type = "asset_root"
-        # self.viewer.asset_name = "bolt"
-        # self.viewer.eye = (0.1, 0, 0.04)
-        # self.viewer.lookat = (0, 0, 0.02)
-        
+        self.viewer.origin_type = "asset_root"
+        self.viewer.asset_name = "bolt"
+        self.viewer.eye = (0.1, 0, 0.04)
+        self.viewer.lookat = (0, 0, 0.02)
+
 
 ###################################
 #           Nut Tighten           #
-def nut_tighten_reward_forge(env:ManagerBasedRLEnv, a: float=100, b:float=0, tol: float=0):
+def nut_tighten_reward_forge(env: ManagerBasedRLEnv, a: float = 100, b: float = 0, tol: float = 0):
     diff = mdp.rel_nut_bolt_bottom_distance(env)
     rewards = mdp.forge_kernel(diff, a, b, tol)
     return rewards
 
-    
+
 @configclass
 class NutTightenRewardsCfg:
     """Reward terms for the MDP."""
 
     # task terms
-    coarse_nut = RewTerm(func=nut_tighten_reward_forge, 
-                         params={"a":100, "b":2}, weight=1.0)
-    fine_nut= RewTerm(func=nut_tighten_reward_forge, 
-                        params={ "a":500, "b":0,}, weight=1.0)
+    coarse_nut = RewTerm(func=nut_tighten_reward_forge, params={"a": 100, "b": 2}, weight=1.0)
+    fine_nut = RewTerm(
+        func=nut_tighten_reward_forge,
+        params={
+            "a": 500,
+            "b": 0,
+        },
+        weight=1.0,
+    )
     action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.00001)
-
 
 
 @configclass
 class NutTightenTerminationsCfg:
     """Termination terms for screw tightening."""
-    nut_screwed = DoneTerm(func=mdp.nut_fully_screwed, params={"threshold":1e-4})
+
+    nut_screwed = DoneTerm(func=mdp.nut_fully_screwed, params={"threshold": 1e-4})
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
 
 
@@ -309,15 +324,15 @@ class NutTightenTerminationsCfg:
 class BaseNutTightenEnvCfg(BaseScrewEnvCfg):
     rewards: NutTightenRewardsCfg = NutTightenRewardsCfg()
     terminations: NutTightenTerminationsCfg = NutTightenTerminationsCfg()
-    
+
     def __post_init__(self):
         super().__post_init__()
         self.scene.nut.init_state.pos = (6.3000e-01, 2.0661e-06, 3.0895e-03)
-        self.scene.nut.init_state.rot = (-2.1609e-01,  6.6671e-05, -6.6467e-05,  9.7637e-01)
+        self.scene.nut.init_state.rot = (-2.1609e-01, 6.6671e-05, -6.6467e-05, 9.7637e-01)
         # self.scene.nut.init_state.pos = (0.63, 0, 4.7518e-3)
         # self.scene.nut.init_state.rot = (9.4993e-01, -6.4670e-06, -2.1785e-05, -3.1247e-01)
 
-        # mated 
+        # mated
         # self.scene.nut.init_state.pos = (6.3016e-01, 4.7342e-04, 1.6750e-02)
         # self.scene.nut.init_state.rot = (-0.0409,  0.0054,  0.0162, -0.9990)
         self.scene.bolt_frame = FrameTransformerCfg(
@@ -333,14 +348,15 @@ class BaseNutTightenEnvCfg(BaseScrewEnvCfg):
                 FrameTransformerCfg.FrameCfg(
                     prim_path="{ENV_REGEX_NS}/Bolt/factory_bolt",
                     name="bolt_bottom",
-                    offset=OffsetCfg(pos=(0.0, 0.0, 0.012)), # strict 0.011 + 0.001
+                    offset=OffsetCfg(pos=(0.0, 0.0, 0.012)),  # strict 0.011 + 0.001
                 ),
-                ]
-            )
+            ],
+        )
+
 
 ###################################
 #           Nut Thread           #
-def nut_thread_reward_forge(env:ManagerBasedRLEnv, a: float=100, b:float=0, tol: float=0):
+def nut_thread_reward_forge(env: ManagerBasedRLEnv, a: float = 100, b: float = 0, tol: float = 0):
     diff = mdp.rel_nut_bolt_tip_distance(env)
     rewards = mdp.forge_kernel(diff, a, b, tol)
     return rewards
@@ -351,18 +367,23 @@ class NutThreadRewardsCfg:
     """Reward terms for the MDP."""
 
     # task terms
-    coarse_nut = RewTerm(func=nut_thread_reward_forge, 
-                         params={"a":100, "b":2}, weight=1.0)
-    fine_nut= RewTerm(func=nut_thread_reward_forge, 
-                        params={ "a":500, "b":0,}, weight=1.0)
+    coarse_nut = RewTerm(func=nut_thread_reward_forge, params={"a": 100, "b": 2}, weight=1.0)
+    fine_nut = RewTerm(
+        func=nut_thread_reward_forge,
+        params={
+            "a": 500,
+            "b": 0,
+        },
+        weight=1.0,
+    )
     action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.00001)
-
 
 
 @configclass
 class NutThreadTerminationsCfg:
     """Termination terms for screw tightening."""
-    nut_screwed = DoneTerm(func=mdp.nut_successfully_threaded, params={"threshold":1e-4})
+
+    nut_screwed = DoneTerm(func=mdp.nut_successfully_threaded, params={"threshold": 1e-4})
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
 
 
@@ -370,23 +391,24 @@ class NutThreadTerminationsCfg:
 class BaseNutThreadEnvCfg(BaseScrewEnvCfg):
     rewards: NutThreadRewardsCfg = NutThreadRewardsCfg()
     terminations: NutThreadTerminationsCfg = NutThreadTerminationsCfg()
-    
+
     def __post_init__(self):
         super().__post_init__()
         self.scene.nut.init_state.pos = (6.3000e-01, 4.0586e-06, 0.02)
-        self.scene.nut.init_state.rot = (9.9833e-01,  1.2417e-04, -1.2629e-05,  5.7803e-02)
-        
+        self.scene.nut.init_state.rot = (9.9833e-01, 1.2417e-04, -1.2629e-05, 5.7803e-02)
+
         self.scene.nut_frame = FrameTransformerCfg(
-        prim_path="{ENV_REGEX_NS}/Origin",
-        debug_vis=True,
-        visualizer_cfg=BLUE_PLATE_MARKER_CFG.replace(prim_path="/Visuals/Nut"),
-        target_frames=[
-            FrameTransformerCfg.FrameCfg(
-                prim_path="{ENV_REGEX_NS}/Nut/factory_nut",
-                name="nut",
-                offset=OffsetCfg(pos=(0.0, 0.0, 0.011)),
-            )
-        ])
+            prim_path="{ENV_REGEX_NS}/Origin",
+            debug_vis=True,
+            visualizer_cfg=BLUE_PLATE_MARKER_CFG.replace(prim_path="/Visuals/Nut"),
+            target_frames=[
+                FrameTransformerCfg.FrameCfg(
+                    prim_path="{ENV_REGEX_NS}/Nut/factory_nut",
+                    name="nut",
+                    offset=OffsetCfg(pos=(0.0, 0.0, 0.011)),
+                )
+            ],
+        )
         self.scene.bolt_frame = FrameTransformerCfg(
             prim_path="{ENV_REGEX_NS}/Origin",
             debug_vis=True,
@@ -396,6 +418,6 @@ class BaseNutThreadEnvCfg(BaseScrewEnvCfg):
                     prim_path="{ENV_REGEX_NS}/Bolt/factory_bolt",
                     name="bolt_tip",
                     offset=OffsetCfg(pos=(0.0, 0.0, 0.0261)),  # 0.011 + 0.0161
-                )]
-            )
-
+                )
+            ],
+        )

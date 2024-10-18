@@ -20,8 +20,8 @@ class FrankaScrewPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     experiment_name = "float_screw"
     run_name = ""
     resume = False
-    logger="wandb"
-    wandb_project="float_screw"
+    logger = "wandb"
+    wandb_project = "float_screw"
     empirical_normalization = False
     policy = RslRlPpoActorCriticCfg(
         init_noise_std=1.0,

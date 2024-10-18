@@ -7,10 +7,10 @@
 
 from __future__ import annotations
 
-import inspect
-import torch
-import numpy as np
 import gymnasium as gym
+import inspect
+import numpy as np
+import torch
 import weakref
 from abc import abstractmethod
 from collections.abc import Sequence
@@ -196,8 +196,10 @@ class ActionManager(ManagerBase):
         for term in self._terms.values():
             self.cfg.debug_vis |= term.cfg.debug_vis
         lows = [term.lows for term in self._terms.values()]
-        highs = [term.highs for term in  self._terms.values()]
-        self.single_action_space = gym.spaces.Box(low=np.concatenate(lows), high=np.concatenate(highs), dtype=np.float32)
+        highs = [term.highs for term in self._terms.values()]
+        self.single_action_space = gym.spaces.Box(
+            low=np.concatenate(lows), high=np.concatenate(highs), dtype=np.float32
+        )
 
     def __str__(self) -> str:
         """Returns: A string representation for action manager."""
