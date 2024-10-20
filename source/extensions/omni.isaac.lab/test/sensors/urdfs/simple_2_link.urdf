@@ -1,0 +1,82 @@
+<?xml version="1.0"?>
+<robot name="simple_2_link">
+    <link name="world">
+        <inertial>
+            <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
+            <mass value="0.001"/>
+            <inertia ixx="0.00001" ixy="0.0" ixz="0.0" iyy="0.00001" iyz="0.0" izz="0.00001"/>
+        </inertial>
+    </link>
+    <link name="base">
+        <inertial>
+            <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
+            <mass value="10"/>
+            <inertia ixx="0.004" ixy="0.0" ixz="0.0" iyy="0.004" iyz="0.000" izz="0.002"/>
+         </inertial>
+        <visual>
+            <origin xyz="0.0 0.0 0.3" rpy="0.0 0.0 0.0"/>
+            <geometry>
+                <cylinder length="0.6" radius="0.015"/>
+            </geometry>
+            <material name="blue">
+                <color rgba="0.0 0.0 0.8 1.0"/>
+            </material>
+        </visual>
+        <!-- <collision>
+            <origin xyz="0.0 0.0 0.3" rpy="0.0 0.0 0.0"/>
+            <geometry>
+                <cylinder length="0.6" radius="0.015"/>
+            </geometry>
+         </collision> -->
+    </link>
+    <link name="link_1">
+        <inertial>
+            <origin xyz="0.2 0.0 0.1" rpy="0.0 0.0 0.0"/>
+            <mass value="10"/>
+            <inertia ixx="0.004" ixy="0.0" ixz="0.0" iyy="0.004" iyz="0.0" izz="0.002"/>
+         </inertial>
+        <visual>
+            <origin xyz="0.2 0.0 0.1" rpy="0.0 1.5708 0.0"/>
+            <geometry>
+                <cylinder length="0.4" radius="0.01"/>
+            </geometry>
+            <material name="red">
+                <color rgba="0.8 0.0 0.0 1.0"/>
+            </material>
+        </visual>
+        <!-- <collision>
+            <origin xyz="0.2 0.0 0.2" rpy="0.0 1.5708 0.0"/>
+            <geometry>
+                <cylinder length="0.4" radius="0.1"/>
+            </geometry>
+         </collision> -->
+    </link>
+
+    <link name="imu_link">
+        <inertial>
+            <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
+            <mass value="0.01"/>
+            <inertia ixx="0.0001" ixy="0.0" ixz="0.0" iyy="0.0001" iyz="0.0" izz="0.0001"/>
+        </inertial>
+    </link>
+
+    <joint name="world" type="fixed">
+        <parent link="world"/>
+        <child link="base"/>
+        <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
+    </joint>
+
+    <joint name="joint_1" type="revolute">
+        <parent link="base"/>
+        <child link="link_1"/>
+        <origin xyz="0.0 0.0 0.6" rpy="-1.57079632679 0 0"/>
+        <axis xyz="0.0 0.0 1.0"/>
+        <limit effort="1000.0" velocity="10.0" lower="-10.0" upper="10.0"/>
+    </joint>
+
+    <joint name="imu_joint" type="fixed">
+        <parent link="link_1"/>
+        <child link="imu_link"/>
+        <origin xyz="0.4 0.0 0.1" rpy="1.57079632679 0 1.57087963"/>
+    </joint>
+</robot>

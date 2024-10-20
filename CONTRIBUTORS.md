@@ -28,6 +28,7 @@ Guidelines for modifications:
 * Mayank Mittal
 * Nikita Rudin
 * Pascal Roth
+* Sheikh Dawood
 
 ## Contributors
 
