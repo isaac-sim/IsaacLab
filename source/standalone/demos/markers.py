@@ -82,7 +82,7 @@ def define_markers() -> VisualizationMarkers:
                 visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.25, 0.0)),
             ),
             "robot_mesh": sim_utils.UsdFileCfg(
-                usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-D/anymal_d.usd",
+                usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd",
                 scale=(2.0, 2.0, 2.0),
                 visual_material=sim_utils.GlassMdlCfg(glass_color=(0.0, 0.1, 0.0)),
             ),
@@ -94,7 +94,8 @@ def define_markers() -> VisualizationMarkers:
 def main():
     """Main function."""
     # Load kit helper
-    sim = SimulationContext(sim_utils.SimulationCfg(dt=0.01))
+    sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device)
+    sim = SimulationContext(sim_cfg)
     # Set main camera
     sim.set_camera_view([0.0, 18.0, 12.0], [0.0, 3.0, 0.0])
 

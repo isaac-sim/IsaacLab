@@ -9,10 +9,10 @@ This script demonstrates the different camera sensors that can be attached to a 
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p source/standalone/demos/cameras.py --disable_fabric
+    ./isaaclab.sh -p source/standalone/demos/cameras.py --enable_cameras
 
     # Usage in headless mode
-    ./isaaclab.sh -p source/standalone/demos/cameras.py --headless --enable_cameras --disable_fabric
+    ./isaaclab.sh -p source/standalone/demos/cameras.py --headless --enable_cameras
 
 """
 
@@ -96,7 +96,7 @@ class SensorsSceneCfg(InteractiveSceneCfg):
         update_period=0.1,
         height=480,
         width=640,
-        data_types=["rgb", "depth"],
+        data_types=["rgb", "distance_to_image_plane"],
         spawn=None,  # the camera is already spawned in the scene
         offset=TiledCameraCfg.OffsetCfg(pos=(0.510, 0.0, 0.015), rot=(0.5, -0.5, 0.5, -0.5), convention="ros"),
     )
@@ -221,7 +221,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
         print("-------------------------------")
         print(scene["tiled_camera"])
         print("Received shape of rgb   image: ", scene["tiled_camera"].data.output["rgb"].shape)
-        print("Received shape of depth image: ", scene["tiled_camera"].data.output["depth"].shape)
+        print("Received shape of depth image: ", scene["tiled_camera"].data.output["distance_to_image_plane"].shape)
         print("-------------------------------")
         print(scene["raycast_camera"])
         print("Received shape of depth: ", scene["raycast_camera"].data.output["distance_to_image_plane"].shape)
@@ -242,7 +242,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             # compare generated Depth images across different cameras
             depth_images = [
                 scene["camera"].data.output["distance_to_image_plane"][0],
-                scene["tiled_camera"].data.output["depth"][0, ..., 0],
+                scene["tiled_camera"].data.output["distance_to_image_plane"][0, ..., 0],
                 scene["raycast_camera"].data.output["distance_to_image_plane"][0],
             ]
             save_images_grid(
@@ -250,7 +250,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
                 cmap="turbo",
                 subtitles=["Camera", "TiledCamera", "RaycasterCamera"],
                 title="Depth Image: Cam0",
-                filename=os.path.join(output_dir, "depth", f"{count:04d}.jpg"),
+                filename=os.path.join(output_dir, "distance_to_camera", f"{count:04d}.jpg"),
             )
 
             # save all tiled RGB images
@@ -274,16 +274,8 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
 
 def main():
     """Main function."""
-
-    # note: tile rendered cameras doesn't update the camera poses when using the GPU pipeline and Fabric.
-    #   this is a bug which should be fixed in the future releases.
-    sim_cfg = sim_utils.SimulationCfg(dt=0.005)
-    # check if fabric is enabled
-    if args_cli.disable_fabric:
-        sim_cfg.use_fabric = False
-        sim_cfg.device = "cpu"
-
     # Initialize the simulation context
+    sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device, use_fabric=not args_cli.disable_fabric)
     sim = sim_utils.SimulationContext(sim_cfg)
     # Set main camera
     sim.set_camera_view(eye=[3.5, 3.5, 3.5], target=[0.0, 0.0, 0.0])

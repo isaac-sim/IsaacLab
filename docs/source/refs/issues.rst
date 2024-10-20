@@ -35,40 +35,17 @@ We have made a feature request to the respective Omniverse teams to have complet
 over stepping different parts of the simulation app. However, at this point, there is no set
 timeline for this feature request.
 
-
-Non-determinism in physics simulation
--------------------------------------
-
-Due to GPU work scheduling, there's a possibility that runtime changes to simulation parameters
-may alter the order in which operations take place. This occurs because environment updates can
-happen while the GPU is occupied with other tasks. Due to the inherent nature of floating-point
-numeric storage, any modification to the execution ordering can result in minor changes in the
-least significant bits of output data. These changes may lead to divergent execution over the
-course of simulating thousands of environments and simulation frames.
-
-An illustrative example of this issue is observed with the runtime domain randomization of object's
-physics materials. This process can introduce both determinancy and simulation issues when executed
-on the GPU due to the way these parameters are passed from the CPU to the GPU in the lower-level APIs.
-Consequently, it is strongly advised to perform this operation only at setup time, before the
-environment stepping commences.
-
-For more information, please refer to the `PhysX Determinism documentation`_.
-
-In addition, due to floating point precision, states across different environments in the simulation
-may be non-deterministic when the same set of actions are applied to the same initial
-states. This occurs as environments are placed further apart from the world origin at (0, 0, 0).
-As actors get placed at different origins in the world, floating point errors may build up
-and result in slight variance in results even when starting from the same initial states. One
-possible workaround for this issue is to place all actors/environments at the world origin
-at (0, 0, 0) and filter out collisions between the environments. Note that this may induce
-a performance degradation of around 15-50%, depending on the complexity of actors and
-environment.
+.. note::
+    With Isaac Lab 1.2, we have introduced a PhysX kinematic update call inside the
+    :attr:`~omni.isaac.lab.assets.ArticulationData.body_state_w` attribute. This workaround
+    ensures that the states of the links are updated when the root state or joint state
+    of an articulation is set.
 
 
 Blank initial frames from the camera
 ------------------------------------
 
-When using the :class:`omni.isaac.lab.sensors.Camera` sensor in standalone scripts, the first few frames
+When using the :class:`~omni.isaac.lab.sensors.Camera` sensor in standalone scripts, the first few frames
 may be blank. This is a known issue with the simulator where it needs a few steps to load the material
 textures properly and fill up the render targets.
 
@@ -99,7 +76,6 @@ are stored in the instanceable asset's USD file and not in its stage reference's
 
 .. _instanceable assets: https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/tutorial_gym_instanceable_assets.html
 .. _Omniverse Isaac Sim documentation: https://docs.omniverse.nvidia.com/isaacsim/latest/known_issues.html
-.. _PhysX Determinism documentation: https://nvidia-omniverse.github.io/PhysX/physx/5.3.1/docs/BestPractices.html#determinism
 
 
 Exiting the process
@@ -109,7 +85,7 @@ When exiting a process with ``Ctrl+C``, occasionally the below error may appear:
 
 .. code-block:: bash
 
-	[Error] [omni.physx.plugin] Subscribtion cannot be changed during the event call.
+	[Error] [omni.physx.plugin] Subscription cannot be changed during the event call.
 
 This is due to the termination occurring in the middle of a physics event call and
 should not affect the functionality of Isaac Lab. It is safe to ignore the error

@@ -6,9 +6,11 @@ Overview
    :alt: H1 Humanoid example using Isaac Lab
 
 **Isaac Lab** is a unified and modular framework for robot learning that aims to simplify common workflows
-in robotics research (such as RL, learning from demonstrations, and motion planning). It is built upon
+in robotics research (such as reinforcement learning, learning from demonstrations, and motion planning). It is built upon
 `NVIDIA Isaac Sim`_ to leverage the latest simulation capabilities for photo-realistic scenes, and fast
-and efficient simulation. The core objectives of the framework are:
+and efficient simulation.
+
+The core objectives of the framework are:
 
 - **Modularity**: Easily customize and add new environments, robots, and sensors.
 - **Agility**: Adapt to the changing needs of the community.
@@ -18,6 +20,19 @@ and efficient simulation. The core objectives of the framework are:
 Key features available in Isaac Lab include fast and accurate physics simulation provided by PhysX,
 tiled rendering APIs for vectorized rendering, domain randomization for improving robustness and adaptability,
 and support for running in the cloud.
+
+Additionally, Isaac Lab provides over 26 environments, and we are actively working on adding more environments
+to the list. These include classic control tasks, fixed-arm and dexterous manipulation tasks, legged locomotion tasks,
+and navigation tasks. A complete list is available in the `environments <source/overview/environments>`_ section.
+
+The framework also includes over 16 robots. If you are looking to add a new robot, please refer to the
+:ref:`how-to` section. The current list of robots includes:
+
+- **Classic** Cartpole, Humanoid, Ant
+- **Fixed-Arm and Hands**: UR10, Franka, Allegro, Shadow Hand
+- **Quadrupeds**: Anybotics Anymal-B, Anymal-C, Anymal-D, Unitree A1, Unitree Go1, Unitree Go2, Boston Dynamics Spot
+- **Humanoids**: Unitree H1, Unitree G1
+- **Quadcopter**: Crazyflie
 
 For more information about the framework, please refer to the `paper <https://arxiv.org/abs/2301.04195>`_
 :cite:`mittal2023orbit`. For clarifications on NVIDIA Isaac ecosystem, please check out the
@@ -60,21 +75,29 @@ Table of Contents
    :caption: Getting Started
 
    source/setup/installation/index
-   source/setup/developer
-   source/setup/sample
-   source/setup/template
    source/setup/faq
+
+.. toctree::
+   :maxdepth: 3
+   :caption: Overview
+   :titlesonly:
+
+   source/overview/developer-guide/index
+   source/overview/core-concepts/index
+   source/overview/environments
+   source/overview/reinforcement-learning/index
+   source/overview/teleop_imitation
+   source/overview/showroom
+   source/overview/simple_agents
 
 .. toctree::
    :maxdepth: 2
    :caption: Features
 
-   source/features/task_workflows
    source/features/hydra
    source/features/multi_gpu
    source/features/tiled_rendering
-   source/features/environments
-   source/features/actuators
+   source/features/reproducibility
    .. source/features/motion_generators
 
 .. toctree::
@@ -88,12 +111,6 @@ Table of Contents
 
 .. toctree::
    :maxdepth: 1
-   :caption: Source API
-
-   source/api/index
-
-.. toctree::
-   :maxdepth: 1
    :caption: Migration Guides
    :titlesonly:
 
@@ -103,8 +120,15 @@ Table of Contents
 
 .. toctree::
    :maxdepth: 1
+   :caption: Source API
+
+   source/api/index
+
+.. toctree::
+   :maxdepth: 1
    :caption: References
 
+   source/refs/additional_resources
    source/refs/contributing
    source/refs/troubleshooting
    source/refs/issues
@@ -118,7 +142,7 @@ Table of Contents
 
     GitHub <https://github.com/isaac-sim/IsaacLab>
     NVIDIA Isaac Sim <https://docs.omniverse.nvidia.com/isaacsim/latest/index.html>
-    NVIDIA PhysX <https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/index.html>
+    NVIDIA PhysX <https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/index.html>
 
 Indices and tables
 ==================

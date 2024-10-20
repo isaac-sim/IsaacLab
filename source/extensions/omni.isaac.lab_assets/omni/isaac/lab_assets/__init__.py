@@ -29,6 +29,7 @@ __version__ = ISAACLAB_ASSETS_METADATA["package"]["version"]
 from .allegro import *
 from .ant import *
 from .anymal import *
+from .cart_double_pendulum import *
 from .cartpole import *
 from .franka import *
 from .humanoid import *

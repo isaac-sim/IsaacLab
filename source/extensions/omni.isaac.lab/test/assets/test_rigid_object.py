@@ -108,6 +108,8 @@ class TestRigidObject(unittest.TestCase):
                         # Check buffers that exists and have correct shapes
                         self.assertEqual(cube_object.data.root_pos_w.shape, (num_cubes, 3))
                         self.assertEqual(cube_object.data.root_quat_w.shape, (num_cubes, 4))
+                        self.assertEqual(cube_object.data.default_mass.shape, (num_cubes, 1))
+                        self.assertEqual(cube_object.data.default_inertia.shape, (num_cubes, 9))
 
                         # Simulate physics
                         for _ in range(2):
