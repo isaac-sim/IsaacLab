@@ -40,6 +40,7 @@ Guidelines for modifications:
 * Calvin Yu
 * Chenyu Yang
 * HoJin Jeon
+* Jan Kerner
 * Jia Lin Yuan
 * Jingzhou Liu
 * Johnson Sun
