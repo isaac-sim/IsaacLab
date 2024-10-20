@@ -162,13 +162,7 @@ desired resolutions and add additional scaling or cropping operations to the ren
 
 In addition, there may be visible quality differences when comparing render outputs of different numbers of environments.
 Currently, any combined resolution that has a width less than 265 pixels or height less than 265 will automatically switch
-to the DLAA denoiser mode, which does not perform up-sampling doing anti-aliasing. For resolutions larger than 265 in both
+to the DLAA anti-aliasing mode, which does not perform up-sampling during anti-aliasing. For resolutions larger than 265 in both
 width and height dimensions, we default to using the "performance" DLSS mode for anti-aliasing for performance benefits.
 The DLSS mode can be controlled by a setting in the ``*.kit`` files under IsaacLab/source/apps, ``rtx.post.dlss.execMode``.
-
-To enforce the DLAA mode for larger resolutions, the following snippet can be added to the code:
-
-.. code-block:: python
-
-    import omni.replicator.core as rep
-    rep.settings.set_render_rtx_realtime(antialiasing="DLAA")
+The anti-aliasing mode can be specified in the :class:`~sim.SimulationCfg` using ``antialiasing="DLAA"``.

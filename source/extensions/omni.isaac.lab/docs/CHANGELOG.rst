@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.25.3 (2024-10-20)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`antialiasing_mode` in :class:`SimulationCfg` for specifying anti-aliasing mode for rendering.
+
+
 0.25.2 (2024-10-16)
 ~~~~~~~~~~~~~~~~~~~~
 

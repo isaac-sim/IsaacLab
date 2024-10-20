@@ -225,6 +225,16 @@ class SimulationContext(_SimulationContext):
         else:
             self._app_control_on_stop_handle = None
 
+        # set denoiser mode
+        try:
+            import omni.replicator.core as rep
+
+            rep.settings.set_render_rtx_realtime(antialiasing=self.cfg.antialiasing_mode)
+        except ValueError as ex:
+            raise ex
+        except Exception:
+            pass
+
         # flatten out the simulation dictionary
         sim_params = self.cfg.to_dict()
         if sim_params is not None:
