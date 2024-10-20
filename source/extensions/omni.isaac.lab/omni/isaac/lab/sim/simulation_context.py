@@ -394,6 +394,14 @@ class SimulationContext(_SimulationContext):
         """
         return self._settings.get(name)
 
+    def update_fabric_and_kinematics(self) -> None:
+        """Updates articulation kinematics and fabric for rendering."""
+        if self._fabric_iface is not None:
+            if self.physics_sim_view is not None and self.is_playing():
+                # Update the articulations' link's poses before rendering
+                self.physics_sim_view.update_articulations_kinematic()
+            self._update_fabric(0.0, 0.0)
+
     """
     Operations - Override (standalone)
     """
@@ -464,11 +472,7 @@ class SimulationContext(_SimulationContext):
                 self.set_setting("/app/player/playSimulations", True)
         else:
             # manually flush the fabric data to update Hydra textures
-            if self._fabric_iface is not None:
-                if self.physics_sim_view is not None and self.is_playing():
-                    # Update the articulations' link's poses before rendering
-                    self.physics_sim_view.update_articulations_kinematic()
-                self._update_fabric(0.0, 0.0)
+            self.update_fabric_and_kinematics()
             # render the simulation
             # note: we don't call super().render() anymore because they do above operation inside
             #  and we don't want to do it twice. We may remove it once we drop support for Isaac Sim 2022.2.

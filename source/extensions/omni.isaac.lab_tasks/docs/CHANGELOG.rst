@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.10.8 (2024-10-20)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Added call to update articulation kinematics after reset to ensure updated states in non-rendering sensors.
+
+
 0.10.7 (2024-10-02)
 ~~~~~~~~~~~~~~~~~~~
 
