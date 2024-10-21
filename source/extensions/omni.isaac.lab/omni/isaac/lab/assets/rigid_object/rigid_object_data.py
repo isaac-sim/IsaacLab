@@ -6,7 +6,7 @@
 import torch
 import weakref
 
-import carb
+import omni.log
 import omni.physics.tensors.impl.api as physx
 
 import omni.isaac.lab.utils.math as math_utils
@@ -118,7 +118,7 @@ class RigidObjectData:
         velocities are of the rigid body's center of mass frame.
         """
 
-        carb.log_warn(
+        omni.log.warn(
             "DeprecationWarning: root_state_w and it's derived properties will be deprecated in a future release."
             " Please use root_link_state_w or root_com_state_w."
         )
@@ -186,7 +186,7 @@ class RigidObjectData:
         The position and orientation are of the rigid bodies' actor frame. Meanwhile, the linear and angular
         velocities are of the rigid bodies' center of mass frame.
         """
-        carb.log_warn(
+        omni.log.warn(
             "DeprecationWarning: body_state_w and it's derived properties will be deprecated in a future release."
             " Please use body_link_state_w or bodt_com_state_w."
         )

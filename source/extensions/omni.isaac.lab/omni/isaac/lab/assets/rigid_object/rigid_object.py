@@ -157,7 +157,7 @@ class RigidObject(AssetBase):
             env_ids: Environment indices. If None, then all indices are used.
         """
         # deprecation warning
-        carb.log_warn(
+        omni.log.warn(
             "DeprecationWarning: RigidObject.write_root_state_to_sim will be removed in a future release. Please use"
             " write_root_link_state_to_sim or write_root_com_state_to_sim instead."
         )
@@ -204,7 +204,7 @@ class RigidObject(AssetBase):
             env_ids: Environment indices. If None, then all indices are used.
         """
         # deprecation warning
-        carb.log_warn(
+        omni.log.warn(
             "DeprecationWarning: RigidObject.write_root_pose_to_sim will be removed in a future release. Please use"
             " write_root_link_pose_to_sim or write_root_com_pose_to_sim instead."
         )
@@ -273,7 +273,7 @@ class RigidObject(AssetBase):
             env_ids: Environment indices. If None, then all indices are used.
         """
         # deprecation warning
-        carb.log_warn(
+        omni.log.warn(
             "DeprecationWarning: RigidObject.write_root_velocity_to_sim will be removed in a future release. Please use"
             " write_root_link_velocity_to_sim or write_root_com_velocity_to_sim instead."
         )

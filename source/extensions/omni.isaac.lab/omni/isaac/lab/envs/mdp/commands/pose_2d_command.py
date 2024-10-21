@@ -81,7 +81,9 @@ class UniformPose2dCommand(CommandTerm):
 
     def _update_metrics(self):
         # logs data
-        self.metrics["error_pos_2d"] = torch.norm(self.pos_command_w[:, :2] - self.robot.data.root_link_pos_w[:, :2], dim=1)
+        self.metrics["error_pos_2d"] = torch.norm(
+            self.pos_command_w[:, :2] - self.robot.data.root_link_pos_w[:, :2], dim=1
+        )
         self.metrics["error_heading"] = torch.abs(wrap_to_pi(self.heading_command_w - self.robot.data.heading_w))
 
     def _resample_command(self, env_ids: Sequence[int]):
