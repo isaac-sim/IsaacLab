@@ -119,7 +119,7 @@ def main():
     env.reset()
     teleop_interface.reset()
     counter = 0
-    record_forces = False
+    record_forces = True
     forces, frames = [], []
     gripper_deltas = torch.zeros(100, 1, 2, device=env.unwrapped.device)
     gripper_deltas[10:50] = 0.025
@@ -147,10 +147,10 @@ def main():
             # actions[:, -2:] = gripper_deltas[counter%100]
             counter += 1
             obs, reward, termin, timeout, _ = env.step(actions)
-            # frame = env.unwrapped.render()
-            # frames.append(frame)
+       
             if record_forces:
-              
+                frame = env.unwrapped.render()
+                frames.append(frame)
                 contact_sensor = env.unwrapped.scene["contact_sensor"]
                 dt = contact_sensor._sim_physics_dt
                 friction_data = contact_sensor.contact_physx_view.get_friction_data(dt)
@@ -164,7 +164,7 @@ def main():
                 print(nforce, tforce, total_force)
                 print("Total force: ", total_force)
                 forces.append(total_force.cpu().numpy())
-            if termin:
+            if termin or counter > 200:
                 print("Episode terminated.")
                 env.reset()
                 teleop_interface.reset()

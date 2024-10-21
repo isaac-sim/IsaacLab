@@ -267,14 +267,16 @@ class ContactSensor(SensorBase):
         body_names_regex = f"{self.cfg.prim_path.rsplit('/', 1)[0]}/{body_names_regex}"
         # convert regex expressions to glob expressions for PhysX
         body_names_glob = body_names_regex.replace(".*", "*")
-        filter_prim_paths_glob = [expr.replace(".*", "*") for expr in self.cfg.filter_prim_paths_expr]
-
+        # filter_prim_paths_glob = [expr.replace(".*", "*") for expr in self.cfg.filter_prim_paths_expr]
+        # find individual target prims and unroll
+        filter_prim_paths = [sim_utils.find_matching_prim_paths(expr) for expr in self.cfg.filter_prim_paths_expr]
+        filter_prim_paths = [item for sublist in filter_prim_paths for item in sublist]
         # create a rigid prim view for the sensor
         self._body_physx_view = self._physics_sim_view.create_rigid_body_view(body_names_glob)
         self._contact_physx_view = self._physics_sim_view.create_rigid_contact_view(
             body_names_glob,
-            filter_patterns=filter_prim_paths_glob,
-            max_contact_data_count=500,
+            filter_patterns=filter_prim_paths,
+            max_contact_data_count=self.cfg.max_contact_data_count,
         )
         # resolve the true count of bodies
         self._num_bodies = self.body_physx_view.count // self._num_envs

@@ -14,9 +14,9 @@ import re
 import yaml
 
 from omni.isaac.lab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
+from omegaconf import OmegaConf, DictConfig
 
-
-def load_cfg_from_registry(task_name: str, entry_point_key: str, params: dict = None) -> dict | object:
+def load_cfg_from_registry(task_name: str, entry_point_key: str, env_params: dict = None) -> dict | object:
     """Load default configuration given its entry point from the gym registry.
 
     This function loads the configuration object from the gym registry for the given task name.
@@ -79,8 +79,8 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str, params: dict = 
             # resolve path to the module location
             mod_path = inspect.getfile(cfg_entry_point)
             # load the configuration
-            if params is not None and hasattr(cfg_entry_point, "from_dict"):
-                cfg_cls = cfg_entry_point.from_dict(params)
+            if env_params is not None:
+                cfg_cls = cfg_entry_point(env_params)
             else:
                 cfg_cls = cfg_entry_point()
         elif isinstance(cfg_entry_point, str):
@@ -100,7 +100,8 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str, params: dict = 
 
 
 def parse_env_cfg(
-    task_name: str, device: str = "cuda:0", num_envs: int | None = None, use_fabric: bool | None = None
+    task_name: str, device: str = "cuda:0", num_envs: int | None = None, use_fabric: bool | None = None,
+    env_params: DictConfig = None
 ) -> ManagerBasedRLEnvCfg | DirectRLEnvCfg:
     """Parse configuration for an environment and override based on inputs.
 
@@ -120,7 +121,7 @@ def parse_env_cfg(
             environment configuration.
     """
     # load the default configuration
-    cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
+    cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point", env_params)
 
     # check that it is not a dict
     # we assume users always use a class for the configuration

@@ -107,10 +107,11 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
     
     def get_default_env_params(self):
         super().get_default_env_params()
+        self.env_params.sim.dt = self.env_params.sim.get("dt", 1.0 / 120.0)
         self.env_params.scene.robot = self.env_params.scene.get("robot", OmegaConf.create())
         robot_params = self.env_params.scene.robot
-        robot_params["contact_offset"] = robot_params.get("contact_offset", 0.002)
-        robot_params["rest_offset"] = robot_params.get("rest_offset", 0.001)
+        robot_params["contact_offset"] = robot_params.get("contact_offset", 0.001)
+        robot_params["rest_offset"] = robot_params.get("rest_offset", 0.00)
         robot_params["max_depenetration_velocity"] = robot_params.get("max_depenetration_velocity", 0.5)
         robot_params["sleep_threshold"] = robot_params.get("sleep_threshold", None)
         robot_params["stabilization_threshold"] = robot_params.get("stabilization_threshold", None)
@@ -128,7 +129,7 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         self.act_highs = [0.001, 0.001, 0.001, 0.5, 0.5, 0.5]
         self.scene.robot = KUKA_VICTOR_LEFT_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.robot.init_state.pos = [-0.15, -0.5, -0.8]
-        self.sim.dt = 1/120
+        self.sim.dt = self.env_params.sim.dt
         
         # self.scene.robot.spawn.collision_props = sim_utils.CollisionPropertiesCfg(
         #     contact_offset=0.002, rest_offset=0.001)
@@ -191,22 +192,30 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
             if "arm" in key:
                 ori_init_joints[key] = value
         self.scene.robot.init_state.joint_pos = ori_init_joints
+        
+        self.gripper_act_lows = [-0.005, -0.005]
+        self.gripper_act_highs = [0.005, 0.005]
         self.actions.gripper_action = mdp.Robotiq3FingerActionCfg(
             asset_name="robot",
             side="left",
-            lows=self.act_lows,
-            highs=self.act_highs,
+            lows=self.gripper_act_lows,
+            highs=self.gripper_act_highs,
             use_relative_mode=True,
             is_accumulate_action=True,
         )
-        self.viewer.eye = (0.4, 0, 0.2)
+        self.viewer.eye = (0.3, 0, 0.15)
         # self.scene.bolt.spawn.activate_contact_sensors = True
-        # self.scene.nut.spawn.activate_contact_sensors = True
-        # self.scene.contact_sensor = ContactSensorCfg(
-        #     prim_path="{ENV_REGEX_NS}/Nut/factory_nut",
-        #     filter_prim_paths_expr= ["{ENV_REGEX_NS}/Bolt/factory_bolt"],
-        #     update_period=0.0,
-        # )
+        self.scene.nut.spawn.activate_contact_sensors = True
+        
+        # Only contact with the finger tips
+        # gripper_path_regex = "{ENV_REGEX_NS}/Robot/.*finger.*_link_3"
+        # gripper_prim_paths = sim_utils.find_matching_prims(gripper_path_regex)
+        self.scene.contact_sensor = ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/Nut/factory_nut",
+            filter_prim_paths_expr=["{ENV_REGEX_NS}/Robot/.*finger.*_link_3"],
+            update_period=0.0,
+            max_contact_data_count=512,
+        )
         # self.rewards.contact_force_penalty = RewTerm(
         #     func=mdp.contact_forces,
         #     params={"threshold":0, "sensor_cfg": SceneEntityCfg(name="contact_sensor")},

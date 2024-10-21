@@ -86,17 +86,19 @@ class Robotiq3FingerAction(ActionTerm):
 
     def process_actions(self, actions: torch.Tensor):
         """Compute joint angles based on opening and scissor values"""
-        joint_pos_curr = self._asset.read_joint_state_from_sim(joint_ids=self._joint_ids)["position"]
-        openness_curr = inverse_compute_finger_angles_jit(joint_pos_curr)
-        scissor_curr = inverse_compute_scissor_angle_jit(joint_pos_curr[:, -2:])
-
         if self.cfg.use_relative_mode:
             if self.cfg.is_accumulate_action:
+                joint_pos_curr = self._asset.read_joint_state_from_sim(joint_ids=self._joint_ids)["position_target"]
+                openness_curr = inverse_compute_finger_angles_jit(joint_pos_curr)
+                scissor_curr = inverse_compute_scissor_angle_jit(joint_pos_curr[:, -2:])
                 self.raw_actions[~self.initialized, 0] = openness_curr[~self.initialized, 0]
                 self.raw_actions[~self.initialized, 1] = scissor_curr[~self.initialized, 0]
                 self.initialized[~self.initialized] = True
                 actions += self._raw_actions
             else:
+                joint_pos_curr = self._asset.read_joint_state_from_sim(joint_ids=self._joint_ids)["position"]
+                openness_curr = inverse_compute_finger_angles_jit(joint_pos_curr)
+                scissor_curr = inverse_compute_scissor_angle_jit(joint_pos_curr[:, -2:])
                 actions[:, 0] += openness_curr[:, 0]
                 actions[:, 1] += scissor_curr[:, 0]
         self._raw_actions[:] = actions

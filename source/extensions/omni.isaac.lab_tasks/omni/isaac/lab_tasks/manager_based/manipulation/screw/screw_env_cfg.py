@@ -282,18 +282,21 @@ class BaseScrewEnvCfg(ManagerBasedRLEnvCfg):
         ),
     )
     def get_default_env_params(self):
-        print("Creating default environment parameters")
+        """Set default environment parameters."""
         self.env_params.scene = self.env_params.get("scene", OmegaConf.create())
+        self.env_params.sim = self.env_params.get("sim", OmegaConf.create())
         self.env_params.scene.screw_type = self.env_params.scene.get("screw_type", "m8_tight")
         self.env_params.scene.nut = self.env_params.scene.get("nut", OmegaConf.create())
+        self.env_params.sim.dt = self.env_params.sim.get("dt", 1.0 / 60.0)
     
     def __post_init__(self):
+        """Post initialization."""
         self.get_default_env_params()
         self.scene = ScrewSceneCfg(num_envs=4096, env_spacing=2.5, screw_type=self.env_params.scene.screw_type)
-        """Post initialization."""
         # general settings
         self.decimation = 2
         self.sim.render_interval = self.decimation
+        self.sim.dt = self.env_params.sim.dt
         self.episode_length_s = 24.0
         self.viewer.origin_type = "asset_root"
         self.viewer.asset_name = "bolt"
@@ -429,4 +432,5 @@ class BaseNutThreadEnvCfg(BaseScrewEnvCfg):
                 )
             ],
         )
+
 
