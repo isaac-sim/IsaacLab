@@ -5,9 +5,7 @@
 
 from __future__ import annotations
 
-import gymnasium as gym
 import math
-import numpy as np
 import torch
 from collections.abc import Sequence
 
@@ -19,7 +17,6 @@ from omni.isaac.lab.envs import DirectRLEnv, DirectRLEnvCfg, ViewerCfg
 from omni.isaac.lab.scene import InteractiveSceneCfg
 from omni.isaac.lab.sensors import TiledCamera, TiledCameraCfg, save_images_to_file
 from omni.isaac.lab.sim import SimulationCfg
-from omni.isaac.lab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from omni.isaac.lab.utils import configclass
 from omni.isaac.lab.utils.math import sample_uniform
 
@@ -30,9 +27,6 @@ class CartpoleRGBCameraEnvCfg(DirectRLEnvCfg):
     decimation = 2
     episode_length_s = 5.0
     action_scale = 100.0  # [N]
-    num_actions = 1
-    num_channels = 3
-    num_states = 0
 
     # simulation
     sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation)
@@ -45,7 +39,7 @@ class CartpoleRGBCameraEnvCfg(DirectRLEnvCfg):
     # camera
     tiled_camera: TiledCameraCfg = TiledCameraCfg(
         prim_path="/World/envs/env_.*/Camera",
-        offset=TiledCameraCfg.OffsetCfg(pos=(-7.0, 0.0, 3.0), rot=(0.9945, 0.0, 0.1045, 0.0), convention="world"),
+        offset=TiledCameraCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(1.0, 0.0, 0.0, 0.0), convention="world"),
         data_types=["rgb"],
         spawn=sim_utils.PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
@@ -53,14 +47,18 @@ class CartpoleRGBCameraEnvCfg(DirectRLEnvCfg):
         width=80,
         height=80,
     )
-    num_observations = num_channels * tiled_camera.height * tiled_camera.width
     write_image_to_file = False
+
+    # spaces
+    action_space = 1
+    state_space = 0
+    observation_space = [tiled_camera.height, tiled_camera.width, 3]
 
     # change viewer settings
     viewer = ViewerCfg(eye=(20.0, 20.0, 20.0))
 
     # scene
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=256, env_spacing=20.0, replicate_physics=True)
+    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1024, env_spacing=20.0, replicate_physics=True)
 
     # reset
     max_cart_pos = 3.0  # the cart is reset if it exceeds that position [m]
@@ -79,7 +77,7 @@ class CartpoleDepthCameraEnvCfg(CartpoleRGBCameraEnvCfg):
     # camera
     tiled_camera: TiledCameraCfg = TiledCameraCfg(
         prim_path="/World/envs/env_.*/Camera",
-        offset=TiledCameraCfg.OffsetCfg(pos=(-7.0, 0.0, 3.0), rot=(0.9945, 0.0, 0.1045, 0.0), convention="world"),
+        offset=TiledCameraCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(1.0, 0.0, 0.0, 0.0), convention="world"),
         data_types=["depth"],
         spawn=sim_utils.PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
@@ -88,9 +86,8 @@ class CartpoleDepthCameraEnvCfg(CartpoleRGBCameraEnvCfg):
         height=80,
     )
 
-    # env
-    num_channels = 1
-    num_observations = num_channels * tiled_camera.height * tiled_camera.width
+    # spaces
+    observation_space = [tiled_camera.height, tiled_camera.width, 1]
 
 
 class CartpoleCameraEnv(DirectRLEnv):
@@ -119,41 +116,11 @@ class CartpoleCameraEnv(DirectRLEnv):
         """Cleanup for the environment."""
         super().close()
 
-    def _configure_gym_env_spaces(self):
-        """Configure the action and observation spaces for the Gym environment."""
-        # observation space (unbounded since we don't impose any limits)
-        self.num_actions = self.cfg.num_actions
-        self.num_observations = self.cfg.num_observations
-        self.num_states = self.cfg.num_states
-
-        # set up spaces
-        self.single_observation_space = gym.spaces.Dict()
-        self.single_observation_space["policy"] = gym.spaces.Box(
-            low=-np.inf,
-            high=np.inf,
-            shape=(self.cfg.tiled_camera.height, self.cfg.tiled_camera.width, self.cfg.num_channels),
-        )
-        if self.num_states > 0:
-            self.single_observation_space["critic"] = gym.spaces.Box(
-                low=-np.inf,
-                high=np.inf,
-                shape=(self.cfg.tiled_camera.height, self.cfg.tiled_camera.width, self.cfg.num_channels),
-            )
-        self.single_action_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(self.num_actions,))
-
-        # batch the spaces for vectorized environments
-        self.observation_space = gym.vector.utils.batch_space(self.single_observation_space, self.num_envs)
-        self.action_space = gym.vector.utils.batch_space(self.single_action_space, self.num_envs)
-
-        # RL specifics
-        self.actions = torch.zeros(self.num_envs, self.num_actions, device=self.sim.device)
-
     def _setup_scene(self):
         """Setup the scene with the cartpole and camera."""
         self._cartpole = Articulation(self.cfg.robot_cfg)
         self._tiled_camera = TiledCamera(self.cfg.tiled_camera)
-        # add ground plane
-        spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg(size=(500, 500)))
+
         # clone, filter, and replicate
         self.scene.clone_environments(copy_from_source=False)
         self.scene.filter_collisions(global_prim_paths=[])
@@ -173,7 +140,15 @@ class CartpoleCameraEnv(DirectRLEnv):
 
     def _get_observations(self) -> dict:
         data_type = "rgb" if "rgb" in self.cfg.tiled_camera.data_types else "depth"
-        observations = {"policy": self._tiled_camera.data.output[data_type].clone()}
+        if "rgb" in self.cfg.tiled_camera.data_types:
+            camera_data = self._tiled_camera.data.output[data_type] / 255.0
+            # normalize the camera data for better training results
+            mean_tensor = torch.mean(camera_data, dim=(1, 2), keepdim=True)
+            camera_data -= mean_tensor
+        elif "depth" in self.cfg.tiled_camera.data_types:
+            camera_data = self._tiled_camera.data.output[data_type]
+            camera_data[camera_data == float("inf")] = 0
+        observations = {"policy": camera_data.clone()}
 
         if self.cfg.write_image_to_file:
             save_images_to_file(observations["policy"], f"cartpole_{data_type}.png")

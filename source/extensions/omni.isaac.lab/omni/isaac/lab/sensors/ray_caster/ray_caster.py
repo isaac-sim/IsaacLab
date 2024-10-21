@@ -11,7 +11,7 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, ClassVar
 
-import carb
+import omni.log
 import omni.physics.tensors.impl.api as physx
 import warp as wp
 from omni.isaac.core.prims import XFormPrimView
@@ -144,7 +144,7 @@ class RayCaster(SensorBase):
         else:
             self._view = XFormPrimView(self.cfg.prim_path, reset_xform_properties=False)
             found_supported_prim_class = True
-            carb.log_warn(f"The prim at path {prim.GetPath().pathString} is not a physics prim! Using XFormPrimView.")
+            omni.log.warn(f"The prim at path {prim.GetPath().pathString} is not a physics prim! Using XFormPrimView.")
         # check if prim view class is found
         if not found_supported_prim_class:
             raise RuntimeError(f"Failed to find a valid prim view class for the prim paths: {self.cfg.prim_path}")
@@ -188,14 +188,14 @@ class RayCaster(SensorBase):
                 indices = np.asarray(mesh_prim.GetFaceVertexIndicesAttr().Get())
                 wp_mesh = convert_to_warp_mesh(points, indices, device=self.device)
                 # print info
-                carb.log_info(
+                omni.log.info(
                     f"Read mesh prim: {mesh_prim.GetPath()} with {len(points)} vertices and {len(indices)} faces."
                 )
             else:
                 mesh = make_plane(size=(2e6, 2e6), height=0.0, center_zero=True)
                 wp_mesh = convert_to_warp_mesh(mesh.vertices, mesh.faces, device=self.device)
                 # print info
-                carb.log_info(f"Created infinite plane mesh prim: {mesh_prim.GetPath()}.")
+                omni.log.info(f"Created infinite plane mesh prim: {mesh_prim.GetPath()}.")
             # add the warp mesh to the list
             RayCaster.meshes[mesh_prim_path] = wp_mesh
 

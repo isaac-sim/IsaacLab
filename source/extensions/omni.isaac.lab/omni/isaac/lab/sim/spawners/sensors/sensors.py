@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 
 import omni.isaac.core.utils.prims as prim_utils
 import omni.kit.commands
+import omni.log
 from pxr import Sdf, Usd
 
 from omni.isaac.lab.sim.utils import clone
@@ -99,9 +100,21 @@ def spawn_camera(
         attribute_types = CUSTOM_PINHOLE_CAMERA_ATTRIBUTES
     else:
         attribute_types = CUSTOM_FISHEYE_CAMERA_ATTRIBUTES
-    # custom attributes in the config that are not USD Camera parameters
-    non_usd_cfg_param_names = ["func", "copy_from_source", "lock_camera", "visible", "semantic_tags"]
 
+    # TODO: Adjust to handle aperture offsets once supported by omniverse
+    #   Internal ticket from rendering team: OM-42611
+    if cfg.horizontal_aperture_offset > 1e-4 or cfg.vertical_aperture_offset > 1e-4:
+        omni.log.warn("Camera aperture offsets are not supported by Omniverse. These parameters will be ignored.")
+
+    # custom attributes in the config that are not USD Camera parameters
+    non_usd_cfg_param_names = [
+        "func",
+        "copy_from_source",
+        "lock_camera",
+        "visible",
+        "semantic_tags",
+        "from_intrinsic_matrix",
+    ]
     # get camera prim
     prim = prim_utils.get_prim_at_path(prim_path)
     # create attributes for the fisheye camera model

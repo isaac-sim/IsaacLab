@@ -86,6 +86,8 @@ def pinhole_camera_pattern(
     pixels = torch.vstack(list(map(torch.ravel, grid))).T
     # convert to homogeneous coordinate system
     pixels = torch.hstack([pixels, torch.ones((len(pixels), 1), device=device)])
+    # move each pixel coordinate to the center of the pixel
+    pixels += torch.tensor([[0.5, 0.5, 0]], device=device)
     # get pixel coordinates in camera frame
     pix_in_cam_frame = torch.matmul(torch.inverse(intrinsic_matrices), pixels.T)
 

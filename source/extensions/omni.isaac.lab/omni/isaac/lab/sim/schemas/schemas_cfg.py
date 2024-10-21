@@ -267,7 +267,7 @@ class DeformableBodyPropertiesCfg:
     """Enables kinematic body. Defaults to False, which means that the body is not kinematic.
 
     Similar to rigid bodies, this allows setting user-driven motion for the deformable body. For more information,
-    please refer to the `documentation <https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/docs/SoftBodies.html#kinematic-soft-bodies>`__.
+    please refer to the `documentation <https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/docs/SoftBodies.html#kinematic-soft-bodies>`__.
     """
 
     self_collision: bool | None = None

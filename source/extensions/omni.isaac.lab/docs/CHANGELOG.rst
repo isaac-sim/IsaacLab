@@ -1,6 +1,355 @@
 Changelog
 ---------
 
+0.26.0 (2024-10-16)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added Imu sensor implementation that directly accesses the physx view :class:`omni.isaac.lab.sensors.Imu`. The
+  sensor comes with a configuration class :class:`omni.isaac.lab.sensors.ImuCfg` and data class
+  :class:`omni.isaac.lab.sensors.ImuData`.
+* Moved and renamed :meth:`omni.isaac.lab.sensors.camera.utils.convert_orientation_convention` to :meth:`omni.isaac.lab.utils.math.convert_camera_frame_orientation_convention`
+* Moved :meth:`omni.isaac.lab.sensors.camera.utils.create_rotation_matrix_from_view` to :meth:`omni.isaac.lab.utils.math.create_rotation_matrix_from_view`
+
+
+0.25.2 (2024-10-16)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added support for different Gymnasium spaces (``Box``, ``Discrete``, ``MultiDiscrete``, ``Tuple`` and ``Dict``)
+  to define observation, action and state spaces in the direct workflow.
+* Added :meth:`sample_space` to environment utils to sample supported spaces where data containers are torch tensors.
+
+Changed
+^^^^^^^
+
+* Mark the :attr:`num_observations`, :attr:`num_actions` and :attr:`num_states` in :class:`DirectRLEnvCfg` as deprecated
+  in favor of :attr:`observation_space`, :attr:`action_space` and :attr:`state_space` respectively.
+* Mark the :attr:`num_observations`, :attr:`num_actions` and :attr:`num_states` in :class:`DirectMARLEnvCfg` as deprecated
+  in favor of :attr:`observation_spaces`, :attr:`action_spaces` and :attr:`state_space` respectively.
+
+
+0.25.1 (2024-10-10)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed potential issue where default joint positions can fall outside of the limits being set with Articulation's
+  ``write_joint_limits_to_sim`` API.
+
+
+0.25.0 (2024-10-06)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added configuration classes for spawning assets from a list of individual asset configurations randomly
+  at the specified prim paths.
+
+
+0.24.20 (2024-10-07)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the :meth:`omni.isaac.lab.envs.mdp.events.randomize_rigid_body_material` function to
+  correctly sample friction and restitution from the given ranges.
+
+
+0.24.19 (2024-10-05)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added new functionalities to the FrameTransformer to make it more general. It is now possible to track:
+
+  * Target frames that aren't children of the source frame prim_path
+  * Target frames that are based upon the source frame prim_path
+
+
+0.24.18 (2024-10-04)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixes parsing and application of ``size`` parameter for :class:`~omni.isaac.lab.sim.spawn.GroundPlaneCfg` to correctly
+  scale the grid-based ground plane.
+
+
+0.24.17 (2024-10-04)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the deprecation notice for using ``pxr.Semantics``. The corresponding modules use ``Semantics`` module
+  directly.
+
+
+0.24.16 (2024-10-03)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Renamed the observation function :meth:`grab_images` to :meth:`image` to follow convention of noun-based naming.
+* Renamed the function :meth:`convert_perspective_depth_to_orthogonal_depth` to a shorter name
+  :meth:`omni.isaac.lab.utils.math.orthogonalize_perspective_depth`.
+
+
+0.24.15 (2024-09-20)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`grab_images` to be able to use images for an observation term in manager-based environments.
+
+
+0.24.14 (2024-09-20)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the method :meth:`convert_perspective_depth_to_orthogonal_depth` to convert perspective depth
+  images to orthogonal depth images. This is useful for the :meth:`~omni.isaac.lab.utils.math.unproject_depth`,
+  since it expects orthogonal depth images as inputs.
+
+
+0.24.13 (2024-09-08)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Moved the configuration of visualization markers for the command terms to their respective configuration classes.
+  This allows users to modify the markers for the command terms without having to modify the command term classes.
+
+
+0.24.12 (2024-09-18)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed outdated fetching of articulation data by using the method ``update_articulations_kinematic`` in
+  :class:`omni.isaac.lab.assets.ArticulationData`. Before if an articulation was moved during a reset, the pose of the
+  links were outdated if fetched before the next physics step. Adding this method ensures that the pose of the links
+  is always up-to-date. Similarly ``update_articulations_kinematic`` was added before any render step to ensure that the
+  articulation displays correctly after a reset.
+
+
+0.24.11 (2024-09-11)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added skrl's JAX environment variables to :class:`~omni.isaac.lab.app.AppLauncher`
+  to support distributed multi-GPU and multi-node training using JAX
+
+
+0.24.10 (2024-09-10)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added config class, support, and tests for MJCF conversion via standalone python scripts.
+
+
+0.24.9 (2024-09-09)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a seed parameter to the :attr:`omni.isaac.lab.envs.ManagerBasedEnvCfg` and :attr:`omni.isaac.lab.envs.DirectRLEnvCfg`
+  classes to set the seed for the environment. This seed is used to initialize the random number generator for the environment.
+* Adapted the workflow scripts to set the seed for the environment using the seed specified in the learning agent's configuration
+  file or the command line argument. This ensures that the simulation results are reproducible across different runs.
+
+
+0.24.8 (2024-09-08)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Modified:meth:`quat_rotate` and :meth:`quat_rotate_inverse` operations to use :meth:`torch.einsum`
+  for faster processing of high dimensional input tensors.
+
+
+0.24.7 (2024-09-06)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added support for property attributes in the :meth:``omni.isaac.lab.utils.configclass`` method.
+  Earlier, the configclass decorator failed to parse the property attributes correctly and made them
+  instance variables instead.
+
+
+0.24.6 (2024-09-05)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Adapted the ``A`` and ``D`` button bindings inside :meth:`omni.isaac.lab.device.Se3Keyboard` to make them now
+  more-intuitive to control the y-axis motion based on the right-hand rule.
+
+
+0.24.5 (2024-08-29)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added alternative data type "distance_to_camera" in :class:`omni.isaac.lab.sensors.TiledCamera` class to be
+  consistent with all other cameras (equal to type "depth").
+
+
+0.24.4 (2024-09-02)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added missing SI units to the documentation of :class:`omni.isaac.lab.sensors.Camera` and
+  :class:`omni.isaac.lab.sensors.RayCasterCamera`.
+* Added test to check :attr:`omni.isaac.lab.sensors.RayCasterCamera.set_intrinsic_matrices`
+
+
+0.24.3 (2024-08-29)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the support for class-bounded methods when creating a configclass
+  out of them. Earlier, these methods were being made as instance methods
+  which required initialization of the class to call the class-methods.
+
+
+0.24.2 (2024-08-28)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a class method to initialize camera configurations with an intrinsic matrix in the
+  :class:`omni.isaac.lab.sim.spawner.sensors.PinholeCameraCfg`
+  :class:`omni.isaac.lab.sensors.ray_caster.patterns_cfg.PinholeCameraPatternCfg` classes.
+
+Fixed
+^^^^^
+
+* Fixed the ray direction in :func:`omni.isaac.lab.sensors.ray_caster.patterns.patterns.pinhole_camera_pattern` to
+  point to the center of the pixel instead of the top-left corner.
+* Fixed the clipping of the "distance_to_image_plane" depth image obtained using the
+  :class:`omni.isaac.lab.sensors.ray_caster.RayCasterCamera` class. Earlier, the depth image was being clipped
+  before the depth image was generated. Now, the clipping is applied after the depth image is generated. This makes
+  the behavior equal to the USD Camera.
+
+
+0.24.1 (2024-08-21)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Disabled default viewport in certain headless scenarios for better performance.
+
+
+0.24.0 (2024-08-17)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added additional annotators for :class:`omni.isaac.lab.sensors.camera.TiledCamera` class.
+
+Changed
+^^^^^^^
+
+* Updated :class:`omni.isaac.lab.sensors.TiledCamera` to latest RTX tiled rendering API.
+* Single channel outputs for :class:`omni.isaac.lab.sensors.TiledCamera`, :class:`omni.isaac.lab.sensors.Camera` and :class:`omni.isaac.lab.sensors.RayCasterCamera` now has shape (H, W, 1).
+* Data type for RGB output for :class:`omni.isaac.lab.sensors.TiledCamera` changed from ``torch.float`` to ``torch.uint8``.
+* Dimension of RGB output for :class:`omni.isaac.lab.sensors.Camera` changed from (H, W, 4) to (H, W, 3). Use type ``rgba`` to retrieve the previous dimension.
+
+
+0.23.1 (2024-08-17)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated torch to version 2.4.0.
+
+
+0.23.0 (2024-08-16)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added direct workflow base class :class:`omni.isaac.lab.envs.DirectMARLEnv` for multi-agent environments.
+
+
+0.22.1 (2024-08-17)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added APIs to interact with the physics simulation of deformable objects. This includes setting the
+  material properties, setting kinematic targets, and getting the state of the deformable object.
+  For more information, please refer to the :mod:`omni.isaac.lab.assets.DeformableObject` class.
+
+
+0.22.0 (2024-08-14)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :mod:`~omni.isaac.lab.utils.modifiers` module to provide framework for configurable and custom
+  observation data modifiers.
+* Adapted the :class:`~omni.isaac.lab.managers.ObservationManager` class to support custom modifiers.
+  These are applied to the observation data before applying any noise or scaling operations.
+
+
+0.21.2 (2024-08-13)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Moved event mode-based checks in the :meth:`omni.isaac.lab.managers.EventManager.apply` method outside
+  the loop that iterates over the event terms. This prevents unnecessary checks and improves readability.
+* Fixed the logic for global and per environment interval times when using the "interval" mode inside the
+  event manager. Earlier, the internal lists for these times were of unequal lengths which led to wrong indexing
+  inside the loop that iterates over the event terms.
+
+
+0.21.1 (2024-08-06)
+~~~~~~~~~~~~~~~~~~~
+
+* Added a flag to preserve joint ordering inside the :class:`omni.isaac.lab.envs.mdp.JointAction` action term.
+
+
 0.21.0 (2024-08-05)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -11,8 +360,7 @@ Added
 
   * ``cpu``: Use CPU.
   * ``cuda``: Use GPU with device ID ``0``.
-  * ``cuda:N``: Use GPU, where N is the device ID. For example, ``cuda:0``.
-  The default value is ``cuda:0``.
+  * ``cuda:N``: Use GPU, where N is the device ID. For example, ``cuda:0``. The default value is ``cuda:0``.
 
 Changed
 ^^^^^^^

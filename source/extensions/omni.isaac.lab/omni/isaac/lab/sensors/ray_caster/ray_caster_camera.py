@@ -10,12 +10,12 @@ from collections.abc import Sequence
 from tensordict import TensorDict
 from typing import TYPE_CHECKING, ClassVar, Literal
 
+import omni.isaac.core.utils.stage as stage_utils
 import omni.physics.tensors.impl.api as physx
 from omni.isaac.core.prims import XFormPrimView
 
 import omni.isaac.lab.utils.math as math_utils
 from omni.isaac.lab.sensors.camera import CameraData
-from omni.isaac.lab.sensors.camera.utils import convert_orientation_convention, create_rotation_matrix_from_view
 from omni.isaac.lab.utils.warp import raycast_mesh
 
 from .ray_caster import RayCaster
@@ -126,7 +126,7 @@ class RayCasterCamera(RayCaster):
 
         Args:
             matrices: The intrinsic matrices for the camera. Shape is (N, 3, 3).
-            focal_length: Focal length to use when computing aperture values. Defaults to 1.0.
+            focal_length: Focal length to use when computing aperture values (in cm). Defaults to 1.0.
             env_ids: A sensor ids to manipulate. Defaults to None, which means all sensor indices.
         """
         # resolve env_ids
@@ -170,7 +170,7 @@ class RayCasterCamera(RayCaster):
         - :obj:`"ros"`    - forward axis: +Z - up axis -Y - Offset is applied in the ROS convention
         - :obj:`"world"`  - forward axis: +X - up axis +Z - Offset is applied in the World Frame convention
 
-        See :meth:`omni.isaac.lab.sensors.camera.utils.convert_orientation_convention` for more details
+        See :meth:`omni.isaac.lab.utils.maths.convert_camera_frame_orientation_convention` for more details
         on the conventions.
 
         Args:
@@ -196,7 +196,9 @@ class RayCasterCamera(RayCaster):
             self._offset_pos[env_ids] = math_utils.quat_apply(math_utils.quat_inv(quat_w), pos_offset_world_frame)
         if orientations is not None:
             # convert rotation matrix from input convention to world
-            quat_w_set = convert_orientation_convention(orientations, origin=convention, target="world")
+            quat_w_set = math_utils.convert_camera_frame_orientation_convention(
+                orientations, origin=convention, target="world"
+            )
             self._offset_quat[env_ids] = math_utils.quat_mul(math_utils.quat_inv(quat_w), quat_w_set)
 
         # update the data
@@ -218,8 +220,12 @@ class RayCasterCamera(RayCaster):
             RuntimeError: If the camera prim is not set. Need to call :meth:`initialize` method first.
             NotImplementedError: If the stage up-axis is not "Y" or "Z".
         """
+        # get up axis of current stage
+        up_axis = stage_utils.get_stage_up_axis()
         # camera position and rotation in opengl convention
-        orientations = math_utils.quat_from_matrix(create_rotation_matrix_from_view(eyes, targets, device=self._device))
+        orientations = math_utils.quat_from_matrix(
+            math_utils.create_rotation_matrix_from_view(eyes, targets, up_axis=up_axis, device=self._device)
+        )
         self.set_world_poses(eyes, orientations, env_ids, convention="opengl")
 
     """
@@ -243,7 +249,7 @@ class RayCasterCamera(RayCaster):
         # create buffer to store ray hits
         self.ray_hits_w = torch.zeros(self._view.count, self.num_rays, 3, device=self._device)
         # set offsets
-        quat_w = convert_orientation_convention(
+        quat_w = math_utils.convert_camera_frame_orientation_convention(
             torch.tensor([self.cfg.offset.rot], device=self._device), origin=self.cfg.offset.convention, target="world"
         )
         self._offset_quat = quat_w.repeat(self._view.count, 1)
@@ -264,14 +270,19 @@ class RayCasterCamera(RayCaster):
         ray_starts_w = math_utils.quat_apply(quat_w.repeat(1, self.num_rays), self.ray_starts[env_ids])
         ray_starts_w += pos_w.unsqueeze(1)
         ray_directions_w = math_utils.quat_apply(quat_w.repeat(1, self.num_rays), self.ray_directions[env_ids])
+
         # ray cast and store the hits
+        # note: we set max distance to 1e6 during the ray-casting. THis is because we clip the distance
+        # to the image plane and distance to the camera to the maximum distance afterwards in-order to
+        # match the USD camera behavior.
+
         # TODO: Make ray-casting work for multiple meshes?
         # necessary for regular dictionaries.
         self.ray_hits_w, ray_depth, ray_normal, _ = raycast_mesh(
             ray_starts_w,
             ray_directions_w,
             mesh=RayCasterCamera.meshes[self.cfg.mesh_prim_paths[0]],
-            max_dist=self.cfg.max_distance,
+            max_dist=1e6,
             return_distance=any(
                 [name in self.cfg.data_types for name in ["distance_to_image_plane", "distance_to_camera"]]
             ),
@@ -286,9 +297,15 @@ class RayCasterCamera(RayCaster):
                     (ray_depth[:, :, None] * ray_directions_w),
                 )
             )[:, :, 0]
-            self._data.output["distance_to_image_plane"][env_ids] = distance_to_image_plane.view(-1, *self.image_shape)
+            # apply the maximum distance after the transformation
+            distance_to_image_plane = torch.clip(distance_to_image_plane, max=self.cfg.max_distance)
+            self._data.output["distance_to_image_plane"][env_ids] = distance_to_image_plane.view(
+                -1, *self.image_shape, 1
+            )
         if "distance_to_camera" in self.cfg.data_types:
-            self._data.output["distance_to_camera"][env_ids] = ray_depth.view(-1, *self.image_shape)
+            self._data.output["distance_to_camera"][env_ids] = torch.clip(
+                ray_depth.view(-1, *self.image_shape, 1), max=self.cfg.max_distance
+            )
         if "normals" in self.cfg.data_types:
             self._data.output["normals"][env_ids] = ray_normal.view(-1, *self.image_shape, 3)
 
@@ -334,7 +351,7 @@ class RayCasterCamera(RayCaster):
         self._data.info = [{name: None for name in self.cfg.data_types}] * self._view.count
         for name in self.cfg.data_types:
             if name in ["distance_to_image_plane", "distance_to_camera"]:
-                shape = (self.cfg.pattern_cfg.height, self.cfg.pattern_cfg.width)
+                shape = (self.cfg.pattern_cfg.height, self.cfg.pattern_cfg.width, 1)
             elif name in ["normals"]:
                 shape = (self.cfg.pattern_cfg.height, self.cfg.pattern_cfg.width, 3)
             else:
@@ -346,10 +363,15 @@ class RayCasterCamera(RayCaster):
         """Computes the intrinsic matrices for the camera based on the config provided."""
         # get the sensor properties
         pattern_cfg = self.cfg.pattern_cfg
+
+        # check if vertical aperture is provided
+        # if not then it is auto-computed based on the aspect ratio to preserve squared pixels
+        if pattern_cfg.vertical_aperture is None:
+            pattern_cfg.vertical_aperture = pattern_cfg.horizontal_aperture * pattern_cfg.height / pattern_cfg.width
+
         # compute the intrinsic matrix
-        vertical_aperture = pattern_cfg.horizontal_aperture * pattern_cfg.height / pattern_cfg.width
         f_x = pattern_cfg.width * pattern_cfg.focal_length / pattern_cfg.horizontal_aperture
-        f_y = pattern_cfg.height * pattern_cfg.focal_length / vertical_aperture
+        f_y = pattern_cfg.height * pattern_cfg.focal_length / pattern_cfg.vertical_aperture
         c_x = pattern_cfg.horizontal_aperture_offset * f_x + pattern_cfg.width / 2
         c_y = pattern_cfg.vertical_aperture_offset * f_y + pattern_cfg.height / 2
         # allocate the intrinsic matrices
@@ -357,6 +379,7 @@ class RayCasterCamera(RayCaster):
         self._data.intrinsic_matrices[:, 0, 2] = c_x
         self._data.intrinsic_matrices[:, 1, 1] = f_y
         self._data.intrinsic_matrices[:, 1, 2] = c_y
+
         # save focal length
         self._focal_length = pattern_cfg.focal_length
 

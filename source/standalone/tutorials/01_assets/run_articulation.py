@@ -55,7 +55,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     cfg = sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
     cfg.func("/World/Light", cfg)
 
-    # Create separate groups called "Origin1", "Origin2", "Origin3"
+    # Create separate groups called "Origin1", "Origin2"
     # Each group will have a robot in it
     origins = [[0.0, 0.0, 0.0], [-1.0, 0.0, 0.0]]
     # Origin 1
@@ -120,7 +120,7 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Articula
 def main():
     """Main function."""
     # Load kit helper
-    sim_cfg = sim_utils.SimulationCfg(device="cpu")
+    sim_cfg = sim_utils.SimulationCfg(device=args_cli.device)
     sim = SimulationContext(sim_cfg)
     # Set main camera
     sim.set_camera_view([2.5, 0.0, 4.0], [0.0, 0.0, 2.0])

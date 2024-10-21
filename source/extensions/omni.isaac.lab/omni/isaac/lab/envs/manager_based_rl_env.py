@@ -81,6 +81,9 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         self.common_step_counter = 0
         # -- init buffers
         self.episode_length_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
+        # -- set the framerate of the gym video recorder wrapper so that the playback speed of the produced video matches the simulation
+        self.metadata["render_fps"] = 1 / self.step_dt
+
         print("[INFO]: Completed setting up the environment...")
 
     """
@@ -191,6 +194,10 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
         if len(reset_env_ids) > 0:
             self._reset_idx(reset_env_ids)
+            # if sensors are added to the scene, make sure we render to reflect changes in reset
+            if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
+                self.sim.render()
+
         # -- update command
         self.command_manager.compute(dt=self.step_dt)
         # -- step interval events
@@ -319,7 +326,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # apply events such as randomizations for environments that need a reset
         if "reset" in self.event_manager.available_modes:
             env_step_count = self._sim_step_counter // self.cfg.decimation
-            self.event_manager.apply(env_ids=env_ids, mode="reset", global_env_step_count=env_step_count)
+            self.event_manager.apply(mode="reset", env_ids=env_ids, global_env_step_count=env_step_count)
 
         # iterate over all managers and reset them
         # this returns a dictionary of information which is stored in the extras

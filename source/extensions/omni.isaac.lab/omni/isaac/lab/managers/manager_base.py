@@ -11,7 +11,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
-import carb
+import omni.log
 
 import omni.isaac.lab.utils.string as string_utils
 from omni.isaac.lab.utils import string_to_callable
@@ -251,13 +251,14 @@ class ManagerBase(ABC):
                 if value.body_ids is not None:
                     msg += f"\n\tBody names: {value.body_names} [{value.body_ids}]"
                 # print the information
-                carb.log_info(msg)
+                omni.log.info(msg)
             # store the entity
             term_cfg.params[key] = value
 
         # get the corresponding function or functional class
         if isinstance(term_cfg.func, str):
             term_cfg.func = string_to_callable(term_cfg.func)
+
         # initialize the term if it is a class
         if inspect.isclass(term_cfg.func):
             if not issubclass(term_cfg.func, ManagerTermBase):
@@ -269,6 +270,7 @@ class ManagerBase(ABC):
         # check if function is callable
         if not callable(term_cfg.func):
             raise AttributeError(f"The term '{term_name}' is not callable. Received: {term_cfg.func}")
+
         # check if term's arguments are matched by params
         term_params = list(term_cfg.params.keys())
         args = inspect.signature(term_cfg.func).parameters

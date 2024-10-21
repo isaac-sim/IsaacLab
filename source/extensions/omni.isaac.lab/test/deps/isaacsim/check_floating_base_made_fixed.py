@@ -32,11 +32,11 @@ simulation_app = SimulationApp({"headless": args_cli.headless})
 
 import torch
 
-import carb
 import omni.isaac.core.utils.nucleus as nucleus_utils
 import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.core.utils.stage as stage_utils
 import omni.kit.commands
+import omni.log
 import omni.physx
 from omni.isaac.core.articulations import ArticulationView
 from omni.isaac.core.utils.carb import set_carb_setting
@@ -50,7 +50,7 @@ if nucleus_utils.get_assets_root_path() is None:
         "Unable to perform Nucleus login on Omniverse. Assets root path is not set.\n"
         "\tPlease check: https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/overview.html#omniverse-nucleus"
     )
-    carb.log_error(msg)
+    omni.log.error(msg)
     raise RuntimeError(msg)
 
 

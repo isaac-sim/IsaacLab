@@ -6,8 +6,8 @@
 # needed to import for allowing type-hinting: Usd.Stage | None
 from __future__ import annotations
 
-import carb
 import omni.isaac.core.utils.stage as stage_utils
+import omni.log
 import omni.physx.scripts.utils as physx_utils
 from omni.physx.scripts import deformableUtils as deformable_utils
 from pxr import PhysxSchema, Usd, UsdPhysics
@@ -84,7 +84,7 @@ def modify_articulation_root_properties(
         This function is decorated with :func:`apply_nested` that set the properties to all the prims
         (that have the schema applied on them) under the input prim path.
 
-    .. _articulation root: https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/docs/Articulations.html
+    .. _articulation root: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/docs/Articulations.html
     .. _ArticulationRootAPI: https://openusd.org/dev/api/class_usd_physics_articulation_root_a_p_i.html
     .. _PhysxArticulationAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_articulation_a_p_i.html
 
@@ -131,12 +131,12 @@ def modify_articulation_root_properties(
         # if we found a fixed joint, enable/disable it based on the input
         # otherwise, create a fixed joint between the world and the root link
         if existing_fixed_joint_prim is not None:
-            carb.log_info(
+            omni.log.info(
                 f"Found an existing fixed joint for the articulation: '{prim_path}'. Setting it to: {fix_root_link}."
             )
             existing_fixed_joint_prim.GetJointEnabledAttr().Set(fix_root_link)
         elif fix_root_link:
-            carb.log_info(f"Creating a fixed joint for the articulation: '{prim_path}'.")
+            omni.log.info(f"Creating a fixed joint for the articulation: '{prim_path}'.")
 
             # note: we have to assume that the root prim is a rigid body,
             #   i.e. we don't handle the case where the root prim is not a rigid body but has articulation api on it
@@ -234,7 +234,7 @@ def modify_rigid_body_properties(
         This function is decorated with :func:`apply_nested` that sets the properties to all the prims
         (that have the schema applied on them) under the input prim path.
 
-    .. _rigid body: https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/docs/RigidBodyOverview.html
+    .. _rigid body: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/docs/RigidBodyOverview.html
     .. _kinematic body: https://openusd.org/release/wp_rigid_body_physics.html#kinematic-bodies
     .. _RigidBodyAPI: https://openusd.org/dev/api/class_usd_physics_rigid_body_a_p_i.html
     .. _PhysxRigidBodyAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_rigid_body_a_p_i.html
@@ -323,7 +323,7 @@ def modify_collision_properties(
 
     Tuning these parameters influence the contact behavior of the rigid body. For more information on
     tune them and their effect on the simulation, please refer to the
-    `PhysX documentation <https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/docs/AdvancedCollisionDetection.html>`__.
+    `PhysX documentation <https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/docs/AdvancedCollisionDetection.html>`__.
 
     .. note::
         This function is decorated with :func:`apply_nested` that sets the properties to all the prims
@@ -500,10 +500,10 @@ def activate_contact_sensors(prim_path: str, threshold: float = 0.0, stage: Usd.
             rb.CreateSleepThresholdAttr().Set(0.0)
             # add contact report API with threshold of zero
             if not child_prim.HasAPI(PhysxSchema.PhysxContactReportAPI):
-                carb.log_verbose(f"Adding contact report API to prim: '{child_prim.GetPrimPath()}'")
+                omni.log.verbose(f"Adding contact report API to prim: '{child_prim.GetPrimPath()}'")
                 cr_api = PhysxSchema.PhysxContactReportAPI.Apply(child_prim)
             else:
-                carb.log_verbose(f"Contact report API already exists on prim: '{child_prim.GetPrimPath()}'")
+                omni.log.verbose(f"Contact report API already exists on prim: '{child_prim.GetPrimPath()}'")
                 cr_api = PhysxSchema.PhysxContactReportAPI.Get(stage, child_prim.GetPrimPath())
             # set threshold to zero
             cr_api.CreateThresholdAttr().Set(threshold)
@@ -616,7 +616,7 @@ def modify_fixed_tendon_properties(
         This function is decorated with :func:`apply_nested` that sets the properties to all the prims
         (that have the schema applied on them) under the input prim path.
 
-    .. _fixed tendon: https://nvidia-omniverse.github.io/PhysX/physx/5.3.1/_api_build/class_px_articulation_fixed_tendon.html
+    .. _fixed tendon: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/_api_build/classPxArticulationFixedTendon.html
     .. _PhysxTendonAxisRootAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_tendon_axis_root_a_p_i.html
 
     Args:
@@ -743,13 +743,13 @@ def modify_deformable_body_properties(
 
     .. caution::
         The deformable body schema is still under development by the Omniverse team. The current implementation
-        works with the PhysX schemas shipped with Isaac Sim 4.0.0 and 4.1.0. It may change in future releases.
+        works with the PhysX schemas shipped with Isaac Sim 4.0.0 onwards. It may change in future releases.
 
     .. note::
         This function is decorated with :func:`apply_nested` that sets the properties to all the prims
         (that have the schema applied on them) under the input prim path.
 
-    .. _deformable body: https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/docs/SoftBodies.html
+    .. _deformable body: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/docs/SoftBodies.html
     .. _PhysxDeformableBodyAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_deformable_a_p_i.html
 
     Args:
@@ -809,7 +809,7 @@ def modify_deformable_body_properties(
 
     # set into PhysX API
     for attr_name, value in cfg.items():
-        if attr_name in ["rest_offset", "collision_offset"]:
+        if attr_name in ["rest_offset", "contact_offset"]:
             safe_set_attribute_on_usd_schema(physx_collision_api, attr_name, value, camel_case=True)
         else:
             safe_set_attribute_on_usd_schema(physx_deformable_api, attr_name, value, camel_case=True)

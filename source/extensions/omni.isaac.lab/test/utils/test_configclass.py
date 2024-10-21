@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 # NOTE: While we don't actually use the simulation app in this test, we still need to launch it
 #       because warp is only available in the context of a running simulation
 """Launch Isaac Sim Simulator first."""
@@ -292,6 +294,41 @@ class FunctionImplementedDemoCfg:
         self.a = a
 
 
+@configclass
+class ClassFunctionImplementedDemoCfg:
+    """Dummy configuration class with function members defined in the class."""
+
+    a: int = 5
+
+    def instance_method(self):
+        print("Value of a: ", self.a)
+
+    @classmethod
+    def class_method(cls, value: int) -> ClassFunctionImplementedDemoCfg:
+        return cls(a=value)
+
+    @property
+    def a_proxy(self) -> int:
+        return self.a
+
+    @a_proxy.setter
+    def a_proxy(self, value: int):
+        self.a = value
+
+
+"""
+Dummy configuration: Nested dictionaries
+"""
+
+
+@configclass
+class NestedDictAndListCfg:
+    """Dummy configuration class with nested dictionaries and lists."""
+
+    dict_1: dict = {"dict_2": {"func": dummy_function1}}
+    list_1: list[EnvCfg] = [EnvCfg(), EnvCfg()]
+
+
 """
 Test solutions: Basic
 """
@@ -316,6 +353,27 @@ basic_demo_cfg_change_correct = {
         "dof_vel": [0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
     },
     "device_id": 0,
+}
+
+basic_demo_cfg_change_with_none_correct = {
+    "env": {"num_envs": 22, "episode_length": 2000, "viewer": None},
+    "robot_default_state": {
+        "pos": (0.0, 0.0, 0.0),
+        "rot": (1.0, 0.0, 0.0, 0.0),
+        "dof_pos": (0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+        "dof_vel": [0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
+    },
+    "device_id": 0,
+}
+
+basic_demo_cfg_nested_dict_and_list = {
+    "dict_1": {
+        "dict_2": {"func": dummy_function2},
+    },
+    "list_1": [
+        {"num_envs": 23, "episode_length": 3000, "viewer": {"eye": [5.0, 5.0, 5.0], "lookat": [0.0, 0.0, 0.0]}},
+        {"num_envs": 24, "episode_length": 2000, "viewer": {"eye": [6.0, 6.0, 6.0], "lookat": [0.0, 0.0, 0.0]}},
+    ],
 }
 
 basic_demo_post_init_cfg_correct = {
@@ -426,6 +484,36 @@ class TestConfigClass(unittest.TestCase):
         cfg_dict = {"env": {"num_envs": 22, "viewer": {"eye": (2.0, 2.0, 2.0)}}}
         update_class_from_dict(cfg, cfg_dict)
         self.assertDictEqual(asdict(cfg), basic_demo_cfg_change_correct)
+
+        # check types are also correct
+        self.assertIsInstance(cfg.env.viewer, ViewerCfg)
+        self.assertIsInstance(cfg.env.viewer.eye, tuple)
+
+    def test_config_update_dict_with_none(self):
+        """Test updating configclass using a dictionary that contains None."""
+        cfg = BasicDemoCfg()
+        cfg_dict = {"env": {"num_envs": 22, "viewer": None}}
+        update_class_from_dict(cfg, cfg_dict)
+        self.assertDictEqual(asdict(cfg), basic_demo_cfg_change_with_none_correct)
+
+    def test_config_update_nested_dict(self):
+        """Test updating configclass with sub-dictionaries."""
+        cfg = NestedDictAndListCfg()
+        cfg_dict = {
+            "dict_1": {"dict_2": {"func": "__main__:dummy_function2"}},
+            "list_1": [
+                {"num_envs": 23, "episode_length": 3000, "viewer": {"eye": [5.0, 5.0, 5.0]}},
+                {"num_envs": 24, "viewer": {"eye": [6.0, 6.0, 6.0]}},
+            ],
+        }
+        update_class_from_dict(cfg, cfg_dict)
+        self.assertDictEqual(asdict(cfg), basic_demo_cfg_nested_dict_and_list)
+
+        # check types are also correct
+        self.assertIsInstance(cfg.list_1[0], EnvCfg)
+        self.assertIsInstance(cfg.list_1[1], EnvCfg)
+        self.assertIsInstance(cfg.list_1[0].viewer, ViewerCfg)
+        self.assertIsInstance(cfg.list_1[1].viewer, ViewerCfg)
 
     def test_config_update_dict_using_internal(self):
         """Test updating configclass from a dictionary using configclass method."""
@@ -554,11 +642,49 @@ class TestConfigClass(unittest.TestCase):
         self.assertEqual(cfg.func_in_dict["func"](), 1)
 
     def test_function_impl_config(self):
+        """Tests having function defined in the class instance."""
         cfg = FunctionImplementedDemoCfg()
         # change value
         self.assertEqual(cfg.a, 5)
         cfg.set_a(10)
         self.assertEqual(cfg.a, 10)
+
+    def test_class_function_impl_config(self):
+        """Tests having class function defined in the class instance."""
+        cfg = ClassFunctionImplementedDemoCfg()
+
+        # check that the annotations are correct
+        self.assertDictEqual(cfg.__annotations__, {"a": "int"})
+
+        # check all methods are callable
+        cfg.instance_method()
+        new_cfg1 = cfg.class_method(20)
+        # check value is correct
+        self.assertEqual(new_cfg1.a, 20)
+
+        # create the same config instance using class method
+        new_cfg2 = ClassFunctionImplementedDemoCfg.class_method(20)
+        # check value is correct
+        self.assertEqual(new_cfg2.a, 20)
+
+    def test_class_property_impl_config(self):
+        """Tests having class property defined in the class instance."""
+        cfg = ClassFunctionImplementedDemoCfg()
+
+        # check that the annotations are correct
+        self.assertDictEqual(cfg.__annotations__, {"a": "int"})
+
+        # check all methods are callable
+        cfg.instance_method()
+
+        # check value is correct
+        self.assertEqual(cfg.a, 5)
+        self.assertEqual(cfg.a_proxy, 5)
+
+        # set through property
+        cfg.a_proxy = 10
+        self.assertEqual(cfg.a, 10)
+        self.assertEqual(cfg.a_proxy, 10)
 
     def test_dict_conversion_functions_config(self):
         """Tests conversion of config with functions into dictionary."""

@@ -1,12 +1,13 @@
 name: Build & deploy docs
 
-on: [push]
+on:
+  push:
+  pull_request:
 
 jobs:
   build-docs:
-    name: Build and deploy documentation
+    name: Build Docs
     runs-on: ubuntu-latest
-    if: github.repository == 'isaac-sim/IsaacLab' && github.ref == 'refs/heads/main'
 
     steps:
     - name: Checkout code
@@ -22,12 +23,51 @@ jobs:
       working-directory: ./docs
       run: pip install -r requirements.txt
 
-    - name: Generate docs
+    - name: Check branch docs building
+      if: ${{ github.event_name == 'pull_request' }}
       working-directory: ./docs
-      run: make html
+      run: make current-docs
+
+    - name: Generate multi-version docs
+      working-directory: ./docs
+      run: |
+        git fetch --prune --unshallow --tags
+        make multi-docs
+
+    - name: Upload docs artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: docs-html
+        path: ./docs/_build
+
+  check-secrets:
+    name: Check secrets
+    runs-on: ubuntu-latest
+    outputs:
+      trigger-deploy: ${{ steps.trigger-deploy.outputs.defined }}
+    steps:
+    - id: trigger-deploy
+      env:
+        REPO_NAME: ${{ secrets.REPO_NAME }}
+        BRANCH_REF: ${{ secrets.BRANCH_REF }}
+      if: "${{ github.repository == env.REPO_NAME && github.ref == env.BRANCH_REF }}"
+      run: echo "defined=true" >> "$GITHUB_OUTPUT"
+
+  deploy-docs:
+    name: Deploy Docs
+    runs-on: ubuntu-latest
+    needs: [check-secrets, build-docs]
+    if: needs.check-secrets.outputs.trigger-deploy == 'true'
+
+    steps:
+    - name: Download docs artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: docs-html
+        path: ./docs/_build
 
     - name: Deploy to gh-pages
       uses: peaceiris/actions-gh-pages@v3
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./docs/_build/html
+        publish_dir: ./docs/_build

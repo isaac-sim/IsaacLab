@@ -48,9 +48,9 @@ config should define the number of actions and observations for the environment.
    @configclass
    class CartpoleEnvCfg(DirectRLEnvCfg):
       ...
-      num_actions = 1
-      num_observations = 4
-      num_states = 0
+      action_space = 1
+      observation_space = 4
+      state_space = 0
 
 The config class can also be used to define task-specific attributes, such as scaling for reward terms
 and thresholds for reset conditions.
@@ -206,6 +206,11 @@ To run training for the direct workflow Cartpole environment, we can use the fol
 .. code-block:: bash
 
    ./isaaclab.sh -p source/standalone/workflows/rl_games/train.py --task=Isaac-Cartpole-Direct-v0
+
+.. figure:: ../../_static/tutorials/tutorial_create_direct_workflow.jpg
+    :align: center
+    :figwidth: 100%
+    :alt: result of train.py
 
 All direct workflow tasks have the suffix ``-Direct`` added to the task name to differentiate the implementation style.
 
