@@ -77,7 +77,7 @@ class UniformVelocityCommand(CommandTerm):
                 )
         if self.cfg.ranges.heading and not self.cfg.heading_command:
             omni.log.warn(
-                "The velocity command configuration has the ranges.heading attribute set to"
+                "The velocity command configuration has the 'ranges.heading' attribute set to"
                 f" {self.cfg.ranges.heading} but the heading command is not active. Consider setting"
                 " heading_command to True."
             )
