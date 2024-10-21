@@ -126,8 +126,9 @@ class ManagerBase(ABC):
         # store the inputs
         self.cfg = copy.deepcopy(cfg)
         self._env = env
-        # parse config to create terms information
-        self._prepare_terms()
+        if self.cfg:
+            # parse config to create terms information
+            self._prepare_terms()
 
     """
     Properties.

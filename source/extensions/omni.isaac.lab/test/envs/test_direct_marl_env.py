@@ -73,10 +73,10 @@ class TestDirectMARLEnv(unittest.TestCase):
                     # create environment
                     env = DirectMARLEnv(cfg=get_empty_base_env_cfg(device=device))
                 except Exception as e:
-                    if "env" in locals():
+                    if "env" in locals() and hasattr(env, "_is_closed"):
                         env.close()
                     else:
-                        if hasattr(e, "obj") and hasattr(e.obj, "close"):
+                        if hasattr(e, "obj") and hasattr(e.obj, "_is_closed"):
                             e.obj.close()
                     self.fail(f"Failed to set-up the DirectMARLEnv environment. Error: {e}")
 
