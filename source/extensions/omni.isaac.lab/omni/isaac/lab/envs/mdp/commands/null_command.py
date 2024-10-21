@@ -10,11 +10,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import omni.log
-
-from omni.isaac.lab.envs.manager_based_rl_env import ManagerBasedRLEnv
 from omni.isaac.lab.managers import CommandTerm
-from omni.isaac.lab.managers.manager_term_cfg import CommandTermCfg
 
 if TYPE_CHECKING:
     from .commands_cfg import NullCommandCfg
