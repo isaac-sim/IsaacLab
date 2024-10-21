@@ -39,7 +39,6 @@ class TestEnvironments(unittest.TestCase):
                 cls.registered_tasks.append(task_spec.id)
         # sort environments by name
         cls.registered_tasks.sort()
-        cls.registered_tasks = ["Isaac-Shadow-Hand-Over-Direct-v0"]
         # print all existing task names
         print(">>> All registered environments:", cls.registered_tasks)
 
