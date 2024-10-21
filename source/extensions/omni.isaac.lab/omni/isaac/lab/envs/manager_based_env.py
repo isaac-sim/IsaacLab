@@ -8,8 +8,8 @@ import torch
 from collections.abc import Sequence
 from typing import Any
 
-import carb
 import omni.isaac.core.utils.torch as torch_utils
+import omni.log
 
 from omni.isaac.lab.managers import ActionManager, EventManager, ObservationManager
 from omni.isaac.lab.scene import InteractiveScene
@@ -76,9 +76,9 @@ class ManagerBasedEnv:
 
         # set the seed for the environment
         if self.cfg.seed is not None:
-            self.seed(self.cfg.seed)
+            self.cfg.seed = self.seed(self.cfg.seed)
         else:
-            carb.log_warn("Seed not set for the environment. The environment creation may not be deterministic.")
+            omni.log.warn("Seed not set for the environment. The environment creation may not be deterministic.")
 
         # create a simulation context to control the simulator
         if SimulationContext.instance() is None:
@@ -103,10 +103,10 @@ class ManagerBasedEnv:
         if self.cfg.sim.render_interval < self.cfg.decimation:
             msg = (
                 f"The render interval ({self.cfg.sim.render_interval}) is smaller than the decimation "
-                f"({self.cfg.decimation}). Multiple multiple render calls will happen for each environment step. "
+                f"({self.cfg.decimation}). Multiple render calls will happen for each environment step. "
                 "If this is not intended, set the render interval to be equal to the decimation."
             )
-            carb.log_warn(msg)
+            omni.log.warn(msg)
 
         # counter for simulation steps
         self._sim_step_counter = 0
@@ -251,6 +251,10 @@ class ManagerBasedEnv:
         indices = torch.arange(self.num_envs, dtype=torch.int64, device=self.device)
         self._reset_idx(indices)
 
+        # if sensors are added to the scene, make sure we render to reflect changes in reset
+        if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
+            self.sim.render()
+
         # return observations
         return self.observation_manager.compute(), self.extras
 
@@ -350,6 +354,7 @@ class ManagerBasedEnv:
         """
         # reset the internal buffers of the scene elements
         self.scene.reset(env_ids)
+
         # apply events such as randomization for environments that need a reset
         if "reset" in self.event_manager.available_modes:
             env_step_count = self._sim_step_counter // self.cfg.decimation

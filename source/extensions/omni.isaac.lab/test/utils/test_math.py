@@ -195,6 +195,43 @@ class TestMathUtilities(unittest.TestCase):
         torch.testing.assert_close(error_3, error_4)
         torch.testing.assert_close(error_4, error_1)
 
+    def test_convention_converter(self):
+        """Test convert_camera_frame_orientation_convention to and from ros, opengl, and world conventions."""
+        quat_ros = torch.tensor([[-0.17591989, 0.33985114, 0.82047325, -0.42470819]])
+        quat_opengl = torch.tensor([[0.33985113, 0.17591988, 0.42470818, 0.82047324]])
+        quat_world = torch.tensor([[-0.3647052, -0.27984815, -0.1159169, 0.88047623]])
+
+        # from ROS
+        torch.testing.assert_close(
+            math_utils.convert_camera_frame_orientation_convention(quat_ros, "ros", "opengl"), quat_opengl
+        )
+        torch.testing.assert_close(
+            math_utils.convert_camera_frame_orientation_convention(quat_ros, "ros", "world"), quat_world
+        )
+        torch.testing.assert_close(
+            math_utils.convert_camera_frame_orientation_convention(quat_ros, "ros", "ros"), quat_ros
+        )
+        # from OpenGL
+        torch.testing.assert_close(
+            math_utils.convert_camera_frame_orientation_convention(quat_opengl, "opengl", "ros"), quat_ros
+        )
+        torch.testing.assert_close(
+            math_utils.convert_camera_frame_orientation_convention(quat_opengl, "opengl", "world"), quat_world
+        )
+        torch.testing.assert_close(
+            math_utils.convert_camera_frame_orientation_convention(quat_opengl, "opengl", "opengl"), quat_opengl
+        )
+        # from World
+        torch.testing.assert_close(
+            math_utils.convert_camera_frame_orientation_convention(quat_world, "world", "ros"), quat_ros
+        )
+        torch.testing.assert_close(
+            math_utils.convert_camera_frame_orientation_convention(quat_world, "world", "opengl"), quat_opengl
+        )
+        torch.testing.assert_close(
+            math_utils.convert_camera_frame_orientation_convention(quat_world, "world", "world"), quat_world
+        )
+
     def test_wrap_to_pi(self):
         """Test wrap_to_pi method."""
         # Define test cases
@@ -375,6 +412,28 @@ class TestMathUtilities(unittest.TestCase):
                 math_utils.quat_rotate_inverse(q_rand, v_rand),
                 iter_old_quat_rotate_inverse(q_rand, v_rand),
             )
+
+    def test_orthogonalize_perspective_depth(self):
+        """Test for converting perspective depth to orthogonal depth."""
+        for device in ["cpu", "cuda:0"]:
+            # Create a sample perspective depth image (N, H, W)
+            perspective_depth = torch.tensor(
+                [[[10.0, 0.0, 100.0], [0.0, 3000.0, 0.0], [100.0, 0.0, 100.0]]], device=device
+            )
+
+            # Create sample intrinsic matrix (3, 3)
+            intrinsics = torch.tensor([[500.0, 0.0, 5.0], [0.0, 500.0, 5.0], [0.0, 0.0, 1.0]], device=device)
+
+            # Convert perspective depth to orthogonal depth
+            orthogonal_depth = math_utils.orthogonalize_perspective_depth(perspective_depth, intrinsics)
+
+            # Manually compute expected orthogonal depth based on the formula for comparison
+            expected_orthogonal_depth = torch.tensor(
+                [[[9.9990, 0.0000, 99.9932], [0.0000, 2999.8079, 0.0000], [99.9932, 0.0000, 99.9964]]], device=device
+            )
+
+            # Assert that the output is close to the expected result
+            torch.testing.assert_close(orthogonal_depth, expected_orthogonal_depth)
 
 
 if __name__ == "__main__":

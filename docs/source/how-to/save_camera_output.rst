@@ -89,7 +89,7 @@ To run the accompanying script, execute the following command:
 .. code-block:: bash
 
    # Usage with saving and drawing
-   ./isaaclab.sh -p source/standalone/tutorials/04_sensors/run_usd_camera.py --save --draw
+   ./isaaclab.sh -p source/standalone/tutorials/04_sensors/run_usd_camera.py --save --draw --enable_cameras
 
    # Usage with saving only in headless mode
    ./isaaclab.sh -p source/standalone/tutorials/04_sensors/run_usd_camera.py --save --headless --enable_cameras

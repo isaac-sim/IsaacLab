@@ -9,7 +9,7 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import carb
+import omni.log
 
 from omni.isaac.lab.assets.articulation import Articulation
 from omni.isaac.lab.managers.action_manager import ActionTerm
@@ -88,11 +88,11 @@ class NonHolonomicAction(ActionTerm):
         self._joint_ids = [x_joint_id[0], y_joint_id[0], yaw_joint_id[0]]
         self._joint_names = [x_joint_name[0], y_joint_name[0], yaw_joint_name[0]]
         # log info for debugging
-        carb.log_info(
+        omni.log.info(
             f"Resolved joint names for the action term {self.__class__.__name__}:"
             f" {self._joint_names} [{self._joint_ids}]"
         )
-        carb.log_info(
+        omni.log.info(
             f"Resolved body name for the action term {self.__class__.__name__}: {self._body_name} [{self._body_idx}]"
         )
 

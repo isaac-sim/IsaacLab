@@ -9,7 +9,7 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import carb
+import omni.log
 import omni.physics.tensors.impl.api as physx
 from pxr import UsdPhysics
 
@@ -424,10 +424,10 @@ class RigidObject(AssetBase):
             raise RuntimeError(f"Failed to create rigid body at: {self.cfg.prim_path}. Please check PhysX logs.")
 
         # log information about the rigid body
-        carb.log_info(f"Rigid body initialized at: {self.cfg.prim_path} with root '{root_prim_path_expr}'.")
-        carb.log_info(f"Number of instances: {self.num_instances}")
-        carb.log_info(f"Number of bodies: {self.num_bodies}")
-        carb.log_info(f"Body names: {self.body_names}")
+        omni.log.info(f"Rigid body initialized at: {self.cfg.prim_path} with root '{root_prim_path_expr}'.")
+        omni.log.info(f"Number of instances: {self.num_instances}")
+        omni.log.info(f"Number of bodies: {self.num_bodies}")
+        omni.log.info(f"Body names: {self.body_names}")
 
         # container for data access
         self._data = RigidObjectData(self.root_physx_view, self.device)
@@ -452,6 +452,7 @@ class RigidObject(AssetBase):
         # set information about rigid body into data
         self._data.body_names = self.body_names
         self._data.default_mass = self.root_physx_view.get_masses().clone()
+        self._data.default_inertia = self.root_physx_view.get_inertias().clone()
 
     def _process_cfg(self):
         """Post processing of configuration parameters."""

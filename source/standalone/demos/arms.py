@@ -210,7 +210,7 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Articula
 def main():
     """Main function."""
     # Initialize the simulation context
-    sim_cfg = sim_utils.SimulationCfg()
+    sim_cfg = sim_utils.SimulationCfg(device=args_cli.device)
     sim = sim_utils.SimulationContext(sim_cfg)
     # Set main camera
     sim.set_camera_view([3.5, 0.0, 3.2], [0.0, 0.0, 0.5])
