@@ -78,7 +78,7 @@ class DepthObservationsCfg:
     """Observation specifications for the MDP."""
 
     @configclass
-    class DepthCameraPolicyCfg:
+    class DepthCameraPolicyCfg(ObsGroup):
         """Observations for policy group with depth images."""
 
         image = ObsTerm(
@@ -93,7 +93,7 @@ class ResNet18ObservationCfg:
     """Observation specifications for the MDP."""
 
     @configclass
-    class ResNet18FeaturesCameraPolicyCfg:
+    class ResNet18FeaturesCameraPolicyCfg(ObsGroup):
         """Observations for policy group with features extracted from RGB images with a frozen ResNet18."""
 
         image = ObsTerm(
@@ -109,7 +109,7 @@ class TheiaTinyObservationCfg:
     """Observation specifications for the MDP."""
 
     @configclass
-    class TheiaTinyFeaturesCameraPolicyCfg:
+    class TheiaTinyFeaturesCameraPolicyCfg(ObsGroup):
         """Observations for policy group with features extracted from RGB images with a frozen Theia-Tiny Transformer"""
 
         image = ObsTerm(
