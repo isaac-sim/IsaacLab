@@ -24,7 +24,7 @@ from omni.isaac.lab_tasks.manager_based.manipulation.screw.screw_env_cfg import 
     BaseNutThreadEnvCfg,
     BaseNutTightenEnvCfg,
 )
-
+from omegaconf import OmegaConf
 ##
 # Pre-defined configs
 from omni.isaac.lab_assets.kuka import KUKA_VICTOR_LEFT_HIGH_PD_CFG, KUKA_VICTOR_LEFT_CFG  # isort: skip
@@ -104,6 +104,22 @@ class EventCfg:
 @configclass
 class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
     """Configuration for the IK-based relative Kuka nut threading environment."""
+    
+    def get_default_env_params(self):
+        super().get_default_env_params()
+        self.env_params.scene.robot = self.env_params.scene.get("robot", OmegaConf.create())
+        robot_params = self.env_params.scene.robot
+        robot_params["contact_offset"] = robot_params.get("contact_offset", 0.002)
+        robot_params["rest_offset"] = robot_params.get("rest_offset", 0.001)
+        robot_params["max_depenetration_velocity"] = robot_params.get("max_depenetration_velocity", 0.5)
+        robot_params["sleep_threshold"] = robot_params.get("sleep_threshold", None)
+        robot_params["stabilization_threshold"] = robot_params.get("stabilization_threshold", None)
+        robot_params["static_friction"] = robot_params.get("static_friction", 1)
+        robot_params["dynamic_friction"] = robot_params.get("dynamic_friction", 1)
+        robot_params["compliant_contact_stiffness"] = robot_params.get("compliant_contact_stiffness", 0.)
+        robot_params["compliant_contact_damping"] = robot_params.get("compliant_contact_damping", 0.)
+        
+        
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
@@ -116,16 +132,18 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         
         # self.scene.robot.spawn.collision_props = sim_utils.CollisionPropertiesCfg(
         #     contact_offset=0.002, rest_offset=0.001)
-        scene_params = self.scene.scene_params
-        self.scene.robot.spawn.collision_props.contact_offset = scene_params.get("contact_offset", 0.002)
-        self.scene.robot.spawn.collision_props.rest_offset = scene_params.get("rest_offset", 0.001)
-
-        self.scene.robot.spawn.rigid_props.max_depenetration_velocity = scene_params.get("max_depenetration_velocity", 0.5)
-        self.scene.robot.spawn.rigid_props.sleep_threshold = scene_params.get("sleep_threshold", None)
-        self.scene.robot.spawn.rigid_props.stabilization_threshold = scene_params.get("stabilization_threshold", None)
+        robot_params = self.env_params.scene.robot
+        self.scene.robot.spawn.collision_props.contact_offset = robot_params.contact_offset
+        self.scene.robot.spawn.collision_props.rest_offset = robot_params.rest_offset
+        self.scene.robot.spawn.rigid_props.max_depenetration_velocity = robot_params.max_depenetration_velocity
+        self.scene.robot.spawn.rigid_props.sleep_threshold = robot_params.sleep_threshold
+        self.scene.robot.spawn.rigid_props.stabilization_threshold = robot_params.stabilization_threshold
         
         self.scene.robot.spawn.physics_material = materials.RigidBodyMaterialCfg(
-            static_friction=2, dynamic_friction=2, restitution=0.5
+            static_friction=robot_params.static_friction,
+            dynamic_friction=robot_params.dynamic_friction,
+            compliant_contact_stiffness=robot_params.compliant_contact_stiffness,
+            compliant_contact_damping=robot_params.compliant_contact_damping,
         )
         
         # self.scene.nut.spawn.rigid_props.max_depenetration_velocity = 0.2

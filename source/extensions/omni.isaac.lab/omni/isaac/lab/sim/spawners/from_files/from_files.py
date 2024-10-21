@@ -272,5 +272,5 @@ def _spawn_from_usd_file(
     if cfg.physics_material is not None:
         cfg.physics_material.func(f"{prim_path}/physicsMaterial", cfg.physics_material)
         bind_physics_material(prim_path, f"{prim_path}/physicsMaterial")
-    # return the prim
+    # return the prims
     return prim_utils.get_prim_at_path(prim_path)

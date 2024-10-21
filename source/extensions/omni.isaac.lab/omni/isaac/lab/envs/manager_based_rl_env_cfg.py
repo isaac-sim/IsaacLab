@@ -10,6 +10,7 @@ from omni.isaac.lab.utils import configclass
 from .manager_based_env_cfg import ManagerBasedEnvCfg
 from .ui import ManagerBasedRLEnvWindow
 
+from omegaconf import OmegaConf, DictConfig
 
 @configclass
 class ManagerBasedRLEnvCfg(ManagerBasedEnvCfg):
@@ -78,3 +79,5 @@ class ManagerBasedRLEnvCfg(ManagerBasedEnvCfg):
 
     Please refer to the :class:`omni.isaac.lab.managers.CommandManager` class for more details.
     """
+    env_params: DictConfig = OmegaConf.create()
+    """Additional environment parameters."""

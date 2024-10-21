@@ -32,7 +32,7 @@ from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
 from omni.isaac.lab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 
 import omni.isaac.lab_tasks.manager_based.manipulation.screw.mdp as mdp
-
+from omegaconf import OmegaConf
 import copy
 from typing import Literal
 ##
@@ -79,12 +79,10 @@ asset_factory = {
     "m16_loose": {},
 }
 
-from omegaconf import OmegaConf, DictConfig
 @configclass
 class ScrewSceneCfg(InteractiveSceneCfg):
     """Configuration for the scene with a robotic arm."""
     screw_type : Literal["m8_loose", "m8_tight", "m16_loose", "m16_tight"] = "m8_tight"
-    scene_params: DictConfig = {}
     def __post_init__(self):
         screw_dict = asset_factory[self.screw_type]
         # world
@@ -262,11 +260,8 @@ class CurriculumCfg:
 @configclass
 class BaseScrewEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the screw end-effector pose tracking environment."""
-    screw_type : Literal["m8_loose", "m8_tight", "m16_loose", "m16_tight"] = "m8_loose"
     
-    
-    # Scene settings
-    scene: ScrewSceneCfg = ScrewSceneCfg(num_envs=4096, env_spacing=2.5, screw_type=screw_type)
+    scene: ScrewSceneCfg = MISSING
     # Basic settings
     observations: BaseObservationsCfg = BaseObservationsCfg()
     actions: BaseActionsCfg = BaseActionsCfg()
@@ -286,8 +281,15 @@ class BaseScrewEnvCfg(ManagerBasedRLEnvCfg):
             gpu_max_rigid_patch_count=2**24,
         ),
     )
-
+    def get_default_env_params(self):
+        print("Creating default environment parameters")
+        self.env_params.scene = self.env_params.get("scene", OmegaConf.create())
+        self.env_params.scene.screw_type = self.env_params.scene.get("screw_type", "m8_tight")
+        self.env_params.scene.nut = self.env_params.scene.get("nut", OmegaConf.create())
+    
     def __post_init__(self):
+        self.get_default_env_params()
+        self.scene = ScrewSceneCfg(num_envs=4096, env_spacing=2.5, screw_type=self.env_params.scene.screw_type)
         """Post initialization."""
         # general settings
         self.decimation = 2
@@ -348,11 +350,6 @@ class BaseNutTightenEnvCfg(BaseScrewEnvCfg):
             debug_vis=True,
             visualizer_cfg=RED_PLATE_MARKER_CFG.replace(prim_path="/Visuals/Bolt"),
             target_frames=[
-                # FrameTransformerCfg.FrameCfg(
-                #     prim_path="{ENV_REGEX_NS}/Bolt/factory_bolt",
-                #     name="bolt_tip",
-                #     offset=OffsetCfg(pos=(0.0, 0.0, 0.0277)),
-                # ),
                 FrameTransformerCfg.FrameCfg(
                     prim_path="{ENV_REGEX_NS}/Bolt/factory_bolt",
                     name="bolt_bottom",
@@ -400,6 +397,9 @@ class BaseNutThreadEnvCfg(BaseScrewEnvCfg):
     rewards: NutThreadRewardsCfg = NutThreadRewardsCfg()
     terminations: NutThreadTerminationsCfg = NutThreadTerminationsCfg()
 
+    def __init__(self):
+        super().__init__()  # Call the parent class's __init__ method
+
     def __post_init__(self):
         super().__post_init__()
         self.scene.nut.init_state.pos = (6.3000e-01, 4.0586e-06, 0.02)
@@ -429,3 +429,4 @@ class BaseNutThreadEnvCfg(BaseScrewEnvCfg):
                 )
             ],
         )
+
