@@ -35,7 +35,7 @@ simulation_app = app_launcher.app
 import gymnasium as gym
 import torch
 
-import carb
+import omni.log
 
 from omni.isaac.lab.devices import Se3Gamepad, Se3Keyboard, Se3SpaceMouse
 from omni.isaac.lab.managers import TerminationTermCfg as DoneTerm
@@ -77,7 +77,7 @@ def main():
     env = gym.make(args_cli.task, cfg=env_cfg)
     # check environment name (for reach , we don't allow the gripper)
     if "Reach" in args_cli.task:
-        carb.log_warn(
+        omni.log.warn(
             f"The environment '{args_cli.task}' does not support gripper control. The device command will be ignored."
         )
 

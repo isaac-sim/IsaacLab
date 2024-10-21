@@ -19,7 +19,7 @@ from omni.isaac.lab.assets import Articulation, RigidObject
 from omni.isaac.lab.managers import SceneEntityCfg
 from omni.isaac.lab.managers.manager_base import ManagerTermBase
 from omni.isaac.lab.managers.manager_term_cfg import ObservationTermCfg
-from omni.isaac.lab.sensors import Camera, RayCaster, RayCasterCamera, TiledCamera
+from omni.isaac.lab.sensors import Camera, Imu, RayCaster, RayCasterCamera, TiledCamera
 
 if TYPE_CHECKING:
     from omni.isaac.lab.envs import ManagerBasedEnv, ManagerBasedRLEnv
@@ -185,6 +185,48 @@ def body_incoming_wrench(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg) -> tor
     return link_incoming_forces.view(env.num_envs, -1)
 
 
+def imu_orientation(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("imu")) -> torch.Tensor:
+    """Imu sensor orientation w.r.t the env.scene.origin.
+
+    Args:
+        env: The environment.
+        asset_cfg: The SceneEntity associated with an Imu sensor.
+
+    Returns:
+        Orientation quaternion (wxyz), shape of torch.tensor is (num_env,4).
+    """
+    asset: Imu = env.scene[asset_cfg.name]
+    return asset.data.quat_w
+
+
+def imu_ang_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("imu")) -> torch.Tensor:
+    """Imu sensor angular velocity w.r.t. env.scene.origin expressed in the sensor frame.
+
+    Args:
+        env: The environment.
+        asset_cfg: The SceneEntity associated with an Imu sensor.
+
+    Returns:
+        Angular velocity (rad/s), shape of torch.tensor is (num_env,3).
+    """
+    asset: Imu = env.scene[asset_cfg.name]
+    return asset.data.ang_vel_b
+
+
+def imu_lin_acc(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("imu")) -> torch.Tensor:
+    """Imu sensor linear acceleration w.r.t. env.scene.origin expressed in sensor frame.
+
+    Args:
+        env: The environment.
+        asset_cfg: The SceneEntity associated with an Imu sensor.
+
+    Returns:
+        linear acceleration (m/s^2), shape of torch.tensor is (num_env,3).
+    """
+    asset: Imu = env.scene[asset_cfg.name]
+    return asset.data.lin_acc_b
+
+
 def image(
     env: ManagerBasedEnv,
     sensor_cfg: SceneEntityCfg = SceneEntityCfg("tiled_camera"),
@@ -248,9 +290,11 @@ class image_features(ManagerTermBase):
 
         def create_theia_model(model_name):
             return {
-                "model": lambda: AutoModel.from_pretrained(
-                    f"theaiinstitute/{model_name}", trust_remote_code=True
-                ).eval().to("cuda:0"),
+                "model": (
+                    lambda: AutoModel.from_pretrained(f"theaiinstitute/{model_name}", trust_remote_code=True)
+                    .eval()
+                    .to("cuda:0")
+                ),
                 "preprocess": lambda img: (img - torch.amin(img, dim=(1, 2), keepdim=True)) / (
                     torch.amax(img, dim=(1, 2), keepdim=True) - torch.amin(img, dim=(1, 2), keepdim=True)
                 ),
@@ -271,8 +315,12 @@ class image_features(ManagerTermBase):
 
         # List of Theia models
         theia_models = [
-            "theia-tiny-patch16-224-cddsv", "theia-tiny-patch16-224-cdiv", "theia-small-patch16-224-cdiv",
-            "theia-base-patch16-224-cdiv", "theia-small-patch16-224-cddsv", "theia-base-patch16-224-cddsv",
+            "theia-tiny-patch16-224-cddsv",
+            "theia-tiny-patch16-224-cdiv",
+            "theia-small-patch16-224-cdiv",
+            "theia-base-patch16-224-cdiv",
+            "theia-small-patch16-224-cddsv",
+            "theia-base-patch16-224-cddsv",
         ]
 
         # List of ResNet models
@@ -290,7 +338,6 @@ class image_features(ManagerTermBase):
 
         self.model_zoo_cfg = self.default_model_zoo_cfg
         self.model_zoo = {}
-
 
     def __call__(
         self,
