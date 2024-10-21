@@ -9,7 +9,7 @@ from collections.abc import Callable
 from dataclasses import MISSING
 
 from pxr import Usd
-
+from omni.isaac.lab.sim.spawners import materials
 from omni.isaac.lab.sim import schemas
 from omni.isaac.lab.utils import configclass
 
@@ -94,6 +94,12 @@ class RigidObjectSpawnerCfg(SpawnerCfg):
 
     This adds the PhysxContactReporter API to all the rigid bodies in the given prim path and its children.
     """
+    
+    physics_material: materials.RigidBodyMaterialCfg | None = None
+    
+    
+    
+    
 
 
 @configclass

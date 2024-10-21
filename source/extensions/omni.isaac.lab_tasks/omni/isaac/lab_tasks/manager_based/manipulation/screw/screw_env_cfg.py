@@ -33,10 +33,12 @@ from omni.isaac.lab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 
 import omni.isaac.lab_tasks.manager_based.manipulation.screw.mdp as mdp
 
+import copy
+from typing import Literal
 ##
 # Scene definition
 ##
-FRAME_MARKER_SMALL_CFG = FRAME_MARKER_CFG.copy()
+FRAME_MARKER_SMALL_CFG = copy.deepcopy(FRAME_MARKER_CFG)
 FRAME_MARKER_SMALL_CFG.markers["frame"].scale = (0.008, 0.008, 0.008)
 RED_PLATE_MARKER_CFG = VisualizationMarkersCfg(
     markers={
@@ -61,88 +63,99 @@ PLATE_ARROW_CFG = VisualizationMarkersCfg(
 )
 
 asset_factory = {
-    "m8_loose": {},
-    "m8_tight": {"nut_path": "", "bolt_path": "", "nut_init_pos": ()},
+    "m8_loose": {
+        "nut_path": f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_nut_m8_loose/factory_nut_m8_loose.usd",
+        "bolt_path": f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_bolt_m8_loose/factory_bolt_m8_loose.usd",
+        "nut_frame_offset": (0.0, 0.0, 0.011),
+        "bolt_bottom_offset": (0.0, 0.0, 0.0),
+    },
+    "m8_tight": {
+        "nut_path": f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_nut_m8_tight/factory_nut_m8_tight.usd",
+         "bolt_path": f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_bolt_m8_tight/factory_bolt_m8_tight.usd",
+         "nut_frame_offset": (0.0, 0.0, 0.011),
+         "bolt_bottom_offset": (0.0, 0.0, 0.0),
+         },
     "m16_tight": {},
     "m16_loose": {},
 }
 
-
+from omegaconf import OmegaConf, DictConfig
 @configclass
 class ScrewSceneCfg(InteractiveSceneCfg):
     """Configuration for the scene with a robotic arm."""
-
-    # world
-    ground = AssetBaseCfg(
+    screw_type : Literal["m8_loose", "m8_tight", "m16_loose", "m16_tight"] = "m8_tight"
+    scene_params: DictConfig = {}
+    def __post_init__(self):
+        screw_dict = asset_factory[self.screw_type]
+        # world
+        self.ground = AssetBaseCfg(
         prim_path="/World/ground",
         spawn=sim_utils.GroundPlaneCfg(),
         init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, -1.05)),
-    )
-    origin = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Origin",
+        )
+        self.origin = RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Origin",
         spawn=sim_utils.SphereCfg(
             radius=1e-3,
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
                 kinematic_enabled=True,
                 disable_gravity=True,
             ),
-            collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
+            collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=False),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.0)),
-    )
+        )
 
-    table = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/Table",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd",
-            # usd_path=f"/home/zixuanh/force_tool/assets/table_instanceable.usd",
-        ),
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.55, 0.0, 0.0), rot=(0.70711, 0.0, 0.0, 0.70711)),
-    )
-
-    # robots: will be populated by agent env cfg
-    robot: ArticulationCfg = MISSING
-
-    # objects
-    nut: RigidObjectCfg = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Nut",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_nut_m8_tight/factory_nut_m8_tight.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                disable_gravity=True, 
+        self.table = AssetBaseCfg(
+            prim_path="{ENV_REGEX_NS}/Table",
+            spawn=sim_utils.UsdFileCfg(
+                usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd",
+                # usd_path=f"/home/zixuanh/force_tool/assets/table_instanceable.usd",
             ),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.6, 0.0, 0.0065)),
-    )
+            init_state=AssetBaseCfg.InitialStateCfg(pos=(0.55, 0.0, 0.0), rot=(0.70711, 0.0, 0.0, 0.70711)),
+        )
 
-    bolt: RigidObjectCfg = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Bolt",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_bolt_m8_tight/factory_bolt_m8_tight.usd",
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.63, 0.0, 0.0)),
-    )
+        # robots: will be populated by agent env cfg
+        self.robot: ArticulationCfg = MISSING
 
-    # lights
-    light = AssetBaseCfg(
-        prim_path="/World/light",
-        spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=2500.0),
-    )
+        # objects
+        self.nut: RigidObjectCfg = RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Nut",
+            spawn=sim_utils.UsdFileCfg(
+                usd_path=screw_dict["nut_path"],
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True),
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.6, 0.0, 0.0065)),
+        )
 
-    nut_frame = FrameTransformerCfg(
-        prim_path="{ENV_REGEX_NS}/Origin",
-        debug_vis=True,
-        visualizer_cfg=PLATE_ARROW_CFG.replace(prim_path="/Visuals/Nut"),
-        target_frames=[
-            FrameTransformerCfg.FrameCfg(
-                prim_path="{ENV_REGEX_NS}/Nut/factory_nut",
-                name="nut",
-                offset=OffsetCfg(pos=(0.0, 0.0, 0.011)),
-            )
-        ],
-    )
+        self.bolt: RigidObjectCfg = RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Bolt",
+            spawn=sim_utils.UsdFileCfg(
+                usd_path=screw_dict["bolt_path"],
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.63, 0.0, 0.0)),
+        )
 
-    bolt_frame: FrameTransformerCfg = MISSING
+        # lights
+        self.light = AssetBaseCfg(
+            prim_path="/World/light",
+            spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=2500.0),
+        )
+
+        self.nut_frame = FrameTransformerCfg(
+            prim_path="{ENV_REGEX_NS}/Origin",
+            debug_vis=True,
+            visualizer_cfg=PLATE_ARROW_CFG.replace(prim_path="/Visuals/Nut"),
+            target_frames=[
+                FrameTransformerCfg.FrameCfg(
+                    prim_path="{ENV_REGEX_NS}/Nut/factory_nut",
+                    name="nut",
+                    offset=OffsetCfg(pos=(0.0, 0.0, 0.011)),
+                )
+            ],
+        )
+
+        self.bolt_frame: FrameTransformerCfg = MISSING
 
 
 ##
@@ -249,9 +262,11 @@ class CurriculumCfg:
 @configclass
 class BaseScrewEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the screw end-effector pose tracking environment."""
-
+    screw_type : Literal["m8_loose", "m8_tight", "m16_loose", "m16_tight"] = "m8_loose"
+    
+    
     # Scene settings
-    scene: ScrewSceneCfg = ScrewSceneCfg(num_envs=4096, env_spacing=2.5)
+    scene: ScrewSceneCfg = ScrewSceneCfg(num_envs=4096, env_spacing=2.5, screw_type=screw_type)
     # Basic settings
     observations: BaseObservationsCfg = BaseObservationsCfg()
     actions: BaseActionsCfg = BaseActionsCfg()
@@ -282,6 +297,8 @@ class BaseScrewEnvCfg(ManagerBasedRLEnvCfg):
         self.viewer.asset_name = "bolt"
         self.viewer.eye = (0.1, 0, 0.04)
         self.viewer.lookat = (0, 0, 0.02)
+        
+
 
 
 ###################################
@@ -326,12 +343,6 @@ class BaseNutTightenEnvCfg(BaseScrewEnvCfg):
         super().__post_init__()
         self.scene.nut.init_state.pos = (6.3000e-01, 2.0661e-06, 3.0895e-03)
         self.scene.nut.init_state.rot = (-2.1609e-01, 6.6671e-05, -6.6467e-05, 9.7637e-01)
-        # self.scene.nut.init_state.pos = (0.63, 0, 4.7518e-3)
-        # self.scene.nut.init_state.rot = (9.4993e-01, -6.4670e-06, -2.1785e-05, -3.1247e-01)
-
-        # mated
-        # self.scene.nut.init_state.pos = (6.3016e-01, 4.7342e-04, 1.6750e-02)
-        # self.scene.nut.init_state.rot = (-0.0409,  0.0054,  0.0162, -0.9990)
         self.scene.bolt_frame = FrameTransformerCfg(
             prim_path="{ENV_REGEX_NS}/Origin",
             debug_vis=True,

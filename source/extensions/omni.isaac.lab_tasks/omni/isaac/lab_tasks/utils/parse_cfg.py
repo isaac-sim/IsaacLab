@@ -16,7 +16,7 @@ import yaml
 from omni.isaac.lab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
 
 
-def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | object:
+def load_cfg_from_registry(task_name: str, entry_point_key: str, params: dict = None) -> dict | object:
     """Load default configuration given its entry point from the gym registry.
 
     This function loads the configuration object from the gym registry for the given task name.
@@ -79,7 +79,10 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | objec
             # resolve path to the module location
             mod_path = inspect.getfile(cfg_entry_point)
             # load the configuration
-            cfg_cls = cfg_entry_point()
+            if params is not None and hasattr(cfg_entry_point, "from_dict"):
+                cfg_cls = cfg_entry_point.from_dict(params)
+            else:
+                cfg_cls = cfg_entry_point()
         elif isinstance(cfg_entry_point, str):
             # resolve path to the module location
             mod_name, attr_name = cfg_entry_point.split(":")

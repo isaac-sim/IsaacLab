@@ -466,12 +466,16 @@ class InteractiveScene:
         self._global_prim_paths = list()
         # parse the entire scene config and resolve regex
         for asset_name, asset_cfg in self.cfg.__dict__.items():
-            # skip keywords
-            # note: easier than writing a list of keywords: [num_envs, env_spacing, lazy_sensor_update]
-            if asset_name in InteractiveSceneCfg.__dataclass_fields__ or asset_cfg is None:
+            # skip keywords and non-asset configurations
+            if (asset_name in InteractiveSceneCfg.__dataclass_fields__ 
+                or asset_cfg is None
+                or not isinstance(asset_cfg, (TerrainImporterCfg, ArticulationCfg, DeformableObjectCfg, 
+                                              RigidObjectCfg, SensorBaseCfg, AssetBaseCfg))):
                 continue
+            
             # resolve regex
             asset_cfg.prim_path = asset_cfg.prim_path.format(ENV_REGEX_NS=self.env_regex_ns)
+            
             # create asset
             if isinstance(asset_cfg, TerrainImporterCfg):
                 # terrains are special entities since they define environment origins
@@ -517,3 +521,4 @@ class InteractiveScene:
             if hasattr(asset_cfg, "collision_group") and asset_cfg.collision_group == -1:
                 asset_paths = sim_utils.find_matching_prim_paths(asset_cfg.prim_path)
                 self._global_prim_paths += asset_paths
+

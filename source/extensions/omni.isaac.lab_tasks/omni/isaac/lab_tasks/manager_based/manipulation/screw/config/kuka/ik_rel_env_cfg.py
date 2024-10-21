@@ -16,6 +16,7 @@ from omni.isaac.lab.managers import ObservationTermCfg as ObsTerm
 from omni.isaac.lab.managers import RewardTermCfg as RewTerm
 from omni.isaac.lab.managers import SceneEntityCfg
 from omni.isaac.lab.sensors import ContactSensorCfg
+from omni.isaac.lab.sim.spawners import materials
 from omni.isaac.lab.utils import configclass
 import omni.isaac.lab.utils.math as math_utils
 import omni.isaac.lab_tasks.manager_based.manipulation.screw.mdp as mdp
@@ -102,6 +103,7 @@ class EventCfg:
 
 @configclass
 class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
+    """Configuration for the IK-based relative Kuka nut threading environment."""
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
@@ -111,8 +113,21 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         self.scene.robot = KUKA_VICTOR_LEFT_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.robot.init_state.pos = [-0.15, -0.5, -0.8]
         self.sim.dt = 1/120
-        self.scene.robot.spawn.collision_props = sim_utils.CollisionPropertiesCfg(
-            contact_offset=0.002, rest_offset=0.001)
+        
+        # self.scene.robot.spawn.collision_props = sim_utils.CollisionPropertiesCfg(
+        #     contact_offset=0.002, rest_offset=0.001)
+        scene_params = self.scene.scene_params
+        self.scene.robot.spawn.collision_props.contact_offset = scene_params.get("contact_offset", 0.002)
+        self.scene.robot.spawn.collision_props.rest_offset = scene_params.get("rest_offset", 0.001)
+
+        self.scene.robot.spawn.rigid_props.max_depenetration_velocity = scene_params.get("max_depenetration_velocity", 0.5)
+        self.scene.robot.spawn.rigid_props.sleep_threshold = scene_params.get("sleep_threshold", None)
+        self.scene.robot.spawn.rigid_props.stabilization_threshold = scene_params.get("stabilization_threshold", None)
+        
+        self.scene.robot.spawn.physics_material = materials.RigidBodyMaterialCfg(
+            static_friction=2, dynamic_friction=2, restitution=0.5
+        )
+        
         # self.scene.nut.spawn.rigid_props.max_depenetration_velocity = 0.2
         # self.scene.nut.spawn.rigid_props.sleep_threshold = 0.0025
         # self.scene.nut.spawn.rigid_props.stabilization_threshold = 0.0025

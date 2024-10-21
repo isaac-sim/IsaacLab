@@ -36,7 +36,7 @@ def spawn_sdf_kuka(
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
 ) -> Usd.Prim:
-    robot_prim = sim_utils.spawn_from_usd(prim_path, cfg)
+    robot_prim = sim_utils.spawn_from_usd(prim_path, cfg, translation, orientation)
     robot_path = prim_utils.get_prim_path(robot_prim)
     collision_approximation = "sdf"
     predicate = lambda path: "link_3/collisions" in path and "finger" in path
@@ -47,10 +47,7 @@ def spawn_sdf_kuka(
     return robot_prim
 
     
-    
-    
-    
-sim_utils.spawn_from_usd
+
 KUKA_VICTOR_LEFT_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         # usd_path="assets/victor/victor_left_arm_with_gripper_v2/victor_left_arm_with_gripper_v2.usd",
