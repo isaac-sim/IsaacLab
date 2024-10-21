@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import math
 from dataclasses import MISSING
 
 from omni.isaac.lab.managers import CommandTermCfg
@@ -10,9 +11,22 @@ from omni.isaac.lab.markers import VisualizationMarkersCfg
 from omni.isaac.lab.markers.config import BLUE_ARROW_X_MARKER_CFG, FRAME_MARKER_CFG, GREEN_ARROW_X_MARKER_CFG
 from omni.isaac.lab.utils import configclass
 
+from .null_command import NullCommand
 from .pose_2d_command import TerrainBasedPose2dCommand, UniformPose2dCommand
 from .pose_command import UniformPoseCommand
 from .velocity_command import NormalVelocityCommand, UniformVelocityCommand
+
+
+@configclass
+class NullCommandCfg(CommandTermCfg):
+    """Configuration for the null command generator."""
+
+    class_type: type = NullCommand
+
+    def __post_init__(self):
+        """Post initialization."""
+        # set the resampling time range to infinity to avoid resampling
+        self.resampling_time_range = (math.inf, math.inf)
 
 
 @configclass

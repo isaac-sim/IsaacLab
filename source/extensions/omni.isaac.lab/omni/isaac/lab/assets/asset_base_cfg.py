@@ -40,7 +40,8 @@ class AssetBaseCfg:
         """
 
     class_type: type[AssetBase] = None
-    """The associated asset class. Defaults to None.
+    """The associated asset class. Defaults to None, which means that the asset will be spawned but cannot be interacted
+        with via the asset class.
 
     The class should inherit from :class:`omni.isaac.lab.assets.asset_base.AssetBase`.
     """

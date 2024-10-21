@@ -110,20 +110,6 @@ or terminated term. These are used to indicate the two types of terminations as 
    :language: python
    :pyobject: TerminationsCfg
 
-Defining commands
------------------
-
-For various goal-conditioned tasks, it is useful to specify the goals or commands for the agent. These are
-handled through the :class:`managers.CommandManager`. The command manager handles resampling and updating the
-commands at each step. It can also be used to provide the commands as an observation to the agent.
-
-In this tutorial we don't implement commands for simplicity, but you can see an example of commands definition in the
-other locomotion or manipulation tasks.
-
-.. literalinclude:: ../../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/locomotion/velocity/velocity_env_cfg.py
-   :language: python
-   :pyobject: CommandsCfg
-
 Defining curriculum
 -------------------
 
