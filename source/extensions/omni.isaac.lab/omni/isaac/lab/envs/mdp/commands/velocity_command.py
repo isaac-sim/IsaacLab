@@ -11,6 +11,8 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
+import omni.log
+
 import omni.isaac.lab.utils.math as math_utils
 from omni.isaac.lab.assets import Articulation
 from omni.isaac.lab.managers import CommandTerm
@@ -73,6 +75,12 @@ class UniformVelocityCommand(CommandTerm):
                     "The velocity command has heading commands active (heading_command=True) but the `ranges.heading`"
                     " parameter is set to None."
                 )
+        if self.cfg.ranges.heading and not self.cfg.heading_command:
+            omni.log.warn(
+                "The velocity command configuration has the ranges.heading attribute set to"
+                f" {self.cfg.ranges.heading} but the heading command is not active. Consider setting"
+                " heading_command to True."
+            )
 
     def __str__(self) -> str:
         """Return a string representation of the command generator."""
