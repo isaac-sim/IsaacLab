@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.26.1 (2024-10-21)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``--ov_args`` to allow passing command line arguments directly to Omniverse.
+
+
 0.26.0 (2024-10-16)
 ~~~~~~~~~~~~~~~~~~~
 
