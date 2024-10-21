@@ -114,7 +114,12 @@ class TheiaTinyObservationCfg:
 
         image = ObsTerm(
             func=mdp.image_features,
-            params={"sensor_cfg": SceneEntityCfg("tiled_camera"), "data_type": "rgb", "model_name": "theia-tiny-patch16-224-cddsv", "model_device": "cuda:0"},
+            params={
+                "sensor_cfg": SceneEntityCfg("tiled_camera"),
+                "data_type": "rgb",
+                "model_name": "theia-tiny-patch16-224-cddsv",
+                "model_device": "cuda:0",
+            },
         )
 
     policy: ObsGroup = TheiaTinyFeaturesCameraPolicyCfg()
