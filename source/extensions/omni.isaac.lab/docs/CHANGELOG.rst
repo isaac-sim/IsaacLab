@@ -12,6 +12,13 @@ Added
 * Added the configuration validation check inside the constructor of all the core classes
   (such as sensor base, asset base, scene and environment base classes).
 
+Removed
+^^^^^^^
+
+* Removed the :class:`omni.isaac.lab.command_generators.NullCommandGenerator` class and its configuration files. We now
+  support having no commands by leaving the attribute :attr:`omni.isaac.lab.envs.ManagerBasedRLEnvCfg.commands` as
+  None.
+
 
 0.26.0 (2024-10-16)
 ~~~~~~~~~~~~~~~~~~~

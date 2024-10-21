@@ -59,14 +59,6 @@ class MySceneCfg(InteractiveSceneCfg):
 
 
 @configclass
-class CommandsCfg:
-    """Command terms for the MDP."""
-
-    # no commands for this MDP
-    null = mdp.NullCommandCfg()
-
-
-@configclass
 class ActionsCfg:
     """Action specifications for the MDP."""
 
@@ -179,8 +171,6 @@ class AntEnvCfg(ManagerBasedRLEnvCfg):
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
-    commands: CommandsCfg = CommandsCfg()
-
     # MDP settings
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()

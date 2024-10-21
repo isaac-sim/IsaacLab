@@ -117,11 +117,10 @@ For various goal-conditioned tasks, it is useful to specify the goals or command
 handled through the :class:`managers.CommandManager`. The command manager handles resampling and updating the
 commands at each step. It can also be used to provide the commands as an observation to the agent.
 
-For this simple task, we do not use any commands. This is specified by using a command term with the
-:class:`envs.mdp.NullCommandCfg` configuration. However, you can see an example of command definitions in the
-locomotion or manipulation tasks.
+In this tutorial we don't implement commands for simplicity, but you can see an example of commands definition in the
+other locomotion or manipulation tasks.
 
-.. literalinclude:: ../../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/classic/cartpole/cartpole_env_cfg.py
+.. literalinclude:: ../../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/locomotion/velocity/velocity_env_cfg.py
    :language: python
    :pyobject: CommandsCfg
 

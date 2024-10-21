@@ -61,14 +61,6 @@ class CartpoleSceneCfg(InteractiveSceneCfg):
 
 
 @configclass
-class CommandsCfg:
-    """Command terms for the MDP."""
-
-    # no commands for this MDP
-    null = mdp.NullCommandCfg()
-
-
-@configclass
 class ActionsCfg:
     """Action specifications for the MDP."""
 
@@ -188,8 +180,6 @@ class CartpoleEnvCfg(ManagerBasedRLEnvCfg):
     curriculum: CurriculumCfg = CurriculumCfg()
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
-    # No command generator
-    commands: CommandsCfg = CommandsCfg()
 
     # Post initialization
     def __post_init__(self) -> None:
