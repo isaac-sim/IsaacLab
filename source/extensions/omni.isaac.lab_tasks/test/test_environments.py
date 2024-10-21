@@ -22,7 +22,7 @@ import carb
 import omni.usd
 
 from omni.isaac.lab.envs import ManagerBasedRLEnvCfg
-from omni.isaac.lab.envs.utils import sample_space
+from omni.isaac.lab.envs.utils.spaces import sample_space
 
 import omni.isaac.lab_tasks  # noqa: F401
 from omni.isaac.lab_tasks.utils.parse_cfg import parse_env_cfg
@@ -88,16 +88,24 @@ class TestEnvironments(unittest.TestCase):
         """Run random actions and check environments returned signals are valid."""
         # create a new stage
         omni.usd.get_context().new_stage()
-        # parse configuration
-        env_cfg: ManagerBasedRLEnvCfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
+        try:
+            # parse configuration
+            env_cfg: ManagerBasedRLEnvCfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
 
-        # skip test if the environment is a multi-agent task
-        if hasattr(env_cfg, "possible_agents"):
-            print(f"[INFO]: Skipping {task_name} as it is a multi-agent task")
-            return
+            # skip test if the environment is a multi-agent task
+            if hasattr(env_cfg, "possible_agents"):
+                print(f"[INFO]: Skipping {task_name} as it is a multi-agent task")
+                return
 
-        # create environment
-        env = gym.make(task_name, cfg=env_cfg)
+            # create environment
+            env = gym.make(task_name, cfg=env_cfg)
+        except Exception as e:
+            if "env" in locals():
+                env.close()
+            else:
+                if hasattr(e, "obj") and hasattr(e.obj, "close"):
+                    e.obj.close()
+            self.fail(f"Failed to set-up the environment for task {task_name}. Error: {e}")
 
         # disable control on stop
         env.unwrapped.sim._app_control_on_stop_handle = None  # type: ignore
