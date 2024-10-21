@@ -69,8 +69,7 @@ class UniformVelocityCommand(CommandTerm):
         self.metrics["error_vel_xy"] = torch.zeros(self.num_envs, device=self.device)
         self.metrics["error_vel_yaw"] = torch.zeros(self.num_envs, device=self.device)
 
-        if self.cfg.heading_command:
-            if self.cfg.ranges.heading is None:
+        if self.cfg.heading_command and self.cfg.ranges.heading is None:
                 raise ValueError(
                     "The velocity command has heading commands active (heading_command=True) but the `ranges.heading`"
                     " parameter is set to None."
