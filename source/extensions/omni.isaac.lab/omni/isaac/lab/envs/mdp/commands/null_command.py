@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 
 class NullCommand(CommandTerm):
     """Command generator that does nothing.
+
     This command generator does not generate any commands. It is used for environments that do not
     require any commands.
     """
@@ -38,6 +39,7 @@ class NullCommand(CommandTerm):
     @property
     def command(self):
         """Null command.
+
         Raises:
             RuntimeError: No command is generated. Always raises this error.
         """
