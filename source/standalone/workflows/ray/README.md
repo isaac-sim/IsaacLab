@@ -57,11 +57,20 @@ An example of what a cloud deploy might look look like is in ``cloud_cluster_con
 
 ### Local and Other Setups
 #### Option A: With Ray Clusters
+
+If you have one machine, you can the following one liner to start a ray server. This
+Ray server will run indefinitely until it is stopped with ```CTRL + C```
+
+```
+echo "import ray; ray.init(); import time; print('Ray is running...'); [time.sleep(10) for _ in iter(int, 1)]" | ./isaaclab.sh -p
+```
+
 On the head machine, run ``ray start --head --port 6379``. On any worker machines,
 make sure you can connect to the head machine, and then run
 ```ray start --address='HEAD_NODE_IP:6379'``` . For more info see
 
 https://docs.ray.io/en/latest/cluster/vms/user-guides/launching-clusters/on-premises.html#on-prem
+
 
 #### Option B: With Kubernetes / KubeRay
 Spin up a kubernetes cluster with GPU passthrough.
@@ -78,8 +87,37 @@ to ``local`` when running ``launch.py``
 See https://docs.ray.io/en/latest/cluster/vms/user-guides/community/slurm.html#slurm-network-ray
 for more information. This guide does not explicitly support SLURM, but it should still be compatible.
 
-# Shared Steps Between Cloud and Local
-As a result of using Ray, running experiments in the cloud and locally have very similar steps.
+# Running Local Experiments
+1. Test that your cluster works
+
+```
+./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py --cluster_cpu_count CPU_FOR_RAY \
+--cluster_gpu_count GPU_FOR_RAY --cluster_ram_gb RAM_FOR_RAY --num_workers 1 --test
+```
+
+2. Submit jobs in the following fashion. You can also use this functionality to isolate the amount
+of resources that are used for Isaac Lab.
+```
+./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py --cluster_cpu_count CPU_FOR_RAY \
+--cluster_gpu_count GPU_FOR_RAY --cluster_ram_gb RAM_FOR_RAY --num_workers 1 --commands '<DESIRED_JOB>'
+```
+If you are using any sort of command line arguments, separate them with a ; delimiter. For example;
+
+```
+./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py --cluster_cpu_count 8 \
+--cluster_gpu_count 1 --cluster_ram_gb 16 --num_workers 1 \
+ --commands './isaaclab.sh;-p;source/standalone/workflows/rl_games/train.py;--task;Isaac-Cartpole-v0;--headless'
+```
+
+
+
+You can also specify more than one job to run in parallel if you have more than one GPU. For example,
+```
+./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py --cluster_cpu_count CPU_FOR_RAY \
+--cluster_gpu_count 2 --cluster_ram_gb RAM_FOR_RAY --num_workers 2 --commands <DESIRED_JOB>
+```
+
+# Running Remote Experiments
 
 ### Kubernetes / KubeRay Specific (You can skip these steps if you've already set up the Ray Cluster)
 
@@ -116,7 +154,7 @@ As a result of using Ray, running experiments in the cloud and locally have very
 	take a moment to run.
 
 	```
-	./isaaclab.sh -p /source/standalone/workflows/ray/grok_cluster_with_kubectl.py
+	./isaaclab.sh -p source/standalone/workflows/ray/grok_cluster_with_kubectl.py
 	```
 
 	If your cluster was created in pure Ray, you must create the file manually with the following contents, one on each
@@ -132,7 +170,7 @@ As a result of using Ray, running experiments in the cloud and locally have very
 	for Ray/Isaac Lab are found on path.
 
 	```
-	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py "test_isaac_ray_cluster.py"
+	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py "wrap_isaac_ray_resources.py --test"
 	```
 
 7. Define your desired Ray job as a script on your local machine.
@@ -141,7 +179,7 @@ As a result of using Ray, running experiments in the cloud and locally have very
 8. Start your distributed Ray job.
 
 	```
-	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py "<YOUR_JOB_HERE>"
+	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py "wrap_isaac_ray_resources.py --commands <YOUR_JOB_HERE>"
 	```
 
 	For example,
@@ -217,13 +255,13 @@ hyperparameter simultaneously in parallel.
 
 4. Check that you can issue a test job to all clusters with
 	```
-	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py "test_isaac_ray_cluster.py"
+	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py "wrap_isaac_ray_resources.py --test"
 	```
 
 5. Batch submit your desired jobs. Each desired job is paired with the IP addresses
 	in the order that they appear.
 	```
-	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py "<JOB_0>" "<JOB_1>" "<JOB_N>"
+	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py "wrap_isaac_ray_resources.py --commands <JOB_0>" "wrap_isaac_ray_resources.py --commands <JOB_1>" "wrap_isaac_ray_resources.py --commands <JOB_N>"
 	```
 
 	For example if you have three clusters, and would like to tune three cartpole variants at once,

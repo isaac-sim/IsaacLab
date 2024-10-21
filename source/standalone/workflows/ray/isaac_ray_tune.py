@@ -3,7 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import argparse
+import importlib.util
+import os
 import subprocess
+import sys
 import time
 
 import isaac_ray_util
@@ -106,7 +110,7 @@ class JobCfg:
 
 
 class RLGamesCameraJobCfg(JobCfg):
-    def __init__(self, cfg={}, vary_env_count: bool = True, vary_cnn: bool = False, vary_mlp: bool = True):
+    def __init__(self, cfg={}, vary_env_count: bool = False, vary_cnn: bool = False, vary_mlp: bool = False):
         # Set up basic runner args
         cfg["runner_args"]["singletons"] = ["--headless", "--enable_cameras"]
         cfg["workflow"] = "/workspace/isaaclab/workflows/rl_games/train.py"
@@ -192,4 +196,62 @@ class RLGamesTheiaCameraJob(RLGamesCameraJobCfg):
 
 
 if __name__ == "__main__":
-    pass
+    parser = argparse.ArgumentParser(description="Tune Cartpole.")
+    parser.add_argument("--tune_type", choices=["standard_no_tune", "standard", "resnet", "theia"])
+    isaac_ray_util.add_cluster_args(parser=parser)
+
+    parser.add_argument(
+        "--train_task_no_tune",
+        type=str,
+        required=False,
+        help="Train a single RL games task without tuning for testing purposes",
+    )
+
+    parser.add_argument(
+        "--hyperparam_cfg_file",
+        type=str,
+        required=False,
+        help="The relative filepath where a hyperparameter sweep is defined",
+    )
+    parser.add_argument(
+        "--hyperparam_cfg_class", type=str, required=False, help="Name of the hyperparameter sweep class to use"
+    )
+    args = parser.parse_args()
+
+    if args.train_task is not None:
+        print(f"Training one task only: {args.train_task}")
+        cfg_cls = RLGamesCameraJobCfg(vary_env_count=False, vary_cnn=False, vary_mlp=False)
+        cfg_cls.cfg["runner_args"]["--task"] = args.train_task
+
+    if args.hyperparam_cfg_file is not None and args.train_task is None:
+        file_path = args.hyperparam_cfg_file
+        class_name = args.hyperparam_cfg_class
+        print(f"Attempting to use sweep config from {file_path = } {class_name = }")
+
+        # Extract the module name from the file name
+        module_name = os.path.splitext(os.path.basename(file_path))[0]
+
+        try:
+            # Step 2: Dynamically load the module from the file
+            spec = importlib.util.spec_from_file_location(module_name, file_path)
+            module = importlib.util.module_from_spec(spec)
+            sys.modules[module_name] = module
+            spec.loader.exec_module(module)
+            print(f"Successfully imported {module_name} from {file_path}")
+
+            # Step 3: Check and instantiate the class from the module
+            if hasattr(module, class_name):
+                ClassToInstantiate = getattr(module, class_name)  # Get the class by name
+                instance = ClassToInstantiate()  # Instantiate the class
+                print(f"Successfully instantiated class '{class_name}' from {file_path}")
+                # You can now interact with the instance, for example:
+                # instance.some_method()
+            else:
+                print(f"Class '{class_name}' not found in {file_path}")
+
+        except FileNotFoundError:
+            print(f"File {file_path} not found")
+        except Exception as e:
+            print(f"Failed to import module or instantiate class from {file_path}: {e}")
+    else:
+        print("No file provided for importing.")

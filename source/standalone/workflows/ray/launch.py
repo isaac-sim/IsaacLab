@@ -138,7 +138,7 @@ def parse_args() -> argparse.Namespace:
         help="Number of GPUs to assign to each worker pod.",
     )
 
-    arg_parser.add_argument("--worker_ram_gb", type=int, default=50, help="How many gigs of RAM to use")
+    arg_parser.add_argument("--worker_ram_gb", type=int, default=16, help="How many gigs of RAM to use")
 
     arg_parser.add_argument(
         "--num_clusters",

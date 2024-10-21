@@ -18,7 +18,7 @@ class CartpoleRGBNoTuneJobCfg(isaac_ray_tune.JobCfg):  # Idempotent
         cfg["workflow"] = "/workspace/isaaclab/workflows/rl_games/train.py"
         cfg["runner_args"]["singletons"] = ["--headless", "--enable_cameras"]
         cfg["hydra_args"] = {}
-        super().__init__(cfg)
+        super().__init__(cfg, vary_env_count=False, vary_cnn=False, vary_mlp=False)
 
 
 class CartpoleRGBJobCfg(isaac_ray_tune.RLGamesCameraJobCfg):
@@ -44,16 +44,16 @@ if __name__ == "__main__":
     parser.add_argument("--tune_type", choices=["standard_no_tune", "standard", "resnet", "theia"])
     isaac_ray_util.add_cluster_args(parser=parser)
     args = parser.parse_args()
-    cfg = None
+    cfg_cls = None
     if args.type == "standard_no_tune":
-        cfg = CartpoleRGBNoTuneJobCfg()
+        cfg_cls = CartpoleRGBNoTuneJobCfg()
     elif args.type == "standard":
-        cfg = CartpoleRGBJobCfg()
+        cfg_cls = CartpoleRGBJobCfg()
     elif args.type == "resnet":
-        cfg = CartpoleResNetJobCfg()
+        cfg_cls = CartpoleResNetJobCfg()
     elif args.type == "theia":
-        cfg = CartpoleTheiaJobCfg()
+        cfg_cls = CartpoleTheiaJobCfg()
     else:
         raise ValueError("Unknown desired tune.")
 
-    isaac_ray_tune.invoke_tuning_run(args=args, cfg=cfg)
+    isaac_ray_tune.invoke_tuning_run(args=args, cfg=cfg_cls.cfg)

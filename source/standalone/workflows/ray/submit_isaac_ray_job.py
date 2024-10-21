@@ -2,31 +2,27 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-
 import argparse
 import logging
 import os
+import sys
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 
 from ray import job_submission
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
+script_directory = os.path.dirname(os.path.abspath(__file__))
+
 # Consolidated configuration
-CONFIG = {"working_dir": ".", "executable": "/workspace/isaaclab/isaaclab.sh -p"}
+CONFIG = {"working_dir": script_directory, "executable": "/workspace/isaaclab/isaaclab.sh -p"}
 
 
 def read_cluster_spec(fn: str | None = None) -> list[dict]:
-    """
-    Reads the ~/.cluster_spec file to get the cluster details.
-
-    Returns:
-        List of cluster information, where each cluster is represented by a dictionary.
-    """
     if fn is None:
-        cluster_spec_path = os.path.expanduser("~/.cluster_spec")
+        cluster_spec_path = os.path.expanduser("~/.cluster_config")
     else:
         cluster_spec_path = os.path.expanduser(fn)
 
@@ -97,37 +93,32 @@ def submit_job(cluster, job_command):
     print("----------------------------------------------------")
 
 
-
 def submit_jobs_to_clusters(jobs, clusters):
-    """
-    Submits a list of jobs to a list of clusters concurrently.
-
-    Args:
-        jobs (list): List of job commands (one per cluster).
-        clusters (list): List of clusters from the config.
-    """
-    # Ensure either one job for all or matching number of jobs to clusters
-    if len(jobs) == 1:
-        jobs = jobs * len(clusters)  # Use the same job for all clusters
-
     if len(jobs) != len(clusters):
-        raise ValueError("Number of jobs does not match the number of clusters.")
-
-    # Use ThreadPoolExecutor to submit jobs concurrently
+        if len(jobs) == 1:  # If only one job is provided, replicate it for all clusters
+            jobs = jobs * len(clusters)
+        else:
+            raise ValueError("Number of jobs does not match the number of clusters.")
+    for job, cluster in zip(jobs, clusters):
+        print(f"{job = } {cluster = }")
     with ThreadPoolExecutor(max_workers=len(clusters)) as executor:
-        futures = [executor.submit(submit_job, cluster, jobs[idx]) for idx, cluster in enumerate(clusters)]
-
+        [executor.submit(submit_job, cluster, jobs[idx]) for idx, cluster in enumerate(clusters)]
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Submit multiple GPU jobs to multiple Ray clusters.")
-    parser.add_argument(
-        "jobs",
-        nargs="+",
-        help="Job commands to run on clusters. If one job is provided, it will be used for all clusters.",
-    )
-    args = parser.parse_args()
+    parser.add_argument("--jobs", nargs="+", help="Job commands to run on clusters, enclosed in quotes.")
+    args, unknown = parser.parse_known_args()  # Accept unknown args
 
     # Read the cluster spec and submit the jobs
     clusters = read_cluster_spec()
-    submit_jobs_to_clusters(args.jobs, clusters)
+
+    # Ensure there's at least one job command
+    if not args.jobs:
+        args.jobs = [" ".join(sys.argv[1:])]  # Take all arguments as a single job if --jobs isn't explicitly used
+
+    if args.jobs:
+        full_jobs = [" ".join([job] + unknown) for job in args.jobs]
+        submit_jobs_to_clusters(full_jobs, clusters)
+    else:
+        logging.error("No jobs specified. Please provide at least one job command.")
