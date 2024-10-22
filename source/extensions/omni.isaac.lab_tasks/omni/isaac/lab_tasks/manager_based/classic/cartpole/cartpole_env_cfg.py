@@ -154,13 +154,6 @@ class TerminationsCfg:
     )
 
 
-@configclass
-class CurriculumCfg:
-    """Configuration for the curriculum."""
-
-    pass
-
-
 ##
 # Environment configuration
 ##
@@ -177,7 +170,6 @@ class CartpoleEnvCfg(ManagerBasedRLEnvCfg):
     actions: ActionsCfg = ActionsCfg()
     events: EventCfg = EventCfg()
     # MDP settings
-    curriculum: CurriculumCfg = CurriculumCfg()
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
 
