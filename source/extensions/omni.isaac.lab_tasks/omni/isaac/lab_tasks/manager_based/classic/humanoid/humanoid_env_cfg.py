@@ -240,7 +240,6 @@ class TerminationsCfg:
     torso_height = DoneTerm(func=mdp.root_height_below_minimum, params={"minimum_height": 0.8})
 
 
-
 @configclass
 class HumanoidEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the MuJoCo-style Humanoid walking environment."""
