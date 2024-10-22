@@ -119,6 +119,7 @@ def invoke_run(cfg, max_line_count=2000):
         return {"proc": None, "experiment_name": None, "logdir": None}
     return {"proc": proc, "experiment_name": experiment_name, "logdir": logdir}
 
+
 def split_args_by_proceeding_py(args):
     """
     Split jobs and arguments by detecting .py scripts in the input args.
@@ -126,7 +127,7 @@ def split_args_by_proceeding_py(args):
     """
     jobs = []
     current_job = []
-    
+
     for arg in args:
         if arg.endswith(".py"):
             if current_job:
@@ -134,11 +135,11 @@ def split_args_by_proceeding_py(args):
             current_job = [arg]
         else:
             current_job.append(arg)
-    
+
     # Add the final job
     if current_job:
         jobs.append(" ".join(current_job))
-    
+
     return jobs
 
 

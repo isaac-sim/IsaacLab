@@ -95,18 +95,18 @@ for more information. This guide does not explicitly support SLURM, but it shoul
 ```
 
 2. Submit jobs in the following fashion. If there are more jobs than
-resources, jobs will be queued up for when resources become available 
+resources, jobs will be queued up for when resources become available
 using the Ray functionality.
 
 ```
-./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py 
+./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py
 <JOB0> <JOB1> <JOB2> #/workspace/isaaclab/source/standalone/workflows/rl_games/train.py ...
 ```
 
 For example,
 
 ```
-./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py 
+./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py
  'source/standalone/workflows/rl_games/train.py --task Isaac-Cartpole-v0 --headless'
 ```
 
@@ -121,7 +121,7 @@ of resources that are used for Isaac Lab.
 You can also specify more than one job to run in parallel if you have more than one GPU. However, in this case, you must isolate resources. For example,
 ```
 ./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py --num_cpu_per_job <CPU> \
---num_gpu_per_job 2 --gb_ram_per_job <RAM> --num_workers 2 --commands <DESIRED_JOB1> <DESIRED_JOB2>
+--num_gpu_per_job 2 --gb_ram_per_job <RAM> --num_workers 2 --commands <JOB0> <JOB1>
 ```
 
 # Running Remote Experiments
@@ -169,7 +169,7 @@ You can also specify more than one job to run in parallel if you have more than 
 	and only need one line in this file. If you only have 1 gpu, then you can only have 1 worker.
 
 	```
-	name: <CLUSTER_NAME> address: http://<RAY_HEAD_IP>.<RAY_DASHBOARD_PORT> 
+	name: <CLUSTER_NAME> address: http://<RAY_HEAD_IP>.<RAY_DASHBOARD_PORT>
 	```
 
 6. Check that you can issue jobs to the cluster, that all GPUs are available,
@@ -257,7 +257,7 @@ hyperparameter simultaneously in parallel.
 	If your cluster was created in pure Ray, you must create the file manually with the following contents, one on each
 	line for every Ray Cluster.
 	```
-	name: <CLUSTER_NAME> address: http://<RAY_HEAD_IP>.<RAY_DASHBOARD_PORT> 
+	name: <CLUSTER_NAME> address: http://<RAY_HEAD_IP>.<RAY_DASHBOARD_PORT>
 	```
 
 4. Check that you can issue a test job to all clusters with

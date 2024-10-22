@@ -3,47 +3,51 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import subprocess
-import re
-import time
 import argparse
 import os
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import re
+import subprocess
 import threading
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
-def get_pods(namespace='default'):
-    cmd = ['kubectl', 'get', 'pods', '-n', namespace, '--no-headers']
+
+def get_pods(namespace="default"):
+    cmd = ["kubectl", "get", "pods", "-n", namespace, "--no-headers"]
     output = subprocess.check_output(cmd).decode()
     pods = []
-    for line in output.strip().split('\n'):
+    for line in output.strip().split("\n"):
         fields = line.split()
         pod_name = fields[0]
         status = fields[2]
         pods.append((pod_name, status))
     return pods
 
+
 def get_clusters(pods, cluster_name_prefix):
     clusters = set()
     # Modify regex pattern to match the entire structure including `-head` or `-worker`
     for pod_name, _ in pods:
-        match = re.match(r'(' + re.escape(cluster_name_prefix) + r'[-\w]+)', pod_name)
+        match = re.match(r"(" + re.escape(cluster_name_prefix) + r"[-\w]+)", pod_name)
         if match:
-            clusters.add(match.group(1).split('-head')[0].split('-worker')[0])
+            clusters.add(match.group(1).split("-head")[0].split("-worker")[0])
     return sorted(clusters)
+
 
 def check_clusters_running(pods, clusters):
     clusters_running = True
     for cluster in clusters:
         cluster_pods = [p for p in pods if p[0].startswith(cluster)]
         total_pods = len(cluster_pods)
-        running_pods = len([p for p in cluster_pods if p[1] == 'Running'])
+        running_pods = len([p for p in cluster_pods if p[1] == "Running"])
         if running_pods != total_pods:
             clusters_running = False
             break
     return clusters_running
 
-def get_ray_address(head_pod, namespace='default'):
-    cmd = ['kubectl', 'logs', head_pod, '-c', 'ray-head', '-n', namespace]
+
+def get_ray_address(head_pod, namespace="default"):
+    cmd = ["kubectl", "logs", head_pod, "-c", "ray-head", "-n", namespace]
     try:
         output = subprocess.check_output(cmd).decode()
     except subprocess.CalledProcessError:
@@ -54,19 +58,21 @@ def get_ray_address(head_pod, namespace='default'):
     else:
         return None
 
-def get_ray_status(head_pod, namespace='default'):
-    cmd = ['kubectl', 'exec', head_pod, '-c', 'ray-head', '-n', namespace, '--', 'ray', 'status']
+
+def get_ray_status(head_pod, namespace="default"):
+    cmd = ["kubectl", "exec", head_pod, "-c", "ray-head", "-n", namespace, "--", "ray", "status"]
     try:
         output = subprocess.check_output(cmd).decode()
         return output
     except subprocess.CalledProcessError:
         return None
 
+
 def process_cluster(cluster_info):
     cluster, pods, namespace = cluster_info
     head_pod = None
     for pod_name, status in pods:
-        if pod_name.startswith(cluster + '-head'):
+        if pod_name.startswith(cluster + "-head"):
             head_pod = pod_name
             break
     if not head_pod:
@@ -79,18 +85,19 @@ def process_cluster(cluster_info):
     ray_status = get_ray_status(head_pod, namespace=namespace)
     if not ray_status:
         return f"Error: Could not get ray status for cluster {cluster}\n"
-    output_line = f"name: {cluster} address: {ray_address}"#num_cpu: {num_cpu} num_gpu: {num_gpu} ram_gb: {ram_gb} total_workers: {total_workers}\n"
+    output_line = (  # num_cpu: {num_cpu} num_gpu: {num_gpu} ram_gb: {ram_gb} total_workers: {total_workers}\n"
+        f"name: {cluster} address: {ray_address}"
+    )
     return output_line
+
 
 def main():
     # Parse command-line arguments
     parser = argparse.ArgumentParser(description="Process Ray clusters and save their specifications.")
-    parser.add_argument('--cluster-prefix', 
-                        default="isaac-lab-hyperparameter-tuner",
-                        help="The prefix for the cluster names.")
-    parser.add_argument('--output-file', 
-                        default='~/.cluster_config', 
-                        help="The file to save cluster specifications.")
+    parser.add_argument(
+        "--cluster-prefix", default="isaac-lab-hyperparameter-tuner", help="The prefix for the cluster names."
+    )
+    parser.add_argument("--output-file", default="~/.cluster_config", help="The file to save cluster specifications.")
     args = parser.parse_args()
 
     CLUSTER_NAME_PREFIX = args.cluster_prefix
@@ -99,11 +106,15 @@ def main():
 
     # Get current namespace
     try:
-        CURRENT_NAMESPACE = subprocess.check_output(['kubectl', 'config', 'view', '--minify', '--output', 'jsonpath={..namespace}']).decode().strip()
+        CURRENT_NAMESPACE = (
+            subprocess.check_output(["kubectl", "config", "view", "--minify", "--output", "jsonpath={..namespace}"])
+            .decode()
+            .strip()
+        )
         if not CURRENT_NAMESPACE:
-            CURRENT_NAMESPACE = 'default'
+            CURRENT_NAMESPACE = "default"
     except subprocess.CalledProcessError:
-        CURRENT_NAMESPACE = 'default'
+        CURRENT_NAMESPACE = "default"
     print(f"Using namespace: {CURRENT_NAMESPACE}")
 
     # Get all pods
@@ -120,9 +131,8 @@ def main():
         pods = get_pods(namespace=CURRENT_NAMESPACE)  # Refresh pods list inside loop
         if check_clusters_running(pods, clusters):
             break
-        else:
-            print("Waiting for all clusters to spin up...")
-            time.sleep(5)
+        print("Waiting for all clusters to spin up...")
+        time.sleep(5)
 
     # Prepare cluster info for parallel processing
     cluster_infos = []
@@ -149,14 +159,15 @@ def main():
     results.sort()
 
     # Write sorted results to the output file
-    with open(CLUSTER_SPEC_FILE, 'w') as f:
+    with open(CLUSTER_SPEC_FILE, "w") as f:
         for result in results:
             f.write(result)
 
     print(f"Cluster spec information saved to {CLUSTER_SPEC_FILE}")
     # Display the contents of the config file
-    with open(CLUSTER_SPEC_FILE, 'r') as f:
+    with open(CLUSTER_SPEC_FILE) as f:
         print(f.read())
+
 
 if __name__ == "__main__":
     main()
