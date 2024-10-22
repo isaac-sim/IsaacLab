@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.26.1 (2024-10-17)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Initialize ``EventManager`` and trigger startup events before ``ObservationManager`` in ``load_managers`` API of
+  ``ManagerBasedEnv``. This allows observations that may depend on a startup event.
+* Enable startup events in ``load_managers`` for child classes.
+
+
 0.26.0 (2024-10-16)
 ~~~~~~~~~~~~~~~~~~~
 
