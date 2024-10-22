@@ -14,6 +14,8 @@ Added
 * Added support for environments without commands by leaving the attribute
   :attr:`omni.isaac.lab.envs.ManagerBasedRLEnvCfg.commands` as None. Before, this had to be done using
   the class :class:`omni.isaac.lab.command_generators.NullCommandGenerator`.
+* Moved the ``meshes`` attribute in the :class:`omni.isaac.lab.sensors.RayCaster` class from class variable to instance variable.
+   This prevents the meshes to overwrite each other.
 
 
 0.26.0 (2024-10-16)
