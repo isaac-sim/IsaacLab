@@ -13,7 +13,6 @@ keywords = ["kit", "robotics", "learning", "ai"]
 
 [dependencies]
 "omni.isaac.core" = {}
-"omni.isaac.ml_archive" = {}
 "omni.replicator.core" = {}
 
 [python.pipapi]
