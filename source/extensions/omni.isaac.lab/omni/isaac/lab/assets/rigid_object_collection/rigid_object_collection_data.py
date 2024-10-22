@@ -63,7 +63,9 @@ class RigidObjectCollectionData:
 
         # Initialize constants
         self.GRAVITY_VEC_W = gravity_dir.repeat(self.num_instances, self.num_objects, 1)
-        self.FORWARD_VEC_B = torch.tensor((1.0, 0.0, 0.0), device=self.device).repeat(self.num_instances, self.num_objects, 1)
+        self.FORWARD_VEC_B = torch.tensor((1.0, 0.0, 0.0), device=self.device).repeat(
+            self.num_instances, self.num_objects, 1
+        )
 
         # Initialize the lazy buffers.
         self._object_state_w = TimestampedBuffer()
@@ -90,7 +92,7 @@ class RigidObjectCollectionData:
     ##
 
     default_object_state: torch.Tensor = None
-    """Default obejct state ``[pos, quat, lin_vel, ang_vel]`` in local environment frame. Shape is (num_instances, num_objects, 13).
+    """Default object state ``[pos, quat, lin_vel, ang_vel]`` in local environment frame. Shape is (num_instances, num_objects, 13).
 
     The position and quaternion are of each object's rigid body's actor frame. Meanwhile, the linear and angular velocities are
     of the center of mass frame.
@@ -232,7 +234,6 @@ class RigidObjectCollectionData:
         This quantity is the angular acceleration of the rigid bodies' center of mass frame.
         """
         return self.object_acc_w[..., 3:6]
-    
 
     ##
     # Helpers.
@@ -240,11 +241,11 @@ class RigidObjectCollectionData:
 
     def _view_to_data_order(self, data: torch.Tensor) -> torch.Tensor:
         """Reshapes the physics view's data to (num_instances, num_objects, data_size).
-        
+
         Args:
             data: The data from the physics view. Shape is (num_instances*num_objects, data_size).
 
         Returns:
             The reshaped data. Shape is (num_objects, num_instances, data_size).
         """
-        return torch.einsum('ijk -> jik', data.reshape(self.num_objects, self.num_instances, -1))       
+        return torch.einsum("ijk -> jik", data.reshape(self.num_objects, self.num_instances, -1))

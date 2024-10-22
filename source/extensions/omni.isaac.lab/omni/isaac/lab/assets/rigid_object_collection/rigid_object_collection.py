@@ -5,17 +5,16 @@
 
 from __future__ import annotations
 
-import inspect
 import re
-import weakref
 import torch
+import weakref
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import omni.kit.app
-import omni.timeline
 import omni.log
 import omni.physics.tensors.impl.api as physx
+import omni.timeline
 from pxr import UsdPhysics
 
 import omni.isaac.lab.sim as sim_utils
@@ -32,7 +31,7 @@ if TYPE_CHECKING:
 class RigidObjectCollection(AssetBase):
     """A rigid object collection class.
 
-    This class represents a collection of rigid objects in the simulation. The state of the rigid objects can be 
+    This class represents a collection of rigid objects in the simulation. The state of the rigid objects can be
     accessed and modified using an batched API.
 
 
@@ -90,10 +89,8 @@ class RigidObjectCollection(AssetBase):
             lambda event, obj=weakref.proxy(self): obj._invalidate_initialize_callback(event),
             order=10,
         )
-        # add handle for debug visualization (this is set to a valid handle inside set_debug_vis)
+
         self._debug_vis_handle = None
-        # set initial state of debug visualization
-        # self.set_debug_vis(self.cfg.debug_vis)
 
     """
     Properties
@@ -118,7 +115,7 @@ class RigidObjectCollection(AssetBase):
     @property
     def object_names(self) -> list[str]:
         """Ordered names of bodies in the rigid object collection."""
-        return self._object_names_list 
+        return self._object_names_list
 
     @property
     def root_physx_view(self) -> physx.RigidBodyView:
@@ -133,7 +130,7 @@ class RigidObjectCollection(AssetBase):
     Operations.
     """
 
-    def reset(self, env_ids: torch.Tensor| None = None, object_ids: torch.Tensor | None = None):
+    def reset(self, env_ids: torch.Tensor | None = None, object_ids: torch.Tensor | None = None):
         # resolve all indices
         if env_ids is None:
             env_ids = self._ALL_ENV_INDICES
@@ -167,7 +164,9 @@ class RigidObjectCollection(AssetBase):
     Operations - Finders.
     """
 
-    def find_objects(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[torch.Tensor, list[str]]:
+    def find_objects(
+        self, name_keys: str | Sequence[str], preserve_order: bool = False
+    ) -> tuple[torch.Tensor, list[str]]:
         """Find objects in the collection based on the name keys.
 
         Please check the :meth:`omni.isaac.lab.utils.string_utils.resolve_matching_names` function for more
@@ -187,7 +186,9 @@ class RigidObjectCollection(AssetBase):
     Operations - Write to simulation.
     """
 
-    def write_object_state_to_sim(self, object_state: torch.Tensor, env_ids: torch.Tensor | None = None, object_ids: torch.Tensor | None = None):
+    def write_object_state_to_sim(
+        self, object_state: torch.Tensor, env_ids: torch.Tensor | None = None, object_ids: torch.Tensor | None = None
+    ):
         """Set the object state over selected environment and object indices into the simulation.
 
         The object state comprises of the cartesian position, quaternion orientation in (w, x, y, z), and linear
@@ -202,7 +203,9 @@ class RigidObjectCollection(AssetBase):
         self.write_object_pose_to_sim(object_state[..., :7], env_ids=env_ids, object_ids=object_ids)
         self.write_object_velocity_to_sim(object_state[..., 7:], env_ids=env_ids, object_ids=object_ids)
 
-    def write_object_pose_to_sim(self, object_pose: torch.Tensor, env_ids: torch.Tensor | None = None, object_ids: torch.Tensor | None = None):
+    def write_object_pose_to_sim(
+        self, object_pose: torch.Tensor, env_ids: torch.Tensor | None = None, object_ids: torch.Tensor | None = None
+    ):
         """Set the object pose over selected environment and object indices into the simulation.
 
         The object pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
@@ -229,7 +232,9 @@ class RigidObjectCollection(AssetBase):
         view_ids = self._env_obj_ids_to_view_ids(env_ids, object_ids)
         self.root_physx_view.set_transforms(self.reshape_data_to_view(poses_xyzw), indices=view_ids)
 
-    def write_object_velocity_to_sim(self, object_velocity: torch.Tensor, env_ids: torch.Tensor | None = None, object_ids: torch.Tensor | None = None):
+    def write_object_velocity_to_sim(
+        self, object_velocity: torch.Tensor, env_ids: torch.Tensor | None = None, object_ids: torch.Tensor | None = None
+    ):
         """Set the object velocity over selected environment and object indices into the simulation.
 
         Args:
@@ -247,10 +252,12 @@ class RigidObjectCollection(AssetBase):
 
         self._data.object_state_w[env_ids[:, None], object_ids, 7:] = object_velocity.clone()
         self._data.object_acc_w[env_ids[:, None], object_ids] = 0.0
-        
+
         # set into simulation
         view_ids = self._env_obj_ids_to_view_ids(env_ids, object_ids)
-        self.root_physx_view.set_velocities(self.reshape_data_to_view(self._data.object_state_w[..., 7:]), indices=view_ids)
+        self.root_physx_view.set_velocities(
+            self.reshape_data_to_view(self._data.object_state_w[..., 7:]), indices=view_ids
+        )
 
     """
     Operations - Setters.
@@ -342,13 +349,13 @@ class RigidObjectCollection(AssetBase):
             root_prim_path_exprs.append(root_prim_path_expr.replace(".*", "*"))
 
             self._object_names_list.append(name)
-        
+
         # -- object view
         self._root_physx_view = self._physics_sim_view.create_rigid_body_view(root_prim_path_exprs)
 
         # check if the rigid body was created
         if self._root_physx_view._backend is None:
-            raise RuntimeError(f"Failed to create multi rigid body. Please check PhysX logs.")
+            raise RuntimeError("Failed to create rigid body collection. Please check PhysX logs.")
 
         # log information about the rigid body
         omni.log.info(f"Number of instances: {self.num_instances}")
@@ -393,7 +400,11 @@ class RigidObjectCollection(AssetBase):
                 + tuple(rigid_object_cfg.init_state.lin_vel)
                 + tuple(rigid_object_cfg.init_state.ang_vel)
             )
-            default_object_state = torch.tensor(default_object_state, dtype=torch.float, device=self.device).repeat(self.num_instances, 1).unsqueeze(1)
+            default_object_state = (
+                torch.tensor(default_object_state, dtype=torch.float, device=self.device)
+                .repeat(self.num_instances, 1)
+                .unsqueeze(1)
+            )
             default_object_states.append(default_object_state)
         # concatenate the default state for each object
         default_object_states = torch.cat(default_object_states, dim=1)
@@ -401,15 +412,15 @@ class RigidObjectCollection(AssetBase):
 
     def reshape_view_to_data(self, data: torch.Tensor) -> torch.Tensor:
         """Reshapes the physics view's data to (num_instances, num_objects, data_size).
-        
+
         Args:
             data: The data from the physics view. Shape is (num_instances*num_objects, data_size).
 
         Returns:
             The reshaped data. Shape is (num_instances, num_objects, data_size).
         """
-        return torch.einsum('ijk -> jik', data.reshape(self.num_objects, self.num_instances, -1))
-    
+        return torch.einsum("ijk -> jik", data.reshape(self.num_objects, self.num_instances, -1))
+
     def reshape_data_to_view(self, data: torch.Tensor) -> torch.Tensor:
         """Reshapes the data to the physics view's order (num_instances*num_objects, data_size).
 
@@ -419,8 +430,8 @@ class RigidObjectCollection(AssetBase):
         Returns:
             The reshaped data. Shape is (num_instances*num_objects, data_size).
         """
-        return torch.einsum('ijk -> jik', data).reshape(self.num_objects*self.num_instances, *data.shape[2:])
-        
+        return torch.einsum("ijk -> jik", data).reshape(self.num_objects * self.num_instances, *data.shape[2:])
+
     def _env_obj_ids_to_view_ids(self, env_ids: torch.Tensor, object_ids: torch.Tensor) -> torch.Tensor:
         """Converts environment and object indices to view indices.
 
@@ -434,8 +445,6 @@ class RigidObjectCollection(AssetBase):
         # the order is env_0/object_0, env_0/object_1, env_0/object_..., env_1/object_0, env_1/object_1, ...
         # return a flat tensor of indices
         return (object_ids.unsqueeze(1) * self.num_instances + env_ids).flatten()
-
-
 
     """
     Internal simulation callbacks.

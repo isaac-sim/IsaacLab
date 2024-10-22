@@ -28,15 +28,19 @@ import unittest
 import omni.isaac.core.utils.prims as prim_utils
 
 import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.assets import RigidObjectCollection, RigidObjectCollectionCfg, RigidObjectCfg
+from omni.isaac.lab.assets import RigidObjectCfg, RigidObjectCollection, RigidObjectCollectionCfg
 from omni.isaac.lab.sim import build_simulation_context
-from omni.isaac.lab.sim.spawners import materials
 from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
 from omni.isaac.lab.utils.math import default_orientation, random_orientation
 
 
 def generate_cubes_scene(
-    num_envs: int = 1, num_cubes: int = 1, height=1.0, has_api: bool = True, kinematic_enabled: bool = False, device: str = "cuda:0"
+    num_envs: int = 1,
+    num_cubes: int = 1,
+    height=1.0,
+    has_api: bool = True,
+    kinematic_enabled: bool = False,
+    device: str = "cuda:0",
 ) -> tuple[RigidObjectCollection, torch.Tensor]:
     """Generate a scene with the provided number of cubes.
 
@@ -76,7 +80,7 @@ def generate_cubes_scene(
         cube_object_cfg = RigidObjectCfg(
             prim_path=f"/World/Table_.*/Object_{i}",
             spawn=spawn_cfg,
-            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 3*i, height)),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 3 * i, height)),
         )
         cube_config_dict[f"cube_{i}"] = cube_object_cfg
     # create the rigid object collection
@@ -92,7 +96,7 @@ class TestRigidObjectCollection(unittest.TestCase):
     """
     Tests
     """
-    
+
     def test_initialization(self):
         """Test initialization for prim with rigid body API at the provided prim path."""
         for num_envs in (1, 2):
@@ -101,7 +105,9 @@ class TestRigidObjectCollection(unittest.TestCase):
                     with self.subTest(num_envs=num_envs, num_cubes=num_cubes, device=device):
                         with build_simulation_context(device=device, auto_add_lighting=True) as sim:
                             # Generate cubes scene
-                            object_collection, _ = generate_cubes_scene(num_envs=num_envs, num_cubes=num_cubes, device=device)
+                            object_collection, _ = generate_cubes_scene(
+                                num_envs=num_envs, num_cubes=num_cubes, device=device
+                            )
 
                             # Check that boundedness of rigid object is correct
                             self.assertEqual(ctypes.c_long.from_address(id(object_collection)).value, 1)
@@ -137,18 +143,28 @@ class TestRigidObjectCollection(unittest.TestCase):
                     # Play sim
                     sim.reset()
 
-                    expected = [torch.tensor([4, 5], device=device, dtype=torch.long),
-                                torch.tensor([4], device=device, dtype=torch.long),
-                                torch.tensor([0, 2, 4], device=device, dtype=torch.long),
-                                torch.tensor([1, 3, 5], device=device, dtype=torch.long)]
+                    expected = [
+                        torch.tensor([4, 5], device=device, dtype=torch.long),
+                        torch.tensor([4], device=device, dtype=torch.long),
+                        torch.tensor([0, 2, 4], device=device, dtype=torch.long),
+                        torch.tensor([1, 3, 5], device=device, dtype=torch.long),
+                    ]
 
-                    view_ids = object_collection._env_obj_ids_to_view_ids(object_collection._ALL_ENV_INDICES, object_collection._ALL_OBJ_INDICES[None, 2])
+                    view_ids = object_collection._env_obj_ids_to_view_ids(
+                        object_collection._ALL_ENV_INDICES, object_collection._ALL_OBJ_INDICES[None, 2]
+                    )
                     self.assertTrue((view_ids == expected[0]).all())
-                    view_ids = object_collection._env_obj_ids_to_view_ids(object_collection._ALL_ENV_INDICES[None, 0], object_collection._ALL_OBJ_INDICES[None, 2])
+                    view_ids = object_collection._env_obj_ids_to_view_ids(
+                        object_collection._ALL_ENV_INDICES[None, 0], object_collection._ALL_OBJ_INDICES[None, 2]
+                    )
                     self.assertTrue((view_ids == expected[1]).all())
-                    view_ids = object_collection._env_obj_ids_to_view_ids(object_collection._ALL_ENV_INDICES[None, 0], object_collection._ALL_OBJ_INDICES)
+                    view_ids = object_collection._env_obj_ids_to_view_ids(
+                        object_collection._ALL_ENV_INDICES[None, 0], object_collection._ALL_OBJ_INDICES
+                    )
                     self.assertTrue((view_ids == expected[2]).all())
-                    view_ids = object_collection._env_obj_ids_to_view_ids(object_collection._ALL_ENV_INDICES[None, 1], object_collection._ALL_OBJ_INDICES)
+                    view_ids = object_collection._env_obj_ids_to_view_ids(
+                        object_collection._ALL_ENV_INDICES[None, 1], object_collection._ALL_OBJ_INDICES
+                    )
                     self.assertTrue((view_ids == expected[3]).all())
 
     def test_initialization_with_kinematic_enabled(self):
@@ -218,8 +234,12 @@ class TestRigidObjectCollection(unittest.TestCase):
                 for device in ("cuda:0", "cpu"):
                     with self.subTest(num_envs=num_envs, num_cubes=num_cubes, device=device):
                         # Generate cubes scene
-                        with build_simulation_context(device=device, add_ground_plane=True, auto_add_lighting=True) as sim:
-                            object_collection, origins = generate_cubes_scene(num_envs=num_envs, num_cubes=num_cubes, device=device)
+                        with build_simulation_context(
+                            device=device, add_ground_plane=True, auto_add_lighting=True
+                        ) as sim:
+                            object_collection, origins = generate_cubes_scene(
+                                num_envs=num_envs, num_cubes=num_cubes, device=device
+                            )
 
                             # Play the simulator
                             sim.reset()
@@ -228,7 +248,9 @@ class TestRigidObjectCollection(unittest.TestCase):
                             object_ids, object_names = object_collection.find_objects(".*")
 
                             # Sample a force equal to the weight of the object
-                            external_wrench_b = torch.zeros(object_collection.num_instances, len(object_ids), 6, device=sim.device)
+                            external_wrench_b = torch.zeros(
+                                object_collection.num_instances, len(object_ids), 6, device=sim.device
+                            )
                             # Every 2nd cube should have a force applied to it
                             external_wrench_b[:, 0::2, 2] = 9.81 * object_collection.data.default_mass[:, 0::2, 0]
 
@@ -261,7 +283,8 @@ class TestRigidObjectCollection(unittest.TestCase):
 
                                 # First object should still be at the same Z position (1.0)
                                 torch.testing.assert_close(
-                                    object_collection.data.object_pos_w[:, 0::2, 2], torch.ones_like(object_collection.data.object_pos_w[:, 0::2, 2])
+                                    object_collection.data.object_pos_w[:, 0::2, 2],
+                                    torch.ones_like(object_collection.data.object_pos_w[:, 0::2, 2]),
                                 )
                                 # Second object should have fallen, so it's Z height should be less than initial height of 1.0
                                 self.assertTrue(torch.all(object_collection.data.object_pos_w[:, 1::2, 2] < 1.0))
@@ -279,9 +302,13 @@ class TestRigidObjectCollection(unittest.TestCase):
                     with self.subTest(num_envs=num_envs, num_cubes=num_cubes, device=device):
                         # Turn off gravity for this test as we don't want any external forces acting on the object
                         # to ensure state remains static
-                        with build_simulation_context(device=device, gravity_enabled=False, auto_add_lighting=True) as sim:
+                        with build_simulation_context(
+                            device=device, gravity_enabled=False, auto_add_lighting=True
+                        ) as sim:
                             # Generate cubes scene
-                            object_collection, origins = generate_cubes_scene(num_envs=num_envs, num_cubes=num_cubes, device=device)
+                            object_collection, origins = generate_cubes_scene(
+                                num_envs=num_envs, num_cubes=num_cubes, device=device
+                            )
 
                             # Play the simulator
                             sim.reset()
@@ -291,10 +318,18 @@ class TestRigidObjectCollection(unittest.TestCase):
                             # Set each state type individually as they are dependent on each other
                             for state_type_to_randomize in state_types:
                                 state_dict = {
-                                    "object_pos_w": torch.zeros_like(object_collection.data.object_pos_w, device=sim.device),
-                                    "object_quat_w": default_orientation(num=num_cubes*num_envs, device=sim.device).view(num_envs, num_cubes, 4),
-                                    "object_lin_vel_w": torch.zeros_like(object_collection.data.object_lin_vel_w, device=sim.device),
-                                    "object_ang_vel_w": torch.zeros_like(object_collection.data.object_ang_vel_w, device=sim.device),
+                                    "object_pos_w": torch.zeros_like(
+                                        object_collection.data.object_pos_w, device=sim.device
+                                    ),
+                                    "object_quat_w": default_orientation(
+                                        num=num_cubes * num_envs, device=sim.device
+                                    ).view(num_envs, num_cubes, 4),
+                                    "object_lin_vel_w": torch.zeros_like(
+                                        object_collection.data.object_lin_vel_w, device=sim.device
+                                    ),
+                                    "object_ang_vel_w": torch.zeros_like(
+                                        object_collection.data.object_ang_vel_w, device=sim.device
+                                    ),
                                 }
 
                                 # Now we are ready!
@@ -305,13 +340,17 @@ class TestRigidObjectCollection(unittest.TestCase):
                                     # Set random state
                                     if state_type_to_randomize == "object_quat_w":
                                         state_dict[state_type_to_randomize] = random_orientation(
-                                            num=num_cubes*num_envs, device=sim.device
+                                            num=num_cubes * num_envs, device=sim.device
                                         ).view(num_envs, num_cubes, 4)
                                     else:
-                                        state_dict[state_type_to_randomize] = torch.randn(num_envs, num_cubes, 3, device=sim.device)
+                                        state_dict[state_type_to_randomize] = torch.randn(
+                                            num_envs, num_cubes, 3, device=sim.device
+                                        )
                                         # make sure objects do not overlap
                                         if state_type_to_randomize == "object_pos_w":
-                                            state_dict[state_type_to_randomize][..., :2] += origins.unsqueeze(1)[..., :2]
+                                            state_dict[state_type_to_randomize][..., :2] += origins.unsqueeze(1)[
+                                                ..., :2
+                                            ]
 
                                     # perform simulation
                                     for _ in range(5):
@@ -342,9 +381,13 @@ class TestRigidObjectCollection(unittest.TestCase):
             for num_cubes in (1, 2):
                 for device in ("cuda:0", "cpu"):
                     with self.subTest(num_envs=num_envs, num_cubes=num_cubes, device=device):
-                        with build_simulation_context(device=device, gravity_enabled=True, auto_add_lighting=True) as sim:
+                        with build_simulation_context(
+                            device=device, gravity_enabled=True, auto_add_lighting=True
+                        ) as sim:
                             # Generate cubes scene
-                            object_collection, _ = generate_cubes_scene(num_envs=num_envs, num_cubes=num_cubes, device=device)
+                            object_collection, _ = generate_cubes_scene(
+                                num_envs=num_envs, num_cubes=num_cubes, device=device
+                            )
 
                             # Play the simulator
                             sim.reset()
@@ -383,7 +426,9 @@ class TestRigidObjectCollection(unittest.TestCase):
                             device=device, gravity_enabled=True, add_ground_plane=True, auto_add_lighting=True
                         ) as sim:
                             # Generate cubes scene
-                            object_collection, _ = generate_cubes_scene(num_envs=num_envs, num_cubes=num_cubes, device=device)
+                            object_collection, _ = generate_cubes_scene(
+                                num_envs=num_envs, num_cubes=num_cubes, device=device
+                            )
 
                             # Play sim
                             sim.reset()
@@ -395,9 +440,11 @@ class TestRigidObjectCollection(unittest.TestCase):
 
                             materials = torch.cat([static_friction, dynamic_friction, restitution], dim=-1)
 
-                            indices = torch.tensor(range(num_cubes*num_envs), dtype=torch.int)
+                            indices = torch.tensor(range(num_cubes * num_envs), dtype=torch.int)
                             # Add friction to cube
-                            object_collection.root_physx_view.set_material_properties(object_collection.reshape_data_to_view(materials), indices)
+                            object_collection.root_physx_view.set_material_properties(
+                                object_collection.reshape_data_to_view(materials), indices
+                            )
 
                             # Simulate physics
                             # perform rendering
@@ -409,7 +456,9 @@ class TestRigidObjectCollection(unittest.TestCase):
                             materials_to_check = object_collection.root_physx_view.get_material_properties()
 
                             # Check if material properties are set correctly
-                            torch.testing.assert_close(object_collection.reshape_view_to_data(materials_to_check), materials)
+                            torch.testing.assert_close(
+                                object_collection.reshape_view_to_data(materials_to_check), materials
+                            )
 
     def test_gravity_vec_w(self):
         """Test that gravity vector direction is set correctly for the rigid object."""
@@ -417,10 +466,14 @@ class TestRigidObjectCollection(unittest.TestCase):
             for num_cubes in (1, 2):
                 for device in ("cuda:0", "cpu"):
                     for gravity_enabled in [True, False]:
-                        with self.subTest(num_envs=num_envs, num_cubes=num_cubes, device=device, gravity_enabled=gravity_enabled):
+                        with self.subTest(
+                            num_envs=num_envs, num_cubes=num_cubes, device=device, gravity_enabled=gravity_enabled
+                        ):
                             with build_simulation_context(device=device, gravity_enabled=gravity_enabled) as sim:
                                 # Create a scene with random cubes
-                                object_collection, _ = generate_cubes_scene(num_envs=num_envs, num_cubes=num_cubes, device=device)
+                                object_collection, _ = generate_cubes_scene(
+                                    num_envs=num_envs, num_cubes=num_cubes, device=device
+                                )
 
                                 # Obtain gravity direction
                                 if gravity_enabled:
