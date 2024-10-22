@@ -1,14 +1,14 @@
 #TODO: Move me into docs ;p
 
-# Ray Integration
+# Welcome to Isaac-Ray
 
-Through using Ray, we streamline distributed training runs.
+Through using Ray, we streamline training runs.
 
 The Ray integration is useful to you if any of the following apply:
+- You want to run several training runs at once or consecutively with minimal interaction
 - You want to use the same training setup everywhere (on cloud and local) with minimal overhead
 - You want to tune models' hyperparameters as fast as possible in parallel on multiple GPUs
 	and/or multiple GPU Nodes
-- You want to run several training runs at once
 - You want to simultaneously tune model hyperparameters for different environments/agents (see
 	advanced usage)
 
@@ -69,14 +69,12 @@ Alternatively, if you have more than one machine,
 
 On the head machine, run ``ray start --head --port 6379``. On any worker machines,
 make sure you can connect to the head machine, and then run
-```ray start --address='HEAD_NODE_IP:6379'``` . For more info see
-
-https://docs.ray.io/en/latest/cluster/vms/user-guides/launching-clusters/on-premises.html#on-prem
+```ray start --address='<HEAD_NODE_IP>:6379'``` . For more info follow [this link](https://docs.ray.io/en/latest/cluster/vms/user-guides/launching-clusters/on-premises.html#on-prem)
 
 
 #### Option B: With Kubernetes / KubeRay
 Spin up a kubernetes cluster with GPU passthrough.
-For an example, see https://docs.wandb.ai/tutorials/minikube_gpu/
+For an example, follow [this link](https://docs.wandb.ai/tutorials/minikube_gpu/)
 
 Install ray operator on the local cluster, and make a container where ray is installed.
 See ``cluster_configs/Dockerfile`` for an example. Create a ``kuberay.yaml.jinja``
@@ -86,37 +84,44 @@ to ``local`` when running ``launch.py``
 
 #### Option C: With SLURM
 
-See https://docs.ray.io/en/latest/cluster/vms/user-guides/community/slurm.html#slurm-network-ray
+See [this link](https://docs.ray.io/en/latest/cluster/vms/user-guides/community/slurm.html#slurm-network-ray)
 for more information. This guide does not explicitly support SLURM, but it should still be compatible.
 
 # Running Local Experiments
 1. Test that your cluster works
 
 ```
-./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py --cluster_cpu_count CPU_FOR_RAY \
---cluster_gpu_count GPU_FOR_RAY --cluster_ram_gb RAM_FOR_RAY --num_workers 1 --test
+./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py --test
 ```
 
-2. Submit jobs in the following fashion. You can also use this functionality to isolate the amount
+2. Submit jobs in the following fashion. If there are more jobs than
+resources, jobs will be queued up for when resources become available 
+using the Ray functionality.
+
+```
+./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py 
+<JOB0> <JOB1> <JOB2> #/workspace/isaaclab/source/standalone/workflows/rl_games/train.py ...
+```
+
+For example,
+
+```
+./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py 
+ 'source/standalone/workflows/rl_games/train.py --task Isaac-Cartpole-v0 --headless'
+```
+
+
+You can also use this functionality to isolate the amount
 of resources that are used for Isaac Lab.
 ```
-./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py --cluster_cpu_count CPU_FOR_RAY \
---cluster_gpu_count GPU_FOR_RAY --cluster_ram_gb RAM_FOR_RAY --num_workers 1 --commands '<DESIRED_JOB>'
-```
-If you are using any sort of command line arguments, separate them with a ; delimiter. For example;
-
-```
-./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py --cluster_cpu_count 8 \
---cluster_gpu_count 1 --cluster_ram_gb 16 --num_workers 1 \
- --commands './isaaclab.sh;-p;source/standalone/workflows/rl_games/train.py;--task;Isaac-Cartpole-v0;--headless'
+./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py --num_cpu_per_job <CPU> \
+--num_gpu_per_job <GPU> --gb_ram_per_job <RAM> --num_workers 1  <JOB>
 ```
 
-
-
-You can also specify more than one job to run in parallel if you have more than one GPU. For example,
+You can also specify more than one job to run in parallel if you have more than one GPU. However, in this case, you must isolate resources. For example,
 ```
-./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py --cluster_cpu_count CPU_FOR_RAY \
---cluster_gpu_count 2 --cluster_ram_gb RAM_FOR_RAY --num_workers 2 --commands <DESIRED_JOB>
+./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py --num_cpu_per_job <CPU> \
+--num_gpu_per_job 2 --gb_ram_per_job <RAM> --num_workers 2 --commands <DESIRED_JOB1> <DESIRED_JOB2>
 ```
 
 # Running Remote Experiments
@@ -164,7 +169,7 @@ You can also specify more than one job to run in parallel if you have more than 
 	and only need one line in this file. If you only have 1 gpu, then you can only have 1 worker.
 
 	```
-	name: <CLUSTER_NAME> address: http://<RAY_HEAD_IP>.<RAY_DASHBOARD_PORT> num_cpu: <TOTAL_CLUSTER_CPU_COUNT> num_gpu: <TOTAL_CLUSTER_GPU_COUNT> rm_gb: <TOTAL_GIGABYTES_RAM> num_workers: <NUM_WORKERS>
+	name: <CLUSTER_NAME> address: http://<RAY_HEAD_IP>.<RAY_DASHBOARD_PORT> 
 	```
 
 6. Check that you can issue jobs to the cluster, that all GPUs are available,
@@ -172,7 +177,7 @@ You can also specify more than one job to run in parallel if you have more than 
 	for Ray/Isaac Lab are found on path.
 
 	```
-	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py "wrap_isaac_ray_resources.py --test"
+	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py "--test"
 	```
 
 7. Define your desired Ray job as a script on your local machine.
@@ -181,7 +186,7 @@ You can also specify more than one job to run in parallel if you have more than 
 8. Start your distributed Ray job.
 
 	```
-	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py "wrap_isaac_ray_resources.py --commands <YOUR_JOB_HERE>"
+	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py "wrap_isaac_ray_resources.py --jobs <YOUR_JOB_HERE>"
 	```
 
 	For example,
@@ -252,7 +257,7 @@ hyperparameter simultaneously in parallel.
 	If your cluster was created in pure Ray, you must create the file manually with the following contents, one on each
 	line for every Ray Cluster.
 	```
-	name: <CLUSTER_NAME> address: http://<RAY_HEAD_IP>.<RAY_DASHBOARD_PORT> num_cpu: <TOTAL_CLUSTER_CPU_COUNT> num_gpu: <TOTAL_CLUSTER_GPU_COUNT>
+	name: <CLUSTER_NAME> address: http://<RAY_HEAD_IP>.<RAY_DASHBOARD_PORT> 
 	```
 
 4. Check that you can issue a test job to all clusters with

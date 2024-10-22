@@ -24,10 +24,11 @@ def get_pods(namespace='default'):
 
 def get_clusters(pods, cluster_name_prefix):
     clusters = set()
+    # Modify regex pattern to match the entire structure including `-head` or `-worker`
     for pod_name, _ in pods:
-        match = re.match(r'(' + re.escape(cluster_name_prefix) + r'-\d+)', pod_name)
+        match = re.match(r'(' + re.escape(cluster_name_prefix) + r'[-\w]+)', pod_name)
         if match:
-            clusters.add(match.group(1))
+            clusters.add(match.group(1).split('-head')[0].split('-worker')[0])
     return sorted(clusters)
 
 def check_clusters_running(pods, clusters):
@@ -61,39 +62,8 @@ def get_ray_status(head_pod, namespace='default'):
     except subprocess.CalledProcessError:
         return None
 
-def parse_ray_status(ray_status):
-    num_cpu = None
-    num_gpu = None
-    ram_gb = None
-
-    lines = ray_status.split('\n')
-    in_resources = False
-
-    for line in lines:
-        # Toggle when in resources section
-        if 'Resources' in line:
-            in_resources = True
-            continue
-        # Parse resource section
-        if in_resources:
-            cpu_match = re.match(r'\s*([0-9.]+)/([0-9.]+) CPU', line)
-            if cpu_match:
-                num_cpu = float(cpu_match.group(2))
-            gpu_match = re.match(r'\s*([0-9.]+)/([0-9.]+) GPU', line)
-            if gpu_match:
-                num_gpu = float(gpu_match.group(2))
-            ram_match = re.match(r'\s*0B/([0-9.]+)GiB memory', line)
-            if ram_match:
-                ram_gb = float(ram_match.group(1))
-
-    return num_cpu, num_gpu, ram_gb
-
-def count_worker_pods(pods, cluster):
-    return sum(1 for pod_name, status in pods if pod_name.startswith(cluster + '-worker') and status == 'Running')
-
 def process_cluster(cluster_info):
     cluster, pods, namespace = cluster_info
-    # Find head pod
     head_pod = None
     for pod_name, status in pods:
         if pod_name.startswith(cluster + '-head'):
@@ -102,24 +72,14 @@ def process_cluster(cluster_info):
     if not head_pod:
         return f"Error: Could not find head pod for cluster {cluster}\n"
 
-    # Get RAY_ADDRESS
+    # Get RAY_ADDRESS and status
     ray_address = get_ray_address(head_pod, namespace=namespace)
     if not ray_address:
         return f"Error: Could not find RAY_ADDRESS for cluster {cluster}\n"
-
-    # Get ray status
     ray_status = get_ray_status(head_pod, namespace=namespace)
     if not ray_status:
         return f"Error: Could not get ray status for cluster {cluster}\n"
-
-    # Parse ray status
-    num_cpu, num_gpu, ram_gb = parse_ray_status(ray_status)
-
-    # Count worker pods
-    total_workers = count_worker_pods(pods, cluster)
-
-    # Format output
-    output_line = f"name: {cluster} address: {ray_address} num_cpu: {num_cpu} num_gpu: {num_gpu} ram_gb: {ram_gb} total_workers: {total_workers}\n"
+    output_line = f"name: {cluster} address: {ray_address}"#num_cpu: {num_cpu} num_gpu: {num_gpu} ram_gb: {ram_gb} total_workers: {total_workers}\n"
     return output_line
 
 def main():
