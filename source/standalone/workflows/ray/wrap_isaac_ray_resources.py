@@ -11,10 +11,11 @@ import ray
 
 
 @ray.remote
-def execute_command(command: str, test_mode: bool = False) -> str:
+def execute_command(command: str, identifier_string: str, test_mode: bool = False) -> str:
     start_time = datetime.now().strftime("%H:%M:%S.%f")
     result_details = []
-    result_details.append(f"Invocation command: {command}")
+    result_details.append("---------------------------------")
+    result_details.append(f"\n Invocation command: {command}")
     if test_mode:
         import torch
 
@@ -36,23 +37,38 @@ def execute_command(command: str, test_mode: bool = False) -> str:
             result_details.append({"error": "Failed to retrieve GPU information"})
     else:
         try:
-            process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            stdout, stderr = process.communicate()  # Ensure the process completes and capture output
-            result_details.append(stdout)
-            if stdout:
-                print(stdout)
-            if stderr:
-                print(f"Error executing command: {stderr}")
-        except subprocess.SubprocessError as e:  # Narrowed down from generic Exception
-            print(f"Exception occurred: {str(e)}")
+
+            def prepend_identifier(text):
+                return f"{identifier_string}: {text}"
+
+            # Start the subprocess and set up pipes for real-time output
+            process = subprocess.Popen(
+                command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, bufsize=1
+            )
+            # Use a list to collect output for final summary
+            output_lines = []
+            with process.stdout:
+                for line in iter(process.stdout.readline, ""):
+                    print(prepend_identifier(line.strip()))  # Print in real-time
+                    output_lines.append(line.strip())  # Collect for summary
+            with process.stderr:
+                for line in iter(process.stderr.readline, ""):
+                    print(prepend_identifier(line.strip()))  # Print errors in real-time
+                    output_lines.append(line.strip())  # Collect for summary
+            process.wait()  # Wait for the process to complete
+            result_details.extend([prepend_identifier(line) + "\n" for line in output_lines])
+        except subprocess.SubprocessError as e:
+            print(prepend_identifier(f"Exception during subprocess execution: {str(e)}"))
+            result_details.append("error: Exception occurred during command execution")
 
     now = datetime.now().strftime("%H:%M:%S.%f")
+    print(prepend_identifier(f"Job Started at {start_time}, completed at {now}"))
     result_str = f"Job Started at {start_time}, completed at {now} | Result details: {' '.join(result_details)}"
     return result_str
 
 
 def main(num_workers: int, jobs: list[str], num_gpus: float, num_cpus: float, ram_gb: float, test_mode: bool):
-    ray.init(address="auto", log_to_driver=False)
+    ray.init(address="auto", log_to_driver=True)
     print("Connected to Ray cluster.")
     print("Assuming homogeneous worker cluster resources.")
     print("Create more than one cluster for heterogeneous jobs.")
@@ -66,7 +82,7 @@ def main(num_workers: int, jobs: list[str], num_gpus: float, num_cpus: float, ra
         for key, value in resources.items():
             if "memory" in key.lower() or "object_store_memory" in key.lower():
                 # Convert bytes to gigabytes (Ray reports memory in bytes)
-                gb_value = value / (1024**3)
+                gb_value = value / 1024**3
                 formatted_resources[key] = [f"{gb_value:.2f}", "GB"]
             else:
                 formatted_resources[key] = value
@@ -78,9 +94,8 @@ def main(num_workers: int, jobs: list[str], num_gpus: float, num_cpus: float, ra
     num_gpu_nodes = 0
     for node in detailed_node_info:
         resources = node.get("Resources", {})
-        node_ip = node.get("NodeManagerAddress")
         formatted_resources = format_resources(resources)
-        print(f"Node {node_ip} resources: {formatted_resources}")
+        # print(f"Node {node_ip} resources: {formatted_resources}")
         # If local, head node has all resources
         # If remote, want to ignore head node
         # Assuming remote workers nodes are spec'd more heavily than head node
@@ -101,13 +116,13 @@ def main(num_workers: int, jobs: list[str], num_gpus: float, num_cpus: float, ra
         num_cpus /= num_workers
         ram_gb /= num_workers
 
-    print("[INFO]: Number of GPU nodes found: {num_gpu_nodes}")
-    print("[INFO]: Requesting resources: {num_gpus = } {num_cpus = } {ram_gb = }")
+    print(f"[INFO]: Number of GPU nodes found: {num_gpu_nodes}")
+    print(f"[INFO]: Requesting resources: {num_gpus = } {num_cpus = } {ram_gb = }")
 
     for i, command in enumerate(jobs):
         print(f"Submitting job {i + 1} of {len(jobs)} with command '{command}'")
-        job = execute_command.options(num_gpus=num_gpus, num_cpus=num_cpus, memory=ram_gb * 1024**3).remote(
-            command, test_mode
+        job = execute_command.options(num_gpus=num_gpus, num_cpus=num_cpus, memory=ram_gb * 1024).remote(
+            command, f"Job {i}", test_mode
         )
         job_results.append(job)
 

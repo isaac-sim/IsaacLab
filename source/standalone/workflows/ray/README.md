@@ -86,54 +86,52 @@ the only one supported out of the box.
 # Running Local Experiments
 1. Test that your cluster works
 
-```
-./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py --test
-```
+	```
+	./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py --test
+	```
 
 2. See the following examples on how to submit jobs. If there are more jobs than workers, jobs will be queued up for when resources become available
 using the Ray functionality. If you wish to run more than one job in
 parallel, then you must isolate resources so that there is more than
 one worker available, as by default, one worker is created with
-all available resources for each cluster node (if you have one computer, this is one node).
-
-Running on a cluster in this manner, without using ```submit_isaac_ray_job.py```, assumes
+all available resources for each cluster node (if you have one computer, this is one node). Running on a cluster in this manner, without using ```submit_isaac_ray_job.py```, assumes
 that cluster resources are homogeneous across workers. For heterogeneous resource requirements,
 see advanced usage to see how to use several clusters.
 
-***To queue up several jobs, separate jobs by the ```+``` delimiter. Ensure jobs is the last
-argument passed to the wrapper***
+	***To queue up several jobs, separate jobs by the ```+``` delimiter. Ensure jobs is the last
+	argument passed to the wrapper***
 
-```
-./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py
---jobs <JOB0>+<JOB1>+<JOB2>
-```
+	```
+	./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py
+	--jobs <JOB0>+<JOB1>+<JOB2>
+	```
 
-For example, to submit two jobs, see the following example. ***Note the ```+``` delimiter for specifying several jobs.***
-(If you'd like to run within a container, replace ```./isaaclab.sh -p``` with ```/workspace/isaaclab/isaaclab.sh -p```)
-```
-./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py \
- --jobs ./isaaclab.sh -p source/standalone/workflows/rl_games/train.py --task Isaac-Cartpole-v0 --headless+./isaaclab.sh -p source/standalone/workflows/rl_games/train.py --task Isaac-Cartpole-RGB-Camera-Direct-v0 --headless --enable_cameras
-```
+	For example, to submit two jobs, see the following example. ***Note the ```+``` delimiter for specifying several jobs.***
+	(If you'd like to run within a container, replace ```./isaaclab.sh -p``` with ```/workspace/isaaclab/isaaclab.sh -p```)
+	```
+	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py --jobs wrap_isaac_ray_resources.py --jobs /workspace/isaaclab/isaaclab.sh -p /workspace/isaaclab/source/standalone/workflows/rl_games/train.py --task Isaac-Cartpole-v0 --headless+/workspace/isaaclab/isaaclab.sh -p /workspace/isaaclab/source/standalone/workflows/rl_games/train.py --task Isaac-Cartpole-RGB-Camera-Direct-v0 --headless --enable_cameras agent.params.config.max_epochs=150
+	```
 
-You can also use this functionality to isolate the amount
-of resources that are used for Isaac Lab. The number
-of workers is determined by the total resources
-divided by the resources per job
-```
-./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py --num_cpu_per_job <CPU> \
---num_gpu_per_job <GPU> --gb_ram_per_job <RAM> --jobs <JOB0>+<JOB1>
-```
+	You can also use this functionality to isolate the amount
+	of resources that are used for Isaac Lab. The number
+	of workers is determined by the total resources
+	divided by the resources per job.
+	```
+	./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py --num_cpu_per_job <CPU> \
+	--num_gpu_per_job <GPU> --gb_ram_per_job <RAM> --jobs <JOB0>+<JOB1>
+	```
 
-You can also specify more than one job to run in parallel if you have more than one GPU. However, in this case, you must isolate resources
-for each job for proper functionality. If you have 2 GPUs,
-you should delegate half of the number of CPUs you have per job,
-half of the RAM, and so on. Alternatively, you could also do the following, which is a shortcut for manual
-resource isolation, where resources are isolated evenly across workers for the node.
-```
-./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py \
- --num_workers_per_node <NUM_TO_DIVIDE_TOTAL_RESOURCES_BY> \
---jobs <JOB0>+<JOB1>
-```
+	You can also specify more than one job to run in parallel if you have more than one GPU. However, in this case, you must isolate resources
+	for each job for proper functionality. If you have 2 GPUs,
+	you should delegate half of the number of CPUs you have per job,
+	half of the RAM, and so on. Alternatively, you could also do the following, which is a shortcut for manual
+	resource isolation, where resources are isolated evenly across workers for the node.
+
+	```
+	./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py \
+	--num_workers_per_node <NUM_TO_DIVIDE_TOTAL_RESOURCES_BY> \
+	--jobs <JOB0>+<JOB1>
+	```
 
 # Running Remote Experiments
 
@@ -200,11 +198,20 @@ resource isolation, where resources are isolated evenly across workers for the n
 	described for the local steps.***. For more information on using ```wrap_isaac_ray_resources.py```
 	see the examples in the local experiments above.
 
+	####  Training
 	```
 	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py --jobs wrap_isaac_ray_resources.py --jobs <JOB0>+<JOB1>
 	```
 
-	To start a tuning run, you may do the following:
+	For example,
+	```
+	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py --jobs \
+	wrap_isaac_ray_resources.py --jobs /workspace/isaaclab/isaaclab.sh -p source/standalone/workflows/rl_games/train.py --task Isaac-Cartpole-v0 --headless+/workspace/isaaclab/isaaclab.sh -p source/standalone/workflows/rl_games/train.py --task Isaac-Cartpole-RGB-Camera-Direct-v0 --headless --enable_cameras agent.params.config.max_epochs=150
+	```
+
+
+	#### Tuning
+	For example,
 
 	```
 	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py --jobs isaac_ray_tune.py --cfg=hyper_parameter_tuning/config/vision_cartpole.py
@@ -214,7 +221,7 @@ resource isolation, where resources are isolated evenly across workers for the n
 
 	If you are using Kubernetes/KubeRay, this can be done with
 
-	``kubectl delete raycluster <CLUSTER_NAME> -n <NAMESPACE>``
+	``kubectl get raycluster | egrep 'hyperparameter-tuner' | awk '{print $1}' | xargs kubectl delete raycluster``
 
 	If you are using Ray clusters, this can be done from the head node with
 
@@ -234,6 +241,7 @@ List all pods with ```kubectl get pods```. Use ```kubectl cp``` to fetch informa
 
 ## Advanced Usage
 
+Prior to following this section, familiarize yourself with the cloud experiment setup.
 ### Multiple Simultaneous Distributed Runs
 
 If you'd like to run several distributed training runs at once, you can
@@ -257,10 +265,10 @@ hyperparameter simultaneously in parallel with heterogeneous resources.
 	 ```
 	 If you want the clusters to have heterogeneous resource allocations, like different numbers
 	 of GPUs, you can call ``launch.py`` several times with the desired parameters,
-	 just make sure to change the cluster name each time as otherwise it will reconfigure existing clusters. Make sure that all pods
-         are running before completing the next step with ``kubectl get pods``
+	 just make sure to change the cluster name each time as otherwise it will reconfigure existing clusters. Make sure that all pods are running before completing the next step with ``kubectl get pods``
 
-2. Get and store all Ray Cluster info with the following command.
+2. Get and store all Ray Cluster info with the following command. The following assumes that all clusters
+	have the same naming prefix.
 
 	```
 	./source/standalone/workflows/ray/grok_cluster_with_kubectl.py
