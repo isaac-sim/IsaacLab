@@ -1,14 +1,46 @@
 Changelog
 ---------
 
-
-0.25.2 (2024-10-15)
+0.26.1 (2024-10-22)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
 
-* Fixed issues with using list or tuples of ``configclass`` within a ``configclass`` when using Modifiers.
+* Fixed the issue with using list or tuples of ``configclass`` within a ``configclass``. Ealier, the list of
+  configclass objects were not converted to dictionary properly when ``to_dict`` function was called.
+
+
+0.26.0 (2024-10-16)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added Imu sensor implementation that directly accesses the physx view :class:`omni.isaac.lab.sensors.Imu`. The
+  sensor comes with a configuration class :class:`omni.isaac.lab.sensors.ImuCfg` and data class
+  :class:`omni.isaac.lab.sensors.ImuData`.
+* Moved and renamed :meth:`omni.isaac.lab.sensors.camera.utils.convert_orientation_convention` to :meth:`omni.isaac.lab.utils.math.convert_camera_frame_orientation_convention`
+* Moved :meth:`omni.isaac.lab.sensors.camera.utils.create_rotation_matrix_from_view` to :meth:`omni.isaac.lab.utils.math.create_rotation_matrix_from_view`
+
+
+0.25.2 (2024-10-16)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added support for different Gymnasium spaces (``Box``, ``Discrete``, ``MultiDiscrete``, ``Tuple`` and ``Dict``)
+  to define observation, action and state spaces in the direct workflow.
+* Added :meth:`sample_space` to environment utils to sample supported spaces where data containers are torch tensors.
+
+Changed
+^^^^^^^
+
+* Mark the :attr:`num_observations`, :attr:`num_actions` and :attr:`num_states` in :class:`DirectRLEnvCfg` as deprecated
+  in favor of :attr:`observation_space`, :attr:`action_space` and :attr:`state_space` respectively.
+* Mark the :attr:`num_observations`, :attr:`num_actions` and :attr:`num_states` in :class:`DirectMARLEnvCfg` as deprecated
+  in favor of :attr:`observation_spaces`, :attr:`action_spaces` and :attr:`state_space` respectively.
 
 
 0.25.1 (2024-10-10)
