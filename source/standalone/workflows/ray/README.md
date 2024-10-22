@@ -7,25 +7,19 @@ Through using Ray, we streamline training runs.
 The Ray integration is useful to you if any of the following apply:
 - You want to run several training runs at once in parallel or consecutively with minimal interaction
 - You want to use the same training setup everywhere (on cloud and local) with minimal overhead
+- You want to tune hyperparameters with an existing model sweep ecosystem
 - You want to tune models' hyperparameters as fast as possible in parallel on multiple GPUs
 	and/or multiple GPU Nodes
 - You want to simultaneously tune model hyperparameters for different environments/agents (see
 	advanced usage)
-
-
-Notably, this Ray integration is able to leverage the existing Isaac Lab Hydra support
-for changing hyperparameters. See ``hyperparameter_tuning/config/vision_cartpole.py``
-for a demonstration of how easy hyperparameter tuning can be when leveraging Isaac-Ray and Hydra.
 
 # Installation
 
 This guide includes additional dependencies that are not part of the default Isaac Lab install
 as this functionality is still largely experimental.
 
-***You likely need to install `kubectl`*** , which can be done from [this link here](https://kubernetes.io/docs/tasks/tools/).
-
-Note that if you are using Ray Clusters without kubernetes, like on a local setup,
-this dependency is not needed.
+If you are using Ray Clusters without kubernetes, like on a local setup,
+then you do not need ```kubectl```. Otherwise, you likely need to install `kubectl` , which can be done from [this link here](https://kubernetes.io/docs/tasks/tools/).
 
 To install all Python dependencies, run
 
@@ -37,7 +31,6 @@ To install all Python dependencies, run
 
 ## Local and Other Setups
 #### Option A: With Ray Clusters (Recommended for those less familiar with Ray)
-
 If you have one machine, you can the following one liner to start a ray server. This
 Ray server will run indefinitely until it is stopped with ```CTRL + C```
 
@@ -45,7 +38,7 @@ Ray server will run indefinitely until it is stopped with ```CTRL + C```
 echo "import ray; ray.init(); import time; [time.sleep(10) for _ in iter(int, 1)]" | ./isaaclab.sh -p
 ```
 
-Alternatively, if you have more than one machine,
+Alternatively, if you have more than one machine;
 
 On the head machine, run ``ray start --head --port 6379``. On any worker machines,
 make sure you can connect to the head machine, and then run
@@ -86,7 +79,8 @@ On your cloud provider of choice, configure the following
 	google cloud)
 - It is highly recommended to create a storage bucket to dump experiment logs/checkpoints to.
 
-An example of what a cloud deploy might look look like is in ``cloud_cluster_configs/google_cloud``
+An example of what a cloud deploy might look look like is in ``cloud_cluster_configs/google_cloud``. Google Cloud is currently
+the only one supported out of the box.
 
 
 # Running Local Experiments
@@ -97,23 +91,28 @@ An example of what a cloud deploy might look look like is in ``cloud_cluster_con
 ```
 
 2. See the following examples on how to submit jobs. If there are more jobs than workers, jobs will be queued up for when resources become available
-using the Ray functionality. If you wish to run more than one job in 
+using the Ray functionality. If you wish to run more than one job in
 parallel, then you must isolate resources so that there is more than
 one worker available, as by default, one worker is created with
-all available resources on the computer. Alternatively, you can 
-also specify the ```--num_workers``` argument.
+all available resources for each cluster node (if you have one computer, this is one node).
 
-This example shows how to queue up several jobs in series on one worker.
+Running on a cluster in this manner, without using ```submit_isaac_ray_job.py```, assumes
+that cluster resources are homogeneous across workers. For heterogeneous resource requirements,
+see advanced usage to see how to use several clusters.
+
+***To queue up several jobs, separate jobs by the ```+``` delimiter. Ensure jobs is the last
+argument passed to the wrapper***
 
 ```
 ./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py
---jobs <JOB0> <JOB1> <JOB2>
+--jobs <JOB0>+<JOB1>+<JOB2>
 ```
 
-This example shows how to submit a single training run on one worker.
+For example, to submit two jobs, see the following example. ***Note the ```+``` delimiter for specifying several jobs.***
+(If you'd like to run within a container, replace ```./isaaclab.sh -p``` with ```/workspace/isaaclab/isaaclab.sh -p```)
 ```
-./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py
- --jobs 'source/standalone/workflows/rl_games/train.py --task Isaac-Cartpole-v0 --headless'
+./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py \
+ --jobs ./isaaclab.sh -p source/standalone/workflows/rl_games/train.py --task Isaac-Cartpole-v0 --headless+./isaaclab.sh -p source/standalone/workflows/rl_games/train.py --task Isaac-Cartpole-RGB-Camera-Direct-v0 --headless --enable_cameras
 ```
 
 You can also use this functionality to isolate the amount
@@ -122,26 +121,18 @@ of workers is determined by the total resources
 divided by the resources per job
 ```
 ./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py --num_cpu_per_job <CPU> \
---num_gpu_per_job <GPU> --gb_ram_per_job <RAM> --jobs <JOB0> <JOB1>
+--num_gpu_per_job <GPU> --gb_ram_per_job <RAM> --jobs <JOB0>+<JOB1>
 ```
 
 You can also specify more than one job to run in parallel if you have more than one GPU. However, in this case, you must isolate resources
 for each job for proper functionality. If you have 2 GPUs,
 you should delegate half of the number of CPUs you have per job,
-half of the RAM, and so on.
-
-For example,
+half of the RAM, and so on. Alternatively, you could also do the following, which is a shortcut for manual
+resource isolation, where resources are isolated evenly across workers for the node.
 ```
 ./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py \
---num_cpu_per_job <CPU> --num_gpu_per_job 1 \ 
---gb_ram_per_job <RAM> --jobs <JOB0> <JOB1>
-```
-
-Alternatively, you could also do the following, which is a shortcut for the command above.
-```
-./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py \
- --num_workers <NUM_TO_DIVIDE_TOTAL_RESOURCES_BY> \
---jobs <JOB0> <JOB1>
+ --num_workers_per_node <NUM_TO_DIVIDE_TOTAL_RESOURCES_BY> \
+--jobs <JOB0>+<JOB1>
 ```
 
 # Running Remote Experiments
@@ -197,22 +188,26 @@ Alternatively, you could also do the following, which is a shortcut for the comm
 	for Ray/Isaac Lab are found on path.
 
 	```
-	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py "wrap_isaac_ray_resources.py --test"
+	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py --test
 	```
 
 7. Define your desired Ray job as a script on your local machine.
-   	For a hyperparameter tuning job, see ```hyper_parameter_tuning/config/vision_cartpole.py```
+   	For a hyperparameter tuning job example, see ```hyper_parameter_tuning/config/vision_cartpole.py```
 
-8. Start your distributed Ray job.
+8. Start your distributed Ray job. See the following examples:
 
-	```
-	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py "wrap_isaac_ray_resources.py --jobs <YOUR_JOB_HERE>"
-	```
-
-	For example,
+	***For several training runs on the same cluster, separate the jobs by the ```+``` delimiter as
+	described for the local steps.***. For more information on using ```wrap_isaac_ray_resources.py```
+	see the examples in the local experiments above.
 
 	```
-	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py "isaac_ray_tune.py --cfg=hyper_parameter_tuning/config/vision_cartpole.py"
+	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py --jobs wrap_isaac_ray_resources.py --jobs <JOB0>+<JOB1>
+	```
+
+	To start a tuning run, you may do the following:
+
+	```
+	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py --jobs isaac_ray_tune.py --cfg=hyper_parameter_tuning/config/vision_cartpole.py
 	```
 
 8. When you have completed your distributed job, stop the cluster to conserve resources.
@@ -225,7 +220,7 @@ Alternatively, you could also do the following, which is a shortcut for the comm
 
 	``ray stop``
 
-# Retrieving Files/Weights From Remote
+## Retrieving Files/Weights From Remote
 
 Generally, it's best practice to store large files or weights in a storage bucket within the cloud from
 the training runs.
@@ -237,7 +232,7 @@ cluster, this is possible.
 
 List all pods with ```kubectl get pods```. Use ```kubectl cp``` to fetch information from the GPU enabled pods.
 
-# Advanced Usage
+## Advanced Usage
 
 ### Multiple Simultaneous Distributed Runs
 
@@ -250,7 +245,7 @@ kubernetes cluster.
 This can be used to compare the performance of separate approaches, tuned for fairness
 of comparison.
 For example, if you have an MLP agent, and a CNN agent for a task you could tune both of their
-hyperparameter simultaneously in parallel.
+hyperparameter simultaneously in parallel with heterogeneous resources.
 
 ####  Kubernetes / KubeRay Specific : For Cloud or Kubernetes Local
 1. You can create several homogeneous ray clusters at once by specifying the ``--num_clusters`` flag to ``launch.py``.
@@ -282,13 +277,17 @@ hyperparameter simultaneously in parallel.
 
 4. Check that you can issue a test job to all clusters with
 	```
-	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py "wrap_isaac_ray_resources.py --test"
+	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py --test
 	```
 
 5. Batch submit your desired jobs. Each desired job is paired with the IP addresses
-	in the order that they appear.
+	in the order that they appear in the ```/.cluster_config```. If there are more jobs than
+	clusters,
+
+	***Separate jobs by cluster with the ```*``` delimiter. This is compatible with the earlier mentioned
+	```+``` delimiter for running several jobs on each cluster***
 	```
-	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py "wrap_isaac_ray_resources.py --jobs <JOB_0>" "wrap_isaac_ray_resources.py --jobs <JOB_1>" "wrap_isaac_ray_resources.py --jobs <JOB_N>"
+	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py wrap_isaac_ray_resources.py --jobs <JOB_0_C0>+<JOB_1_C0>*wrap_isaac_ray_resources.py --jobs <JOB_0_C1>+<JOB_1_C1>*wrap_isaac_ray_resources.py --jobs <JOB_N>"
 	```
 
 6. Clean up your cluster to conserve resources (follow single cluster steps for each cluster).

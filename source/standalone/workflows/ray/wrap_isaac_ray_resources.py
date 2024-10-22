@@ -12,14 +12,12 @@ import ray
 
 @ray.remote
 def execute_command(command: str, test_mode: bool = False) -> str:
-    import torch
-
-    print("Job started.")
     start_time = datetime.now().strftime("%H:%M:%S.%f")
     result_details = []
-
+    result_details.append(f"Invocation command: {command}")
     if test_mode:
-        print("Checking GPUs.")
+        import torch
+
         try:
             result = subprocess.run(
                 ["nvidia-smi", "--query-gpu=name,memory.free,serial", "--format=csv,noheader,nounits"],
@@ -31,32 +29,29 @@ def execute_command(command: str, test_mode: bool = False) -> str:
             for gpu_info in output:
                 name, memory_free, serial = gpu_info.split(", ")
                 result_details.append({"Name": name, "Memory Available": f"{memory_free} MB", "Serial Number": serial})
-                num_gpus_detected = torch.cuda.device_count()
-                result_details.append(f"# Detected GPUs from PyTorch: {num_gpus_detected}")
+            num_gpus_detected = torch.cuda.device_count()
+            result_details.append(f"# Detected GPUs from PyTorch: {num_gpus_detected}")
         except subprocess.CalledProcessError as e:
             print(f"Error calling nvidia-smi: {e.stderr}")
             result_details.append({"error": "Failed to retrieve GPU information"})
     else:
         try:
-            process = subprocess.Popen(command.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            for line in process.stdout:
-                print(line, end="")
-            stdout, stderr = process.communicate()
+            process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            stdout, stderr = process.communicate()  # Ensure the process completes and capture output
+            result_details.append(stdout)
+            if stdout:
+                print(stdout)
             if stderr:
                 print(f"Error executing command: {stderr}")
-        except Exception as e:
+        except subprocess.SubprocessError as e:  # Narrowed down from generic Exception
             print(f"Exception occurred: {str(e)}")
-    
+
     now = datetime.now().strftime("%H:%M:%S.%f")
-    result_str = (
-        f"Job Started at {start_time}, completed at {now} | "
-        f"Result details: {result_details}"
-    )
-    print(result_str)
+    result_str = f"Job Started at {start_time}, completed at {now} | Result details: {' '.join(result_details)}"
     return result_str
 
 
-def main(num_workers, commands, num_gpus, num_cpus, ram_gb, test_mode):
+def main(num_workers: int, jobs: list[str], num_gpus: float, num_cpus: float, ram_gb: float, test_mode: bool):
     ray.init(address="auto", log_to_driver=False)
     print("Connected to Ray cluster.")
     print("Assuming homogeneous worker cluster resources.")
@@ -80,11 +75,7 @@ def main(num_workers, commands, num_gpus, num_cpus, ram_gb, test_mode):
     detailed_node_info = ray.nodes()
 
     print("Cluster resources:")
-    if num_workers is not None:
-        print(f"[WARNING]: Splitting cluster resources into {num_workers}")
-    else:
-        print(f"Number of workers: {len(detailed_node_info)}")
-        print(f"If on cloud, num workers is {len(detailed_node_info) - 1}")
+    num_gpu_nodes = 0
     for node in detailed_node_info:
         resources = node.get("Resources", {})
         node_ip = node.get("NodeManagerAddress")
@@ -94,8 +85,10 @@ def main(num_workers, commands, num_gpus, num_cpus, ram_gb, test_mode):
         # If remote, want to ignore head node
         # Assuming remote workers nodes are spec'd more heavily than head node
         # Assume all worker nodes are homogeneous
-        if num_gpus is None or num_gpus < formatted_resources["GPU"]:
-            num_gpus = formatted_resources["GPU"]
+        if "GPU" in formatted_resources:
+            if num_gpus is None:
+                num_gpus = formatted_resources["GPU"]
+            num_gpu_nodes += 1
         if num_cpus is None or num_cpus < formatted_resources["CPU"]:
             num_cpus = formatted_resources["CPU"]
         if ram_gb is None or ram_gb < float(formatted_resources["memory"][0]):
@@ -103,16 +96,17 @@ def main(num_workers, commands, num_gpus, num_cpus, ram_gb, test_mode):
     job_results = []
 
     if num_workers:
+        print(f"[WARNING]: For each node, splitting cluster resources into {num_workers}")
         num_gpus /= num_workers
         num_cpus /= num_workers
         ram_gb /= num_workers
-    else:
-        num_workers = 1
-    print("[INFO]: Requesting resources: {num_workers = } {num_gpus = } {num_cpus = } {ram_gb = }")
 
-    for i, command in enumerate(commands):
-        print(f"Submitting job {i + 1} of {len(commands)} with command '{command}'")
-        job = execute_command.options(num_gpus=num_gpus, num_cpus=num_cpus, memory=ram_gb * 1024).remote(
+    print("[INFO]: Number of GPU nodes found: {num_gpu_nodes}")
+    print("[INFO]: Requesting resources: {num_gpus = } {num_cpus = } {ram_gb = }")
+
+    for i, command in enumerate(jobs):
+        print(f"Submitting job {i + 1} of {len(jobs)} with command '{command}'")
+        job = execute_command.options(num_gpus=num_gpus, num_cpus=num_cpus, memory=ram_gb * 1024**3).remote(
             command, test_mode
         )
         job_results.append(job)
@@ -126,12 +120,22 @@ def main(num_workers, commands, num_gpus, num_cpus, ram_gb, test_mode):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Submit multiple jobs with optional GPU testing.")
     isaac_ray_util.add_cluster_args(parser)
-    parser.add_argument(
-        "jobs",
-        nargs=argparse.REMAINDER,
-        help="Commands and their arguments to execute on workers.",
-    )
     parser.add_argument("--test", action="store_true", help="Run nvidia-smi test instead of the arbitrary command")
+    parser.add_argument(
+        "--jobs",
+        type=str,
+        nargs=argparse.REMAINDER,
+        help="!! This should be last wrapper argument!!! Commands and their arguments to execute on workers.",
+    )
     args = parser.parse_args()
-    commands = isaac_ray_util.split_args_by_proceeding_py(args.jobs)
-    main(args.num_workers, commands, args.num_gpu_per_job, args.num_cpu_per_job, args.gb_ram_per_job, args.test)
+    print(f"Received jobs {args.jobs = }")
+    jobs = " ".join(args.jobs)
+    formatted_jobs = jobs.split("+")
+    main(
+        args.num_workers_per_node,
+        formatted_jobs,
+        args.num_gpu_per_job,
+        args.num_cpu_per_job,
+        args.gb_ram_per_job,
+        args.test,
+    )

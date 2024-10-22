@@ -42,7 +42,7 @@ def read_cluster_spec(fn: str | None = None) -> list[dict]:
     return clusters
 
 
-def submit_job(cluster, job_command, test_mode):
+def submit_job(cluster: dict, job_command: str, test_mode: bool):
     """
     Submits a job to a single cluster, prints the final result and Ray dashboard URL at the end.
     Adds optional test mode for GPU checking.
@@ -59,7 +59,7 @@ def submit_job(cluster, job_command, test_mode):
     except Exception as e:
         logging.error(f"Failed to list directory contents: {str(e)}")
 
-    wrapped_command = f"{WRAP_SCRIPT} {'--test' if test_mode else ''} {job_command if job_command else ' '}"
+    wrapped_command = f"{WRAP_SCRIPT + ' --test' if test_mode else ''} {job_command if job_command else ' '}"
 
     entrypoint = f"{CONFIG['executable']} {wrapped_command}"
     print(f"{entrypoint = }")
@@ -76,29 +76,40 @@ def submit_job(cluster, job_command, test_mode):
     print("----------------------------------------------------")
 
 
-def submit_jobs_to_clusters(jobs, clusters, test_mode):
+def submit_jobs_to_clusters(jobs: list[str], clusters: list[dict], test_mode: bool):
     """
-    Submit all jobs to their respective clusters.
+    Submit all jobs to their respective clusters, cycling through clusters if there are more jobs than clusters.
     """
+    if not clusters:
+        raise ValueError("No clusters available for job submission.")
+
     with ThreadPoolExecutor(max_workers=len(clusters)) as executor:
-        for idx, cluster in enumerate(clusters):
-            job_command = (
-                jobs[idx] if idx < len(jobs) else None
-            )  # Allow for running test mode without specific commands
+        for idx, job_command in enumerate(jobs):
+            # Cycle through clusters using modulus to wrap around if there are more jobs than clusters
+            cluster = clusters[idx % len(clusters)]
             executor.submit(submit_job, cluster, job_command, test_mode)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Submit multiple GPU jobs to multiple Ray clusters.")
-    parser.add_argument(
-        "--jobs", nargs="*", required=False, help="Job commands to run on clusters, enclosed in quotes."
-    )
     parser.add_argument("--test", action="store_true", help="Run with test mode enabled for all jobs.")
-
+    parser.add_argument(
+        "--jobs",
+        type=str,
+        nargs=argparse.REMAINDER,
+        help="!! This should be last wrapper argument!!! Commands and their arguments to execute on workers.",
+    )
     args = parser.parse_args()
-
+    print(f"Received jobs {args.jobs = }")
+    if args.jobs is not None:
+        jobs = " ".join(args.jobs)
+        formatted_jobs = jobs.split("*")
+        if len(formatted_jobs):
+            print("Warning; Split jobs by cluster with the * delimiter")
+    else:
+        formatted_jobs = []
     # Read the cluster spec
     clusters = read_cluster_spec()
 
     # Submit the jobs to the clusters or run in test mode
-    submit_jobs_to_clusters(args.jobs if args.jobs else [], clusters, args.test)
+    submit_jobs_to_clusters(formatted_jobs, clusters, args.test)

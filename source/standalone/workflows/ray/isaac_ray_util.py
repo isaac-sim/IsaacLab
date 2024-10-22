@@ -120,35 +120,12 @@ def invoke_run(cfg, max_line_count=2000):
     return {"proc": proc, "experiment_name": experiment_name, "logdir": logdir}
 
 
-def split_args_by_proceeding_py(args):
-    """
-    Split jobs and arguments by detecting .py scripts in the input args.
-    Group all arguments with the .py script until the next .py script.
-    """
-    jobs = []
-    current_job = []
-
-    for arg in args:
-        if arg.endswith(".py"):
-            if current_job:
-                jobs.append(" ".join(current_job))
-            current_job = [arg]
-        else:
-            current_job.append(arg)
-
-    # Add the final job
-    if current_job:
-        jobs.append(" ".join(current_job))
-
-    return jobs
-
-
 def add_cluster_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--name", type=str, help="The name of the Ray Cluster you'd like to train on.")
 
     parser.add_argument(
         "--num_gpu_per_job",
-        type=int,  # can actually do fractional GPUs if so desired
+        type=float,  # can actually do fractional GPUs if so desired
         help="The total amount of GPUs dispatched across all training job on the cluster",
     )
     parser.add_argument(
@@ -163,12 +140,9 @@ def add_cluster_args(parser: argparse.ArgumentParser) -> None:
         help="The total gigabytes of RAM dispatched across all training jobs on the cluster",
     )
     parser.add_argument(
-        "--num_workers",
+        "--num_workers_per_node",
         type=int,
-        help=(
-            "The total number of workers available across the entire cluster."
-            "Assumes that resources are equally distributed across cluster workers."
-        ),
+        help="Supply to split nodes into multiple workers. Meant for local development",
     )
     parser.add_argument("--max_iterations", default=10000, type=int, help="Max epoch count for tuning per job.")
 
