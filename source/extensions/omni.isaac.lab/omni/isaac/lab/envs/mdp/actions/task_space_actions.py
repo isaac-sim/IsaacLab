@@ -117,6 +117,19 @@ class DifferentialInverseKinematicsAction(ActionTerm):
     def processed_actions(self) -> torch.Tensor:
         return self._processed_actions
 
+    @property
+    def jacobian_w(self) -> torch.Tensor:
+        return self._asset.root_physx_view.get_jacobians()[:, self._jacobi_body_idx, :, self._jacobi_joint_ids]
+
+    @property
+    def jacobian_b(self) -> torch.Tensor:
+        jacobian = self.jacobian_w
+        base_rot = self._asset.data.root_quat_w
+        base_rot_matrix = math_utils.matrix_from_quat(math_utils.quat_inv(base_rot))
+        jacobian[:, :3, :] = torch.bmm(base_rot_matrix, jacobian[:, :3, :])
+        jacobian[:, 3:, :] = torch.bmm(base_rot_matrix, jacobian[:, 3:, :])
+        return jacobian
+
     """
     Operations.
     """
@@ -178,7 +191,7 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         the right Jacobian from the parent body Jacobian.
         """
         # read the parent jacobian
-        jacobian = self._asset.root_physx_view.get_jacobians()[:, self._jacobi_body_idx, :, self._jacobi_joint_ids]
+        jacobian = self.jacobian_b
         # account for the offset
         if self.cfg.body_offset is not None:
             # Modify the jacobian to account for the offset
