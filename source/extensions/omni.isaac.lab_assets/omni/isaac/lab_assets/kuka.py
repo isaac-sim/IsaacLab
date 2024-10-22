@@ -25,8 +25,7 @@ from omni.isaac.lab.envs import ManagerBasedEnv
 from omni.isaac.lab.managers.action_manager import ActionTerm, ActionTermCfg
 from omni.isaac.lab.utils import configclass
 from omni.isaac.lab.utils.assets import ISAACLAB_NUCLEUS_DIR
-from pxr import Gf, Sdf, Usd
-from pxr import UsdGeom, UsdPhysics
+from pxr import Usd, UsdPhysics
 ##
 # Configuration
 ##
@@ -38,12 +37,13 @@ def spawn_sdf_kuka(
 ) -> Usd.Prim:
     robot_prim = sim_utils.spawn_from_usd(prim_path, cfg, translation, orientation)
     robot_path = prim_utils.get_prim_path(robot_prim)
-    collision_approximation = "sdf"
-    predicate = lambda path: "link_3/collisions" in path and "finger" in path
-    sdf_prims = prim_utils.get_all_matching_child_prims(robot_path, predicate)
-    for prim in sdf_prims:
-        mesh_collision_api = UsdPhysics.MeshCollisionAPI.Apply(prim)
-        mesh_collision_api.GetApproximationAttr().Set(collision_approximation)
+    # collision_approximation = "sdf"
+    # # collision_approximation = "convexDecomposition"
+    # predicate = lambda path: "link_3/collisions" in path and "finger" in path
+    # sdf_prims = prim_utils.get_all_matching_child_prims(robot_path, predicate)
+    # for prim in sdf_prims:
+    #     mesh_collision_api = UsdPhysics.MeshCollisionAPI.Apply(prim)
+    #     mesh_collision_api.GetApproximationAttr().Set(collision_approximation)
     return robot_prim
 
     
@@ -51,9 +51,7 @@ def spawn_sdf_kuka(
 KUKA_VICTOR_LEFT_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         # usd_path="assets/victor/victor_left_arm_with_gripper_v2/victor_left_arm_with_gripper_v2.usd",
-        usd_path="assets/victor/victor_left_arm_with_gripper_sdf_v2/victor_left_arm_with_gripper_sdf_v2.usd",
-        # usd_path="assets/victor/victor_left_arm_with_approx_gripper/victor_left_arm_with_approx_gripper.usd",
-        # usd_path="assets/victor/victor_left_arm_with_approx_gripper_sdf/victor_left_arm_with_approx_gripper_sdf.usd",
+        usd_path="assets/victor/victor_left_arm_with_gripper_sdf_v3/victor_left_arm_with_gripper_sdf_v3.usd",
         func=spawn_sdf_kuka,
         activate_contact_sensors=False,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(

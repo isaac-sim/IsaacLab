@@ -110,6 +110,7 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         self.env_params.sim.dt = self.env_params.sim.get("dt", 1.0 / 120.0)
         self.env_params.scene.robot = self.env_params.scene.get("robot", OmegaConf.create())
         robot_params = self.env_params.scene.robot
+        robot_params["collision_approximation"] = robot_params.get("collision_approximation", "sdf")
         robot_params["contact_offset"] = robot_params.get("contact_offset", 0.001)
         robot_params["rest_offset"] = robot_params.get("rest_offset", 0.00)
         robot_params["max_depenetration_velocity"] = robot_params.get("max_depenetration_velocity", 0.5)
@@ -127,13 +128,16 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         self.events = EventCfg()
         self.act_lows = [-0.001, -0.001, -0.001, -0.5, -0.5, -0.5]
         self.act_highs = [0.001, 0.001, 0.001, 0.5, 0.5, 0.5]
-        self.scene.robot = KUKA_VICTOR_LEFT_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-        self.scene.robot.init_state.pos = [-0.15, -0.5, -0.8]
         self.sim.dt = self.env_params.sim.dt
         
         # self.scene.robot.spawn.collision_props = sim_utils.CollisionPropertiesCfg(
         #     contact_offset=0.002, rest_offset=0.001)
         robot_params = self.env_params.scene.robot
+        self.scene.robot = KUKA_VICTOR_LEFT_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        if robot_params.collision_approximation == "convexHull":
+            self.scene.robot.spawn.usd_path ="assets/victor/victor_left_arm_with_gripper_v2/victor_left_arm_with_gripper_v2.usd"
+        self.scene.robot.init_state.pos = [-0.15, -0.5, -0.8]
+        
         self.scene.robot.spawn.collision_props.contact_offset = robot_params.contact_offset
         self.scene.robot.spawn.collision_props.rest_offset = robot_params.rest_offset
         self.scene.robot.spawn.rigid_props.max_depenetration_velocity = robot_params.max_depenetration_velocity

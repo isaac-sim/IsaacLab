@@ -350,6 +350,8 @@ class InteractiveScene:
     def write_state(self, state_dict: dict[str, torch.Tensor], env_ids: Sequence[int] | None = None):
         if env_ids is None:
             tmp_env_ids = slice(None)
+        else:
+            tmp_env_ids = env_ids
         for asset_name, asset_state in state_dict.items():
             asset_state["root_state"][:, :3] += self.env_origins[tmp_env_ids]
             self[asset_name].write_state_to_sim(asset_state, env_ids=env_ids)

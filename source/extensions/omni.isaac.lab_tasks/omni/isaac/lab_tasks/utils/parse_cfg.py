@@ -80,7 +80,7 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str, env_params: dic
             mod_path = inspect.getfile(cfg_entry_point)
             # load the configuration
             if env_params is not None:
-                cfg_cls = cfg_entry_point(env_params)
+                cfg_cls = cfg_entry_point(env_params=env_params)
             else:
                 cfg_cls = cfg_entry_point()
         elif isinstance(cfg_entry_point, str):

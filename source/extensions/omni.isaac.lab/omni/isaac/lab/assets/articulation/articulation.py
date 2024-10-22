@@ -273,7 +273,7 @@ class Articulation(AssetBase):
     def read_root_state_from_sim(self, env_ids: Sequence[int] | None = None) -> torch.Tensor:
         if env_ids is None:
             env_ids = slice(None)
-        root_state = self._data.root_state_w[env_ids]
+        root_state = self._data.root_state_w[env_ids].clone()
         return root_state
 
     def read_joint_state_from_sim(
@@ -310,6 +310,46 @@ class Articulation(AssetBase):
         joint_state = self.read_joint_state_from_sim(env_ids)
         return {"root_state": root_state, "joint_state": joint_state}
 
+    def read_body_pos_w(self,
+                        name_keys: str | Sequence[str], 
+                        env_ids: Sequence[int] | None = None,
+                        preserve_order: bool = False):
+        """Read the position of the bodies in the articulation from the simulation."""
+        if env_ids is None:
+            env_ids = slice(None)
+        body_ids, _ = self.find_bodies(name_keys, preserve_order)
+        return self._data.body_pos_w[env_ids, body_ids]
+    
+    def read_body_quat_w(self,
+                        name_keys: str | Sequence[str], 
+                        env_ids: Sequence[int] | None = None,
+                        preserve_order: bool = False):
+        """Read the orientation of the bodies in the articulation from the simulation."""
+        if env_ids is None:
+            env_ids = slice(None)
+        body_ids, _ = self.find_bodies(name_keys, preserve_order)
+        return self._data.body_quat_w[env_ids, body_ids]
+    
+    def read_body_state_w(self,
+                        name_keys: str | Sequence[str], 
+                        env_ids: Sequence[int] | None = None,
+                        preserve_order: bool = False):
+        """Read the state of the bodies in the articulation from the simulation."""
+        if env_ids is None:
+            env_ids = slice(None)
+        body_ids, _ = self.find_bodies(name_keys, preserve_order)
+        return self._data.body_state_w[env_ids, body_ids]
+    
+    def read_body_vel_w(self,
+                        name_keys: str | Sequence[str], 
+                        env_ids: Sequence[int] | None = None,
+                        preserve_order: bool = False):
+        """Read the velocity of the bodies in the articulation from the simulation."""
+        if env_ids is None:
+            env_ids = slice(None)
+        body_ids, _ = self.find_bodies(name_keys, preserve_order)
+        return self._data.body_vel_w[env_ids, body_ids]
+    
     """
     Operations - Writers.
     """

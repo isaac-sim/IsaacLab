@@ -44,7 +44,8 @@ from force_tool.visualization.plot_utils import get_img_from_fig, save_numpy_as_
 
 from omni.isaac.lab.devices import Se3Gamepad, Se3Keyboard, Se3RobotiqKeyboard, Se3SpaceMouse
 from omni.isaac.lab.managers import TerminationTermCfg as DoneTerm
-
+import omni.isaac.core.utils.prims as prim_utils
+from pxr import  UsdPhysics
 import omni.isaac.lab_tasks  # noqa: F401
 from omni.isaac.lab_tasks.manager_based.manipulation.lift import mdp
 from omni.isaac.lab_tasks.utils import parse_env_cfg
@@ -119,7 +120,7 @@ def main():
     env.reset()
     teleop_interface.reset()
     counter = 0
-    record_forces = True
+    record_forces = False
     forces, frames = [], []
     gripper_deltas = torch.zeros(100, 1, 2, device=env.unwrapped.device)
     gripper_deltas[10:50] = 0.025
@@ -147,6 +148,7 @@ def main():
             # actions[:, -2:] = gripper_deltas[counter%100]
             counter += 1
             obs, reward, termin, timeout, _ = env.step(actions)
+            print(env.unwrapped.scene["robot"].read_body_pos_w("victor_left_tool0"))
        
             if record_forces:
                 frame = env.unwrapped.render()
@@ -164,7 +166,7 @@ def main():
                 print(nforce, tforce, total_force)
                 print("Total force: ", total_force)
                 forces.append(total_force.cpu().numpy())
-            if termin or counter > 200:
+            if termin:
                 print("Episode terminated.")
                 env.reset()
                 teleop_interface.reset()

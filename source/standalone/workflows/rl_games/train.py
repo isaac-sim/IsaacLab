@@ -29,7 +29,7 @@ parser.add_argument("--max_iterations", type=int, default=None, help="RL Policy 
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
-# parse the arguments
+# parse the
 args_cli, hydra_args = parser.parse_known_args()
 # always enable cameras to record video
 if args_cli.video:

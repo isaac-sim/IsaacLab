@@ -120,7 +120,8 @@ class ScrewSceneCfg(InteractiveSceneCfg):
         self.nut: RigidObjectCfg = RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/Nut",
             spawn=sim_utils.UsdFileCfg(
-                usd_path=screw_dict["nut_path"],
+                # usd_path=screw_dict["nut_path"],
+                usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_nut_m8_tight/factory_nut_m8_tight.usd",
                 rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True),
             ),
             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.6, 0.0, 0.0065)),
