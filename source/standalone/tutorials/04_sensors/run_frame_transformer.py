@@ -35,7 +35,7 @@ simulation_app = app_launcher.app
 import math
 import torch
 
-import omni.isaac.debug_draw._debug_draw as omni_debug_draw
+import isaacsim.util.debug_draw._debug_draw as omni_debug_draw
 
 import omni.isaac.lab.sim as sim_utils
 import omni.isaac.lab.utils.math as math_utils
