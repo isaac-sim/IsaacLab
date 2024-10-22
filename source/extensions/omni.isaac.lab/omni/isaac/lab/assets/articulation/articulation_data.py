@@ -361,6 +361,7 @@ class ArticulationData:
         The position, quaternion, and linear/angular velocity are of the body's link frame relative to the world.
         """
         if self._body_link_state_w.timestamp < self._sim_timestamp:
+            self._physics_sim_view.update_articulations_kinematic()
             # read data from simulation
             pose = self._root_physx_view.get_link_transforms().clone()
             pose[..., 3:7] = math_utils.convert_quat(pose[..., 3:7], to="wxyz")
@@ -386,6 +387,7 @@ class ArticulationData:
         principle inertia.
         """
         if self._body_com_state_w.timestamp < self._sim_timestamp:
+            self._physics_sim_view.update_articulations_kinematic()
             # read data from simulation (pose is of link)
             pose = self._root_physx_view.get_link_transforms().clone()
             pose[..., 3:7] = math_utils.convert_quat(pose[..., 3:7], to="wxyz")
