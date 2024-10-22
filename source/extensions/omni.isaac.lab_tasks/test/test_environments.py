@@ -40,7 +40,6 @@ class TestEnvironments(unittest.TestCase):
                 cls.registered_tasks.append(task_spec.id)
         # sort environments by name
         cls.registered_tasks.sort()
-        cls.registered_tasks = ["Isaac-Repose-Cube-Allegro-v0"]
 
         # this flag is necessary to prevent a bug where the simulation gets stuck randomly when running the
         # test on many environments.
