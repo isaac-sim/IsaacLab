@@ -8,7 +8,7 @@ import os
 import torch
 import trimesh
 
-import carb
+import omni.log
 
 from omni.isaac.lab.utils.dict import dict_to_md5_hash
 from omni.isaac.lab.utils.io import dump_yaml
@@ -71,8 +71,8 @@ class TerrainGenerator:
     .. attention::
 
         The terrain generation has its own seed parameter. This is set using the :attr:`TerrainGeneratorCfg.seed`
-        parameter. If the seed is not set and the caching is disabled, the terrain generation will not be
-        reproducible.
+        parameter. If the seed is not set and the caching is disabled, the terrain generation may not be
+        completely reproducible.
 
     """
 
@@ -119,15 +119,21 @@ class TerrainGenerator:
 
         # throw a warning if the cache is enabled but the seed is not set
         if self.cfg.use_cache and self.cfg.seed is None:
-            carb.log_warn(
+            omni.log.warn(
                 "Cache is enabled but the seed is not set. The terrain generation will not be reproducible."
                 " Please set the seed in the terrain generator configuration to make the generation reproducible."
             )
 
+        # if the seed is not set, we assume there is a global seed set and use that.
+        # this ensures that the terrain is reproducible if the seed is set at the beginning of the program.
+        if self.cfg.seed is not None:
+            seed = self.cfg.seed
+        else:
+            seed = np.random.get_state()[1][0]
         # set the seed for reproducibility
         # note: we create a new random number generator to avoid affecting the global state
         #  in the other places where random numbers are used.
-        self.np_rng = np.random.default_rng(self.cfg.seed)
+        self.np_rng = np.random.default_rng(seed)
 
         # buffer for storing valid patches
         self.flat_patches = {}
@@ -289,7 +295,7 @@ class TerrainGenerator:
         """
         # sample flat patches if specified
         if sub_terrain_cfg.flat_patch_sampling is not None:
-            carb.log_info(f"Sampling flat patches for sub-terrain at (row, col):  ({row}, {col})")
+            omni.log.info(f"Sampling flat patches for sub-terrain at (row, col):  ({row}, {col})")
             # convert the mesh to warp mesh
             wp_mesh = convert_to_warp_mesh(mesh.vertices, mesh.faces, device=self.device)
             # sample flat patches based on each patch configuration for that sub-terrain

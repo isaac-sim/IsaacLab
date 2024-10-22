@@ -13,6 +13,7 @@ from tensordict import TensorDict
 from typing import TYPE_CHECKING, Any, Literal
 
 import carb
+import omni.isaac.core.utils.stage as stage_utils
 import omni.kit.commands
 import omni.usd
 from omni.isaac.core.prims import XFormPrimView
@@ -21,11 +22,14 @@ from pxr import UsdGeom
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.utils import to_camel_case
 from omni.isaac.lab.utils.array import convert_to_torch
-from omni.isaac.lab.utils.math import quat_from_matrix
+from omni.isaac.lab.utils.math import (
+    convert_camera_frame_orientation_convention,
+    create_rotation_matrix_from_view,
+    quat_from_matrix,
+)
 
 from ..sensor_base import SensorBase
 from .camera_data import CameraData
-from .utils import convert_orientation_convention, create_rotation_matrix_from_view
 
 if TYPE_CHECKING:
     from .camera_cfg import CameraCfg
@@ -39,9 +43,11 @@ class Camera(SensorBase):
 
     Summarizing from the `replicator extension`_, the following sensor types are supported:
 
-    - ``"rgb"``: A rendered color image.
+    - ``"rgb"``: A 3-channel rendered color image.
+    - ``"rgba"``: A 4-channel rendered color image with alpha channel.
     - ``"distance_to_camera"``: An image containing the distance to camera optical center.
     - ``"distance_to_image_plane"``: An image containing distances of 3D points from camera plane along camera's z-axis.
+    - ``"depth"``: The same as ``"distance_to_image_plane"``.
     - ``"normals"``: An image containing the local surface normal vectors at each pixel.
     - ``"motion_vectors"``: An image containing the motion vector data at each pixel.
     - ``"semantic_segmentation"``: The semantic segmentation data.
@@ -114,7 +120,9 @@ class Camera(SensorBase):
         if self.cfg.spawn is not None:
             # compute the rotation offset
             rot = torch.tensor(self.cfg.offset.rot, dtype=torch.float32).unsqueeze(0)
-            rot_offset = convert_orientation_convention(rot, origin=self.cfg.offset.convention, target="opengl")
+            rot_offset = convert_camera_frame_orientation_convention(
+                rot, origin=self.cfg.offset.convention, target="opengl"
+            )
             rot_offset = rot_offset.squeeze(0).numpy()
             # ensure vertical aperture is set, otherwise replace with default for squared pixels
             if self.cfg.spawn.vertical_aperture is None:
@@ -249,7 +257,7 @@ class Camera(SensorBase):
             # TODO: Adjust to handle aperture offsets once supported by omniverse
             #   Internal ticket from rendering team: OM-42611
             if params["horizontal_aperture_offset"] > 1e-4 or params["vertical_aperture_offset"] > 1e-4:
-                carb.log_warn("Camera aperture offsets are not supported by Omniverse. These parameters are ignored.")
+                omni.log.warn("Camera aperture offsets are not supported by Omniverse. These parameters are ignored.")
 
             # change data for corresponding camera index
             sensor_prim = self._sensor_prims[i]
@@ -287,7 +295,7 @@ class Camera(SensorBase):
         - :obj:`"ros"`    - forward axis: +Z - up axis -Y - Offset is applied in the ROS convention
         - :obj:`"world"`  - forward axis: +X - up axis +Z - Offset is applied in the World Frame convention
 
-        See :meth:`omni.isaac.lab.sensors.camera.utils.convert_orientation_convention` for more details
+        See :meth:`omni.isaac.lab.sensors.camera.utils.convert_camera_frame_orientation_convention` for more details
         on the conventions.
 
         Args:
@@ -316,7 +324,7 @@ class Camera(SensorBase):
                 orientations = torch.from_numpy(orientations).to(device=self._device)
             elif not isinstance(orientations, torch.Tensor):
                 orientations = torch.tensor(orientations, device=self._device)
-            orientations = convert_orientation_convention(orientations, origin=convention, target="opengl")
+            orientations = convert_camera_frame_orientation_convention(orientations, origin=convention, target="opengl")
         # set the pose
         self._view.set_world_poses(positions, orientations, env_ids)
 
@@ -337,8 +345,10 @@ class Camera(SensorBase):
         # resolve env_ids
         if env_ids is None:
             env_ids = self._ALL_INDICES
+        # get up axis of current stage
+        up_axis = stage_utils.get_stage_up_axis()
         # set camera poses using the view
-        orientations = quat_from_matrix(create_rotation_matrix_from_view(eyes, targets, device=self._device))
+        orientations = quat_from_matrix(create_rotation_matrix_from_view(eyes, targets, up_axis, device=self._device))
         self._view.set_world_poses(eyes, orientations, env_ids)
 
     """
@@ -376,12 +386,14 @@ class Camera(SensorBase):
             RuntimeError: If the number of camera prims in the view does not match the number of environments.
             RuntimeError: If replicator was not found.
         """
-        try:
-            import omni.replicator.core as rep
-        except ModuleNotFoundError:
+        carb_settings_iface = carb.settings.get_settings()
+        if not carb_settings_iface.get("/isaaclab/cameras_enabled"):
             raise RuntimeError(
-                "Replicator was not found for rendering. Please use --enable_cameras to enable rendering."
+                "A camera was spawned without the --enable_cameras flag. Please use --enable_cameras to enable"
+                " rendering."
             )
+
+        import omni.replicator.core as rep
         from omni.syntheticdata.scripts.SyntheticData import SyntheticData
 
         # Initialize parent class
@@ -395,6 +407,10 @@ class Camera(SensorBase):
                 f"Number of camera prims in the view ({self._view.count}) does not match"
                 f" the number of environments ({self._num_envs})."
             )
+
+        # WAR: use DLAA antialiasing to avoid frame offset issue at small resolutions
+        if self.cfg.width < 265 or self.cfg.height < 265:
+            rep.settings.set_render_rtx_realtime(antialiasing="DLAA")
 
         # Create all env_ids buffer
         self._ALL_INDICES = torch.arange(self._view.count, device=self._device, dtype=torch.long)
@@ -458,8 +474,14 @@ class Camera(SensorBase):
                 else:
                     device_name = "cpu"
 
-                # create annotator node
-                rep_annotator = rep.AnnotatorRegistry.get_annotator(name, init_params, device=device_name)
+                # Map special cases to their corresponding annotator names
+                special_cases = {"rgba": "rgb", "depth": "distance_to_image_plane"}
+                # Get the annotator name, falling back to the original name if not a special case
+                annotator_name = special_cases.get(name, name)
+                # Create the annotator node
+                rep_annotator = rep.AnnotatorRegistry.get_annotator(annotator_name, init_params, device=device_name)
+
+                # attach annotator to render product
                 rep_annotator.attach(render_prod_path)
                 # add to registry
                 self._rep_registry[name].append(rep_annotator)
@@ -582,7 +604,9 @@ class Camera(SensorBase):
         # get the poses from the view
         poses, quat = self._view.get_world_poses(env_ids)
         self._data.pos_w[env_ids] = poses
-        self._data.quat_w_world[env_ids] = convert_orientation_convention(quat, origin="opengl", target="world")
+        self._data.quat_w_world[env_ids] = convert_camera_frame_orientation_convention(
+            quat, origin="opengl", target="world"
+        )
 
     def _create_annotator_data(self):
         """Create the buffers to store the annotator data.
@@ -632,17 +656,27 @@ class Camera(SensorBase):
             if self.cfg.colorize_semantic_segmentation:
                 data = data.view(torch.uint8).reshape(height, width, -1)
             else:
-                data = data.view(height, width)
+                data = data.view(height, width, 1)
         elif name == "instance_segmentation_fast":
             if self.cfg.colorize_instance_segmentation:
                 data = data.view(torch.uint8).reshape(height, width, -1)
             else:
-                data = data.view(height, width)
+                data = data.view(height, width, 1)
         elif name == "instance_id_segmentation_fast":
             if self.cfg.colorize_instance_id_segmentation:
                 data = data.view(torch.uint8).reshape(height, width, -1)
             else:
-                data = data.view(height, width)
+                data = data.view(height, width, 1)
+        # make sure buffer dimensions are consistent as (H, W, C)
+        elif name == "distance_to_camera" or name == "distance_to_image_plane" or name == "depth":
+            data = data.view(height, width, 1)
+        # we only return the RGB channels from the RGBA output if rgb is required
+        # normals return (x, y, z) in first 3 channels, 4th channel is unused
+        elif name == "rgb" or name == "normals":
+            data = data[..., :3]
+        # motion vectors return (x, y) in first 2 channels, 3rd and 4th channels are unused
+        elif name == "motion_vectors":
+            data = data[..., :2]
 
         # return the data and info
         return data, info

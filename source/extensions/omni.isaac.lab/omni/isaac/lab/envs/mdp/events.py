@@ -14,7 +14,6 @@ the event introduced by the function.
 
 from __future__ import annotations
 
-import numpy as np
 import torch
 from typing import TYPE_CHECKING, Literal
 
@@ -24,23 +23,15 @@ import omni.physics.tensors.impl.api as physx
 import omni.isaac.lab.sim as sim_utils
 import omni.isaac.lab.utils.math as math_utils
 from omni.isaac.lab.actuators import ImplicitActuator
-from omni.isaac.lab.assets import Articulation, RigidObject
-from omni.isaac.lab.managers import SceneEntityCfg
+from omni.isaac.lab.assets import Articulation, DeformableObject, RigidObject
+from omni.isaac.lab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from omni.isaac.lab.terrains import TerrainImporter
 
 if TYPE_CHECKING:
     from omni.isaac.lab.envs import ManagerBasedEnv
 
 
-def randomize_rigid_body_material(
-    env: ManagerBasedEnv,
-    env_ids: torch.Tensor | None,
-    static_friction_range: tuple[float, float],
-    dynamic_friction_range: tuple[float, float],
-    restitution_range: tuple[float, float],
-    num_buckets: int,
-    asset_cfg: SceneEntityCfg,
-):
+class randomize_rigid_body_material(ManagerTermBase):
     """Randomize the physics materials on all geometries of the asset.
 
     This function creates a set of physics materials with random static friction, dynamic friction, and restitution
@@ -53,6 +44,10 @@ def randomize_rigid_body_material(
     all bodies). The integer values are used as indices to select the material properties from the
     material buckets.
 
+    If the flag ``make_consistent`` is set to ``True``, the dynamic friction is set to be less than or equal to
+    the static friction. This obeys the physics constraint on friction values. However, it may not always be
+    essential for the application. Thus, the flag is set to ``False`` by default.
+
     .. attention::
         This function uses CPU tensors to assign the material properties. It is recommended to use this function
         only during the initialization of the environment. Otherwise, it may lead to a significant performance
@@ -60,69 +55,111 @@ def randomize_rigid_body_material(
 
     .. note::
         PhysX only allows 64000 unique physics materials in the scene. If the number of materials exceeds this
-        limit, the simulation will crash.
+        limit, the simulation will crash. Due to this reason, we sample the materials only once during initialization.
+        Afterwards, these materials are randomly assigned to the geometries of the asset.
     """
-    # extract the used quantities (to enable type-hinting)
-    asset: RigidObject | Articulation = env.scene[asset_cfg.name]
 
-    if not isinstance(asset, (RigidObject, Articulation)):
-        raise ValueError(
-            f"Randomization term 'randomize_rigid_body_material' not supported for asset: '{asset_cfg.name}'"
-            f" with type: '{type(asset)}'."
-        )
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
+        """Initialize the term.
 
-    # resolve environment ids
-    if env_ids is None:
-        env_ids = torch.arange(env.scene.num_envs, device="cpu")
-    else:
-        env_ids = env_ids.cpu()
+        Args:
+            cfg: The configuration of the event term.
+            env: The environment instance.
 
-    # retrieve material buffer
-    materials = asset.root_physx_view.get_material_properties()
+        Raises:
+            ValueError: If the asset is not a RigidObject or an Articulation.
+        """
+        super().__init__(cfg, env)
 
-    # sample material properties from the given ranges
-    material_samples = np.zeros(materials[env_ids].shape)
-    material_samples[..., 0] = np.random.uniform(*static_friction_range)
-    material_samples[..., 1] = np.random.uniform(*dynamic_friction_range)
-    material_samples[..., 2] = np.random.uniform(*restitution_range)
+        # extract the used quantities (to enable type-hinting)
+        self.asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
+        self.asset: RigidObject | Articulation = env.scene[self.asset_cfg.name]
 
-    # create uniform range tensor for bucketing
-    lo = np.array([static_friction_range[0], dynamic_friction_range[0], restitution_range[0]])
-    hi = np.array([static_friction_range[1], dynamic_friction_range[1], restitution_range[1]])
+        if not isinstance(self.asset, (RigidObject, Articulation)):
+            raise ValueError(
+                f"Randomization term 'randomize_rigid_body_material' not supported for asset: '{self.asset_cfg.name}'"
+                f" with type: '{type(self.asset)}'."
+            )
 
-    # to avoid 64k material limit in physx, we bucket materials by binning randomized material properties
-    # into buckets based on the number of buckets specified
-    for d in range(3):
-        buckets = np.array([(hi[d] - lo[d]) * i / num_buckets + lo[d] for i in range(num_buckets)])
-        material_samples[..., d] = buckets[np.searchsorted(buckets, material_samples[..., d]) - 1]
-
-    # update material buffer with new samples
-    if isinstance(asset, Articulation) and asset_cfg.body_ids != slice(None):
         # obtain number of shapes per body (needed for indexing the material properties correctly)
         # note: this is a workaround since the Articulation does not provide a direct way to obtain the number of shapes
         #  per body. We use the physics simulation view to obtain the number of shapes per body.
-        num_shapes_per_body = []
-        for link_path in asset.root_physx_view.link_paths[0]:
-            link_physx_view = asset._physics_sim_view.create_rigid_body_view(link_path)  # type: ignore
-            num_shapes_per_body.append(link_physx_view.max_shapes)
+        if isinstance(self.asset, Articulation) and self.asset_cfg.body_ids != slice(None):
+            self.num_shapes_per_body = []
+            for link_path in self.asset.root_physx_view.link_paths[0]:
+                link_physx_view = self.asset._physics_sim_view.create_rigid_body_view(link_path)  # type: ignore
+                self.num_shapes_per_body.append(link_physx_view.max_shapes)
+            # ensure the parsing is correct
+            num_shapes = sum(self.num_shapes_per_body)
+            expected_shapes = self.asset.root_physx_view.max_shapes
+            if num_shapes != expected_shapes:
+                raise ValueError(
+                    "Randomization term 'randomize_rigid_body_material' failed to parse the number of shapes per body."
+                    f" Expected total shapes: {expected_shapes}, but got: {num_shapes}."
+                )
+        else:
+            # in this case, we don't need to do special indexing
+            self.num_shapes_per_body = None
+
+        # obtain parameters for sampling friction and restitution values
+        static_friction_range = cfg.params.get("static_friction_range", (1.0, 1.0))
+        dynamic_friction_range = cfg.params.get("dynamic_friction_range", (1.0, 1.0))
+        restitution_range = cfg.params.get("restitution_range", (0.0, 0.0))
+        num_buckets = int(cfg.params.get("num_buckets", 1))
 
         # sample material properties from the given ranges
-        for body_id in asset_cfg.body_ids:
-            # start index of shape
-            start_idx = sum(num_shapes_per_body[:body_id])
-            # end index of shape
-            end_idx = start_idx + num_shapes_per_body[body_id]
-            # assign the new materials
-            # material ids are of shape: num_env_ids x num_shapes
-            # material_buckets are of shape: num_buckets x 3
-            materials[env_ids, start_idx:end_idx] = torch.from_numpy(material_samples[:, start_idx:end_idx]).to(
-                dtype=torch.float
-            )
-    else:
-        materials[env_ids] = torch.from_numpy(material_samples).to(dtype=torch.float)
+        # note: we only sample the materials once during initialization
+        #   afterwards these are randomly assigned to the geometries of the asset
+        range_list = [static_friction_range, dynamic_friction_range, restitution_range]
+        ranges = torch.tensor(range_list, device="cpu")
+        self.material_buckets = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (num_buckets, 3), device="cpu")
 
-    # apply to simulation
-    asset.root_physx_view.set_material_properties(materials, env_ids)
+        # ensure dynamic friction is always less than static friction
+        make_consistent = cfg.params.get("make_consistent", False)
+        if make_consistent:
+            self.material_buckets[:, 1] = torch.min(self.material_buckets[:, 0], self.material_buckets[:, 1])
+
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        env_ids: torch.Tensor | None,
+        static_friction_range: tuple[float, float],
+        dynamic_friction_range: tuple[float, float],
+        restitution_range: tuple[float, float],
+        num_buckets: int,
+        asset_cfg: SceneEntityCfg,
+        make_consistent: bool = False,
+    ):
+        # resolve environment ids
+        if env_ids is None:
+            env_ids = torch.arange(env.scene.num_envs, device="cpu")
+        else:
+            env_ids = env_ids.cpu()
+
+        # randomly assign material IDs to the geometries
+        total_num_shapes = self.asset.root_physx_view.max_shapes
+        bucket_ids = torch.randint(0, num_buckets, (len(env_ids), total_num_shapes), device="cpu")
+        material_samples = self.material_buckets[bucket_ids]
+
+        # retrieve material buffer from the physics simulation
+        materials = self.asset.root_physx_view.get_material_properties()
+
+        # update material buffer with new samples
+        if self.num_shapes_per_body is not None:
+            # sample material properties from the given ranges
+            for body_id in self.asset_cfg.body_ids:
+                # obtain indices of shapes for the body
+                start_idx = sum(self.num_shapes_per_body[:body_id])
+                end_idx = start_idx + self.num_shapes_per_body[body_id]
+                # assign the new materials
+                # material samples are of shape: num_env_ids x total_num_shapes x 3
+                materials[env_ids, start_idx:end_idx] = material_samples[:, start_idx:end_idx]
+        else:
+            # assign all the materials
+            materials[env_ids] = material_samples[:]
+
+        # apply to simulation
+        self.asset.root_physx_view.set_material_properties(materials, env_ids)
 
 
 def randomize_rigid_body_mass(
@@ -132,11 +169,17 @@ def randomize_rigid_body_mass(
     mass_distribution_params: tuple[float, float],
     operation: Literal["add", "scale", "abs"],
     distribution: Literal["uniform", "log_uniform", "gaussian"] = "uniform",
+    recompute_inertia: bool = True,
 ):
     """Randomize the mass of the bodies by adding, scaling, or setting random values.
 
     This function allows randomizing the mass of the bodies of the asset. The function samples random values from the
     given distribution parameters and adds, scales, or sets the values into the physics simulation based on the operation.
+
+    If the ``recompute_inertia`` flag is set to ``True``, the function recomputes the inertia tensor of the bodies
+    after setting the mass. This is useful when the mass is changed significantly, as the inertia tensor depends
+    on the mass. It assumes the body is a uniform density object. If the body is not a uniform density object,
+    the inertia tensor may not be accurate.
 
     .. tip::
         This function uses CPU tensors to assign the body masses. It is recommended to use this function
@@ -159,7 +202,10 @@ def randomize_rigid_body_mass(
 
     # get the current masses of the bodies (num_assets, num_bodies)
     masses = asset.root_physx_view.get_masses()
+
     # apply randomization on default values
+    # this is to make sure when calling the function multiple times, the randomization is applied on the
+    # default values and not the previously randomized values
     masses[env_ids[:, None], body_ids] = asset.data.default_mass[env_ids[:, None], body_ids].clone()
 
     # sample from the given range
@@ -171,6 +217,24 @@ def randomize_rigid_body_mass(
 
     # set the mass into the physics simulation
     asset.root_physx_view.set_masses(masses, env_ids)
+
+    # recompute inertia tensors if needed
+    if recompute_inertia:
+        # compute the ratios of the new masses to the initial masses
+        ratios = masses[env_ids[:, None], body_ids] / asset.data.default_mass[env_ids[:, None], body_ids]
+        # scale the inertia tensors by the the ratios
+        # since mass randomization is done on default values, we can use the default inertia tensors
+        inertias = asset.root_physx_view.get_inertias()
+        if isinstance(asset, Articulation):
+            # inertia has shape: (num_envs, num_bodies, 9) for articulation
+            inertias[env_ids[:, None], body_ids] = (
+                asset.data.default_inertia[env_ids[:, None], body_ids] * ratios[..., None]
+            )
+        else:
+            # inertia has shape: (num_envs, 9) for rigid object
+            inertias[env_ids] = asset.data.default_inertia[env_ids] * ratios
+        # set the inertia tensors into the physics simulation
+        asset.root_physx_view.set_inertias(inertias, env_ids)
 
 
 def randomize_physics_scene_gravity(
@@ -797,6 +861,48 @@ def reset_joints_by_offset(
     asset.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
 
 
+def reset_nodal_state_uniform(
+    env: ManagerBasedEnv,
+    env_ids: torch.Tensor,
+    position_range: dict[str, tuple[float, float]],
+    velocity_range: dict[str, tuple[float, float]],
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+):
+    """Reset the asset nodal state to a random position and velocity uniformly within the given ranges.
+
+    This function randomizes the nodal position and velocity of the asset.
+
+    * It samples the root position from the given ranges and adds them to the default nodal position, before setting
+      them into the physics simulation.
+    * It samples the root velocity from the given ranges and sets them into the physics simulation.
+
+    The function takes a dictionary of position and velocity ranges for each axis. The keys of the
+    dictionary are ``x``, ``y``, ``z``. The values are tuples of the form ``(min, max)``.
+    If the dictionary does not contain a key, the position or velocity is set to zero for that axis.
+    """
+    # extract the used quantities (to enable type-hinting)
+    asset: DeformableObject = env.scene[asset_cfg.name]
+    # get default root state
+    nodal_state = asset.data.default_nodal_state_w[env_ids].clone()
+
+    # position
+    range_list = [position_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z"]]
+    ranges = torch.tensor(range_list, device=asset.device)
+    rand_samples = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 1, 3), device=asset.device)
+
+    nodal_state[..., :3] += rand_samples
+
+    # velocities
+    range_list = [velocity_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z"]]
+    ranges = torch.tensor(range_list, device=asset.device)
+    rand_samples = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 1, 3), device=asset.device)
+
+    nodal_state[..., 3:] += rand_samples
+
+    # set into the physics simulation
+    asset.write_nodal_state_to_sim(nodal_state, env_ids=env_ids)
+
+
 def reset_scene_to_default(env: ManagerBasedEnv, env_ids: torch.Tensor):
     """Reset the scene to the default state specified in the scene configuration."""
     # rigid bodies
@@ -818,6 +924,11 @@ def reset_scene_to_default(env: ManagerBasedEnv, env_ids: torch.Tensor):
         default_joint_vel = articulation_asset.data.default_joint_vel[env_ids].clone()
         # set into the physics simulation
         articulation_asset.write_joint_state_to_sim(default_joint_pos, default_joint_vel, env_ids=env_ids)
+    # deformable objects
+    for deformable_object in env.scene.deformable_objects.values():
+        # obtain default and set into the physics simulation
+        nodal_state = deformable_object.data.default_nodal_state_w[env_ids].clone()
+        deformable_object.write_nodal_state_to_sim(nodal_state, env_ids=env_ids)
 
 
 """

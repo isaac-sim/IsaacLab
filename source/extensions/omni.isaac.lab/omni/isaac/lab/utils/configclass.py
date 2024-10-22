@@ -334,8 +334,10 @@ def _custom_post_init(obj):
             continue
         # get data member
         value = getattr(obj, key)
-        # duplicate data members
-        if not callable(value):
+        # check annotation
+        ann = obj.__class__.__dict__.get(key)
+        # duplicate data members that are mutable
+        if not callable(value) and not isinstance(ann, property):
             setattr(obj, key, deepcopy(value))
 
 
@@ -372,6 +374,7 @@ def _skippable_class_member(key: str, value: Any, hints: dict | None = None) -> 
     * Manually-added special class functions: From :obj:`_CONFIGCLASS_METHODS`.
     * Members that are already present in the type annotations.
     * Functions bounded to class object or class.
+    * Properties bounded to class object.
 
     Args:
         key: The class member name.
@@ -401,6 +404,9 @@ def _skippable_class_member(key: str, value: Any, hints: dict | None = None) -> 
         signature = inspect.signature(value)
         if "self" in signature.parameters or "cls" in signature.parameters:
             return True
+    # skip property methods
+    if isinstance(value, property):
+        return True
     # Otherwise, don't skip
     return False
 

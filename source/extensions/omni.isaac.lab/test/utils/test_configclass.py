@@ -307,6 +307,14 @@ class ClassFunctionImplementedDemoCfg:
     def class_method(cls, value: int) -> ClassFunctionImplementedDemoCfg:
         return cls(a=value)
 
+    @property
+    def a_proxy(self) -> int:
+        return self.a
+
+    @a_proxy.setter
+    def a_proxy(self, value: int):
+        self.a = value
+
 
 """
 Dummy configuration: Nested dictionaries
@@ -642,7 +650,7 @@ class TestConfigClass(unittest.TestCase):
         self.assertEqual(cfg.a, 10)
 
     def test_class_function_impl_config(self):
-        """Tests having class and static function defined in the class instance."""
+        """Tests having class function defined in the class instance."""
         cfg = ClassFunctionImplementedDemoCfg()
 
         # check that the annotations are correct
@@ -658,6 +666,25 @@ class TestConfigClass(unittest.TestCase):
         new_cfg2 = ClassFunctionImplementedDemoCfg.class_method(20)
         # check value is correct
         self.assertEqual(new_cfg2.a, 20)
+
+    def test_class_property_impl_config(self):
+        """Tests having class property defined in the class instance."""
+        cfg = ClassFunctionImplementedDemoCfg()
+
+        # check that the annotations are correct
+        self.assertDictEqual(cfg.__annotations__, {"a": "int"})
+
+        # check all methods are callable
+        cfg.instance_method()
+
+        # check value is correct
+        self.assertEqual(cfg.a, 5)
+        self.assertEqual(cfg.a_proxy, 5)
+
+        # set through property
+        cfg.a_proxy = 10
+        self.assertEqual(cfg.a, 10)
+        self.assertEqual(cfg.a_proxy, 10)
 
     def test_dict_conversion_functions_config(self):
         """Tests conversion of config with functions into dictionary."""
