@@ -44,7 +44,7 @@ class RigidObjectCollection(AssetBase):
     """
 
     cfg: RigidObjectCollectionCfg
-    """Configuration instance for the rigid object."""
+    """Configuration instance for the rigid object collection."""
 
     def __init__(self, cfg: RigidObjectCollectionCfg):
         """Initialize the rigid object.
