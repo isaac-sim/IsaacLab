@@ -58,7 +58,9 @@ Guidelines for modifications:
 * Muhong Guo
 * Nuralem Abizov
 * Özhan Özen
+* Peter Du
 * Qinxi Yu
+* Qian Wan
 * René Zurbrügg
 * Ritvik Singh
 * Rosario Scalise
@@ -69,8 +71,6 @@ Guidelines for modifications:
 * Yang Jin
 * Zhengyu Zhang
 * Ziqi Fan
-* Qian Wan
-* Peter Du
 
 ## Acknowledgements
 
