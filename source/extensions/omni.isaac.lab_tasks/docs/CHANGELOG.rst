@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.10.1 (2024-10-20)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the wrong selection of body id's in the ``feet_slide`` reward function in omni.isaac.lab_tasks.manager_based.locomotion.velocity.mdp.rewards.
+  Changed parameter from ``asset_cfg.body_ids`` to ``sensor_cfg.body_ids``.
+
 0.10.0 (2024-08-14)
 ~~~~~~~~~~~~~~~~~~~
 
