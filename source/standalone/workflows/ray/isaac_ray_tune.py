@@ -58,14 +58,11 @@ class IsaacLabTuneTrainable(tune.Trainable):
 
 
 def invoke_tuning_run(args, cfg):
-    num_gpu_per_worker = args.cluster_gpu_count // args.num_workers
-    num_cpu_per_worker = args.cluster_cpu_count // args.num_workers
     ray.init(address="auto")  # Initialize Ray
-
     # Define trainable with specific resource allocation
     isaac_lab_trainable_with_resources = tune.with_resources(
         IsaacLabTuneTrainable,  # Make sure IsaacLabTuneTrainable is defined and imported
-        {"cpu": num_cpu_per_worker, "gpu": num_gpu_per_worker},
+        isaac_ray_util.get_total_gpu_node_resources(),
     )
 
     # Define BOHB Search Algorithm

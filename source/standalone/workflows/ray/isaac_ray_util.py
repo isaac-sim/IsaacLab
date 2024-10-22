@@ -2,12 +2,12 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-
 import argparse
 import re
 import subprocess
 import time
 
+import ray
 from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 
 
@@ -118,6 +118,39 @@ def invoke_run(cfg, max_line_count=2000):
         print(f"Error during experiment run, or could not find logdir: \n {log_output}")
         return {"proc": None, "experiment_name": None, "logdir": None}
     return {"proc": proc, "experiment_name": experiment_name, "logdir": logdir}
+
+
+def get_total_gpu_node_resources():
+    # Initialize Ray
+    ray.init()
+
+    # Get detailed resource information per node
+    nodes = ray.nodes()
+
+    total_cpus = 0
+    total_gpus = 0
+    total_memory = 0  # in bytes
+    total_object_store_memory = 0  # in bytes
+
+    # Loop through each node and aggregate resources only from GPU nodes
+    for node in nodes:
+        # Only consider nodes that are live and have GPU resources
+        if node["Alive"] and "GPU" in node["Resources"]:
+            node_resources = node["Resources"]
+            total_cpus += node_resources.get("CPU", 0)
+            total_gpus += node_resources.get("GPU", 0)
+            total_memory += node_resources.get("memory", 0)
+            total_object_store_memory += node_resources.get("object_store_memory", 0)
+
+    # Prepare the dictionary for tune.with_resources
+    total_resources = {
+        "cpu": total_cpus,
+        "gpu": total_gpus,
+        "memory": total_memory / (1024**3),  # Convert to GB
+        "object_store_memory": total_object_store_memory / (1024**3),  # Convert to GB
+    }
+
+    return total_resources
 
 
 def add_cluster_args(parser: argparse.ArgumentParser) -> None:
