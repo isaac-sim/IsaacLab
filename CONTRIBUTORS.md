@@ -45,6 +45,7 @@ Guidelines for modifications:
 * Gary Lvov
 * Giulio Romualdi
 * HoJin Jeon
+* Jan Kerner
 * Jean Tampon
 * Jia Lin Yuan
 * Jingzhou Liu
