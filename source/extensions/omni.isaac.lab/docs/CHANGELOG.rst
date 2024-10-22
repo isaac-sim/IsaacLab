@@ -11,8 +11,9 @@ Added
   type ``MISSING``. This is useful when the user wants to check if a certain attribute has been set or not.
 * Added the configuration validation check inside the constructor of all the core classes
   (such as sensor base, asset base, scene and environment base classes).
-* Added support for environments without commands by leaving the attribute :attr:`omni.isaac.lab.envs.ManagerBasedRLEnvCfg.commands` as
-  None. Before this had to be done using the class :class:`omni.isaac.lab.command_generators.NullCommandGenerator`.
+* Added support for environments without commands by leaving the attribute
+  :attr:`omni.isaac.lab.envs.ManagerBasedRLEnvCfg.commands` as None. Before, this had to be done using
+  the class :class:`omni.isaac.lab.command_generators.NullCommandGenerator`.
 
 
 0.26.0 (2024-10-16)
