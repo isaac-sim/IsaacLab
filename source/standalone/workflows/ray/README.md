@@ -30,7 +30,7 @@ this dependency is not needed.
 To install all Python dependencies, run
 
 ```
-./isaaclab.sh -p -m pip install "ray[default, tune]"==2.31.0
+./isaaclab.sh -p -m pip install ray[default, tune]==2.31.0
 ```
 
 ### Cloud Setup
@@ -64,6 +64,8 @@ Ray server will run indefinitely until it is stopped with ```CTRL + C```
 ```
 echo "import ray; ray.init(); import time; print('Ray is running...'); [time.sleep(10) for _ in iter(int, 1)]" | ./isaaclab.sh -p
 ```
+
+Alternatively, if you have more than one machine,
 
 On the head machine, run ``ray start --head --port 6379``. On any worker machines,
 make sure you can connect to the head machine, and then run
