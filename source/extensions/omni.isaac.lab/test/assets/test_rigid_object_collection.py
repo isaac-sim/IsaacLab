@@ -447,7 +447,6 @@ class TestRigidObjectCollection(unittest.TestCase):
                             )
 
                             # Simulate physics
-                            # perform rendering
                             sim.step()
                             # update object
                             object_collection.update(sim.cfg.dt)
@@ -491,7 +490,6 @@ class TestRigidObjectCollection(unittest.TestCase):
 
                                 # Simulate physics
                                 for _ in range(2):
-                                    # perform rendering
                                     sim.step()
                                     # update object
                                     object_collection.update(sim.cfg.dt)
