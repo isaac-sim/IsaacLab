@@ -5,7 +5,7 @@
 Through using Ray, we streamline training runs.
 
 The Ray integration is useful to you if any of the following apply:
-- You want to run several training runs at once or consecutively with minimal interaction
+- You want to run several training runs at once in parallel or consecutively with minimal interaction
 - You want to use the same training setup everywhere (on cloud and local) with minimal overhead
 - You want to tune models' hyperparameters as fast as possible in parallel on multiple GPUs
 	and/or multiple GPU Nodes
@@ -33,36 +33,16 @@ To install all Python dependencies, run
 ./isaaclab.sh -p -m pip install ray[default, tune]==2.31.0
 ```
 
-### Cloud Setup
+# Setup / Cluster Configuration
 
-On your cloud provider of choice, configure the following
-
-- An container registry (NGC, GCS artifact registry, AWS ECR, etc) where you have
-	an Isaac Lab image that you can pull with the correct permissions, configured to
-	support Ray and nvidia-smi
-	- See ```cluster_configs/Dockerfile``` to see how to modify the ```isaac-lab-base```
-		container for Ray compatibility. Ray should use the isaac sim python shebang, and nvidia-smi
-		should work within the container. Be careful with the setup here as
-		paths need to be configured correctly for everything to work. It's likely that
-		the example dockerfile will work for you out of the box.
-- A Kubernetes Cluster with a GPU-passthrough enabled node-pool with available
-	GPU pods that has access to your container registry/storage (likely has to be on same region/VPC),
-	and has the Ray operator enabled with correct IAM permissions.
-- A ``kuberay.yaml.ninja`` file that describes how to allocate resources (already included for
-	google cloud)
-- It is highly recommended to create a storage bucket to dump experiment logs/checkpoints to.
-
-An example of what a cloud deploy might look look like is in ``cloud_cluster_configs/google_cloud``
-
-
-### Local and Other Setups
-#### Option A: With Ray Clusters
+## Local and Other Setups
+#### Option A: With Ray Clusters (Recommended for those less familiar with Ray)
 
 If you have one machine, you can the following one liner to start a ray server. This
 Ray server will run indefinitely until it is stopped with ```CTRL + C```
 
 ```
-echo "import ray; ray.init(); import time; print('Ray is running...'); [time.sleep(10) for _ in iter(int, 1)]" | ./isaaclab.sh -p
+echo "import ray; ray.init(); import time; [time.sleep(10) for _ in iter(int, 1)]" | ./isaaclab.sh -p
 ```
 
 Alternatively, if you have more than one machine,
@@ -87,6 +67,28 @@ to ``local`` when running ``launch.py``
 See [this link](https://docs.ray.io/en/latest/cluster/vms/user-guides/community/slurm.html#slurm-network-ray)
 for more information. This guide does not explicitly support SLURM, but it should still be compatible.
 
+## Cloud Setup (Not needed for local development)
+
+On your cloud provider of choice, configure the following
+
+- An container registry (NGC, GCS artifact registry, AWS ECR, etc) where you have
+	an Isaac Lab image that you can pull with the correct permissions, configured to
+	support Ray and nvidia-smi
+	- See ```cluster_configs/Dockerfile``` to see how to modify the ```isaac-lab-base```
+		container for Ray compatibility. Ray should use the isaac sim python shebang, and nvidia-smi
+		should work within the container. Be careful with the setup here as
+		paths need to be configured correctly for everything to work. It's likely that
+		the example dockerfile will work for you out of the box.
+- A Kubernetes Cluster with a GPU-passthrough enabled node-pool with available
+	GPU pods that has access to your container registry/storage (likely has to be on same region/VPC),
+	and has the Ray operator enabled with correct IAM permissions.
+- A ``kuberay.yaml.ninja`` file that describes how to allocate resources (already included for
+	google cloud)
+- It is highly recommended to create a storage bucket to dump experiment logs/checkpoints to.
+
+An example of what a cloud deploy might look look like is in ``cloud_cluster_configs/google_cloud``
+
+
 # Running Local Experiments
 1. Test that your cluster works
 
@@ -94,34 +96,52 @@ for more information. This guide does not explicitly support SLURM, but it shoul
 ./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py --test
 ```
 
-2. Submit jobs in the following fashion. If there are more jobs than
-resources, jobs will be queued up for when resources become available
-using the Ray functionality.
+2. See the following examples on how to submit jobs. If there are more jobs than workers, jobs will be queued up for when resources become available
+using the Ray functionality. If you wish to run more than one job in 
+parallel, then you must isolate resources so that there is more than
+one worker available, as by default, one worker is created with
+all available resources on the computer. Alternatively, you can 
+also specify the ```--num_workers``` argument.
+
+This example shows how to queue up several jobs in series on one worker.
 
 ```
 ./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py
-<JOB0> <JOB1> <JOB2> #/workspace/isaaclab/source/standalone/workflows/rl_games/train.py ...
+--jobs <JOB0> <JOB1> <JOB2>
 ```
 
-For example,
-
+This example shows how to submit a single training run on one worker.
 ```
 ./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py
- 'source/standalone/workflows/rl_games/train.py --task Isaac-Cartpole-v0 --headless'
+ --jobs 'source/standalone/workflows/rl_games/train.py --task Isaac-Cartpole-v0 --headless'
 ```
-
 
 You can also use this functionality to isolate the amount
-of resources that are used for Isaac Lab.
+of resources that are used for Isaac Lab. The number
+of workers is determined by the total resources
+divided by the resources per job
 ```
 ./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py --num_cpu_per_job <CPU> \
---num_gpu_per_job <GPU> --gb_ram_per_job <RAM> --num_workers 1  <JOB>
+--num_gpu_per_job <GPU> --gb_ram_per_job <RAM> --jobs <JOB0> <JOB1>
 ```
 
-You can also specify more than one job to run in parallel if you have more than one GPU. However, in this case, you must isolate resources. For example,
+You can also specify more than one job to run in parallel if you have more than one GPU. However, in this case, you must isolate resources
+for each job for proper functionality. If you have 2 GPUs,
+you should delegate half of the number of CPUs you have per job,
+half of the RAM, and so on.
+
+For example,
 ```
-./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py --num_cpu_per_job <CPU> \
---num_gpu_per_job 2 --gb_ram_per_job <RAM> --num_workers 2 --commands <JOB0> <JOB1>
+./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py \
+--num_cpu_per_job <CPU> --num_gpu_per_job 1 \ 
+--gb_ram_per_job <RAM> --jobs <JOB0> <JOB1>
+```
+
+Alternatively, you could also do the following, which is a shortcut for the command above.
+```
+./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py \
+ --num_workers <NUM_TO_DIVIDE_TOTAL_RESOURCES_BY> \
+--jobs <JOB0> <JOB1>
 ```
 
 # Running Remote Experiments
@@ -177,7 +197,7 @@ You can also specify more than one job to run in parallel if you have more than 
 	for Ray/Isaac Lab are found on path.
 
 	```
-	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py "--test"
+	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py "wrap_isaac_ray_resources.py --test"
 	```
 
 7. Define your desired Ray job as a script on your local machine.
@@ -268,13 +288,7 @@ hyperparameter simultaneously in parallel.
 5. Batch submit your desired jobs. Each desired job is paired with the IP addresses
 	in the order that they appear.
 	```
-	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py "wrap_isaac_ray_resources.py --commands <JOB_0>" "wrap_isaac_ray_resources.py --commands <JOB_1>" "wrap_isaac_ray_resources.py --commands <JOB_N>"
-	```
-
-	For example if you have three clusters, and would like to tune three cartpole variants at once,
-
-	```
-	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py "isaac_ray_tune.py --cfg=hyper_parameter_tuning/config/vision_cartpole.py --tune_type standard" "isaac_ray_tune.py --cfg=hyper_parameter_tuning/config/vision_cartpole.py --tune_type resnet" "isaac_ray_tune.py --cfg=hyper_parameter_tuning/config/vision_cartpole.py --tune_type theia"
+	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py "wrap_isaac_ray_resources.py --jobs <JOB_0>" "wrap_isaac_ray_resources.py --jobs <JOB_1>" "wrap_isaac_ray_resources.py --jobs <JOB_N>"
 	```
 
 6. Clean up your cluster to conserve resources (follow single cluster steps for each cluster).

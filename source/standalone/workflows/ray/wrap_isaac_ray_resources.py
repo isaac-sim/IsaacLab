@@ -31,6 +31,8 @@ def execute_command(command: str, test_mode: bool = False) -> str:
             for gpu_info in output:
                 name, memory_free, serial = gpu_info.split(", ")
                 result_details.append({"Name": name, "Memory Available": f"{memory_free} MB", "Serial Number": serial})
+                num_gpus_detected = torch.cuda.device_count()
+                result_details.append(f"# Detected GPUs from PyTorch: {num_gpus_detected}")
         except subprocess.CalledProcessError as e:
             print(f"Error calling nvidia-smi: {e.stderr}")
             result_details.append({"error": "Failed to retrieve GPU information"})
@@ -44,11 +46,11 @@ def execute_command(command: str, test_mode: bool = False) -> str:
                 print(f"Error executing command: {stderr}")
         except Exception as e:
             print(f"Exception occurred: {str(e)}")
-    num_gpus_detected = torch.cuda.device_count()
+    
     now = datetime.now().strftime("%H:%M:%S.%f")
     result_str = (
         f"Job Started at {start_time}, completed at {now} | "
-        f"# Detected GPUs: {num_gpus_detected} | Result details: {result_details}"
+        f"Result details: {result_details}"
     )
     print(result_str)
     return result_str
@@ -77,24 +79,36 @@ def main(num_workers, commands, num_gpus, num_cpus, ram_gb, test_mode):
 
     detailed_node_info = ray.nodes()
 
-    if num_workers is None:
-        num_workers = len(detailed_node_info) - 1  # one head Node
-
-    print("Cluster resources before dispatching jobs:")
+    print("Cluster resources:")
+    if num_workers is not None:
+        print(f"[WARNING]: Splitting cluster resources into {num_workers}")
+    else:
+        print(f"Number of workers: {len(detailed_node_info)}")
+        print(f"If on cloud, num workers is {len(detailed_node_info) - 1}")
     for node in detailed_node_info:
         resources = node.get("Resources", {})
         node_ip = node.get("NodeManagerAddress")
         formatted_resources = format_resources(resources)
         print(f"Node {node_ip} resources: {formatted_resources}")
-        head_node_pred = node.get("Resources", {}).get("node:__internal_head__", 0) > 0
-        if not head_node_pred:
-            if num_gpus is None:
-                num_gpus = formatted_resources["GPU"]
-            if num_cpus is None:
-                num_cpus = formatted_resources["CPU"]
-            if ram_gb is None:
-                ram_gb = float(formatted_resources["memory"][0])
+        # If local, head node has all resources
+        # If remote, want to ignore head node
+        # Assuming remote workers nodes are spec'd more heavily than head node
+        # Assume all worker nodes are homogeneous
+        if num_gpus is None or num_gpus < formatted_resources["GPU"]:
+            num_gpus = formatted_resources["GPU"]
+        if num_cpus is None or num_cpus < formatted_resources["CPU"]:
+            num_cpus = formatted_resources["CPU"]
+        if ram_gb is None or ram_gb < float(formatted_resources["memory"][0]):
+            ram_gb = float(formatted_resources["memory"][0])
     job_results = []
+
+    if num_workers:
+        num_gpus /= num_workers
+        num_cpus /= num_workers
+        ram_gb /= num_workers
+    else:
+        num_workers = 1
+    print("[INFO]: Requesting resources: {num_workers = } {num_gpus = } {num_cpus = } {ram_gb = }")
 
     for i, command in enumerate(commands):
         print(f"Submitting job {i + 1} of {len(commands)} with command '{command}'")
