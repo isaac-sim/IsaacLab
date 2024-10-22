@@ -1,7 +1,7 @@
-# # Copyright (c) 2022-2024, The Isaac Lab Project Developers.
-# # All rights reserved.
-# #
-# # SPDX-License-Identifier: BSD-3-Clause
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
 
 # import argparse
 # import logging
@@ -32,7 +32,7 @@
 #     result_details = []
 
 #     # Replace semicolons with spaces before executing
-#     formatted_command = command.split(";")
+#     formatted_command = command.split(" ")
 #     full_invocation = ['./isaaclab.sh', "-p"]
 #     full_invocation.extend(formatted_command)
 #     if test_mode:
@@ -54,7 +54,6 @@
 #             result_details.append({"error": "Failed to retrieve GPU information"})
 #     else:
 #         try:
-
 #             # Use subprocess.Popen for live output
 #             process = subprocess.Popen(
 #                 full_invocation, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
@@ -101,7 +100,10 @@
 
 # if __name__ == "__main__":
 #     parser = argparse.ArgumentParser(description="Submit multiple jobs with optional GPU testing.")
-#     isaac_ray_util.add_cluster_args(parser)
+    
+#     # Adding cluster arguments from a utility or creating them manually if needed
+#     isaac_ray_util.add_cluster_args(parser)  # Assumes this function adds cluster-related args
+    
 #     parser.add_argument(
 #         "--commands",
 #         nargs="+",
@@ -109,25 +111,33 @@
 #         help="List of commands to execute on workers, use ';' as delimiter between commands",
 #     )
 #     parser.add_argument("--test", action="store_true", help="Run nvidia-smi test instead of the arbitrary command")
+    
+#     # Parse known and unknown arguments
+#     args, unknown = parser.parse_known_args()
 
-#     args = parser.parse_args()
-
+#     # Ensure there are enough commands provided
 #     if not args.test and len(args.commands) < args.num_workers:
 #         logging.error("Not enough commands provided for the number of workers.")
 #         exit(1)
 
+#     # Calculate per-worker resource allocations
 #     gpus_per_worker = args.cluster_gpu_count / args.num_workers
 #     cpus_per_worker = args.cluster_cpu_count / args.num_workers
 #     memory_per_worker = args.cluster_ram_gb / args.num_workers
 
-#     main(args.num_workers, args.commands, gpus_per_worker, cpus_per_worker, memory_per_worker, args.test)
+#     # Append unknown arguments to commands
+#     if args.commands:
+#         full_jobs = [" ".join([job] + unknown) for job in args.commands]
+#     else:
+#         full_jobs = [" ".join(unknown)]  # If no jobs explicitly provided, take unknown args as the job command
 
+#     # Run the main function with full job commands
+#     main(args.num_workers, full_jobs, gpus_per_worker, cpus_per_worker, memory_per_worker, args.test)
 
 import argparse
 import logging
 import subprocess
 from datetime import datetime
-
 import isaac_ray_util
 import ray
 
@@ -152,7 +162,7 @@ def execute_command(command: str, test_mode: bool = False) -> str:
     result_details = []
 
     # Replace semicolons with spaces before executing
-    formatted_command = command.split(" ")
+    formatted_command = command.split(";")
     full_invocation = ['./isaaclab.sh', "-p"]
     full_invocation.extend(formatted_command)
     if test_mode:
@@ -218,6 +228,29 @@ def main(num_workers, commands, gpus_per_worker, cpus_per_worker, memory_per_wor
     logging.info("All jobs completed.")
 
 
+def split_commands(args):
+    """
+    Split commands and arguments by detecting .py scripts in the input args.
+    Group all arguments with the .py script until the next .py script.
+    """
+    commands = []
+    current_command = []
+    
+    for arg in args:
+        if arg.endswith(".py"):
+            if current_command:
+                commands.append(" ".join(current_command))
+            current_command = [arg]
+        else:
+            current_command.append(arg)
+    
+    # Add the final command
+    if current_command:
+        commands.append(" ".join(current_command))
+    
+    return commands
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Submit multiple jobs with optional GPU testing.")
     
@@ -225,32 +258,22 @@ if __name__ == "__main__":
     isaac_ray_util.add_cluster_args(parser)  # Assumes this function adds cluster-related args
     
     parser.add_argument(
-        "--commands",
-        nargs="+",
-        type=str,
-        help="List of commands to execute on workers, use ';' as delimiter between commands",
+        "commands",
+        nargs=argparse.REMAINDER,  # Capture all remaining arguments as commands
+        help="Commands and their arguments to execute on workers.",
     )
     parser.add_argument("--test", action="store_true", help="Run nvidia-smi test instead of the arbitrary command")
-    
-    # Parse known and unknown arguments
-    args, unknown = parser.parse_known_args()
 
-    # Ensure there are enough commands provided
-    if not args.test and len(args.commands) < args.num_workers:
-        logging.error("Not enough commands provided for the number of workers.")
-        exit(1)
+    # Parse the arguments
+    args = parser.parse_args()
 
-    # Calculate per-worker resource allocations
-    gpus_per_worker = args.cluster_gpu_count / args.num_workers
-    cpus_per_worker = args.cluster_cpu_count / args.num_workers
-    memory_per_worker = args.cluster_ram_gb / args.num_workers
+    # Split commands and arguments by `.py`
+    commands = split_commands(args.commands)
 
-    # Append unknown arguments to commands
-    if args.commands:
-        full_jobs = [" ".join([job] + unknown) for job in args.commands]
-    else:
-        full_jobs = [" ".join(unknown)]  # If no jobs explicitly provided, take unknown args as the job command
+    # Calculate resource allocations
+    gpus_per_worker = args.cluster_gpu_count / len(commands)
+    cpus_per_worker = args.cluster_cpu_count / len(commands)
+    memory_per_worker = args.cluster_ram_gb / len(commands)
 
     # Run the main function with full job commands
-    main(args.num_workers, full_jobs, gpus_per_worker, cpus_per_worker, memory_per_worker, args.test)
-
+    main(len(commands), commands, gpus_per_worker, cpus_per_worker, memory_per_worker, args.test)
