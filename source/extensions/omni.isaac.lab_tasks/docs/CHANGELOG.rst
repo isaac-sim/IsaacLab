@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.10.8 (2024-10-22)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the wrong selection of body id's in the :meth:`omni.isaac.lab_tasks.manager_based.locomotion.velocity.mdp.rewards.feet_slide`
+  reward function. This makes sure the right IDs are selected for the bodies.
+
+
 0.10.7 (2024-10-02)
 ~~~~~~~~~~~~~~~~~~~
 
