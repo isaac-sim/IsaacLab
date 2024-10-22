@@ -11,11 +11,11 @@ import ray
 
 
 @ray.remote
-def execute_command(command: str, identifier_string: str, test_mode: bool = False) -> str:
+def execute_job(job: str, identifier_string: str = "job 0", test_mode: bool = False) -> str:
     start_time = datetime.now().strftime("%H:%M:%S.%f")
     result_details = []
     result_details.append("---------------------------------")
-    result_details.append(f"\n Invocation command: {command}")
+    result_details.append(f"\n Invocation job: {job}")
     if test_mode:
         import torch
 
@@ -43,7 +43,7 @@ def execute_command(command: str, identifier_string: str, test_mode: bool = Fals
 
             # Start the subprocess and set up pipes for real-time output
             process = subprocess.Popen(
-                command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, bufsize=1
+                job, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, bufsize=1
             )
             # Use a list to collect output for final summary
             output_lines = []
@@ -58,20 +58,27 @@ def execute_command(command: str, identifier_string: str, test_mode: bool = Fals
             process.wait()  # Wait for the process to complete
             result_details.extend([prepend_identifier(line) + "\n" for line in output_lines])
         except subprocess.SubprocessError as e:
-            print(prepend_identifier(f"Exception during subprocess execution: {str(e)}"))
-            result_details.append("error: Exception occurred during command execution")
+            print(prepend_identifier(f"[ERROR]: Exception during subprocess execution: {str(e)}"))
+            result_details.append("[ERROR]: Exception occurred during job execution")
 
     now = datetime.now().strftime("%H:%M:%S.%f")
-    print(prepend_identifier(f"Job Started at {start_time}, completed at {now}"))
-    result_str = f"Job Started at {start_time}, completed at {now} | Result details: {' '.join(result_details)}"
+    print(prepend_identifier(f"[INFO]: Job Started at {start_time}, completed at {now}"))
+    result_str = f"[INFO]: Job Started at {start_time}, completed at {now} | Result details: {' '.join(result_details)}"
     return result_str
 
 
-def main(num_workers: int, jobs: list[str], num_gpus: float, num_cpus: float, ram_gb: float, test_mode: bool):
+def main(
+    jobs: list[str],
+    num_workers: int | None,
+    num_gpus: float | None,
+    num_cpus: float | None,
+    ram_gb: float | None,
+    test_mode: bool = False,
+):
     ray.init(address="auto", log_to_driver=True)
     print("Connected to Ray cluster.")
-    print("Assuming homogeneous worker cluster resources.")
-    print("Create more than one cluster for heterogeneous jobs.")
+    print("[INFO]: Assuming homogeneous worker cluster resources.")
+    print("[INFO]: Create more than one cluster for heterogeneous jobs.")
 
     # Helper function to format resource information
     def format_resources(resources):
@@ -90,7 +97,7 @@ def main(num_workers: int, jobs: list[str], num_gpus: float, num_cpus: float, ra
 
     detailed_node_info = ray.nodes()
 
-    print("Cluster resources:")
+    print("[INFO]: Cluster Resource Information")
     num_gpu_nodes = 0
     for node in detailed_node_info:
         resources = node.get("Resources", {})
@@ -119,10 +126,10 @@ def main(num_workers: int, jobs: list[str], num_gpus: float, num_cpus: float, ra
     print(f"[INFO]: Number of GPU nodes found: {num_gpu_nodes}")
     print(f"[INFO]: Requesting resources: {num_gpus = } {num_cpus = } {ram_gb = }")
 
-    for i, command in enumerate(jobs):
-        print(f"Submitting job {i + 1} of {len(jobs)} with command '{command}'")
-        job = execute_command.options(num_gpus=num_gpus, num_cpus=num_cpus, memory=ram_gb * 1024).remote(
-            command, f"Job {i}", test_mode
+    for i, job in enumerate(jobs):
+        print(f"Submitting job {i + 1} of {len(jobs)} with job '{job}'")
+        job = execute_job.options(num_gpus=num_gpus, num_cpus=num_cpus, memory=ram_gb * 1024).remote(
+            job, f"Job {i}", test_mode
         )
         job_results.append(job)
 
@@ -135,20 +142,21 @@ def main(num_workers: int, jobs: list[str], num_gpus: float, num_cpus: float, ra
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Submit multiple jobs with optional GPU testing.")
     isaac_ray_util.add_cluster_args(parser)
-    parser.add_argument("--test", action="store_true", help="Run nvidia-smi test instead of the arbitrary command")
+    parser.add_argument("--test", action="store_true", help="Run nvidia-smi test instead of the arbitrary job")
     parser.add_argument(
         "--jobs",
         type=str,
         nargs=argparse.REMAINDER,
-        help="!! This should be last wrapper argument!!! Commands and their arguments to execute on workers.",
+        help="This should be last wrapper argument. Jobs separated by the + delimiter to run on a cluster.",
     )
     args = parser.parse_args()
-    print(f"Received jobs {args.jobs = }")
+
     jobs = " ".join(args.jobs)
     formatted_jobs = jobs.split("+")
+    print(f"[INFO]: Isaac Ray Wrapper received jobs {formatted_jobs = }")
     main(
-        args.num_workers_per_node,
         formatted_jobs,
+        args.num_workers_per_node,
         args.num_gpu_per_job,
         args.num_cpu_per_job,
         args.gb_ram_per_job,

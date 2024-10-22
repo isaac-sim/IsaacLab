@@ -71,7 +71,7 @@ def submit_job(cluster: dict, job_command: str, test_mode: bool):
 
     final_logs = client.get_job_logs(job_id)
     print("----------------------------------------------------")
-    print(f"Cluster {cluster_name} Logs: \n")
+    print(f"[INFO]: Cluster {cluster_name} Logs: \n")
     print(final_logs)
     print("----------------------------------------------------")
 
@@ -97,19 +97,25 @@ if __name__ == "__main__":
         "--jobs",
         type=str,
         nargs=argparse.REMAINDER,
-        help="!! This should be last wrapper argument!!! Commands and their arguments to execute on workers.",
+        help=(
+            "This should be last argument. Jobs separated by the + delimiter to run on a cluster. "
+            "For more than one cluster, separate cluster dispatches by the * delimiter. "
+            "For more than one cluster, jobs are matched with the ~/.cluster_config in the order "
+            "that they appear. If there are more jobs than clusters, they will be submitted in "
+            "modulus order that they appear. (Say with clusters c1 and c2, and jobs j1 j2 j3 j4) "
+            "jobs j1 and j3 will be submitted to cluster c1, and jobs j2 and j4 will be submitted to cluster c2. "
+        ),
     )
     args = parser.parse_args()
-    print(f"Received jobs {args.jobs = }")
     if args.jobs is not None:
         jobs = " ".join(args.jobs)
         formatted_jobs = jobs.split("*")
-        if len(formatted_jobs):
+        if len(formatted_jobs) > 1:
             print("Warning; Split jobs by cluster with the * delimiter")
     else:
         formatted_jobs = []
+    print(f"[INFO]: Isaac Ray Wrapper received jobs {formatted_jobs = }")
     # Read the cluster spec
     clusters = read_cluster_spec()
-
     # Submit the jobs to the clusters or run in test mode
     submit_jobs_to_clusters(formatted_jobs, clusters, args.test)
