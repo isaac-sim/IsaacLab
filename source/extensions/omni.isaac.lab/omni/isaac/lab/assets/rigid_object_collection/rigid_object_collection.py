@@ -32,7 +32,7 @@ class RigidObjectCollection(AssetBase):
     """A rigid object collection class.
 
     This class represents a collection of rigid objects in the simulation. The state of the rigid objects can be
-    accessed and modified using an batched API.
+    accessed and modified using a batched (env_ids, object_ids) API.
 
 
     For each rigid body in the collection, the root prim of the asset must have the `USD RigidBodyAPI`_
