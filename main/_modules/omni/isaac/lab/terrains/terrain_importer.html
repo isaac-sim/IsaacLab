@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.2.0" />
-    <meta name="docbuild:last-update" content="Oct 22, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 23, 2024"/>
   </head>
   
   
@@ -566,6 +566,8 @@
 <span class="sd">            ValueError: If terrain type is &#39;usd&#39; and no configuration provided for ``usd_path``.</span>
 <span class="sd">            ValueError: If terrain type is &#39;usd&#39; or &#39;plane&#39; and no configuration provided for ``env_spacing``.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># check that the config is valid</span>
+        <span class="n">cfg</span><span class="o">.</span><span class="n">validate</span><span class="p">()</span>
         <span class="c1"># store inputs</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span> <span class="o">=</span> <span class="n">cfg</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">device</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="o">.</span><span class="n">instance</span><span class="p">()</span><span class="o">.</span><span class="n">device</span>  <span class="c1"># type: ignore</span>
@@ -906,7 +908,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 22, 2024.
+  Last updated on Oct 23, 2024.
   <br/>
 </p>
   </div>

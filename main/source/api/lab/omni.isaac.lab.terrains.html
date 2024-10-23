@@ -63,7 +63,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.2.0" />
-    <meta name="docbuild:last-update" content="Oct 22, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 23, 2024"/>
   </head>
   
   
@@ -1332,7 +1332,9 @@ be defined in the USD file.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.terrains.TerrainImporterCfg.num_envs">
 <span class="sig-name descname"><span class="pre">num_envs</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a></em><a class="headerlink" href="#omni.isaac.lab.terrains.TerrainImporterCfg.num_envs" title="Permalink to this definition">#</a></dt>
-<dd><p>The number of environment origins to consider.</p>
+<dd><p>The number of environment origins to consider. Defaults to 1.</p>
+<p>In case, the <a class="reference internal" href="omni.isaac.lab.scene.html#omni.isaac.lab.scene.InteractiveSceneCfg" title="omni.isaac.lab.scene.InteractiveSceneCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">InteractiveSceneCfg</span></code></a> is used, this parameter gets overridden by
+<a class="reference internal" href="omni.isaac.lab.scene.html#omni.isaac.lab.scene.InteractiveSceneCfg.num_envs" title="omni.isaac.lab.scene.InteractiveSceneCfg.num_envs"><code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.scene.InteractiveSceneCfg.num_envs</span></code></a> attribute.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -1747,7 +1749,9 @@ is 0.7.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.terrains.SubTerrainBaseCfg.size">
 <span class="sig-name descname"><span class="pre">size</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.terrains.SubTerrainBaseCfg.size" title="Permalink to this definition">#</a></dt>
-<dd><p>The width (along x) and length (along y) of the terrain (in m).</p>
+<dd><p>The width (along x) and length (along y) of the terrain (in m). Defaults to (10.0, 10.0).</p>
+<p>In case the <a class="reference internal" href="#omni.isaac.lab.terrains.TerrainImporterCfg" title="omni.isaac.lab.terrains.TerrainImporterCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">TerrainImporterCfg</span></code></a> is used, this parameter gets overridden by
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.scene.TerrainImporterCfg.size</span></code> attribute.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -1845,7 +1849,9 @@ is 0.7.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfTerrainBaseCfg.size">
 <span class="sig-name descname"><span class="pre">size</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfTerrainBaseCfg.size" title="Permalink to this definition">#</a></dt>
-<dd><p>The width (along x) and length (along y) of the terrain (in m).</p>
+<dd><p>The width (along x) and length (along y) of the terrain (in m). Defaults to (10.0, 10.0).</p>
+<p>In case the <a class="reference internal" href="#omni.isaac.lab.terrains.TerrainImporterCfg" title="omni.isaac.lab.terrains.TerrainImporterCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">TerrainImporterCfg</span></code></a> is used, this parameter gets overridden by
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.scene.TerrainImporterCfg.size</span></code> attribute.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -1942,7 +1948,9 @@ is 0.7.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfRandomUniformTerrainCfg.size">
 <span class="sig-name descname"><span class="pre">size</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfRandomUniformTerrainCfg.size" title="Permalink to this definition">#</a></dt>
-<dd><p>The width (along x) and length (along y) of the terrain (in m).</p>
+<dd><p>The width (along x) and length (along y) of the terrain (in m). Defaults to (10.0, 10.0).</p>
+<p>In case the <a class="reference internal" href="#omni.isaac.lab.terrains.TerrainImporterCfg" title="omni.isaac.lab.terrains.TerrainImporterCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">TerrainImporterCfg</span></code></a> is used, this parameter gets overridden by
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.scene.TerrainImporterCfg.size</span></code> attribute.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -2064,7 +2072,9 @@ is 0.7.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfPyramidSlopedTerrainCfg.size">
 <span class="sig-name descname"><span class="pre">size</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfPyramidSlopedTerrainCfg.size" title="Permalink to this definition">#</a></dt>
-<dd><p>The width (along x) and length (along y) of the terrain (in m).</p>
+<dd><p>The width (along x) and length (along y) of the terrain (in m). Defaults to (10.0, 10.0).</p>
+<p>In case the <a class="reference internal" href="#omni.isaac.lab.terrains.TerrainImporterCfg" title="omni.isaac.lab.terrains.TerrainImporterCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">TerrainImporterCfg</span></code></a> is used, this parameter gets overridden by
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.scene.TerrainImporterCfg.size</span></code> attribute.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -2136,7 +2146,9 @@ is 0.7.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidSlopedTerrainCfg.size">
 <span class="sig-name descname"><span class="pre">size</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidSlopedTerrainCfg.size" title="Permalink to this definition">#</a></dt>
-<dd><p>The width (along x) and length (along y) of the terrain (in m).</p>
+<dd><p>The width (along x) and length (along y) of the terrain (in m). Defaults to (10.0, 10.0).</p>
+<p>In case the <a class="reference internal" href="#omni.isaac.lab.terrains.TerrainImporterCfg" title="omni.isaac.lab.terrains.TerrainImporterCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">TerrainImporterCfg</span></code></a> is used, this parameter gets overridden by
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.scene.TerrainImporterCfg.size</span></code> attribute.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -2277,7 +2289,9 @@ is 0.7.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfPyramidStairsTerrainCfg.size">
 <span class="sig-name descname"><span class="pre">size</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfPyramidStairsTerrainCfg.size" title="Permalink to this definition">#</a></dt>
-<dd><p>The width (along x) and length (along y) of the terrain (in m).</p>
+<dd><p>The width (along x) and length (along y) of the terrain (in m). Defaults to (10.0, 10.0).</p>
+<p>In case the <a class="reference internal" href="#omni.isaac.lab.terrains.TerrainImporterCfg" title="omni.isaac.lab.terrains.TerrainImporterCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">TerrainImporterCfg</span></code></a> is used, this parameter gets overridden by
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.scene.TerrainImporterCfg.size</span></code> attribute.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -2349,7 +2363,9 @@ is 0.7.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidStairsTerrainCfg.size">
 <span class="sig-name descname"><span class="pre">size</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidStairsTerrainCfg.size" title="Permalink to this definition">#</a></dt>
-<dd><p>The width (along x) and length (along y) of the terrain (in m).</p>
+<dd><p>The width (along x) and length (along y) of the terrain (in m). Defaults to (10.0, 10.0).</p>
+<p>In case the <a class="reference internal" href="#omni.isaac.lab.terrains.TerrainImporterCfg" title="omni.isaac.lab.terrains.TerrainImporterCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">TerrainImporterCfg</span></code></a> is used, this parameter gets overridden by
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.scene.TerrainImporterCfg.size</span></code> attribute.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -2481,7 +2497,9 @@ is 0.7.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfDiscreteObstaclesTerrainCfg.size">
 <span class="sig-name descname"><span class="pre">size</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfDiscreteObstaclesTerrainCfg.size" title="Permalink to this definition">#</a></dt>
-<dd><p>The width (along x) and length (along y) of the terrain (in m).</p>
+<dd><p>The width (along x) and length (along y) of the terrain (in m). Defaults to (10.0, 10.0).</p>
+<p>In case the <a class="reference internal" href="#omni.isaac.lab.terrains.TerrainImporterCfg" title="omni.isaac.lab.terrains.TerrainImporterCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">TerrainImporterCfg</span></code></a> is used, this parameter gets overridden by
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.scene.TerrainImporterCfg.size</span></code> attribute.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -2608,7 +2626,9 @@ is 0.7.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfWaveTerrainCfg.size">
 <span class="sig-name descname"><span class="pre">size</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfWaveTerrainCfg.size" title="Permalink to this definition">#</a></dt>
-<dd><p>The width (along x) and length (along y) of the terrain (in m).</p>
+<dd><p>The width (along x) and length (along y) of the terrain (in m). Defaults to (10.0, 10.0).</p>
+<p>In case the <a class="reference internal" href="#omni.isaac.lab.terrains.TerrainImporterCfg" title="omni.isaac.lab.terrains.TerrainImporterCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">TerrainImporterCfg</span></code></a> is used, this parameter gets overridden by
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.scene.TerrainImporterCfg.size</span></code> attribute.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -2724,7 +2744,9 @@ is 0.7.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfSteppingStonesTerrainCfg.size">
 <span class="sig-name descname"><span class="pre">size</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfSteppingStonesTerrainCfg.size" title="Permalink to this definition">#</a></dt>
-<dd><p>The width (along x) and length (along y) of the terrain (in m).</p>
+<dd><p>The width (along x) and length (along y) of the terrain (in m). Defaults to (10.0, 10.0).</p>
+<p>In case the <a class="reference internal" href="#omni.isaac.lab.terrains.TerrainImporterCfg" title="omni.isaac.lab.terrains.TerrainImporterCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">TerrainImporterCfg</span></code></a> is used, this parameter gets overridden by
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.scene.TerrainImporterCfg.size</span></code> attribute.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -2846,7 +2868,9 @@ is 0.7.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshPlaneTerrainCfg.size">
 <span class="sig-name descname"><span class="pre">size</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshPlaneTerrainCfg.size" title="Permalink to this definition">#</a></dt>
-<dd><p>The width (along x) and length (along y) of the terrain (in m).</p>
+<dd><p>The width (along x) and length (along y) of the terrain (in m). Defaults to (10.0, 10.0).</p>
+<p>In case the <a class="reference internal" href="#omni.isaac.lab.terrains.TerrainImporterCfg" title="omni.isaac.lab.terrains.TerrainImporterCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">TerrainImporterCfg</span></code></a> is used, this parameter gets overridden by
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.scene.TerrainImporterCfg.size</span></code> attribute.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -2959,7 +2983,9 @@ is 0.7.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshPyramidStairsTerrainCfg.size">
 <span class="sig-name descname"><span class="pre">size</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshPyramidStairsTerrainCfg.size" title="Permalink to this definition">#</a></dt>
-<dd><p>The width (along x) and length (along y) of the terrain (in m).</p>
+<dd><p>The width (along x) and length (along y) of the terrain (in m). Defaults to (10.0, 10.0).</p>
+<p>In case the <a class="reference internal" href="#omni.isaac.lab.terrains.TerrainImporterCfg" title="omni.isaac.lab.terrains.TerrainImporterCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">TerrainImporterCfg</span></code></a> is used, this parameter gets overridden by
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.scene.TerrainImporterCfg.size</span></code> attribute.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -3021,7 +3047,9 @@ is 0.7.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshInvertedPyramidStairsTerrainCfg.size">
 <span class="sig-name descname"><span class="pre">size</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshInvertedPyramidStairsTerrainCfg.size" title="Permalink to this definition">#</a></dt>
-<dd><p>The width (along x) and length (along y) of the terrain (in m).</p>
+<dd><p>The width (along x) and length (along y) of the terrain (in m). Defaults to (10.0, 10.0).</p>
+<p>In case the <a class="reference internal" href="#omni.isaac.lab.terrains.TerrainImporterCfg" title="omni.isaac.lab.terrains.TerrainImporterCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">TerrainImporterCfg</span></code></a> is used, this parameter gets overridden by
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.scene.TerrainImporterCfg.size</span></code> attribute.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -3165,7 +3193,9 @@ is 0.7.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRandomGridTerrainCfg.size">
 <span class="sig-name descname"><span class="pre">size</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRandomGridTerrainCfg.size" title="Permalink to this definition">#</a></dt>
-<dd><p>The width (along x) and length (along y) of the terrain (in m).</p>
+<dd><p>The width (along x) and length (along y) of the terrain (in m). Defaults to (10.0, 10.0).</p>
+<p>In case the <a class="reference internal" href="#omni.isaac.lab.terrains.TerrainImporterCfg" title="omni.isaac.lab.terrains.TerrainImporterCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">TerrainImporterCfg</span></code></a> is used, this parameter gets overridden by
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.scene.TerrainImporterCfg.size</span></code> attribute.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -3254,7 +3284,9 @@ is 0.7.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRailsTerrainCfg.size">
 <span class="sig-name descname"><span class="pre">size</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRailsTerrainCfg.size" title="Permalink to this definition">#</a></dt>
-<dd><p>The width (along x) and length (along y) of the terrain (in m).</p>
+<dd><p>The width (along x) and length (along y) of the terrain (in m). Defaults to (10.0, 10.0).</p>
+<p>In case the <a class="reference internal" href="#omni.isaac.lab.terrains.TerrainImporterCfg" title="omni.isaac.lab.terrains.TerrainImporterCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">TerrainImporterCfg</span></code></a> is used, this parameter gets overridden by
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.scene.TerrainImporterCfg.size</span></code> attribute.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -3345,7 +3377,9 @@ is 0.7.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshPitTerrainCfg.size">
 <span class="sig-name descname"><span class="pre">size</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshPitTerrainCfg.size" title="Permalink to this definition">#</a></dt>
-<dd><p>The width (along x) and length (along y) of the terrain (in m).</p>
+<dd><p>The width (along x) and length (along y) of the terrain (in m). Defaults to (10.0, 10.0).</p>
+<p>In case the <a class="reference internal" href="#omni.isaac.lab.terrains.TerrainImporterCfg" title="omni.isaac.lab.terrains.TerrainImporterCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">TerrainImporterCfg</span></code></a> is used, this parameter gets overridden by
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.scene.TerrainImporterCfg.size</span></code> attribute.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -3435,7 +3469,9 @@ is 0.7.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshBoxTerrainCfg.size">
 <span class="sig-name descname"><span class="pre">size</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshBoxTerrainCfg.size" title="Permalink to this definition">#</a></dt>
-<dd><p>The width (along x) and length (along y) of the terrain (in m).</p>
+<dd><p>The width (along x) and length (along y) of the terrain (in m). Defaults to (10.0, 10.0).</p>
+<p>In case the <a class="reference internal" href="#omni.isaac.lab.terrains.TerrainImporterCfg" title="omni.isaac.lab.terrains.TerrainImporterCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">TerrainImporterCfg</span></code></a> is used, this parameter gets overridden by
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.scene.TerrainImporterCfg.size</span></code> attribute.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -3514,7 +3550,9 @@ is 0.7.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshGapTerrainCfg.size">
 <span class="sig-name descname"><span class="pre">size</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshGapTerrainCfg.size" title="Permalink to this definition">#</a></dt>
-<dd><p>The width (along x) and length (along y) of the terrain (in m).</p>
+<dd><p>The width (along x) and length (along y) of the terrain (in m). Defaults to (10.0, 10.0).</p>
+<p>In case the <a class="reference internal" href="#omni.isaac.lab.terrains.TerrainImporterCfg" title="omni.isaac.lab.terrains.TerrainImporterCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">TerrainImporterCfg</span></code></a> is used, this parameter gets overridden by
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.scene.TerrainImporterCfg.size</span></code> attribute.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -3613,7 +3651,9 @@ is 0.7.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshFloatingRingTerrainCfg.size">
 <span class="sig-name descname"><span class="pre">size</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshFloatingRingTerrainCfg.size" title="Permalink to this definition">#</a></dt>
-<dd><p>The width (along x) and length (along y) of the terrain (in m).</p>
+<dd><p>The width (along x) and length (along y) of the terrain (in m). Defaults to (10.0, 10.0).</p>
+<p>In case the <a class="reference internal" href="#omni.isaac.lab.terrains.TerrainImporterCfg" title="omni.isaac.lab.terrains.TerrainImporterCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">TerrainImporterCfg</span></code></a> is used, this parameter gets overridden by
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.scene.TerrainImporterCfg.size</span></code> attribute.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -3714,7 +3754,9 @@ is 0.7.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshStarTerrainCfg.size">
 <span class="sig-name descname"><span class="pre">size</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshStarTerrainCfg.size" title="Permalink to this definition">#</a></dt>
-<dd><p>The width (along x) and length (along y) of the terrain (in m).</p>
+<dd><p>The width (along x) and length (along y) of the terrain (in m). Defaults to (10.0, 10.0).</p>
+<p>In case the <a class="reference internal" href="#omni.isaac.lab.terrains.TerrainImporterCfg" title="omni.isaac.lab.terrains.TerrainImporterCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">TerrainImporterCfg</span></code></a> is used, this parameter gets overridden by
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.scene.TerrainImporterCfg.size</span></code> attribute.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -3839,7 +3881,9 @@ is 0.7.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg.size">
 <span class="sig-name descname"><span class="pre">size</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg.size" title="Permalink to this definition">#</a></dt>
-<dd><p>The width (along x) and length (along y) of the terrain (in m).</p>
+<dd><p>The width (along x) and length (along y) of the terrain (in m). Defaults to (10.0, 10.0).</p>
+<p>In case the <a class="reference internal" href="#omni.isaac.lab.terrains.TerrainImporterCfg" title="omni.isaac.lab.terrains.TerrainImporterCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">TerrainImporterCfg</span></code></a> is used, this parameter gets overridden by
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.scene.TerrainImporterCfg.size</span></code> attribute.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -3925,7 +3969,9 @@ is 0.7.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedPyramidsTerrainCfg.size">
 <span class="sig-name descname"><span class="pre">size</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedPyramidsTerrainCfg.size" title="Permalink to this definition">#</a></dt>
-<dd><p>The width (along x) and length (along y) of the terrain (in m).</p>
+<dd><p>The width (along x) and length (along y) of the terrain (in m). Defaults to (10.0, 10.0).</p>
+<p>In case the <a class="reference internal" href="#omni.isaac.lab.terrains.TerrainImporterCfg" title="omni.isaac.lab.terrains.TerrainImporterCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">TerrainImporterCfg</span></code></a> is used, this parameter gets overridden by
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.scene.TerrainImporterCfg.size</span></code> attribute.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -4063,7 +4109,9 @@ is 0.7.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedBoxesTerrainCfg.size">
 <span class="sig-name descname"><span class="pre">size</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedBoxesTerrainCfg.size" title="Permalink to this definition">#</a></dt>
-<dd><p>The width (along x) and length (along y) of the terrain (in m).</p>
+<dd><p>The width (along x) and length (along y) of the terrain (in m). Defaults to (10.0, 10.0).</p>
+<p>In case the <a class="reference internal" href="#omni.isaac.lab.terrains.TerrainImporterCfg" title="omni.isaac.lab.terrains.TerrainImporterCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">TerrainImporterCfg</span></code></a> is used, this parameter gets overridden by
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.scene.TerrainImporterCfg.size</span></code> attribute.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -4201,7 +4249,9 @@ is 0.7.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedCylindersTerrainCfg.size">
 <span class="sig-name descname"><span class="pre">size</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedCylindersTerrainCfg.size" title="Permalink to this definition">#</a></dt>
-<dd><p>The width (along x) and length (along y) of the terrain (in m).</p>
+<dd><p>The width (along x) and length (along y) of the terrain (in m). Defaults to (10.0, 10.0).</p>
+<p>In case the <a class="reference internal" href="#omni.isaac.lab.terrains.TerrainImporterCfg" title="omni.isaac.lab.terrains.TerrainImporterCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">TerrainImporterCfg</span></code></a> is used, this parameter gets overridden by
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">omni.isaac.lab.scene.TerrainImporterCfg.size</span></code> attribute.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -4930,7 +4980,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 22, 2024.
+  Last updated on Oct 23, 2024.
   <br/>
 </p>
   </div>

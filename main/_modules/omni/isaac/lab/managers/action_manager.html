@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.2.0" />
-    <meta name="docbuild:last-update" content="Oct 22, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 23, 2024"/>
   </head>
   
   
@@ -680,12 +680,21 @@
 <span class="sd">        Args:</span>
 <span class="sd">            cfg: The configuration object or dictionary (``dict[str, ActionTermCfg]``).</span>
 <span class="sd">            env: The environment instance.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            ValueError: If the configuration is None.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># check if config is None</span>
+        <span class="k">if</span> <span class="n">cfg</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Action manager configuration is None. Please provide a valid configuration.&quot;</span><span class="p">)</span>
+
+        <span class="c1"># call the base class constructor (this prepares the terms)</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">env</span><span class="p">)</span>
         <span class="c1"># create buffers to store actions</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_action</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">total_action_dim</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_prev_action</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_action</span><span class="p">)</span>
 
+        <span class="c1"># check if any term has debug visualization implemented</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">debug_vis</span> <span class="o">=</span> <span class="kc">False</span>
         <span class="k">for</span> <span class="n">term</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_terms</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">debug_vis</span> <span class="o">|=</span> <span class="n">term</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">debug_vis</span></div>
@@ -833,8 +842,7 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="nf">_prepare_terms</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Prepares a list of action terms.&quot;&quot;&quot;</span>
-        <span class="c1"># parse action terms from the config</span>
+        <span class="c1"># create buffers to parse and store terms</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_term_names</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_terms</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ActionTerm</span><span class="p">]</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
 
@@ -843,6 +851,7 @@
             <span class="n">cfg_items</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">cfg_items</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="vm">__dict__</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+        <span class="c1"># parse action terms from the config</span>
         <span class="k">for</span> <span class="n">term_name</span><span class="p">,</span> <span class="n">term_cfg</span> <span class="ow">in</span> <span class="n">cfg_items</span><span class="p">:</span>
             <span class="c1"># check if term config is None</span>
             <span class="k">if</span> <span class="n">term_cfg</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
@@ -908,7 +917,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 22, 2024.
+  Last updated on Oct 23, 2024.
   <br/>
 </p>
   </div>

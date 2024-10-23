@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.2.0" />
-    <meta name="docbuild:last-update" content="Oct 22, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 23, 2024"/>
   </head>
   
   
@@ -667,148 +667,130 @@ curriculum and commands.</p>
 <span class="linenos"> 60</span><span class="c1">##</span>
 <span class="linenos"> 61</span>
 <span class="linenos"> 62</span>
-<span class="hll"><span class="linenos"> 63</span><span class="nd">@configclass</span>
-</span><span class="hll"><span class="linenos"> 64</span><span class="k">class</span> <span class="nc">CommandsCfg</span><span class="p">:</span>
-</span><span class="hll"><span class="linenos"> 65</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Command terms for the MDP.&quot;&quot;&quot;</span>
-</span><span class="hll"><span class="linenos"> 66</span>
-</span><span class="hll"><span class="linenos"> 67</span>    <span class="c1"># no commands for this MDP</span>
-</span><span class="hll"><span class="linenos"> 68</span>    <span class="n">null</span> <span class="o">=</span> <span class="n">mdp</span><span class="o">.</span><span class="n">NullCommandCfg</span><span class="p">()</span>
-</span><span class="linenos"> 69</span>
-<span class="linenos"> 70</span>
-<span class="linenos"> 71</span><span class="nd">@configclass</span>
-<span class="linenos"> 72</span><span class="k">class</span> <span class="nc">ActionsCfg</span><span class="p">:</span>
-<span class="linenos"> 73</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Action specifications for the MDP.&quot;&quot;&quot;</span>
-<span class="linenos"> 74</span>
-<span class="linenos"> 75</span>    <span class="n">joint_effort</span> <span class="o">=</span> <span class="n">mdp</span><span class="o">.</span><span class="n">JointEffortActionCfg</span><span class="p">(</span><span class="n">asset_name</span><span class="o">=</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;slider_to_cart&quot;</span><span class="p">],</span> <span class="n">scale</span><span class="o">=</span><span class="mf">100.0</span><span class="p">)</span>
-<span class="linenos"> 76</span>
+<span class="linenos"> 63</span><span class="nd">@configclass</span>
+<span class="linenos"> 64</span><span class="k">class</span> <span class="nc">ActionsCfg</span><span class="p">:</span>
+<span class="linenos"> 65</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Action specifications for the MDP.&quot;&quot;&quot;</span>
+<span class="linenos"> 66</span>
+<span class="linenos"> 67</span>    <span class="n">joint_effort</span> <span class="o">=</span> <span class="n">mdp</span><span class="o">.</span><span class="n">JointEffortActionCfg</span><span class="p">(</span><span class="n">asset_name</span><span class="o">=</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;slider_to_cart&quot;</span><span class="p">],</span> <span class="n">scale</span><span class="o">=</span><span class="mf">100.0</span><span class="p">)</span>
+<span class="linenos"> 68</span>
+<span class="linenos"> 69</span>
+<span class="linenos"> 70</span><span class="nd">@configclass</span>
+<span class="linenos"> 71</span><span class="k">class</span> <span class="nc">ObservationsCfg</span><span class="p">:</span>
+<span class="linenos"> 72</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Observation specifications for the MDP.&quot;&quot;&quot;</span>
+<span class="linenos"> 73</span>
+<span class="linenos"> 74</span>    <span class="nd">@configclass</span>
+<span class="linenos"> 75</span>    <span class="k">class</span> <span class="nc">PolicyCfg</span><span class="p">(</span><span class="n">ObsGroup</span><span class="p">):</span>
+<span class="linenos"> 76</span><span class="w">        </span><span class="sd">&quot;&quot;&quot;Observations for policy group.&quot;&quot;&quot;</span>
 <span class="linenos"> 77</span>
-<span class="linenos"> 78</span><span class="nd">@configclass</span>
-<span class="linenos"> 79</span><span class="k">class</span> <span class="nc">ObservationsCfg</span><span class="p">:</span>
-<span class="linenos"> 80</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Observation specifications for the MDP.&quot;&quot;&quot;</span>
+<span class="linenos"> 78</span>        <span class="c1"># observation terms (order preserved)</span>
+<span class="linenos"> 79</span>        <span class="n">joint_pos_rel</span> <span class="o">=</span> <span class="n">ObsTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_pos_rel</span><span class="p">)</span>
+<span class="linenos"> 80</span>        <span class="n">joint_vel_rel</span> <span class="o">=</span> <span class="n">ObsTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_vel_rel</span><span class="p">)</span>
 <span class="linenos"> 81</span>
-<span class="linenos"> 82</span>    <span class="nd">@configclass</span>
-<span class="linenos"> 83</span>    <span class="k">class</span> <span class="nc">PolicyCfg</span><span class="p">(</span><span class="n">ObsGroup</span><span class="p">):</span>
-<span class="linenos"> 84</span><span class="w">        </span><span class="sd">&quot;&quot;&quot;Observations for policy group.&quot;&quot;&quot;</span>
+<span class="linenos"> 82</span>        <span class="k">def</span> <span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="linenos"> 83</span>            <span class="bp">self</span><span class="o">.</span><span class="n">enable_corruption</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="linenos"> 84</span>            <span class="bp">self</span><span class="o">.</span><span class="n">concatenate_terms</span> <span class="o">=</span> <span class="kc">True</span>
 <span class="linenos"> 85</span>
-<span class="linenos"> 86</span>        <span class="c1"># observation terms (order preserved)</span>
-<span class="linenos"> 87</span>        <span class="n">joint_pos_rel</span> <span class="o">=</span> <span class="n">ObsTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_pos_rel</span><span class="p">)</span>
-<span class="linenos"> 88</span>        <span class="n">joint_vel_rel</span> <span class="o">=</span> <span class="n">ObsTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_vel_rel</span><span class="p">)</span>
+<span class="linenos"> 86</span>    <span class="c1"># observation groups</span>
+<span class="linenos"> 87</span>    <span class="n">policy</span><span class="p">:</span> <span class="n">PolicyCfg</span> <span class="o">=</span> <span class="n">PolicyCfg</span><span class="p">()</span>
+<span class="linenos"> 88</span>
 <span class="linenos"> 89</span>
-<span class="linenos"> 90</span>        <span class="k">def</span> <span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="linenos"> 91</span>            <span class="bp">self</span><span class="o">.</span><span class="n">enable_corruption</span> <span class="o">=</span> <span class="kc">False</span>
-<span class="linenos"> 92</span>            <span class="bp">self</span><span class="o">.</span><span class="n">concatenate_terms</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="linenos"> 90</span><span class="nd">@configclass</span>
+<span class="linenos"> 91</span><span class="k">class</span> <span class="nc">EventCfg</span><span class="p">:</span>
+<span class="linenos"> 92</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for events.&quot;&quot;&quot;</span>
 <span class="linenos"> 93</span>
-<span class="linenos"> 94</span>    <span class="c1"># observation groups</span>
-<span class="linenos"> 95</span>    <span class="n">policy</span><span class="p">:</span> <span class="n">PolicyCfg</span> <span class="o">=</span> <span class="n">PolicyCfg</span><span class="p">()</span>
-<span class="linenos"> 96</span>
-<span class="linenos"> 97</span>
-<span class="linenos"> 98</span><span class="nd">@configclass</span>
-<span class="linenos"> 99</span><span class="k">class</span> <span class="nc">EventCfg</span><span class="p">:</span>
-<span class="linenos">100</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for events.&quot;&quot;&quot;</span>
-<span class="linenos">101</span>
-<span class="linenos">102</span>    <span class="c1"># reset</span>
-<span class="linenos">103</span>    <span class="n">reset_cart_position</span> <span class="o">=</span> <span class="n">EventTerm</span><span class="p">(</span>
-<span class="linenos">104</span>        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">reset_joints_by_offset</span><span class="p">,</span>
-<span class="linenos">105</span>        <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;reset&quot;</span><span class="p">,</span>
-<span class="linenos">106</span>        <span class="n">params</span><span class="o">=</span><span class="p">{</span>
-<span class="linenos">107</span>            <span class="s2">&quot;asset_cfg&quot;</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;slider_to_cart&quot;</span><span class="p">]),</span>
-<span class="linenos">108</span>            <span class="s2">&quot;position_range&quot;</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">),</span>
-<span class="linenos">109</span>            <span class="s2">&quot;velocity_range&quot;</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">),</span>
-<span class="linenos">110</span>        <span class="p">},</span>
-<span class="linenos">111</span>    <span class="p">)</span>
-<span class="linenos">112</span>
-<span class="linenos">113</span>    <span class="n">reset_pole_position</span> <span class="o">=</span> <span class="n">EventTerm</span><span class="p">(</span>
-<span class="linenos">114</span>        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">reset_joints_by_offset</span><span class="p">,</span>
-<span class="linenos">115</span>        <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;reset&quot;</span><span class="p">,</span>
-<span class="linenos">116</span>        <span class="n">params</span><span class="o">=</span><span class="p">{</span>
-<span class="linenos">117</span>            <span class="s2">&quot;asset_cfg&quot;</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;cart_to_pole&quot;</span><span class="p">]),</span>
-<span class="linenos">118</span>            <span class="s2">&quot;position_range&quot;</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.25</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span> <span class="mf">0.25</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">),</span>
-<span class="linenos">119</span>            <span class="s2">&quot;velocity_range&quot;</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.25</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span> <span class="mf">0.25</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">),</span>
-<span class="linenos">120</span>        <span class="p">},</span>
-<span class="linenos">121</span>    <span class="p">)</span>
-<span class="linenos">122</span>
-<span class="linenos">123</span>
-<span class="hll"><span class="linenos">124</span><span class="nd">@configclass</span>
-</span><span class="hll"><span class="linenos">125</span><span class="k">class</span> <span class="nc">RewardsCfg</span><span class="p">:</span>
-</span><span class="hll"><span class="linenos">126</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Reward terms for the MDP.&quot;&quot;&quot;</span>
-</span><span class="hll"><span class="linenos">127</span>
-</span><span class="hll"><span class="linenos">128</span>    <span class="c1"># (1) Constant running reward</span>
-</span><span class="hll"><span class="linenos">129</span>    <span class="n">alive</span> <span class="o">=</span> <span class="n">RewTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">is_alive</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)</span>
-</span><span class="hll"><span class="linenos">130</span>    <span class="c1"># (2) Failure penalty</span>
-</span><span class="hll"><span class="linenos">131</span>    <span class="n">terminating</span> <span class="o">=</span> <span class="n">RewTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">is_terminated</span><span class="p">,</span> <span class="n">weight</span><span class="o">=-</span><span class="mf">2.0</span><span class="p">)</span>
-</span><span class="hll"><span class="linenos">132</span>    <span class="c1"># (3) Primary task: keep pole upright</span>
-</span><span class="hll"><span class="linenos">133</span>    <span class="n">pole_pos</span> <span class="o">=</span> <span class="n">RewTerm</span><span class="p">(</span>
-</span><span class="hll"><span class="linenos">134</span>        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_pos_target_l2</span><span class="p">,</span>
-</span><span class="hll"><span class="linenos">135</span>        <span class="n">weight</span><span class="o">=-</span><span class="mf">1.0</span><span class="p">,</span>
-</span><span class="hll"><span class="linenos">136</span>        <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;asset_cfg&quot;</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;cart_to_pole&quot;</span><span class="p">]),</span> <span class="s2">&quot;target&quot;</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">},</span>
-</span><span class="hll"><span class="linenos">137</span>    <span class="p">)</span>
-</span><span class="hll"><span class="linenos">138</span>    <span class="c1"># (4) Shaping tasks: lower cart velocity</span>
-</span><span class="hll"><span class="linenos">139</span>    <span class="n">cart_vel</span> <span class="o">=</span> <span class="n">RewTerm</span><span class="p">(</span>
-</span><span class="hll"><span class="linenos">140</span>        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_vel_l1</span><span class="p">,</span>
-</span><span class="hll"><span class="linenos">141</span>        <span class="n">weight</span><span class="o">=-</span><span class="mf">0.01</span><span class="p">,</span>
-</span><span class="hll"><span class="linenos">142</span>        <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;asset_cfg&quot;</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;slider_to_cart&quot;</span><span class="p">])},</span>
-</span><span class="hll"><span class="linenos">143</span>    <span class="p">)</span>
-</span><span class="hll"><span class="linenos">144</span>    <span class="c1"># (5) Shaping tasks: lower pole angular velocity</span>
-</span><span class="hll"><span class="linenos">145</span>    <span class="n">pole_vel</span> <span class="o">=</span> <span class="n">RewTerm</span><span class="p">(</span>
-</span><span class="hll"><span class="linenos">146</span>        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_vel_l1</span><span class="p">,</span>
-</span><span class="hll"><span class="linenos">147</span>        <span class="n">weight</span><span class="o">=-</span><span class="mf">0.005</span><span class="p">,</span>
-</span><span class="hll"><span class="linenos">148</span>        <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;asset_cfg&quot;</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;cart_to_pole&quot;</span><span class="p">])},</span>
-</span><span class="hll"><span class="linenos">149</span>    <span class="p">)</span>
-</span><span class="linenos">150</span>
-<span class="linenos">151</span>
-<span class="hll"><span class="linenos">152</span><span class="nd">@configclass</span>
-</span><span class="hll"><span class="linenos">153</span><span class="k">class</span> <span class="nc">TerminationsCfg</span><span class="p">:</span>
-</span><span class="hll"><span class="linenos">154</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Termination terms for the MDP.&quot;&quot;&quot;</span>
-</span><span class="hll"><span class="linenos">155</span>
-</span><span class="hll"><span class="linenos">156</span>    <span class="c1"># (1) Time out</span>
-</span><span class="hll"><span class="linenos">157</span>    <span class="n">time_out</span> <span class="o">=</span> <span class="n">DoneTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">time_out</span><span class="p">,</span> <span class="n">time_out</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-</span><span class="hll"><span class="linenos">158</span>    <span class="c1"># (2) Cart out of bounds</span>
-</span><span class="hll"><span class="linenos">159</span>    <span class="n">cart_out_of_bounds</span> <span class="o">=</span> <span class="n">DoneTerm</span><span class="p">(</span>
-</span><span class="hll"><span class="linenos">160</span>        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_pos_out_of_manual_limit</span><span class="p">,</span>
-</span><span class="hll"><span class="linenos">161</span>        <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;asset_cfg&quot;</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;slider_to_cart&quot;</span><span class="p">]),</span> <span class="s2">&quot;bounds&quot;</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">3.0</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">)},</span>
-</span><span class="hll"><span class="linenos">162</span>    <span class="p">)</span>
-</span><span class="linenos">163</span>
-<span class="linenos">164</span>
-<span class="hll"><span class="linenos">165</span><span class="nd">@configclass</span>
-</span><span class="hll"><span class="linenos">166</span><span class="k">class</span> <span class="nc">CurriculumCfg</span><span class="p">:</span>
-</span><span class="hll"><span class="linenos">167</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the curriculum.&quot;&quot;&quot;</span>
-</span><span class="hll"><span class="linenos">168</span>
-</span><span class="hll"><span class="linenos">169</span>    <span class="k">pass</span>
-</span><span class="linenos">170</span>
-<span class="linenos">171</span>
-<span class="linenos">172</span><span class="c1">##</span>
-<span class="linenos">173</span><span class="c1"># Environment configuration</span>
-<span class="linenos">174</span><span class="c1">##</span>
-<span class="linenos">175</span>
-<span class="linenos">176</span>
-<span class="linenos">177</span><span class="nd">@configclass</span>
-<span class="linenos">178</span><span class="k">class</span> <span class="nc">CartpoleEnvCfg</span><span class="p">(</span><span class="n">ManagerBasedRLEnvCfg</span><span class="p">):</span>
-<span class="linenos">179</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the cartpole environment.&quot;&quot;&quot;</span>
-<span class="linenos">180</span>
-<span class="linenos">181</span>    <span class="c1"># Scene settings</span>
-<span class="linenos">182</span>    <span class="n">scene</span><span class="p">:</span> <span class="n">CartpoleSceneCfg</span> <span class="o">=</span> <span class="n">CartpoleSceneCfg</span><span class="p">(</span><span class="n">num_envs</span><span class="o">=</span><span class="mi">4096</span><span class="p">,</span> <span class="n">env_spacing</span><span class="o">=</span><span class="mf">4.0</span><span class="p">)</span>
-<span class="linenos">183</span>    <span class="c1"># Basic settings</span>
-<span class="linenos">184</span>    <span class="n">observations</span><span class="p">:</span> <span class="n">ObservationsCfg</span> <span class="o">=</span> <span class="n">ObservationsCfg</span><span class="p">()</span>
-<span class="linenos">185</span>    <span class="n">actions</span><span class="p">:</span> <span class="n">ActionsCfg</span> <span class="o">=</span> <span class="n">ActionsCfg</span><span class="p">()</span>
-<span class="linenos">186</span>    <span class="n">events</span><span class="p">:</span> <span class="n">EventCfg</span> <span class="o">=</span> <span class="n">EventCfg</span><span class="p">()</span>
-<span class="hll"><span class="linenos">187</span>    <span class="c1"># MDP settings</span>
-</span><span class="hll"><span class="linenos">188</span>    <span class="n">curriculum</span><span class="p">:</span> <span class="n">CurriculumCfg</span> <span class="o">=</span> <span class="n">CurriculumCfg</span><span class="p">()</span>
-</span><span class="hll"><span class="linenos">189</span>    <span class="n">rewards</span><span class="p">:</span> <span class="n">RewardsCfg</span> <span class="o">=</span> <span class="n">RewardsCfg</span><span class="p">()</span>
-</span><span class="hll"><span class="linenos">190</span>    <span class="n">terminations</span><span class="p">:</span> <span class="n">TerminationsCfg</span> <span class="o">=</span> <span class="n">TerminationsCfg</span><span class="p">()</span>
-</span><span class="hll"><span class="linenos">191</span>    <span class="c1"># No command generator</span>
-</span><span class="hll"><span class="linenos">192</span>    <span class="n">commands</span><span class="p">:</span> <span class="n">CommandsCfg</span> <span class="o">=</span> <span class="n">CommandsCfg</span><span class="p">()</span>
-</span><span class="linenos">193</span>
-<span class="linenos">194</span>    <span class="c1"># Post initialization</span>
-<span class="linenos">195</span>    <span class="k">def</span> <span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="linenos">196</span><span class="w">        </span><span class="sd">&quot;&quot;&quot;Post initialization.&quot;&quot;&quot;</span>
-<span class="linenos">197</span>        <span class="c1"># general settings</span>
-<span class="linenos">198</span>        <span class="bp">self</span><span class="o">.</span><span class="n">decimation</span> <span class="o">=</span> <span class="mi">2</span>
-<span class="linenos">199</span>        <span class="bp">self</span><span class="o">.</span><span class="n">episode_length_s</span> <span class="o">=</span> <span class="mi">5</span>
-<span class="linenos">200</span>        <span class="c1"># viewer settings</span>
-<span class="linenos">201</span>        <span class="bp">self</span><span class="o">.</span><span class="n">viewer</span><span class="o">.</span><span class="n">eye</span> <span class="o">=</span> <span class="p">(</span><span class="mf">8.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">5.0</span><span class="p">)</span>
-<span class="linenos">202</span>        <span class="c1"># simulation settings</span>
-<span class="linenos">203</span>        <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">dt</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">/</span> <span class="mi">120</span>
-<span class="linenos">204</span>        <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">render_interval</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">decimation</span>
+<span class="linenos"> 94</span>    <span class="c1"># reset</span>
+<span class="linenos"> 95</span>    <span class="n">reset_cart_position</span> <span class="o">=</span> <span class="n">EventTerm</span><span class="p">(</span>
+<span class="linenos"> 96</span>        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">reset_joints_by_offset</span><span class="p">,</span>
+<span class="linenos"> 97</span>        <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;reset&quot;</span><span class="p">,</span>
+<span class="linenos"> 98</span>        <span class="n">params</span><span class="o">=</span><span class="p">{</span>
+<span class="linenos"> 99</span>            <span class="s2">&quot;asset_cfg&quot;</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;slider_to_cart&quot;</span><span class="p">]),</span>
+<span class="linenos">100</span>            <span class="s2">&quot;position_range&quot;</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">),</span>
+<span class="linenos">101</span>            <span class="s2">&quot;velocity_range&quot;</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">),</span>
+<span class="linenos">102</span>        <span class="p">},</span>
+<span class="linenos">103</span>    <span class="p">)</span>
+<span class="linenos">104</span>
+<span class="linenos">105</span>    <span class="n">reset_pole_position</span> <span class="o">=</span> <span class="n">EventTerm</span><span class="p">(</span>
+<span class="linenos">106</span>        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">reset_joints_by_offset</span><span class="p">,</span>
+<span class="linenos">107</span>        <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;reset&quot;</span><span class="p">,</span>
+<span class="linenos">108</span>        <span class="n">params</span><span class="o">=</span><span class="p">{</span>
+<span class="linenos">109</span>            <span class="s2">&quot;asset_cfg&quot;</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;cart_to_pole&quot;</span><span class="p">]),</span>
+<span class="linenos">110</span>            <span class="s2">&quot;position_range&quot;</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.25</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span> <span class="mf">0.25</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">),</span>
+<span class="linenos">111</span>            <span class="s2">&quot;velocity_range&quot;</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.25</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span> <span class="mf">0.25</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">),</span>
+<span class="linenos">112</span>        <span class="p">},</span>
+<span class="linenos">113</span>    <span class="p">)</span>
+<span class="linenos">114</span>
+<span class="linenos">115</span>
+<span class="linenos">116</span><span class="nd">@configclass</span>
+<span class="hll"><span class="linenos">117</span><span class="k">class</span> <span class="nc">RewardsCfg</span><span class="p">:</span>
+</span><span class="hll"><span class="linenos">118</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Reward terms for the MDP.&quot;&quot;&quot;</span>
+</span><span class="hll"><span class="linenos">119</span>
+</span><span class="hll"><span class="linenos">120</span>    <span class="c1"># (1) Constant running reward</span>
+</span><span class="hll"><span class="linenos">121</span>    <span class="n">alive</span> <span class="o">=</span> <span class="n">RewTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">is_alive</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)</span>
+</span><span class="hll"><span class="linenos">122</span>    <span class="c1"># (2) Failure penalty</span>
+</span><span class="hll"><span class="linenos">123</span>    <span class="n">terminating</span> <span class="o">=</span> <span class="n">RewTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">is_terminated</span><span class="p">,</span> <span class="n">weight</span><span class="o">=-</span><span class="mf">2.0</span><span class="p">)</span>
+</span><span class="hll"><span class="linenos">124</span>    <span class="c1"># (3) Primary task: keep pole upright</span>
+</span><span class="hll"><span class="linenos">125</span>    <span class="n">pole_pos</span> <span class="o">=</span> <span class="n">RewTerm</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos">126</span>        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_pos_target_l2</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">127</span>        <span class="n">weight</span><span class="o">=-</span><span class="mf">1.0</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">128</span>        <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;asset_cfg&quot;</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;cart_to_pole&quot;</span><span class="p">]),</span> <span class="s2">&quot;target&quot;</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">},</span>
+</span><span class="hll"><span class="linenos">129</span>    <span class="p">)</span>
+</span><span class="hll"><span class="linenos">130</span>    <span class="c1"># (4) Shaping tasks: lower cart velocity</span>
+</span><span class="hll"><span class="linenos">131</span>    <span class="n">cart_vel</span> <span class="o">=</span> <span class="n">RewTerm</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos">132</span>        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_vel_l1</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">133</span>        <span class="n">weight</span><span class="o">=-</span><span class="mf">0.01</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">134</span>        <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;asset_cfg&quot;</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;slider_to_cart&quot;</span><span class="p">])},</span>
+</span><span class="hll"><span class="linenos">135</span>    <span class="p">)</span>
+</span><span class="hll"><span class="linenos">136</span>    <span class="c1"># (5) Shaping tasks: lower pole angular velocity</span>
+</span><span class="hll"><span class="linenos">137</span>    <span class="n">pole_vel</span> <span class="o">=</span> <span class="n">RewTerm</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos">138</span>        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_vel_l1</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">139</span>        <span class="n">weight</span><span class="o">=-</span><span class="mf">0.005</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">140</span>        <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;asset_cfg&quot;</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;cart_to_pole&quot;</span><span class="p">])},</span>
+</span><span class="hll"><span class="linenos">141</span>    <span class="p">)</span>
+</span><span class="linenos">142</span>
+<span class="linenos">143</span>
+<span class="hll"><span class="linenos">144</span><span class="nd">@configclass</span>
+</span><span class="hll"><span class="linenos">145</span><span class="k">class</span> <span class="nc">TerminationsCfg</span><span class="p">:</span>
+</span><span class="hll"><span class="linenos">146</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Termination terms for the MDP.&quot;&quot;&quot;</span>
+</span><span class="hll"><span class="linenos">147</span>
+</span><span class="hll"><span class="linenos">148</span>    <span class="c1"># (1) Time out</span>
+</span><span class="hll"><span class="linenos">149</span>    <span class="n">time_out</span> <span class="o">=</span> <span class="n">DoneTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">time_out</span><span class="p">,</span> <span class="n">time_out</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</span><span class="hll"><span class="linenos">150</span>    <span class="c1"># (2) Cart out of bounds</span>
+</span><span class="hll"><span class="linenos">151</span>    <span class="n">cart_out_of_bounds</span> <span class="o">=</span> <span class="n">DoneTerm</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos">152</span>        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_pos_out_of_manual_limit</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">153</span>        <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;asset_cfg&quot;</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;slider_to_cart&quot;</span><span class="p">]),</span> <span class="s2">&quot;bounds&quot;</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">3.0</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">)},</span>
+</span><span class="hll"><span class="linenos">154</span>    <span class="p">)</span>
+</span><span class="linenos">155</span>
+<span class="linenos">156</span>
+<span class="linenos">157</span><span class="c1">##</span>
+<span class="linenos">158</span><span class="c1"># Environment configuration</span>
+<span class="linenos">159</span><span class="c1">##</span>
+<span class="linenos">160</span>
+<span class="linenos">161</span>
+<span class="linenos">162</span><span class="nd">@configclass</span>
+<span class="linenos">163</span><span class="k">class</span> <span class="nc">CartpoleEnvCfg</span><span class="p">(</span><span class="n">ManagerBasedRLEnvCfg</span><span class="p">):</span>
+<span class="linenos">164</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the cartpole environment.&quot;&quot;&quot;</span>
+<span class="linenos">165</span>
+<span class="linenos">166</span>    <span class="c1"># Scene settings</span>
+<span class="linenos">167</span>    <span class="n">scene</span><span class="p">:</span> <span class="n">CartpoleSceneCfg</span> <span class="o">=</span> <span class="n">CartpoleSceneCfg</span><span class="p">(</span><span class="n">num_envs</span><span class="o">=</span><span class="mi">4096</span><span class="p">,</span> <span class="n">env_spacing</span><span class="o">=</span><span class="mf">4.0</span><span class="p">)</span>
+<span class="linenos">168</span>    <span class="c1"># Basic settings</span>
+<span class="linenos">169</span>    <span class="n">observations</span><span class="p">:</span> <span class="n">ObservationsCfg</span> <span class="o">=</span> <span class="n">ObservationsCfg</span><span class="p">()</span>
+<span class="linenos">170</span>    <span class="n">actions</span><span class="p">:</span> <span class="n">ActionsCfg</span> <span class="o">=</span> <span class="n">ActionsCfg</span><span class="p">()</span>
+<span class="linenos">171</span>    <span class="n">events</span><span class="p">:</span> <span class="n">EventCfg</span> <span class="o">=</span> <span class="n">EventCfg</span><span class="p">()</span>
+<span class="hll"><span class="linenos">172</span>    <span class="c1"># MDP settings</span>
+</span><span class="hll"><span class="linenos">173</span>    <span class="n">rewards</span><span class="p">:</span> <span class="n">RewardsCfg</span> <span class="o">=</span> <span class="n">RewardsCfg</span><span class="p">()</span>
+</span><span class="hll"><span class="linenos">174</span>    <span class="n">terminations</span><span class="p">:</span> <span class="n">TerminationsCfg</span> <span class="o">=</span> <span class="n">TerminationsCfg</span><span class="p">()</span>
+</span><span class="linenos">175</span>
+<span class="linenos">176</span>    <span class="c1"># Post initialization</span>
+<span class="linenos">177</span>    <span class="k">def</span> <span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="linenos">178</span><span class="w">        </span><span class="sd">&quot;&quot;&quot;Post initialization.&quot;&quot;&quot;</span>
+<span class="linenos">179</span>        <span class="c1"># general settings</span>
+<span class="linenos">180</span>        <span class="bp">self</span><span class="o">.</span><span class="n">decimation</span> <span class="o">=</span> <span class="mi">2</span>
+<span class="linenos">181</span>        <span class="bp">self</span><span class="o">.</span><span class="n">episode_length_s</span> <span class="o">=</span> <span class="mi">5</span>
+<span class="linenos">182</span>        <span class="c1"># viewer settings</span>
+<span class="linenos">183</span>        <span class="bp">self</span><span class="o">.</span><span class="n">viewer</span><span class="o">.</span><span class="n">eye</span> <span class="o">=</span> <span class="p">(</span><span class="mf">8.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">5.0</span><span class="p">)</span>
+<span class="linenos">184</span>        <span class="c1"># simulation settings</span>
+<span class="linenos">185</span>        <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">dt</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">/</span> <span class="mi">120</span>
+<span class="linenos">186</span>        <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">render_interval</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">decimation</span>
 </pre></div>
 </div>
 </div>
@@ -981,17 +963,8 @@ or terminated term. These are used to indicate the two types of terminations as 
 <p>For various goal-conditioned tasks, it is useful to specify the goals or commands for the agent. These are
 handled through the <a class="reference internal" href="../../api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.CommandManager" title="omni.isaac.lab.managers.CommandManager"><code class="xref py py-class docutils literal notranslate"><span class="pre">managers.CommandManager</span></code></a>. The command manager handles resampling and updating the
 commands at each step. It can also be used to provide the commands as an observation to the agent.</p>
-<p>For this simple task, we do not use any commands. This is specified by using a command term with the
-<code class="xref py py-class docutils literal notranslate"><span class="pre">envs.mdp.NullCommandCfg</span></code> configuration. However, you can see an example of command definitions in the
-locomotion or manipulation tasks.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">CommandsCfg</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Command terms for the MDP.&quot;&quot;&quot;</span>
-
-    <span class="c1"># no commands for this MDP</span>
-    <span class="n">null</span> <span class="o">=</span> <span class="n">mdp</span><span class="o">.</span><span class="n">NullCommandCfg</span><span class="p">()</span>
-</pre></div>
-</div>
+<p>For this simple task, we do not use any commands. Hence, we leave this attribute as its default value, which is None.
+You can see an example of how to define a command manager in the other locomotion or manipulation tasks.</p>
 </section>
 <section id="defining-curriculum">
 <h3>Defining curriculum<a class="headerlink" href="#defining-curriculum" title="Permalink to this heading">#</a></h3>
@@ -999,15 +972,7 @@ locomotion or manipulation tasks.</p>
 tasks’s difficulty as the agent training progresses. This is the idea behind curriculum learning. In Isaac Lab,
 we provide a <a class="reference internal" href="../../api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.CurriculumManager" title="omni.isaac.lab.managers.CurriculumManager"><code class="xref py py-class docutils literal notranslate"><span class="pre">managers.CurriculumManager</span></code></a> class that can be used to define a curriculum for your environment.</p>
 <p>In this tutorial we don’t implement a curriculum for simplicity, but you can see an example of a
-curriculum definition in the other locomotion or manipulation tasks.
-We use a simple pass-through curriculum to define a curriculum manager that does not modify the environment.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">CurriculumCfg</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the curriculum.&quot;&quot;&quot;</span>
-
-    <span class="k">pass</span>
-</pre></div>
-</div>
+curriculum definition in the other locomotion or manipulation tasks.</p>
 </section>
 <section id="tying-it-all-together">
 <h3>Tying it all together<a class="headerlink" href="#tying-it-all-together" title="Permalink to this heading">#</a></h3>
@@ -1025,11 +990,8 @@ only with the added RL components explained in the above sections.</p>
     <span class="n">actions</span><span class="p">:</span> <span class="n">ActionsCfg</span> <span class="o">=</span> <span class="n">ActionsCfg</span><span class="p">()</span>
     <span class="n">events</span><span class="p">:</span> <span class="n">EventCfg</span> <span class="o">=</span> <span class="n">EventCfg</span><span class="p">()</span>
     <span class="c1"># MDP settings</span>
-    <span class="n">curriculum</span><span class="p">:</span> <span class="n">CurriculumCfg</span> <span class="o">=</span> <span class="n">CurriculumCfg</span><span class="p">()</span>
     <span class="n">rewards</span><span class="p">:</span> <span class="n">RewardsCfg</span> <span class="o">=</span> <span class="n">RewardsCfg</span><span class="p">()</span>
     <span class="n">terminations</span><span class="p">:</span> <span class="n">TerminationsCfg</span> <span class="o">=</span> <span class="n">TerminationsCfg</span><span class="p">()</span>
-    <span class="c1"># No command generator</span>
-    <span class="n">commands</span><span class="p">:</span> <span class="n">CommandsCfg</span> <span class="o">=</span> <span class="n">CommandsCfg</span><span class="p">()</span>
 
     <span class="c1"># Post initialization</span>
     <span class="k">def</span> <span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -1201,7 +1163,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 22, 2024.
+  Last updated on Oct 23, 2024.
   <br/>
 </p>
   </div>

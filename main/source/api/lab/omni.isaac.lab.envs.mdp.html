@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.2.0" />
-    <meta name="docbuild:last-update" content="Oct 22, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 23, 2024"/>
   </head>
   
   
@@ -735,7 +735,13 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.heading_control_stiffness"><code class="docutils literal notranslate"><span class="pre">UniformVelocityCommandCfg.heading_control_stiffness</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.rel_standing_envs"><code class="docutils literal notranslate"><span class="pre">UniformVelocityCommandCfg.rel_standing_envs</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.rel_heading_envs"><code class="docutils literal notranslate"><span class="pre">UniformVelocityCommandCfg.rel_heading_envs</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.Ranges"><code class="docutils literal notranslate"><span class="pre">UniformVelocityCommandCfg.Ranges</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.Ranges"><code class="docutils literal notranslate"><span class="pre">UniformVelocityCommandCfg.Ranges</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.Ranges.lin_vel_x"><code class="docutils literal notranslate"><span class="pre">UniformVelocityCommandCfg.Ranges.lin_vel_x</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.Ranges.lin_vel_y"><code class="docutils literal notranslate"><span class="pre">UniformVelocityCommandCfg.Ranges.lin_vel_y</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.Ranges.ang_vel_z"><code class="docutils literal notranslate"><span class="pre">UniformVelocityCommandCfg.Ranges.ang_vel_z</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.Ranges.heading"><code class="docutils literal notranslate"><span class="pre">UniformVelocityCommandCfg.Ranges.heading</span></code></a></li>
+</ul>
+</li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.ranges"><code class="docutils literal notranslate"><span class="pre">UniformVelocityCommandCfg.ranges</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.goal_vel_visualizer_cfg"><code class="docutils literal notranslate"><span class="pre">UniformVelocityCommandCfg.goal_vel_visualizer_cfg</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.current_vel_visualizer_cfg"><code class="docutils literal notranslate"><span class="pre">UniformVelocityCommandCfg.current_vel_visualizer_cfg</span></code></a></li>
@@ -766,10 +772,18 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.asset_name"><code class="docutils literal notranslate"><span class="pre">UniformPoseCommandCfg.asset_name</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.body_name"><code class="docutils literal notranslate"><span class="pre">UniformPoseCommandCfg.body_name</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.make_quat_unique"><code class="docutils literal notranslate"><span class="pre">UniformPoseCommandCfg.make_quat_unique</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.Ranges"><code class="docutils literal notranslate"><span class="pre">UniformPoseCommandCfg.Ranges</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.ranges"><code class="docutils literal notranslate"><span class="pre">UniformPoseCommandCfg.ranges</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.Ranges"><code class="docutils literal notranslate"><span class="pre">UniformPoseCommandCfg.Ranges</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.Ranges.pos_x"><code class="docutils literal notranslate"><span class="pre">UniformPoseCommandCfg.Ranges.pos_x</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.Ranges.pos_y"><code class="docutils literal notranslate"><span class="pre">UniformPoseCommandCfg.Ranges.pos_y</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.Ranges.pos_z"><code class="docutils literal notranslate"><span class="pre">UniformPoseCommandCfg.Ranges.pos_z</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.Ranges.roll"><code class="docutils literal notranslate"><span class="pre">UniformPoseCommandCfg.Ranges.roll</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.Ranges.pitch"><code class="docutils literal notranslate"><span class="pre">UniformPoseCommandCfg.Ranges.pitch</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.Ranges.yaw"><code class="docutils literal notranslate"><span class="pre">UniformPoseCommandCfg.Ranges.yaw</span></code></a></li>
+</ul>
+</li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.resampling_time_range"><code class="docutils literal notranslate"><span class="pre">UniformPoseCommandCfg.resampling_time_range</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.debug_vis"><code class="docutils literal notranslate"><span class="pre">UniformPoseCommandCfg.debug_vis</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.ranges"><code class="docutils literal notranslate"><span class="pre">UniformPoseCommandCfg.ranges</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.goal_pose_visualizer_cfg"><code class="docutils literal notranslate"><span class="pre">UniformPoseCommandCfg.goal_pose_visualizer_cfg</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.current_pose_visualizer_cfg"><code class="docutils literal notranslate"><span class="pre">UniformPoseCommandCfg.current_pose_visualizer_cfg</span></code></a></li>
 </ul>
@@ -2333,10 +2347,10 @@ If the dictionary does not contain a key, the position or velocity is set to zer
 <td><p>Scale factor to convert the heading error to angular velocity command.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.rel_standing_envs" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.rel_standing_envs"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rel_standing_envs</span></code></a></p></td>
-<td><p>Probability threshold for environments where the robots that are standing still.</p></td>
+<td><p>The sampled probability of environments that should be standing still.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.rel_heading_envs" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.rel_heading_envs"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rel_heading_envs</span></code></a></p></td>
-<td><p>Probability threshold for environments where the robots follow the heading-based angular velocity command (the others follow the sampled angular velocity command).</p></td>
+<td><p>The sampled probability of environments where the robots follow the heading-based angular velocity command (the others follow the sampled angular velocity command).</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.ranges" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.ranges"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ranges</span></code></a></p></td>
 <td><p>Distribution ranges for the velocity commands.</p></td>
@@ -2368,7 +2382,7 @@ If the dictionary does not contain a key, the position or velocity is set to zer
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.heading_command">
 <span class="sig-name descname"><span class="pre">heading_command</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.heading_command" title="Permalink to this definition">#</a></dt>
-<dd><p>Whether to use heading command or angular velocity command.</p>
+<dd><p>Whether to use heading command or angular velocity command. Defaults to False.</p>
 <p>If True, the angular velocity command is computed from the heading error, where the
 target heading is sampled uniformly from provided range. Otherwise, the angular velocity
 command is sampled uniformly from provided range.</p>
@@ -2377,20 +2391,21 @@ command is sampled uniformly from provided range.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.heading_control_stiffness">
 <span class="sig-name descname"><span class="pre">heading_control_stiffness</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.heading_control_stiffness" title="Permalink to this definition">#</a></dt>
-<dd><p>Scale factor to convert the heading error to angular velocity command.</p>
+<dd><p>Scale factor to convert the heading error to angular velocity command. Defaults to 1.0.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.rel_standing_envs">
 <span class="sig-name descname"><span class="pre">rel_standing_envs</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.rel_standing_envs" title="Permalink to this definition">#</a></dt>
-<dd><p>Probability threshold for environments where the robots that are standing still.</p>
+<dd><p>The sampled probability of environments that should be standing still. Defaults to 0.0.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.rel_heading_envs">
 <span class="sig-name descname"><span class="pre">rel_heading_envs</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.rel_heading_envs" title="Permalink to this definition">#</a></dt>
-<dd><p>Probability threshold for environments where the robots follow the heading-based angular velocity command
-(the others follow the sampled angular velocity command).</p>
+<dd><p>The sampled probability of environments where the robots follow the heading-based angular velocity command
+(the others follow the sampled angular velocity command). Defaults to 1.0.</p>
+<p>This parameter is only used if <a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.heading_command" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.heading_command"><code class="xref py py-attr docutils literal notranslate"><span class="pre">heading_command</span></code></a> is True.</p>
 </dd></dl>
 
 <dl class="py class">
@@ -2398,6 +2413,49 @@ command is sampled uniformly from provided range.</p>
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">Ranges</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/envs/mdp/commands/commands_cfg.html#UniformVelocityCommandCfg.Ranges"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.Ranges" title="Permalink to this definition">#</a></dt>
 <dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
 <p>Uniform distribution ranges for the velocity commands.</p>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.Ranges.lin_vel_x" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.Ranges.lin_vel_x"><code class="xref py py-obj docutils literal notranslate"><span class="pre">lin_vel_x</span></code></a></p></td>
+<td><p>Range for the linear-x velocity command (in m/s).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.Ranges.lin_vel_y" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.Ranges.lin_vel_y"><code class="xref py py-obj docutils literal notranslate"><span class="pre">lin_vel_y</span></code></a></p></td>
+<td><p>Range for the linear-y velocity command (in m/s).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.Ranges.ang_vel_z" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.Ranges.ang_vel_z"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ang_vel_z</span></code></a></p></td>
+<td><p>Range for the angular-z velocity command (in rad/s).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.Ranges.heading" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.Ranges.heading"><code class="xref py py-obj docutils literal notranslate"><span class="pre">heading</span></code></a></p></td>
+<td><p>Range for the heading command (in rad).</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.Ranges.lin_vel_x">
+<span class="sig-name descname"><span class="pre">lin_vel_x</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.Ranges.lin_vel_x" title="Permalink to this definition">#</a></dt>
+<dd><p>Range for the linear-x velocity command (in m/s).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.Ranges.lin_vel_y">
+<span class="sig-name descname"><span class="pre">lin_vel_y</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.Ranges.lin_vel_y" title="Permalink to this definition">#</a></dt>
+<dd><p>Range for the linear-y velocity command (in m/s).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.Ranges.ang_vel_z">
+<span class="sig-name descname"><span class="pre">ang_vel_z</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.Ranges.ang_vel_z" title="Permalink to this definition">#</a></dt>
+<dd><p>Range for the angular-z velocity command (in rad/s).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.Ranges.heading">
+<span class="sig-name descname"><span class="pre">heading</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.Ranges.heading" title="Permalink to this definition">#</a></dt>
+<dd><p>Range for the heading command (in rad). Defaults to None.</p>
+<p>This parameter is only used if <a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.heading_command" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.heading_command"><code class="xref py py-attr docutils literal notranslate"><span class="pre">heading_command</span></code></a> is True.</p>
+</dd></dl>
+
 </dd></dl>
 
 <dl class="py attribute">
@@ -2458,7 +2516,7 @@ command is sampled uniformly from provided range.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.heading_command">
 <span class="sig-name descname"><span class="pre">heading_command</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.heading_command" title="Permalink to this definition">#</a></dt>
-<dd><p>Whether to use heading command or angular velocity command.</p>
+<dd><p>Whether to use heading command or angular velocity command. Defaults to False.</p>
 <p>If True, the angular velocity command is computed from the heading error, where the
 target heading is sampled uniformly from provided range. Otherwise, the angular velocity
 command is sampled uniformly from provided range.</p>
@@ -2473,10 +2531,10 @@ command is sampled uniformly from provided range.</p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.Ranges.mean_vel" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.Ranges.mean_vel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">mean_vel</span></code></a></p></td>
-<td><p>Mean velocity for the normal distribution.</p></td>
+<td><p>Mean velocity for the normal distribution (in m/s).</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.Ranges.std_vel" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.Ranges.std_vel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">std_vel</span></code></a></p></td>
-<td><p>Standard deviation for the normal distribution.</p></td>
+<td><p>Standard deviation for the normal distribution (in m/s).</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.Ranges.zero_prob" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.Ranges.zero_prob"><code class="xref py py-obj docutils literal notranslate"><span class="pre">zero_prob</span></code></a></p></td>
 <td><p>Probability of zero velocity for the normal distribution.</p></td>
@@ -2487,14 +2545,14 @@ command is sampled uniformly from provided range.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.Ranges.mean_vel">
 <span class="sig-name descname"><span class="pre">mean_vel</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.Ranges.mean_vel" title="Permalink to this definition">#</a></dt>
-<dd><p>Mean velocity for the normal distribution.</p>
+<dd><p>Mean velocity for the normal distribution (in m/s).</p>
 <p>The tuple contains the mean linear-x, linear-y, and angular-z velocity.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.Ranges.std_vel">
 <span class="sig-name descname"><span class="pre">std_vel</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.Ranges.std_vel" title="Permalink to this definition">#</a></dt>
-<dd><p>Standard deviation for the normal distribution.</p>
+<dd><p>Standard deviation for the normal distribution (in m/s).</p>
 <p>The tuple contains the standard deviation linear-x, linear-y, and angular-z velocity.</p>
 </dd></dl>
 
@@ -2534,20 +2592,21 @@ command is sampled uniformly from provided range.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.heading_control_stiffness">
 <span class="sig-name descname"><span class="pre">heading_control_stiffness</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.heading_control_stiffness" title="Permalink to this definition">#</a></dt>
-<dd><p>Scale factor to convert the heading error to angular velocity command.</p>
+<dd><p>Scale factor to convert the heading error to angular velocity command. Defaults to 1.0.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.rel_standing_envs">
 <span class="sig-name descname"><span class="pre">rel_standing_envs</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.rel_standing_envs" title="Permalink to this definition">#</a></dt>
-<dd><p>Probability threshold for environments where the robots that are standing still.</p>
+<dd><p>The sampled probability of environments that should be standing still. Defaults to 0.0.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.rel_heading_envs">
 <span class="sig-name descname"><span class="pre">rel_heading_envs</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.rel_heading_envs" title="Permalink to this definition">#</a></dt>
-<dd><p>Probability threshold for environments where the robots follow the heading-based angular velocity command
-(the others follow the sampled angular velocity command).</p>
+<dd><p>The sampled probability of environments where the robots follow the heading-based angular velocity command
+(the others follow the sampled angular velocity command). Defaults to 1.0.</p>
+<p>This parameter is only used if <a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.heading_command" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.heading_command"><code class="xref py py-attr docutils literal notranslate"><span class="pre">heading_command</span></code></a> is True.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -2626,12 +2685,66 @@ command is sampled uniformly from provided range.</p>
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">Ranges</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/envs/mdp/commands/commands_cfg.html#UniformPoseCommandCfg.Ranges"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.Ranges" title="Permalink to this definition">#</a></dt>
 <dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
 <p>Uniform distribution ranges for the pose commands.</p>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.Ranges.pos_x" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.Ranges.pos_x"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pos_x</span></code></a></p></td>
+<td><p>Range for the x position (in m).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.Ranges.pos_y" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.Ranges.pos_y"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pos_y</span></code></a></p></td>
+<td><p>Range for the y position (in m).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.Ranges.pos_z" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.Ranges.pos_z"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pos_z</span></code></a></p></td>
+<td><p>Range for the z position (in m).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.Ranges.roll" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.Ranges.roll"><code class="xref py py-obj docutils literal notranslate"><span class="pre">roll</span></code></a></p></td>
+<td><p>Range for the roll angle (in rad).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.Ranges.pitch" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.Ranges.pitch"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pitch</span></code></a></p></td>
+<td><p>Range for the pitch angle (in rad).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.Ranges.yaw" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.Ranges.yaw"><code class="xref py py-obj docutils literal notranslate"><span class="pre">yaw</span></code></a></p></td>
+<td><p>Range for the yaw angle (in rad).</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.Ranges.pos_x">
+<span class="sig-name descname"><span class="pre">pos_x</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.Ranges.pos_x" title="Permalink to this definition">#</a></dt>
+<dd><p>Range for the x position (in m).</p>
 </dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.ranges">
-<span class="sig-name descname"><span class="pre">ranges</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.Ranges" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.Ranges"><span class="pre">Ranges</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.ranges" title="Permalink to this definition">#</a></dt>
-<dd><p>Ranges for the commands.</p>
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.Ranges.pos_y">
+<span class="sig-name descname"><span class="pre">pos_y</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.Ranges.pos_y" title="Permalink to this definition">#</a></dt>
+<dd><p>Range for the y position (in m).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.Ranges.pos_z">
+<span class="sig-name descname"><span class="pre">pos_z</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.Ranges.pos_z" title="Permalink to this definition">#</a></dt>
+<dd><p>Range for the z position (in m).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.Ranges.roll">
+<span class="sig-name descname"><span class="pre">roll</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.Ranges.roll" title="Permalink to this definition">#</a></dt>
+<dd><p>Range for the roll angle (in rad).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.Ranges.pitch">
+<span class="sig-name descname"><span class="pre">pitch</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.Ranges.pitch" title="Permalink to this definition">#</a></dt>
+<dd><p>Range for the pitch angle (in rad).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.Ranges.yaw">
+<span class="sig-name descname"><span class="pre">yaw</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.Ranges.yaw" title="Permalink to this definition">#</a></dt>
+<dd><p>Range for the yaw angle (in rad).</p>
+</dd></dl>
+
 </dd></dl>
 
 <dl class="py attribute">
@@ -2644,6 +2757,12 @@ command is sampled uniformly from provided range.</p>
 <dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.debug_vis">
 <span class="sig-name descname"><span class="pre">debug_vis</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.debug_vis" title="Permalink to this definition">#</a></dt>
 <dd><p>Whether to visualize debug information. Defaults to False.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.ranges">
+<span class="sig-name descname"><span class="pre">ranges</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.Ranges" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.Ranges"><span class="pre">Ranges</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.ranges" title="Permalink to this definition">#</a></dt>
+<dd><p>Ranges for the commands.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -3497,7 +3616,13 @@ the curriculum introduced by the function.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.heading_control_stiffness"><code class="docutils literal notranslate"><span class="pre">UniformVelocityCommandCfg.heading_control_stiffness</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.rel_standing_envs"><code class="docutils literal notranslate"><span class="pre">UniformVelocityCommandCfg.rel_standing_envs</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.rel_heading_envs"><code class="docutils literal notranslate"><span class="pre">UniformVelocityCommandCfg.rel_heading_envs</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.Ranges"><code class="docutils literal notranslate"><span class="pre">UniformVelocityCommandCfg.Ranges</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.Ranges"><code class="docutils literal notranslate"><span class="pre">UniformVelocityCommandCfg.Ranges</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.Ranges.lin_vel_x"><code class="docutils literal notranslate"><span class="pre">UniformVelocityCommandCfg.Ranges.lin_vel_x</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.Ranges.lin_vel_y"><code class="docutils literal notranslate"><span class="pre">UniformVelocityCommandCfg.Ranges.lin_vel_y</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.Ranges.ang_vel_z"><code class="docutils literal notranslate"><span class="pre">UniformVelocityCommandCfg.Ranges.ang_vel_z</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.Ranges.heading"><code class="docutils literal notranslate"><span class="pre">UniformVelocityCommandCfg.Ranges.heading</span></code></a></li>
+</ul>
+</li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.ranges"><code class="docutils literal notranslate"><span class="pre">UniformVelocityCommandCfg.ranges</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.goal_vel_visualizer_cfg"><code class="docutils literal notranslate"><span class="pre">UniformVelocityCommandCfg.goal_vel_visualizer_cfg</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.current_vel_visualizer_cfg"><code class="docutils literal notranslate"><span class="pre">UniformVelocityCommandCfg.current_vel_visualizer_cfg</span></code></a></li>
@@ -3528,10 +3653,18 @@ the curriculum introduced by the function.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.asset_name"><code class="docutils literal notranslate"><span class="pre">UniformPoseCommandCfg.asset_name</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.body_name"><code class="docutils literal notranslate"><span class="pre">UniformPoseCommandCfg.body_name</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.make_quat_unique"><code class="docutils literal notranslate"><span class="pre">UniformPoseCommandCfg.make_quat_unique</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.Ranges"><code class="docutils literal notranslate"><span class="pre">UniformPoseCommandCfg.Ranges</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.ranges"><code class="docutils literal notranslate"><span class="pre">UniformPoseCommandCfg.ranges</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.Ranges"><code class="docutils literal notranslate"><span class="pre">UniformPoseCommandCfg.Ranges</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.Ranges.pos_x"><code class="docutils literal notranslate"><span class="pre">UniformPoseCommandCfg.Ranges.pos_x</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.Ranges.pos_y"><code class="docutils literal notranslate"><span class="pre">UniformPoseCommandCfg.Ranges.pos_y</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.Ranges.pos_z"><code class="docutils literal notranslate"><span class="pre">UniformPoseCommandCfg.Ranges.pos_z</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.Ranges.roll"><code class="docutils literal notranslate"><span class="pre">UniformPoseCommandCfg.Ranges.roll</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.Ranges.pitch"><code class="docutils literal notranslate"><span class="pre">UniformPoseCommandCfg.Ranges.pitch</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.Ranges.yaw"><code class="docutils literal notranslate"><span class="pre">UniformPoseCommandCfg.Ranges.yaw</span></code></a></li>
+</ul>
+</li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.resampling_time_range"><code class="docutils literal notranslate"><span class="pre">UniformPoseCommandCfg.resampling_time_range</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.debug_vis"><code class="docutils literal notranslate"><span class="pre">UniformPoseCommandCfg.debug_vis</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.ranges"><code class="docutils literal notranslate"><span class="pre">UniformPoseCommandCfg.ranges</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.goal_pose_visualizer_cfg"><code class="docutils literal notranslate"><span class="pre">UniformPoseCommandCfg.goal_pose_visualizer_cfg</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.current_pose_visualizer_cfg"><code class="docutils literal notranslate"><span class="pre">UniformPoseCommandCfg.current_pose_visualizer_cfg</span></code></a></li>
 </ul>
@@ -3644,7 +3777,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 22, 2024.
+  Last updated on Oct 23, 2024.
   <br/>
 </p>
   </div>

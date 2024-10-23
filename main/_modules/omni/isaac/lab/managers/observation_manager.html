@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.2.0" />
-    <meta name="docbuild:last-update" content="Oct 22, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 23, 2024"/>
   </head>
   
   
@@ -562,9 +562,15 @@
 <span class="sd">            env: The environment instance.</span>
 
 <span class="sd">        Raises:</span>
+<span class="sd">            ValueError: If the configuration is None.</span>
 <span class="sd">            RuntimeError: If the shapes of the observation terms in a group are not compatible for concatenation</span>
 <span class="sd">                and the :attr:`~ObservationGroupCfg.concatenate_terms` attribute is set to True.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># check that cfg is not None</span>
+        <span class="k">if</span> <span class="n">cfg</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Observation manager configuration is None. Please provide a valid configuration.&quot;</span><span class="p">)</span>
+
+        <span class="c1"># call the base class constructor (this will parse the terms config)</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">env</span><span class="p">)</span>
 
         <span class="c1"># compute combined vector for obs group</span>
@@ -934,7 +940,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 22, 2024.
+  Last updated on Oct 23, 2024.
   <br/>
 </p>
   </div>

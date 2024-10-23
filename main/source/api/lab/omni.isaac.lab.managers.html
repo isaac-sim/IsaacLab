@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.2.0" />
-    <meta name="docbuild:last-update" content="Oct 22, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 23, 2024"/>
   </head>
   
   
@@ -1061,7 +1061,7 @@ and should be called only once.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>cfg</strong> – The configuration object.</p></li>
+<li><p><strong>cfg</strong> – The configuration object. If None, the manager is initialized without any terms.</p></li>
 <li><p><strong>env</strong> – The environment instance.</p></li>
 </ul>
 </dd>
@@ -1341,8 +1341,11 @@ The observations are clipped and scaled as per the configuration settings.</p>
 </ul>
 </dd>
 <dt class="field-even">Raises<span class="colon">:</span></dt>
-<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#RuntimeError" title="(in Python v3.13)"><strong>RuntimeError</strong></a> – If the shapes of the observation terms in a group are not compatible for concatenation
-    and the <a class="reference internal" href="#omni.isaac.lab.managers.ObservationGroupCfg.concatenate_terms" title="omni.isaac.lab.managers.ObservationGroupCfg.concatenate_terms"><code class="xref py py-attr docutils literal notranslate"><span class="pre">concatenate_terms</span></code></a> attribute is set to True.</p>
+<dd class="field-even"><ul class="simple">
+<li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.13)"><strong>ValueError</strong></a> – If the configuration is None.</p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#RuntimeError" title="(in Python v3.13)"><strong>RuntimeError</strong></a> – If the shapes of the observation terms in a group are not compatible for concatenation
+    and the <a class="reference internal" href="#omni.isaac.lab.managers.ObservationGroupCfg.concatenate_terms" title="omni.isaac.lab.managers.ObservationGroupCfg.concatenate_terms"><code class="xref py py-attr docutils literal notranslate"><span class="pre">concatenate_terms</span></code></a> attribute is set to True.</p></li>
+</ul>
 </dd>
 </dl>
 </dd></dl>
@@ -1680,6 +1683,9 @@ scene (such as robots). It should be called before every simulation step.</p></l
 <li><p><strong>cfg</strong> – The configuration object or dictionary (<code class="docutils literal notranslate"><span class="pre">dict[str,</span> <span class="pre">ActionTermCfg]</span></code>).</p></li>
 <li><p><strong>env</strong> – The environment instance.</p></li>
 </ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.13)"><strong>ValueError</strong></a> – If the configuration is None.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -3568,7 +3574,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 22, 2024.
+  Last updated on Oct 23, 2024.
   <br/>
 </p>
   </div>

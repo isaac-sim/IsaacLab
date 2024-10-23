@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.2.0" />
-    <meta name="docbuild:last-update" content="Oct 22, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 23, 2024"/>
   </head>
   
   
@@ -535,8 +535,12 @@
 <span class="sd">    All sub-terrains are imported relative to this prim path.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">num_envs</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">MISSING</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The number of environment origins to consider.&quot;&quot;&quot;</span>
+    <span class="n">num_envs</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The number of environment origins to consider. Defaults to 1.</span>
+
+<span class="sd">    In case, the :class:`~omni.isaac.lab.scene.InteractiveSceneCfg` is used, this parameter gets overridden by</span>
+<span class="sd">    :attr:`omni.isaac.lab.scene.InteractiveSceneCfg.num_envs` attribute.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">terrain_type</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;generator&quot;</span><span class="p">,</span> <span class="s2">&quot;plane&quot;</span><span class="p">,</span> <span class="s2">&quot;usd&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;generator&quot;</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The type of terrain to generate. Defaults to &quot;generator&quot;.</span>
@@ -643,7 +647,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 22, 2024.
+  Last updated on Oct 23, 2024.
   <br/>
 </p>
   </div>

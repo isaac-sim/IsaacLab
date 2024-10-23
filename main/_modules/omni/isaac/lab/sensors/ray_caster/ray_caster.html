@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.2.0" />
-    <meta name="docbuild:last-update" content="Oct 22, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 23, 2024"/>
   </head>
   
   
@@ -508,7 +508,7 @@
 <span class="kn">import</span> <span class="nn">re</span>
 <span class="kn">import</span> <span class="nn">torch</span>
 <span class="kn">from</span> <span class="nn">collections.abc</span> <span class="kn">import</span> <span class="n">Sequence</span>
-<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">ClassVar</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
 
 <span class="kn">import</span> <span class="nn">omni.log</span>
 <span class="kn">import</span> <span class="nn">omni.physics.tensors.impl.api</span> <span class="k">as</span> <span class="nn">physx</span>
@@ -547,14 +547,6 @@
 
     <span class="n">cfg</span><span class="p">:</span> <span class="n">RayCasterCfg</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The configuration parameters.&quot;&quot;&quot;</span>
-    <span class="n">meshes</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">wp</span><span class="o">.</span><span class="n">Mesh</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The warp meshes available for raycasting.</span>
-
-<span class="sd">    The keys correspond to the prim path for the meshes, and values are the corresponding warp Mesh objects.</span>
-
-<span class="sd">    Note:</span>
-<span class="sd">           We store a global dictionary of all warp meshes to prevent re-loading the mesh for different ray-cast sensor instances.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
 
 <div class="viewcode-block" id="RayCaster.__init__"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.RayCaster.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">RayCasterCfg</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Initializes the ray-caster object.</span>
@@ -575,7 +567,9 @@
         <span class="c1"># Initialize base class</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
         <span class="c1"># Create empty variables for storing output data</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="o">=</span> <span class="n">RayCasterData</span><span class="p">()</span></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="o">=</span> <span class="n">RayCasterData</span><span class="p">()</span>
+        <span class="c1"># the warp meshes used for raycasting.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">meshes</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">wp</span><span class="o">.</span><span class="n">Mesh</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span></div>
 
     <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns: A string containing information about the instance.&quot;&quot;&quot;</span>
@@ -583,7 +577,7 @@
             <span class="sa">f</span><span class="s2">&quot;Ray-caster @ &#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">&#39;: </span><span class="se">\n</span><span class="s2">&quot;</span>
             <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">view type            : </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="vm">__class__</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
             <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">update period (s)    : </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">update_period</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
-            <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">number of meshes     : </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">RayCaster</span><span class="o">.</span><span class="n">meshes</span><span class="p">)</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">number of meshes     : </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">meshes</span><span class="p">)</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
             <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">number of sensors    : </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">count</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
             <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">number of rays/sensor: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">num_rays</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
             <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">total number of rays : </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">num_rays</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">count</span><span class="si">}</span><span class="s2">&quot;</span>
@@ -662,10 +656,6 @@
 
         <span class="c1"># read prims to ray-cast</span>
         <span class="k">for</span> <span class="n">mesh_prim_path</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">mesh_prim_paths</span><span class="p">:</span>
-            <span class="c1"># check if mesh already casted into warp mesh</span>
-            <span class="k">if</span> <span class="n">mesh_prim_path</span> <span class="ow">in</span> <span class="n">RayCaster</span><span class="o">.</span><span class="n">meshes</span><span class="p">:</span>
-                <span class="k">continue</span>
-
             <span class="c1"># check if the prim is a plane - handle PhysX plane as a special case</span>
             <span class="c1"># if a plane exists then we need to create an infinite mesh that is a plane</span>
             <span class="n">mesh_prim</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">get_first_matching_child_prim</span><span class="p">(</span>
@@ -696,10 +686,10 @@
                 <span class="c1"># print info</span>
                 <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Created infinite plane mesh prim: </span><span class="si">{</span><span class="n">mesh_prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
             <span class="c1"># add the warp mesh to the list</span>
-            <span class="n">RayCaster</span><span class="o">.</span><span class="n">meshes</span><span class="p">[</span><span class="n">mesh_prim_path</span><span class="p">]</span> <span class="o">=</span> <span class="n">wp_mesh</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">meshes</span><span class="p">[</span><span class="n">mesh_prim_path</span><span class="p">]</span> <span class="o">=</span> <span class="n">wp_mesh</span>
 
         <span class="c1"># throw an error if no meshes are found</span>
-        <span class="k">if</span> <span class="nb">all</span><span class="p">([</span><span class="n">mesh_prim_path</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">RayCaster</span><span class="o">.</span><span class="n">meshes</span> <span class="k">for</span> <span class="n">mesh_prim_path</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">mesh_prim_paths</span><span class="p">]):</span>
+        <span class="k">if</span> <span class="nb">all</span><span class="p">([</span><span class="n">mesh_prim_path</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">meshes</span> <span class="k">for</span> <span class="n">mesh_prim_path</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">mesh_prim_paths</span><span class="p">]):</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
                 <span class="sa">f</span><span class="s2">&quot;No meshes found for ray-casting! Please check the mesh prim paths: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">mesh_prim_paths</span><span class="si">}</span><span class="s2">&quot;</span>
             <span class="p">)</span>
@@ -762,7 +752,7 @@
             <span class="n">ray_starts_w</span><span class="p">,</span>
             <span class="n">ray_directions_w</span><span class="p">,</span>
             <span class="n">max_dist</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">max_distance</span><span class="p">,</span>
-            <span class="n">mesh</span><span class="o">=</span><span class="n">RayCaster</span><span class="o">.</span><span class="n">meshes</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">mesh_prim_paths</span><span class="p">[</span><span class="mi">0</span><span class="p">]],</span>
+            <span class="n">mesh</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">meshes</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">mesh_prim_paths</span><span class="p">[</span><span class="mi">0</span><span class="p">]],</span>
         <span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
 
     <span class="k">def</span> <span class="nf">_set_debug_vis_impl</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">debug_vis</span><span class="p">:</span> <span class="nb">bool</span><span class="p">):</span>
@@ -839,7 +829,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 22, 2024.
+  Last updated on Oct 23, 2024.
   <br/>
 </p>
   </div>

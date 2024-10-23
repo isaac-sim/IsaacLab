@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.2.0" />
-    <meta name="docbuild:last-update" content="Oct 22, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 23, 2024"/>
   </head>
   
   
@@ -543,7 +543,14 @@
 <span class="sd">            TypeError: If curriculum term is not of type :class:`CurriculumTermCfg`.</span>
 <span class="sd">            ValueError: If curriculum term configuration does not satisfy its function signature.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># create buffers to parse and store terms</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_term_names</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_term_cfgs</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">CurriculumTermCfg</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_class_term_cfgs</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">CurriculumTermCfg</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+
+        <span class="c1"># call the base class constructor (this will parse the terms config)</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">env</span><span class="p">)</span>
+
         <span class="c1"># prepare logging</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_curriculum_state</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
         <span class="k">for</span> <span class="n">term_name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_term_names</span><span class="p">:</span>
@@ -635,11 +642,6 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="nf">_prepare_terms</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="c1"># parse remaining curriculum terms and decimate their information</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_term_names</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_term_cfgs</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">CurriculumTermCfg</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_class_term_cfgs</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">CurriculumTermCfg</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
-
         <span class="c1"># check if config is dict already</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
             <span class="n">cfg_items</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
@@ -711,7 +713,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 22, 2024.
+  Last updated on Oct 23, 2024.
   <br/>
 </p>
   </div>

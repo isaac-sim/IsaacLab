@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.2.0" />
-    <meta name="docbuild:last-update" content="Oct 22, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 23, 2024"/>
   </head>
   
   
@@ -587,8 +587,12 @@
 <span class="sd">    is 0.7.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">size</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The width (along x) and length (along y) of the terrain (in m).&quot;&quot;&quot;</span>
+    <span class="n">size</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mf">10.0</span><span class="p">,</span> <span class="mf">10.0</span><span class="p">)</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The width (along x) and length (along y) of the terrain (in m). Defaults to (10.0, 10.0).</span>
+
+<span class="sd">    In case the :class:`~omni.isaac.lab.terrains.TerrainImporterCfg` is used, this parameter gets overridden by</span>
+<span class="sd">    :attr:`omni.isaac.lab.scene.TerrainImporterCfg.size` attribute.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">flat_patch_sampling</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">FlatPatchSamplingCfg</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Dictionary of configurations for sampling flat patches on the sub-terrain. Defaults to None,</span>
@@ -740,7 +744,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 22, 2024.
+  Last updated on Oct 23, 2024.
   <br/>
 </p>
   </div>
