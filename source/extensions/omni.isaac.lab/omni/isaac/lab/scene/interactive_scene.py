@@ -104,6 +104,8 @@ class InteractiveScene:
         Args:
             cfg: The configuration class for the scene.
         """
+        # check that the config is valid
+        cfg.validate()
         # store inputs
         self.cfg = cfg
         # initialize scene elements

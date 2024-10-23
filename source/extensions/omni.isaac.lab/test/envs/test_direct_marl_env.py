@@ -52,6 +52,7 @@ def get_empty_base_env_cfg(device: str = "cuda:0", num_envs: int = 1, env_spacin
         action_spaces = {"agent_0": 1, "agent_1": 2}
         observation_spaces = {"agent_0": 3, "agent_1": 4}
         state_space = -1
+        episode_length_s = 100.0
 
     return EmptyEnvCfg()
 
@@ -72,10 +73,10 @@ class TestDirectMARLEnv(unittest.TestCase):
                     # create environment
                     env = DirectMARLEnv(cfg=get_empty_base_env_cfg(device=device))
                 except Exception as e:
-                    if "env" in locals():
+                    if "env" in locals() and hasattr(env, "_is_closed"):
                         env.close()
                     else:
-                        if hasattr(e, "obj") and hasattr(e.obj, "close"):
+                        if hasattr(e, "obj") and hasattr(e.obj, "_is_closed"):
                             e.obj.close()
                     self.fail(f"Failed to set-up the DirectMARLEnv environment. Error: {e}")
 
