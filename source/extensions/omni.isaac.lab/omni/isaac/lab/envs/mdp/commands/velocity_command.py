@@ -11,6 +11,8 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
+import omni.log
+
 import omni.isaac.lab.utils.math as math_utils
 from omni.isaac.lab.assets import Articulation
 from omni.isaac.lab.managers import CommandTerm
@@ -49,9 +51,24 @@ class UniformVelocityCommand(CommandTerm):
         Args:
             cfg: The configuration of the command generator.
             env: The environment.
+
+        Raises:
+            ValueError: If the heading command is active but the heading range is not provided.
         """
         # initialize the base class
         super().__init__(cfg, env)
+
+        # check configuration
+        if self.cfg.heading_command and self.cfg.ranges.heading is None:
+            raise ValueError(
+                "The velocity command has heading commands active (heading_command=True) but the `ranges.heading`"
+                " parameter is set to None."
+            )
+        if self.cfg.ranges.heading and not self.cfg.heading_command:
+            omni.log.warn(
+                f"The velocity command has the 'ranges.heading' attribute set to '{self.cfg.ranges.heading}'"
+                " but the heading command is not active. Consider setting the flag for the heading command to True."
+            )
 
         # obtain the robot asset
         # -- robot
