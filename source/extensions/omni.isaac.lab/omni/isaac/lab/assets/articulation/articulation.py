@@ -16,13 +16,13 @@ from typing import TYPE_CHECKING
 import omni.isaac.core.utils.stage as stage_utils
 import omni.log
 import omni.physics.tensors.impl.api as physx
-from omni.isaac.core.utils.types import ArticulationActions
 from pxr import PhysxSchema, UsdPhysics
 
 import omni.isaac.lab.sim as sim_utils
 import omni.isaac.lab.utils.math as math_utils
 import omni.isaac.lab.utils.string as string_utils
 from omni.isaac.lab.actuators import ActuatorBase, ActuatorBaseCfg, ImplicitActuator
+from omni.isaac.lab.utils.types import ArticulationActions
 
 from ..asset_base import AssetBase
 from .articulation_data import ArticulationData

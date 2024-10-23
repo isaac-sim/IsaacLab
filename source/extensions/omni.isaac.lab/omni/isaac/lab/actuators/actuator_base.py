@@ -10,9 +10,8 @@ from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-from omni.isaac.core.utils.types import ArticulationActions
-
 import omni.isaac.lab.utils.string as string_utils
+from omni.isaac.lab.utils.types import ArticulationActions
 
 if TYPE_CHECKING:
     from .actuator_cfg import ActuatorBaseCfg

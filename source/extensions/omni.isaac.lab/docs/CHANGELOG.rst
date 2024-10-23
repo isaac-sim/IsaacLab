@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.27.1 (2024-10-23)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the :class:`omni.isaac.lab.utils.types.ArticulationActions` class to store the joint actions
+  for an articulation. Earlier, the class from Isaac Sim was being used. However, it used a different
+  type for the joint actions which was not compatible with the Isaac Lab framework.
+  
+
 0.27.0 (2024-10-14)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -15,7 +26,7 @@ Added
   :attr:`omni.isaac.lab.envs.ManagerBasedRLEnvCfg.commands` as None. Before, this had to be done using
   the class :class:`omni.isaac.lab.command_generators.NullCommandGenerator`.
 * Moved the ``meshes`` attribute in the :class:`omni.isaac.lab.sensors.RayCaster` class from class variable to instance variable.
-   This prevents the meshes to overwrite each other.
+  This prevents the meshes to overwrite each other.
 
 
 0.26.0 (2024-10-16)
