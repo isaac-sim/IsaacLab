@@ -53,6 +53,7 @@ class Robotiq3FingerAction(ActionTerm):
         # create tensors for raw and processed actions
         self._raw_actions = torch.zeros(self.num_envs, 2, device=self.device)
         self._processed_actions = torch.zeros(self.num_envs, self._num_joints, device=self.device)
+        self._executed_actions = torch.zeros(self.num_envs, self._num_joints, device=self.device)
         self.initialized = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         if self.cfg.is_accumulate_action:
             omni.log.warn(
@@ -83,6 +84,7 @@ class Robotiq3FingerAction(ActionTerm):
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         self._raw_actions[env_ids] = 0.0
         self.initialized[env_ids] = False
+        self._processed_actions[env_ids] = 0.0
 
     def process_actions(self, actions: torch.Tensor):
         """Compute joint angles based on opening and scissor values"""
@@ -121,6 +123,7 @@ class Robotiq3FingerAction(ActionTerm):
 
     def apply_actions(self):
         self._asset.set_joint_position_target(self._processed_actions, joint_ids=self._joint_ids)
+        self._executed_actions[:] = self._processed_actions.clone()
 
 
 # @torch.jit.script

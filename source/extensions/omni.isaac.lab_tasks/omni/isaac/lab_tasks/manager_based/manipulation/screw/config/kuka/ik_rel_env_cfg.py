@@ -47,7 +47,8 @@ class IKRelKukaNutTightenEnvCfg(BaseNutTightenEnvCfg):
             asset_name="robot",
             joint_names=["victor_left_arm_joint.*"],
             body_name="victor_left_tool0",
-            controller=DifferentialIKControllerCfg(command_type="pose", use_relative_mode=True, ik_method="dls"),
+            controller=DifferentialIKControllerCfg(command_type="pose",
+                                                   use_relative_mode=True, ik_method="dls"),
         )
         self.actions.gripper_action = mdp.Robotiq3FingerActionCfg(
             asset_name="robot",
@@ -72,24 +73,24 @@ class IKRelKukaNutTightenEnvCfg(BaseNutTightenEnvCfg):
 
 def reset_scene_with_grasping(env: ManagerBasedEnv, env_ids: torch.Tensor):
     # standard reset
-    
+
     # set friction
-    robot = env.unwrapped.scene["robot"]
-    robot_material = robot.root_physx_view.get_material_properties()
-    robot_material[..., 0] = 2
-    robot_material[..., 1] = 2
-    robot.root_physx_view.set_material_properties(robot_material, torch.arange(env.scene.num_envs, device="cpu"))
+    # robot = env.unwrapped.scene["robot"]
+    # robot_material = robot.root_physx_view.get_material_properties()
+    # robot_material[..., 0] = 2
+    # robot_material[..., 1] = 2
+    # robot.root_physx_view.set_material_properties(robot_material, torch.arange(env.scene.num_envs, device="cpu"))
+
     mdp.reset_scene_to_default(env, env_ids)
 
-    cached_env_state = SmartDict(pickle.load(open("data/kuka_nut_thread_pre_grasp.pkl", "rb")))
-    # nut_eulers = torch.zeros(1, 3, device=env.device)
-    # nut_eulers[0, 2] = 0.3
-    # nut_quat = math_utils.quat_from_euler_xyz(nut_eulers[:, 0], nut_eulers[:, 1], nut_eulers[:, 2])
-    # cached_env_state["nut"]["root_state"][0, 3:7] = nut_quat
-    cached_env_state.to_tensor(device=env.device)
-    new_env_state = cached_env_state.apply(lambda x: repeat(x, "1 ... -> n ...", n=env.num_envs).clone())
-    env.unwrapped.write_state(new_env_state)
-
+    # cached_env_state = SmartDict(pickle.load(open("data/kuka_nut_thread_pre_grasp.pkl", "rb")))
+    # # nut_eulers = torch.zeros(1, 3, device=env.device)
+    # # nut_eulers[0, 2] = 0.3
+    # # nut_quat = math_utils.quat_from_euler_xyz(nut_eulers[:, 0], nut_eulers[:, 1], nut_eulers[:, 2])
+    # # cached_env_state["nut"]["root_state"][0, 3:7] = nut_quat
+    # cached_env_state.to_tensor(device=env.device)
+    # new_env_state = cached_env_state.apply(lambda x: repeat(x, "1 ... -> n ...", n=env.num_envs).clone())
+    # env.unwrapped.write_state(new_env_state)
 
 
 @configclass
@@ -104,7 +105,7 @@ class EventCfg:
 @configclass
 class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
     """Configuration for the IK-based relative Kuka nut threading environment."""
-    
+
     def get_default_env_params(self):
         super().get_default_env_params()
         self.env_params.sim.dt = self.env_params.sim.get("dt", 1.0 / 120.0)
@@ -120,8 +121,15 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         robot_params["dynamic_friction"] = robot_params.get("dynamic_friction", 1)
         robot_params["compliant_contact_stiffness"] = robot_params.get("compliant_contact_stiffness", 0.)
         robot_params["compliant_contact_damping"] = robot_params.get("compliant_contact_damping", 0.)
-        
-        
+
+        # By default use the default params in USD
+        nut_params = self.env_params.scene.nut
+        nut_params["max_depenetration_velocity"] = nut_params.get("max_depenetration_velocity", None)
+        nut_params["sleep_threshold"] = nut_params.get("sleep_threshold", None)
+        nut_params["stabilization_threshold"] = nut_params.get("stabilization_threshold", None)
+        nut_params["linear_damping"] = nut_params.get("linear_damping", None)
+        nut_params["angular_damping"] = nut_params.get("angular_damping", None)
+
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
@@ -129,36 +137,35 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         self.act_lows = [-0.001, -0.001, -0.001, -0.5, -0.5, -0.5]
         self.act_highs = [0.001, 0.001, 0.001, 0.5, 0.5, 0.5]
         self.sim.dt = self.env_params.sim.dt
-        
+
         # self.scene.robot.spawn.collision_props = sim_utils.CollisionPropertiesCfg(
         #     contact_offset=0.002, rest_offset=0.001)
         robot_params = self.env_params.scene.robot
         self.scene.robot = KUKA_VICTOR_LEFT_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         if robot_params.collision_approximation == "convexHull":
-            self.scene.robot.spawn.usd_path ="assets/victor/victor_left_arm_with_gripper_v2/victor_left_arm_with_gripper_v2.usd"
+            self.scene.robot.spawn.usd_path = "assets/victor/victor_left_arm_with_gripper_v2/victor_left_arm_with_gripper_v2.usd"
         self.scene.robot.init_state.pos = [-0.15, -0.5, -0.8]
-        
+
         self.scene.robot.spawn.collision_props.contact_offset = robot_params.contact_offset
         self.scene.robot.spawn.collision_props.rest_offset = robot_params.rest_offset
         self.scene.robot.spawn.rigid_props.max_depenetration_velocity = robot_params.max_depenetration_velocity
         self.scene.robot.spawn.rigid_props.sleep_threshold = robot_params.sleep_threshold
         self.scene.robot.spawn.rigid_props.stabilization_threshold = robot_params.stabilization_threshold
-        
+
         self.scene.robot.spawn.physics_material = materials.RigidBodyMaterialCfg(
             static_friction=robot_params.static_friction,
             dynamic_friction=robot_params.dynamic_friction,
             compliant_contact_stiffness=robot_params.compliant_contact_stiffness,
             compliant_contact_damping=robot_params.compliant_contact_damping,
         )
-        
-        # self.scene.nut.spawn.rigid_props.max_depenetration_velocity = 0.2
-        # self.scene.nut.spawn.rigid_props.sleep_threshold = 0.0025
-        # self.scene.nut.spawn.rigid_props.stabilization_threshold = 0.0025
-        # self.scene.nut.spawn.rigid_props.linear_damping = 0.1
-        # self.scene.nut.spawn.rigid_props.angular_damping = 0.
-        # self.scene.nut.spawn.collision_props = sim_utils.CollisionPropertiesCfg(contact_offset=0.001, rest_offset=0.00)
-        # self.scene.nut.spawn.rigid_props.disable_gravity = False
-        # self.scene.nut.init_state.pos = (0.5, 0, 0)
+
+        nut_params = self.env_params.scene.nut
+        self.scene.nut.spawn.rigid_props.max_depenetration_velocity = nut_params.max_depenetration_velocity
+        self.scene.nut.spawn.rigid_props.sleep_threshold = nut_params.sleep_threshold
+        self.scene.nut.spawn.rigid_props.stabilization_threshold = nut_params.stabilization_threshold
+        self.scene.nut.spawn.rigid_props.linear_damping = nut_params.linear_damping
+        self.scene.nut.spawn.rigid_props.angular_damping = nut_params.angular_damping
+
         # override actions
         self.actions.arm_action = DifferentialInverseKinematicsActionCfg(
             asset_name="robot",
@@ -166,10 +173,10 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
             body_name="victor_left_tool0",
             controller=DifferentialIKControllerCfg(command_type="pose", use_relative_mode=True, ik_method="dls"),
         )
-    #     arm_joint_angles = [
-    #   1.4693e+00, -4.3030e-01,  2.2680e+00,  1.5199e+00, -2.1248e+00,
-    #       1.0958e+00,  3.9552e-01,
-    #     ]
+        #     arm_joint_angles = [
+        #   1.4693e+00, -4.3030e-01,  2.2680e+00,  1.5199e+00, -2.1248e+00,
+        #       1.0958e+00,  3.9552e-01,
+        #     ]
         arm_joint_angles = [
             1.4464e00,
             -4.6657e-01,
@@ -191,12 +198,12 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
             -7.3443e-01,
         ]
         ori_init_joints = self.scene.robot.init_state.joint_pos
-        
+
         for key, value in zip(ori_init_joints.keys(), arm_joint_angles):
             if "arm" in key:
                 ori_init_joints[key] = value
         self.scene.robot.init_state.joint_pos = ori_init_joints
-        
+
         self.gripper_act_lows = [-0.005, -0.005]
         self.gripper_act_highs = [0.005, 0.005]
         self.actions.gripper_action = mdp.Robotiq3FingerActionCfg(
@@ -210,7 +217,7 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         self.viewer.eye = (0.3, 0, 0.15)
         # self.scene.bolt.spawn.activate_contact_sensors = True
         self.scene.nut.spawn.activate_contact_sensors = True
-        
+
         # Only contact with the finger tips
         # gripper_path_regex = "{ENV_REGEX_NS}/Robot/.*finger.*_link_3"
         # gripper_prim_paths = sim_utils.find_matching_prims(gripper_path_regex)
@@ -224,7 +231,6 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         #     func=mdp.contact_forces,
         #     params={"threshold":0, "sensor_cfg": SceneEntityCfg(name="contact_sensor")},
         #     weight=0.01)
-
 
 # @configclass
 # class RelFloatNutTightenEnvCfg_PLAY(RelFloatNutTightenEnvCfg):

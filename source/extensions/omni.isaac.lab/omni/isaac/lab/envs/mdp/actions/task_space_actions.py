@@ -90,6 +90,7 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         # create tensors for raw and processed actions
         self._raw_actions = torch.zeros(self.num_envs, self.action_dim, device=self.device)
         self._processed_actions = torch.zeros_like(self.raw_actions)
+        self._executed_actions = torch.zeros(self.num_envs, self._num_joints, device=self.device)
 
         # save the scale as tensors
         self._scale = torch.zeros((self.num_envs, self.action_dim), device=self.device)
@@ -143,9 +144,11 @@ class DifferentialInverseKinematicsAction(ActionTerm):
             joint_pos_des = joint_pos.clone()
         # set the joint position command
         self._asset.set_joint_position_target(joint_pos_des, self._joint_ids)
+        self._executed_actions[:] = joint_pos_des.clone()
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         self._raw_actions[env_ids] = 0.0
+        self._processed_actions[env_ids] = 0.0
 
     """
     Helper functions.
@@ -290,7 +293,7 @@ class RigidObjectActionTerm(ActionTerm):
         return obj_pose_w, obj_quat_w
 
     def set_command(
-        self, command: torch.Tensor, obj_pos: torch.Tensor | None = None, obj_quat: torch.Tensor | None = None
+            self, command: torch.Tensor, obj_pos: torch.Tensor | None = None, obj_quat: torch.Tensor | None = None
     ):
         """Set target object pose command.
 

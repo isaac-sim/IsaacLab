@@ -274,6 +274,12 @@ class ActionManager(ManagerBase):
         for term in self._terms.values():
             term.set_debug_vis(debug_vis)
 
+    def read_state(self, env_ids: Sequence[int] | None = None) -> dict:
+        action_state = {}
+        for term in self._terms.values():
+            action_state[term.cfg.name] = term.read_state(env_ids)
+        return action_state
+
     def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, torch.Tensor]:
         """Resets the action history.
 

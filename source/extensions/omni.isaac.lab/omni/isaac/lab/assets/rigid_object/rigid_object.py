@@ -102,6 +102,7 @@ class RigidObject(AssetBase):
         # reset external wrench
         self._external_force_b[env_ids] = 0.0
         self._external_torque_b[env_ids] = 0.0
+        self.has_external_wrench = False
 
     def write_data_to_sim(self):
         """Write external wrench to the simulation.

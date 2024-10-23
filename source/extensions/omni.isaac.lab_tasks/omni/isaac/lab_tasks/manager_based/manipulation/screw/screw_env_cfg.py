@@ -35,6 +35,7 @@ import omni.isaac.lab_tasks.manager_based.manipulation.screw.mdp as mdp
 from omegaconf import OmegaConf
 import copy
 from typing import Literal
+
 ##
 # Scene definition
 ##
@@ -63,45 +64,47 @@ PLATE_ARROW_CFG = VisualizationMarkersCfg(
 )
 
 asset_factory = {
-    "m8_loose": {
-        "nut_path": f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_nut_m8_loose/factory_nut_m8_loose.usd",
-        "bolt_path": f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_bolt_m8_loose/factory_bolt_m8_loose.usd",
-        "nut_frame_offset": (0.0, 0.0, 0.011),
+    "m8_loose" : {
+        "nut_path"          : f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_nut_m8_loose/factory_nut_m8_loose.usd",
+        "bolt_path"         : f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_bolt_m8_loose/factory_bolt_m8_loose.usd",
+        "nut_frame_offset"  : (0.0, 0.0, 0.011),
         "bolt_bottom_offset": (0.0, 0.0, 0.0),
     },
-    "m8_tight": {
-        "nut_path": f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_nut_m8_tight/factory_nut_m8_tight.usd",
-         "bolt_path": f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_bolt_m8_tight/factory_bolt_m8_tight.usd",
-         "nut_frame_offset": (0.0, 0.0, 0.011),
-         "bolt_bottom_offset": (0.0, 0.0, 0.0),
-         },
+    "m8_tight" : {
+        "nut_path"          : f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_nut_m8_tight/factory_nut_m8_tight.usd",
+        "bolt_path"         : f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_bolt_m8_tight/factory_bolt_m8_tight.usd",
+        "nut_frame_offset"  : (0.0, 0.0, 0.011),
+        "bolt_bottom_offset": (0.0, 0.0, 0.0),
+    },
     "m16_tight": {},
     "m16_loose": {},
 }
 
+
 @configclass
 class ScrewSceneCfg(InteractiveSceneCfg):
     """Configuration for the scene with a robotic arm."""
-    screw_type : Literal["m8_loose", "m8_tight", "m16_loose", "m16_tight"] = "m8_tight"
+    screw_type: Literal["m8_loose", "m8_tight", "m16_loose", "m16_tight"] = "m8_tight"
+
     def __post_init__(self):
         screw_dict = asset_factory[self.screw_type]
         # world
         self.ground = AssetBaseCfg(
-        prim_path="/World/ground",
-        spawn=sim_utils.GroundPlaneCfg(),
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, -1.05)),
+            prim_path="/World/ground",
+            spawn=sim_utils.GroundPlaneCfg(),
+            init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, -1.05)),
         )
         self.origin = RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/Origin",
-        spawn=sim_utils.SphereCfg(
-            radius=1e-3,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                kinematic_enabled=True,
-                disable_gravity=True,
+            spawn=sim_utils.SphereCfg(
+                radius=1e-3,
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(
+                    kinematic_enabled=True,
+                    disable_gravity=True,
+                ),
+                collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=False),
             ),
-            collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=False),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.0)),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.0)),
         )
 
         self.table = AssetBaseCfg(
@@ -261,7 +264,7 @@ class CurriculumCfg:
 @configclass
 class BaseScrewEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the screw end-effector pose tracking environment."""
-    
+
     scene: ScrewSceneCfg = MISSING
     # Basic settings
     observations: BaseObservationsCfg = BaseObservationsCfg()
@@ -276,12 +279,14 @@ class BaseScrewEnvCfg(ManagerBasedRLEnvCfg):
         dt=1.0 / 60.0,
         physx=PhysxCfg(
             bounce_threshold_velocity=0.2,
-            gpu_collision_stack_size=2**31,
-            gpu_heap_capacity=2**31,
-            gpu_temp_buffer_capacity=2**30,
-            gpu_max_rigid_patch_count=2**24,
+            gpu_collision_stack_size=2 ** 31,
+            gpu_heap_capacity=2 ** 31,
+            gpu_temp_buffer_capacity=2 ** 30,
+            gpu_max_rigid_patch_count=2 ** 24,
+            enable_enhanced_determinism=True,
         ),
     )
+
     def get_default_env_params(self):
         """Set default environment parameters."""
         self.env_params.scene = self.env_params.get("scene", OmegaConf.create())
@@ -289,22 +294,25 @@ class BaseScrewEnvCfg(ManagerBasedRLEnvCfg):
         self.env_params.scene.screw_type = self.env_params.scene.get("screw_type", "m8_tight")
         self.env_params.scene.nut = self.env_params.scene.get("nut", OmegaConf.create())
         self.env_params.sim.dt = self.env_params.sim.get("dt", 1.0 / 60.0)
-    
+        self.env_params.sim.physx.friction_offset_threshold = self.env_params.sim.physx.get("friction_offset_threshold",
+                                                                                            0.04)
+        self.env_params.sim.physx.enable_ccd = self.env_params.sim.physx.get("enable_ccd", False)
+
     def __post_init__(self):
         """Post initialization."""
         self.get_default_env_params()
         self.scene = ScrewSceneCfg(num_envs=4096, env_spacing=2.5, screw_type=self.env_params.scene.screw_type)
         # general settings
-        self.decimation = 2
+        self.decimation = 1
         self.sim.render_interval = self.decimation
         self.sim.dt = self.env_params.sim.dt
+        self.sim.physx.friction_offset_threshold = self.env_params.sim.physx.friction_offset_threshold
+        self.sim.physx.enable_ccd = self.env_params.sim.physx.enable_ccd
         self.episode_length_s = 24.0
         self.viewer.origin_type = "asset_root"
         self.viewer.asset_name = "bolt"
         self.viewer.eye = (0.1, 0, 0.04)
         self.viewer.lookat = (0, 0, 0.02)
-        
-
 
 
 ###################################
