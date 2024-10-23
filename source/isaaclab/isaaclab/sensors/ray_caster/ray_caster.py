@@ -258,7 +258,7 @@ class RayCaster(SensorBase):
             if target_cfg.is_global:
                 # reference the mesh for each environment to ray cast against
                 RayCaster.meshes[mesh_prim_path] = [wp_meshes] * self._num_envs
-                self._num_meshes_per_env[mesh_prim_path] = 1
+                self._num_meshes_per_env[mesh_prim_path] = len(wp_meshes)
             else:
                 # split up the meshes for each environment. Little bit ugly, since
                 # the current order is interleaved (env1_obj1, env1_obj2, env2_obj1, env2_obj2, ...)
