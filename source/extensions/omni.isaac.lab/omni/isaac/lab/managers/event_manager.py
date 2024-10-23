@@ -62,6 +62,12 @@ class EventManager(ManagerBase):
             cfg: A configuration object or dictionary (``dict[str, EventTermCfg]``).
             env: An environment object.
         """
+        # create buffers to parse and store terms
+        self._mode_term_names: dict[str, list[str]] = dict()
+        self._mode_term_cfgs: dict[str, list[EventTermCfg]] = dict()
+        self._mode_class_term_cfgs: dict[str, list[EventTermCfg]] = dict()
+
+        # call the base class (this will parse the terms config)
         super().__init__(cfg, env)
 
     def __str__(self) -> str:
@@ -294,11 +300,6 @@ class EventManager(ManagerBase):
     """
 
     def _prepare_terms(self):
-        """Prepares a list of event functions."""
-        # parse remaining event terms and decimate their information
-        self._mode_term_names: dict[str, list[str]] = dict()
-        self._mode_term_cfgs: dict[str, list[EventTermCfg]] = dict()
-        self._mode_class_term_cfgs: dict[str, list[EventTermCfg]] = dict()
         # buffer to store the time left for "interval" mode
         # if interval is global, then it is a single value, otherwise it is per environment
         self._interval_term_time_left: list[torch.Tensor] = list()
