@@ -1,13 +1,30 @@
 Changelog
 ---------
 
-0.26.1 (2024-10-20)
+0.27.1 (2024-10-20)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
 
 * Added :class:`RenderCfg` in :class:`SimulationCfg for specifying render related settings.
+
+
+0.27.0 (2024-10-14)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a method to :class:`~omni.isaac.lab.utils.configclass` to check for attributes with values of
+  type ``MISSING``. This is useful when the user wants to check if a certain attribute has been set or not.
+* Added the configuration validation check inside the constructor of all the core classes
+  (such as sensor base, asset base, scene and environment base classes).
+* Added support for environments without commands by leaving the attribute
+  :attr:`omni.isaac.lab.envs.ManagerBasedRLEnvCfg.commands` as None. Before, this had to be done using
+  the class :class:`omni.isaac.lab.command_generators.NullCommandGenerator`.
+* Moved the ``meshes`` attribute in the :class:`omni.isaac.lab.sensors.RayCaster` class from class variable to instance variable.
+   This prevents the meshes to overwrite each other.
 
 
 0.26.0 (2024-10-16)
