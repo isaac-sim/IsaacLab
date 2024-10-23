@@ -3,15 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 import argparse
-import logging
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor
 
 from ray import job_submission
-
-# Set up logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 script_directory = os.path.dirname(os.path.abspath(__file__))
 
@@ -36,7 +32,7 @@ def read_cluster_spec(fn: str | None = None) -> list[dict]:
             parts = line.strip().split(" ")
             http_address = parts[3]
             cluster_info = {"name": parts[1], "address": http_address}
-            logging.info(f"[INFO] Setting {cluster_info['name']}")  # with {cluster_info['num_gpu']} GPUs.")
+            print(f"[INFO] Setting {cluster_info['name']}")  # with {cluster_info['num_gpu']} GPUs.")
             clusters.append(cluster_info)
 
     return clusters
@@ -52,17 +48,17 @@ def submit_job(cluster: dict, job_command: str, test_mode: bool):
     print(f"Submitting job to cluster '{cluster_name}' at {address}")  # with {num_gpus} GPUs.")
     client = job_submission.JobSubmissionClient(address)
     runtime_env = {"working_dir": CONFIG["working_dir"], "executable": CONFIG["executable"]}
-    logging.info(f"Checking contents of the directory: {CONFIG['working_dir']}")
+    print(f"[INFO]: Checking contents of the directory: {CONFIG['working_dir']}")
     try:
         dir_contents = os.listdir(CONFIG["working_dir"])
-        logging.info(f"Directory contents: {dir_contents}")
+        print(f"[INFO]: Directory contents: {dir_contents}")
     except Exception as e:
-        logging.error(f"Failed to list directory contents: {str(e)}")
+        print(f"[INFO] Failed to list directory contents: {str(e)}")
 
     wrapped_command = f"{WRAP_SCRIPT + ' --test' if test_mode else ''} {job_command if job_command else ' '}"
 
     entrypoint = f"{CONFIG['executable']} {wrapped_command}"
-    print(f"{entrypoint = }")
+    print(f"[INFO]: Attempting entrypoint {entrypoint = } in cluster {cluster}")
     job_id = client.submit_job(entrypoint=entrypoint, runtime_env=runtime_env)
     status = client.get_job_status(job_id)
     while status in [job_submission.JobStatus.PENDING, job_submission.JobStatus.RUNNING]:
@@ -83,6 +79,8 @@ def submit_jobs_to_clusters(jobs: list[str], clusters: list[dict], test_mode: bo
     if not clusters:
         raise ValueError("No clusters available for job submission.")
 
+    if test_mode:
+        jobs = [""] * len(clusters)  # Test mode will populate the jobs correctly, want to submit to all clusters
     with ThreadPoolExecutor(max_workers=len(clusters)) as executor:
         for idx, job_command in enumerate(jobs):
             # Cycle through clusters using modulus to wrap around if there are more jobs than clusters
