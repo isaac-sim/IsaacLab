@@ -23,7 +23,7 @@ from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Demo on spawning different objects in multiple environments.")
-parser.add_argument("--num_envs", type=int, default=1024, help="Number of environments to spawn.")
+parser.add_argument("--num_envs", type=int, default=512, help="Number of environments to spawn.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -41,7 +41,15 @@ import omni.usd
 from pxr import Gf, Sdf
 
 import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
+from omni.isaac.lab.assets import (
+    Articulation,
+    ArticulationCfg,
+    AssetBaseCfg,
+    RigidObject,
+    RigidObjectCfg,
+    RigidObjectCollection,
+    RigidObjectCollectionCfg,
+)
 from omni.isaac.lab.scene import InteractiveScene, InteractiveSceneCfg
 from omni.isaac.lab.sim import SimulationContext
 from omni.isaac.lab.utils import Timer, configclass
@@ -124,6 +132,52 @@ class MultiObjectSceneCfg(InteractiveSceneCfg):
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 2.0)),
     )
 
+    # object collection
+    object_collection: RigidObjectCollectionCfg = RigidObjectCollectionCfg(
+        rigid_objects={
+            "object_A": RigidObjectCfg(
+                prim_path="/World/envs/env_.*/Object_A",
+                spawn=sim_utils.SphereCfg(
+                    radius=0.1,
+                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), metallic=0.2),
+                    rigid_props=sim_utils.RigidBodyPropertiesCfg(
+                        solver_position_iteration_count=4, solver_velocity_iteration_count=0
+                    ),
+                    mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+                    collision_props=sim_utils.CollisionPropertiesCfg(),
+                ),
+                init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.5, 2.0)),
+            ),
+            "object_B": RigidObjectCfg(
+                prim_path="/World/envs/env_.*/Object_B",
+                spawn=sim_utils.CuboidCfg(
+                    size=(0.1, 0.1, 0.1),
+                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), metallic=0.2),
+                    rigid_props=sim_utils.RigidBodyPropertiesCfg(
+                        solver_position_iteration_count=4, solver_velocity_iteration_count=0
+                    ),
+                    mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+                    collision_props=sim_utils.CollisionPropertiesCfg(),
+                ),
+                init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.5, 2.0)),
+            ),
+            "object_C": RigidObjectCfg(
+                prim_path="/World/envs/env_.*/Object_C",
+                spawn=sim_utils.ConeCfg(
+                    radius=0.1,
+                    height=0.3,
+                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), metallic=0.2),
+                    rigid_props=sim_utils.RigidBodyPropertiesCfg(
+                        solver_position_iteration_count=4, solver_velocity_iteration_count=0
+                    ),
+                    mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+                    collision_props=sim_utils.CollisionPropertiesCfg(),
+                ),
+                init_state=RigidObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 2.0)),
+            ),
+        }
+    )
+
     # articulation
     robot: ArticulationCfg = ArticulationCfg(
         prim_path="/World/envs/env_.*/Robot",
@@ -170,15 +224,16 @@ def run_simulator(sim: SimulationContext, scene: InteractiveScene):
     """Runs the simulation loop."""
     # Extract scene entities
     # note: we only do this here for readability.
-    rigid_object = scene["object"]
-    robot = scene["robot"]
+    rigid_object: RigidObject = scene["object"]
+    rigid_object_collection: RigidObjectCollection = scene["object_collection"]
+    robot: Articulation = scene["robot"]
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
     count = 0
     # Simulation loop
     while simulation_app.is_running():
         # Reset
-        if count % 500 == 0:
+        if count % 250 == 0:
             # reset counter
             count = 0
             # reset the scene entities
@@ -186,6 +241,10 @@ def run_simulator(sim: SimulationContext, scene: InteractiveScene):
             root_state = rigid_object.data.default_root_state.clone()
             root_state[:, :3] += scene.env_origins
             rigid_object.write_root_state_to_sim(root_state)
+            # object collection
+            object_state = rigid_object_collection.data.default_object_state.clone()
+            object_state[..., :3] += scene.env_origins.unsqueeze(1)
+            rigid_object_collection.write_object_state_to_sim(object_state)
             # robot
             # -- root state
             root_state = robot.data.default_root_state.clone()

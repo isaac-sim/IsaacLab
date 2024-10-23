@@ -7,7 +7,7 @@
 
 from dataclasses import MISSING
 
-from omni.isaac.lab.assets import Articulation, RigidObject
+from omni.isaac.lab.assets import Articulation, RigidObject, RigidObjectCollection
 from omni.isaac.lab.scene import InteractiveScene
 from omni.isaac.lab.utils import configclass
 
@@ -78,16 +78,34 @@ class SceneEntityCfg:
     manager.
     """
 
-    preserve_order: bool = False
-    """Whether to preserve indices ordering to match with that in the specified joint or body names. Defaults to False.
+    object_collection_names: str | list[str] | None = None
+    """The names of the objects in the rigid object collection required by the term. Defaults to None.
 
-    If False, the ordering of the indices are sorted in ascending order (i.e. the ordering in the entity's joints
-    or bodies). Otherwise, the indices are preserved in the order of the specified joint and body names.
+    The names can be either names or a regular expression matching the object names in the collection.
+
+    These are converted to object indices on initialization of the manager and passed to the term
+    function as a list of object indices under :attr:`object_collection_ids`.
+    """
+
+    object_collection_ids: list[int] | slice = slice(None)
+    """The indices of the objects from the rigid object collection required by the term. Defaults to slice(None),
+    which means all the objects in the collection.
+
+    If :attr:`object_collection_names` is specified, this is filled in automatically on initialization of the manager.
+    """
+
+    preserve_order: bool = False
+    """Whether to preserve indices ordering to match with that in the specified joint, body, or object collection names.
+    Defaults to False.
+
+    If False, the ordering of the indices are sorted in ascending order (i.e. the ordering in the entity's joints,
+    bodies, or object in the object collection). Otherwise, the indices are preserved in the order of the specified
+    joint, body, or object collection names.
 
     For more details, see the :meth:`omni.isaac.lab.utils.string.resolve_matching_names` function.
 
     .. note::
-        This attribute is only used when :attr:`joint_names` or :attr:`body_names` are specified.
+        This attribute is only used when :attr:`joint_names`, :attr:`body_names`, or :attr:`object_collection_names` are specified.
 
     """
 
@@ -106,6 +124,7 @@ class SceneEntityCfg:
             ValueError: If both ``joint_names`` and ``joint_ids`` are specified and are not consistent.
             ValueError: If both ``fixed_tendon_names`` and ``fixed_tendon_ids`` are specified and are not consistent.
             ValueError: If both ``body_names`` and ``body_ids`` are specified and are not consistent.
+            ValueError: If both ``object_collection_names`` and ``object_collection_ids`` are specified and are not consistent.
         """
         # check if the entity is valid
         if self.name not in scene.keys():
@@ -119,6 +138,9 @@ class SceneEntityCfg:
 
         # convert body names to indices based on regex
         self._resolve_body_names(scene)
+
+        # convert object collection names to indices based on regex
+        self._resolve_object_collection_names(scene)
 
     def _resolve_joint_names(self, scene: InteractiveScene):
         # convert joint names to indices based on regex
@@ -228,3 +250,36 @@ class SceneEntityCfg:
                 if isinstance(self.body_ids, int):
                     self.body_ids = [self.body_ids]
                 self.body_names = [entity.body_names[i] for i in self.body_ids]
+
+    def _resolve_object_collection_names(self, scene: InteractiveScene):
+        # convert object names to indices based on regex
+        if self.object_collection_names is not None or self.object_collection_ids != slice(None):
+            entity: RigidObjectCollection = scene[self.name]
+            # -- if both are not their default values, check if they are valid
+            if self.object_collection_names is not None and self.object_collection_ids != slice(None):
+                if isinstance(self.object_collection_names, str):
+                    self.object_collection_names = [self.object_collection_names]
+                if isinstance(self.object_collection_ids, int):
+                    self.object_collection_ids = [self.object_collection_ids]
+                object_ids, _ = entity.find_objects(self.object_collection_names, preserve_order=self.preserve_order)
+                object_names = [entity.object_names[i] for i in self.object_collection_ids]
+                if object_ids != self.object_collection_ids or object_names != self.object_collection_names:
+                    raise ValueError(
+                        "Both 'object_collection_names' and 'object_collection_ids' are specified, and are not"
+                        " consistent.\n\tfrom object collection names:"
+                        f" {self.object_collection_names} [{object_ids}]\n\tfrom object collection ids:"
+                        f" {object_names} [{self.object_collection_ids}]\nHint: Use either 'object_collection_names' or"
+                        " 'object_collection_ids' to avoid confusion."
+                    )
+            # -- from object names to object indices
+            elif self.object_collection_names is not None:
+                if isinstance(self.object_collection_names, str):
+                    self.object_collection_names = [self.object_collection_names]
+                self.object_collection_ids, _ = entity.find_objects(
+                    self.object_collection_names, preserve_order=self.preserve_order
+                )
+            # -- from object indices to object names
+            elif self.object_collection_ids != slice(None):
+                if isinstance(self.object_collection_ids, int):
+                    self.object_collection_ids = [self.object_collection_ids]
+                self.object_collection_names = [entity.object_names[i] for i in self.object_collection_ids]
