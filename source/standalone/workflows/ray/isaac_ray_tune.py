@@ -57,18 +57,24 @@ class IsaacLabTuneTrainable(tune.Trainable):
         self.checkpoint = checkpoint_dir / model_name + ".pth"
 
 
-def invoke_tuning_run(args, cfg):
+def invoke_tuning_run(
+    cfg,
+    metric="rewards/time",
+    mode="max",
+):
     ray.init(address="auto")  # Initialize Ray
+    total_resources = isaac_ray_util.get_total_gpu_node_resources()
+    print(f"[INFO]: Total resources on cluster: {total_resources}")
     # Define trainable with specific resource allocation
     isaac_lab_trainable_with_resources = tune.with_resources(
         IsaacLabTuneTrainable,  # Make sure IsaacLabTuneTrainable is defined and imported
-        isaac_ray_util.get_total_gpu_node_resources(),
+        total_resources,
     )
 
     # Define BOHB Search Algorithm
     bohb_search = TuneBOHB(
-        metric="rewards/time",
-        mode="max",
+        metric=metric,
+        mode=mode,
     )
 
     # Repeat each configuration 3 times

@@ -113,7 +113,5 @@ if __name__ == "__main__":
     else:
         formatted_jobs = []
     print(f"[INFO]: Isaac Ray Wrapper received jobs {formatted_jobs = }")
-    # Read the cluster spec
     clusters = read_cluster_spec()
-    # Submit the jobs to the clusters or run in test mode
     submit_jobs_to_clusters(formatted_jobs, clusters, args.test)

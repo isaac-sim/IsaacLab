@@ -86,7 +86,7 @@ def process_cluster(cluster_info):
     if not ray_status:
         return f"Error: Could not get ray status for cluster {cluster}\n"
     output_line = (  # num_cpu: {num_cpu} num_gpu: {num_gpu} ram_gb: {ram_gb} total_workers: {total_workers}\n"
-        f"name: {cluster} address: {ray_address}"
+        f"name: {cluster} address: {ray_address} \n"
     )
     return output_line
 

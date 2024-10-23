@@ -134,7 +134,7 @@ def main(
         job_results.append(job)
 
     results = ray.get(job_results)
-    for i, result in enumerate(results, 1):
+    for i, result in enumerate(results):
         print(f"Job {i} result: {result}")
     print("All jobs completed.")
 

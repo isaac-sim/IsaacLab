@@ -40,8 +40,8 @@ echo "import ray; ray.init(); import time; [time.sleep(10) for _ in iter(int, 1)
 Alternatively, for use on more than one machine (node), see the following;
 
 On the head machine, run ``ray start --head --port 6379``. On any worker machines,
-make sure you can connect to the head machine, and then run
-```ray start --address='<HEAD_NODE_IP>:6379'``` . For more info follow [this link](https://docs.ray.io/en/latest/cluster/vms/user-guides/launching-clusters/on-premises.html#on-prem)
+make sure they can connect to the head machine, and then run
+```ray start --address='<HEAD_NODE_IP>:6379'``` . For more info follow the [Ray on-premises bare metal guide](https://docs.ray.io/en/latest/cluster/vms/user-guides/launching-clusters/on-premises.html#on-prem)
 
 
 #### Option B: With Kubernetes / KubeRay
@@ -50,13 +50,13 @@ For an example, see the [Minikube GPU Guide](https://docs.wandb.ai/tutorials/min
 
 Install ray operator on the local cluster, and make a container where ray is installed.
 See ``cluster_configs/Dockerfile`` for an example. Create a ``kuberay.yaml.jinja``
-file for your local cluster similar to that of ``cluster_configs/google_cloud/kuberay.yaml.jinja``.
+file for the local cluster similar to that of ``cluster_configs/google_cloud/kuberay.yaml.jinja``.
 Now, the rest of the steps are the same as for cloud, just make sure to change ``--cluster_host``
 to ``local`` when running ``launch.py``
 
 #### Option C: With SLURM
 
-See [this link](https://docs.ray.io/en/latest/cluster/vms/user-guides/community/slurm.html#slurm-network-ray)
+See the [Ray community SLURM support](https://docs.ray.io/en/latest/cluster/vms/user-guides/community/slurm.html#slurm-network-ray)
 for more information. This guide does not explicitly support SLURM, but it should still be compatible.
 
 ## Cloud Setup (Not needed for local development)
