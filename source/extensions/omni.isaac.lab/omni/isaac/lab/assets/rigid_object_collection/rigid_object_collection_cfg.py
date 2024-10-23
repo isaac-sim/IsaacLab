@@ -24,5 +24,5 @@ class RigidObjectCollectionCfg:
     rigid_objects: dict[str, RigidObjectCfg] = MISSING
     """Dictionary of rigid object configurations to spawn.
 
-    The keys are the names of the objects.
+    The keys are the names for the objects, which are used as unique identifiers throughout the code.
     """
