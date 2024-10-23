@@ -29,5 +29,9 @@ class ArticulationActions:
     joint_efforts: torch.Tensor | None = None
     """The joint efforts of the articulation. Defaults to None."""
 
-    joint_indices: torch.Tensor | slice | Sequence[int] | None = None
-    """The joint indices of the articulation. Defaults to None."""
+    joint_indices: torch.Tensor | Sequence[int] | slice | None = None
+    """The joint indices of the articulation. Defaults to None.
+
+    If the joint indices are a slice, this indicates that the indices are continuous and correspond
+    to all the joints of the articulation. We use a slice to make the indexing more efficient.
+    """
