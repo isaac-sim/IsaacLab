@@ -130,7 +130,7 @@ class RigidObjectCollection(AssetBase):
     Operations.
     """
 
-    def reset(self, env_ids: torch.Tensor | None = None, object_ids: torch.Tensor | None = None):
+    def reset(self, env_ids: torch.Tensor | None = None, object_ids: slice | torch.Tensor | None = None):
         # resolve all indices
         if env_ids is None:
             env_ids = self._ALL_ENV_INDICES
@@ -187,7 +187,10 @@ class RigidObjectCollection(AssetBase):
     """
 
     def write_object_state_to_sim(
-        self, object_state: torch.Tensor, env_ids: torch.Tensor | None = None, object_ids: torch.Tensor | None = None
+        self,
+        object_state: torch.Tensor,
+        env_ids: torch.Tensor | None = None,
+        object_ids: slice | torch.Tensor | None = None,
     ):
         """Set the object state over selected environment and object indices into the simulation.
 
@@ -204,7 +207,10 @@ class RigidObjectCollection(AssetBase):
         self.write_object_velocity_to_sim(object_state[..., 7:], env_ids=env_ids, object_ids=object_ids)
 
     def write_object_pose_to_sim(
-        self, object_pose: torch.Tensor, env_ids: torch.Tensor | None = None, object_ids: torch.Tensor | None = None
+        self,
+        object_pose: torch.Tensor,
+        env_ids: torch.Tensor | None = None,
+        object_ids: slice | torch.Tensor | None = None,
     ):
         """Set the object pose over selected environment and object indices into the simulation.
 
@@ -233,7 +239,10 @@ class RigidObjectCollection(AssetBase):
         self.root_physx_view.set_transforms(self.reshape_data_to_view(poses_xyzw), indices=view_ids)
 
     def write_object_velocity_to_sim(
-        self, object_velocity: torch.Tensor, env_ids: torch.Tensor | None = None, object_ids: torch.Tensor | None = None
+        self,
+        object_velocity: torch.Tensor,
+        env_ids: torch.Tensor | None = None,
+        object_ids: slice | torch.Tensor | None = None,
     ):
         """Set the object velocity over selected environment and object indices into the simulation.
 
@@ -267,7 +276,7 @@ class RigidObjectCollection(AssetBase):
         self,
         forces: torch.Tensor,
         torques: torch.Tensor,
-        object_ids: torch.Tensor | None = None,
+        object_ids: slice | torch.Tensor | None = None,
         env_ids: torch.Tensor | None = None,
     ):
         """Set external force and torque to apply on the object's bodies in their local frame.
@@ -283,7 +292,7 @@ class RigidObjectCollection(AssetBase):
             .. code-block:: python
 
                 # example of disabling external wrench
-                asset.set_external_force_and_torque(forces=torch.zeros(0, 3), torques=torch.zeros(0, 3))
+                asset.set_external_force_and_torque(forces=torch.zeros(0, 0, 3), torques=torch.zeros(0, 0, 3))
 
         .. note::
             This function does not apply the external wrench to the simulation. It only fills the buffers with
@@ -411,7 +420,7 @@ class RigidObjectCollection(AssetBase):
         self._data.default_object_state = default_object_states
 
     def reshape_view_to_data(self, data: torch.Tensor) -> torch.Tensor:
-        """Reshapes the physics view's data to (num_instances, num_objects, data_size).
+        """Reshapes and arranges the physics view's data to (num_instances, num_objects, data_size).
 
         Args:
             data: The data from the physics view. Shape is (num_instances*num_objects, data_size).
@@ -422,7 +431,7 @@ class RigidObjectCollection(AssetBase):
         return torch.einsum("ijk -> jik", data.reshape(self.num_objects, self.num_instances, -1))
 
     def reshape_data_to_view(self, data: torch.Tensor) -> torch.Tensor:
-        """Reshapes the data to the physics view's order (num_instances*num_objects, data_size).
+        """Reshapes and arranges the data to the physics view's order (num_instances*num_objects, data_size).
 
         Args:
             data: The data to be reshaped. Shape is (num_instances, num_objects, data_size).
@@ -432,8 +441,10 @@ class RigidObjectCollection(AssetBase):
         """
         return torch.einsum("ijk -> jik", data).reshape(self.num_objects * self.num_instances, *data.shape[2:])
 
-    def _env_obj_ids_to_view_ids(self, env_ids: torch.Tensor, object_ids: torch.Tensor) -> torch.Tensor:
-        """Converts environment and object indices to view indices.
+    def _env_obj_ids_to_view_ids(
+        self, env_ids: torch.Tensor, object_ids: Sequence[int] | slice | torch.Tensor
+    ) -> torch.Tensor:
+        """Converts environment and object indices to physics view indices.
 
         Args:
             env_ids: Environment indices.
@@ -444,6 +455,10 @@ class RigidObjectCollection(AssetBase):
         """
         # the order is env_0/object_0, env_0/object_1, env_0/object_..., env_1/object_0, env_1/object_1, ...
         # return a flat tensor of indices
+        if isinstance(object_ids, slice):
+            object_ids = self._ALL_OBJ_INDICES
+        elif isinstance(object_ids, Sequence):
+            object_ids = torch.tensor(object_ids, device=self.device)
         return (object_ids.unsqueeze(1) * self.num_instances + env_ids).flatten()
 
     """
