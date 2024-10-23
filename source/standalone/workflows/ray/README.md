@@ -291,6 +291,13 @@ hyperparameters could be simultaneously tuned in parallel with heterogeneous res
 	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py wrap_isaac_ray_resources.py --jobs <JOB_0_C0>+<JOB_1_C0>*wrap_isaac_ray_resources.py --jobs <JOB_0_C1>+<JOB_1_C1>*wrap_isaac_ray_resources.py --jobs <JOB_N>"
 	```
 
+	For example (take special node of the delimiters, where ```*``` separates clusters, and ```+``` separates
+	unique jobs on each cluster),
+	```
+	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py --jobs \
+	wrap_isaac_ray_resources.py --jobs /workspace/isaaclab/isaaclab.sh -p /workspace/isaaclab/source/standalone/workflows/rl_games/train.py --task Isaac-Cartpole-v0 --headless+/workspace/isaaclab/isaaclab.sh -p /workspace/isaaclab/source/standalone/workflows/rl_games/train.py --task Isaac-Cartpole-RGB-Camera-Direct-v0 --headless --enable_cameras agent.params.config.max_epochs=150*wrap_isaac_ray_resources.py --jobs /workspace/isaaclab/isaaclab.sh -p /workspace/isaaclab/source/standalone/workflows/rl_games/train.py --task Isaac-Cartpole-v0 --headless+/workspace/isaaclab/isaaclab.sh -p /workspace/isaaclab/source/standalone/workflows/rl_games/train.py --task Isaac-Cartpole-RGB-Camera-Direct-v0 --headless --enable_cameras agent.params.config.max_epochs=150
+	```
+
 6. Clean up the cluster to conserve resources
 
 	For example,
