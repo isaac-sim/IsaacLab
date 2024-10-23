@@ -181,12 +181,21 @@ class ActionManager(ManagerBase):
         Args:
             cfg: The configuration object or dictionary (``dict[str, ActionTermCfg]``).
             env: The environment instance.
+
+        Raises:
+            ValueError: If the configuration is None.
         """
+        # check if config is None
+        if cfg is None:
+            raise ValueError("Action manager configuration is None. Please provide a valid configuration.")
+
+        # call the base class constructor (this prepares the terms)
         super().__init__(cfg, env)
         # create buffers to store actions
         self._action = torch.zeros((self.num_envs, self.total_action_dim), device=self.device)
         self._prev_action = torch.zeros_like(self._action)
 
+        # check if any term has debug visualization implemented
         self.cfg.debug_vis = False
         for term in self._terms.values():
             self.cfg.debug_vis |= term.cfg.debug_vis
@@ -334,8 +343,7 @@ class ActionManager(ManagerBase):
     """
 
     def _prepare_terms(self):
-        """Prepares a list of action terms."""
-        # parse action terms from the config
+        # create buffers to parse and store terms
         self._term_names: list[str] = list()
         self._terms: dict[str, ActionTerm] = dict()
 
@@ -344,6 +352,7 @@ class ActionManager(ManagerBase):
             cfg_items = self.cfg.items()
         else:
             cfg_items = self.cfg.__dict__.items()
+        # parse action terms from the config
         for term_name, term_cfg in cfg_items:
             # check if term config is None
             if term_cfg is None:

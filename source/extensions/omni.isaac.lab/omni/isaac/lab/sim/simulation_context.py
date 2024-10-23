@@ -114,6 +114,8 @@ class SimulationContext(_SimulationContext):
         # store input
         if cfg is None:
             cfg = SimulationCfg()
+        # check that the config is valid
+        cfg.validate()
         self.cfg = cfg
         # check that simulation is running
         if stage_utils.get_current_stage() is None:
