@@ -38,7 +38,8 @@ class EventManager(ManagerBase):
 
     For a typical training process, you may want to apply events in the following modes:
 
-    - "startup": Event is applied once at the beginning of the training.
+    - "scene": Event is applied once after designing the scene.
+    - "startup": Event is applied once after the simulation starts playing.
     - "reset": Event is applied at every reset.
     - "interval": Event is applied at pre-specified intervals of time.
 
@@ -51,9 +52,6 @@ class EventManager(ManagerBase):
         directly handled by the manager itself. The other modes are handled by the environment implementation.
 
     """
-
-    _env: ManagerBasedEnv
-    """The environment instance."""
 
     def __init__(self, cfg: object, env: ManagerBasedEnv):
         """Initialize the event manager.
