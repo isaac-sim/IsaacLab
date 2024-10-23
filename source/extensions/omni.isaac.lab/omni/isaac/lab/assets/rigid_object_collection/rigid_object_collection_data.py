@@ -121,9 +121,9 @@ class RigidObjectCollectionData:
         """
         if self._object_state_w.timestamp < self._sim_timestamp:
             # read data from simulation
-            pose = self._view_to_data_order(self._root_physx_view.get_transforms().clone())
+            pose = self._reshape_view_to_data_order(self._root_physx_view.get_transforms().clone())
             pose[..., 3:7] = math_utils.convert_quat(pose[..., 3:7], to="wxyz")
-            velocity = self._view_to_data_order(self._root_physx_view.get_velocities())
+            velocity = self._reshape_view_to_data_order(self._root_physx_view.get_velocities())
             # set the buffer data and timestamp
             self._object_state_w.data = torch.cat((pose, velocity), dim=-1)
             self._object_state_w.timestamp = self._sim_timestamp
@@ -137,7 +137,9 @@ class RigidObjectCollectionData:
         """
         if self._object_acc_w.timestamp < self._sim_timestamp:
             # note: we use finite differencing to compute acceleration
-            self._object_acc_w.data = self._view_to_data_order(self._root_physx_view.get_accelerations().clone())
+            self._object_acc_w.data = self._reshape_view_to_data_order(
+                self._root_physx_view.get_accelerations().clone()
+            )
             self._object_acc_w.timestamp = self._sim_timestamp
         return self._object_acc_w.data
 
@@ -239,8 +241,8 @@ class RigidObjectCollectionData:
     # Helpers.
     ##
 
-    def _view_to_data_order(self, data: torch.Tensor) -> torch.Tensor:
-        """Reshapes the physics view's data to (num_instances, num_objects, data_size).
+    def _reshape_view_to_data_order(self, data: torch.Tensor) -> torch.Tensor:
+        """Reshapes and arranges the physics view's data to (num_instances, num_objects, data_size).
 
         Args:
             data: The data from the physics view. Shape is (num_instances*num_objects, data_size).
