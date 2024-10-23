@@ -280,8 +280,8 @@ class AppLauncher:
             type=str,
             default="",
             help=(
-                "Command line arguments for Omniverse Kit as a string separated by delimiter ','."
-                ' Example usage: --ov_args "--ext-folder=/path/to/ext1,--ext-folder=/path/to/ext2"'
+                "Command line arguments for Omniverse Kit as a string separated by a space delimiter."
+                ' Example usage: --ov_args "--ext-folder=/path/to/ext1 --ext-folder=/path/to/ext2"'
             ),
         )
 
@@ -573,7 +573,7 @@ class AppLauncher:
         # Resolve additional arguments passed to Kit
         self._ov_args = []
         if launcher_args["ov_args"]:
-            self._ov_args = [arg.strip() for arg in launcher_args["ov_args"].split(",")]
+            self._ov_args = [arg for arg in launcher_args["ov_args"].split()]
             sys.argv += self._ov_args
 
         # Resolve the absolute path of the experience file
