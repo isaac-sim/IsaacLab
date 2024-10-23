@@ -297,13 +297,14 @@ class BaseScrewEnvCfg(ManagerBasedRLEnvCfg):
         self.env_params.sim.physx.friction_offset_threshold = self.env_params.sim.physx.get("friction_offset_threshold",
                                                                                             0.04)
         self.env_params.sim.physx.enable_ccd = self.env_params.sim.physx.get("enable_ccd", False)
+        self.env_params.decimation = self.env_params.get("decimation", 1)
 
     def __post_init__(self):
         """Post initialization."""
         self.get_default_env_params()
         self.scene = ScrewSceneCfg(num_envs=4096, env_spacing=2.5, screw_type=self.env_params.scene.screw_type)
         # general settings
-        self.decimation = 1
+        self.decimation = self.env_params.decimation
         self.sim.render_interval = self.decimation
         self.sim.dt = self.env_params.sim.dt
         self.sim.physx.friction_offset_threshold = self.env_params.sim.physx.friction_offset_threshold
