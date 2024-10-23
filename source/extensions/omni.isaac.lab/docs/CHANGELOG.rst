@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.27.1 (2024-10-23)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the class :class:`~omni.isaac.lab.assets.RigidObjectCollection` which allows to spawn
+  multiple objects in each environment and access/modify the quantities with a unified (env_ids, object_ids) API.
+
+
 0.27.0 (2024-10-14)
 ~~~~~~~~~~~~~~~~~~~
 

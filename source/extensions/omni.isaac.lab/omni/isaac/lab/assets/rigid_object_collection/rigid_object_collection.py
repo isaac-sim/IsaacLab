@@ -131,6 +131,12 @@ class RigidObjectCollection(AssetBase):
     """
 
     def reset(self, env_ids: torch.Tensor | None = None, object_ids: slice | torch.Tensor | None = None):
+        """Resets all internal buffers of selected environments and objects.
+
+        Args:
+            env_ids: The indices of the object to reset. Defaults to None (all instances).
+            object_ids: The indices of the object to reset. Defaults to None (all objects).
+        """
         # resolve all indices
         if env_ids is None:
             env_ids = self._ALL_ENV_INDICES
