@@ -18,6 +18,8 @@ class ArticulationActions:
 
     This class is used to store the actions of the joints of an articulation.
     It is used to store the joint positions, velocities, efforts, and indices.
+
+    If the actions are not provided, the values are set to None.
     """
 
     joint_positions: torch.Tensor | None = None
