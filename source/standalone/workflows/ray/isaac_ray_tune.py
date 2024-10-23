@@ -63,12 +63,12 @@ def invoke_tuning_run(
     mode="max",
 ):
     ray.init(address="auto")  # Initialize Ray
-    total_resources = isaac_ray_util.get_total_gpu_node_resources()
-    print(f"[INFO]: Total resources on cluster: {total_resources}")
+    resources = isaac_ray_util.get_total_gpu_node_resources()
+    print(f"[INFO]: Resources per worker: {resources}")
     # Define trainable with specific resource allocation
     isaac_lab_trainable_with_resources = tune.with_resources(
         IsaacLabTuneTrainable,  # Make sure IsaacLabTuneTrainable is defined and imported
-        total_resources,
+        resources,
     )
 
     # Define BOHB Search Algorithm

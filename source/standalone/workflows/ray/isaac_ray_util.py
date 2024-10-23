@@ -120,37 +120,43 @@ def invoke_run(cfg, max_line_count=2000):
     return {"proc": proc, "experiment_name": experiment_name, "logdir": logdir}
 
 
-def get_total_gpu_node_resources():
-    # Initialize Ray
-    ray.init()
+def get_gpu_node_resources(total_resources: bool = False, one_node_only: bool = False):
+    if not ray.is_initialized():
+        ray.init()
 
-    # Get detailed resource information per node
     nodes = ray.nodes()
-
+    node_resources_dict = {}
     total_cpus = 0
     total_gpus = 0
     total_memory = 0  # in bytes
     total_object_store_memory = 0  # in bytes
 
-    # Loop through each node and aggregate resources only from GPU nodes
     for node in nodes:
-        # Only consider nodes that are live and have GPU resources
         if node["Alive"] and "GPU" in node["Resources"]:
-            node_resources = node["Resources"]
-            total_cpus += node_resources.get("CPU", 0)
-            total_gpus += node_resources.get("GPU", 0)
-            total_memory += node_resources.get("memory", 0)
-            total_object_store_memory += node_resources.get("object_store_memory", 0)
+            node_id = node["NodeID"]
+            resources = node["Resources"]
+            cpus = resources.get("CPU", 0)
+            gpus = resources.get("GPU", 0)
+            memory = resources.get("memory", 0)
+            object_store_memory = resources.get("object_store_memory", 0)
 
-    # Prepare the dictionary for tune.with_resources
-    total_resources = {
-        "cpu": total_cpus,
-        "gpu": total_gpus,
-        "memory": total_memory / (1024**3),  # Convert to GB
-        "object_store_memory": total_object_store_memory / (1024**3),  # Convert to GB
-    }
+            node_resources_dict[node_id] = {"cpu": cpus, "gpu": gpus, "memory": memory}
 
-    return total_resources
+            total_cpus += cpus
+            total_gpus += gpus
+            total_memory += memory
+            total_object_store_memory += object_store_memory
+
+    if total_resources:
+        # Return summed total resources
+        return {"cpu": total_cpus, "gpu": total_gpus, "memory": total_memory}
+
+    if one_node_only and node_resources_dict:
+        # Return resources of the first node in the dictionary
+        first_node_id = list(node_resources_dict.keys())[0]
+        return node_resources_dict[first_node_id]
+
+    return node_resources_dict
 
 
 def add_cluster_args(parser: argparse.ArgumentParser) -> None:
