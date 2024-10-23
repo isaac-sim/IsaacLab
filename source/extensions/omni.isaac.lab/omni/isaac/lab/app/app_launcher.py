@@ -186,8 +186,8 @@ class AppLauncher:
           * If headless is True and enable_cameras is False, the experience file is set to ``isaaclab.python.headless.kit``.
 
         * ``ov_args`` (str): Optional command line arguments to be passed to Omniverse Kit directly.
-          Arguments should be combined into a single string separated by a comma ','.
-          Example usage: --ov_args "--ext-folder=/path/to/ext1,--ext-folder=/path/to/ext2"
+          Arguments should be combined into a single string separated by space.
+          Example usage: --ov_args "--ext-folder=/path/to/ext1 --ext-folder=/path/to/ext2"
 
         Args:
             parser: An argument parser instance to be extended with the AppLauncher specific options.
