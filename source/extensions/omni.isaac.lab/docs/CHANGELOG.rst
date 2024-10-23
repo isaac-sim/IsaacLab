@@ -7,7 +7,7 @@ Changelog
 Added
 ^^^^^
 
-* Added :attr:`antialiasing_mode` in :class:`SimulationCfg` for specifying anti-aliasing mode for rendering.
+* Added :class:`RenderCfg` in :class:`SimulationCfg for specifying render related settings.
 
 
 0.26.0 (2024-10-16)
