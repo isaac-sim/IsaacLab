@@ -111,9 +111,9 @@ def main(
             if num_gpus is None:
                 num_gpus = formatted_resources["GPU"]
             num_gpu_nodes += 1
-        if num_cpus is None or num_cpus < formatted_resources["CPU"]:
+        if num_cpus is None or ("CPU" in formatted_resources and num_cpus < formatted_resources["CPU"]):
             num_cpus = formatted_resources["CPU"]
-        if ram_gb is None or ram_gb < float(formatted_resources["memory"][0]):
+        if ram_gb is None or ("memory" in formatted_resources and ram_gb < float(formatted_resources["memory"][0])):
             ram_gb = float(formatted_resources["memory"][0])
     job_results = []
 

@@ -20,11 +20,16 @@ as this functionality is still experimental.
 To use Ray Clusters without kubernetes, like on a local setup,
 ```kubectl``` is not required. Otherwise, `kubectl` needs to be installed, which can be done from [this link here](https://kubernetes.io/docs/tasks/tools/).
 
-To install all Python dependencies, run
+To install base Python dependencies, run
 
 ```
 ./isaaclab.sh -p -m pip install ray[default, tune]==2.31.0
 ```
+
+To install the Python dependencies for tuning specifically, run
+```
+./isaaclab.sh -p -m pip install hpbandster ConfigSpace
+ ```
 
 # Setup / Cluster Configuration
 
@@ -205,7 +210,7 @@ For several nodes, resource isolation is not needed to run jobs in parallel.
 	For example,
 
 	```
-	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py --jobs isaac_ray_tune.py --cfg_file=hyperparameter_tuning/vision_cartpole.py --cfg_class CartpoleRGBNoTuneJobCfg
+	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py --jobs isaac_ray_tune.py --cfg_file hyperparameter_tuning/vision_cartpole.py --cfg_class CartpoleRGBNoTuneJobCfg
 	```
 
 8. When the distributed job is completed, stop the cluster to conserve resources.

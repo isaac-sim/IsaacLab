@@ -68,14 +68,14 @@ def invoke_run(cfg, max_line_count=2000):
             print(f"{target_list[-1]}")
 
     print(f"[INFO]: Starting workflow {cfg['workflow']}")
-    
+
     process_args(cfg["runner_args"], runner_args)
     print(f"[INFO]: Retrieved workflow runner args: {runner_args}")
     process_args(cfg["hydra_args"], hydra_args)
     print(f"[INFO]: Retrieved hydra args: {hydra_args}")
 
     proc = subprocess.Popen(
-        ["./workspace/isaaclab.sh -p ", cfg["workflow"], *runner_args, *hydra_args],
+        ["/workspace/isaaclab/isaaclab.sh", "-p", cfg["workflow"], *runner_args, *hydra_args],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
@@ -124,7 +124,7 @@ def invoke_run(cfg, max_line_count=2000):
 
 def get_gpu_node_resources(total_resources: bool = False, one_node_only: bool = False):
     if not ray.is_initialized():
-        ray.init()
+        ray.init(address="auto")
 
     nodes = ray.nodes()
     node_resources_dict = {}
@@ -185,3 +185,11 @@ def add_cluster_args(parser: argparse.ArgumentParser) -> None:
         type=int,
         help="Supply to split nodes into multiple workers. Meant for local development",
     )
+
+
+def populate_isaac_ray_cfg_args(cfg: dict = {}):
+    if "runner_args" not in cfg:
+        cfg["runner_args"] = {}
+    if "hydra_args" not in cfg:
+        cfg["hydra_args"] = {}
+    return cfg

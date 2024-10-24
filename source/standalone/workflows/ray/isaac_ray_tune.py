@@ -15,10 +15,13 @@ import ray
 from ray import air, tune
 
 # from ray.tune.schedulers import HyperBandForBOHB
-from ray.tune.search.bohb import TuneBOHB
+# from ray.tune.search.bohb import TuneBOHB
+from ray.tune.search.optuna import OptunaSearch
 
 # from ray.tune.search.concurrency_limiter import ConcurrencyLimiter
 from ray.tune.search.repeater import Repeater
+
+# from ray.tune.search.bayesopt import BayesOptSearch
 
 
 class IsaacLabTuneTrainable(tune.Trainable):
@@ -57,16 +60,12 @@ class IsaacLabTuneTrainable(tune.Trainable):
         self.checkpoint = checkpoint_dir / model_name + ".pth"
 
 
-def invoke_tuning_run(
-    cfg: dict,
-    metric: str = "rewards/time",
-    mode: str = "max",
-    num_samples: int = 10000
-):
+def invoke_tuning_run(cfg: dict, metric: str = "rewards/time", mode: str = "max", num_samples: int = 10000):
     if not ray.is_initialized():
-        ray.init(address="auto") 
-    resources = isaac_ray_util.get_total_gpu_node_resources()
+        ray.init(address="auto")
+    resources = isaac_ray_util.get_gpu_node_resources(one_node_only=True)
     print(f"[INFO]: Resources per worker: {resources}")
+    print(f"[INFO]: Using config {cfg}")
     # Define trainable with specific resource allocation
     isaac_lab_trainable_with_resources = tune.with_resources(
         IsaacLabTuneTrainable,  # Make sure IsaacLabTuneTrainable is defined and imported
@@ -74,13 +73,14 @@ def invoke_tuning_run(
     )
 
     # Define BOHB Search Algorithm
-    bohb_search = TuneBOHB(
+    searcher = OptunaSearch(
         metric=metric,
-        mode=mode,
+        mode=mode,  # ,
+        # space=cfg
     )
 
     # Repeat each configuration 3 times
-    repeat_search = Repeater(bohb_search, repeat=3)
+    repeat_search = Repeater(searcher, repeat=3)
 
     # Running the experiment using the new Ray Tune API
     tuner = tune.Tuner(
@@ -91,9 +91,7 @@ def invoke_tuning_run(
             scheduler=None,  # No scheduler is used
             num_samples=num_samples,  # Ensure args.num_samples is well-defined
         ),
-        run_config=air.RunConfig(
-            name="BOHB_test", local_dir="./ray_results", verbose=1, failure_config=air.FailureConfig(fail_fast=True)
-        ),
+        run_config=air.RunConfig(name="BOHB_test", verbose=1, failure_config=air.FailureConfig(fail_fast=True)),
     )
 
     # Execute the tuning
@@ -101,6 +99,7 @@ def invoke_tuning_run(
 
     # Output the best hyperparameters
     print("Best hyperparameters found were: ", results.get.best_result().config)
+
 
 class JobCfg:
     def __init__(self, cfg):
@@ -112,12 +111,13 @@ class JobCfg:
 
 class RLGamesCameraJobCfg(JobCfg):
     def __init__(self, cfg={}, vary_env_count: bool = False, vary_cnn: bool = False, vary_mlp: bool = False):
+        cfg = isaac_ray_util.populate_isaac_ray_cfg_args(cfg)
         # Set up basic runner args
-        cfg["runner_args"]["singletons"] = ["--headless", "--enable_cameras"]
-        cfg["workflow"] = "/workspace/isaaclab/workflows/rl_games/train.py"
+        cfg["runner_args"]["singletons"] = tune.choice([["--headless", "--enable_cameras"]])
+        cfg["workflow"] = tune.choice(["/workspace/isaaclab/workflows/rl_games/train.py"])
 
-        cfg["hydra_args"]["agent.params.config.save_best_after"] = 5
-        cfg["hydra_args"]["agent.params.config.save_frequency"] = 5
+        cfg["hydra_args"]["agent.params.config.save_best_after"] = tune.choice([5])
+        cfg["hydra_args"]["agent.params.config.save_frequency"] = tune.choice([5])
 
         if vary_env_count:
 
@@ -177,6 +177,7 @@ class RLGamesCameraJobCfg(JobCfg):
 
 class RLGamesResNetCameraJob(RLGamesCameraJobCfg):
     def __init__(self, cfg: dict = {}):
+        cfg = isaac_ray_util.populate_isaac_ray_cfg_args(cfg)
         cfg["hydra_args"]["env.observations.policy.image.params.model_name"] = tune.choice(
             ["resnet18", "resnet34", "resnet50", "resnet101"]
         )
@@ -185,6 +186,7 @@ class RLGamesResNetCameraJob(RLGamesCameraJobCfg):
 
 class RLGamesTheiaCameraJob(RLGamesCameraJobCfg):
     def __init__(self, cfg: dict = {}):
+        cfg = isaac_ray_util.populate_isaac_ray_cfg_args(cfg)
         cfg["hydra_args"]["env.observations.policy.image.params.model_name"] = tune.choice([
             "theia-tiny-patch16-224-cddsv",
             "theia-tiny-patch16-224-cdiv",
@@ -202,16 +204,16 @@ if __name__ == "__main__":
     parser.add_argument(
         "--cfg_file",
         type=str,
-        default='hyperparameter_tuning/vision_cartpole_cfg.py',
+        default="hyperparameter_tuning/vision_cartpole_cfg.py",
         required=False,
         help="The relative filepath where a hyperparameter sweep is defined",
     )
     parser.add_argument(
-        "--cfg_class", 
-        type=str, 
+        "--cfg_class",
+        type=str,
         default="CartpoleRGBNoTuneJobCfg",
-        required=False, 
-        help="Name of the hyperparameter sweep class to use"
+        required=False,
+        help="Name of the hyperparameter sweep class to use",
     )
     args = parser.parse_args()
     file_path = args.cfg_file
@@ -219,23 +221,19 @@ if __name__ == "__main__":
     print(f"Attempting to use sweep config from {file_path = } {class_name = }")
     module_name = os.path.splitext(os.path.basename(file_path))[0]
 
-    try:
-        spec = importlib.util.spec_from_file_location(module_name, file_path)
-        module = importlib.util.module_from_spec(spec)
-        sys.modules[module_name] = module
-        spec.loader.exec_module(module)
-        print(f"[INFO]: Successfully imported {module_name} from {file_path}")
-        if hasattr(module, class_name):
-            ClassToInstantiate = getattr(module, class_name) 
-            instance = ClassToInstantiate()
-            print(f"[INFO]: Successfully instantiated class '{class_name}' from {file_path}")
-            cfg = instance.cfg
-            print(f"[INFO]: Grabbed the following hyperparameter sweep config: \n {cfg}")
-            invoke_tuning_run(cfg)
-            
-        else:
-            print(f"[ERROR]:Class '{class_name}' not found in {file_path}")
+    spec = importlib.util.spec_from_file_location(module_name, file_path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    print(f"[INFO]: Successfully imported {module_name} from {file_path}")
+    if hasattr(module, class_name):
+        ClassToInstantiate = getattr(module, class_name)
+        print(f"[INFO]: Found correct class {ClassToInstantiate}")
+        instance = ClassToInstantiate()
+        print(f"[INFO]: Successfully instantiated class '{class_name}' from {file_path}")
+        cfg = instance.cfg
+        print(f"[INFO]: Grabbed the following hyperparameter sweep config: \n {cfg}")
+        invoke_tuning_run(cfg)
 
-    except Exception as e:
-        print(f"[ERROR]: Could not import tune config: {e}")
-
+    else:
+        raise AttributeError(f"[ERROR]:Class '{class_name}' not found in {file_path}")
