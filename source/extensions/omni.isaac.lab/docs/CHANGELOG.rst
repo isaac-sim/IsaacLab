@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.27.1 (2024-10-20)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~omni.isaac.lab.sim.RenderCfg` and the attribute :attr:`~omni.isaac.lab.sim.SimulationCfg.render` for
+  specifying render related settings.
+
+
 0.27.0 (2024-10-14)
 ~~~~~~~~~~~~~~~~~~~
 
