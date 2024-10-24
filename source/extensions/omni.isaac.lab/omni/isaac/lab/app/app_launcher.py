@@ -276,7 +276,7 @@ class AppLauncher:
             ),
         )
         arg_group.add_argument(
-            "--ov_args",
+            "--kit_args",
             type=str,
             default="",
             help=(
