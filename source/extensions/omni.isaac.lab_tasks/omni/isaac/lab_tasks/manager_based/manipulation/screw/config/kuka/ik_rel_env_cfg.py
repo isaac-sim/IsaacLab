@@ -35,8 +35,8 @@ class IKRelKukaNutTightenEnvCfg(BaseNutTightenEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
-        self.act_lows = [-0.001, -0.001, -0.001, -0.5, -0.5, -0.5]
-        self.act_highs = [0.001, 0.001, 0.001, 0.5, 0.5, 0.5]
+        self.act_lows = [-0.001, -0.001, -0.001, -0.1, -0.1, -0.1]
+        self.act_highs = [0.001, 0.001, 0.001, 0.1, 0.1, 0.1]
         # Set Kuka as robot
 
         self.scene.robot = KUKA_VICTOR_LEFT_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
@@ -92,6 +92,15 @@ def reset_scene_with_grasping(env: ManagerBasedEnv, env_ids: torch.Tensor):
     # new_env_state = cached_env_state.apply(lambda x: repeat(x, "1 ... -> n ...", n=env.num_envs).clone())
     # env.unwrapped.write_state(new_env_state)
 
+from omni.isaac.lab.managers import EventTermCfg, ManagerTermBase
+class reset_scene_to_grasp_state(ManagerTermBase):
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
+        super().__init__(cfg, env)
+        cached_pre_grasp_state = SmartDict(pickle.load(open("data/kuka_nut_thread_pre_grasp.pkl", "rb")))
+        self.cached_pre_grasp_state = cached_pre_grasp_state.apply(lambda x: repeat(x, "1 ... -> n ...", n=env.num_envs).clone())
+
+    def __call__(self, env: ManagerBasedEnv, env_ids: torch.Tensor):
+        self.env.unwrapped.write_state(self.cached_pre_grasp_state[env_ids], env_ids)
 
 @configclass
 class EventCfg:

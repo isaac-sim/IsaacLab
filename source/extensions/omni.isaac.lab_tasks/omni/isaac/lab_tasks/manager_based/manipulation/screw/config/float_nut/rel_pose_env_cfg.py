@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from re import T
 import torch
 
 import omni.isaac.lab.sim as sim_utils
@@ -36,14 +37,13 @@ class RelFloatNutTightenEnvCfg(abs_pose_env_cfg.AbsFloatNutTightenEnvCfg):
         self.act_highs = [0.001, 0.001, 0.001, 0.5, 0.5, 0.5]
         self.scene.nut.spawn.rigid_props.sleep_threshold = 0.0
         self.scene.nut.spawn.rigid_props.stabilization_threshold = 0.0
-        # self.act_lows = [-0.000001, -0.0000001, -0.0001, -0.0000005, -0.0000005, -0.2]
-        # self.act_highs = [0.0000001, 0.0000001, 0.0000001, 0.00000005, 0.0000005, -0.19]
 
         # override actions
         self.actions.nut_action = mdp.RigidObjectPoseActionTermCfg(
             asset_name="nut",
             command_type="pose",
             use_relative_mode=True,
+            is_accumulate_action=False,
             p_gain=10,
             d_gain=0.01,
             lows=self.act_lows,
@@ -72,8 +72,9 @@ class RelFloatNutThreadEnv(BaseNutThreadEnvCfg):
         self.scene.robot = None
         # self.act_lows = [-0.0001, -0.0001, -0.005, -0.0001, -0.0001, -0.5]
         # self.act_highs = [0.0010, 0.0001, 0.005, 0.0001, 0.0001, 0.5]
-        self.act_lows = [-0.001, -0.001, -0.001, -0.2, -0.2, -0.2]
-        self.act_highs = [0.001, 0.001, 0.001, 0.2, 0.2, 0.2]
+        self.act_lows = [-0.0001, -0.0001, -0.005, -0.01, -0.01, -0.5]
+        self.act_highs = [0.0001, 0.0001, 0.005, 0.01, 0.01, 0.]
+        scale = [0.0001, 0.0001, 0.005, 0.01, 0.01, 0.5]
         # override actions
         self.actions.nut_action = mdp.RigidObjectPoseActionTermCfg(
             asset_name="nut",
@@ -81,21 +82,23 @@ class RelFloatNutThreadEnv(BaseNutThreadEnvCfg):
             use_relative_mode=True,
             p_gain=10,
             d_gain=0.01,
+            is_accumulate_action=False,
             lows=self.act_lows,
             highs=self.act_highs,
+            scale=scale,
         )
 
         # self.scene.bolt.spawn.activate_contact_sensors = True
-        # self.scene.nut.spawn.activate_contact_sensors = True
-        # self.scene.contact_sensor = ContactSensorCfg(
-        #     prim_path="{ENV_REGEX_NS}/Nut/factory_nut",
-        #     filter_prim_paths_expr= ["{ENV_REGEX_NS}/Bolt/factory_bolt"],
-        #     update_period=0.0,
-        # )
-        # self.rewards.contact_force_penalty = RewTerm(
-        #     func=mdp.contact_forces,
-        #     params={"threshold":0, "sensor_cfg": SceneEntityCfg(name="contact_sensor")},
-        #     weight=0.01)
+        self.scene.nut.spawn.activate_contact_sensors = True
+        self.scene.contact_sensor = ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/Nut/factory_nut",
+            filter_prim_paths_expr= ["{ENV_REGEX_NS}/Bolt/factory_bolt"],
+            update_period=0.0,
+        )
+        self.rewards.contact_force_penalty = RewTerm(
+            func=mdp.contact_forces,
+            params={"threshold":0.0001, "sensor_cfg": SceneEntityCfg(name="contact_sensor")},
+            weight=0.00001)
 
 
 @configclass

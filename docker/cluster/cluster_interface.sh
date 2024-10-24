@@ -29,12 +29,13 @@ check_docker_version() {
     apptainer_version=$(apptainer --version | awk '{ print $3 }')
 
     # Check if version is above 25.xx
-    if [ "$(echo "${docker_version}" | cut -d '.' -f 1)" -ge 25 ]; then
-        echo "[ERROR]: Docker version ${docker_version} is not compatible with Apptainer version ${apptainer_version}. Exiting."
-        exit 1
-    else
-        echo "[INFO]: Building singularity with docker version: ${docker_version} and Apptainer version: ${apptainer_version}."
-    fi
+    echo "[INFO]: Building singularity with docker version: ${docker_version} and Apptainer version: ${apptainer_version}."
+    # if [ "$(echo "${docker_version}" | cut -d '.' -f 1)" -ge 25 ]; then
+    #     echo "[ERROR]: Docker version ${docker_version} is not compatible with Apptainer version ${apptainer_version}. Exiting."
+    #     exit 1
+    # else
+        
+    # fi
 }
 
 # Checks if a docker image exists, otherwise prints warning and exists

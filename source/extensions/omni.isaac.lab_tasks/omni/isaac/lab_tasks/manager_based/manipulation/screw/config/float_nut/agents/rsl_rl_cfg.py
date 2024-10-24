@@ -13,10 +13,10 @@ from omni.isaac.lab_tasks.utils.wrappers.rsl_rl import (
 
 
 @configclass
-class FrankaScrewPPORunnerCfg(RslRlOnPolicyRunnerCfg):
-    num_steps_per_env = 24
-    max_iterations = 1000
-    save_interval = 50
+class FloatScrewPPORunnerCfg(RslRlOnPolicyRunnerCfg):
+    num_steps_per_env = 16
+    max_iterations = 5000
+    save_interval = 250
     experiment_name = "float_screw"
     run_name = ""
     resume = False
@@ -25,15 +25,15 @@ class FrankaScrewPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     empirical_normalization = False
     policy = RslRlPpoActorCriticCfg(
         init_noise_std=1.0,
-        actor_hidden_dims=[64, 64],
-        critic_hidden_dims=[64, 64],
+        actor_hidden_dims=[128, 128],
+        critic_hidden_dims=[128, 128],
         activation="elu",
     )
     algorithm = RslRlPpoAlgorithmCfg(
         value_loss_coef=1.0,
         use_clipped_value_loss=True,
         clip_param=0.2,
-        entropy_coef=0.001,
+        entropy_coef=0.002,
         num_learning_epochs=8,
         num_mini_batches=4,
         learning_rate=1.0e-3,

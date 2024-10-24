@@ -230,6 +230,8 @@ class RigidObjectActionTerm(ActionTerm):
         self.obj_pos_des = torch.zeros(self.num_envs, 3, device=self.device)
         self.obj_quat_des = torch.zeros(self.num_envs, 4, device=self.device)
         self._command = torch.zeros(self.num_envs, self.action_dim, device=self.device)
+        self._scale = torch.zeros((self.num_envs, self.action_dim), device=self.device)
+        self._scale[:] = torch.tensor(self.cfg.scale, device=self.device)
 
         # gains of controller
         self.p_gain = cfg.p_gain
@@ -354,13 +356,13 @@ class RigidObjectActionTerm(ActionTerm):
         # print("------------------------------------")
         # print(actions)
         # store the raw actions
-        # actions[:] = 0
-        # actions[:, 2] = -0.00001
-        # actions[:, 5] = -0.2
+        actions[:] = 0
+        actions[:, 2] = -0.005
+        actions[:, 5] = -0.2
 
         self._raw_actions[:] = actions
         # no-processing of actions
-        self._processed_actions[:] = self._raw_actions[:]
+        self._processed_actions[:] = self._raw_actions[:] * self._scale
         obj_pos_curr, obj_quat_curr = self._compute_frame_pose()
 
         # set command into controller

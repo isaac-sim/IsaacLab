@@ -35,7 +35,8 @@ import omni.isaac.lab_tasks.manager_based.manipulation.screw.mdp as mdp
 from omegaconf import OmegaConf
 import copy
 from typing import Literal
-
+import omni.isaac.lab.utils.math as math_utils
+import torch
 ##
 # Scene definition
 ##
@@ -67,16 +68,30 @@ asset_factory = {
     "m8_loose" : {
         "nut_path"          : f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_nut_m8_loose/factory_nut_m8_loose.usd",
         "bolt_path"         : f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_bolt_m8_loose/factory_bolt_m8_loose.usd",
-        "nut_frame_offset"  : (0.0, 0.0, 0.011),
-        "bolt_bottom_offset": (0.0, 0.0, 0.0),
+        "nut_init_state"    : RigidObjectCfg.InitialStateCfg(pos=(0.6, 0.0, 0.0065)),
+        "bolt_init_state"   : RigidObjectCfg.InitialStateCfg(pos=(0.63, 0.0, 0.0)),
+        "nut_frame_offset"  : OffsetCfg(pos=(0.0, 0.0, 0.011)),
+        "bolt_bottom_offset": OffsetCfg(pos=(0.0, 0.0, 0.012)),
+        "bolt_tip_offset"   : OffsetCfg(pos=(0.0, 0.0, 0.0261)),
     },
     "m8_tight" : {
         "nut_path"          : f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_nut_m8_tight/factory_nut_m8_tight.usd",
         "bolt_path"         : f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_bolt_m8_tight/factory_bolt_m8_tight.usd",
-        "nut_frame_offset"  : (0.0, 0.0, 0.011),
-        "bolt_bottom_offset": (0.0, 0.0, 0.0),
+        "nut_init_state"    : RigidObjectCfg.InitialStateCfg(pos=(0.6, 0.0, 0.0065)),
+        "bolt_init_state"   : RigidObjectCfg.InitialStateCfg(pos=(0.63, 0.0, 0.0)),
+        "nut_frame_offset"  : OffsetCfg(pos=(0.0, 0.0, 0.011)),
+        "bolt_bottom_offset": OffsetCfg(pos=(0.0, 0.0, 0.0)),
+        "bolt_tip_offset"   : OffsetCfg(pos=(0.0, 0.0, 0.0261)),
     },
-    "m16_tight": {},
+    "m16_tight": {
+        "nut_path"          : f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_nut_m16_tight/factory_nut_m16_tight.usd",
+        "bolt_path"         : f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_bolt_m16_tight/factory_bolt_m16_tight.usd",
+        "nut_init_state"    : RigidObjectCfg.InitialStateCfg(pos=(0.6, 0.0, 0.0065)),
+        "bolt_init_state"   : RigidObjectCfg.InitialStateCfg(pos=(0.63, 0.0, 0.0)),
+        "nut_frame_offset"  : OffsetCfg(pos=(0.0, 0.0, 0.011)),
+        "bolt_bottom_offset": OffsetCfg(pos=(0.0, 0.0, 0.0)),
+        "bolt_tip_offset"   : OffsetCfg(pos=(0.0, 0.0, 0.0261)),
+    },
     "m16_loose": {},
 }
 
@@ -127,7 +142,7 @@ class ScrewSceneCfg(InteractiveSceneCfg):
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_nut_m8_tight/factory_nut_m8_tight.usd",
                 rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True),
             ),
-            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.6, 0.0, 0.0065)),
+            init_state=screw_dict["nut_init_state"],
         )
 
         self.bolt: RigidObjectCfg = RigidObjectCfg(
@@ -135,7 +150,7 @@ class ScrewSceneCfg(InteractiveSceneCfg):
             spawn=sim_utils.UsdFileCfg(
                 usd_path=screw_dict["bolt_path"],
             ),
-            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.63, 0.0, 0.0)),
+            init_state=screw_dict["bolt_init_state"],
         )
 
         # lights
@@ -152,7 +167,7 @@ class ScrewSceneCfg(InteractiveSceneCfg):
                 FrameTransformerCfg.FrameCfg(
                     prim_path="{ENV_REGEX_NS}/Nut/factory_nut",
                     name="nut",
-                    offset=OffsetCfg(pos=(0.0, 0.0, 0.011)),
+                    offset=screw_dict["nut_frame_offset"],
                 )
             ],
         )
@@ -193,7 +208,7 @@ class BaseObservationsCfg:
         actions = ObsTerm(func=mdp.last_action)
 
         def __post_init__(self):
-            self.enable_corruption = True
+            self.enable_corruption = False
             self.concatenate_terms = True
 
     # observation groups
@@ -291,6 +306,7 @@ class BaseScrewEnvCfg(ManagerBasedRLEnvCfg):
         """Set default environment parameters."""
         self.env_params.scene = self.env_params.get("scene", OmegaConf.create())
         self.env_params.sim = self.env_params.get("sim", OmegaConf.create())
+        self.env_params.sim.physx = self.env_params.sim.get("physx", OmegaConf.create())
         self.env_params.scene.screw_type = self.env_params.scene.get("screw_type", "m8_tight")
         self.env_params.scene.nut = self.env_params.scene.get("nut", OmegaConf.create())
         self.env_params.sim.dt = self.env_params.sim.get("dt", 1.0 / 60.0)
@@ -309,7 +325,7 @@ class BaseScrewEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.dt = self.env_params.sim.dt
         self.sim.physx.friction_offset_threshold = self.env_params.sim.physx.friction_offset_threshold
         self.sim.physx.enable_ccd = self.env_params.sim.physx.enable_ccd
-        self.episode_length_s = 24.0
+        self.episode_length_s = 12
         self.viewer.origin_type = "asset_root"
         self.viewer.asset_name = "bolt"
         self.viewer.eye = (0.1, 0, 0.04)
@@ -356,6 +372,7 @@ class BaseNutTightenEnvCfg(BaseScrewEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
+        screw_dict = asset_factory[self.env_params.scene.screw_type]
         self.scene.nut.init_state.pos = (6.3000e-01, 2.0661e-06, 3.0895e-03)
         self.scene.nut.init_state.rot = (-2.1609e-01, 6.6671e-05, -6.6467e-05, 9.7637e-01)
         self.scene.bolt_frame = FrameTransformerCfg(
@@ -366,7 +383,7 @@ class BaseNutTightenEnvCfg(BaseScrewEnvCfg):
                 FrameTransformerCfg.FrameCfg(
                     prim_path="{ENV_REGEX_NS}/Bolt/factory_bolt",
                     name="bolt_bottom",
-                    offset=OffsetCfg(pos=(0.0, 0.0, 0.012)),  # strict 0.011 + 0.001
+                    offset=screw_dict["bolt_bottom_offset"],
                 ),
             ],
         )
@@ -378,14 +395,26 @@ def nut_thread_reward_forge(env: ManagerBasedRLEnv, a: float = 100, b: float = 0
     diff = mdp.rel_nut_bolt_tip_distance(env)
     rewards = mdp.forge_kernel(diff, a, b, tol)
     return rewards
-
+# initial: 0.23 0.1 0.48
+# initial: 0.248 0.349 0.14
+def nut_upright_reward_forge(env: ManagerBasedRLEnv, a: float = 300, 
+                             b: float = 0, tol: float = 0):
+    # penalize if nut is not upright
+    # compute the cosine distance between the nut normal and the global up vector
+    nut_quat = env.scene["nut_frame"].data.target_quat_w
+    up_vec = torch.tensor([[0, 0, 1.]], device=nut_quat.device)
+    up_vecs = up_vec.expand(nut_quat.shape[0], 3)
+    nut_up_vec = math_utils.quat_apply(nut_quat, up_vecs)
+    cos_sim = torch.sum(nut_up_vec * up_vecs, dim=1, keepdim=True)
+    rewards = mdp.forge_kernel(1-cos_sim, a, b, tol)
+    return rewards
 
 @configclass
 class NutThreadRewardsCfg:
     """Reward terms for the MDP."""
 
     # task terms
-    coarse_nut = RewTerm(func=nut_thread_reward_forge, params={"a": 100, "b": 2}, weight=1.0)
+    coarse_nut = RewTerm(func=nut_thread_reward_forge, params={"a": 100, "b": 2}, weight=0.5)
     fine_nut = RewTerm(
         func=nut_thread_reward_forge,
         params={
@@ -394,6 +423,7 @@ class NutThreadRewardsCfg:
         },
         weight=1.0,
     )
+    upright_reward = RewTerm(func=nut_upright_reward_forge, params={"a": 700, "b": 0}, weight=2)
     action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.00001)
 
 
@@ -415,6 +445,7 @@ class BaseNutThreadEnvCfg(BaseScrewEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
+        screw_dict = asset_factory[self.env_params.scene.screw_type]
         self.scene.nut.init_state.pos = (6.3000e-01, 4.0586e-06, 0.02)
         self.scene.nut.init_state.rot = (9.9833e-01, 1.2417e-04, -1.2629e-05, 5.7803e-02)
 
@@ -422,11 +453,12 @@ class BaseNutThreadEnvCfg(BaseScrewEnvCfg):
             prim_path="{ENV_REGEX_NS}/Origin",
             debug_vis=True,
             visualizer_cfg=BLUE_PLATE_MARKER_CFG.replace(prim_path="/Visuals/Nut"),
+            # visualizer_cfg=PLATE_ARROW_CFG.replace(prim_path="/Visuals/Nut"),
             target_frames=[
                 FrameTransformerCfg.FrameCfg(
                     prim_path="{ENV_REGEX_NS}/Nut/factory_nut",
                     name="nut",
-                    offset=OffsetCfg(pos=(0.0, 0.0, 0.011)),
+                    offset=screw_dict["nut_frame_offset"],
                 )
             ],
         )
@@ -438,7 +470,7 @@ class BaseNutThreadEnvCfg(BaseScrewEnvCfg):
                 FrameTransformerCfg.FrameCfg(
                     prim_path="{ENV_REGEX_NS}/Bolt/factory_bolt",
                     name="bolt_tip",
-                    offset=OffsetCfg(pos=(0.0, 0.0, 0.0261)),  # 0.011 + 0.0161
+                    offset=screw_dict["bolt_tip_offset"],
                 )
             ],
         )

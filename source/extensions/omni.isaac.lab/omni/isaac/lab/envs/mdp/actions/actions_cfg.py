@@ -276,6 +276,7 @@ class RigidObjectPoseActionTermCfg(ActionTermCfg):
     # action limits
     lows = [-0.01, -0.01, -0.01, -0.1, -0.1, -0.1]
     highs = [0.01, 0.01, 0.01, 0.1, 0.1, 0.1]
+    scale = [1, 1, 1, 1, 1, 1]
 
 
 @configclass
