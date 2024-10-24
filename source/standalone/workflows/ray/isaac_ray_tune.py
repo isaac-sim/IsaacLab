@@ -200,22 +200,22 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Tune Cartpole.")
     parser.add_argument("--tune_type", choices=["standard_no_tune", "standard", "resnet", "theia"])
     parser.add_argument(
-        "--hyperparam_cfg_file",
+        "--cfg_file",
         type=str,
         default='hyperparameter_tuning/vision_cartpole_cfg.py',
         required=False,
         help="The relative filepath where a hyperparameter sweep is defined",
     )
     parser.add_argument(
-        "--hyperparam_cfg_class", 
+        "--cfg_class", 
         type=str, 
         default="CartpoleRGBNoTuneJobCfg",
         required=False, 
         help="Name of the hyperparameter sweep class to use"
     )
     args = parser.parse_args()
-    file_path = args.hyperparam_cfg_file
-    class_name = args.hyperparam_cfg_class
+    file_path = args.cfg_file
+    class_name = args.cfg_class
     print(f"Attempting to use sweep config from {file_path = } {class_name = }")
     module_name = os.path.splitext(os.path.basename(file_path))[0]
 

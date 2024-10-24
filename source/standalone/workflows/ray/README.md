@@ -205,7 +205,7 @@ For several nodes, resource isolation is not needed to run jobs in parallel.
 	For example,
 
 	```
-	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py --jobs isaac_ray_tune.py --cfg=hyperparameter_tuning/vision_cartpole.py
+	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py --jobs isaac_ray_tune.py --cfg_file=hyperparameter_tuning/vision_cartpole.py --cfg_class CartpoleRGBNoTuneJobCfg
 	```
 
 8. When the distributed job is completed, stop the cluster to conserve resources.
