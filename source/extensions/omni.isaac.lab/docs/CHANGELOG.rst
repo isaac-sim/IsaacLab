@@ -7,7 +7,7 @@ Changelog
 Added
 ^^^^^
 
-* Added ``--ov_args`` to :class:`~omni.isaac.lab.app.AppLauncher` to allow passing command line arguments directly to Omniverse.
+* Added ``--kit_args`` to :class:`~omni.isaac.lab.app.AppLauncher` to allow passing command line arguments directly to Omniverse Kit SDK.
 
 
 0.27.0 (2024-10-14)
