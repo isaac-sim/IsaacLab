@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.2.0" />
-    <meta name="docbuild:last-update" content="Oct 23, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 24, 2024"/>
   </head>
   
   
@@ -1539,13 +1539,40 @@ are not repeated.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.rewards" title="omni.isaac.lab.envs.ManagerBasedRLEnvCfg.rewards"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rewards</span></code></a></p></td>
 <td><p>Reward settings.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.terminations" title="omni.isaac.lab.envs.ManagerBasedRLEnvCfg.terminations"><code class="xref py py-obj docutils literal notranslate"><span class="pre">terminations</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.viewer" title="omni.isaac.lab.envs.ManagerBasedRLEnvCfg.viewer"><code class="xref py py-obj docutils literal notranslate"><span class="pre">viewer</span></code></a></p></td>
+<td><p>Viewer configuration.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.sim" title="omni.isaac.lab.envs.ManagerBasedRLEnvCfg.sim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sim</span></code></a></p></td>
+<td><p>Physics simulation configuration.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.seed" title="omni.isaac.lab.envs.ManagerBasedRLEnvCfg.seed"><code class="xref py py-obj docutils literal notranslate"><span class="pre">seed</span></code></a></p></td>
+<td><p>The seed for the random number generator.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.decimation" title="omni.isaac.lab.envs.ManagerBasedRLEnvCfg.decimation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">decimation</span></code></a></p></td>
+<td><p>Number of control action updates &#64; sim dt per policy dt.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.scene" title="omni.isaac.lab.envs.ManagerBasedRLEnvCfg.scene"><code class="xref py py-obj docutils literal notranslate"><span class="pre">scene</span></code></a></p></td>
+<td><p>Scene settings.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.observations" title="omni.isaac.lab.envs.ManagerBasedRLEnvCfg.observations"><code class="xref py py-obj docutils literal notranslate"><span class="pre">observations</span></code></a></p></td>
+<td><p>Observation space settings.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.actions" title="omni.isaac.lab.envs.ManagerBasedRLEnvCfg.actions"><code class="xref py py-obj docutils literal notranslate"><span class="pre">actions</span></code></a></p></td>
+<td><p>Action space settings.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.events" title="omni.isaac.lab.envs.ManagerBasedRLEnvCfg.events"><code class="xref py py-obj docutils literal notranslate"><span class="pre">events</span></code></a></p></td>
+<td><p>Event settings.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.rerender_on_reset" title="omni.isaac.lab.envs.ManagerBasedRLEnvCfg.rerender_on_reset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rerender_on_reset</span></code></a></p></td>
+<td><p>Whether a render step is performed again after at least one environment has been reset.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.terminations" title="omni.isaac.lab.envs.ManagerBasedRLEnvCfg.terminations"><code class="xref py py-obj docutils literal notranslate"><span class="pre">terminations</span></code></a></p></td>
 <td><p>Termination settings.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.curriculum" title="omni.isaac.lab.envs.ManagerBasedRLEnvCfg.curriculum"><code class="xref py py-obj docutils literal notranslate"><span class="pre">curriculum</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.curriculum" title="omni.isaac.lab.envs.ManagerBasedRLEnvCfg.curriculum"><code class="xref py py-obj docutils literal notranslate"><span class="pre">curriculum</span></code></a></p></td>
 <td><p>Curriculum settings.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.commands" title="omni.isaac.lab.envs.ManagerBasedRLEnvCfg.commands"><code class="xref py py-obj docutils literal notranslate"><span class="pre">commands</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.commands" title="omni.isaac.lab.envs.ManagerBasedRLEnvCfg.commands"><code class="xref py py-obj docutils literal notranslate"><span class="pre">commands</span></code></a></p></td>
 <td><p>Command settings.</p></td>
 </tr>
 </tbody>
@@ -3106,7 +3133,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 23, 2024.
+  Last updated on Oct 24, 2024.
   <br/>
 </p>
   </div>

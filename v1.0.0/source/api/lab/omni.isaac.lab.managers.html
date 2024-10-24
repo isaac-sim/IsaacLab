@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.3.0" />
-    <meta name="docbuild:last-update" content="Oct 23, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 24, 2024"/>
   </head>
   
   
@@ -1503,6 +1503,9 @@ Otherwise, no corruption is applied.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.ObservationTermCfg.scale" title="omni.isaac.lab.managers.ObservationTermCfg.scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">scale</span></code></a></p></td>
 <td><p>The scale to apply to the observation after clipping.</p></td>
 </tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.ObservationTermCfg.params" title="omni.isaac.lab.managers.ObservationTermCfg.params"><code class="xref py py-obj docutils literal notranslate"><span class="pre">params</span></code></a></p></td>
+<td><p>The parameters to be passed to the function as keyword arguments.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -2194,16 +2197,19 @@ information on the name matching.</p>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.EventTermCfg.func" title="omni.isaac.lab.managers.EventTermCfg.func"><code class="xref py py-obj docutils literal notranslate"><span class="pre">func</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.EventTermCfg.params" title="omni.isaac.lab.managers.EventTermCfg.params"><code class="xref py py-obj docutils literal notranslate"><span class="pre">params</span></code></a></p></td>
+<td><p>The parameters to be passed to the function as keyword arguments.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.EventTermCfg.func" title="omni.isaac.lab.managers.EventTermCfg.func"><code class="xref py py-obj docutils literal notranslate"><span class="pre">func</span></code></a></p></td>
 <td><p>The name of the function to be called.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.EventTermCfg.mode" title="omni.isaac.lab.managers.EventTermCfg.mode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">mode</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.EventTermCfg.mode" title="omni.isaac.lab.managers.EventTermCfg.mode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">mode</span></code></a></p></td>
 <td><p>The mode in which the event term is applied.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.EventTermCfg.interval_range_s" title="omni.isaac.lab.managers.EventTermCfg.interval_range_s"><code class="xref py py-obj docutils literal notranslate"><span class="pre">interval_range_s</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.EventTermCfg.interval_range_s" title="omni.isaac.lab.managers.EventTermCfg.interval_range_s"><code class="xref py py-obj docutils literal notranslate"><span class="pre">interval_range_s</span></code></a></p></td>
 <td><p>The range of time in seconds at which the term is applied.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.EventTermCfg.is_global_time" title="omni.isaac.lab.managers.EventTermCfg.is_global_time"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_global_time</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.EventTermCfg.is_global_time" title="omni.isaac.lab.managers.EventTermCfg.is_global_time"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_global_time</span></code></a></p></td>
 <td><p>Whether randomization should be tracked on a per-environment basis.</p></td>
 </tr>
 </tbody>
@@ -2482,6 +2488,27 @@ It then updates the configuration of the term with the first matching name.</p>
 <dd><p>Configuration for a randomization term.</p>
 <div class="deprecated">
 <p><span class="versionmodified deprecated">Deprecated since version v0.3.0: </span>This class is deprecated and will be removed in v0.4.0. Please use <a class="reference internal" href="#omni.isaac.lab.managers.EventTermCfg" title="omni.isaac.lab.managers.EventTermCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">EventTermCfg</span></code></a> instead.</p>
+</div>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.RandomizationTermCfg.func" title="omni.isaac.lab.managers.RandomizationTermCfg.func"><code class="xref py py-obj docutils literal notranslate"><span class="pre">func</span></code></a></p></td>
+<td><p>The name of the function to be called.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.RandomizationTermCfg.params" title="omni.isaac.lab.managers.RandomizationTermCfg.params"><code class="xref py py-obj docutils literal notranslate"><span class="pre">params</span></code></a></p></td>
+<td><p>The parameters to be passed to the function as keyword arguments.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.RandomizationTermCfg.mode" title="omni.isaac.lab.managers.RandomizationTermCfg.mode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">mode</span></code></a></p></td>
+<td><p>The mode in which the event term is applied.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.RandomizationTermCfg.interval_range_s" title="omni.isaac.lab.managers.RandomizationTermCfg.interval_range_s"><code class="xref py py-obj docutils literal notranslate"><span class="pre">interval_range_s</span></code></a></p></td>
+<td><p>The range of time in seconds at which the term is applied.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.RandomizationTermCfg.is_global_time" title="omni.isaac.lab.managers.RandomizationTermCfg.is_global_time"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_global_time</span></code></a></p></td>
+<td><p>Whether randomization should be tracked on a per-environment basis.</p></td>
+</tr>
+</tbody>
+</table>
 </div>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.managers.RandomizationTermCfg.func">
@@ -3246,10 +3273,13 @@ information on the name matching.</p>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.TerminationTermCfg.func" title="omni.isaac.lab.managers.TerminationTermCfg.func"><code class="xref py py-obj docutils literal notranslate"><span class="pre">func</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.TerminationTermCfg.params" title="omni.isaac.lab.managers.TerminationTermCfg.params"><code class="xref py py-obj docutils literal notranslate"><span class="pre">params</span></code></a></p></td>
+<td><p>The parameters to be passed to the function as keyword arguments.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.TerminationTermCfg.func" title="omni.isaac.lab.managers.TerminationTermCfg.func"><code class="xref py py-obj docutils literal notranslate"><span class="pre">func</span></code></a></p></td>
 <td><p>The name of the function to be called.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.TerminationTermCfg.time_out" title="omni.isaac.lab.managers.TerminationTermCfg.time_out"><code class="xref py py-obj docutils literal notranslate"><span class="pre">time_out</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.TerminationTermCfg.time_out" title="omni.isaac.lab.managers.TerminationTermCfg.time_out"><code class="xref py py-obj docutils literal notranslate"><span class="pre">time_out</span></code></a></p></td>
 <td><p>Whether the termination term contributes towards episodic timeouts.</p></td>
 </tr>
 </tbody>
@@ -3432,6 +3462,9 @@ information on the name matching.</p>
 <tbody>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.CurriculumTermCfg.func" title="omni.isaac.lab.managers.CurriculumTermCfg.func"><code class="xref py py-obj docutils literal notranslate"><span class="pre">func</span></code></a></p></td>
 <td><p>The name of the function to be called.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.CurriculumTermCfg.params" title="omni.isaac.lab.managers.CurriculumTermCfg.params"><code class="xref py py-obj docutils literal notranslate"><span class="pre">params</span></code></a></p></td>
+<td><p>The parameters to be passed to the function as keyword arguments.</p></td>
 </tr>
 </tbody>
 </table>
@@ -3790,7 +3823,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 23, 2024.
+  Last updated on Oct 24, 2024.
   <br/>
 </p>
   </div>

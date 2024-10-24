@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.1.0" />
-    <meta name="docbuild:last-update" content="Oct 23, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 24, 2024"/>
   </head>
   
   
@@ -955,10 +955,25 @@ difficult to move the USD asset to a different location.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.rigid_props" title="omni.isaac.lab.sim.converters.MeshConverterCfg.rigid_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rigid_props</span></code></a></p></td>
 <td><p>Rigid body properties to apply to the USD.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.collision_props" title="omni.isaac.lab.sim.converters.MeshConverterCfg.collision_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collision_props</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.asset_path" title="omni.isaac.lab.sim.converters.MeshConverterCfg.asset_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">asset_path</span></code></a></p></td>
+<td><p>The absolute path to the asset file to convert into USD.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.usd_dir" title="omni.isaac.lab.sim.converters.MeshConverterCfg.usd_dir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">usd_dir</span></code></a></p></td>
+<td><p>The output directory path to store the generated USD file.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.usd_file_name" title="omni.isaac.lab.sim.converters.MeshConverterCfg.usd_file_name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">usd_file_name</span></code></a></p></td>
+<td><p>The name of the generated usd file.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.force_usd_conversion" title="omni.isaac.lab.sim.converters.MeshConverterCfg.force_usd_conversion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">force_usd_conversion</span></code></a></p></td>
+<td><p>Force the conversion of the asset file to usd.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.make_instanceable" title="omni.isaac.lab.sim.converters.MeshConverterCfg.make_instanceable"><code class="xref py py-obj docutils literal notranslate"><span class="pre">make_instanceable</span></code></a></p></td>
+<td><p>Make the generated USD file instanceable.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.collision_props" title="omni.isaac.lab.sim.converters.MeshConverterCfg.collision_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collision_props</span></code></a></p></td>
 <td><p>Collision properties to apply to the USD.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.collision_approximation" title="omni.isaac.lab.sim.converters.MeshConverterCfg.collision_approximation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collision_approximation</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.collision_approximation" title="omni.isaac.lab.sim.converters.MeshConverterCfg.collision_approximation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collision_approximation</span></code></a></p></td>
 <td><p>Collision approximation method to use.</p></td>
 </tr>
 </tbody>
@@ -1174,19 +1189,34 @@ difficult to move the USD asset to a different location.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg.merge_fixed_joints" title="omni.isaac.lab.sim.converters.UrdfConverterCfg.merge_fixed_joints"><code class="xref py py-obj docutils literal notranslate"><span class="pre">merge_fixed_joints</span></code></a></p></td>
 <td><p>Consolidate links that are connected by fixed joints.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg.self_collision" title="omni.isaac.lab.sim.converters.UrdfConverterCfg.self_collision"><code class="xref py py-obj docutils literal notranslate"><span class="pre">self_collision</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg.asset_path" title="omni.isaac.lab.sim.converters.UrdfConverterCfg.asset_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">asset_path</span></code></a></p></td>
+<td><p>The absolute path to the asset file to convert into USD.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg.usd_dir" title="omni.isaac.lab.sim.converters.UrdfConverterCfg.usd_dir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">usd_dir</span></code></a></p></td>
+<td><p>The output directory path to store the generated USD file.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg.usd_file_name" title="omni.isaac.lab.sim.converters.UrdfConverterCfg.usd_file_name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">usd_file_name</span></code></a></p></td>
+<td><p>The name of the generated usd file.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg.force_usd_conversion" title="omni.isaac.lab.sim.converters.UrdfConverterCfg.force_usd_conversion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">force_usd_conversion</span></code></a></p></td>
+<td><p>Force the conversion of the asset file to usd.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg.make_instanceable" title="omni.isaac.lab.sim.converters.UrdfConverterCfg.make_instanceable"><code class="xref py py-obj docutils literal notranslate"><span class="pre">make_instanceable</span></code></a></p></td>
+<td><p>Make the generated USD file instanceable.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg.self_collision" title="omni.isaac.lab.sim.converters.UrdfConverterCfg.self_collision"><code class="xref py py-obj docutils literal notranslate"><span class="pre">self_collision</span></code></a></p></td>
 <td><p>Activate self-collisions between links of the articulation.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg.default_drive_type" title="omni.isaac.lab.sim.converters.UrdfConverterCfg.default_drive_type"><code class="xref py py-obj docutils literal notranslate"><span class="pre">default_drive_type</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg.default_drive_type" title="omni.isaac.lab.sim.converters.UrdfConverterCfg.default_drive_type"><code class="xref py py-obj docutils literal notranslate"><span class="pre">default_drive_type</span></code></a></p></td>
 <td><p>The drive type used for joints.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg.override_joint_dynamics" title="omni.isaac.lab.sim.converters.UrdfConverterCfg.override_joint_dynamics"><code class="xref py py-obj docutils literal notranslate"><span class="pre">override_joint_dynamics</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg.override_joint_dynamics" title="omni.isaac.lab.sim.converters.UrdfConverterCfg.override_joint_dynamics"><code class="xref py py-obj docutils literal notranslate"><span class="pre">override_joint_dynamics</span></code></a></p></td>
 <td><p>Override the joint dynamics parsed from the URDF file.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg.default_drive_stiffness" title="omni.isaac.lab.sim.converters.UrdfConverterCfg.default_drive_stiffness"><code class="xref py py-obj docutils literal notranslate"><span class="pre">default_drive_stiffness</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg.default_drive_stiffness" title="omni.isaac.lab.sim.converters.UrdfConverterCfg.default_drive_stiffness"><code class="xref py py-obj docutils literal notranslate"><span class="pre">default_drive_stiffness</span></code></a></p></td>
 <td><p>The default stiffness of the joint drive.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg.default_drive_damping" title="omni.isaac.lab.sim.converters.UrdfConverterCfg.default_drive_damping"><code class="xref py py-obj docutils literal notranslate"><span class="pre">default_drive_damping</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg.default_drive_damping" title="omni.isaac.lab.sim.converters.UrdfConverterCfg.default_drive_damping"><code class="xref py py-obj docutils literal notranslate"><span class="pre">default_drive_damping</span></code></a></p></td>
 <td><p>The default damping of the joint drive.</p></td>
 </tr>
 </tbody>
@@ -1465,7 +1495,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 23, 2024.
+  Last updated on Oct 24, 2024.
   <br/>
 </p>
   </div>

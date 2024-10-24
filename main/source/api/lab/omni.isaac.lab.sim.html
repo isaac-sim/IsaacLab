@@ -63,7 +63,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.2.0" />
-    <meta name="docbuild:last-update" content="Oct 23, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 24, 2024"/>
   </head>
   
   
@@ -598,6 +598,7 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg.disable_contact_processing"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.disable_contact_processing</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg.physx"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.physx</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg.physics_material"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.physics_material</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg.render"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.render</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.PhysxCfg"><code class="docutils literal notranslate"><span class="pre">PhysxCfg</span></code></a><ul class="nav section-nav flex-column">
@@ -623,6 +624,19 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.PhysxCfg.gpu_max_num_partitions"><code class="docutils literal notranslate"><span class="pre">PhysxCfg.gpu_max_num_partitions</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.PhysxCfg.gpu_max_soft_body_contacts"><code class="docutils literal notranslate"><span class="pre">PhysxCfg.gpu_max_soft_body_contacts</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.PhysxCfg.gpu_max_particle_contacts"><code class="docutils literal notranslate"><span class="pre">PhysxCfg.gpu_max_particle_contacts</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.RenderCfg"><code class="docutils literal notranslate"><span class="pre">RenderCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.RenderCfg.enable_translucency"><code class="docutils literal notranslate"><span class="pre">RenderCfg.enable_translucency</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.RenderCfg.enable_reflections"><code class="docutils literal notranslate"><span class="pre">RenderCfg.enable_reflections</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.RenderCfg.enable_global_illumination"><code class="docutils literal notranslate"><span class="pre">RenderCfg.enable_global_illumination</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.RenderCfg.antialiasing_mode"><code class="docutils literal notranslate"><span class="pre">RenderCfg.antialiasing_mode</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.RenderCfg.enable_dlssg"><code class="docutils literal notranslate"><span class="pre">RenderCfg.enable_dlssg</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.RenderCfg.dlss_mode"><code class="docutils literal notranslate"><span class="pre">RenderCfg.dlss_mode</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.RenderCfg.enable_direct_lighting"><code class="docutils literal notranslate"><span class="pre">RenderCfg.enable_direct_lighting</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.RenderCfg.samples_per_pixel"><code class="docutils literal notranslate"><span class="pre">RenderCfg.samples_per_pixel</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.RenderCfg.enable_shadows"><code class="docutils literal notranslate"><span class="pre">RenderCfg.enable_shadows</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.RenderCfg.enable_ambient_occlusion"><code class="docutils literal notranslate"><span class="pre">RenderCfg.enable_ambient_occlusion</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -710,6 +724,9 @@ as a feature request elaborating on the required application.</p>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.PhysxCfg" title="omni.isaac.lab.sim.PhysxCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">PhysxCfg</span></code></a></p></td>
 <td><p>Configuration for PhysX solver-related parameters.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.RenderCfg" title="omni.isaac.lab.sim.RenderCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RenderCfg</span></code></a></p></td>
+<td><p>Configuration for Omniverse RTX Renderer.</p></td>
 </tr>
 </tbody>
 </table>
@@ -1090,6 +1107,9 @@ background. The rendering components are refreshed based on the render mode.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.SimulationCfg.physics_material" title="omni.isaac.lab.sim.SimulationCfg.physics_material"><code class="xref py py-obj docutils literal notranslate"><span class="pre">physics_material</span></code></a></p></td>
 <td><p>Default physics material settings for rigid bodies.</p></td>
 </tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.SimulationCfg.render" title="omni.isaac.lab.sim.SimulationCfg.render"><code class="xref py py-obj docutils literal notranslate"><span class="pre">render</span></code></a></p></td>
+<td><p>Render settings.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -1188,6 +1208,12 @@ processing and querying the contacts manually by the user over a limited set of 
 <p>The physics engine defaults to this physics material for all the rigid body prims that do not have any
 physics material specified on them.</p>
 <p>The material is created at the path: <code class="docutils literal notranslate"><span class="pre">{physics_prim_path}/defaultMaterial</span></code>.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.SimulationCfg.render">
+<span class="sig-name descname"><span class="pre">render</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#omni.isaac.lab.sim.RenderCfg" title="omni.isaac.lab.sim.simulation_cfg.RenderCfg"><span class="pre">RenderCfg</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.SimulationCfg.render" title="Permalink to this definition">#</a></dt>
+<dd><p>Render settings. Default is RenderCfg().</p>
 </dd></dl>
 
 </dd></dl>
@@ -1443,6 +1469,118 @@ if more memory is required. Default is 2 ** 26.</p>
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.PhysxCfg.gpu_max_particle_contacts">
 <span class="sig-name descname"><span class="pre">gpu_max_particle_contacts</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.PhysxCfg.gpu_max_particle_contacts" title="Permalink to this definition">#</a></dt>
 <dd><p>Size of particle contacts stream buffer allocated in pinned host memory. Default is 2 ** 20.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.RenderCfg">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.sim.</span></span><span class="sig-name descname"><span class="pre">RenderCfg</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/sim/simulation_cfg.html#RenderCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.sim.RenderCfg" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Configuration for Omniverse RTX Renderer.</p>
+<p>These parameters are used to configure the Omniverse RTX Renderer.
+For more information, see the <a class="reference external" href="https://docs.omniverse.nvidia.com/materials-and-rendering/latest/rtx-renderer.html">Omniverse RTX Renderer documentation</a>.</p>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.RenderCfg.enable_translucency" title="omni.isaac.lab.sim.RenderCfg.enable_translucency"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enable_translucency</span></code></a></p></td>
+<td><p>Enables translucency for specular transmissive surfaces such as glass at the cost of some performance.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.RenderCfg.enable_reflections" title="omni.isaac.lab.sim.RenderCfg.enable_reflections"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enable_reflections</span></code></a></p></td>
+<td><p>Enables reflections at the cost of some performance.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.RenderCfg.enable_global_illumination" title="omni.isaac.lab.sim.RenderCfg.enable_global_illumination"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enable_global_illumination</span></code></a></p></td>
+<td><p>Enables Diffused Global Illumination at the cost of some performance.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.RenderCfg.antialiasing_mode" title="omni.isaac.lab.sim.RenderCfg.antialiasing_mode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">antialiasing_mode</span></code></a></p></td>
+<td><p>Selects the anti-aliasing mode to use.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.RenderCfg.enable_dlssg" title="omni.isaac.lab.sim.RenderCfg.enable_dlssg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enable_dlssg</span></code></a></p></td>
+<td><p>&quot;Enables the use of DLSS-G.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.RenderCfg.dlss_mode" title="omni.isaac.lab.sim.RenderCfg.dlss_mode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dlss_mode</span></code></a></p></td>
+<td><p>For DLSS anti-aliasing, selects the performance/quality tradeoff mode.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.RenderCfg.enable_direct_lighting" title="omni.isaac.lab.sim.RenderCfg.enable_direct_lighting"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enable_direct_lighting</span></code></a></p></td>
+<td><p>Enable direct light contributions from lights.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.RenderCfg.samples_per_pixel" title="omni.isaac.lab.sim.RenderCfg.samples_per_pixel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">samples_per_pixel</span></code></a></p></td>
+<td><p>Defines the Direct Lighting samples per pixel.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.RenderCfg.enable_shadows" title="omni.isaac.lab.sim.RenderCfg.enable_shadows"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enable_shadows</span></code></a></p></td>
+<td><p>Enables shadows at the cost of performance.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.RenderCfg.enable_ambient_occlusion" title="omni.isaac.lab.sim.RenderCfg.enable_ambient_occlusion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enable_ambient_occlusion</span></code></a></p></td>
+<td><p>Enables ambient occlusion at the cost of some performance.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.RenderCfg.enable_translucency">
+<span class="sig-name descname"><span class="pre">enable_translucency</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.RenderCfg.enable_translucency" title="Permalink to this definition">#</a></dt>
+<dd><p>Enables translucency for specular transmissive surfaces such as glass at the cost of some performance. Default is False.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.RenderCfg.enable_reflections">
+<span class="sig-name descname"><span class="pre">enable_reflections</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.RenderCfg.enable_reflections" title="Permalink to this definition">#</a></dt>
+<dd><p>Enables reflections at the cost of some performance. Default is False.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.RenderCfg.enable_global_illumination">
+<span class="sig-name descname"><span class="pre">enable_global_illumination</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.RenderCfg.enable_global_illumination" title="Permalink to this definition">#</a></dt>
+<dd><p>Enables Diffused Global Illumination at the cost of some performance. Default is False.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.RenderCfg.antialiasing_mode">
+<span class="sig-name descname"><span class="pre">antialiasing_mode</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.13)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'Off'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'FXAA'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'DLSS'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'TAA'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'DLAA'</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.sim.RenderCfg.antialiasing_mode" title="Permalink to this definition">#</a></dt>
+<dd><p>Selects the anti-aliasing mode to use. Defaults to DLSS.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.RenderCfg.enable_dlssg">
+<span class="sig-name descname"><span class="pre">enable_dlssg</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.RenderCfg.enable_dlssg" title="Permalink to this definition">#</a></dt>
+<dd><p>“Enables the use of DLSS-G.
+DLSS Frame Generation boosts performance by using AI to generate more frames.
+DLSS analyzes sequential frames and motion data to create additional high quality frames.
+This feature requires an Ada Lovelace architecture GPU.
+Enabling this feature also enables additional thread-related activities, which can hurt performance.
+Default is False.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.RenderCfg.dlss_mode">
+<span class="sig-name descname"><span class="pre">dlss_mode</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.13)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="m"><span class="pre">0</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="m"><span class="pre">1</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="m"><span class="pre">2</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="m"><span class="pre">3</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.sim.RenderCfg.dlss_mode" title="Permalink to this definition">#</a></dt>
+<dd><p>For DLSS anti-aliasing, selects the performance/quality tradeoff mode.
+Valid values are 0 (Performance), 1 (Balanced), 2 (Quality), or 3 (Auto). Default is 0.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.RenderCfg.enable_direct_lighting">
+<span class="sig-name descname"><span class="pre">enable_direct_lighting</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.RenderCfg.enable_direct_lighting" title="Permalink to this definition">#</a></dt>
+<dd><p>Enable direct light contributions from lights.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.RenderCfg.samples_per_pixel">
+<span class="sig-name descname"><span class="pre">samples_per_pixel</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.RenderCfg.samples_per_pixel" title="Permalink to this definition">#</a></dt>
+<dd><p>Defines the Direct Lighting samples per pixel.
+Higher values increase the direct lighting quality at the cost of performance. Default is 1.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.RenderCfg.enable_shadows">
+<span class="sig-name descname"><span class="pre">enable_shadows</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.RenderCfg.enable_shadows" title="Permalink to this definition">#</a></dt>
+<dd><p>Enables shadows at the cost of performance. When disabled, lights will not cast shadows. Defaults to True.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.RenderCfg.enable_ambient_occlusion">
+<span class="sig-name descname"><span class="pre">enable_ambient_occlusion</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.RenderCfg.enable_ambient_occlusion" title="Permalink to this definition">#</a></dt>
+<dd><p>Enables ambient occlusion at the cost of some performance. Default is False.</p>
 </dd></dl>
 
 </dd></dl>
@@ -2004,6 +2142,7 @@ selections as follows:</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg.disable_contact_processing"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.disable_contact_processing</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg.physx"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.physx</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg.physics_material"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.physics_material</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg.render"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.render</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.PhysxCfg"><code class="docutils literal notranslate"><span class="pre">PhysxCfg</span></code></a><ul class="nav section-nav flex-column">
@@ -2029,6 +2168,19 @@ selections as follows:</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.PhysxCfg.gpu_max_num_partitions"><code class="docutils literal notranslate"><span class="pre">PhysxCfg.gpu_max_num_partitions</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.PhysxCfg.gpu_max_soft_body_contacts"><code class="docutils literal notranslate"><span class="pre">PhysxCfg.gpu_max_soft_body_contacts</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.PhysxCfg.gpu_max_particle_contacts"><code class="docutils literal notranslate"><span class="pre">PhysxCfg.gpu_max_particle_contacts</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.RenderCfg"><code class="docutils literal notranslate"><span class="pre">RenderCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.RenderCfg.enable_translucency"><code class="docutils literal notranslate"><span class="pre">RenderCfg.enable_translucency</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.RenderCfg.enable_reflections"><code class="docutils literal notranslate"><span class="pre">RenderCfg.enable_reflections</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.RenderCfg.enable_global_illumination"><code class="docutils literal notranslate"><span class="pre">RenderCfg.enable_global_illumination</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.RenderCfg.antialiasing_mode"><code class="docutils literal notranslate"><span class="pre">RenderCfg.antialiasing_mode</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.RenderCfg.enable_dlssg"><code class="docutils literal notranslate"><span class="pre">RenderCfg.enable_dlssg</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.RenderCfg.dlss_mode"><code class="docutils literal notranslate"><span class="pre">RenderCfg.dlss_mode</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.RenderCfg.enable_direct_lighting"><code class="docutils literal notranslate"><span class="pre">RenderCfg.enable_direct_lighting</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.RenderCfg.samples_per_pixel"><code class="docutils literal notranslate"><span class="pre">RenderCfg.samples_per_pixel</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.RenderCfg.enable_shadows"><code class="docutils literal notranslate"><span class="pre">RenderCfg.enable_shadows</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.RenderCfg.enable_ambient_occlusion"><code class="docutils literal notranslate"><span class="pre">RenderCfg.enable_ambient_occlusion</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -2088,7 +2240,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 23, 2024.
+  Last updated on Oct 24, 2024.
   <br/>
 </p>
   </div>

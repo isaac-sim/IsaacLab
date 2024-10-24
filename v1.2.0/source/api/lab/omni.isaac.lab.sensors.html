@@ -63,7 +63,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.2.0" />
-    <meta name="docbuild:last-update" content="Oct 23, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 24, 2024"/>
   </head>
   
   
@@ -1593,6 +1593,18 @@ Opengl / USD Camera convention.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.CameraCfg.data_types" title="omni.isaac.lab.sensors.CameraCfg.data_types"><code class="xref py py-obj docutils literal notranslate"><span class="pre">data_types</span></code></a></p></td>
 <td><p>List of sensor names/types to enable for the camera.</p></td>
 </tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.CameraCfg.prim_path" title="omni.isaac.lab.sensors.CameraCfg.prim_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">prim_path</span></code></a></p></td>
+<td><p>Prim path (or expression) to the sensor.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.CameraCfg.update_period" title="omni.isaac.lab.sensors.CameraCfg.update_period"><code class="xref py py-obj docutils literal notranslate"><span class="pre">update_period</span></code></a></p></td>
+<td><p>Update period of the sensor buffers (in seconds).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.CameraCfg.history_length" title="omni.isaac.lab.sensors.CameraCfg.history_length"><code class="xref py py-obj docutils literal notranslate"><span class="pre">history_length</span></code></a></p></td>
+<td><p>Number of past frames to store in the sensor buffers.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.CameraCfg.debug_vis" title="omni.isaac.lab.sensors.CameraCfg.debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">debug_vis</span></code></a></p></td>
+<td><p>Whether to visualize the sensor.</p></td>
+</tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.CameraCfg.width" title="omni.isaac.lab.sensors.CameraCfg.width"><code class="xref py py-obj docutils literal notranslate"><span class="pre">width</span></code></a></p></td>
 <td><p>Width of the image in pixels.</p></td>
 </tr>
@@ -2093,7 +2105,46 @@ Defaults to None, in which case the camera orientation in not changed.</p></li>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.TiledCameraCfg.return_latest_camera_pose" title="omni.isaac.lab.sensors.TiledCameraCfg.return_latest_camera_pose"><code class="xref py py-obj docutils literal notranslate"><span class="pre">return_latest_camera_pose</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.TiledCameraCfg.prim_path" title="omni.isaac.lab.sensors.TiledCameraCfg.prim_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">prim_path</span></code></a></p></td>
+<td><p>Prim path (or expression) to the sensor.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.TiledCameraCfg.update_period" title="omni.isaac.lab.sensors.TiledCameraCfg.update_period"><code class="xref py py-obj docutils literal notranslate"><span class="pre">update_period</span></code></a></p></td>
+<td><p>Update period of the sensor buffers (in seconds).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.TiledCameraCfg.history_length" title="omni.isaac.lab.sensors.TiledCameraCfg.history_length"><code class="xref py py-obj docutils literal notranslate"><span class="pre">history_length</span></code></a></p></td>
+<td><p>Number of past frames to store in the sensor buffers.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.TiledCameraCfg.debug_vis" title="omni.isaac.lab.sensors.TiledCameraCfg.debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">debug_vis</span></code></a></p></td>
+<td><p>Whether to visualize the sensor.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.TiledCameraCfg.offset" title="omni.isaac.lab.sensors.TiledCameraCfg.offset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">offset</span></code></a></p></td>
+<td><p>The offset pose of the sensor's frame from the sensor's parent frame.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.TiledCameraCfg.spawn" title="omni.isaac.lab.sensors.TiledCameraCfg.spawn"><code class="xref py py-obj docutils literal notranslate"><span class="pre">spawn</span></code></a></p></td>
+<td><p>Spawn configuration for the asset.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.TiledCameraCfg.data_types" title="omni.isaac.lab.sensors.TiledCameraCfg.data_types"><code class="xref py py-obj docutils literal notranslate"><span class="pre">data_types</span></code></a></p></td>
+<td><p>List of sensor names/types to enable for the camera.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.TiledCameraCfg.width" title="omni.isaac.lab.sensors.TiledCameraCfg.width"><code class="xref py py-obj docutils literal notranslate"><span class="pre">width</span></code></a></p></td>
+<td><p>Width of the image in pixels.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.TiledCameraCfg.height" title="omni.isaac.lab.sensors.TiledCameraCfg.height"><code class="xref py py-obj docutils literal notranslate"><span class="pre">height</span></code></a></p></td>
+<td><p>Height of the image in pixels.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.TiledCameraCfg.semantic_filter" title="omni.isaac.lab.sensors.TiledCameraCfg.semantic_filter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">semantic_filter</span></code></a></p></td>
+<td><p>A string or a list specifying a semantic filter predicate.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.TiledCameraCfg.colorize_semantic_segmentation" title="omni.isaac.lab.sensors.TiledCameraCfg.colorize_semantic_segmentation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">colorize_semantic_segmentation</span></code></a></p></td>
+<td><p>Whether to colorize the semantic segmentation images.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.TiledCameraCfg.colorize_instance_id_segmentation" title="omni.isaac.lab.sensors.TiledCameraCfg.colorize_instance_id_segmentation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">colorize_instance_id_segmentation</span></code></a></p></td>
+<td><p>Whether to colorize the instance ID segmentation images.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.TiledCameraCfg.colorize_instance_segmentation" title="omni.isaac.lab.sensors.TiledCameraCfg.colorize_instance_segmentation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">colorize_instance_segmentation</span></code></a></p></td>
+<td><p>Whether to colorize the instance ID segmentation images.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.TiledCameraCfg.return_latest_camera_pose" title="omni.isaac.lab.sensors.TiledCameraCfg.return_latest_camera_pose"><code class="xref py py-obj docutils literal notranslate"><span class="pre">return_latest_camera_pose</span></code></a></p></td>
 <td><p>Whether to return the latest camera pose when fetching the camera's data.</p></td>
 </tr>
 </tbody>
@@ -2104,6 +2155,21 @@ Defaults to None, in which case the camera orientation in not changed.</p></li>
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">OffsetCfg</span></span><a class="headerlink" href="#omni.isaac.lab.sensors.TiledCameraCfg.OffsetCfg" title="Permalink to this definition">#</a></dt>
 <dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
 <p>The offset pose of the sensor’s frame from the sensor’s parent frame.</p>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.TiledCameraCfg.OffsetCfg.pos" title="omni.isaac.lab.sensors.TiledCameraCfg.OffsetCfg.pos"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pos</span></code></a></p></td>
+<td><p>Translation w.r.t.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.TiledCameraCfg.OffsetCfg.rot" title="omni.isaac.lab.sensors.TiledCameraCfg.OffsetCfg.rot"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rot</span></code></a></p></td>
+<td><p>Quaternion rotation (w, x, y, z) w.r.t.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.TiledCameraCfg.OffsetCfg.convention" title="omni.isaac.lab.sensors.TiledCameraCfg.OffsetCfg.convention"><code class="xref py py-obj docutils literal notranslate"><span class="pre">convention</span></code></a></p></td>
+<td><p>The convention in which the frame offset is applied.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sensors.TiledCameraCfg.OffsetCfg.pos">
 <span class="sig-name descname"><span class="pre">pos</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.sensors.TiledCameraCfg.OffsetCfg.pos" title="Permalink to this definition">#</a></dt>
@@ -2697,6 +2763,18 @@ and <code class="docutils literal notranslate"><span class="pre">M</span></code>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.ContactSensorCfg.track_air_time" title="omni.isaac.lab.sensors.ContactSensorCfg.track_air_time"><code class="xref py py-obj docutils literal notranslate"><span class="pre">track_air_time</span></code></a></p></td>
 <td><p>Whether to track the air/contact time of the bodies (time between contacts).</p></td>
 </tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.ContactSensorCfg.prim_path" title="omni.isaac.lab.sensors.ContactSensorCfg.prim_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">prim_path</span></code></a></p></td>
+<td><p>Prim path (or expression) to the sensor.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.ContactSensorCfg.update_period" title="omni.isaac.lab.sensors.ContactSensorCfg.update_period"><code class="xref py py-obj docutils literal notranslate"><span class="pre">update_period</span></code></a></p></td>
+<td><p>Update period of the sensor buffers (in seconds).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.ContactSensorCfg.history_length" title="omni.isaac.lab.sensors.ContactSensorCfg.history_length"><code class="xref py py-obj docutils literal notranslate"><span class="pre">history_length</span></code></a></p></td>
+<td><p>Number of past frames to store in the sensor buffers.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.ContactSensorCfg.debug_vis" title="omni.isaac.lab.sensors.ContactSensorCfg.debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">debug_vis</span></code></a></p></td>
+<td><p>Whether to visualize the sensor.</p></td>
+</tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.ContactSensorCfg.force_threshold" title="omni.isaac.lab.sensors.ContactSensorCfg.force_threshold"><code class="xref py py-obj docutils literal notranslate"><span class="pre">force_threshold</span></code></a></p></td>
 <td><p>The threshold on the norm of the contact force that determines whether two bodies are in collision or not.</p></td>
 </tr>
@@ -3059,16 +3137,25 @@ the case of regex matching, the order may be different.</p>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.FrameTransformerCfg.prim_path" title="omni.isaac.lab.sensors.FrameTransformerCfg.prim_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">prim_path</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.FrameTransformerCfg.update_period" title="omni.isaac.lab.sensors.FrameTransformerCfg.update_period"><code class="xref py py-obj docutils literal notranslate"><span class="pre">update_period</span></code></a></p></td>
+<td><p>Update period of the sensor buffers (in seconds).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.FrameTransformerCfg.history_length" title="omni.isaac.lab.sensors.FrameTransformerCfg.history_length"><code class="xref py py-obj docutils literal notranslate"><span class="pre">history_length</span></code></a></p></td>
+<td><p>Number of past frames to store in the sensor buffers.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.FrameTransformerCfg.debug_vis" title="omni.isaac.lab.sensors.FrameTransformerCfg.debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">debug_vis</span></code></a></p></td>
+<td><p>Whether to visualize the sensor.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.FrameTransformerCfg.prim_path" title="omni.isaac.lab.sensors.FrameTransformerCfg.prim_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">prim_path</span></code></a></p></td>
 <td><p>The prim path of the body to transform from (source frame).</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.FrameTransformerCfg.source_frame_offset" title="omni.isaac.lab.sensors.FrameTransformerCfg.source_frame_offset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">source_frame_offset</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.FrameTransformerCfg.source_frame_offset" title="omni.isaac.lab.sensors.FrameTransformerCfg.source_frame_offset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">source_frame_offset</span></code></a></p></td>
 <td><p>The pose offset from the source prim frame.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.FrameTransformerCfg.target_frames" title="omni.isaac.lab.sensors.FrameTransformerCfg.target_frames"><code class="xref py py-obj docutils literal notranslate"><span class="pre">target_frames</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.FrameTransformerCfg.target_frames" title="omni.isaac.lab.sensors.FrameTransformerCfg.target_frames"><code class="xref py py-obj docutils literal notranslate"><span class="pre">target_frames</span></code></a></p></td>
 <td><p>A list of the target frames.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.FrameTransformerCfg.visualizer_cfg" title="omni.isaac.lab.sensors.FrameTransformerCfg.visualizer_cfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visualizer_cfg</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.FrameTransformerCfg.visualizer_cfg" title="omni.isaac.lab.sensors.FrameTransformerCfg.visualizer_cfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visualizer_cfg</span></code></a></p></td>
 <td><p>The configuration object for the visualization markers.</p></td>
 </tr>
 </tbody>
@@ -3422,6 +3509,18 @@ in the scan pattern per sensor.</p>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.RayCasterCfg.offset" title="omni.isaac.lab.sensors.RayCasterCfg.offset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">offset</span></code></a></p></td>
 <td><p>The offset pose of the sensor's frame from the sensor's parent frame.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.RayCasterCfg.prim_path" title="omni.isaac.lab.sensors.RayCasterCfg.prim_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">prim_path</span></code></a></p></td>
+<td><p>Prim path (or expression) to the sensor.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.RayCasterCfg.update_period" title="omni.isaac.lab.sensors.RayCasterCfg.update_period"><code class="xref py py-obj docutils literal notranslate"><span class="pre">update_period</span></code></a></p></td>
+<td><p>Update period of the sensor buffers (in seconds).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.RayCasterCfg.history_length" title="omni.isaac.lab.sensors.RayCasterCfg.history_length"><code class="xref py py-obj docutils literal notranslate"><span class="pre">history_length</span></code></a></p></td>
+<td><p>Number of past frames to store in the sensor buffers.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.RayCasterCfg.debug_vis" title="omni.isaac.lab.sensors.RayCasterCfg.debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">debug_vis</span></code></a></p></td>
+<td><p>Whether to visualize the sensor.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.RayCasterCfg.attach_yaw_only" title="omni.isaac.lab.sensors.RayCasterCfg.attach_yaw_only"><code class="xref py py-obj docutils literal notranslate"><span class="pre">attach_yaw_only</span></code></a></p></td>
 <td><p>Whether the rays' starting positions and directions only track the yaw orientation.</p></td>
@@ -3845,13 +3944,40 @@ does not support debug visualization.</p>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.offset" title="omni.isaac.lab.sensors.RayCasterCameraCfg.offset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">offset</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.prim_path" title="omni.isaac.lab.sensors.RayCasterCameraCfg.prim_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">prim_path</span></code></a></p></td>
+<td><p>Prim path (or expression) to the sensor.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.update_period" title="omni.isaac.lab.sensors.RayCasterCameraCfg.update_period"><code class="xref py py-obj docutils literal notranslate"><span class="pre">update_period</span></code></a></p></td>
+<td><p>Update period of the sensor buffers (in seconds).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.history_length" title="omni.isaac.lab.sensors.RayCasterCameraCfg.history_length"><code class="xref py py-obj docutils literal notranslate"><span class="pre">history_length</span></code></a></p></td>
+<td><p>Number of past frames to store in the sensor buffers.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.debug_vis" title="omni.isaac.lab.sensors.RayCasterCameraCfg.debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">debug_vis</span></code></a></p></td>
+<td><p>Whether to visualize the sensor.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.mesh_prim_paths" title="omni.isaac.lab.sensors.RayCasterCameraCfg.mesh_prim_paths"><code class="xref py py-obj docutils literal notranslate"><span class="pre">mesh_prim_paths</span></code></a></p></td>
+<td><p>The list of mesh primitive paths to ray cast against.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.offset" title="omni.isaac.lab.sensors.RayCasterCameraCfg.offset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">offset</span></code></a></p></td>
 <td><p>The offset pose of the sensor's frame from the sensor's parent frame.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.data_types" title="omni.isaac.lab.sensors.RayCasterCameraCfg.data_types"><code class="xref py py-obj docutils literal notranslate"><span class="pre">data_types</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.attach_yaw_only" title="omni.isaac.lab.sensors.RayCasterCameraCfg.attach_yaw_only"><code class="xref py py-obj docutils literal notranslate"><span class="pre">attach_yaw_only</span></code></a></p></td>
+<td><p>Whether the rays' starting positions and directions only track the yaw orientation.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.max_distance" title="omni.isaac.lab.sensors.RayCasterCameraCfg.max_distance"><code class="xref py py-obj docutils literal notranslate"><span class="pre">max_distance</span></code></a></p></td>
+<td><p>Maximum distance (in meters) from the sensor to ray cast to.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.drift_range" title="omni.isaac.lab.sensors.RayCasterCameraCfg.drift_range"><code class="xref py py-obj docutils literal notranslate"><span class="pre">drift_range</span></code></a></p></td>
+<td><p>The range of drift (in meters) to add to the ray starting positions (xyz).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.visualizer_cfg" title="omni.isaac.lab.sensors.RayCasterCameraCfg.visualizer_cfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visualizer_cfg</span></code></a></p></td>
+<td><p>The configuration object for the visualization markers.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.data_types" title="omni.isaac.lab.sensors.RayCasterCameraCfg.data_types"><code class="xref py py-obj docutils literal notranslate"><span class="pre">data_types</span></code></a></p></td>
 <td><p>List of sensor names/types to enable for the camera.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.pattern_cfg" title="omni.isaac.lab.sensors.RayCasterCameraCfg.pattern_cfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pattern_cfg</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.RayCasterCameraCfg.pattern_cfg" title="omni.isaac.lab.sensors.RayCasterCameraCfg.pattern_cfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pattern_cfg</span></code></a></p></td>
 <td><p>The pattern that defines the local ray starting positions and directions in a pinhole camera pattern.</p></td>
 </tr>
 </tbody>
@@ -4373,7 +4499,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 23, 2024.
+  Last updated on Oct 24, 2024.
   <br/>
 </p>
   </div>

@@ -63,7 +63,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.2.0" />
-    <meta name="docbuild:last-update" content="Oct 23, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 24, 2024"/>
   </head>
   
   
@@ -1806,6 +1806,15 @@ parameters for all terrains generated from height fields.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfTerrainBaseCfg.slope_threshold" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfTerrainBaseCfg.slope_threshold"><code class="xref py py-obj docutils literal notranslate"><span class="pre">slope_threshold</span></code></a></p></td>
 <td><p>The slope threshold above which surfaces are made vertical.</p></td>
 </tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfTerrainBaseCfg.proportion" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfTerrainBaseCfg.proportion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">proportion</span></code></a></p></td>
+<td><p>Proportion of the terrain to generate.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfTerrainBaseCfg.size" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfTerrainBaseCfg.size"><code class="xref py py-obj docutils literal notranslate"><span class="pre">size</span></code></a></p></td>
+<td><p>The width (along x) and length (along y) of the terrain (in m).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfTerrainBaseCfg.flat_patch_sampling" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfTerrainBaseCfg.flat_patch_sampling"><code class="xref py py-obj docutils literal notranslate"><span class="pre">flat_patch_sampling</span></code></a></p></td>
+<td><p>Dictionary of configurations for sampling flat patches on the sub-terrain.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -1910,6 +1919,27 @@ along the x and y axis, respectively.</p>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfRandomUniformTerrainCfg.downsampled_scale" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfRandomUniformTerrainCfg.downsampled_scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">downsampled_scale</span></code></a></p></td>
 <td><p>The distance between two randomly sampled points on the terrain.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfRandomUniformTerrainCfg.proportion" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfRandomUniformTerrainCfg.proportion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">proportion</span></code></a></p></td>
+<td><p>Proportion of the terrain to generate.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfRandomUniformTerrainCfg.size" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfRandomUniformTerrainCfg.size"><code class="xref py py-obj docutils literal notranslate"><span class="pre">size</span></code></a></p></td>
+<td><p>The width (along x) and length (along y) of the terrain (in m).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfRandomUniformTerrainCfg.flat_patch_sampling" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfRandomUniformTerrainCfg.flat_patch_sampling"><code class="xref py py-obj docutils literal notranslate"><span class="pre">flat_patch_sampling</span></code></a></p></td>
+<td><p>Dictionary of configurations for sampling flat patches on the sub-terrain.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfRandomUniformTerrainCfg.border_width" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfRandomUniformTerrainCfg.border_width"><code class="xref py py-obj docutils literal notranslate"><span class="pre">border_width</span></code></a></p></td>
+<td><p>The width of the border/padding around the terrain (in m).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfRandomUniformTerrainCfg.horizontal_scale" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfRandomUniformTerrainCfg.horizontal_scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">horizontal_scale</span></code></a></p></td>
+<td><p>The discretization of the terrain along the x and y axes (in m).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfRandomUniformTerrainCfg.vertical_scale" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfRandomUniformTerrainCfg.vertical_scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">vertical_scale</span></code></a></p></td>
+<td><p>The discretization of the terrain along the z axis (in m).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfRandomUniformTerrainCfg.slope_threshold" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfRandomUniformTerrainCfg.slope_threshold"><code class="xref py py-obj docutils literal notranslate"><span class="pre">slope_threshold</span></code></a></p></td>
+<td><p>The slope threshold above which surfaces are made vertical.</p></td>
 </tr>
 </tbody>
 </table>
@@ -2037,6 +2067,27 @@ along the x and y axis, respectively.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfPyramidSlopedTerrainCfg.inverted" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfPyramidSlopedTerrainCfg.inverted"><code class="xref py py-obj docutils literal notranslate"><span class="pre">inverted</span></code></a></p></td>
 <td><p>Whether the pyramid is inverted.</p></td>
 </tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfPyramidSlopedTerrainCfg.proportion" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfPyramidSlopedTerrainCfg.proportion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">proportion</span></code></a></p></td>
+<td><p>Proportion of the terrain to generate.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfPyramidSlopedTerrainCfg.size" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfPyramidSlopedTerrainCfg.size"><code class="xref py py-obj docutils literal notranslate"><span class="pre">size</span></code></a></p></td>
+<td><p>The width (along x) and length (along y) of the terrain (in m).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfPyramidSlopedTerrainCfg.flat_patch_sampling" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfPyramidSlopedTerrainCfg.flat_patch_sampling"><code class="xref py py-obj docutils literal notranslate"><span class="pre">flat_patch_sampling</span></code></a></p></td>
+<td><p>Dictionary of configurations for sampling flat patches on the sub-terrain.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfPyramidSlopedTerrainCfg.border_width" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfPyramidSlopedTerrainCfg.border_width"><code class="xref py py-obj docutils literal notranslate"><span class="pre">border_width</span></code></a></p></td>
+<td><p>The width of the border/padding around the terrain (in m).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfPyramidSlopedTerrainCfg.horizontal_scale" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfPyramidSlopedTerrainCfg.horizontal_scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">horizontal_scale</span></code></a></p></td>
+<td><p>The discretization of the terrain along the x and y axes (in m).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfPyramidSlopedTerrainCfg.vertical_scale" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfPyramidSlopedTerrainCfg.vertical_scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">vertical_scale</span></code></a></p></td>
+<td><p>The discretization of the terrain along the z axis (in m).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfPyramidSlopedTerrainCfg.slope_threshold" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfPyramidSlopedTerrainCfg.slope_threshold"><code class="xref py py-obj docutils literal notranslate"><span class="pre">slope_threshold</span></code></a></p></td>
+<td><p>The slope threshold above which surfaces are made vertical.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -2125,6 +2176,42 @@ in which case no correction is applied.</p>
 <p>This is a subclass of <a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfPyramidSlopedTerrainCfg" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfPyramidSlopedTerrainCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">HfPyramidSlopedTerrainCfg</span></code></a> with <a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidSlopedTerrainCfg.inverted" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidSlopedTerrainCfg.inverted"><code class="xref py py-obj docutils literal notranslate"><span class="pre">inverted</span></code></a> set to True.
 We make it as a separate class to make it easier to distinguish between the two and match
 the naming convention of the other terrains.</p>
+</div>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidSlopedTerrainCfg.inverted" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidSlopedTerrainCfg.inverted"><code class="xref py py-obj docutils literal notranslate"><span class="pre">inverted</span></code></a></p></td>
+<td><p>Whether the pyramid is inverted.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidSlopedTerrainCfg.proportion" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidSlopedTerrainCfg.proportion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">proportion</span></code></a></p></td>
+<td><p>Proportion of the terrain to generate.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidSlopedTerrainCfg.size" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidSlopedTerrainCfg.size"><code class="xref py py-obj docutils literal notranslate"><span class="pre">size</span></code></a></p></td>
+<td><p>The width (along x) and length (along y) of the terrain (in m).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidSlopedTerrainCfg.flat_patch_sampling" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidSlopedTerrainCfg.flat_patch_sampling"><code class="xref py py-obj docutils literal notranslate"><span class="pre">flat_patch_sampling</span></code></a></p></td>
+<td><p>Dictionary of configurations for sampling flat patches on the sub-terrain.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidSlopedTerrainCfg.border_width" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidSlopedTerrainCfg.border_width"><code class="xref py py-obj docutils literal notranslate"><span class="pre">border_width</span></code></a></p></td>
+<td><p>The width of the border/padding around the terrain (in m).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidSlopedTerrainCfg.horizontal_scale" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidSlopedTerrainCfg.horizontal_scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">horizontal_scale</span></code></a></p></td>
+<td><p>The discretization of the terrain along the x and y axes (in m).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidSlopedTerrainCfg.vertical_scale" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidSlopedTerrainCfg.vertical_scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">vertical_scale</span></code></a></p></td>
+<td><p>The discretization of the terrain along the z axis (in m).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidSlopedTerrainCfg.slope_threshold" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidSlopedTerrainCfg.slope_threshold"><code class="xref py py-obj docutils literal notranslate"><span class="pre">slope_threshold</span></code></a></p></td>
+<td><p>The slope threshold above which surfaces are made vertical.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidSlopedTerrainCfg.slope_range" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidSlopedTerrainCfg.slope_range"><code class="xref py py-obj docutils literal notranslate"><span class="pre">slope_range</span></code></a></p></td>
+<td><p>The slope of the terrain (in radians).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidSlopedTerrainCfg.platform_width" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidSlopedTerrainCfg.platform_width"><code class="xref py py-obj docutils literal notranslate"><span class="pre">platform_width</span></code></a></p></td>
+<td><p>The width of the square platform at the center of the terrain.</p></td>
+</tr>
+</tbody>
+</table>
 </div>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidSlopedTerrainCfg.inverted">
@@ -2248,6 +2335,27 @@ along the x and y axis, respectively.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfPyramidStairsTerrainCfg.inverted" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfPyramidStairsTerrainCfg.inverted"><code class="xref py py-obj docutils literal notranslate"><span class="pre">inverted</span></code></a></p></td>
 <td><p>Whether the pyramid stairs is inverted.</p></td>
 </tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfPyramidStairsTerrainCfg.proportion" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfPyramidStairsTerrainCfg.proportion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">proportion</span></code></a></p></td>
+<td><p>Proportion of the terrain to generate.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfPyramidStairsTerrainCfg.size" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfPyramidStairsTerrainCfg.size"><code class="xref py py-obj docutils literal notranslate"><span class="pre">size</span></code></a></p></td>
+<td><p>The width (along x) and length (along y) of the terrain (in m).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfPyramidStairsTerrainCfg.flat_patch_sampling" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfPyramidStairsTerrainCfg.flat_patch_sampling"><code class="xref py py-obj docutils literal notranslate"><span class="pre">flat_patch_sampling</span></code></a></p></td>
+<td><p>Dictionary of configurations for sampling flat patches on the sub-terrain.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfPyramidStairsTerrainCfg.border_width" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfPyramidStairsTerrainCfg.border_width"><code class="xref py py-obj docutils literal notranslate"><span class="pre">border_width</span></code></a></p></td>
+<td><p>The width of the border/padding around the terrain (in m).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfPyramidStairsTerrainCfg.horizontal_scale" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfPyramidStairsTerrainCfg.horizontal_scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">horizontal_scale</span></code></a></p></td>
+<td><p>The discretization of the terrain along the x and y axes (in m).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfPyramidStairsTerrainCfg.vertical_scale" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfPyramidStairsTerrainCfg.vertical_scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">vertical_scale</span></code></a></p></td>
+<td><p>The discretization of the terrain along the z axis (in m).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfPyramidStairsTerrainCfg.slope_threshold" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfPyramidStairsTerrainCfg.slope_threshold"><code class="xref py py-obj docutils literal notranslate"><span class="pre">slope_threshold</span></code></a></p></td>
+<td><p>The slope threshold above which surfaces are made vertical.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -2342,6 +2450,45 @@ in which case no correction is applied.</p>
 <p>This is a subclass of <a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfPyramidStairsTerrainCfg" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfPyramidStairsTerrainCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">HfPyramidStairsTerrainCfg</span></code></a> with <a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidStairsTerrainCfg.inverted" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidStairsTerrainCfg.inverted"><code class="xref py py-obj docutils literal notranslate"><span class="pre">inverted</span></code></a> set to True.
 We make it as a separate class to make it easier to distinguish between the two and match
 the naming convention of the other terrains.</p>
+</div>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidStairsTerrainCfg.inverted" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidStairsTerrainCfg.inverted"><code class="xref py py-obj docutils literal notranslate"><span class="pre">inverted</span></code></a></p></td>
+<td><p>Whether the pyramid stairs is inverted.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidStairsTerrainCfg.proportion" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidStairsTerrainCfg.proportion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">proportion</span></code></a></p></td>
+<td><p>Proportion of the terrain to generate.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidStairsTerrainCfg.size" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidStairsTerrainCfg.size"><code class="xref py py-obj docutils literal notranslate"><span class="pre">size</span></code></a></p></td>
+<td><p>The width (along x) and length (along y) of the terrain (in m).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidStairsTerrainCfg.flat_patch_sampling" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidStairsTerrainCfg.flat_patch_sampling"><code class="xref py py-obj docutils literal notranslate"><span class="pre">flat_patch_sampling</span></code></a></p></td>
+<td><p>Dictionary of configurations for sampling flat patches on the sub-terrain.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidStairsTerrainCfg.border_width" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidStairsTerrainCfg.border_width"><code class="xref py py-obj docutils literal notranslate"><span class="pre">border_width</span></code></a></p></td>
+<td><p>The width of the border/padding around the terrain (in m).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidStairsTerrainCfg.horizontal_scale" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidStairsTerrainCfg.horizontal_scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">horizontal_scale</span></code></a></p></td>
+<td><p>The discretization of the terrain along the x and y axes (in m).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidStairsTerrainCfg.vertical_scale" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidStairsTerrainCfg.vertical_scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">vertical_scale</span></code></a></p></td>
+<td><p>The discretization of the terrain along the z axis (in m).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidStairsTerrainCfg.slope_threshold" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidStairsTerrainCfg.slope_threshold"><code class="xref py py-obj docutils literal notranslate"><span class="pre">slope_threshold</span></code></a></p></td>
+<td><p>The slope threshold above which surfaces are made vertical.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidStairsTerrainCfg.step_height_range" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidStairsTerrainCfg.step_height_range"><code class="xref py py-obj docutils literal notranslate"><span class="pre">step_height_range</span></code></a></p></td>
+<td><p>The minimum and maximum height of the steps (in m).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidStairsTerrainCfg.step_width" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidStairsTerrainCfg.step_width"><code class="xref py py-obj docutils literal notranslate"><span class="pre">step_width</span></code></a></p></td>
+<td><p>The width of the steps (in m).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidStairsTerrainCfg.platform_width" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidStairsTerrainCfg.platform_width"><code class="xref py py-obj docutils literal notranslate"><span class="pre">platform_width</span></code></a></p></td>
+<td><p>The width of the square platform at the center of the terrain.</p></td>
+</tr>
+</tbody>
+</table>
 </div>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidStairsTerrainCfg.inverted">
@@ -2462,16 +2609,37 @@ along the x and y axis, respectively.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfDiscreteObstaclesTerrainCfg.obstacle_height_mode" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfDiscreteObstaclesTerrainCfg.obstacle_height_mode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">obstacle_height_mode</span></code></a></p></td>
 <td><p>The mode to use for the obstacle height.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfDiscreteObstaclesTerrainCfg.obstacle_width_range" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfDiscreteObstaclesTerrainCfg.obstacle_width_range"><code class="xref py py-obj docutils literal notranslate"><span class="pre">obstacle_width_range</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfDiscreteObstaclesTerrainCfg.proportion" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfDiscreteObstaclesTerrainCfg.proportion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">proportion</span></code></a></p></td>
+<td><p>Proportion of the terrain to generate.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfDiscreteObstaclesTerrainCfg.size" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfDiscreteObstaclesTerrainCfg.size"><code class="xref py py-obj docutils literal notranslate"><span class="pre">size</span></code></a></p></td>
+<td><p>The width (along x) and length (along y) of the terrain (in m).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfDiscreteObstaclesTerrainCfg.flat_patch_sampling" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfDiscreteObstaclesTerrainCfg.flat_patch_sampling"><code class="xref py py-obj docutils literal notranslate"><span class="pre">flat_patch_sampling</span></code></a></p></td>
+<td><p>Dictionary of configurations for sampling flat patches on the sub-terrain.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfDiscreteObstaclesTerrainCfg.border_width" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfDiscreteObstaclesTerrainCfg.border_width"><code class="xref py py-obj docutils literal notranslate"><span class="pre">border_width</span></code></a></p></td>
+<td><p>The width of the border/padding around the terrain (in m).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfDiscreteObstaclesTerrainCfg.horizontal_scale" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfDiscreteObstaclesTerrainCfg.horizontal_scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">horizontal_scale</span></code></a></p></td>
+<td><p>The discretization of the terrain along the x and y axes (in m).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfDiscreteObstaclesTerrainCfg.vertical_scale" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfDiscreteObstaclesTerrainCfg.vertical_scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">vertical_scale</span></code></a></p></td>
+<td><p>The discretization of the terrain along the z axis (in m).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfDiscreteObstaclesTerrainCfg.slope_threshold" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfDiscreteObstaclesTerrainCfg.slope_threshold"><code class="xref py py-obj docutils literal notranslate"><span class="pre">slope_threshold</span></code></a></p></td>
+<td><p>The slope threshold above which surfaces are made vertical.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfDiscreteObstaclesTerrainCfg.obstacle_width_range" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfDiscreteObstaclesTerrainCfg.obstacle_width_range"><code class="xref py py-obj docutils literal notranslate"><span class="pre">obstacle_width_range</span></code></a></p></td>
 <td><p>The minimum and maximum width of the obstacles (in m).</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfDiscreteObstaclesTerrainCfg.obstacle_height_range" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfDiscreteObstaclesTerrainCfg.obstacle_height_range"><code class="xref py py-obj docutils literal notranslate"><span class="pre">obstacle_height_range</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfDiscreteObstaclesTerrainCfg.obstacle_height_range" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfDiscreteObstaclesTerrainCfg.obstacle_height_range"><code class="xref py py-obj docutils literal notranslate"><span class="pre">obstacle_height_range</span></code></a></p></td>
 <td><p>The minimum and maximum height of the obstacles (in m).</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfDiscreteObstaclesTerrainCfg.num_obstacles" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfDiscreteObstaclesTerrainCfg.num_obstacles"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_obstacles</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfDiscreteObstaclesTerrainCfg.num_obstacles" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfDiscreteObstaclesTerrainCfg.num_obstacles"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_obstacles</span></code></a></p></td>
 <td><p>The number of obstacles to generate.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfDiscreteObstaclesTerrainCfg.platform_width" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfDiscreteObstaclesTerrainCfg.platform_width"><code class="xref py py-obj docutils literal notranslate"><span class="pre">platform_width</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfDiscreteObstaclesTerrainCfg.platform_width" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfDiscreteObstaclesTerrainCfg.platform_width"><code class="xref py py-obj docutils literal notranslate"><span class="pre">platform_width</span></code></a></p></td>
 <td><p>The width of the square platform at the center of the terrain.</p></td>
 </tr>
 </tbody>
@@ -2604,10 +2772,31 @@ along the x and y axis, respectively.</p>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfWaveTerrainCfg.amplitude_range" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfWaveTerrainCfg.amplitude_range"><code class="xref py py-obj docutils literal notranslate"><span class="pre">amplitude_range</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfWaveTerrainCfg.proportion" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfWaveTerrainCfg.proportion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">proportion</span></code></a></p></td>
+<td><p>Proportion of the terrain to generate.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfWaveTerrainCfg.size" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfWaveTerrainCfg.size"><code class="xref py py-obj docutils literal notranslate"><span class="pre">size</span></code></a></p></td>
+<td><p>The width (along x) and length (along y) of the terrain (in m).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfWaveTerrainCfg.flat_patch_sampling" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfWaveTerrainCfg.flat_patch_sampling"><code class="xref py py-obj docutils literal notranslate"><span class="pre">flat_patch_sampling</span></code></a></p></td>
+<td><p>Dictionary of configurations for sampling flat patches on the sub-terrain.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfWaveTerrainCfg.border_width" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfWaveTerrainCfg.border_width"><code class="xref py py-obj docutils literal notranslate"><span class="pre">border_width</span></code></a></p></td>
+<td><p>The width of the border/padding around the terrain (in m).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfWaveTerrainCfg.horizontal_scale" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfWaveTerrainCfg.horizontal_scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">horizontal_scale</span></code></a></p></td>
+<td><p>The discretization of the terrain along the x and y axes (in m).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfWaveTerrainCfg.vertical_scale" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfWaveTerrainCfg.vertical_scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">vertical_scale</span></code></a></p></td>
+<td><p>The discretization of the terrain along the z axis (in m).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfWaveTerrainCfg.slope_threshold" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfWaveTerrainCfg.slope_threshold"><code class="xref py py-obj docutils literal notranslate"><span class="pre">slope_threshold</span></code></a></p></td>
+<td><p>The slope threshold above which surfaces are made vertical.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfWaveTerrainCfg.amplitude_range" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfWaveTerrainCfg.amplitude_range"><code class="xref py py-obj docutils literal notranslate"><span class="pre">amplitude_range</span></code></a></p></td>
 <td><p>The minimum and maximum amplitude of the wave (in m).</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfWaveTerrainCfg.num_waves" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfWaveTerrainCfg.num_waves"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_waves</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfWaveTerrainCfg.num_waves" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfWaveTerrainCfg.num_waves"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_waves</span></code></a></p></td>
 <td><p>The number of waves to generate.</p></td>
 </tr>
 </tbody>
@@ -2713,19 +2902,40 @@ along the x and y axis, respectively.</p>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfSteppingStonesTerrainCfg.stone_height_max" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfSteppingStonesTerrainCfg.stone_height_max"><code class="xref py py-obj docutils literal notranslate"><span class="pre">stone_height_max</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfSteppingStonesTerrainCfg.proportion" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfSteppingStonesTerrainCfg.proportion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">proportion</span></code></a></p></td>
+<td><p>Proportion of the terrain to generate.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfSteppingStonesTerrainCfg.size" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfSteppingStonesTerrainCfg.size"><code class="xref py py-obj docutils literal notranslate"><span class="pre">size</span></code></a></p></td>
+<td><p>The width (along x) and length (along y) of the terrain (in m).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfSteppingStonesTerrainCfg.flat_patch_sampling" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfSteppingStonesTerrainCfg.flat_patch_sampling"><code class="xref py py-obj docutils literal notranslate"><span class="pre">flat_patch_sampling</span></code></a></p></td>
+<td><p>Dictionary of configurations for sampling flat patches on the sub-terrain.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfSteppingStonesTerrainCfg.border_width" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfSteppingStonesTerrainCfg.border_width"><code class="xref py py-obj docutils literal notranslate"><span class="pre">border_width</span></code></a></p></td>
+<td><p>The width of the border/padding around the terrain (in m).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfSteppingStonesTerrainCfg.horizontal_scale" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfSteppingStonesTerrainCfg.horizontal_scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">horizontal_scale</span></code></a></p></td>
+<td><p>The discretization of the terrain along the x and y axes (in m).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfSteppingStonesTerrainCfg.vertical_scale" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfSteppingStonesTerrainCfg.vertical_scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">vertical_scale</span></code></a></p></td>
+<td><p>The discretization of the terrain along the z axis (in m).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfSteppingStonesTerrainCfg.slope_threshold" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfSteppingStonesTerrainCfg.slope_threshold"><code class="xref py py-obj docutils literal notranslate"><span class="pre">slope_threshold</span></code></a></p></td>
+<td><p>The slope threshold above which surfaces are made vertical.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfSteppingStonesTerrainCfg.stone_height_max" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfSteppingStonesTerrainCfg.stone_height_max"><code class="xref py py-obj docutils literal notranslate"><span class="pre">stone_height_max</span></code></a></p></td>
 <td><p>The maximum height of the stones (in m).</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfSteppingStonesTerrainCfg.stone_width_range" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfSteppingStonesTerrainCfg.stone_width_range"><code class="xref py py-obj docutils literal notranslate"><span class="pre">stone_width_range</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfSteppingStonesTerrainCfg.stone_width_range" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfSteppingStonesTerrainCfg.stone_width_range"><code class="xref py py-obj docutils literal notranslate"><span class="pre">stone_width_range</span></code></a></p></td>
 <td><p>The minimum and maximum width of the stones (in m).</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfSteppingStonesTerrainCfg.stone_distance_range" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfSteppingStonesTerrainCfg.stone_distance_range"><code class="xref py py-obj docutils literal notranslate"><span class="pre">stone_distance_range</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfSteppingStonesTerrainCfg.stone_distance_range" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfSteppingStonesTerrainCfg.stone_distance_range"><code class="xref py py-obj docutils literal notranslate"><span class="pre">stone_distance_range</span></code></a></p></td>
 <td><p>The minimum and maximum distance between stones (in m).</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfSteppingStonesTerrainCfg.holes_depth" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfSteppingStonesTerrainCfg.holes_depth"><code class="xref py py-obj docutils literal notranslate"><span class="pre">holes_depth</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfSteppingStonesTerrainCfg.holes_depth" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfSteppingStonesTerrainCfg.holes_depth"><code class="xref py py-obj docutils literal notranslate"><span class="pre">holes_depth</span></code></a></p></td>
 <td><p>The depth of the holes (negative obstacles).</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfSteppingStonesTerrainCfg.platform_width" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfSteppingStonesTerrainCfg.platform_width"><code class="xref py py-obj docutils literal notranslate"><span class="pre">platform_width</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfSteppingStonesTerrainCfg.platform_width" title="omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfSteppingStonesTerrainCfg.platform_width"><code class="xref py py-obj docutils literal notranslate"><span class="pre">platform_width</span></code></a></p></td>
 <td><p>The width of the square platform at the center of the terrain.</p></td>
 </tr>
 </tbody>
@@ -2855,6 +3065,21 @@ efficient than the height-field representation, but it is not as flexible.</p>
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.</span></span><span class="sig-name descname"><span class="pre">MeshPlaneTerrainCfg</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/terrains/trimesh/mesh_terrains_cfg.html#MeshPlaneTerrainCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshPlaneTerrainCfg" title="Permalink to this definition">#</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#omni.isaac.lab.terrains.SubTerrainBaseCfg" title="omni.isaac.lab.terrains.terrain_generator_cfg.SubTerrainBaseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">SubTerrainBaseCfg</span></code></a></p>
 <p>Configuration for a plane mesh terrain.</p>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshPlaneTerrainCfg.proportion" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshPlaneTerrainCfg.proportion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">proportion</span></code></a></p></td>
+<td><p>Proportion of the terrain to generate.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshPlaneTerrainCfg.size" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshPlaneTerrainCfg.size"><code class="xref py py-obj docutils literal notranslate"><span class="pre">size</span></code></a></p></td>
+<td><p>The width (along x) and length (along y) of the terrain (in m).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshPlaneTerrainCfg.flat_patch_sampling" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshPlaneTerrainCfg.flat_patch_sampling"><code class="xref py py-obj docutils literal notranslate"><span class="pre">flat_patch_sampling</span></code></a></p></td>
+<td><p>Dictionary of configurations for sampling flat patches on the sub-terrain.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshPlaneTerrainCfg.proportion">
 <span class="sig-name descname"><span class="pre">proportion</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshPlaneTerrainCfg.proportion" title="Permalink to this definition">#</a></dt>
@@ -2932,6 +3157,15 @@ no border will be added.</p>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshPyramidStairsTerrainCfg.holes" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshPyramidStairsTerrainCfg.holes"><code class="xref py py-obj docutils literal notranslate"><span class="pre">holes</span></code></a></p></td>
 <td><p>If True, the terrain will have holes in the steps.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshPyramidStairsTerrainCfg.proportion" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshPyramidStairsTerrainCfg.proportion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">proportion</span></code></a></p></td>
+<td><p>Proportion of the terrain to generate.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshPyramidStairsTerrainCfg.size" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshPyramidStairsTerrainCfg.size"><code class="xref py py-obj docutils literal notranslate"><span class="pre">size</span></code></a></p></td>
+<td><p>The width (along x) and length (along y) of the terrain (in m).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshPyramidStairsTerrainCfg.flat_patch_sampling" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshPyramidStairsTerrainCfg.flat_patch_sampling"><code class="xref py py-obj docutils literal notranslate"><span class="pre">flat_patch_sampling</span></code></a></p></td>
+<td><p>Dictionary of configurations for sampling flat patches on the sub-terrain.</p></td>
 </tr>
 </tbody>
 </table>
@@ -3033,6 +3267,36 @@ no border will be added.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>This is the same as <a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshPyramidStairsTerrainCfg" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshPyramidStairsTerrainCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">MeshPyramidStairsTerrainCfg</span></code></a> except that the steps are inverted.</p>
+</div>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshInvertedPyramidStairsTerrainCfg.proportion" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshInvertedPyramidStairsTerrainCfg.proportion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">proportion</span></code></a></p></td>
+<td><p>Proportion of the terrain to generate.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshInvertedPyramidStairsTerrainCfg.size" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshInvertedPyramidStairsTerrainCfg.size"><code class="xref py py-obj docutils literal notranslate"><span class="pre">size</span></code></a></p></td>
+<td><p>The width (along x) and length (along y) of the terrain (in m).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshInvertedPyramidStairsTerrainCfg.flat_patch_sampling" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshInvertedPyramidStairsTerrainCfg.flat_patch_sampling"><code class="xref py py-obj docutils literal notranslate"><span class="pre">flat_patch_sampling</span></code></a></p></td>
+<td><p>Dictionary of configurations for sampling flat patches on the sub-terrain.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshInvertedPyramidStairsTerrainCfg.border_width" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshInvertedPyramidStairsTerrainCfg.border_width"><code class="xref py py-obj docutils literal notranslate"><span class="pre">border_width</span></code></a></p></td>
+<td><p>The width of the border around the terrain (in m).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshInvertedPyramidStairsTerrainCfg.step_height_range" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshInvertedPyramidStairsTerrainCfg.step_height_range"><code class="xref py py-obj docutils literal notranslate"><span class="pre">step_height_range</span></code></a></p></td>
+<td><p>The minimum and maximum height of the steps (in m).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshInvertedPyramidStairsTerrainCfg.step_width" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshInvertedPyramidStairsTerrainCfg.step_width"><code class="xref py py-obj docutils literal notranslate"><span class="pre">step_width</span></code></a></p></td>
+<td><p>The width of the steps (in m).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshInvertedPyramidStairsTerrainCfg.platform_width" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshInvertedPyramidStairsTerrainCfg.platform_width"><code class="xref py py-obj docutils literal notranslate"><span class="pre">platform_width</span></code></a></p></td>
+<td><p>The width of the square platform at the center of the terrain.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshInvertedPyramidStairsTerrainCfg.holes" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshInvertedPyramidStairsTerrainCfg.holes"><code class="xref py py-obj docutils literal notranslate"><span class="pre">holes</span></code></a></p></td>
+<td><p>If True, the terrain will have holes in the steps.</p></td>
+</tr>
+</tbody>
+</table>
 </div>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshInvertedPyramidStairsTerrainCfg.proportion">
@@ -3151,6 +3415,15 @@ from the platform (like a plus sign). The remaining area remains empty and no bo
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRandomGridTerrainCfg.holes" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRandomGridTerrainCfg.holes"><code class="xref py py-obj docutils literal notranslate"><span class="pre">holes</span></code></a></p></td>
 <td><p>If True, the terrain will have holes in the steps.</p></td>
 </tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRandomGridTerrainCfg.proportion" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRandomGridTerrainCfg.proportion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">proportion</span></code></a></p></td>
+<td><p>Proportion of the terrain to generate.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRandomGridTerrainCfg.size" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRandomGridTerrainCfg.size"><code class="xref py py-obj docutils literal notranslate"><span class="pre">size</span></code></a></p></td>
+<td><p>The width (along x) and length (along y) of the terrain (in m).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRandomGridTerrainCfg.flat_patch_sampling" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRandomGridTerrainCfg.flat_patch_sampling"><code class="xref py py-obj docutils literal notranslate"><span class="pre">flat_patch_sampling</span></code></a></p></td>
+<td><p>Dictionary of configurations for sampling flat patches on the sub-terrain.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -3250,6 +3523,15 @@ and the terrain border. Each set of rails is extruded to the same height.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRailsTerrainCfg.platform_width" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRailsTerrainCfg.platform_width"><code class="xref py py-obj docutils literal notranslate"><span class="pre">platform_width</span></code></a></p></td>
 <td><p>The width of the square platform at the center of the terrain.</p></td>
 </tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRailsTerrainCfg.proportion" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRailsTerrainCfg.proportion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">proportion</span></code></a></p></td>
+<td><p>Proportion of the terrain to generate.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRailsTerrainCfg.size" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRailsTerrainCfg.size"><code class="xref py py-obj docutils literal notranslate"><span class="pre">size</span></code></a></p></td>
+<td><p>The width (along x) and length (along y) of the terrain (in m).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRailsTerrainCfg.flat_patch_sampling" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRailsTerrainCfg.flat_patch_sampling"><code class="xref py py-obj docutils literal notranslate"><span class="pre">flat_patch_sampling</span></code></a></p></td>
+<td><p>Dictionary of configurations for sampling flat patches on the sub-terrain.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -3343,6 +3625,15 @@ contains two levels.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshPitTerrainCfg.double_pit" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshPitTerrainCfg.double_pit"><code class="xref py py-obj docutils literal notranslate"><span class="pre">double_pit</span></code></a></p></td>
 <td><p>If True, the pit contains two levels of stairs.</p></td>
 </tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshPitTerrainCfg.proportion" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshPitTerrainCfg.proportion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">proportion</span></code></a></p></td>
+<td><p>Proportion of the terrain to generate.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshPitTerrainCfg.size" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshPitTerrainCfg.size"><code class="xref py py-obj docutils literal notranslate"><span class="pre">size</span></code></a></p></td>
+<td><p>The width (along x) and length (along y) of the terrain (in m).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshPitTerrainCfg.flat_patch_sampling" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshPitTerrainCfg.flat_patch_sampling"><code class="xref py py-obj docutils literal notranslate"><span class="pre">flat_patch_sampling</span></code></a></p></td>
+<td><p>Dictionary of configurations for sampling flat patches on the sub-terrain.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -3435,6 +3726,15 @@ then two boxes of height <code class="xref py py-obj docutils literal notranslat
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshBoxTerrainCfg.double_box" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshBoxTerrainCfg.double_box"><code class="xref py py-obj docutils literal notranslate"><span class="pre">double_box</span></code></a></p></td>
 <td><p>If True, the pit contains two levels of stairs/boxes.</p></td>
 </tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshBoxTerrainCfg.proportion" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshBoxTerrainCfg.proportion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">proportion</span></code></a></p></td>
+<td><p>Proportion of the terrain to generate.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshBoxTerrainCfg.size" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshBoxTerrainCfg.size"><code class="xref py py-obj docutils literal notranslate"><span class="pre">size</span></code></a></p></td>
+<td><p>The width (along x) and length (along y) of the terrain (in m).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshBoxTerrainCfg.flat_patch_sampling" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshBoxTerrainCfg.flat_patch_sampling"><code class="xref py py-obj docutils literal notranslate"><span class="pre">flat_patch_sampling</span></code></a></p></td>
+<td><p>Dictionary of configurations for sampling flat patches on the sub-terrain.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -3521,6 +3821,15 @@ of width <code class="xref py py-obj docutils literal notranslate"><span class="
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshGapTerrainCfg.platform_width" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshGapTerrainCfg.platform_width"><code class="xref py py-obj docutils literal notranslate"><span class="pre">platform_width</span></code></a></p></td>
 <td><p>The width of the square platform at the center of the terrain.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshGapTerrainCfg.proportion" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshGapTerrainCfg.proportion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">proportion</span></code></a></p></td>
+<td><p>Proportion of the terrain to generate.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshGapTerrainCfg.size" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshGapTerrainCfg.size"><code class="xref py py-obj docutils literal notranslate"><span class="pre">size</span></code></a></p></td>
+<td><p>The width (along x) and length (along y) of the terrain (in m).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshGapTerrainCfg.flat_patch_sampling" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshGapTerrainCfg.flat_patch_sampling"><code class="xref py py-obj docutils literal notranslate"><span class="pre">flat_patch_sampling</span></code></a></p></td>
+<td><p>Dictionary of configurations for sampling flat patches on the sub-terrain.</p></td>
 </tr>
 </tbody>
 </table>
@@ -3610,6 +3919,15 @@ is <code class="xref py py-obj docutils literal notranslate"><span class="pre">r
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshFloatingRingTerrainCfg.platform_width" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshFloatingRingTerrainCfg.platform_width"><code class="xref py py-obj docutils literal notranslate"><span class="pre">platform_width</span></code></a></p></td>
 <td><p>The width of the square platform at the center of the terrain.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshFloatingRingTerrainCfg.proportion" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshFloatingRingTerrainCfg.proportion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">proportion</span></code></a></p></td>
+<td><p>Proportion of the terrain to generate.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshFloatingRingTerrainCfg.size" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshFloatingRingTerrainCfg.size"><code class="xref py py-obj docutils literal notranslate"><span class="pre">size</span></code></a></p></td>
+<td><p>The width (along x) and length (along y) of the terrain (in m).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshFloatingRingTerrainCfg.flat_patch_sampling" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshFloatingRingTerrainCfg.flat_patch_sampling"><code class="xref py py-obj docutils literal notranslate"><span class="pre">flat_patch_sampling</span></code></a></p></td>
+<td><p>Dictionary of configurations for sampling flat patches on the sub-terrain.</p></td>
 </tr>
 </tbody>
 </table>
@@ -3713,6 +4031,15 @@ spaced around the cylinder and connect to the peripheral of the terrain.</p>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshStarTerrainCfg.platform_width" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshStarTerrainCfg.platform_width"><code class="xref py py-obj docutils literal notranslate"><span class="pre">platform_width</span></code></a></p></td>
 <td><p>The width of the cylindrical platform at the center of the terrain.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshStarTerrainCfg.proportion" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshStarTerrainCfg.proportion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">proportion</span></code></a></p></td>
+<td><p>Proportion of the terrain to generate.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshStarTerrainCfg.size" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshStarTerrainCfg.size"><code class="xref py py-obj docutils literal notranslate"><span class="pre">size</span></code></a></p></td>
+<td><p>The width (along x) and length (along y) of the terrain (in m).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshStarTerrainCfg.flat_patch_sampling" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshStarTerrainCfg.flat_patch_sampling"><code class="xref py py-obj docutils literal notranslate"><span class="pre">flat_patch_sampling</span></code></a></p></td>
+<td><p>Dictionary of configurations for sampling flat patches on the sub-terrain.</p></td>
 </tr>
 </tbody>
 </table>
@@ -3819,19 +4146,28 @@ is used to linearly interpolate between the minimum and maximum values of the pa
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg.object_type" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg.object_type"><code class="xref py py-obj docutils literal notranslate"><span class="pre">object_type</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg.proportion" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg.proportion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">proportion</span></code></a></p></td>
+<td><p>Proportion of the terrain to generate.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg.size" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg.size"><code class="xref py py-obj docutils literal notranslate"><span class="pre">size</span></code></a></p></td>
+<td><p>The width (along x) and length (along y) of the terrain (in m).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg.flat_patch_sampling" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg.flat_patch_sampling"><code class="xref py py-obj docutils literal notranslate"><span class="pre">flat_patch_sampling</span></code></a></p></td>
+<td><p>Dictionary of configurations for sampling flat patches on the sub-terrain.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg.object_type" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg.object_type"><code class="xref py py-obj docutils literal notranslate"><span class="pre">object_type</span></code></a></p></td>
 <td><p>The type of object to generate.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg.object_params_start" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg.object_params_start"><code class="xref py py-obj docutils literal notranslate"><span class="pre">object_params_start</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg.object_params_start" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg.object_params_start"><code class="xref py py-obj docutils literal notranslate"><span class="pre">object_params_start</span></code></a></p></td>
 <td><p>The object curriculum parameters at the start of the curriculum.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg.object_params_end" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg.object_params_end"><code class="xref py py-obj docutils literal notranslate"><span class="pre">object_params_end</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg.object_params_end" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg.object_params_end"><code class="xref py py-obj docutils literal notranslate"><span class="pre">object_params_end</span></code></a></p></td>
 <td><p>The object curriculum parameters at the end of the curriculum.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg.max_height_noise" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg.max_height_noise"><code class="xref py py-obj docutils literal notranslate"><span class="pre">max_height_noise</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg.max_height_noise" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg.max_height_noise"><code class="xref py py-obj docutils literal notranslate"><span class="pre">max_height_noise</span></code></a></p></td>
 <td><p>The maximum amount of noise to add to the height of the objects (in m).</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg.platform_width" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg.platform_width"><code class="xref py py-obj docutils literal notranslate"><span class="pre">platform_width</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg.platform_width" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg.platform_width"><code class="xref py py-obj docutils literal notranslate"><span class="pre">platform_width</span></code></a></p></td>
 <td><p>The width of the cylindrical platform at the center of the terrain.</p></td>
 </tr>
 </tbody>
@@ -3935,23 +4271,41 @@ use the callable to generate the object.</p>
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.</span></span><span class="sig-name descname"><span class="pre">MeshRepeatedPyramidsTerrainCfg</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/terrains/trimesh/mesh_terrains_cfg.html#MeshRepeatedPyramidsTerrainCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedPyramidsTerrainCfg" title="Permalink to this definition">#</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">MeshRepeatedObjectsTerrainCfg</span></code></a></p>
 <p>Configuration for a terrain with repeated pyramids.</p>
-<p><strong>Classes:</strong></p>
-<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
-<tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedPyramidsTerrainCfg.ObjectCfg" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedPyramidsTerrainCfg.ObjectCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ObjectCfg</span></code></a></p></td>
-<td><p>Configuration for a curriculum of repeated pyramids.</p></td>
-</tr>
-</tbody>
-</table>
-</div>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedPyramidsTerrainCfg.proportion" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedPyramidsTerrainCfg.proportion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">proportion</span></code></a></p></td>
+<td><p>Proportion of the terrain to generate.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedPyramidsTerrainCfg.size" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedPyramidsTerrainCfg.size"><code class="xref py py-obj docutils literal notranslate"><span class="pre">size</span></code></a></p></td>
+<td><p>The width (along x) and length (along y) of the terrain (in m).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedPyramidsTerrainCfg.flat_patch_sampling" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedPyramidsTerrainCfg.flat_patch_sampling"><code class="xref py py-obj docutils literal notranslate"><span class="pre">flat_patch_sampling</span></code></a></p></td>
+<td><p>Dictionary of configurations for sampling flat patches on the sub-terrain.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedPyramidsTerrainCfg.max_height_noise" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedPyramidsTerrainCfg.max_height_noise"><code class="xref py py-obj docutils literal notranslate"><span class="pre">max_height_noise</span></code></a></p></td>
+<td><p>The maximum amount of noise to add to the height of the objects (in m).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedPyramidsTerrainCfg.platform_width" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedPyramidsTerrainCfg.platform_width"><code class="xref py py-obj docutils literal notranslate"><span class="pre">platform_width</span></code></a></p></td>
+<td><p>The width of the cylindrical platform at the center of the terrain.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedPyramidsTerrainCfg.object_type" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedPyramidsTerrainCfg.object_type"><code class="xref py py-obj docutils literal notranslate"><span class="pre">object_type</span></code></a></p></td>
+<td><p>The type of object to generate.</p></td>
+</tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedPyramidsTerrainCfg.object_params_start" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedPyramidsTerrainCfg.object_params_start"><code class="xref py py-obj docutils literal notranslate"><span class="pre">object_params_start</span></code></a></p></td>
 <td><p>The object curriculum parameters at the start of the curriculum.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedPyramidsTerrainCfg.object_params_end" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedPyramidsTerrainCfg.object_params_end"><code class="xref py py-obj docutils literal notranslate"><span class="pre">object_params_end</span></code></a></p></td>
 <td><p>The object curriculum parameters at the end of the curriculum.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Classes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedPyramidsTerrainCfg.ObjectCfg" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedPyramidsTerrainCfg.ObjectCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ObjectCfg</span></code></a></p></td>
+<td><p>Configuration for a curriculum of repeated pyramids.</p></td>
 </tr>
 </tbody>
 </table>
@@ -4003,6 +4357,12 @@ corresponding configurations.</p>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedPyramidsTerrainCfg.ObjectCfg.num_objects" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedPyramidsTerrainCfg.ObjectCfg.num_objects"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_objects</span></code></a></p></td>
+<td><p>The number of objects to add to the terrain.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedPyramidsTerrainCfg.ObjectCfg.height" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedPyramidsTerrainCfg.ObjectCfg.height"><code class="xref py py-obj docutils literal notranslate"><span class="pre">height</span></code></a></p></td>
+<td><p>The height (along z) of the object (in m).</p></td>
+</tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedPyramidsTerrainCfg.ObjectCfg.radius" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedPyramidsTerrainCfg.ObjectCfg.radius"><code class="xref py py-obj docutils literal notranslate"><span class="pre">radius</span></code></a></p></td>
 <td><p>The radius of the pyramids (in m).</p></td>
 </tr>
@@ -4075,23 +4435,41 @@ use the callable to generate the object.</p>
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.</span></span><span class="sig-name descname"><span class="pre">MeshRepeatedBoxesTerrainCfg</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/terrains/trimesh/mesh_terrains_cfg.html#MeshRepeatedBoxesTerrainCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedBoxesTerrainCfg" title="Permalink to this definition">#</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">MeshRepeatedObjectsTerrainCfg</span></code></a></p>
 <p>Configuration for a terrain with repeated boxes.</p>
-<p><strong>Classes:</strong></p>
-<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
-<tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedBoxesTerrainCfg.ObjectCfg" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedBoxesTerrainCfg.ObjectCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ObjectCfg</span></code></a></p></td>
-<td><p>Configuration for repeated boxes.</p></td>
-</tr>
-</tbody>
-</table>
-</div>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedBoxesTerrainCfg.proportion" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedBoxesTerrainCfg.proportion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">proportion</span></code></a></p></td>
+<td><p>Proportion of the terrain to generate.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedBoxesTerrainCfg.size" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedBoxesTerrainCfg.size"><code class="xref py py-obj docutils literal notranslate"><span class="pre">size</span></code></a></p></td>
+<td><p>The width (along x) and length (along y) of the terrain (in m).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedBoxesTerrainCfg.flat_patch_sampling" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedBoxesTerrainCfg.flat_patch_sampling"><code class="xref py py-obj docutils literal notranslate"><span class="pre">flat_patch_sampling</span></code></a></p></td>
+<td><p>Dictionary of configurations for sampling flat patches on the sub-terrain.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedBoxesTerrainCfg.max_height_noise" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedBoxesTerrainCfg.max_height_noise"><code class="xref py py-obj docutils literal notranslate"><span class="pre">max_height_noise</span></code></a></p></td>
+<td><p>The maximum amount of noise to add to the height of the objects (in m).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedBoxesTerrainCfg.platform_width" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedBoxesTerrainCfg.platform_width"><code class="xref py py-obj docutils literal notranslate"><span class="pre">platform_width</span></code></a></p></td>
+<td><p>The width of the cylindrical platform at the center of the terrain.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedBoxesTerrainCfg.object_type" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedBoxesTerrainCfg.object_type"><code class="xref py py-obj docutils literal notranslate"><span class="pre">object_type</span></code></a></p></td>
+<td><p>The type of object to generate.</p></td>
+</tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedBoxesTerrainCfg.object_params_start" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedBoxesTerrainCfg.object_params_start"><code class="xref py py-obj docutils literal notranslate"><span class="pre">object_params_start</span></code></a></p></td>
 <td><p>The box curriculum parameters at the start of the curriculum.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedBoxesTerrainCfg.object_params_end" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedBoxesTerrainCfg.object_params_end"><code class="xref py py-obj docutils literal notranslate"><span class="pre">object_params_end</span></code></a></p></td>
 <td><p>The box curriculum parameters at the end of the curriculum.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Classes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedBoxesTerrainCfg.ObjectCfg" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedBoxesTerrainCfg.ObjectCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ObjectCfg</span></code></a></p></td>
+<td><p>Configuration for repeated boxes.</p></td>
 </tr>
 </tbody>
 </table>
@@ -4143,6 +4521,12 @@ corresponding configurations.</p>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedBoxesTerrainCfg.ObjectCfg.num_objects" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedBoxesTerrainCfg.ObjectCfg.num_objects"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_objects</span></code></a></p></td>
+<td><p>The number of objects to add to the terrain.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedBoxesTerrainCfg.ObjectCfg.height" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedBoxesTerrainCfg.ObjectCfg.height"><code class="xref py py-obj docutils literal notranslate"><span class="pre">height</span></code></a></p></td>
+<td><p>The height (along z) of the object (in m).</p></td>
+</tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedBoxesTerrainCfg.ObjectCfg.size" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedBoxesTerrainCfg.ObjectCfg.size"><code class="xref py py-obj docutils literal notranslate"><span class="pre">size</span></code></a></p></td>
 <td><p>The width (along x) and length (along y) of the box (in m).</p></td>
 </tr>
@@ -4215,23 +4599,41 @@ use the callable to generate the object.</p>
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.</span></span><span class="sig-name descname"><span class="pre">MeshRepeatedCylindersTerrainCfg</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/terrains/trimesh/mesh_terrains_cfg.html#MeshRepeatedCylindersTerrainCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedCylindersTerrainCfg" title="Permalink to this definition">#</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">MeshRepeatedObjectsTerrainCfg</span></code></a></p>
 <p>Configuration for a terrain with repeated cylinders.</p>
-<p><strong>Classes:</strong></p>
-<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
-<tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedCylindersTerrainCfg.ObjectCfg" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedCylindersTerrainCfg.ObjectCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ObjectCfg</span></code></a></p></td>
-<td><p>Configuration for repeated cylinder.</p></td>
-</tr>
-</tbody>
-</table>
-</div>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedCylindersTerrainCfg.proportion" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedCylindersTerrainCfg.proportion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">proportion</span></code></a></p></td>
+<td><p>Proportion of the terrain to generate.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedCylindersTerrainCfg.size" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedCylindersTerrainCfg.size"><code class="xref py py-obj docutils literal notranslate"><span class="pre">size</span></code></a></p></td>
+<td><p>The width (along x) and length (along y) of the terrain (in m).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedCylindersTerrainCfg.flat_patch_sampling" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedCylindersTerrainCfg.flat_patch_sampling"><code class="xref py py-obj docutils literal notranslate"><span class="pre">flat_patch_sampling</span></code></a></p></td>
+<td><p>Dictionary of configurations for sampling flat patches on the sub-terrain.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedCylindersTerrainCfg.max_height_noise" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedCylindersTerrainCfg.max_height_noise"><code class="xref py py-obj docutils literal notranslate"><span class="pre">max_height_noise</span></code></a></p></td>
+<td><p>The maximum amount of noise to add to the height of the objects (in m).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedCylindersTerrainCfg.platform_width" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedCylindersTerrainCfg.platform_width"><code class="xref py py-obj docutils literal notranslate"><span class="pre">platform_width</span></code></a></p></td>
+<td><p>The width of the cylindrical platform at the center of the terrain.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedCylindersTerrainCfg.object_type" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedCylindersTerrainCfg.object_type"><code class="xref py py-obj docutils literal notranslate"><span class="pre">object_type</span></code></a></p></td>
+<td><p>The type of object to generate.</p></td>
+</tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedCylindersTerrainCfg.object_params_start" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedCylindersTerrainCfg.object_params_start"><code class="xref py py-obj docutils literal notranslate"><span class="pre">object_params_start</span></code></a></p></td>
 <td><p>The box curriculum parameters at the start of the curriculum.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedCylindersTerrainCfg.object_params_end" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedCylindersTerrainCfg.object_params_end"><code class="xref py py-obj docutils literal notranslate"><span class="pre">object_params_end</span></code></a></p></td>
 <td><p>The box curriculum parameters at the end of the curriculum.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Classes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedCylindersTerrainCfg.ObjectCfg" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedCylindersTerrainCfg.ObjectCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ObjectCfg</span></code></a></p></td>
+<td><p>Configuration for repeated cylinder.</p></td>
 </tr>
 </tbody>
 </table>
@@ -4283,6 +4685,12 @@ corresponding configurations.</p>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedCylindersTerrainCfg.ObjectCfg.num_objects" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedCylindersTerrainCfg.ObjectCfg.num_objects"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_objects</span></code></a></p></td>
+<td><p>The number of objects to add to the terrain.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedCylindersTerrainCfg.ObjectCfg.height" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedCylindersTerrainCfg.ObjectCfg.height"><code class="xref py py-obj docutils literal notranslate"><span class="pre">height</span></code></a></p></td>
+<td><p>The height (along z) of the object (in m).</p></td>
+</tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedCylindersTerrainCfg.ObjectCfg.radius" title="omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedCylindersTerrainCfg.ObjectCfg.radius"><code class="xref py py-obj docutils literal notranslate"><span class="pre">radius</span></code></a></p></td>
 <td><p>The radius of the pyramids (in m).</p></td>
 </tr>
@@ -4980,7 +5388,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 23, 2024.
+  Last updated on Oct 24, 2024.
   <br/>
 </p>
   </div>

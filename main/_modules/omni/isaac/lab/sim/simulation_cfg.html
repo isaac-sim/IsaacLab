@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.2.0" />
-    <meta name="docbuild:last-update" content="Oct 23, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 24, 2024"/>
   </head>
   
   
@@ -651,6 +651,54 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Size of particle contacts stream buffer allocated in pinned host memory. Default is 2 ** 20.&quot;&quot;&quot;</span></div>
 
 
+<div class="viewcode-block" id="RenderCfg"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.RenderCfg">[docs]</a><span class="nd">@configclass</span>
+<span class="k">class</span> <span class="nc">RenderCfg</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for Omniverse RTX Renderer.</span>
+
+<span class="sd">    These parameters are used to configure the Omniverse RTX Renderer.</span>
+<span class="sd">    For more information, see the `Omniverse RTX Renderer documentation`_.</span>
+
+<span class="sd">    .. _Omniverse RTX Renderer documentation: https://docs.omniverse.nvidia.com/materials-and-rendering/latest/rtx-renderer.html</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">enable_translucency</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Enables translucency for specular transmissive surfaces such as glass at the cost of some performance. Default is False.&quot;&quot;&quot;</span>
+
+    <span class="n">enable_reflections</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Enables reflections at the cost of some performance. Default is False.&quot;&quot;&quot;</span>
+
+    <span class="n">enable_global_illumination</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Enables Diffused Global Illumination at the cost of some performance. Default is False.&quot;&quot;&quot;</span>
+
+    <span class="n">antialiasing_mode</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;Off&quot;</span><span class="p">,</span> <span class="s2">&quot;FXAA&quot;</span><span class="p">,</span> <span class="s2">&quot;DLSS&quot;</span><span class="p">,</span> <span class="s2">&quot;TAA&quot;</span><span class="p">,</span> <span class="s2">&quot;DLAA&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;DLSS&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Selects the anti-aliasing mode to use. Defaults to DLSS.&quot;&quot;&quot;</span>
+
+    <span class="n">enable_dlssg</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;&quot;Enables the use of DLSS-G.</span>
+<span class="sd">        DLSS Frame Generation boosts performance by using AI to generate more frames.</span>
+<span class="sd">        DLSS analyzes sequential frames and motion data to create additional high quality frames.</span>
+<span class="sd">        This feature requires an Ada Lovelace architecture GPU.</span>
+<span class="sd">        Enabling this feature also enables additional thread-related activities, which can hurt performance.</span>
+<span class="sd">        Default is False.&quot;&quot;&quot;</span>
+
+    <span class="n">dlss_mode</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;For DLSS anti-aliasing, selects the performance/quality tradeoff mode.</span>
+<span class="sd">       Valid values are 0 (Performance), 1 (Balanced), 2 (Quality), or 3 (Auto). Default is 0.&quot;&quot;&quot;</span>
+
+    <span class="n">enable_direct_lighting</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Enable direct light contributions from lights.&quot;&quot;&quot;</span>
+
+    <span class="n">samples_per_pixel</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Defines the Direct Lighting samples per pixel.</span>
+<span class="sd">       Higher values increase the direct lighting quality at the cost of performance. Default is 1.&quot;&quot;&quot;</span>
+
+    <span class="n">enable_shadows</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Enables shadows at the cost of performance. When disabled, lights will not cast shadows. Defaults to True.&quot;&quot;&quot;</span>
+
+    <span class="n">enable_ambient_occlusion</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Enables ambient occlusion at the cost of some performance. Default is False.&quot;&quot;&quot;</span></div>
+
+
 <div class="viewcode-block" id="SimulationCfg"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationCfg">[docs]</a><span class="nd">@configclass</span>
 <span class="k">class</span> <span class="nc">SimulationCfg</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for simulation physics.&quot;&quot;&quot;</span>
@@ -732,7 +780,10 @@
 <span class="sd">    physics material specified on them.</span>
 
 <span class="sd">    The material is created at the path: ``{physics_prim_path}/defaultMaterial``.</span>
-<span class="sd">    &quot;&quot;&quot;</span></div>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">render</span><span class="p">:</span> <span class="n">RenderCfg</span> <span class="o">=</span> <span class="n">RenderCfg</span><span class="p">()</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Render settings. Default is RenderCfg().&quot;&quot;&quot;</span></div>
 </pre></div>
 
                 </article>
@@ -780,7 +831,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 23, 2024.
+  Last updated on Oct 24, 2024.
   <br/>
 </p>
   </div>

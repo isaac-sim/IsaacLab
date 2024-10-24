@@ -63,7 +63,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.2.0" />
-    <meta name="docbuild:last-update" content="Oct 23, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 24, 2024"/>
   </head>
   
   
@@ -1296,6 +1296,18 @@ to the prim outside of the properties available by default when spawning the pri
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.RigidObjectSpawnerCfg.mass_props" title="omni.isaac.lab.sim.spawners.RigidObjectSpawnerCfg.mass_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">mass_props</span></code></a></p></td>
 <td><p>Mass properties.</p></td>
 </tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.RigidObjectSpawnerCfg.func" title="omni.isaac.lab.sim.spawners.RigidObjectSpawnerCfg.func"><code class="xref py py-obj docutils literal notranslate"><span class="pre">func</span></code></a></p></td>
+<td><p>Function to use for spawning the asset.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.RigidObjectSpawnerCfg.visible" title="omni.isaac.lab.sim.spawners.RigidObjectSpawnerCfg.visible"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visible</span></code></a></p></td>
+<td><p>Whether the spawned asset should be visible.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.RigidObjectSpawnerCfg.semantic_tags" title="omni.isaac.lab.sim.spawners.RigidObjectSpawnerCfg.semantic_tags"><code class="xref py py-obj docutils literal notranslate"><span class="pre">semantic_tags</span></code></a></p></td>
+<td><p>List of semantic tags to add to the spawned asset.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.RigidObjectSpawnerCfg.copy_from_source" title="omni.isaac.lab.sim.spawners.RigidObjectSpawnerCfg.copy_from_source"><code class="xref py py-obj docutils literal notranslate"><span class="pre">copy_from_source</span></code></a></p></td>
+<td><p>Whether to copy the asset from the source prim or inherit it.</p></td>
+</tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.RigidObjectSpawnerCfg.rigid_props" title="omni.isaac.lab.sim.spawners.RigidObjectSpawnerCfg.rigid_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rigid_props</span></code></a></p></td>
 <td><p>Rigid body properties.</p></td>
 </tr>
@@ -1394,6 +1406,18 @@ to the prim outside of the properties available by default when spawning the pri
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.DeformableObjectSpawnerCfg.func" title="omni.isaac.lab.sim.spawners.DeformableObjectSpawnerCfg.func"><code class="xref py py-obj docutils literal notranslate"><span class="pre">func</span></code></a></p></td>
+<td><p>Function to use for spawning the asset.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.DeformableObjectSpawnerCfg.visible" title="omni.isaac.lab.sim.spawners.DeformableObjectSpawnerCfg.visible"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visible</span></code></a></p></td>
+<td><p>Whether the spawned asset should be visible.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.DeformableObjectSpawnerCfg.semantic_tags" title="omni.isaac.lab.sim.spawners.DeformableObjectSpawnerCfg.semantic_tags"><code class="xref py py-obj docutils literal notranslate"><span class="pre">semantic_tags</span></code></a></p></td>
+<td><p>List of semantic tags to add to the spawned asset.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.DeformableObjectSpawnerCfg.copy_from_source" title="omni.isaac.lab.sim.spawners.DeformableObjectSpawnerCfg.copy_from_source"><code class="xref py py-obj docutils literal notranslate"><span class="pre">copy_from_source</span></code></a></p></td>
+<td><p>Whether to copy the asset from the source prim or inherit it.</p></td>
+</tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.DeformableObjectSpawnerCfg.mass_props" title="omni.isaac.lab.sim.spawners.DeformableObjectSpawnerCfg.mass_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">mass_props</span></code></a></p></td>
 <td><p>Mass properties.</p></td>
 </tr>
@@ -1510,6 +1534,27 @@ on the configuration, the spawned prim can be:</p>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.ShapeCfg.physics_material" title="omni.isaac.lab.sim.spawners.shapes.ShapeCfg.physics_material"><code class="xref py py-obj docutils literal notranslate"><span class="pre">physics_material</span></code></a></p></td>
 <td><p>Physics material properties.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.ShapeCfg.visible" title="omni.isaac.lab.sim.spawners.shapes.ShapeCfg.visible"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visible</span></code></a></p></td>
+<td><p>Whether the spawned asset should be visible.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.ShapeCfg.semantic_tags" title="omni.isaac.lab.sim.spawners.shapes.ShapeCfg.semantic_tags"><code class="xref py py-obj docutils literal notranslate"><span class="pre">semantic_tags</span></code></a></p></td>
+<td><p>List of semantic tags to add to the spawned asset.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.ShapeCfg.copy_from_source" title="omni.isaac.lab.sim.spawners.shapes.ShapeCfg.copy_from_source"><code class="xref py py-obj docutils literal notranslate"><span class="pre">copy_from_source</span></code></a></p></td>
+<td><p>Whether to copy the asset from the source prim or inherit it.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.ShapeCfg.mass_props" title="omni.isaac.lab.sim.spawners.shapes.ShapeCfg.mass_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">mass_props</span></code></a></p></td>
+<td><p>Mass properties.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.ShapeCfg.rigid_props" title="omni.isaac.lab.sim.spawners.shapes.ShapeCfg.rigid_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rigid_props</span></code></a></p></td>
+<td><p>Rigid body properties.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.ShapeCfg.collision_props" title="omni.isaac.lab.sim.spawners.shapes.ShapeCfg.collision_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collision_props</span></code></a></p></td>
+<td><p>Properties to apply to all collision meshes.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.ShapeCfg.activate_contact_sensors" title="omni.isaac.lab.sim.spawners.shapes.ShapeCfg.activate_contact_sensors"><code class="xref py py-obj docutils literal notranslate"><span class="pre">activate_contact_sensors</span></code></a></p></td>
+<td><p>Activate contact reporting on all rigid bodies.</p></td>
 </tr>
 </tbody>
 </table>
@@ -1652,13 +1697,46 @@ in which case this is set to identity.</p></li>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.CapsuleCfg.radius" title="omni.isaac.lab.sim.spawners.shapes.CapsuleCfg.radius"><code class="xref py py-obj docutils literal notranslate"><span class="pre">radius</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.CapsuleCfg.visible" title="omni.isaac.lab.sim.spawners.shapes.CapsuleCfg.visible"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visible</span></code></a></p></td>
+<td><p>Whether the spawned asset should be visible.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.CapsuleCfg.semantic_tags" title="omni.isaac.lab.sim.spawners.shapes.CapsuleCfg.semantic_tags"><code class="xref py py-obj docutils literal notranslate"><span class="pre">semantic_tags</span></code></a></p></td>
+<td><p>List of semantic tags to add to the spawned asset.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.CapsuleCfg.copy_from_source" title="omni.isaac.lab.sim.spawners.shapes.CapsuleCfg.copy_from_source"><code class="xref py py-obj docutils literal notranslate"><span class="pre">copy_from_source</span></code></a></p></td>
+<td><p>Whether to copy the asset from the source prim or inherit it.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.CapsuleCfg.mass_props" title="omni.isaac.lab.sim.spawners.shapes.CapsuleCfg.mass_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">mass_props</span></code></a></p></td>
+<td><p>Mass properties.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.CapsuleCfg.rigid_props" title="omni.isaac.lab.sim.spawners.shapes.CapsuleCfg.rigid_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rigid_props</span></code></a></p></td>
+<td><p>Rigid body properties.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.CapsuleCfg.collision_props" title="omni.isaac.lab.sim.spawners.shapes.CapsuleCfg.collision_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collision_props</span></code></a></p></td>
+<td><p>Properties to apply to all collision meshes.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.CapsuleCfg.activate_contact_sensors" title="omni.isaac.lab.sim.spawners.shapes.CapsuleCfg.activate_contact_sensors"><code class="xref py py-obj docutils literal notranslate"><span class="pre">activate_contact_sensors</span></code></a></p></td>
+<td><p>Activate contact reporting on all rigid bodies.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.CapsuleCfg.visual_material_path" title="omni.isaac.lab.sim.spawners.shapes.CapsuleCfg.visual_material_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visual_material_path</span></code></a></p></td>
+<td><p>Path to the visual material to use for the prim.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.CapsuleCfg.visual_material" title="omni.isaac.lab.sim.spawners.shapes.CapsuleCfg.visual_material"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visual_material</span></code></a></p></td>
+<td><p>Visual material properties.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.CapsuleCfg.physics_material_path" title="omni.isaac.lab.sim.spawners.shapes.CapsuleCfg.physics_material_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">physics_material_path</span></code></a></p></td>
+<td><p>Path to the physics material to use for the prim.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.CapsuleCfg.physics_material" title="omni.isaac.lab.sim.spawners.shapes.CapsuleCfg.physics_material"><code class="xref py py-obj docutils literal notranslate"><span class="pre">physics_material</span></code></a></p></td>
+<td><p>Physics material properties.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.CapsuleCfg.radius" title="omni.isaac.lab.sim.spawners.shapes.CapsuleCfg.radius"><code class="xref py py-obj docutils literal notranslate"><span class="pre">radius</span></code></a></p></td>
 <td><p>Radius of the capsule (in m).</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.CapsuleCfg.height" title="omni.isaac.lab.sim.spawners.shapes.CapsuleCfg.height"><code class="xref py py-obj docutils literal notranslate"><span class="pre">height</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.CapsuleCfg.height" title="omni.isaac.lab.sim.spawners.shapes.CapsuleCfg.height"><code class="xref py py-obj docutils literal notranslate"><span class="pre">height</span></code></a></p></td>
 <td><p>Height of the capsule (in m).</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.CapsuleCfg.axis" title="omni.isaac.lab.sim.spawners.shapes.CapsuleCfg.axis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">axis</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.CapsuleCfg.axis" title="omni.isaac.lab.sim.spawners.shapes.CapsuleCfg.axis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">axis</span></code></a></p></td>
 <td><p>Axis of the capsule.</p></td>
 </tr>
 </tbody>
@@ -1820,13 +1898,46 @@ in which case this is set to identity.</p></li>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.ConeCfg.radius" title="omni.isaac.lab.sim.spawners.shapes.ConeCfg.radius"><code class="xref py py-obj docutils literal notranslate"><span class="pre">radius</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.ConeCfg.visible" title="omni.isaac.lab.sim.spawners.shapes.ConeCfg.visible"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visible</span></code></a></p></td>
+<td><p>Whether the spawned asset should be visible.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.ConeCfg.semantic_tags" title="omni.isaac.lab.sim.spawners.shapes.ConeCfg.semantic_tags"><code class="xref py py-obj docutils literal notranslate"><span class="pre">semantic_tags</span></code></a></p></td>
+<td><p>List of semantic tags to add to the spawned asset.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.ConeCfg.copy_from_source" title="omni.isaac.lab.sim.spawners.shapes.ConeCfg.copy_from_source"><code class="xref py py-obj docutils literal notranslate"><span class="pre">copy_from_source</span></code></a></p></td>
+<td><p>Whether to copy the asset from the source prim or inherit it.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.ConeCfg.mass_props" title="omni.isaac.lab.sim.spawners.shapes.ConeCfg.mass_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">mass_props</span></code></a></p></td>
+<td><p>Mass properties.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.ConeCfg.rigid_props" title="omni.isaac.lab.sim.spawners.shapes.ConeCfg.rigid_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rigid_props</span></code></a></p></td>
+<td><p>Rigid body properties.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.ConeCfg.collision_props" title="omni.isaac.lab.sim.spawners.shapes.ConeCfg.collision_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collision_props</span></code></a></p></td>
+<td><p>Properties to apply to all collision meshes.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.ConeCfg.activate_contact_sensors" title="omni.isaac.lab.sim.spawners.shapes.ConeCfg.activate_contact_sensors"><code class="xref py py-obj docutils literal notranslate"><span class="pre">activate_contact_sensors</span></code></a></p></td>
+<td><p>Activate contact reporting on all rigid bodies.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.ConeCfg.visual_material_path" title="omni.isaac.lab.sim.spawners.shapes.ConeCfg.visual_material_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visual_material_path</span></code></a></p></td>
+<td><p>Path to the visual material to use for the prim.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.ConeCfg.visual_material" title="omni.isaac.lab.sim.spawners.shapes.ConeCfg.visual_material"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visual_material</span></code></a></p></td>
+<td><p>Visual material properties.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.ConeCfg.physics_material_path" title="omni.isaac.lab.sim.spawners.shapes.ConeCfg.physics_material_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">physics_material_path</span></code></a></p></td>
+<td><p>Path to the physics material to use for the prim.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.ConeCfg.physics_material" title="omni.isaac.lab.sim.spawners.shapes.ConeCfg.physics_material"><code class="xref py py-obj docutils literal notranslate"><span class="pre">physics_material</span></code></a></p></td>
+<td><p>Physics material properties.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.ConeCfg.radius" title="omni.isaac.lab.sim.spawners.shapes.ConeCfg.radius"><code class="xref py py-obj docutils literal notranslate"><span class="pre">radius</span></code></a></p></td>
 <td><p>Radius of the cone (in m).</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.ConeCfg.height" title="omni.isaac.lab.sim.spawners.shapes.ConeCfg.height"><code class="xref py py-obj docutils literal notranslate"><span class="pre">height</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.ConeCfg.height" title="omni.isaac.lab.sim.spawners.shapes.ConeCfg.height"><code class="xref py py-obj docutils literal notranslate"><span class="pre">height</span></code></a></p></td>
 <td><p>Height of the v (in m).</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.ConeCfg.axis" title="omni.isaac.lab.sim.spawners.shapes.ConeCfg.axis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">axis</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.ConeCfg.axis" title="omni.isaac.lab.sim.spawners.shapes.ConeCfg.axis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">axis</span></code></a></p></td>
 <td><p>Axis of the cone.</p></td>
 </tr>
 </tbody>
@@ -1996,6 +2107,39 @@ in which case this is set to identity.</p></li>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.CuboidCfg.size" title="omni.isaac.lab.sim.spawners.shapes.CuboidCfg.size"><code class="xref py py-obj docutils literal notranslate"><span class="pre">size</span></code></a></p></td>
 <td><p>Size of the cuboid.</p></td>
 </tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.CuboidCfg.visible" title="omni.isaac.lab.sim.spawners.shapes.CuboidCfg.visible"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visible</span></code></a></p></td>
+<td><p>Whether the spawned asset should be visible.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.CuboidCfg.semantic_tags" title="omni.isaac.lab.sim.spawners.shapes.CuboidCfg.semantic_tags"><code class="xref py py-obj docutils literal notranslate"><span class="pre">semantic_tags</span></code></a></p></td>
+<td><p>List of semantic tags to add to the spawned asset.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.CuboidCfg.copy_from_source" title="omni.isaac.lab.sim.spawners.shapes.CuboidCfg.copy_from_source"><code class="xref py py-obj docutils literal notranslate"><span class="pre">copy_from_source</span></code></a></p></td>
+<td><p>Whether to copy the asset from the source prim or inherit it.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.CuboidCfg.mass_props" title="omni.isaac.lab.sim.spawners.shapes.CuboidCfg.mass_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">mass_props</span></code></a></p></td>
+<td><p>Mass properties.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.CuboidCfg.rigid_props" title="omni.isaac.lab.sim.spawners.shapes.CuboidCfg.rigid_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rigid_props</span></code></a></p></td>
+<td><p>Rigid body properties.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.CuboidCfg.collision_props" title="omni.isaac.lab.sim.spawners.shapes.CuboidCfg.collision_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collision_props</span></code></a></p></td>
+<td><p>Properties to apply to all collision meshes.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.CuboidCfg.activate_contact_sensors" title="omni.isaac.lab.sim.spawners.shapes.CuboidCfg.activate_contact_sensors"><code class="xref py py-obj docutils literal notranslate"><span class="pre">activate_contact_sensors</span></code></a></p></td>
+<td><p>Activate contact reporting on all rigid bodies.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.CuboidCfg.visual_material_path" title="omni.isaac.lab.sim.spawners.shapes.CuboidCfg.visual_material_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visual_material_path</span></code></a></p></td>
+<td><p>Path to the visual material to use for the prim.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.CuboidCfg.visual_material" title="omni.isaac.lab.sim.spawners.shapes.CuboidCfg.visual_material"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visual_material</span></code></a></p></td>
+<td><p>Visual material properties.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.CuboidCfg.physics_material_path" title="omni.isaac.lab.sim.spawners.shapes.CuboidCfg.physics_material_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">physics_material_path</span></code></a></p></td>
+<td><p>Path to the physics material to use for the prim.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.CuboidCfg.physics_material" title="omni.isaac.lab.sim.spawners.shapes.CuboidCfg.physics_material"><code class="xref py py-obj docutils literal notranslate"><span class="pre">physics_material</span></code></a></p></td>
+<td><p>Physics material properties.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -2151,6 +2295,39 @@ in which case this is set to identity.</p></li>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.CylinderCfg.axis" title="omni.isaac.lab.sim.spawners.shapes.CylinderCfg.axis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">axis</span></code></a></p></td>
 <td><p>Axis of the cylinder.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.CylinderCfg.visible" title="omni.isaac.lab.sim.spawners.shapes.CylinderCfg.visible"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visible</span></code></a></p></td>
+<td><p>Whether the spawned asset should be visible.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.CylinderCfg.semantic_tags" title="omni.isaac.lab.sim.spawners.shapes.CylinderCfg.semantic_tags"><code class="xref py py-obj docutils literal notranslate"><span class="pre">semantic_tags</span></code></a></p></td>
+<td><p>List of semantic tags to add to the spawned asset.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.CylinderCfg.copy_from_source" title="omni.isaac.lab.sim.spawners.shapes.CylinderCfg.copy_from_source"><code class="xref py py-obj docutils literal notranslate"><span class="pre">copy_from_source</span></code></a></p></td>
+<td><p>Whether to copy the asset from the source prim or inherit it.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.CylinderCfg.mass_props" title="omni.isaac.lab.sim.spawners.shapes.CylinderCfg.mass_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">mass_props</span></code></a></p></td>
+<td><p>Mass properties.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.CylinderCfg.rigid_props" title="omni.isaac.lab.sim.spawners.shapes.CylinderCfg.rigid_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rigid_props</span></code></a></p></td>
+<td><p>Rigid body properties.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.CylinderCfg.collision_props" title="omni.isaac.lab.sim.spawners.shapes.CylinderCfg.collision_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collision_props</span></code></a></p></td>
+<td><p>Properties to apply to all collision meshes.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.CylinderCfg.activate_contact_sensors" title="omni.isaac.lab.sim.spawners.shapes.CylinderCfg.activate_contact_sensors"><code class="xref py py-obj docutils literal notranslate"><span class="pre">activate_contact_sensors</span></code></a></p></td>
+<td><p>Activate contact reporting on all rigid bodies.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.CylinderCfg.visual_material_path" title="omni.isaac.lab.sim.spawners.shapes.CylinderCfg.visual_material_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visual_material_path</span></code></a></p></td>
+<td><p>Path to the visual material to use for the prim.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.CylinderCfg.visual_material" title="omni.isaac.lab.sim.spawners.shapes.CylinderCfg.visual_material"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visual_material</span></code></a></p></td>
+<td><p>Visual material properties.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.CylinderCfg.physics_material_path" title="omni.isaac.lab.sim.spawners.shapes.CylinderCfg.physics_material_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">physics_material_path</span></code></a></p></td>
+<td><p>Path to the physics material to use for the prim.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.CylinderCfg.physics_material" title="omni.isaac.lab.sim.spawners.shapes.CylinderCfg.physics_material"><code class="xref py py-obj docutils literal notranslate"><span class="pre">physics_material</span></code></a></p></td>
+<td><p>Physics material properties.</p></td>
 </tr>
 </tbody>
 </table>
@@ -2313,6 +2490,39 @@ in which case this is set to identity.</p></li>
 <tbody>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.SphereCfg.radius" title="omni.isaac.lab.sim.spawners.shapes.SphereCfg.radius"><code class="xref py py-obj docutils literal notranslate"><span class="pre">radius</span></code></a></p></td>
 <td><p>Radius of the sphere (in m).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.SphereCfg.visible" title="omni.isaac.lab.sim.spawners.shapes.SphereCfg.visible"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visible</span></code></a></p></td>
+<td><p>Whether the spawned asset should be visible.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.SphereCfg.semantic_tags" title="omni.isaac.lab.sim.spawners.shapes.SphereCfg.semantic_tags"><code class="xref py py-obj docutils literal notranslate"><span class="pre">semantic_tags</span></code></a></p></td>
+<td><p>List of semantic tags to add to the spawned asset.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.SphereCfg.copy_from_source" title="omni.isaac.lab.sim.spawners.shapes.SphereCfg.copy_from_source"><code class="xref py py-obj docutils literal notranslate"><span class="pre">copy_from_source</span></code></a></p></td>
+<td><p>Whether to copy the asset from the source prim or inherit it.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.SphereCfg.mass_props" title="omni.isaac.lab.sim.spawners.shapes.SphereCfg.mass_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">mass_props</span></code></a></p></td>
+<td><p>Mass properties.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.SphereCfg.rigid_props" title="omni.isaac.lab.sim.spawners.shapes.SphereCfg.rigid_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rigid_props</span></code></a></p></td>
+<td><p>Rigid body properties.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.SphereCfg.collision_props" title="omni.isaac.lab.sim.spawners.shapes.SphereCfg.collision_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collision_props</span></code></a></p></td>
+<td><p>Properties to apply to all collision meshes.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.SphereCfg.activate_contact_sensors" title="omni.isaac.lab.sim.spawners.shapes.SphereCfg.activate_contact_sensors"><code class="xref py py-obj docutils literal notranslate"><span class="pre">activate_contact_sensors</span></code></a></p></td>
+<td><p>Activate contact reporting on all rigid bodies.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.SphereCfg.visual_material_path" title="omni.isaac.lab.sim.spawners.shapes.SphereCfg.visual_material_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visual_material_path</span></code></a></p></td>
+<td><p>Path to the visual material to use for the prim.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.SphereCfg.visual_material" title="omni.isaac.lab.sim.spawners.shapes.SphereCfg.visual_material"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visual_material</span></code></a></p></td>
+<td><p>Visual material properties.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.SphereCfg.physics_material_path" title="omni.isaac.lab.sim.spawners.shapes.SphereCfg.physics_material_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">physics_material_path</span></code></a></p></td>
+<td><p>Path to the physics material to use for the prim.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.shapes.SphereCfg.physics_material" title="omni.isaac.lab.sim.spawners.shapes.SphereCfg.physics_material"><code class="xref py py-obj docutils literal notranslate"><span class="pre">physics_material</span></code></a></p></td>
+<td><p>Physics material properties.</p></td>
 </tr>
 </tbody>
 </table>
@@ -2495,6 +2705,30 @@ then an error will be raised. This also holds if collision and deformable proper
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshCfg.physics_material" title="omni.isaac.lab.sim.spawners.meshes.MeshCfg.physics_material"><code class="xref py py-obj docutils literal notranslate"><span class="pre">physics_material</span></code></a></p></td>
 <td><p>Physics material properties.</p></td>
 </tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshCfg.visible" title="omni.isaac.lab.sim.spawners.meshes.MeshCfg.visible"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visible</span></code></a></p></td>
+<td><p>Whether the spawned asset should be visible.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshCfg.semantic_tags" title="omni.isaac.lab.sim.spawners.meshes.MeshCfg.semantic_tags"><code class="xref py py-obj docutils literal notranslate"><span class="pre">semantic_tags</span></code></a></p></td>
+<td><p>List of semantic tags to add to the spawned asset.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshCfg.copy_from_source" title="omni.isaac.lab.sim.spawners.meshes.MeshCfg.copy_from_source"><code class="xref py py-obj docutils literal notranslate"><span class="pre">copy_from_source</span></code></a></p></td>
+<td><p>Whether to copy the asset from the source prim or inherit it.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshCfg.mass_props" title="omni.isaac.lab.sim.spawners.meshes.MeshCfg.mass_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">mass_props</span></code></a></p></td>
+<td><p>Mass properties.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshCfg.deformable_props" title="omni.isaac.lab.sim.spawners.meshes.MeshCfg.deformable_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">deformable_props</span></code></a></p></td>
+<td><p>Deformable body properties.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshCfg.rigid_props" title="omni.isaac.lab.sim.spawners.meshes.MeshCfg.rigid_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rigid_props</span></code></a></p></td>
+<td><p>Rigid body properties.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshCfg.collision_props" title="omni.isaac.lab.sim.spawners.meshes.MeshCfg.collision_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collision_props</span></code></a></p></td>
+<td><p>Properties to apply to all collision meshes.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshCfg.activate_contact_sensors" title="omni.isaac.lab.sim.spawners.meshes.MeshCfg.activate_contact_sensors"><code class="xref py py-obj docutils literal notranslate"><span class="pre">activate_contact_sensors</span></code></a></p></td>
+<td><p>Activate contact reporting on all rigid bodies.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -2641,6 +2875,42 @@ in which case this is set to identity.</p></li>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshCapsuleCfg.visible" title="omni.isaac.lab.sim.spawners.meshes.MeshCapsuleCfg.visible"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visible</span></code></a></p></td>
+<td><p>Whether the spawned asset should be visible.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshCapsuleCfg.semantic_tags" title="omni.isaac.lab.sim.spawners.meshes.MeshCapsuleCfg.semantic_tags"><code class="xref py py-obj docutils literal notranslate"><span class="pre">semantic_tags</span></code></a></p></td>
+<td><p>List of semantic tags to add to the spawned asset.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshCapsuleCfg.copy_from_source" title="omni.isaac.lab.sim.spawners.meshes.MeshCapsuleCfg.copy_from_source"><code class="xref py py-obj docutils literal notranslate"><span class="pre">copy_from_source</span></code></a></p></td>
+<td><p>Whether to copy the asset from the source prim or inherit it.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshCapsuleCfg.mass_props" title="omni.isaac.lab.sim.spawners.meshes.MeshCapsuleCfg.mass_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">mass_props</span></code></a></p></td>
+<td><p>Mass properties.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshCapsuleCfg.deformable_props" title="omni.isaac.lab.sim.spawners.meshes.MeshCapsuleCfg.deformable_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">deformable_props</span></code></a></p></td>
+<td><p>Deformable body properties.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshCapsuleCfg.rigid_props" title="omni.isaac.lab.sim.spawners.meshes.MeshCapsuleCfg.rigid_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rigid_props</span></code></a></p></td>
+<td><p>Rigid body properties.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshCapsuleCfg.collision_props" title="omni.isaac.lab.sim.spawners.meshes.MeshCapsuleCfg.collision_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collision_props</span></code></a></p></td>
+<td><p>Properties to apply to all collision meshes.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshCapsuleCfg.activate_contact_sensors" title="omni.isaac.lab.sim.spawners.meshes.MeshCapsuleCfg.activate_contact_sensors"><code class="xref py py-obj docutils literal notranslate"><span class="pre">activate_contact_sensors</span></code></a></p></td>
+<td><p>Activate contact reporting on all rigid bodies.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshCapsuleCfg.visual_material_path" title="omni.isaac.lab.sim.spawners.meshes.MeshCapsuleCfg.visual_material_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visual_material_path</span></code></a></p></td>
+<td><p>Path to the visual material to use for the prim.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshCapsuleCfg.visual_material" title="omni.isaac.lab.sim.spawners.meshes.MeshCapsuleCfg.visual_material"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visual_material</span></code></a></p></td>
+<td><p>Visual material properties.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshCapsuleCfg.physics_material_path" title="omni.isaac.lab.sim.spawners.meshes.MeshCapsuleCfg.physics_material_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">physics_material_path</span></code></a></p></td>
+<td><p>Path to the physics material to use for the prim.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshCapsuleCfg.physics_material" title="omni.isaac.lab.sim.spawners.meshes.MeshCapsuleCfg.physics_material"><code class="xref py py-obj docutils literal notranslate"><span class="pre">physics_material</span></code></a></p></td>
+<td><p>Physics material properties.</p></td>
+</tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshCapsuleCfg.radius" title="omni.isaac.lab.sim.spawners.meshes.MeshCapsuleCfg.radius"><code class="xref py py-obj docutils literal notranslate"><span class="pre">radius</span></code></a></p></td>
 <td><p>Radius of the capsule (in m).</p></td>
 </tr>
@@ -2814,6 +3084,42 @@ in which case this is set to identity.</p></li>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshConeCfg.visible" title="omni.isaac.lab.sim.spawners.meshes.MeshConeCfg.visible"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visible</span></code></a></p></td>
+<td><p>Whether the spawned asset should be visible.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshConeCfg.semantic_tags" title="omni.isaac.lab.sim.spawners.meshes.MeshConeCfg.semantic_tags"><code class="xref py py-obj docutils literal notranslate"><span class="pre">semantic_tags</span></code></a></p></td>
+<td><p>List of semantic tags to add to the spawned asset.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshConeCfg.copy_from_source" title="omni.isaac.lab.sim.spawners.meshes.MeshConeCfg.copy_from_source"><code class="xref py py-obj docutils literal notranslate"><span class="pre">copy_from_source</span></code></a></p></td>
+<td><p>Whether to copy the asset from the source prim or inherit it.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshConeCfg.mass_props" title="omni.isaac.lab.sim.spawners.meshes.MeshConeCfg.mass_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">mass_props</span></code></a></p></td>
+<td><p>Mass properties.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshConeCfg.deformable_props" title="omni.isaac.lab.sim.spawners.meshes.MeshConeCfg.deformable_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">deformable_props</span></code></a></p></td>
+<td><p>Deformable body properties.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshConeCfg.rigid_props" title="omni.isaac.lab.sim.spawners.meshes.MeshConeCfg.rigid_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rigid_props</span></code></a></p></td>
+<td><p>Rigid body properties.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshConeCfg.collision_props" title="omni.isaac.lab.sim.spawners.meshes.MeshConeCfg.collision_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collision_props</span></code></a></p></td>
+<td><p>Properties to apply to all collision meshes.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshConeCfg.activate_contact_sensors" title="omni.isaac.lab.sim.spawners.meshes.MeshConeCfg.activate_contact_sensors"><code class="xref py py-obj docutils literal notranslate"><span class="pre">activate_contact_sensors</span></code></a></p></td>
+<td><p>Activate contact reporting on all rigid bodies.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshConeCfg.visual_material_path" title="omni.isaac.lab.sim.spawners.meshes.MeshConeCfg.visual_material_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visual_material_path</span></code></a></p></td>
+<td><p>Path to the visual material to use for the prim.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshConeCfg.visual_material" title="omni.isaac.lab.sim.spawners.meshes.MeshConeCfg.visual_material"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visual_material</span></code></a></p></td>
+<td><p>Visual material properties.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshConeCfg.physics_material_path" title="omni.isaac.lab.sim.spawners.meshes.MeshConeCfg.physics_material_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">physics_material_path</span></code></a></p></td>
+<td><p>Path to the physics material to use for the prim.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshConeCfg.physics_material" title="omni.isaac.lab.sim.spawners.meshes.MeshConeCfg.physics_material"><code class="xref py py-obj docutils literal notranslate"><span class="pre">physics_material</span></code></a></p></td>
+<td><p>Physics material properties.</p></td>
+</tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshConeCfg.radius" title="omni.isaac.lab.sim.spawners.meshes.MeshConeCfg.radius"><code class="xref py py-obj docutils literal notranslate"><span class="pre">radius</span></code></a></p></td>
 <td><p>Radius of the cone (in m).</p></td>
 </tr>
@@ -2990,6 +3296,42 @@ in which case this is set to identity.</p></li>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshCuboidCfg.size" title="omni.isaac.lab.sim.spawners.meshes.MeshCuboidCfg.size"><code class="xref py py-obj docutils literal notranslate"><span class="pre">size</span></code></a></p></td>
 <td><p>Size of the cuboid (in m).</p></td>
 </tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshCuboidCfg.visible" title="omni.isaac.lab.sim.spawners.meshes.MeshCuboidCfg.visible"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visible</span></code></a></p></td>
+<td><p>Whether the spawned asset should be visible.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshCuboidCfg.semantic_tags" title="omni.isaac.lab.sim.spawners.meshes.MeshCuboidCfg.semantic_tags"><code class="xref py py-obj docutils literal notranslate"><span class="pre">semantic_tags</span></code></a></p></td>
+<td><p>List of semantic tags to add to the spawned asset.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshCuboidCfg.copy_from_source" title="omni.isaac.lab.sim.spawners.meshes.MeshCuboidCfg.copy_from_source"><code class="xref py py-obj docutils literal notranslate"><span class="pre">copy_from_source</span></code></a></p></td>
+<td><p>Whether to copy the asset from the source prim or inherit it.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshCuboidCfg.mass_props" title="omni.isaac.lab.sim.spawners.meshes.MeshCuboidCfg.mass_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">mass_props</span></code></a></p></td>
+<td><p>Mass properties.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshCuboidCfg.deformable_props" title="omni.isaac.lab.sim.spawners.meshes.MeshCuboidCfg.deformable_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">deformable_props</span></code></a></p></td>
+<td><p>Deformable body properties.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshCuboidCfg.rigid_props" title="omni.isaac.lab.sim.spawners.meshes.MeshCuboidCfg.rigid_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rigid_props</span></code></a></p></td>
+<td><p>Rigid body properties.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshCuboidCfg.collision_props" title="omni.isaac.lab.sim.spawners.meshes.MeshCuboidCfg.collision_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collision_props</span></code></a></p></td>
+<td><p>Properties to apply to all collision meshes.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshCuboidCfg.activate_contact_sensors" title="omni.isaac.lab.sim.spawners.meshes.MeshCuboidCfg.activate_contact_sensors"><code class="xref py py-obj docutils literal notranslate"><span class="pre">activate_contact_sensors</span></code></a></p></td>
+<td><p>Activate contact reporting on all rigid bodies.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshCuboidCfg.visual_material_path" title="omni.isaac.lab.sim.spawners.meshes.MeshCuboidCfg.visual_material_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visual_material_path</span></code></a></p></td>
+<td><p>Path to the visual material to use for the prim.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshCuboidCfg.visual_material" title="omni.isaac.lab.sim.spawners.meshes.MeshCuboidCfg.visual_material"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visual_material</span></code></a></p></td>
+<td><p>Visual material properties.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshCuboidCfg.physics_material_path" title="omni.isaac.lab.sim.spawners.meshes.MeshCuboidCfg.physics_material_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">physics_material_path</span></code></a></p></td>
+<td><p>Path to the physics material to use for the prim.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshCuboidCfg.physics_material" title="omni.isaac.lab.sim.spawners.meshes.MeshCuboidCfg.physics_material"><code class="xref py py-obj docutils literal notranslate"><span class="pre">physics_material</span></code></a></p></td>
+<td><p>Physics material properties.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -3150,6 +3492,42 @@ in which case this is set to identity.</p></li>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshCylinderCfg.axis" title="omni.isaac.lab.sim.spawners.meshes.MeshCylinderCfg.axis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">axis</span></code></a></p></td>
 <td><p>Axis of the cylinder.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshCylinderCfg.visible" title="omni.isaac.lab.sim.spawners.meshes.MeshCylinderCfg.visible"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visible</span></code></a></p></td>
+<td><p>Whether the spawned asset should be visible.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshCylinderCfg.semantic_tags" title="omni.isaac.lab.sim.spawners.meshes.MeshCylinderCfg.semantic_tags"><code class="xref py py-obj docutils literal notranslate"><span class="pre">semantic_tags</span></code></a></p></td>
+<td><p>List of semantic tags to add to the spawned asset.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshCylinderCfg.copy_from_source" title="omni.isaac.lab.sim.spawners.meshes.MeshCylinderCfg.copy_from_source"><code class="xref py py-obj docutils literal notranslate"><span class="pre">copy_from_source</span></code></a></p></td>
+<td><p>Whether to copy the asset from the source prim or inherit it.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshCylinderCfg.mass_props" title="omni.isaac.lab.sim.spawners.meshes.MeshCylinderCfg.mass_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">mass_props</span></code></a></p></td>
+<td><p>Mass properties.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshCylinderCfg.deformable_props" title="omni.isaac.lab.sim.spawners.meshes.MeshCylinderCfg.deformable_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">deformable_props</span></code></a></p></td>
+<td><p>Deformable body properties.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshCylinderCfg.rigid_props" title="omni.isaac.lab.sim.spawners.meshes.MeshCylinderCfg.rigid_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rigid_props</span></code></a></p></td>
+<td><p>Rigid body properties.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshCylinderCfg.collision_props" title="omni.isaac.lab.sim.spawners.meshes.MeshCylinderCfg.collision_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collision_props</span></code></a></p></td>
+<td><p>Properties to apply to all collision meshes.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshCylinderCfg.activate_contact_sensors" title="omni.isaac.lab.sim.spawners.meshes.MeshCylinderCfg.activate_contact_sensors"><code class="xref py py-obj docutils literal notranslate"><span class="pre">activate_contact_sensors</span></code></a></p></td>
+<td><p>Activate contact reporting on all rigid bodies.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshCylinderCfg.visual_material_path" title="omni.isaac.lab.sim.spawners.meshes.MeshCylinderCfg.visual_material_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visual_material_path</span></code></a></p></td>
+<td><p>Path to the visual material to use for the prim.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshCylinderCfg.visual_material" title="omni.isaac.lab.sim.spawners.meshes.MeshCylinderCfg.visual_material"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visual_material</span></code></a></p></td>
+<td><p>Visual material properties.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshCylinderCfg.physics_material_path" title="omni.isaac.lab.sim.spawners.meshes.MeshCylinderCfg.physics_material_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">physics_material_path</span></code></a></p></td>
+<td><p>Path to the physics material to use for the prim.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshCylinderCfg.physics_material" title="omni.isaac.lab.sim.spawners.meshes.MeshCylinderCfg.physics_material"><code class="xref py py-obj docutils literal notranslate"><span class="pre">physics_material</span></code></a></p></td>
+<td><p>Physics material properties.</p></td>
 </tr>
 </tbody>
 </table>
@@ -3317,6 +3695,42 @@ in which case this is set to identity.</p></li>
 <tbody>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshSphereCfg.radius" title="omni.isaac.lab.sim.spawners.meshes.MeshSphereCfg.radius"><code class="xref py py-obj docutils literal notranslate"><span class="pre">radius</span></code></a></p></td>
 <td><p>Radius of the sphere (in m).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshSphereCfg.visible" title="omni.isaac.lab.sim.spawners.meshes.MeshSphereCfg.visible"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visible</span></code></a></p></td>
+<td><p>Whether the spawned asset should be visible.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshSphereCfg.semantic_tags" title="omni.isaac.lab.sim.spawners.meshes.MeshSphereCfg.semantic_tags"><code class="xref py py-obj docutils literal notranslate"><span class="pre">semantic_tags</span></code></a></p></td>
+<td><p>List of semantic tags to add to the spawned asset.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshSphereCfg.copy_from_source" title="omni.isaac.lab.sim.spawners.meshes.MeshSphereCfg.copy_from_source"><code class="xref py py-obj docutils literal notranslate"><span class="pre">copy_from_source</span></code></a></p></td>
+<td><p>Whether to copy the asset from the source prim or inherit it.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshSphereCfg.mass_props" title="omni.isaac.lab.sim.spawners.meshes.MeshSphereCfg.mass_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">mass_props</span></code></a></p></td>
+<td><p>Mass properties.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshSphereCfg.deformable_props" title="omni.isaac.lab.sim.spawners.meshes.MeshSphereCfg.deformable_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">deformable_props</span></code></a></p></td>
+<td><p>Deformable body properties.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshSphereCfg.rigid_props" title="omni.isaac.lab.sim.spawners.meshes.MeshSphereCfg.rigid_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rigid_props</span></code></a></p></td>
+<td><p>Rigid body properties.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshSphereCfg.collision_props" title="omni.isaac.lab.sim.spawners.meshes.MeshSphereCfg.collision_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collision_props</span></code></a></p></td>
+<td><p>Properties to apply to all collision meshes.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshSphereCfg.activate_contact_sensors" title="omni.isaac.lab.sim.spawners.meshes.MeshSphereCfg.activate_contact_sensors"><code class="xref py py-obj docutils literal notranslate"><span class="pre">activate_contact_sensors</span></code></a></p></td>
+<td><p>Activate contact reporting on all rigid bodies.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshSphereCfg.visual_material_path" title="omni.isaac.lab.sim.spawners.meshes.MeshSphereCfg.visual_material_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visual_material_path</span></code></a></p></td>
+<td><p>Path to the visual material to use for the prim.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshSphereCfg.visual_material" title="omni.isaac.lab.sim.spawners.meshes.MeshSphereCfg.visual_material"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visual_material</span></code></a></p></td>
+<td><p>Visual material properties.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshSphereCfg.physics_material_path" title="omni.isaac.lab.sim.spawners.meshes.MeshSphereCfg.physics_material_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">physics_material_path</span></code></a></p></td>
+<td><p>Path to the physics material to use for the prim.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.meshes.MeshSphereCfg.physics_material" title="omni.isaac.lab.sim.spawners.meshes.MeshSphereCfg.physics_material"><code class="xref py py-obj docutils literal notranslate"><span class="pre">physics_material</span></code></a></p></td>
+<td><p>Physics material properties.</p></td>
 </tr>
 </tbody>
 </table>
@@ -3522,6 +3936,15 @@ for more information.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.LightCfg.intensity" title="omni.isaac.lab.sim.spawners.lights.LightCfg.intensity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">intensity</span></code></a></p></td>
 <td><p>Scales the power of the light linearly.</p></td>
 </tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.LightCfg.visible" title="omni.isaac.lab.sim.spawners.lights.LightCfg.visible"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visible</span></code></a></p></td>
+<td><p>Whether the spawned asset should be visible.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.LightCfg.semantic_tags" title="omni.isaac.lab.sim.spawners.lights.LightCfg.semantic_tags"><code class="xref py py-obj docutils literal notranslate"><span class="pre">semantic_tags</span></code></a></p></td>
+<td><p>List of semantic tags to add to the spawned asset.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.LightCfg.copy_from_source" title="omni.isaac.lab.sim.spawners.lights.LightCfg.copy_from_source"><code class="xref py py-obj docutils literal notranslate"><span class="pre">copy_from_source</span></code></a></p></td>
+<td><p>Whether to copy the asset from the source prim or inherit it.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -3625,6 +4048,36 @@ fluorescent lights. For more information, please refer to the documentation on
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.CylinderLightCfg.visible" title="omni.isaac.lab.sim.spawners.lights.CylinderLightCfg.visible"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visible</span></code></a></p></td>
+<td><p>Whether the spawned asset should be visible.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.CylinderLightCfg.semantic_tags" title="omni.isaac.lab.sim.spawners.lights.CylinderLightCfg.semantic_tags"><code class="xref py py-obj docutils literal notranslate"><span class="pre">semantic_tags</span></code></a></p></td>
+<td><p>List of semantic tags to add to the spawned asset.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.CylinderLightCfg.copy_from_source" title="omni.isaac.lab.sim.spawners.lights.CylinderLightCfg.copy_from_source"><code class="xref py py-obj docutils literal notranslate"><span class="pre">copy_from_source</span></code></a></p></td>
+<td><p>Whether to copy the asset from the source prim or inherit it.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.CylinderLightCfg.color" title="omni.isaac.lab.sim.spawners.lights.CylinderLightCfg.color"><code class="xref py py-obj docutils literal notranslate"><span class="pre">color</span></code></a></p></td>
+<td><p>The color of emitted light, in energy-linear terms.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.CylinderLightCfg.enable_color_temperature" title="omni.isaac.lab.sim.spawners.lights.CylinderLightCfg.enable_color_temperature"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enable_color_temperature</span></code></a></p></td>
+<td><p>Enables color temperature.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.CylinderLightCfg.color_temperature" title="omni.isaac.lab.sim.spawners.lights.CylinderLightCfg.color_temperature"><code class="xref py py-obj docutils literal notranslate"><span class="pre">color_temperature</span></code></a></p></td>
+<td><p>Color temperature (in Kelvin) representing the white point.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.CylinderLightCfg.normalize" title="omni.isaac.lab.sim.spawners.lights.CylinderLightCfg.normalize"><code class="xref py py-obj docutils literal notranslate"><span class="pre">normalize</span></code></a></p></td>
+<td><p>Normalizes power by the surface area of the light.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.CylinderLightCfg.exposure" title="omni.isaac.lab.sim.spawners.lights.CylinderLightCfg.exposure"><code class="xref py py-obj docutils literal notranslate"><span class="pre">exposure</span></code></a></p></td>
+<td><p>Scales the power of the light exponentially as a power of 2.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.CylinderLightCfg.intensity" title="omni.isaac.lab.sim.spawners.lights.CylinderLightCfg.intensity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">intensity</span></code></a></p></td>
+<td><p>Scales the power of the light linearly.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.CylinderLightCfg.prim_type" title="omni.isaac.lab.sim.spawners.lights.CylinderLightCfg.prim_type"><code class="xref py py-obj docutils literal notranslate"><span class="pre">prim_type</span></code></a></p></td>
+<td><p>The prim type name for the light prim.</p></td>
+</tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.CylinderLightCfg.length" title="omni.isaac.lab.sim.spawners.lights.CylinderLightCfg.length"><code class="xref py py-obj docutils literal notranslate"><span class="pre">length</span></code></a></p></td>
 <td><p>Length of the cylinder (in m).</p></td>
 </tr>
@@ -3755,8 +4208,38 @@ fluorescent lights. For more information, please refer to the documentation on
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.DiskLightCfg.radius" title="omni.isaac.lab.sim.spawners.lights.DiskLightCfg.radius"><code class="xref py py-obj docutils literal notranslate"><span class="pre">radius</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.DiskLightCfg.prim_type" title="omni.isaac.lab.sim.spawners.lights.DiskLightCfg.prim_type"><code class="xref py py-obj docutils literal notranslate"><span class="pre">prim_type</span></code></a></p></td>
+<td><p>The prim type name for the light prim.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.DiskLightCfg.radius" title="omni.isaac.lab.sim.spawners.lights.DiskLightCfg.radius"><code class="xref py py-obj docutils literal notranslate"><span class="pre">radius</span></code></a></p></td>
 <td><p>Radius of the disk (in m).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.DiskLightCfg.visible" title="omni.isaac.lab.sim.spawners.lights.DiskLightCfg.visible"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visible</span></code></a></p></td>
+<td><p>Whether the spawned asset should be visible.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.DiskLightCfg.semantic_tags" title="omni.isaac.lab.sim.spawners.lights.DiskLightCfg.semantic_tags"><code class="xref py py-obj docutils literal notranslate"><span class="pre">semantic_tags</span></code></a></p></td>
+<td><p>List of semantic tags to add to the spawned asset.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.DiskLightCfg.copy_from_source" title="omni.isaac.lab.sim.spawners.lights.DiskLightCfg.copy_from_source"><code class="xref py py-obj docutils literal notranslate"><span class="pre">copy_from_source</span></code></a></p></td>
+<td><p>Whether to copy the asset from the source prim or inherit it.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.DiskLightCfg.color" title="omni.isaac.lab.sim.spawners.lights.DiskLightCfg.color"><code class="xref py py-obj docutils literal notranslate"><span class="pre">color</span></code></a></p></td>
+<td><p>The color of emitted light, in energy-linear terms.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.DiskLightCfg.enable_color_temperature" title="omni.isaac.lab.sim.spawners.lights.DiskLightCfg.enable_color_temperature"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enable_color_temperature</span></code></a></p></td>
+<td><p>Enables color temperature.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.DiskLightCfg.color_temperature" title="omni.isaac.lab.sim.spawners.lights.DiskLightCfg.color_temperature"><code class="xref py py-obj docutils literal notranslate"><span class="pre">color_temperature</span></code></a></p></td>
+<td><p>Color temperature (in Kelvin) representing the white point.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.DiskLightCfg.normalize" title="omni.isaac.lab.sim.spawners.lights.DiskLightCfg.normalize"><code class="xref py py-obj docutils literal notranslate"><span class="pre">normalize</span></code></a></p></td>
+<td><p>Normalizes power by the surface area of the light.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.DiskLightCfg.exposure" title="omni.isaac.lab.sim.spawners.lights.DiskLightCfg.exposure"><code class="xref py py-obj docutils literal notranslate"><span class="pre">exposure</span></code></a></p></td>
+<td><p>Scales the power of the light exponentially as a power of 2.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.DiskLightCfg.intensity" title="omni.isaac.lab.sim.spawners.lights.DiskLightCfg.intensity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">intensity</span></code></a></p></td>
+<td><p>Scales the power of the light linearly.</p></td>
 </tr>
 </tbody>
 </table>
@@ -3867,8 +4350,38 @@ It is useful for simulating sun/moon light. For more information, please refer t
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.DistantLightCfg.angle" title="omni.isaac.lab.sim.spawners.lights.DistantLightCfg.angle"><code class="xref py py-obj docutils literal notranslate"><span class="pre">angle</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.DistantLightCfg.prim_type" title="omni.isaac.lab.sim.spawners.lights.DistantLightCfg.prim_type"><code class="xref py py-obj docutils literal notranslate"><span class="pre">prim_type</span></code></a></p></td>
+<td><p>The prim type name for the light prim.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.DistantLightCfg.angle" title="omni.isaac.lab.sim.spawners.lights.DistantLightCfg.angle"><code class="xref py py-obj docutils literal notranslate"><span class="pre">angle</span></code></a></p></td>
 <td><p>Angular size of the light (in degrees).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.DistantLightCfg.visible" title="omni.isaac.lab.sim.spawners.lights.DistantLightCfg.visible"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visible</span></code></a></p></td>
+<td><p>Whether the spawned asset should be visible.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.DistantLightCfg.semantic_tags" title="omni.isaac.lab.sim.spawners.lights.DistantLightCfg.semantic_tags"><code class="xref py py-obj docutils literal notranslate"><span class="pre">semantic_tags</span></code></a></p></td>
+<td><p>List of semantic tags to add to the spawned asset.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.DistantLightCfg.copy_from_source" title="omni.isaac.lab.sim.spawners.lights.DistantLightCfg.copy_from_source"><code class="xref py py-obj docutils literal notranslate"><span class="pre">copy_from_source</span></code></a></p></td>
+<td><p>Whether to copy the asset from the source prim or inherit it.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.DistantLightCfg.color" title="omni.isaac.lab.sim.spawners.lights.DistantLightCfg.color"><code class="xref py py-obj docutils literal notranslate"><span class="pre">color</span></code></a></p></td>
+<td><p>The color of emitted light, in energy-linear terms.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.DistantLightCfg.enable_color_temperature" title="omni.isaac.lab.sim.spawners.lights.DistantLightCfg.enable_color_temperature"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enable_color_temperature</span></code></a></p></td>
+<td><p>Enables color temperature.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.DistantLightCfg.color_temperature" title="omni.isaac.lab.sim.spawners.lights.DistantLightCfg.color_temperature"><code class="xref py py-obj docutils literal notranslate"><span class="pre">color_temperature</span></code></a></p></td>
+<td><p>Color temperature (in Kelvin) representing the white point.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.DistantLightCfg.normalize" title="omni.isaac.lab.sim.spawners.lights.DistantLightCfg.normalize"><code class="xref py py-obj docutils literal notranslate"><span class="pre">normalize</span></code></a></p></td>
+<td><p>Normalizes power by the surface area of the light.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.DistantLightCfg.exposure" title="omni.isaac.lab.sim.spawners.lights.DistantLightCfg.exposure"><code class="xref py py-obj docutils literal notranslate"><span class="pre">exposure</span></code></a></p></td>
+<td><p>Scales the power of the light exponentially as a power of 2.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.DistantLightCfg.intensity" title="omni.isaac.lab.sim.spawners.lights.DistantLightCfg.intensity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">intensity</span></code></a></p></td>
+<td><p>Scales the power of the light linearly.</p></td>
 </tr>
 </tbody>
 </table>
@@ -3981,8 +4494,38 @@ to the documentation on <a class="reference external" href="https://openusd.org/
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.DomeLightCfg.texture_file" title="omni.isaac.lab.sim.spawners.lights.DomeLightCfg.texture_file"><code class="xref py py-obj docutils literal notranslate"><span class="pre">texture_file</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.DomeLightCfg.prim_type" title="omni.isaac.lab.sim.spawners.lights.DomeLightCfg.prim_type"><code class="xref py py-obj docutils literal notranslate"><span class="pre">prim_type</span></code></a></p></td>
+<td><p>The prim type name for the light prim.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.DomeLightCfg.texture_file" title="omni.isaac.lab.sim.spawners.lights.DomeLightCfg.texture_file"><code class="xref py py-obj docutils literal notranslate"><span class="pre">texture_file</span></code></a></p></td>
 <td><p>A color texture to use on the dome, such as an HDR (high dynamic range) texture intended for IBL (image based lighting).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.DomeLightCfg.visible" title="omni.isaac.lab.sim.spawners.lights.DomeLightCfg.visible"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visible</span></code></a></p></td>
+<td><p>Whether the spawned asset should be visible.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.DomeLightCfg.semantic_tags" title="omni.isaac.lab.sim.spawners.lights.DomeLightCfg.semantic_tags"><code class="xref py py-obj docutils literal notranslate"><span class="pre">semantic_tags</span></code></a></p></td>
+<td><p>List of semantic tags to add to the spawned asset.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.DomeLightCfg.copy_from_source" title="omni.isaac.lab.sim.spawners.lights.DomeLightCfg.copy_from_source"><code class="xref py py-obj docutils literal notranslate"><span class="pre">copy_from_source</span></code></a></p></td>
+<td><p>Whether to copy the asset from the source prim or inherit it.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.DomeLightCfg.color" title="omni.isaac.lab.sim.spawners.lights.DomeLightCfg.color"><code class="xref py py-obj docutils literal notranslate"><span class="pre">color</span></code></a></p></td>
+<td><p>The color of emitted light, in energy-linear terms.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.DomeLightCfg.enable_color_temperature" title="omni.isaac.lab.sim.spawners.lights.DomeLightCfg.enable_color_temperature"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enable_color_temperature</span></code></a></p></td>
+<td><p>Enables color temperature.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.DomeLightCfg.color_temperature" title="omni.isaac.lab.sim.spawners.lights.DomeLightCfg.color_temperature"><code class="xref py py-obj docutils literal notranslate"><span class="pre">color_temperature</span></code></a></p></td>
+<td><p>Color temperature (in Kelvin) representing the white point.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.DomeLightCfg.normalize" title="omni.isaac.lab.sim.spawners.lights.DomeLightCfg.normalize"><code class="xref py py-obj docutils literal notranslate"><span class="pre">normalize</span></code></a></p></td>
+<td><p>Normalizes power by the surface area of the light.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.DomeLightCfg.exposure" title="omni.isaac.lab.sim.spawners.lights.DomeLightCfg.exposure"><code class="xref py py-obj docutils literal notranslate"><span class="pre">exposure</span></code></a></p></td>
+<td><p>Scales the power of the light exponentially as a power of 2.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.DomeLightCfg.intensity" title="omni.isaac.lab.sim.spawners.lights.DomeLightCfg.intensity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">intensity</span></code></a></p></td>
+<td><p>Scales the power of the light linearly.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.DomeLightCfg.texture_format" title="omni.isaac.lab.sim.spawners.lights.DomeLightCfg.texture_format"><code class="xref py py-obj docutils literal notranslate"><span class="pre">texture_format</span></code></a></p></td>
 <td><p>The parametrization format of the color map file.</p></td>
@@ -4122,6 +4665,36 @@ please refer to the documentation on
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.SphereLightCfg.visible" title="omni.isaac.lab.sim.spawners.lights.SphereLightCfg.visible"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visible</span></code></a></p></td>
+<td><p>Whether the spawned asset should be visible.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.SphereLightCfg.semantic_tags" title="omni.isaac.lab.sim.spawners.lights.SphereLightCfg.semantic_tags"><code class="xref py py-obj docutils literal notranslate"><span class="pre">semantic_tags</span></code></a></p></td>
+<td><p>List of semantic tags to add to the spawned asset.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.SphereLightCfg.copy_from_source" title="omni.isaac.lab.sim.spawners.lights.SphereLightCfg.copy_from_source"><code class="xref py py-obj docutils literal notranslate"><span class="pre">copy_from_source</span></code></a></p></td>
+<td><p>Whether to copy the asset from the source prim or inherit it.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.SphereLightCfg.color" title="omni.isaac.lab.sim.spawners.lights.SphereLightCfg.color"><code class="xref py py-obj docutils literal notranslate"><span class="pre">color</span></code></a></p></td>
+<td><p>The color of emitted light, in energy-linear terms.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.SphereLightCfg.enable_color_temperature" title="omni.isaac.lab.sim.spawners.lights.SphereLightCfg.enable_color_temperature"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enable_color_temperature</span></code></a></p></td>
+<td><p>Enables color temperature.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.SphereLightCfg.color_temperature" title="omni.isaac.lab.sim.spawners.lights.SphereLightCfg.color_temperature"><code class="xref py py-obj docutils literal notranslate"><span class="pre">color_temperature</span></code></a></p></td>
+<td><p>Color temperature (in Kelvin) representing the white point.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.SphereLightCfg.normalize" title="omni.isaac.lab.sim.spawners.lights.SphereLightCfg.normalize"><code class="xref py py-obj docutils literal notranslate"><span class="pre">normalize</span></code></a></p></td>
+<td><p>Normalizes power by the surface area of the light.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.SphereLightCfg.exposure" title="omni.isaac.lab.sim.spawners.lights.SphereLightCfg.exposure"><code class="xref py py-obj docutils literal notranslate"><span class="pre">exposure</span></code></a></p></td>
+<td><p>Scales the power of the light exponentially as a power of 2.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.SphereLightCfg.intensity" title="omni.isaac.lab.sim.spawners.lights.SphereLightCfg.intensity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">intensity</span></code></a></p></td>
+<td><p>Scales the power of the light linearly.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.SphereLightCfg.prim_type" title="omni.isaac.lab.sim.spawners.lights.SphereLightCfg.prim_type"><code class="xref py py-obj docutils literal notranslate"><span class="pre">prim_type</span></code></a></p></td>
+<td><p>The prim type name for the light prim.</p></td>
+</tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.SphereLightCfg.radius" title="omni.isaac.lab.sim.spawners.lights.SphereLightCfg.radius"><code class="xref py py-obj docutils literal notranslate"><span class="pre">radius</span></code></a></p></td>
 <td><p>Radius of the sphere.</p></td>
 </tr>
@@ -4330,6 +4903,15 @@ function.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.lock_camera" title="omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.lock_camera"><code class="xref py py-obj docutils literal notranslate"><span class="pre">lock_camera</span></code></a></p></td>
 <td><p>Locks the camera in the Omniverse viewport.</p></td>
 </tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.visible" title="omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.visible"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visible</span></code></a></p></td>
+<td><p>Whether the spawned asset should be visible.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.semantic_tags" title="omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.semantic_tags"><code class="xref py py-obj docutils literal notranslate"><span class="pre">semantic_tags</span></code></a></p></td>
+<td><p>List of semantic tags to add to the spawned asset.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.copy_from_source" title="omni.isaac.lab.sim.spawners.sensors.PinholeCameraCfg.copy_from_source"><code class="xref py py-obj docutils literal notranslate"><span class="pre">copy_from_source</span></code></a></p></td>
+<td><p>Whether to copy the asset from the source prim or inherit it.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -4507,6 +5089,42 @@ function.</p>
 <tbody>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg.projection_type" title="omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg.projection_type"><code class="xref py py-obj docutils literal notranslate"><span class="pre">projection_type</span></code></a></p></td>
 <td><p>Type of projection to use for the camera.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg.visible" title="omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg.visible"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visible</span></code></a></p></td>
+<td><p>Whether the spawned asset should be visible.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg.semantic_tags" title="omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg.semantic_tags"><code class="xref py py-obj docutils literal notranslate"><span class="pre">semantic_tags</span></code></a></p></td>
+<td><p>List of semantic tags to add to the spawned asset.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg.copy_from_source" title="omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg.copy_from_source"><code class="xref py py-obj docutils literal notranslate"><span class="pre">copy_from_source</span></code></a></p></td>
+<td><p>Whether to copy the asset from the source prim or inherit it.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg.clipping_range" title="omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg.clipping_range"><code class="xref py py-obj docutils literal notranslate"><span class="pre">clipping_range</span></code></a></p></td>
+<td><p>Near and far clipping distances (in m).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg.focal_length" title="omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg.focal_length"><code class="xref py py-obj docutils literal notranslate"><span class="pre">focal_length</span></code></a></p></td>
+<td><p>Perspective focal length (in cm).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg.focus_distance" title="omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg.focus_distance"><code class="xref py py-obj docutils literal notranslate"><span class="pre">focus_distance</span></code></a></p></td>
+<td><p>Distance from the camera to the focus plane (in m).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg.f_stop" title="omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg.f_stop"><code class="xref py py-obj docutils literal notranslate"><span class="pre">f_stop</span></code></a></p></td>
+<td><p>Lens aperture.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg.horizontal_aperture" title="omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg.horizontal_aperture"><code class="xref py py-obj docutils literal notranslate"><span class="pre">horizontal_aperture</span></code></a></p></td>
+<td><p>Horizontal aperture (in cm).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg.vertical_aperture" title="omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg.vertical_aperture"><code class="xref py py-obj docutils literal notranslate"><span class="pre">vertical_aperture</span></code></a></p></td>
+<td><p>Vertical aperture (in mm).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg.horizontal_aperture_offset" title="omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg.horizontal_aperture_offset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">horizontal_aperture_offset</span></code></a></p></td>
+<td><p>Offsets Resolution/Film gate horizontally.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg.vertical_aperture_offset" title="omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg.vertical_aperture_offset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">vertical_aperture_offset</span></code></a></p></td>
+<td><p>Offsets Resolution/Film gate vertically.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg.lock_camera" title="omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg.lock_camera"><code class="xref py py-obj docutils literal notranslate"><span class="pre">lock_camera</span></code></a></p></td>
+<td><p>Locks the camera in the Omniverse viewport.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg.fisheye_nominal_width" title="omni.isaac.lab.sim.spawners.sensors.FisheyeCameraCfg.fisheye_nominal_width"><code class="xref py py-obj docutils literal notranslate"><span class="pre">fisheye_nominal_width</span></code></a></p></td>
 <td><p>Nominal width of fisheye lens model (in pixels).</p></td>
@@ -4804,6 +5422,99 @@ are modified on the spawned prim in a nested manner.</p>
 <p>If they are set to a value, then the properties are modified on the spawned prim in a nested manner.
 This is done by calling the respective function with the specified properties.</p>
 </div>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.asset_path" title="omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.asset_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">asset_path</span></code></a></p></td>
+<td><p>The absolute path to the asset file to convert into USD.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.usd_dir" title="omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.usd_dir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">usd_dir</span></code></a></p></td>
+<td><p>The output directory path to store the generated USD file.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.usd_file_name" title="omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.usd_file_name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">usd_file_name</span></code></a></p></td>
+<td><p>The name of the generated usd file.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.force_usd_conversion" title="omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.force_usd_conversion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">force_usd_conversion</span></code></a></p></td>
+<td><p>Force the conversion of the asset file to usd.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.make_instanceable" title="omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.make_instanceable"><code class="xref py py-obj docutils literal notranslate"><span class="pre">make_instanceable</span></code></a></p></td>
+<td><p>Make the generated USD file instanceable.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.import_inertia_tensor" title="omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.import_inertia_tensor"><code class="xref py py-obj docutils literal notranslate"><span class="pre">import_inertia_tensor</span></code></a></p></td>
+<td><p>Import the inertia tensor from urdf.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.fix_base" title="omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.fix_base"><code class="xref py py-obj docutils literal notranslate"><span class="pre">fix_base</span></code></a></p></td>
+<td><p>Create a fix joint to the root/base link.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.merge_fixed_joints" title="omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.merge_fixed_joints"><code class="xref py py-obj docutils literal notranslate"><span class="pre">merge_fixed_joints</span></code></a></p></td>
+<td><p>Consolidate links that are connected by fixed joints.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.self_collision" title="omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.self_collision"><code class="xref py py-obj docutils literal notranslate"><span class="pre">self_collision</span></code></a></p></td>
+<td><p>Activate self-collisions between links of the articulation.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.default_drive_type" title="omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.default_drive_type"><code class="xref py py-obj docutils literal notranslate"><span class="pre">default_drive_type</span></code></a></p></td>
+<td><p>The drive type used for joints.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.override_joint_dynamics" title="omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.override_joint_dynamics"><code class="xref py py-obj docutils literal notranslate"><span class="pre">override_joint_dynamics</span></code></a></p></td>
+<td><p>Override the joint dynamics parsed from the URDF file.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.default_drive_stiffness" title="omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.default_drive_stiffness"><code class="xref py py-obj docutils literal notranslate"><span class="pre">default_drive_stiffness</span></code></a></p></td>
+<td><p>The default stiffness of the joint drive.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.default_drive_damping" title="omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.default_drive_damping"><code class="xref py py-obj docutils literal notranslate"><span class="pre">default_drive_damping</span></code></a></p></td>
+<td><p>The default damping of the joint drive.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.link_density" title="omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.link_density"><code class="xref py py-obj docutils literal notranslate"><span class="pre">link_density</span></code></a></p></td>
+<td><p>Default density used for links.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.convex_decompose_mesh" title="omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.convex_decompose_mesh"><code class="xref py py-obj docutils literal notranslate"><span class="pre">convex_decompose_mesh</span></code></a></p></td>
+<td><p>Decompose a convex mesh into smaller pieces for a closer fit.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.visible" title="omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.visible"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visible</span></code></a></p></td>
+<td><p>Whether the spawned asset should be visible.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.semantic_tags" title="omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.semantic_tags"><code class="xref py py-obj docutils literal notranslate"><span class="pre">semantic_tags</span></code></a></p></td>
+<td><p>List of semantic tags to add to the spawned asset.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.copy_from_source" title="omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.copy_from_source"><code class="xref py py-obj docutils literal notranslate"><span class="pre">copy_from_source</span></code></a></p></td>
+<td><p>Whether to copy the asset from the source prim or inherit it.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.mass_props" title="omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.mass_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">mass_props</span></code></a></p></td>
+<td><p>Mass properties.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.deformable_props" title="omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.deformable_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">deformable_props</span></code></a></p></td>
+<td><p>Deformable body properties.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.rigid_props" title="omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.rigid_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rigid_props</span></code></a></p></td>
+<td><p>Rigid body properties.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.collision_props" title="omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.collision_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collision_props</span></code></a></p></td>
+<td><p>Properties to apply to all collision meshes.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.activate_contact_sensors" title="omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.activate_contact_sensors"><code class="xref py py-obj docutils literal notranslate"><span class="pre">activate_contact_sensors</span></code></a></p></td>
+<td><p>Activate contact reporting on all rigid bodies.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.scale" title="omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">scale</span></code></a></p></td>
+<td><p>Scale of the asset.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.articulation_props" title="omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.articulation_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">articulation_props</span></code></a></p></td>
+<td><p>Properties to apply to the articulation root.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.fixed_tendons_props" title="omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.fixed_tendons_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">fixed_tendons_props</span></code></a></p></td>
+<td><p>Properties to apply to the fixed tendons (if any).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.joint_drive_props" title="omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.joint_drive_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">joint_drive_props</span></code></a></p></td>
+<td><p>Properties to apply to a joint.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.visual_material_path" title="omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.visual_material_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visual_material_path</span></code></a></p></td>
+<td><p>Path to the visual material to use for the prim.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.visual_material" title="omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.visual_material"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visual_material</span></code></a></p></td>
+<td><p>Visual material properties to override the visual material properties in the URDF file.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.asset_path">
 <span class="sig-name descname"><span class="pre">asset_path</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.asset_path" title="Permalink to this definition">#</a></dt>
@@ -5098,6 +5809,48 @@ This is done by calling the respective function with the specified properties.</
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.UsdFileCfg.variants" title="omni.isaac.lab.sim.spawners.from_files.UsdFileCfg.variants"><code class="xref py py-obj docutils literal notranslate"><span class="pre">variants</span></code></a></p></td>
 <td><p>Variants to select from in the input USD file.</p></td>
 </tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.UsdFileCfg.visible" title="omni.isaac.lab.sim.spawners.from_files.UsdFileCfg.visible"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visible</span></code></a></p></td>
+<td><p>Whether the spawned asset should be visible.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.UsdFileCfg.semantic_tags" title="omni.isaac.lab.sim.spawners.from_files.UsdFileCfg.semantic_tags"><code class="xref py py-obj docutils literal notranslate"><span class="pre">semantic_tags</span></code></a></p></td>
+<td><p>List of semantic tags to add to the spawned asset.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.UsdFileCfg.copy_from_source" title="omni.isaac.lab.sim.spawners.from_files.UsdFileCfg.copy_from_source"><code class="xref py py-obj docutils literal notranslate"><span class="pre">copy_from_source</span></code></a></p></td>
+<td><p>Whether to copy the asset from the source prim or inherit it.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.UsdFileCfg.mass_props" title="omni.isaac.lab.sim.spawners.from_files.UsdFileCfg.mass_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">mass_props</span></code></a></p></td>
+<td><p>Mass properties.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.UsdFileCfg.deformable_props" title="omni.isaac.lab.sim.spawners.from_files.UsdFileCfg.deformable_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">deformable_props</span></code></a></p></td>
+<td><p>Deformable body properties.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.UsdFileCfg.rigid_props" title="omni.isaac.lab.sim.spawners.from_files.UsdFileCfg.rigid_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rigid_props</span></code></a></p></td>
+<td><p>Rigid body properties.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.UsdFileCfg.collision_props" title="omni.isaac.lab.sim.spawners.from_files.UsdFileCfg.collision_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collision_props</span></code></a></p></td>
+<td><p>Properties to apply to all collision meshes.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.UsdFileCfg.activate_contact_sensors" title="omni.isaac.lab.sim.spawners.from_files.UsdFileCfg.activate_contact_sensors"><code class="xref py py-obj docutils literal notranslate"><span class="pre">activate_contact_sensors</span></code></a></p></td>
+<td><p>Activate contact reporting on all rigid bodies.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.UsdFileCfg.scale" title="omni.isaac.lab.sim.spawners.from_files.UsdFileCfg.scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">scale</span></code></a></p></td>
+<td><p>Scale of the asset.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.UsdFileCfg.articulation_props" title="omni.isaac.lab.sim.spawners.from_files.UsdFileCfg.articulation_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">articulation_props</span></code></a></p></td>
+<td><p>Properties to apply to the articulation root.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.UsdFileCfg.fixed_tendons_props" title="omni.isaac.lab.sim.spawners.from_files.UsdFileCfg.fixed_tendons_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">fixed_tendons_props</span></code></a></p></td>
+<td><p>Properties to apply to the fixed tendons (if any).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.UsdFileCfg.joint_drive_props" title="omni.isaac.lab.sim.spawners.from_files.UsdFileCfg.joint_drive_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">joint_drive_props</span></code></a></p></td>
+<td><p>Properties to apply to a joint.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.UsdFileCfg.visual_material_path" title="omni.isaac.lab.sim.spawners.from_files.UsdFileCfg.visual_material_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visual_material_path</span></code></a></p></td>
+<td><p>Path to the visual material to use for the prim.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.UsdFileCfg.visual_material" title="omni.isaac.lab.sim.spawners.from_files.UsdFileCfg.visual_material"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visual_material</span></code></a></p></td>
+<td><p>Visual material properties to override the visual material properties in the URDF file.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -5265,16 +6018,25 @@ in which case the orientation specified in the USD file is used.</p></li>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.GroundPlaneCfg.usd_path" title="omni.isaac.lab.sim.spawners.from_files.GroundPlaneCfg.usd_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">usd_path</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.GroundPlaneCfg.visible" title="omni.isaac.lab.sim.spawners.from_files.GroundPlaneCfg.visible"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visible</span></code></a></p></td>
+<td><p>Whether the spawned asset should be visible.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.GroundPlaneCfg.semantic_tags" title="omni.isaac.lab.sim.spawners.from_files.GroundPlaneCfg.semantic_tags"><code class="xref py py-obj docutils literal notranslate"><span class="pre">semantic_tags</span></code></a></p></td>
+<td><p>List of semantic tags to add to the spawned asset.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.GroundPlaneCfg.copy_from_source" title="omni.isaac.lab.sim.spawners.from_files.GroundPlaneCfg.copy_from_source"><code class="xref py py-obj docutils literal notranslate"><span class="pre">copy_from_source</span></code></a></p></td>
+<td><p>Whether to copy the asset from the source prim or inherit it.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.GroundPlaneCfg.usd_path" title="omni.isaac.lab.sim.spawners.from_files.GroundPlaneCfg.usd_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">usd_path</span></code></a></p></td>
 <td><p>Path to the USD file to spawn asset from.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.GroundPlaneCfg.color" title="omni.isaac.lab.sim.spawners.from_files.GroundPlaneCfg.color"><code class="xref py py-obj docutils literal notranslate"><span class="pre">color</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.GroundPlaneCfg.color" title="omni.isaac.lab.sim.spawners.from_files.GroundPlaneCfg.color"><code class="xref py py-obj docutils literal notranslate"><span class="pre">color</span></code></a></p></td>
 <td><p>The color of the ground plane.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.GroundPlaneCfg.size" title="omni.isaac.lab.sim.spawners.from_files.GroundPlaneCfg.size"><code class="xref py py-obj docutils literal notranslate"><span class="pre">size</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.GroundPlaneCfg.size" title="omni.isaac.lab.sim.spawners.from_files.GroundPlaneCfg.size"><code class="xref py py-obj docutils literal notranslate"><span class="pre">size</span></code></a></p></td>
 <td><p>The size of the ground plane.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.GroundPlaneCfg.physics_material" title="omni.isaac.lab.sim.spawners.from_files.GroundPlaneCfg.physics_material"><code class="xref py py-obj docutils literal notranslate"><span class="pre">physics_material</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.from_files.GroundPlaneCfg.physics_material" title="omni.isaac.lab.sim.spawners.from_files.GroundPlaneCfg.physics_material"><code class="xref py py-obj docutils literal notranslate"><span class="pre">physics_material</span></code></a></p></td>
 <td><p>Physics material properties.</p></td>
 </tr>
 </tbody>
@@ -5984,6 +6746,30 @@ This is done to simplify configuring similar properties globally. By default, al
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.random_choice" title="omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.random_choice"><code class="xref py py-obj docutils literal notranslate"><span class="pre">random_choice</span></code></a></p></td>
 <td><p>Whether to randomly select an asset configuration.</p></td>
 </tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.visible" title="omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.visible"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visible</span></code></a></p></td>
+<td><p>Whether the spawned asset should be visible.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.semantic_tags" title="omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.semantic_tags"><code class="xref py py-obj docutils literal notranslate"><span class="pre">semantic_tags</span></code></a></p></td>
+<td><p>List of semantic tags to add to the spawned asset.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.copy_from_source" title="omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.copy_from_source"><code class="xref py py-obj docutils literal notranslate"><span class="pre">copy_from_source</span></code></a></p></td>
+<td><p>Whether to copy the asset from the source prim or inherit it.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.mass_props" title="omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.mass_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">mass_props</span></code></a></p></td>
+<td><p>Mass properties.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.deformable_props" title="omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.deformable_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">deformable_props</span></code></a></p></td>
+<td><p>Deformable body properties.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.rigid_props" title="omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.rigid_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rigid_props</span></code></a></p></td>
+<td><p>Rigid body properties.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.collision_props" title="omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.collision_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collision_props</span></code></a></p></td>
+<td><p>Properties to apply to all collision meshes.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.activate_contact_sensors" title="omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.activate_contact_sensors"><code class="xref py py-obj docutils literal notranslate"><span class="pre">activate_contact_sensors</span></code></a></p></td>
+<td><p>Activate contact reporting on all rigid bodies.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -6102,10 +6888,55 @@ imported from their USD files.</p>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.usd_path" title="omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.usd_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">usd_path</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.visible" title="omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.visible"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visible</span></code></a></p></td>
+<td><p>Whether the spawned asset should be visible.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.semantic_tags" title="omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.semantic_tags"><code class="xref py py-obj docutils literal notranslate"><span class="pre">semantic_tags</span></code></a></p></td>
+<td><p>List of semantic tags to add to the spawned asset.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.copy_from_source" title="omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.copy_from_source"><code class="xref py py-obj docutils literal notranslate"><span class="pre">copy_from_source</span></code></a></p></td>
+<td><p>Whether to copy the asset from the source prim or inherit it.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.mass_props" title="omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.mass_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">mass_props</span></code></a></p></td>
+<td><p>Mass properties.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.deformable_props" title="omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.deformable_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">deformable_props</span></code></a></p></td>
+<td><p>Deformable body properties.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.rigid_props" title="omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.rigid_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rigid_props</span></code></a></p></td>
+<td><p>Rigid body properties.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.collision_props" title="omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.collision_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collision_props</span></code></a></p></td>
+<td><p>Properties to apply to all collision meshes.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.activate_contact_sensors" title="omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.activate_contact_sensors"><code class="xref py py-obj docutils literal notranslate"><span class="pre">activate_contact_sensors</span></code></a></p></td>
+<td><p>Activate contact reporting on all rigid bodies.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.scale" title="omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">scale</span></code></a></p></td>
+<td><p>Scale of the asset.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.articulation_props" title="omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.articulation_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">articulation_props</span></code></a></p></td>
+<td><p>Properties to apply to the articulation root.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.fixed_tendons_props" title="omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.fixed_tendons_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">fixed_tendons_props</span></code></a></p></td>
+<td><p>Properties to apply to the fixed tendons (if any).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.joint_drive_props" title="omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.joint_drive_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">joint_drive_props</span></code></a></p></td>
+<td><p>Properties to apply to a joint.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.visual_material_path" title="omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.visual_material_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visual_material_path</span></code></a></p></td>
+<td><p>Path to the visual material to use for the prim.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.visual_material" title="omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.visual_material"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visual_material</span></code></a></p></td>
+<td><p>Visual material properties to override the visual material properties in the URDF file.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.variants" title="omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.variants"><code class="xref py py-obj docutils literal notranslate"><span class="pre">variants</span></code></a></p></td>
+<td><p>Variants to select from in the input USD file.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.usd_path" title="omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.usd_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">usd_path</span></code></a></p></td>
 <td><p>Path or a list of paths to the USD files to spawn asset from.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.random_choice" title="omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.random_choice"><code class="xref py py-obj docutils literal notranslate"><span class="pre">random_choice</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.random_choice" title="omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg.random_choice"><code class="xref py py-obj docutils literal notranslate"><span class="pre">random_choice</span></code></a></p></td>
 <td><p>Whether to randomly select an asset configuration.</p></td>
 </tr>
 </tbody>
@@ -6870,7 +7701,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 23, 2024.
+  Last updated on Oct 24, 2024.
   <br/>
 </p>
   </div>

@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.2.0" />
-    <meta name="docbuild:last-update" content="Oct 23, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 24, 2024"/>
   </head>
   
   
@@ -572,6 +572,7 @@
 </li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#current-limitations">Current Limitations</a></li>
 </ul>
             </nav>
         </div>
@@ -589,7 +590,7 @@
 <p class="admonition-title">Note</p>
 <p>This feature is only available from Isaac Sim version 4.2.0 onwards.</p>
 <p>Tiled rendering in combination with image processing networks require heavy memory resources, especially
-at larger resolutions. We recommend running at 512 cameras in the scene on RTX 4090 GPUs or similar.</p>
+at larger resolutions. We recommend running 512 cameras in the scene on RTX 4090 GPUs or similar.</p>
 </div>
 <p>Tiled rendering APIs provide a vectorized interface for collecting data from camera sensors.
 This is useful for reinforcement learning environments requiring vision in the loop.
@@ -689,6 +690,36 @@ environment. For example:</p>
 </section>
 </section>
 </section>
+<section id="current-limitations">
+<h2>Current Limitations<a class="headerlink" href="#current-limitations" title="Permalink to this heading">#</a></h2>
+<p>Due to current limitations in the renderer, we can have only <strong>one</strong> <a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.TiledCamera" title="omni.isaac.lab.sensors.TiledCamera"><code class="xref py py-class docutils literal notranslate"><span class="pre">TiledCamera</span></code></a> instance in the scene.
+For use cases that require a setup with more than one camera, we can imitate the multi-camera behavior by moving the location
+of the camera in between render calls in a step.</p>
+<p>For example, in a stereo vision setup, the below snippet can be implemented:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># render image from &quot;first&quot; camera</span>
+<span class="n">camera_data_1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tiled_camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">output</span><span class="p">[</span><span class="s2">&quot;rgb&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span> <span class="o">/</span> <span class="mf">255.0</span>
+<span class="c1"># update camera transform to the &quot;second&quot; camera location</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">_tiled_camera</span><span class="o">.</span><span class="n">set_world_poses</span><span class="p">(</span>
+    <span class="n">positions</span><span class="o">=</span><span class="n">pos</span><span class="p">,</span>
+    <span class="n">orientations</span><span class="o">=</span><span class="n">rot</span><span class="p">,</span>
+    <span class="n">convention</span><span class="o">=</span><span class="s2">&quot;world&quot;</span>
+<span class="p">)</span>
+<span class="c1"># step the renderer</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">render</span><span class="p">()</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">_tiled_camera</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">force_recompute</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="c1"># render image from &quot;second&quot; camera</span>
+<span class="n">camera_data_2</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tiled_camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">output</span><span class="p">[</span><span class="s2">&quot;rgb&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span> <span class="o">/</span> <span class="mf">255.0</span>
+</pre></div>
+</div>
+<p>Note that this approach still limits the rendering resolution to be identical for all cameras. Currently, there is no workaround
+to achieve different resolution images using <a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.TiledCamera" title="omni.isaac.lab.sensors.TiledCamera"><code class="xref py py-class docutils literal notranslate"><span class="pre">TiledCamera</span></code></a>. The best approach is to use the largest resolution out of all of the
+desired resolutions and add additional scaling or cropping operations to the rendered output as a post-processing step.</p>
+<p>In addition, there may be visible quality differences when comparing render outputs of different numbers of environments.
+Currently, any combined resolution that has a width less than 265 pixels or height less than 265 will automatically switch
+to the DLAA anti-aliasing mode, which does not perform up-sampling during anti-aliasing. For resolutions larger than 265 in both
+width and height dimensions, we default to using the “performance” DLSS mode for anti-aliasing for performance benefits.
+Anti-aliasing modes and other rendering parameters can be specified in the <a class="reference internal" href="../api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.RenderCfg" title="omni.isaac.lab.sim.RenderCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">RenderCfg</span></code></a>.</p>
+</section>
 </section>
 
 
@@ -749,6 +780,7 @@ environment. For example:</p>
 </li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#current-limitations">Current Limitations</a></li>
 </ul>
   </nav></div>
 
@@ -782,7 +814,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 23, 2024.
+  Last updated on Oct 24, 2024.
   <br/>
 </p>
   </div>

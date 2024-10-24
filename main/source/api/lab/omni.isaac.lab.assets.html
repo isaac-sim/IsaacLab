@@ -63,7 +63,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.2.0" />
-    <meta name="docbuild:last-update" content="Oct 23, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 24, 2024"/>
   </head>
   
   
@@ -1821,6 +1821,18 @@ rigid body’s actor frame.</p>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCfg.prim_path" title="omni.isaac.lab.assets.RigidObjectCfg.prim_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">prim_path</span></code></a></p></td>
+<td><p>Prim path (or expression) to the asset.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCfg.spawn" title="omni.isaac.lab.assets.RigidObjectCfg.spawn"><code class="xref py py-obj docutils literal notranslate"><span class="pre">spawn</span></code></a></p></td>
+<td><p>Spawn configuration for the asset.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCfg.collision_group" title="omni.isaac.lab.assets.RigidObjectCfg.collision_group"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collision_group</span></code></a></p></td>
+<td><p>Collision group of the asset.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCfg.debug_vis" title="omni.isaac.lab.assets.RigidObjectCfg.debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">debug_vis</span></code></a></p></td>
+<td><p>Whether to enable debug visualization for the asset.</p></td>
+</tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCfg.init_state" title="omni.isaac.lab.assets.RigidObjectCfg.init_state"><code class="xref py py-obj docutils literal notranslate"><span class="pre">init_state</span></code></a></p></td>
 <td><p>Initial state of the rigid object.</p></td>
 </tr>
@@ -1840,6 +1852,12 @@ rigid body’s actor frame.</p>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCfg.InitialStateCfg.ang_vel" title="omni.isaac.lab.assets.RigidObjectCfg.InitialStateCfg.ang_vel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ang_vel</span></code></a></p></td>
 <td><p>Angular velocity of the root in simulation world frame.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCfg.InitialStateCfg.pos" title="omni.isaac.lab.assets.RigidObjectCfg.InitialStateCfg.pos"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pos</span></code></a></p></td>
+<td><p>Position of the root in simulation world frame.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCfg.InitialStateCfg.rot" title="omni.isaac.lab.assets.RigidObjectCfg.InitialStateCfg.rot"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rot</span></code></a></p></td>
+<td><p>Quaternion rotation (w, x, y, z) of the root in simulation world frame.</p></td>
 </tr>
 </tbody>
 </table>
@@ -3339,6 +3357,18 @@ articulation root’s actor frame.</p>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationCfg.prim_path" title="omni.isaac.lab.assets.ArticulationCfg.prim_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">prim_path</span></code></a></p></td>
+<td><p>Prim path (or expression) to the asset.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationCfg.spawn" title="omni.isaac.lab.assets.ArticulationCfg.spawn"><code class="xref py py-obj docutils literal notranslate"><span class="pre">spawn</span></code></a></p></td>
+<td><p>Spawn configuration for the asset.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationCfg.collision_group" title="omni.isaac.lab.assets.ArticulationCfg.collision_group"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collision_group</span></code></a></p></td>
+<td><p>Collision group of the asset.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationCfg.debug_vis" title="omni.isaac.lab.assets.ArticulationCfg.debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">debug_vis</span></code></a></p></td>
+<td><p>Whether to enable debug visualization for the asset.</p></td>
+</tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationCfg.init_state" title="omni.isaac.lab.assets.ArticulationCfg.init_state"><code class="xref py py-obj docutils literal notranslate"><span class="pre">init_state</span></code></a></p></td>
 <td><p>Initial state of the articulated object.</p></td>
 </tr>
@@ -3370,6 +3400,12 @@ articulation root’s actor frame.</p>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationCfg.InitialStateCfg.joint_vel" title="omni.isaac.lab.assets.ArticulationCfg.InitialStateCfg.joint_vel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">joint_vel</span></code></a></p></td>
 <td><p>Joint velocities of the joints.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationCfg.InitialStateCfg.pos" title="omni.isaac.lab.assets.ArticulationCfg.InitialStateCfg.pos"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pos</span></code></a></p></td>
+<td><p>Position of the root in simulation world frame.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationCfg.InitialStateCfg.rot" title="omni.isaac.lab.assets.ArticulationCfg.InitialStateCfg.rot"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rot</span></code></a></p></td>
+<td><p>Quaternion rotation (w, x, y, z) of the root in simulation world frame.</p></td>
 </tr>
 </tbody>
 </table>
@@ -4023,7 +4059,22 @@ Shape is (num_instances, 3).</p>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObjectCfg.visualizer_cfg" title="omni.isaac.lab.assets.DeformableObjectCfg.visualizer_cfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visualizer_cfg</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObjectCfg.prim_path" title="omni.isaac.lab.assets.DeformableObjectCfg.prim_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">prim_path</span></code></a></p></td>
+<td><p>Prim path (or expression) to the asset.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObjectCfg.spawn" title="omni.isaac.lab.assets.DeformableObjectCfg.spawn"><code class="xref py py-obj docutils literal notranslate"><span class="pre">spawn</span></code></a></p></td>
+<td><p>Spawn configuration for the asset.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObjectCfg.init_state" title="omni.isaac.lab.assets.DeformableObjectCfg.init_state"><code class="xref py py-obj docutils literal notranslate"><span class="pre">init_state</span></code></a></p></td>
+<td><p>Initial state of the rigid object.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObjectCfg.collision_group" title="omni.isaac.lab.assets.DeformableObjectCfg.collision_group"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collision_group</span></code></a></p></td>
+<td><p>Collision group of the asset.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObjectCfg.debug_vis" title="omni.isaac.lab.assets.DeformableObjectCfg.debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">debug_vis</span></code></a></p></td>
+<td><p>Whether to enable debug visualization for the asset.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObjectCfg.visualizer_cfg" title="omni.isaac.lab.assets.DeformableObjectCfg.visualizer_cfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visualizer_cfg</span></code></a></p></td>
 <td><p>The configuration object for the visualization markers.</p></td>
 </tr>
 </tbody>
@@ -4039,6 +4090,18 @@ well as the default state when the simulation is reset.</p>
 <p>After parsing the initial state, the asset class stores this information in the <code class="xref py py-attr docutils literal notranslate"><span class="pre">data</span></code>
 attribute of the asset class. This can then be accessed by the user to modify the state of the asset
 during the simulation, for example, at resets.</p>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObjectCfg.InitialStateCfg.pos" title="omni.isaac.lab.assets.DeformableObjectCfg.InitialStateCfg.pos"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pos</span></code></a></p></td>
+<td><p>Position of the root in simulation world frame.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObjectCfg.InitialStateCfg.rot" title="omni.isaac.lab.assets.DeformableObjectCfg.InitialStateCfg.rot"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rot</span></code></a></p></td>
+<td><p>Quaternion rotation (w, x, y, z) of the root in simulation world frame.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.DeformableObjectCfg.InitialStateCfg.pos">
 <span class="sig-name descname"><span class="pre">pos</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.assets.DeformableObjectCfg.InitialStateCfg.pos" title="Permalink to this definition">#</a></dt>
@@ -4478,7 +4541,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 23, 2024.
+  Last updated on Oct 24, 2024.
   <br/>
 </p>
   </div>

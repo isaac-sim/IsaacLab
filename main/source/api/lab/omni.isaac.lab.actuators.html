@@ -63,7 +63,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.2.0" />
-    <meta name="docbuild:last-update" content="Oct 23, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 24, 2024"/>
   </head>
   
   
@@ -1422,6 +1422,33 @@ We do this to avoid unnecessary indexing of the joints for performance reasons.<
 <p class="admonition-title">Note</p>
 <p>The PD control is handled implicitly by the simulation.</p>
 </div>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.ImplicitActuatorCfg.joint_names_expr" title="omni.isaac.lab.actuators.ImplicitActuatorCfg.joint_names_expr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">joint_names_expr</span></code></a></p></td>
+<td><p>Articulation's joint names that are part of the group.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.ImplicitActuatorCfg.effort_limit" title="omni.isaac.lab.actuators.ImplicitActuatorCfg.effort_limit"><code class="xref py py-obj docutils literal notranslate"><span class="pre">effort_limit</span></code></a></p></td>
+<td><p>Force/Torque limit of the joints in the group.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.ImplicitActuatorCfg.velocity_limit" title="omni.isaac.lab.actuators.ImplicitActuatorCfg.velocity_limit"><code class="xref py py-obj docutils literal notranslate"><span class="pre">velocity_limit</span></code></a></p></td>
+<td><p>Velocity limit of the joints in the group.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.ImplicitActuatorCfg.stiffness" title="omni.isaac.lab.actuators.ImplicitActuatorCfg.stiffness"><code class="xref py py-obj docutils literal notranslate"><span class="pre">stiffness</span></code></a></p></td>
+<td><p>Stiffness gains (also known as p-gain) of the joints in the group.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.ImplicitActuatorCfg.damping" title="omni.isaac.lab.actuators.ImplicitActuatorCfg.damping"><code class="xref py py-obj docutils literal notranslate"><span class="pre">damping</span></code></a></p></td>
+<td><p>Damping gains (also known as d-gain) of the joints in the group.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.ImplicitActuatorCfg.armature" title="omni.isaac.lab.actuators.ImplicitActuatorCfg.armature"><code class="xref py py-obj docutils literal notranslate"><span class="pre">armature</span></code></a></p></td>
+<td><p>Armature of the joints in the group.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.ImplicitActuatorCfg.friction" title="omni.isaac.lab.actuators.ImplicitActuatorCfg.friction"><code class="xref py py-obj docutils literal notranslate"><span class="pre">friction</span></code></a></p></td>
+<td><p>Joint friction of the joints in the group.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.actuators.ImplicitActuatorCfg.joint_names_expr">
 <span class="sig-name descname"><span class="pre">joint_names_expr</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.actuators.ImplicitActuatorCfg.joint_names_expr" title="Permalink to this definition">#</a></dt>
@@ -1705,6 +1732,33 @@ We do this to avoid unnecessary indexing of the joints for performance reasons.<
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.actuators.</span></span><span class="sig-name descname"><span class="pre">IdealPDActuatorCfg</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/actuators/actuator_cfg.html#IdealPDActuatorCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.actuators.IdealPDActuatorCfg" title="Permalink to this definition">#</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#omni.isaac.lab.actuators.ActuatorBaseCfg" title="omni.isaac.lab.actuators.actuator_cfg.ActuatorBaseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">ActuatorBaseCfg</span></code></a></p>
 <p>Configuration for an ideal PD actuator.</p>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.IdealPDActuatorCfg.joint_names_expr" title="omni.isaac.lab.actuators.IdealPDActuatorCfg.joint_names_expr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">joint_names_expr</span></code></a></p></td>
+<td><p>Articulation's joint names that are part of the group.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.IdealPDActuatorCfg.effort_limit" title="omni.isaac.lab.actuators.IdealPDActuatorCfg.effort_limit"><code class="xref py py-obj docutils literal notranslate"><span class="pre">effort_limit</span></code></a></p></td>
+<td><p>Force/Torque limit of the joints in the group.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.IdealPDActuatorCfg.velocity_limit" title="omni.isaac.lab.actuators.IdealPDActuatorCfg.velocity_limit"><code class="xref py py-obj docutils literal notranslate"><span class="pre">velocity_limit</span></code></a></p></td>
+<td><p>Velocity limit of the joints in the group.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.IdealPDActuatorCfg.stiffness" title="omni.isaac.lab.actuators.IdealPDActuatorCfg.stiffness"><code class="xref py py-obj docutils literal notranslate"><span class="pre">stiffness</span></code></a></p></td>
+<td><p>Stiffness gains (also known as p-gain) of the joints in the group.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.IdealPDActuatorCfg.damping" title="omni.isaac.lab.actuators.IdealPDActuatorCfg.damping"><code class="xref py py-obj docutils literal notranslate"><span class="pre">damping</span></code></a></p></td>
+<td><p>Damping gains (also known as d-gain) of the joints in the group.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.IdealPDActuatorCfg.armature" title="omni.isaac.lab.actuators.IdealPDActuatorCfg.armature"><code class="xref py py-obj docutils literal notranslate"><span class="pre">armature</span></code></a></p></td>
+<td><p>Armature of the joints in the group.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.IdealPDActuatorCfg.friction" title="omni.isaac.lab.actuators.IdealPDActuatorCfg.friction"><code class="xref py py-obj docutils literal notranslate"><span class="pre">friction</span></code></a></p></td>
+<td><p>Joint friction of the joints in the group.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.actuators.IdealPDActuatorCfg.joint_names_expr">
 <span class="sig-name descname"><span class="pre">joint_names_expr</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.actuators.IdealPDActuatorCfg.joint_names_expr" title="Permalink to this definition">#</a></dt>
@@ -2007,6 +2061,27 @@ We do this to avoid unnecessary indexing of the joints for performance reasons.<
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.DCMotorCfg.saturation_effort" title="omni.isaac.lab.actuators.DCMotorCfg.saturation_effort"><code class="xref py py-obj docutils literal notranslate"><span class="pre">saturation_effort</span></code></a></p></td>
 <td><p>Peak motor force/torque of the electric DC motor (in N-m).</p></td>
 </tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.DCMotorCfg.joint_names_expr" title="omni.isaac.lab.actuators.DCMotorCfg.joint_names_expr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">joint_names_expr</span></code></a></p></td>
+<td><p>Articulation's joint names that are part of the group.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.DCMotorCfg.effort_limit" title="omni.isaac.lab.actuators.DCMotorCfg.effort_limit"><code class="xref py py-obj docutils literal notranslate"><span class="pre">effort_limit</span></code></a></p></td>
+<td><p>Force/Torque limit of the joints in the group.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.DCMotorCfg.velocity_limit" title="omni.isaac.lab.actuators.DCMotorCfg.velocity_limit"><code class="xref py py-obj docutils literal notranslate"><span class="pre">velocity_limit</span></code></a></p></td>
+<td><p>Velocity limit of the joints in the group.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.DCMotorCfg.stiffness" title="omni.isaac.lab.actuators.DCMotorCfg.stiffness"><code class="xref py py-obj docutils literal notranslate"><span class="pre">stiffness</span></code></a></p></td>
+<td><p>Stiffness gains (also known as p-gain) of the joints in the group.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.DCMotorCfg.damping" title="omni.isaac.lab.actuators.DCMotorCfg.damping"><code class="xref py py-obj docutils literal notranslate"><span class="pre">damping</span></code></a></p></td>
+<td><p>Damping gains (also known as d-gain) of the joints in the group.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.DCMotorCfg.armature" title="omni.isaac.lab.actuators.DCMotorCfg.armature"><code class="xref py py-obj docutils literal notranslate"><span class="pre">armature</span></code></a></p></td>
+<td><p>Armature of the joints in the group.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.DCMotorCfg.friction" title="omni.isaac.lab.actuators.DCMotorCfg.friction"><code class="xref py py-obj docutils literal notranslate"><span class="pre">friction</span></code></a></p></td>
+<td><p>Joint friction of the joints in the group.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -2295,10 +2370,31 @@ We do this to avoid unnecessary indexing of the joints for performance reasons.<
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.DelayedPDActuatorCfg.min_delay" title="omni.isaac.lab.actuators.DelayedPDActuatorCfg.min_delay"><code class="xref py py-obj docutils literal notranslate"><span class="pre">min_delay</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.DelayedPDActuatorCfg.joint_names_expr" title="omni.isaac.lab.actuators.DelayedPDActuatorCfg.joint_names_expr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">joint_names_expr</span></code></a></p></td>
+<td><p>Articulation's joint names that are part of the group.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.DelayedPDActuatorCfg.effort_limit" title="omni.isaac.lab.actuators.DelayedPDActuatorCfg.effort_limit"><code class="xref py py-obj docutils literal notranslate"><span class="pre">effort_limit</span></code></a></p></td>
+<td><p>Force/Torque limit of the joints in the group.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.DelayedPDActuatorCfg.velocity_limit" title="omni.isaac.lab.actuators.DelayedPDActuatorCfg.velocity_limit"><code class="xref py py-obj docutils literal notranslate"><span class="pre">velocity_limit</span></code></a></p></td>
+<td><p>Velocity limit of the joints in the group.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.DelayedPDActuatorCfg.stiffness" title="omni.isaac.lab.actuators.DelayedPDActuatorCfg.stiffness"><code class="xref py py-obj docutils literal notranslate"><span class="pre">stiffness</span></code></a></p></td>
+<td><p>Stiffness gains (also known as p-gain) of the joints in the group.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.DelayedPDActuatorCfg.damping" title="omni.isaac.lab.actuators.DelayedPDActuatorCfg.damping"><code class="xref py py-obj docutils literal notranslate"><span class="pre">damping</span></code></a></p></td>
+<td><p>Damping gains (also known as d-gain) of the joints in the group.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.DelayedPDActuatorCfg.armature" title="omni.isaac.lab.actuators.DelayedPDActuatorCfg.armature"><code class="xref py py-obj docutils literal notranslate"><span class="pre">armature</span></code></a></p></td>
+<td><p>Armature of the joints in the group.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.DelayedPDActuatorCfg.friction" title="omni.isaac.lab.actuators.DelayedPDActuatorCfg.friction"><code class="xref py py-obj docutils literal notranslate"><span class="pre">friction</span></code></a></p></td>
+<td><p>Joint friction of the joints in the group.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.DelayedPDActuatorCfg.min_delay" title="omni.isaac.lab.actuators.DelayedPDActuatorCfg.min_delay"><code class="xref py py-obj docutils literal notranslate"><span class="pre">min_delay</span></code></a></p></td>
 <td><p>Minimum number of physics time-steps with which the actuator command may be delayed.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.DelayedPDActuatorCfg.max_delay" title="omni.isaac.lab.actuators.DelayedPDActuatorCfg.max_delay"><code class="xref py py-obj docutils literal notranslate"><span class="pre">max_delay</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.DelayedPDActuatorCfg.max_delay" title="omni.isaac.lab.actuators.DelayedPDActuatorCfg.max_delay"><code class="xref py py-obj docutils literal notranslate"><span class="pre">max_delay</span></code></a></p></td>
 <td><p>Maximum number of physics time-steps with which the actuator command may be delayed.</p></td>
 </tr>
 </tbody>
@@ -2598,7 +2694,34 @@ the output torques.</p>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.RemotizedPDActuatorCfg.joint_parameter_lookup" title="omni.isaac.lab.actuators.RemotizedPDActuatorCfg.joint_parameter_lookup"><code class="xref py py-obj docutils literal notranslate"><span class="pre">joint_parameter_lookup</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.RemotizedPDActuatorCfg.joint_names_expr" title="omni.isaac.lab.actuators.RemotizedPDActuatorCfg.joint_names_expr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">joint_names_expr</span></code></a></p></td>
+<td><p>Articulation's joint names that are part of the group.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.RemotizedPDActuatorCfg.effort_limit" title="omni.isaac.lab.actuators.RemotizedPDActuatorCfg.effort_limit"><code class="xref py py-obj docutils literal notranslate"><span class="pre">effort_limit</span></code></a></p></td>
+<td><p>Force/Torque limit of the joints in the group.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.RemotizedPDActuatorCfg.velocity_limit" title="omni.isaac.lab.actuators.RemotizedPDActuatorCfg.velocity_limit"><code class="xref py py-obj docutils literal notranslate"><span class="pre">velocity_limit</span></code></a></p></td>
+<td><p>Velocity limit of the joints in the group.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.RemotizedPDActuatorCfg.stiffness" title="omni.isaac.lab.actuators.RemotizedPDActuatorCfg.stiffness"><code class="xref py py-obj docutils literal notranslate"><span class="pre">stiffness</span></code></a></p></td>
+<td><p>Stiffness gains (also known as p-gain) of the joints in the group.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.RemotizedPDActuatorCfg.damping" title="omni.isaac.lab.actuators.RemotizedPDActuatorCfg.damping"><code class="xref py py-obj docutils literal notranslate"><span class="pre">damping</span></code></a></p></td>
+<td><p>Damping gains (also known as d-gain) of the joints in the group.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.RemotizedPDActuatorCfg.armature" title="omni.isaac.lab.actuators.RemotizedPDActuatorCfg.armature"><code class="xref py py-obj docutils literal notranslate"><span class="pre">armature</span></code></a></p></td>
+<td><p>Armature of the joints in the group.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.RemotizedPDActuatorCfg.friction" title="omni.isaac.lab.actuators.RemotizedPDActuatorCfg.friction"><code class="xref py py-obj docutils literal notranslate"><span class="pre">friction</span></code></a></p></td>
+<td><p>Joint friction of the joints in the group.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.RemotizedPDActuatorCfg.min_delay" title="omni.isaac.lab.actuators.RemotizedPDActuatorCfg.min_delay"><code class="xref py py-obj docutils literal notranslate"><span class="pre">min_delay</span></code></a></p></td>
+<td><p>Minimum number of physics time-steps with which the actuator command may be delayed.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.RemotizedPDActuatorCfg.max_delay" title="omni.isaac.lab.actuators.RemotizedPDActuatorCfg.max_delay"><code class="xref py py-obj docutils literal notranslate"><span class="pre">max_delay</span></code></a></p></td>
+<td><p>Maximum number of physics time-steps with which the actuator command may be delayed.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.RemotizedPDActuatorCfg.joint_parameter_lookup" title="omni.isaac.lab.actuators.RemotizedPDActuatorCfg.joint_parameter_lookup"><code class="xref py py-obj docutils literal notranslate"><span class="pre">joint_parameter_lookup</span></code></a></p></td>
 <td><p>Joint parameter lookup table.</p></td>
 </tr>
 </tbody>
@@ -2909,8 +3032,32 @@ and (feed-forward) joint efforts.</p></li>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.ActuatorNetMLPCfg.stiffness" title="omni.isaac.lab.actuators.ActuatorNetMLPCfg.stiffness"><code class="xref py py-obj docutils literal notranslate"><span class="pre">stiffness</span></code></a></p></td>
+<td><p>Stiffness gains (also known as p-gain) of the joints in the group.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.ActuatorNetMLPCfg.damping" title="omni.isaac.lab.actuators.ActuatorNetMLPCfg.damping"><code class="xref py py-obj docutils literal notranslate"><span class="pre">damping</span></code></a></p></td>
+<td><p>Damping gains (also known as d-gain) of the joints in the group.</p></td>
+</tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.ActuatorNetMLPCfg.network_file" title="omni.isaac.lab.actuators.ActuatorNetMLPCfg.network_file"><code class="xref py py-obj docutils literal notranslate"><span class="pre">network_file</span></code></a></p></td>
 <td><p>Path to the file containing network weights.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.ActuatorNetMLPCfg.joint_names_expr" title="omni.isaac.lab.actuators.ActuatorNetMLPCfg.joint_names_expr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">joint_names_expr</span></code></a></p></td>
+<td><p>Articulation's joint names that are part of the group.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.ActuatorNetMLPCfg.effort_limit" title="omni.isaac.lab.actuators.ActuatorNetMLPCfg.effort_limit"><code class="xref py py-obj docutils literal notranslate"><span class="pre">effort_limit</span></code></a></p></td>
+<td><p>Force/Torque limit of the joints in the group.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.ActuatorNetMLPCfg.velocity_limit" title="omni.isaac.lab.actuators.ActuatorNetMLPCfg.velocity_limit"><code class="xref py py-obj docutils literal notranslate"><span class="pre">velocity_limit</span></code></a></p></td>
+<td><p>Velocity limit of the joints in the group.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.ActuatorNetMLPCfg.armature" title="omni.isaac.lab.actuators.ActuatorNetMLPCfg.armature"><code class="xref py py-obj docutils literal notranslate"><span class="pre">armature</span></code></a></p></td>
+<td><p>Armature of the joints in the group.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.ActuatorNetMLPCfg.friction" title="omni.isaac.lab.actuators.ActuatorNetMLPCfg.friction"><code class="xref py py-obj docutils literal notranslate"><span class="pre">friction</span></code></a></p></td>
+<td><p>Joint friction of the joints in the group.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.ActuatorNetMLPCfg.saturation_effort" title="omni.isaac.lab.actuators.ActuatorNetMLPCfg.saturation_effort"><code class="xref py py-obj docutils literal notranslate"><span class="pre">saturation_effort</span></code></a></p></td>
+<td><p>Peak motor force/torque of the electric DC motor (in N-m).</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.ActuatorNetMLPCfg.pos_scale" title="omni.isaac.lab.actuators.ActuatorNetMLPCfg.pos_scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pos_scale</span></code></a></p></td>
 <td><p>Scaling of the joint position errors input to the network.</p></td>
@@ -3259,8 +3406,32 @@ We do this to avoid unnecessary indexing of the joints for performance reasons.<
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.ActuatorNetLSTMCfg.stiffness" title="omni.isaac.lab.actuators.ActuatorNetLSTMCfg.stiffness"><code class="xref py py-obj docutils literal notranslate"><span class="pre">stiffness</span></code></a></p></td>
+<td><p>Stiffness gains (also known as p-gain) of the joints in the group.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.ActuatorNetLSTMCfg.damping" title="omni.isaac.lab.actuators.ActuatorNetLSTMCfg.damping"><code class="xref py py-obj docutils literal notranslate"><span class="pre">damping</span></code></a></p></td>
+<td><p>Damping gains (also known as d-gain) of the joints in the group.</p></td>
+</tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.ActuatorNetLSTMCfg.network_file" title="omni.isaac.lab.actuators.ActuatorNetLSTMCfg.network_file"><code class="xref py py-obj docutils literal notranslate"><span class="pre">network_file</span></code></a></p></td>
 <td><p>Path to the file containing network weights.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.ActuatorNetLSTMCfg.joint_names_expr" title="omni.isaac.lab.actuators.ActuatorNetLSTMCfg.joint_names_expr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">joint_names_expr</span></code></a></p></td>
+<td><p>Articulation's joint names that are part of the group.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.ActuatorNetLSTMCfg.effort_limit" title="omni.isaac.lab.actuators.ActuatorNetLSTMCfg.effort_limit"><code class="xref py py-obj docutils literal notranslate"><span class="pre">effort_limit</span></code></a></p></td>
+<td><p>Force/Torque limit of the joints in the group.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.ActuatorNetLSTMCfg.velocity_limit" title="omni.isaac.lab.actuators.ActuatorNetLSTMCfg.velocity_limit"><code class="xref py py-obj docutils literal notranslate"><span class="pre">velocity_limit</span></code></a></p></td>
+<td><p>Velocity limit of the joints in the group.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.ActuatorNetLSTMCfg.armature" title="omni.isaac.lab.actuators.ActuatorNetLSTMCfg.armature"><code class="xref py py-obj docutils literal notranslate"><span class="pre">armature</span></code></a></p></td>
+<td><p>Armature of the joints in the group.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.ActuatorNetLSTMCfg.friction" title="omni.isaac.lab.actuators.ActuatorNetLSTMCfg.friction"><code class="xref py py-obj docutils literal notranslate"><span class="pre">friction</span></code></a></p></td>
+<td><p>Joint friction of the joints in the group.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.actuators.ActuatorNetLSTMCfg.saturation_effort" title="omni.isaac.lab.actuators.ActuatorNetLSTMCfg.saturation_effort"><code class="xref py py-obj docutils literal notranslate"><span class="pre">saturation_effort</span></code></a></p></td>
+<td><p>Peak motor force/torque of the electric DC motor (in N-m).</p></td>
 </tr>
 </tbody>
 </table>
@@ -3675,7 +3846,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 23, 2024.
+  Last updated on Oct 24, 2024.
   <br/>
 </p>
   </div>

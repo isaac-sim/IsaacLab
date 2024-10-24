@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.2.0" />
-    <meta name="docbuild:last-update" content="Oct 23, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 24, 2024"/>
   </head>
   
   
@@ -1217,6 +1217,12 @@ entire action tensor is returned.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.JointActionCfg.preserve_order" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.JointActionCfg.preserve_order"><code class="xref py py-obj docutils literal notranslate"><span class="pre">preserve_order</span></code></a></p></td>
 <td><p>Whether to preserve the order of the joint names in the action output.</p></td>
 </tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.JointActionCfg.asset_name" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.JointActionCfg.asset_name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">asset_name</span></code></a></p></td>
+<td><p>The name of the scene entity.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.JointActionCfg.debug_vis" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.JointActionCfg.debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">debug_vis</span></code></a></p></td>
+<td><p>Whether to visualize debug information.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -1271,6 +1277,24 @@ class for more details.</p>
 <tbody>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.JointPositionActionCfg.use_default_offset" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.JointPositionActionCfg.use_default_offset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">use_default_offset</span></code></a></p></td>
 <td><p>Whether to use default joint positions configured in the articulation asset as offset.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.JointPositionActionCfg.asset_name" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.JointPositionActionCfg.asset_name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">asset_name</span></code></a></p></td>
+<td><p>The name of the scene entity.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.JointPositionActionCfg.debug_vis" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.JointPositionActionCfg.debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">debug_vis</span></code></a></p></td>
+<td><p>Whether to visualize debug information.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.JointPositionActionCfg.joint_names" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.JointPositionActionCfg.joint_names"><code class="xref py py-obj docutils literal notranslate"><span class="pre">joint_names</span></code></a></p></td>
+<td><p>List of joint names or regex expressions that the action will be mapped to.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.JointPositionActionCfg.scale" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.JointPositionActionCfg.scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">scale</span></code></a></p></td>
+<td><p>Scale factor for the action (float or dict of regex expressions).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.JointPositionActionCfg.offset" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.JointPositionActionCfg.offset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">offset</span></code></a></p></td>
+<td><p>Offset factor for the action (float or dict of regex expressions).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.JointPositionActionCfg.preserve_order" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.JointPositionActionCfg.preserve_order"><code class="xref py py-obj docutils literal notranslate"><span class="pre">preserve_order</span></code></a></p></td>
+<td><p>Whether to preserve the order of the joint names in the action output.</p></td>
 </tr>
 </tbody>
 </table>
@@ -1336,6 +1360,24 @@ class for more details.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.RelativeJointPositionActionCfg.use_zero_offset" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.RelativeJointPositionActionCfg.use_zero_offset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">use_zero_offset</span></code></a></p></td>
 <td><p>Whether to ignore the offset defined in articulation asset.</p></td>
 </tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.RelativeJointPositionActionCfg.asset_name" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.RelativeJointPositionActionCfg.asset_name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">asset_name</span></code></a></p></td>
+<td><p>The name of the scene entity.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.RelativeJointPositionActionCfg.debug_vis" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.RelativeJointPositionActionCfg.debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">debug_vis</span></code></a></p></td>
+<td><p>Whether to visualize debug information.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.RelativeJointPositionActionCfg.joint_names" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.RelativeJointPositionActionCfg.joint_names"><code class="xref py py-obj docutils literal notranslate"><span class="pre">joint_names</span></code></a></p></td>
+<td><p>List of joint names or regex expressions that the action will be mapped to.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.RelativeJointPositionActionCfg.scale" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.RelativeJointPositionActionCfg.scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">scale</span></code></a></p></td>
+<td><p>Scale factor for the action (float or dict of regex expressions).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.RelativeJointPositionActionCfg.offset" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.RelativeJointPositionActionCfg.offset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">offset</span></code></a></p></td>
+<td><p>Offset factor for the action (float or dict of regex expressions).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.RelativeJointPositionActionCfg.preserve_order" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.RelativeJointPositionActionCfg.preserve_order"><code class="xref py py-obj docutils literal notranslate"><span class="pre">preserve_order</span></code></a></p></td>
+<td><p>Whether to preserve the order of the joint names in the action output.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -1398,6 +1440,24 @@ class for more details.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.JointVelocityActionCfg.use_default_offset" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.JointVelocityActionCfg.use_default_offset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">use_default_offset</span></code></a></p></td>
 <td><p>Whether to use default joint velocities configured in the articulation asset as offset.</p></td>
 </tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.JointVelocityActionCfg.asset_name" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.JointVelocityActionCfg.asset_name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">asset_name</span></code></a></p></td>
+<td><p>The name of the scene entity.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.JointVelocityActionCfg.debug_vis" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.JointVelocityActionCfg.debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">debug_vis</span></code></a></p></td>
+<td><p>Whether to visualize debug information.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.JointVelocityActionCfg.joint_names" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.JointVelocityActionCfg.joint_names"><code class="xref py py-obj docutils literal notranslate"><span class="pre">joint_names</span></code></a></p></td>
+<td><p>List of joint names or regex expressions that the action will be mapped to.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.JointVelocityActionCfg.scale" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.JointVelocityActionCfg.scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">scale</span></code></a></p></td>
+<td><p>Scale factor for the action (float or dict of regex expressions).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.JointVelocityActionCfg.offset" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.JointVelocityActionCfg.offset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">offset</span></code></a></p></td>
+<td><p>Offset factor for the action (float or dict of regex expressions).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.JointVelocityActionCfg.preserve_order" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.JointVelocityActionCfg.preserve_order"><code class="xref py py-obj docutils literal notranslate"><span class="pre">preserve_order</span></code></a></p></td>
+<td><p>Whether to preserve the order of the joint names in the action output.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -1455,6 +1515,30 @@ class for more details.</p>
 <dd><p>Bases: <a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.JointActionCfg" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.JointActionCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">JointActionCfg</span></code></a></p>
 <p>Configuration for the joint effort action term.</p>
 <p>See <code class="xref py py-class docutils literal notranslate"><span class="pre">JointEffortAction</span></code> for more details.</p>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.JointEffortActionCfg.asset_name" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.JointEffortActionCfg.asset_name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">asset_name</span></code></a></p></td>
+<td><p>The name of the scene entity.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.JointEffortActionCfg.debug_vis" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.JointEffortActionCfg.debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">debug_vis</span></code></a></p></td>
+<td><p>Whether to visualize debug information.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.JointEffortActionCfg.joint_names" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.JointEffortActionCfg.joint_names"><code class="xref py py-obj docutils literal notranslate"><span class="pre">joint_names</span></code></a></p></td>
+<td><p>List of joint names or regex expressions that the action will be mapped to.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.JointEffortActionCfg.scale" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.JointEffortActionCfg.scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">scale</span></code></a></p></td>
+<td><p>Scale factor for the action (float or dict of regex expressions).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.JointEffortActionCfg.offset" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.JointEffortActionCfg.offset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">offset</span></code></a></p></td>
+<td><p>Offset factor for the action (float or dict of regex expressions).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.JointEffortActionCfg.preserve_order" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.JointEffortActionCfg.preserve_order"><code class="xref py py-obj docutils literal notranslate"><span class="pre">preserve_order</span></code></a></p></td>
+<td><p>Whether to preserve the order of the joint names in the action output.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.actions.actions_cfg.JointEffortActionCfg.asset_name">
 <span class="sig-name descname"><span class="pre">asset_name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.JointEffortActionCfg.asset_name" title="Permalink to this definition">#</a></dt>
@@ -1513,6 +1597,12 @@ class for more details.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.JointPositionToLimitsActionCfg.rescale_to_limits" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.JointPositionToLimitsActionCfg.rescale_to_limits"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rescale_to_limits</span></code></a></p></td>
 <td><p>Whether to rescale the action to the joint limits.</p></td>
 </tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.JointPositionToLimitsActionCfg.asset_name" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.JointPositionToLimitsActionCfg.asset_name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">asset_name</span></code></a></p></td>
+<td><p>The name of the scene entity.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.JointPositionToLimitsActionCfg.debug_vis" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.JointPositionToLimitsActionCfg.debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">debug_vis</span></code></a></p></td>
+<td><p>Whether to visualize debug information.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -1567,6 +1657,21 @@ class for more details.</p>
 <tbody>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.EMAJointPositionToLimitsActionCfg.alpha" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.EMAJointPositionToLimitsActionCfg.alpha"><code class="xref py py-obj docutils literal notranslate"><span class="pre">alpha</span></code></a></p></td>
 <td><p>The weight for the moving average (float or dict of regex expressions).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.EMAJointPositionToLimitsActionCfg.asset_name" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.EMAJointPositionToLimitsActionCfg.asset_name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">asset_name</span></code></a></p></td>
+<td><p>The name of the scene entity.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.EMAJointPositionToLimitsActionCfg.debug_vis" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.EMAJointPositionToLimitsActionCfg.debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">debug_vis</span></code></a></p></td>
+<td><p>Whether to visualize debug information.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.EMAJointPositionToLimitsActionCfg.joint_names" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.EMAJointPositionToLimitsActionCfg.joint_names"><code class="xref py py-obj docutils literal notranslate"><span class="pre">joint_names</span></code></a></p></td>
+<td><p>List of joint names or regex expressions that the action will be mapped to.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.EMAJointPositionToLimitsActionCfg.scale" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.EMAJointPositionToLimitsActionCfg.scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">scale</span></code></a></p></td>
+<td><p>Scale factor for the action (float or dict of regex expressions).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.EMAJointPositionToLimitsActionCfg.rescale_to_limits" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.EMAJointPositionToLimitsActionCfg.rescale_to_limits"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rescale_to_limits</span></code></a></p></td>
+<td><p>Whether to rescale the action to the joint limits.</p></td>
 </tr>
 </tbody>
 </table>
@@ -1636,6 +1741,12 @@ the range [-1, 1] corresponds to the joint lower and upper limits respectively.<
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.BinaryJointActionCfg.close_command_expr" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.BinaryJointActionCfg.close_command_expr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">close_command_expr</span></code></a></p></td>
 <td><p>The joint command to move to <em>close</em> configuration.</p></td>
 </tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.BinaryJointActionCfg.asset_name" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.BinaryJointActionCfg.asset_name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">asset_name</span></code></a></p></td>
+<td><p>The name of the scene entity.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.BinaryJointActionCfg.debug_vis" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.BinaryJointActionCfg.debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">debug_vis</span></code></a></p></td>
+<td><p>Whether to visualize debug information.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -1679,6 +1790,27 @@ class for more details.</p>
 <dd><p>Bases: <a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.BinaryJointActionCfg" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.BinaryJointActionCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">BinaryJointActionCfg</span></code></a></p>
 <p>Configuration for the binary joint position action term.</p>
 <p>See <code class="xref py py-class docutils literal notranslate"><span class="pre">BinaryJointPositionAction</span></code> for more details.</p>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.BinaryJointPositionActionCfg.asset_name" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.BinaryJointPositionActionCfg.asset_name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">asset_name</span></code></a></p></td>
+<td><p>The name of the scene entity.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.BinaryJointPositionActionCfg.debug_vis" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.BinaryJointPositionActionCfg.debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">debug_vis</span></code></a></p></td>
+<td><p>Whether to visualize debug information.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.BinaryJointPositionActionCfg.joint_names" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.BinaryJointPositionActionCfg.joint_names"><code class="xref py py-obj docutils literal notranslate"><span class="pre">joint_names</span></code></a></p></td>
+<td><p>List of joint names or regex expressions that the action will be mapped to.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.BinaryJointPositionActionCfg.open_command_expr" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.BinaryJointPositionActionCfg.open_command_expr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">open_command_expr</span></code></a></p></td>
+<td><p>The joint command to move to <em>open</em> configuration.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.BinaryJointPositionActionCfg.close_command_expr" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.BinaryJointPositionActionCfg.close_command_expr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">close_command_expr</span></code></a></p></td>
+<td><p>The joint command to move to <em>close</em> configuration.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.actions.actions_cfg.BinaryJointPositionActionCfg.asset_name">
 <span class="sig-name descname"><span class="pre">asset_name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.BinaryJointPositionActionCfg.asset_name" title="Permalink to this definition">#</a></dt>
@@ -1719,6 +1851,27 @@ class for more details.</p>
 <dd><p>Bases: <a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.BinaryJointActionCfg" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.BinaryJointActionCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">BinaryJointActionCfg</span></code></a></p>
 <p>Configuration for the binary joint velocity action term.</p>
 <p>See <code class="xref py py-class docutils literal notranslate"><span class="pre">BinaryJointVelocityAction</span></code> for more details.</p>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.BinaryJointVelocityActionCfg.asset_name" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.BinaryJointVelocityActionCfg.asset_name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">asset_name</span></code></a></p></td>
+<td><p>The name of the scene entity.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.BinaryJointVelocityActionCfg.debug_vis" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.BinaryJointVelocityActionCfg.debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">debug_vis</span></code></a></p></td>
+<td><p>Whether to visualize debug information.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.BinaryJointVelocityActionCfg.joint_names" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.BinaryJointVelocityActionCfg.joint_names"><code class="xref py py-obj docutils literal notranslate"><span class="pre">joint_names</span></code></a></p></td>
+<td><p>List of joint names or regex expressions that the action will be mapped to.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.BinaryJointVelocityActionCfg.open_command_expr" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.BinaryJointVelocityActionCfg.open_command_expr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">open_command_expr</span></code></a></p></td>
+<td><p>The joint command to move to <em>open</em> configuration.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.BinaryJointVelocityActionCfg.close_command_expr" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.BinaryJointVelocityActionCfg.close_command_expr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">close_command_expr</span></code></a></p></td>
+<td><p>The joint command to move to <em>close</em> configuration.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.actions.actions_cfg.BinaryJointVelocityActionCfg.asset_name">
 <span class="sig-name descname"><span class="pre">asset_name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.BinaryJointVelocityActionCfg.asset_name" title="Permalink to this definition">#</a></dt>
@@ -1764,6 +1917,12 @@ class for more details.</p>
 <tbody>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.body_name" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.body_name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_name</span></code></a></p></td>
 <td><p>Name of the body which has the dummy mechanism connected to.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.asset_name" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.asset_name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">asset_name</span></code></a></p></td>
+<td><p>The name of the scene entity.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.debug_vis" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">debug_vis</span></code></a></p></td>
+<td><p>Whether to visualize debug information.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.x_joint_name" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.x_joint_name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">x_joint_name</span></code></a></p></td>
 <td><p>The dummy joint name in the x direction.</p></td>
@@ -1841,18 +2000,15 @@ class for more details.</p>
 <dd><p>Bases: <a class="reference internal" href="omni.isaac.lab.managers.html#omni.isaac.lab.managers.ActionTermCfg" title="omni.isaac.lab.managers.manager_term_cfg.ActionTermCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">ActionTermCfg</span></code></a></p>
 <p>Configuration for inverse differential kinematics action term.</p>
 <p>See <code class="xref py py-class docutils literal notranslate"><span class="pre">DifferentialInverseKinematicsAction</span></code> for more details.</p>
-<p><strong>Classes:</strong></p>
-<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
-<tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.OffsetCfg" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.OffsetCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">OffsetCfg</span></code></a></p></td>
-<td><p>The offset pose from parent frame to child frame.</p></td>
-</tr>
-</tbody>
-</table>
-</div>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.asset_name" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.asset_name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">asset_name</span></code></a></p></td>
+<td><p>The name of the scene entity.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.debug_vis" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">debug_vis</span></code></a></p></td>
+<td><p>Whether to visualize debug information.</p></td>
+</tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.joint_names" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.joint_names"><code class="xref py py-obj docutils literal notranslate"><span class="pre">joint_names</span></code></a></p></td>
 <td><p>List of joint names or regex expressions that the action will be mapped to.</p></td>
 </tr>
@@ -1867,6 +2023,15 @@ class for more details.</p>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.controller" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.controller"><code class="xref py py-obj docutils literal notranslate"><span class="pre">controller</span></code></a></p></td>
 <td><p>The configuration for the differential IK controller.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Classes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.OffsetCfg" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.OffsetCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">OffsetCfg</span></code></a></p></td>
+<td><p>The offset pose from parent frame to child frame.</p></td>
 </tr>
 </tbody>
 </table>
@@ -2315,6 +2480,18 @@ If the dictionary does not contain a key, the position or velocity is set to zer
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.envs.mdp.commands.commands_cfg.</span></span><span class="sig-name descname"><span class="pre">NullCommandCfg</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/envs/mdp/commands/commands_cfg.html#NullCommandCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.NullCommandCfg" title="Permalink to this definition">#</a></dt>
 <dd><p>Bases: <a class="reference internal" href="omni.isaac.lab.managers.html#omni.isaac.lab.managers.CommandTermCfg" title="omni.isaac.lab.managers.manager_term_cfg.CommandTermCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">CommandTermCfg</span></code></a></p>
 <p>Configuration for the null command generator.</p>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.NullCommandCfg.resampling_time_range" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.NullCommandCfg.resampling_time_range"><code class="xref py py-obj docutils literal notranslate"><span class="pre">resampling_time_range</span></code></a></p></td>
+<td><p>Time before commands are changed [s].</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.NullCommandCfg.debug_vis" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.NullCommandCfg.debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">debug_vis</span></code></a></p></td>
+<td><p>Whether to visualize debug information.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.commands.commands_cfg.NullCommandCfg.resampling_time_range">
 <span class="sig-name descname"><span class="pre">resampling_time_range</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.NullCommandCfg.resampling_time_range" title="Permalink to this definition">#</a></dt>
@@ -2360,6 +2537,12 @@ If the dictionary does not contain a key, the position or velocity is set to zer
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.current_vel_visualizer_cfg" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.current_vel_visualizer_cfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">current_vel_visualizer_cfg</span></code></a></p></td>
 <td><p>The configuration for the current velocity visualization marker.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.resampling_time_range" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.resampling_time_range"><code class="xref py py-obj docutils literal notranslate"><span class="pre">resampling_time_range</span></code></a></p></td>
+<td><p>Time before commands are changed [s].</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.debug_vis" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg.debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">debug_vis</span></code></a></p></td>
+<td><p>Whether to visualize debug information.</p></td>
 </tr>
 </tbody>
 </table>
@@ -2495,20 +2678,47 @@ command is sampled uniformly from provided range.</p>
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.envs.mdp.commands.commands_cfg.</span></span><span class="sig-name descname"><span class="pre">NormalVelocityCommandCfg</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/envs/mdp/commands/commands_cfg.html#NormalVelocityCommandCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg" title="Permalink to this definition">#</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformVelocityCommandCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">UniformVelocityCommandCfg</span></code></a></p>
 <p>Configuration for the normal velocity command generator.</p>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.heading_command" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.heading_command"><code class="xref py py-obj docutils literal notranslate"><span class="pre">heading_command</span></code></a></p></td>
+<td><p>Whether to use heading command or angular velocity command.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.ranges" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.ranges"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ranges</span></code></a></p></td>
+<td><p>Distribution ranges for the velocity commands.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.resampling_time_range" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.resampling_time_range"><code class="xref py py-obj docutils literal notranslate"><span class="pre">resampling_time_range</span></code></a></p></td>
+<td><p>Time before commands are changed [s].</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.debug_vis" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">debug_vis</span></code></a></p></td>
+<td><p>Whether to visualize debug information.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.asset_name" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.asset_name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">asset_name</span></code></a></p></td>
+<td><p>Name of the asset in the environment for which the commands are generated.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.heading_control_stiffness" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.heading_control_stiffness"><code class="xref py py-obj docutils literal notranslate"><span class="pre">heading_control_stiffness</span></code></a></p></td>
+<td><p>Scale factor to convert the heading error to angular velocity command.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.rel_standing_envs" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.rel_standing_envs"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rel_standing_envs</span></code></a></p></td>
+<td><p>The sampled probability of environments that should be standing still.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.rel_heading_envs" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.rel_heading_envs"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rel_heading_envs</span></code></a></p></td>
+<td><p>The sampled probability of environments where the robots follow the heading-based angular velocity command (the others follow the sampled angular velocity command).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.goal_vel_visualizer_cfg" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.goal_vel_visualizer_cfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">goal_vel_visualizer_cfg</span></code></a></p></td>
+<td><p>The configuration for the goal velocity visualization marker.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.current_vel_visualizer_cfg" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.current_vel_visualizer_cfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">current_vel_visualizer_cfg</span></code></a></p></td>
+<td><p>The configuration for the current velocity visualization marker.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
 <p><strong>Classes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.Ranges" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.Ranges"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Ranges</span></code></a></p></td>
 <td><p>Normal distribution ranges for the velocity commands.</p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<p><strong>Attributes:</strong></p>
-<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
-<tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.ranges" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.ranges"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ranges</span></code></a></p></td>
-<td><p>Distribution ranges for the velocity commands.</p></td>
 </tr>
 </tbody>
 </table>
@@ -2639,6 +2849,12 @@ command is sampled uniformly from provided range.</p>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.make_quat_unique" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.make_quat_unique"><code class="xref py py-obj docutils literal notranslate"><span class="pre">make_quat_unique</span></code></a></p></td>
 <td><p>Whether to make the quaternion unique or not.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.resampling_time_range" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.resampling_time_range"><code class="xref py py-obj docutils literal notranslate"><span class="pre">resampling_time_range</span></code></a></p></td>
+<td><p>Time before commands are changed [s].</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.debug_vis" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">debug_vis</span></code></a></p></td>
+<td><p>Whether to visualize debug information.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.ranges" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.ranges"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ranges</span></code></a></p></td>
 <td><p>Ranges for the commands.</p></td>
@@ -2787,6 +3003,12 @@ command is sampled uniformly from provided range.</p>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPose2dCommandCfg.resampling_time_range" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPose2dCommandCfg.resampling_time_range"><code class="xref py py-obj docutils literal notranslate"><span class="pre">resampling_time_range</span></code></a></p></td>
+<td><p>Time before commands are changed [s].</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPose2dCommandCfg.debug_vis" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPose2dCommandCfg.debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">debug_vis</span></code></a></p></td>
+<td><p>Whether to visualize debug information.</p></td>
+</tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPose2dCommandCfg.asset_name" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPose2dCommandCfg.asset_name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">asset_name</span></code></a></p></td>
 <td><p>Name of the asset in the environment for which the commands are generated.</p></td>
 </tr>
@@ -2896,20 +3118,35 @@ command is sampled uniformly from provided range.</p>
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.envs.mdp.commands.commands_cfg.</span></span><span class="sig-name descname"><span class="pre">TerrainBasedPose2dCommandCfg</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/envs/mdp/commands/commands_cfg.html#TerrainBasedPose2dCommandCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.TerrainBasedPose2dCommandCfg" title="Permalink to this definition">#</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPose2dCommandCfg" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPose2dCommandCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">UniformPose2dCommandCfg</span></code></a></p>
 <p>Configuration for the terrain-based position command generator.</p>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.TerrainBasedPose2dCommandCfg.resampling_time_range" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.TerrainBasedPose2dCommandCfg.resampling_time_range"><code class="xref py py-obj docutils literal notranslate"><span class="pre">resampling_time_range</span></code></a></p></td>
+<td><p>Time before commands are changed [s].</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.TerrainBasedPose2dCommandCfg.debug_vis" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.TerrainBasedPose2dCommandCfg.debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">debug_vis</span></code></a></p></td>
+<td><p>Whether to visualize debug information.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.TerrainBasedPose2dCommandCfg.asset_name" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.TerrainBasedPose2dCommandCfg.asset_name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">asset_name</span></code></a></p></td>
+<td><p>Name of the asset in the environment for which the commands are generated.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.TerrainBasedPose2dCommandCfg.simple_heading" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.TerrainBasedPose2dCommandCfg.simple_heading"><code class="xref py py-obj docutils literal notranslate"><span class="pre">simple_heading</span></code></a></p></td>
+<td><p>Whether to use simple heading or not.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.TerrainBasedPose2dCommandCfg.goal_pose_visualizer_cfg" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.TerrainBasedPose2dCommandCfg.goal_pose_visualizer_cfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">goal_pose_visualizer_cfg</span></code></a></p></td>
+<td><p>The configuration for the goal pose visualization marker.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.TerrainBasedPose2dCommandCfg.ranges" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.TerrainBasedPose2dCommandCfg.ranges"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ranges</span></code></a></p></td>
+<td><p>Distribution ranges for the sampled commands.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
 <p><strong>Classes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.TerrainBasedPose2dCommandCfg.Ranges" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.TerrainBasedPose2dCommandCfg.Ranges"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Ranges</span></code></a></p></td>
 <td><p>Uniform distribution ranges for the position commands.</p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<p><strong>Attributes:</strong></p>
-<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
-<tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.commands.commands_cfg.TerrainBasedPose2dCommandCfg.ranges" title="omni.isaac.lab.envs.mdp.commands.commands_cfg.TerrainBasedPose2dCommandCfg.ranges"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ranges</span></code></a></p></td>
-<td><p>Distribution ranges for the sampled commands.</p></td>
 </tr>
 </tbody>
 </table>
@@ -3777,7 +4014,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 23, 2024.
+  Last updated on Oct 24, 2024.
   <br/>
 </p>
   </div>

@@ -63,7 +63,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.2.0" />
-    <meta name="docbuild:last-update" content="Oct 23, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 24, 2024"/>
   </head>
   
   
@@ -3123,7 +3123,10 @@ all environments are considered.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.modifiers.DigitalFilterCfg.A" title="omni.isaac.lab.utils.modifiers.DigitalFilterCfg.A"><code class="xref py py-obj docutils literal notranslate"><span class="pre">A</span></code></a></p></td>
 <td><p>The coefficients corresponding the the filter's response to past outputs.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.modifiers.DigitalFilterCfg.B" title="omni.isaac.lab.utils.modifiers.DigitalFilterCfg.B"><code class="xref py py-obj docutils literal notranslate"><span class="pre">B</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.modifiers.DigitalFilterCfg.params" title="omni.isaac.lab.utils.modifiers.DigitalFilterCfg.params"><code class="xref py py-obj docutils literal notranslate"><span class="pre">params</span></code></a></p></td>
+<td><p>The parameters to be passed to the function or callable class as keyword arguments.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.modifiers.DigitalFilterCfg.B" title="omni.isaac.lab.utils.modifiers.DigitalFilterCfg.B"><code class="xref py py-obj docutils literal notranslate"><span class="pre">B</span></code></a></p></td>
 <td><p>The coefficients corresponding the the filter's response to current and past inputs.</p></td>
 </tr>
 </tbody>
@@ -3225,7 +3228,10 @@ all environments are considered.</p>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.modifiers.IntegratorCfg.dt" title="omni.isaac.lab.utils.modifiers.IntegratorCfg.dt"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dt</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.modifiers.IntegratorCfg.params" title="omni.isaac.lab.utils.modifiers.IntegratorCfg.params"><code class="xref py py-obj docutils literal notranslate"><span class="pre">params</span></code></a></p></td>
+<td><p>The parameters to be passed to the function or callable class as keyword arguments.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.modifiers.IntegratorCfg.dt" title="omni.isaac.lab.utils.modifiers.IntegratorCfg.dt"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dt</span></code></a></p></td>
 <td><p>The time step of the integrator.</p></td>
 </tr>
 </tbody>
@@ -3405,6 +3411,9 @@ with the noise applied. These functions are then used in the <a class="reference
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.noise.ConstantNoiseCfg.bias" title="omni.isaac.lab.utils.noise.ConstantNoiseCfg.bias"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bias</span></code></a></p></td>
 <td><p>The bias to add.</p></td>
 </tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.noise.ConstantNoiseCfg.operation" title="omni.isaac.lab.utils.noise.ConstantNoiseCfg.operation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">operation</span></code></a></p></td>
+<td><p>The operation to apply the noise on the data.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -3433,7 +3442,10 @@ with the noise applied. These functions are then used in the <a class="reference
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.noise.GaussianNoiseCfg.mean" title="omni.isaac.lab.utils.noise.GaussianNoiseCfg.mean"><code class="xref py py-obj docutils literal notranslate"><span class="pre">mean</span></code></a></p></td>
 <td><p>The mean of the noise.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.noise.GaussianNoiseCfg.std" title="omni.isaac.lab.utils.noise.GaussianNoiseCfg.std"><code class="xref py py-obj docutils literal notranslate"><span class="pre">std</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.noise.GaussianNoiseCfg.operation" title="omni.isaac.lab.utils.noise.GaussianNoiseCfg.operation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">operation</span></code></a></p></td>
+<td><p>The operation to apply the noise on the data.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.noise.GaussianNoiseCfg.std" title="omni.isaac.lab.utils.noise.GaussianNoiseCfg.std"><code class="xref py py-obj docutils literal notranslate"><span class="pre">std</span></code></a></p></td>
 <td><p>The standard deviation of the noise.</p></td>
 </tr>
 </tbody>
@@ -3485,19 +3497,7 @@ with the noise applied. These functions are then used in the <a class="reference
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.utils.noise.NoiseModelCfg.class_type">
 <span class="sig-name descname"><span class="pre">class_type</span></span><a class="headerlink" href="#omni.isaac.lab.utils.noise.NoiseModelCfg.class_type" title="Permalink to this definition">#</a></dt>
-<dd><p>alias of <a class="reference internal" href="#omni.isaac.lab.utils.noise.NoiseModel" title="omni.isaac.lab.utils.noise.noise_model.NoiseModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">NoiseModel</span></code></a>
-<strong>Methods:</strong></p>
-<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
-<tbody>
-<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">apply</span></code>(data)</p></td>
-<td><p>Apply the noise to the data.</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset</span></code>([env_ids])</p></td>
-<td><p>Reset the noise model.</p></td>
-</tr>
-</tbody>
-</table>
-</div>
+<dd><p>alias of <a class="reference internal" href="#omni.isaac.lab.utils.noise.NoiseModel" title="omni.isaac.lab.utils.noise.noise_model.NoiseModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">NoiseModel</span></code></a></p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -3513,20 +3513,23 @@ with the noise applied. These functions are then used in the <a class="reference
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.utils.noise.</span></span><span class="sig-name descname"><span class="pre">NoiseModelWithAdditiveBiasCfg</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/utils/noise/noise_cfg.html#NoiseModelWithAdditiveBiasCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBiasCfg" title="Permalink to this definition">#</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#omni.isaac.lab.utils.noise.NoiseModelCfg" title="omni.isaac.lab.utils.noise.noise_cfg.NoiseModelCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">NoiseModelCfg</span></code></a></p>
 <p>Configuration for an additive gaussian noise with bias model.</p>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBiasCfg.noise_cfg" title="omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBiasCfg.noise_cfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">noise_cfg</span></code></a></p></td>
+<td><p>The noise configuration to use.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBiasCfg.bias_noise_cfg" title="omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBiasCfg.bias_noise_cfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bias_noise_cfg</span></code></a></p></td>
+<td><p>The noise configuration for the bias.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
 <p><strong>Classes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBiasCfg.class_type" title="omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBiasCfg.class_type"><code class="xref py py-obj docutils literal notranslate"><span class="pre">class_type</span></code></a></p></td>
 <td><p>alias of <a class="reference internal" href="#omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBias" title="omni.isaac.lab.utils.noise.noise_model.NoiseModelWithAdditiveBias"><code class="xref py py-class docutils literal notranslate"><span class="pre">NoiseModelWithAdditiveBias</span></code></a></p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<p><strong>Attributes:</strong></p>
-<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
-<tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBiasCfg.bias_noise_cfg" title="omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBiasCfg.bias_noise_cfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bias_noise_cfg</span></code></a></p></td>
-<td><p>The noise configuration for the bias.</p></td>
 </tr>
 </tbody>
 </table>
@@ -3540,19 +3543,7 @@ with the noise applied. These functions are then used in the <a class="reference
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBiasCfg.class_type">
 <span class="sig-name descname"><span class="pre">class_type</span></span><a class="headerlink" href="#omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBiasCfg.class_type" title="Permalink to this definition">#</a></dt>
-<dd><p>alias of <a class="reference internal" href="#omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBias" title="omni.isaac.lab.utils.noise.noise_model.NoiseModelWithAdditiveBias"><code class="xref py py-class docutils literal notranslate"><span class="pre">NoiseModelWithAdditiveBias</span></code></a>
-<strong>Methods:</strong></p>
-<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
-<tbody>
-<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">apply</span></code>(data)</p></td>
-<td><p>Apply bias noise to the data.</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset</span></code>([env_ids])</p></td>
-<td><p>Reset the noise model.</p></td>
-</tr>
-</tbody>
-</table>
-</div>
+<dd><p>alias of <a class="reference internal" href="#omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBias" title="omni.isaac.lab.utils.noise.noise_model.NoiseModelWithAdditiveBias"><code class="xref py py-class docutils literal notranslate"><span class="pre">NoiseModelWithAdditiveBias</span></code></a></p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -3577,6 +3568,9 @@ with the noise applied. These functions are then used in the <a class="reference
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.noise.UniformNoiseCfg.n_max" title="omni.isaac.lab.utils.noise.UniformNoiseCfg.n_max"><code class="xref py py-obj docutils literal notranslate"><span class="pre">n_max</span></code></a></p></td>
 <td><p>The maximum value of the noise.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.noise.UniformNoiseCfg.operation" title="omni.isaac.lab.utils.noise.UniformNoiseCfg.operation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">operation</span></code></a></p></td>
+<td><p>The operation to apply the noise on the data.</p></td>
 </tr>
 </tbody>
 </table>
@@ -4510,7 +4504,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 23, 2024.
+  Last updated on Oct 24, 2024.
   <br/>
 </p>
   </div>
