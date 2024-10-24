@@ -122,7 +122,7 @@ class ObservationsCfg:
             func=mdp.root_pos_w, noise=Gnoise(std=0.002), params={"asset_cfg": SceneEntityCfg("object")}
         )
         object_quat = ObsTerm(
-            func=mdp.root_quat_w, params={"asset_cfg": SceneEntityCfg("object"), "make_quat_unique": False}
+            func=mdp.root_link_quat_w, params={"asset_cfg": SceneEntityCfg("object"), "make_quat_unique": False}
         )
         object_lin_vel = ObsTerm(
             func=mdp.root_lin_vel_w, noise=Gnoise(std=0.002), params={"asset_cfg": SceneEntityCfg("object")}

@@ -30,7 +30,7 @@ def goal_quat_diff(
 
     # obtain the orientations
     goal_quat_w = command_term.command[:, 3:7]
-    asset_quat_w = asset.data.root_quat_w
+    asset_quat_w = asset.data.root_link_quat_w
 
     # compute quaternion difference
     quat = math_utils.quat_mul(asset_quat_w, math_utils.quat_conjugate(goal_quat_w))
