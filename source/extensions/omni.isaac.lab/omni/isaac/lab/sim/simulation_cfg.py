@@ -153,6 +153,54 @@ class PhysxCfg:
 
 
 @configclass
+class RenderCfg:
+    """Configuration for Omniverse RTX Renderer.
+
+    These parameters are used to configure the Omniverse RTX Renderer.
+    For more information, see the `Omniverse RTX Renderer documentation`_.
+
+    .. _Omniverse RTX Renderer documentation: https://docs.omniverse.nvidia.com/materials-and-rendering/latest/rtx-renderer.html
+    """
+
+    enable_translucency: bool = False
+    """Enables translucency for specular transmissive surfaces such as glass at the cost of some performance. Default is False."""
+
+    enable_reflections: bool = False
+    """Enables reflections at the cost of some performance. Default is False."""
+
+    enable_global_illumination: bool = False
+    """Enables Diffused Global Illumination at the cost of some performance. Default is False."""
+
+    antialiasing_mode: Literal["Off", "FXAA", "DLSS", "TAA", "DLAA"] = "DLSS"
+    """Selects the anti-aliasing mode to use. Defaults to DLSS."""
+
+    enable_dlssg: bool = False
+    """"Enables the use of DLSS-G.
+        DLSS Frame Generation boosts performance by using AI to generate more frames.
+        DLSS analyzes sequential frames and motion data to create additional high quality frames.
+        This feature requires an Ada Lovelace architecture GPU.
+        Enabling this feature also enables additional thread-related activities, which can hurt performance.
+        Default is False."""
+
+    dlss_mode: Literal[0, 1, 2, 3] = 0
+    """For DLSS anti-aliasing, selects the performance/quality tradeoff mode.
+       Valid values are 0 (Performance), 1 (Balanced), 2 (Quality), or 3 (Auto). Default is 0."""
+
+    enable_direct_lighting: bool = True
+    """Enable direct light contributions from lights."""
+
+    samples_per_pixel: int = 1
+    """Defines the Direct Lighting samples per pixel.
+       Higher values increase the direct lighting quality at the cost of performance. Default is 1."""
+
+    enable_shadows: bool = True
+    """Enables shadows at the cost of performance. When disabled, lights will not cast shadows. Defaults to True."""
+
+    enable_ambient_occlusion: bool = False
+    """Enables ambient occlusion at the cost of some performance. Default is False."""
+
+
+@configclass
 class SimulationCfg:
     """Configuration for simulation physics."""
 
@@ -234,3 +282,6 @@ class SimulationCfg:
 
     The material is created at the path: ``{physics_prim_path}/defaultMaterial``.
     """
+
+    render: RenderCfg = RenderCfg()
+    """Render settings. Default is RenderCfg()."""
