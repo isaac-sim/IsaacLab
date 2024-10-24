@@ -7,7 +7,6 @@ import glob
 import os
 import torch
 import torch.nn as nn
-
 import torchvision
 
 from omni.isaac.lab.sensors import save_images_to_file
