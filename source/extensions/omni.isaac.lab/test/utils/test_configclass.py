@@ -23,7 +23,7 @@ import unittest
 from collections.abc import Callable
 from dataclasses import MISSING, asdict, field
 from functools import wraps
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from omni.isaac.lab.utils.configclass import configclass
 from omni.isaac.lab.utils.dict import class_to_dict, dict_to_md5_hash, update_class_from_dict
@@ -86,6 +86,11 @@ def double(x):
 
 
 @configclass
+class ModifierCfg:
+    params: dict[str, Any] = {"A": 1, "B": 2}
+
+
+@configclass
 class ViewerCfg:
     eye: list = [7.5, 7.5, 7.5]  # field missing on purpose
     lookat: list = field(default_factory=lambda: [0.0, 0.0, 0.0])
@@ -113,6 +118,7 @@ class BasicDemoCfg:
     device_id: int = 0
     env: EnvCfg = EnvCfg()
     robot_default_state: RobotDefaultStateCfg = RobotDefaultStateCfg()
+    list_config = [ModifierCfg(), ModifierCfg(params={"A": 3, "B": 4})]
 
 
 @configclass
@@ -381,6 +387,7 @@ basic_demo_cfg_correct = {
         "dof_vel": [0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
     },
     "device_id": 0,
+    "list_config": [{"params": {"A": 1, "B": 2}}, {"params": {"A": 3, "B": 4}}],
 }
 
 basic_demo_cfg_change_correct = {
@@ -392,6 +399,7 @@ basic_demo_cfg_change_correct = {
         "dof_vel": [0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
     },
     "device_id": 0,
+    "list_config": [{"params": {"A": 1, "B": 2}}, {"params": {"A": 3, "B": 4}}],
 }
 
 basic_demo_cfg_change_with_none_correct = {
@@ -403,6 +411,19 @@ basic_demo_cfg_change_with_none_correct = {
         "dof_vel": [0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
     },
     "device_id": 0,
+    "list_config": [{"params": {"A": 1, "B": 2}}, {"params": {"A": 3, "B": 4}}],
+}
+
+basic_demo_cfg_change_with_tuple_correct = {
+    "env": {"num_envs": 56, "episode_length": 2000, "viewer": {"eye": [7.5, 7.5, 7.5], "lookat": [0.0, 0.0, 0.0]}},
+    "robot_default_state": {
+        "pos": (0.0, 0.0, 0.0),
+        "rot": (1.0, 0.0, 0.0, 0.0),
+        "dof_pos": (0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+        "dof_vel": [0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
+    },
+    "device_id": 0,
+    "list_config": [{"params": {"A": -1, "B": -2}}, {"params": {"A": -3, "B": -4}}],
 }
 
 basic_demo_cfg_nested_dict_and_list = {
@@ -496,7 +517,7 @@ class TestConfigClass(unittest.TestCase):
 
     def test_dict_conversion_order(self):
         """Tests that order is conserved when converting to dictionary."""
-        true_outer_order = ["device_id", "env", "robot_default_state"]
+        true_outer_order = ["device_id", "env", "robot_default_state", "list_config"]
         true_env_order = ["num_envs", "episode_length", "viewer"]
         # create config
         cfg = BasicDemoCfg()
@@ -514,7 +535,7 @@ class TestConfigClass(unittest.TestCase):
             self.assertEqual(label, parsed_value)
         # check ordering when copied
         cfg_dict_copied = copy.deepcopy(cfg_dict)
-        cfg_dict_copied.pop("robot_default_state")
+        cfg_dict_copied.pop("list_config")
         # check ordering
         for label, parsed_value in zip(true_outer_order, cfg_dict_copied.keys()):
             self.assertEqual(label, parsed_value)
@@ -550,6 +571,13 @@ class TestConfigClass(unittest.TestCase):
         cfg_dict = {"env": {"num_envs": 22, "viewer": None}}
         update_class_from_dict(cfg, cfg_dict)
         self.assertDictEqual(asdict(cfg), basic_demo_cfg_change_with_none_correct)
+
+    def test_config_update_dict_tuple(self):
+        """Test updating configclass using a dictionary that modifies a tuple."""
+        cfg = BasicDemoCfg()
+        cfg_dict = {"list_config": [{"params": {"A": -1, "B": -2}}, {"params": {"A": -3, "B": -4}}]}
+        update_class_from_dict(cfg, cfg_dict)
+        self.assertDictEqual(asdict(cfg), basic_demo_cfg_change_with_tuple_correct)
 
     def test_config_update_nested_dict(self):
         """Test updating configclass with sub-dictionaries."""
