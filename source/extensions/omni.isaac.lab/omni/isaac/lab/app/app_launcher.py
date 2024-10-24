@@ -572,7 +572,7 @@ class AppLauncher:
 
         # Resolve additional arguments passed to Kit
         self._ov_args = []
-        if launcher_args["ov_args"]:
+        if "ov_args" in launcher_args:
             self._ov_args = [arg for arg in launcher_args["ov_args"].split()]
             sys.argv += self._ov_args
 
