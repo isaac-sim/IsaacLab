@@ -54,6 +54,7 @@ Guidelines for modifications:
 * Kaixi Bao
 * Kourosh Darvish
 * Lionel Gulich
+* Louis Le Lay
 * Lorenz Wellhausen
 * Masoud Moghani
 * Michael Gussert
