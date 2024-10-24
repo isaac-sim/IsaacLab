@@ -19,6 +19,7 @@
     SimulationContext
     SimulationCfg
     PhysxCfg
+    RenderCfg
 
   .. rubric:: Functions
 
@@ -42,6 +43,11 @@ Simulation Configuration
   :exclude-members: __init__
 
 .. autoclass:: PhysxCfg
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+.. autoclass:: RenderCfg
   :members:
   :show-inheritance:
   :exclude-members: __init__

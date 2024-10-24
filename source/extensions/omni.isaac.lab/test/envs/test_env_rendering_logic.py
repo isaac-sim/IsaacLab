@@ -47,6 +47,7 @@ def create_manager_based_env(render_interval: int):
         """Configuration for the test environment."""
 
         decimation: int = 4
+        episode_length_s: float = 100.0
         sim: SimulationCfg = SimulationCfg(dt=0.005, render_interval=render_interval)
         scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1, env_spacing=1.0)
         actions: EmptyManagerCfg = EmptyManagerCfg()
@@ -63,10 +64,13 @@ def create_manager_based_rl_env(render_interval: int):
         """Configuration for the test environment."""
 
         decimation: int = 4
+        episode_length_s: float = 100.0
         sim: SimulationCfg = SimulationCfg(dt=0.005, render_interval=render_interval)
         scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1, env_spacing=1.0)
         actions: EmptyManagerCfg = EmptyManagerCfg()
         observations: EmptyManagerCfg = EmptyManagerCfg()
+        rewards: EmptyManagerCfg = EmptyManagerCfg()
+        terminations: EmptyManagerCfg = EmptyManagerCfg()
 
     return ManagerBasedRLEnv(cfg=EnvCfg())
 
@@ -81,6 +85,7 @@ def create_direct_rl_env(render_interval: int):
         decimation: int = 4
         action_space: int = 0
         observation_space: int = 0
+        episode_length_s: float = 100.0
         sim: SimulationCfg = SimulationCfg(dt=0.005, render_interval=render_interval)
         scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1, env_spacing=1.0)
 
@@ -140,10 +145,10 @@ class TestEnvRenderingLogic(unittest.TestCase):
                         else:
                             env = create_direct_rl_env(render_interval)
                     except Exception as e:
-                        if "env" in locals():
+                        if "env" in locals() and hasattr(env, "_is_closed"):
                             env.close()
                         else:
-                            if hasattr(e, "obj") and hasattr(e.obj, "close"):
+                            if hasattr(e, "obj") and hasattr(e.obj, "_is_closed"):
                                 e.obj.close()
                         self.fail(f"Failed to set-up the environment {env_type}. Error: {e}")
 

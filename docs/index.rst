@@ -98,7 +98,6 @@ Table of Contents
    source/features/multi_gpu
    source/features/tiled_rendering
    source/features/reproducibility
-   .. source/features/motion_generators
 
 .. toctree::
    :maxdepth: 1
