@@ -14,15 +14,15 @@ from omni.isaac.lab_tasks.utils.wrappers.rsl_rl import (
 
 @configclass
 class FloatScrewPPORunnerCfg(RslRlOnPolicyRunnerCfg):
-    num_steps_per_env = 16
-    max_iterations = 5000
-    save_interval = 250
+    num_steps_per_env = 24
+    max_iterations = 10000
+    save_interval = 500
     experiment_name = "float_screw"
     run_name = ""
     resume = False
     logger = "wandb"
     wandb_project = "float_screw"
-    empirical_normalization = False
+    empirical_normalization = True
     policy = RslRlPpoActorCriticCfg(
         init_noise_std=1.0,
         actor_hidden_dims=[128, 128],
@@ -33,7 +33,7 @@ class FloatScrewPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         value_loss_coef=1.0,
         use_clipped_value_loss=True,
         clip_param=0.2,
-        entropy_coef=0.002,
+        entropy_coef=0.003,
         num_learning_epochs=8,
         num_mini_batches=4,
         learning_rate=1.0e-3,

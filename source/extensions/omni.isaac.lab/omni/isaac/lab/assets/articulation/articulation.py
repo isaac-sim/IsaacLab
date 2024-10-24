@@ -457,11 +457,11 @@ class Articulation(AssetBase):
         """
         root_state, joint_state = state["root_state"], state["joint_state"]
         self.write_root_state_to_sim(root_state, env_ids)
-        self.write_joint_state_to_sim(joint_state["position"], joint_state["velocity"], env_ids)
+        self.write_joint_state_to_sim(joint_state["position"], joint_state["velocity"], env_ids=env_ids)
 
-        self.set_joint_position_target(joint_state["position_target"], env_ids)
-        self.set_joint_velocity_target(joint_state["velocity_target"], env_ids)
-        self.set_joint_effort_target(joint_state["effort_target"], env_ids)
+        self.set_joint_position_target(joint_state["position_target"], env_ids=env_ids)
+        self.set_joint_velocity_target(joint_state["velocity_target"], env_ids=env_ids)
+        self.set_joint_effort_target(joint_state["effort_target"], env_ids=env_ids)
         self.write_data_to_sim()
 
     def write_joint_stiffness_to_sim(

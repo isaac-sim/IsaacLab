@@ -41,7 +41,8 @@ class IKRelKukaNutTightenEnvCfg(BaseNutTightenEnvCfg):
 
         self.scene.robot = KUKA_VICTOR_LEFT_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.robot.init_state.pos = [-0.25, -0.2, -0.8]
-
+        scale = [0.001, 0.001, 0.001, 0.01, 0.01, 0.8]
+        
         # # override actions
         self.actions.arm_action = DifferentialInverseKinematicsActionCfg(
             asset_name="robot",
@@ -49,6 +50,7 @@ class IKRelKukaNutTightenEnvCfg(BaseNutTightenEnvCfg):
             body_name="victor_left_tool0",
             controller=DifferentialIKControllerCfg(command_type="pose",
                                                    use_relative_mode=True, ik_method="dls"),
+            scale=scale,
         )
         self.actions.gripper_action = mdp.Robotiq3FingerActionCfg(
             asset_name="robot",
@@ -96,17 +98,22 @@ from omni.isaac.lab.managers import EventTermCfg, ManagerTermBase
 class reset_scene_to_grasp_state(ManagerTermBase):
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
-        cached_pre_grasp_state = SmartDict(pickle.load(open("data/kuka_nut_thread_pre_grasp.pkl", "rb")))
+        screw_type = self._env.cfg.scene.screw_type
+        # cached_pre_grasp_state = SmartDict(pickle.load(open("data/kuka_nut_thread_pre_grasp.pkl", "rb")))
+        cached_pre_grasp_state = pickle.load(open(f"data/kuka_{screw_type}_pre_grasp.pkl", "rb"))
+        cached_pre_grasp_state = SmartDict(cached_pre_grasp_state).to_tensor(device=env.device)
+        # cached_pre_grasp_state = SmartDict(pickle.load(open(f"data/kuka_{}_pre_grasp.pkl", "rb")))
         self.cached_pre_grasp_state = cached_pre_grasp_state.apply(lambda x: repeat(x, "1 ... -> n ...", n=env.num_envs).clone())
 
     def __call__(self, env: ManagerBasedEnv, env_ids: torch.Tensor):
-        self.env.unwrapped.write_state(self.cached_pre_grasp_state[env_ids], env_ids)
+        env.unwrapped.write_state(self.cached_pre_grasp_state[env_ids].clone(), env_ids)
 
 @configclass
 class EventCfg:
     """Configuration for events."""
     reset_default = EventTerm(
-        func=reset_scene_with_grasping,
+        # func=reset_scene_with_grasping,
+        func=reset_scene_to_grasp_state,
         mode="reset",
     )
 
@@ -119,6 +126,7 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         super().get_default_env_params()
         self.env_params.sim.dt = self.env_params.sim.get("dt", 1.0 / 120.0)
         self.env_params.scene.robot = self.env_params.scene.get("robot", OmegaConf.create())
+        # self.pre_grasp_path
         robot_params = self.env_params.scene.robot
         robot_params["collision_approximation"] = robot_params.get("collision_approximation", "sdf")
         robot_params["contact_offset"] = robot_params.get("contact_offset", 0.001)
@@ -143,8 +151,9 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         # post init of parent
         super().__post_init__()
         self.events = EventCfg()
-        self.act_lows = [-0.001, -0.001, -0.001, -0.5, -0.5, -0.5]
-        self.act_highs = [0.001, 0.001, 0.001, 0.5, 0.5, 0.5]
+        self.act_lows = [-0.0001, -0.0001, -0.015, -0.01, -0.01, -0.8]
+        self.act_highs = [0.0001, 0.0001, 0.015, 0.01, 0.01, 0.]
+        scale = [0.01, 0.01, 0.01, 0.01, 0.01, 0.8]
         self.sim.dt = self.env_params.sim.dt
 
         # self.scene.robot.spawn.collision_props = sim_utils.CollisionPropertiesCfg(
@@ -181,6 +190,7 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
             joint_names=["victor_left_arm_joint.*"],
             body_name="victor_left_tool0",
             controller=DifferentialIKControllerCfg(command_type="pose", use_relative_mode=True, ik_method="dls"),
+            scale=scale,
         )
         #     arm_joint_angles = [
         #   1.4693e+00, -4.3030e-01,  2.2680e+00,  1.5199e+00, -2.1248e+00,

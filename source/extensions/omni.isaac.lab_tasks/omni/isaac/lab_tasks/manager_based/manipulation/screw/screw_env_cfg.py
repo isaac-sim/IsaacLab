@@ -335,7 +335,7 @@ class BaseScrewEnvCfg(ManagerBasedRLEnvCfg):
         self.env_params.scene = self.env_params.get("scene", OmegaConf.create())
         self.env_params.sim = self.env_params.get("sim", OmegaConf.create())
         self.env_params.sim.physx = self.env_params.sim.get("physx", OmegaConf.create())
-        self.env_params.scene.screw_type = self.env_params.scene.get("screw_type", "m8_tight") # m8_tight m16_tight
+        self.env_params.scene.screw_type = self.env_params.scene.get("screw_type", "m8_loose") # m8_tight m16_tight
         self.env_params.scene.nut = self.env_params.scene.get("nut", OmegaConf.create())
         self.env_params.sim.dt = self.env_params.sim.get("dt", 1.0 / 60.0)
         self.env_params.sim.physx.friction_offset_threshold = self.env_params.sim.physx.get("friction_offset_threshold",
@@ -346,7 +346,8 @@ class BaseScrewEnvCfg(ManagerBasedRLEnvCfg):
     def __post_init__(self):
         """Post initialization."""
         self.get_default_env_params()
-        self.scene = ScrewSceneCfg(num_envs=4096, env_spacing=2.5, screw_type=self.env_params.scene.screw_type)
+        self.screw_type = self.env_params.scene.screw_type
+        self.scene = ScrewSceneCfg(num_envs=4096, env_spacing=2.5, screw_type=self.screw_type)
         # general settings
         self.decimation = self.env_params.decimation
         self.sim.render_interval = self.decimation
@@ -452,7 +453,7 @@ class NutThreadRewardsCfg:
         weight=2.0,
     )
     upright_reward = RewTerm(func=nut_upright_reward_forge, params={"a": 700, "b": 0}, weight=2)
-    task_success = RewTerm(func=mdp.nut_successfully_threaded, params={"threshold": 1e-4}, weight=20)
+    task_success = RewTerm(func=mdp.nut_successfully_threaded, params={"threshold": 2e-4}, weight=2)
     action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.000001)
 
 
