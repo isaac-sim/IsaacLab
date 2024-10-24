@@ -33,6 +33,7 @@ class RelFloatNutTightenEnvCfg(abs_pose_env_cfg.AbsFloatNutTightenEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
+        screw_dict = self.scene.screw_dict
         self.act_lows = [-0.001, -0.001, -0.001, -0.5, -0.5, -0.5]
         self.act_highs = [0.001, 0.001, 0.001, 0.5, 0.5, 0.5]
         self.scene.nut.spawn.rigid_props.sleep_threshold = 0.0
@@ -44,8 +45,8 @@ class RelFloatNutTightenEnvCfg(abs_pose_env_cfg.AbsFloatNutTightenEnvCfg):
             command_type="pose",
             use_relative_mode=True,
             is_accumulate_action=False,
-            p_gain=10,
-            d_gain=0.01,
+            p_gain=screw_dict["float_gain"],
+            d_gain=screw_dict["float_damp"],
             lows=self.act_lows,
             highs=self.act_highs,
         )
@@ -69,19 +70,20 @@ class RelFloatNutThreadEnv(BaseNutThreadEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
+        screw_dict = self.scene.screw_dict
         self.scene.robot = None
         # self.act_lows = [-0.0001, -0.0001, -0.005, -0.0001, -0.0001, -0.5]
         # self.act_highs = [0.0010, 0.0001, 0.005, 0.0001, 0.0001, 0.5]
-        self.act_lows = [-0.0001, -0.0001, -0.005, -0.01, -0.01, -0.5]
-        self.act_highs = [0.0001, 0.0001, 0.005, 0.01, 0.01, 0.]
-        scale = [0.0001, 0.0001, 0.005, 0.01, 0.01, 0.5]
+        self.act_lows = [-0.0001, -0.0001, -0.05, -0.01, -0.01, -0.6]
+        self.act_highs = [0.0001, 0.0001, 0.05, 0.01, 0.01, 0.]
+        scale = [0.0001, 0.0001, 0.01, 0.01, 0.01, 0.6]
         # override actions
         self.actions.nut_action = mdp.RigidObjectPoseActionTermCfg(
             asset_name="nut",
             command_type="pose",
             use_relative_mode=True,
-            p_gain=10,
-            d_gain=0.01,
+            p_gain=screw_dict["float_gain"],
+            d_gain=screw_dict["float_damp"],
             is_accumulate_action=False,
             lows=self.act_lows,
             highs=self.act_highs,
@@ -97,7 +99,7 @@ class RelFloatNutThreadEnv(BaseNutThreadEnvCfg):
         )
         self.rewards.contact_force_penalty = RewTerm(
             func=mdp.contact_forces,
-            params={"threshold":0.0001, "sensor_cfg": SceneEntityCfg(name="contact_sensor")},
+            params={"threshold":0.0004, "sensor_cfg": SceneEntityCfg(name="contact_sensor")},
             weight=0.00001)
 
 

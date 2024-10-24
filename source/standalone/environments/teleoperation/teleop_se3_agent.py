@@ -9,6 +9,8 @@
 
 import argparse
 
+from omegaconf import OmegaConf
+
 from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
@@ -39,7 +41,7 @@ import torch
 import tqdm
 import pickle
 
-from force_tool.utils.data_utils import SmartDict
+from force_tool.utils.data_utils import SmartDict, update_config
 from force_tool.visualization.plot_utils import get_img_from_fig, save_numpy_as_mp4
 
 from omni.isaac.lab.devices import Se3Gamepad, Se3Keyboard, Se3RobotiqKeyboard, Se3SpaceMouse
@@ -71,8 +73,12 @@ def pre_process_actions(delta_pose: torch.Tensor, gripper_command: bool) -> torc
 def main():
     """Running keyboard teleoperation with Isaac Lab manipulation environment."""
     # parse configuration
+    cfg = OmegaConf.create()
+    vv = {"scene.screw_type":  "m16_tight"}
+    cfg = update_config(cfg, vv)
     env_cfg = parse_env_cfg(
-        args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric
+        args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs, 
+        use_fabric=not args_cli.disable_fabric, env_params=cfg
     )
     # modify configuration
     env_cfg.terminations.time_out = None
@@ -93,8 +99,8 @@ def main():
     if args_cli.teleop_device.lower() == "keyboard":
         if "Kuka" in args_cli.task:
             teleop_interface = Se3RobotiqKeyboard(
-                pos_sensitivity=0.05 * args_cli.sensitivity,
-                rot_sensitivity=0.5 * args_cli.sensitivity,
+                pos_sensitivity=1 * args_cli.sensitivity,
+                rot_sensitivity=1* args_cli.sensitivity,
                 gripper_sensitivity=0.02 * args_cli.sensitivity,
             )
         else:
@@ -127,8 +133,8 @@ def main():
     gripper_deltas[50:90] = -0.025
     for i in range(10):
         frame = env.unwrapped.render()
-    cached_env_state = SmartDict(pickle.load(open("data/kuka_nut_thread_pre_grasp.pkl", "rb")))
-    env.unwrapped.write_state(cached_env_state)
+    # cached_env_state = SmartDict(pickle.load(open("data/kuka_nut_thread_pre_grasp.pkl", "rb")))
+    # env.unwrapped.write_state(cached_env_state)
     # simulate environment
     while simulation_app.is_running():
         # run everything in inference mode
@@ -148,7 +154,7 @@ def main():
             # actions[:, -2:] = gripper_deltas[counter%100]
             counter += 1
             obs, reward, termin, timeout, _ = env.step(actions)
-            print(env.unwrapped.scene["robot"].read_body_pos_w("victor_left_tool0"))
+            # print(env.unwrapped.scene["robot"].read_body_pos_w("victor_left_tool0"))
        
             if record_forces:
                 frame = env.unwrapped.render()

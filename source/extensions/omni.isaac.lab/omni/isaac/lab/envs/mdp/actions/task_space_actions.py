@@ -356,9 +356,9 @@ class RigidObjectActionTerm(ActionTerm):
         # print("------------------------------------")
         # print(actions)
         # store the raw actions
-        actions[:] = 0
-        actions[:, 2] = -0.005
-        actions[:, 5] = -0.2
+        # actions[:] = 0
+        # actions[:, 2] = -0.01
+        # actions[:, 5] = -0.5
 
         self._raw_actions[:] = actions
         # no-processing of actions
