@@ -47,6 +47,12 @@ class RewardManager(ManagerBase):
             cfg: The configuration object or dictionary (``dict[str, RewardTermCfg]``).
             env: The environment instance.
         """
+        # create buffers to parse and store terms
+        self._term_names: list[str] = list()
+        self._term_cfgs: list[RewardTermCfg] = list()
+        self._class_term_cfgs: list[RewardTermCfg] = list()
+
+        # call the base class constructor (this will parse the terms config)
         super().__init__(cfg, env)
         # prepare extra info to store individual reward term information
         self._episode_sums = dict()
@@ -185,12 +191,6 @@ class RewardManager(ManagerBase):
     """
 
     def _prepare_terms(self):
-        """Prepares a list of reward functions."""
-        # parse remaining reward terms and decimate their information
-        self._term_names: list[str] = list()
-        self._term_cfgs: list[RewardTermCfg] = list()
-        self._class_term_cfgs: list[RewardTermCfg] = list()
-
         # check if config is dict already
         if isinstance(self.cfg, dict):
             cfg_items = self.cfg.items()
