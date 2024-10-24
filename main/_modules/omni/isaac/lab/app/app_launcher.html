@@ -684,6 +684,10 @@
 <span class="sd">          * If headless and enable_cameras are False, the experience file is set to ``isaaclab.python.kit``.</span>
 <span class="sd">          * If headless is True and enable_cameras is False, the experience file is set to ``isaaclab.python.headless.kit``.</span>
 
+<span class="sd">        * ``kit_args`` (str): Optional command line arguments to be passed to Omniverse Kit directly.</span>
+<span class="sd">          Arguments should be combined into a single string separated by space.</span>
+<span class="sd">          Example usage: --kit_args &quot;--ext-folder=/path/to/ext1 --ext-folder=/path/to/ext2&quot;</span>
+
 <span class="sd">        Args:</span>
 <span class="sd">            parser: An argument parser instance to be extended with the AppLauncher specific options.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
@@ -768,6 +772,15 @@
                 <span class="s2">&quot;The experience file to load when launching the SimulationApp. If an empty string is provided,&quot;</span>
                 <span class="s2">&quot; the experience file is determined based on the headless flag. If a relative path is provided,&quot;</span>
                 <span class="s2">&quot; it is resolved relative to the `apps` folder in Isaac Sim and Isaac Lab (in that order).&quot;</span>
+            <span class="p">),</span>
+        <span class="p">)</span>
+        <span class="n">arg_group</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+            <span class="s2">&quot;--kit_args&quot;</span><span class="p">,</span>
+            <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span>
+            <span class="n">default</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span>
+            <span class="n">help</span><span class="o">=</span><span class="p">(</span>
+                <span class="s2">&quot;Command line arguments for Omniverse Kit as a string separated by a space delimiter.&quot;</span>
+                <span class="s1">&#39; Example usage: --kit_args &quot;--ext-folder=/path/to/ext1 --ext-folder=/path/to/ext2&quot;&#39;</span>
             <span class="p">),</span>
         <span class="p">)</span>
 
@@ -1056,6 +1069,12 @@
                 <span class="s2">&quot; The file does not exist.&quot;</span>
             <span class="p">)</span>
 
+        <span class="c1"># Resolve additional arguments passed to Kit</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_kit_args</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="s2">&quot;kit_args&quot;</span> <span class="ow">in</span> <span class="n">launcher_args</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_kit_args</span> <span class="o">=</span> <span class="p">[</span><span class="n">arg</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">launcher_args</span><span class="p">[</span><span class="s2">&quot;kit_args&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">()]</span>
+            <span class="n">sys</span><span class="o">.</span><span class="n">argv</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_kit_args</span>
+
         <span class="c1"># Resolve the absolute path of the experience file</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_sim_experience_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_sim_experience_file</span><span class="p">)</span>
         <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[INFO][AppLauncher]: Loading experience file: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_sim_experience_file</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
@@ -1094,6 +1113,9 @@
         <span class="c1"># remove the threadCount argument from sys.argv if it was added for distributed training</span>
         <span class="n">pattern</span> <span class="o">=</span> <span class="sa">r</span><span class="s2">&quot;--/plugins/carb\.tasking\.plugin/threadCount=\d+&quot;</span>
         <span class="n">sys</span><span class="o">.</span><span class="n">argv</span> <span class="o">=</span> <span class="p">[</span><span class="n">arg</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">argv</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">pattern</span><span class="p">,</span> <span class="n">arg</span><span class="p">)]</span>
+        <span class="c1"># remove additional OV args from sys.argv</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_kit_args</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">sys</span><span class="o">.</span><span class="n">argv</span> <span class="o">=</span> <span class="p">[</span><span class="n">arg</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">argv</span> <span class="k">if</span> <span class="n">arg</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_kit_args</span><span class="p">]</span>
 
     <span class="k">def</span> <span class="nf">_rendering_enabled</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Check if rendering is required by the app.&quot;&quot;&quot;</span>
