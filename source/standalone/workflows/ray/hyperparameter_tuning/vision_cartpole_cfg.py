@@ -10,13 +10,13 @@ UTIL_DIR = pathlib.Path(__file__).parent.parent.parent
 sys.path.append(str(UTIL_DIR))
 
 import isaac_ray_tune
-import isaac_ray_util
 
 
 class CartpoleRGBNoTuneJobCfg(isaac_ray_tune.JobCfg):  # Idempotent
     def __init__(self, cfg: dict = {}):
         cfg["workflow"] = "/workspace/isaaclab/workflows/rl_games/train.py"
         cfg["runner_args"]["singletons"] = ["--headless", "--enable_cameras"]
+        cfg["runner_args"]["--task"] = "Isaac-Cartpole-RGB-Camera-Direct-v0"
         cfg["hydra_args"] = {}
         super().__init__(cfg, vary_env_count=False, vary_cnn=False, vary_mlp=False)
 
@@ -37,23 +37,3 @@ class CartpoleTheiaJobCfg(isaac_ray_tune.RLGamesTheiaCameraJob):
     def __init__(self, cfg: dict = {}):
         cfg["runner_args"]["--task"] = "Isaac-Cartpole-TheiaTiny-Camera-v0"
         super().__init__(cfg)
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Tune Cartpole.")
-    parser.add_argument("--tune_type", choices=["standard_no_tune", "standard", "resnet", "theia"])
-    isaac_ray_util.add_cluster_args(parser=parser)
-    args = parser.parse_args()
-    cfg_cls = None
-    if args.type == "standard_no_tune":
-        cfg_cls = CartpoleRGBNoTuneJobCfg()
-    elif args.type == "standard":
-        cfg_cls = CartpoleRGBJobCfg()
-    elif args.type == "resnet":
-        cfg_cls = CartpoleResNetJobCfg()
-    elif args.type == "theia":
-        cfg_cls = CartpoleTheiaJobCfg()
-    else:
-        raise ValueError("Unknown desired tune.")
-
-    isaac_ray_tune.invoke_tuning_run(args=args, cfg=cfg_cls.cfg)

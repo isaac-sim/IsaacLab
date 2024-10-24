@@ -68,10 +68,11 @@ def invoke_run(cfg, max_line_count=2000):
             print(f"{target_list[-1]}")
 
     print(f"[INFO]: Starting workflow {cfg['workflow']}")
-    print("[INFO]: Retrieving workflow runner args:")
+    
     process_args(cfg["runner_args"], runner_args)
-    print("[INFO]: Retrieving hydra args:")
+    print(f"[INFO]: Retrieved workflow runner args: {runner_args}")
     process_args(cfg["hydra_args"], hydra_args)
+    print(f"[INFO]: Retrieved hydra args: {hydra_args}")
 
     proc = subprocess.Popen(
         ["./workspace/isaaclab.sh -p ", cfg["workflow"], *runner_args, *hydra_args],
@@ -117,6 +118,7 @@ def invoke_run(cfg, max_line_count=2000):
     if error_detected or experiment_name is None or logdir is None:
         print(f"Error during experiment run, or could not find logdir: \n {log_output}")
         return {"proc": None, "experiment_name": None, "logdir": None}
+    print(f"[INFO]: Extracted experiment name {experiment_name} and logdir {logdir}")
     return {"proc": proc, "experiment_name": experiment_name, "logdir": logdir}
 
 
@@ -160,7 +162,7 @@ def get_gpu_node_resources(total_resources: bool = False, one_node_only: bool = 
 
 
 def add_cluster_args(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--name", type=str, help="The name of the Ray Cluster you'd like to train on.")
+    parser.add_argument("--name", type=str, help="The name of the Ray Cluster to train on.")
 
     parser.add_argument(
         "--num_gpu_per_job",
@@ -183,11 +185,3 @@ def add_cluster_args(parser: argparse.ArgumentParser) -> None:
         type=int,
         help="Supply to split nodes into multiple workers. Meant for local development",
     )
-    parser.add_argument("--max_iterations", default=10000, type=int, help="Max epoch count for tuning per job.")
-
-    parser.add_argument("--num_samples", default=1000, type=int, help="How many different configurations to try.")
-
-
-if __name__ == "__main__":
-    pass
-    # trainable = IsaacLabTuneTrainable(args.executable_path, args.workflow_path, args.args)
