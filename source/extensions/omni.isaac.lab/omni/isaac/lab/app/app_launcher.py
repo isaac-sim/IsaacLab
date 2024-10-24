@@ -187,7 +187,7 @@ class AppLauncher:
 
         * ``kit_args`` (str): Optional command line arguments to be passed to Omniverse Kit directly.
           Arguments should be combined into a single string separated by space.
-          Example usage: --ov_args "--ext-folder=/path/to/ext1 --ext-folder=/path/to/ext2"
+          Example usage: --kit_args "--ext-folder=/path/to/ext1 --ext-folder=/path/to/ext2"
 
         Args:
             parser: An argument parser instance to be extended with the AppLauncher specific options.
@@ -571,10 +571,10 @@ class AppLauncher:
             )
 
         # Resolve additional arguments passed to Kit
-        self._ov_args = []
-        if "ov_args" in launcher_args:
-            self._ov_args = [arg for arg in launcher_args["ov_args"].split()]
-            sys.argv += self._ov_args
+        self._kit_args = []
+        if "kit_args" in launcher_args:
+            self._kit_args = [arg for arg in launcher_args["kit_args"].split()]
+            sys.argv += self._kit_args
 
         # Resolve the absolute path of the experience file
         self._sim_experience_file = os.path.abspath(self._sim_experience_file)
@@ -615,8 +615,8 @@ class AppLauncher:
         pattern = r"--/plugins/carb\.tasking\.plugin/threadCount=\d+"
         sys.argv = [arg for arg in sys.argv if not re.match(pattern, arg)]
         # remove additional OV args from sys.argv
-        if len(self._ov_args) > 0:
-            sys.argv = [arg for arg in sys.argv if arg not in self._ov_args]
+        if len(self._kit_args) > 0:
+            sys.argv = [arg for arg in sys.argv if arg not in self._kit_args]
 
     def _rendering_enabled(self) -> bool:
         """Check if rendering is required by the app."""
