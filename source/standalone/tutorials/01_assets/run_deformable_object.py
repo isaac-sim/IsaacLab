@@ -109,7 +109,7 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Deformab
             # write nodal state to simulation
             cube_object.write_nodal_state_to_sim(nodal_state)
 
-            # write kinematic target to nodal state and free all vertices
+            # Write the nodal state to the kinematic target and free all vertices
             nodal_kinematic_target[..., :3] = nodal_state[..., :3]
             nodal_kinematic_target[..., 3] = 1.0
             cube_object.write_nodal_kinematic_target_to_sim(nodal_kinematic_target)
