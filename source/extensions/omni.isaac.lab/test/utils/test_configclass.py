@@ -375,6 +375,18 @@ basic_demo_cfg_change_with_none_correct = {
     "list_config": [{"params": {"A": 1, "B": 2}}, {"params": {"A": 3, "B": 4}}],
 }
 
+basic_demo_cfg_change_with_tuple_correct = {
+    "env": {"num_envs": 56, "episode_length": 2000, "viewer": {"eye": [7.5, 7.5, 7.5], "lookat": [0.0, 0.0, 0.0]}},
+    "robot_default_state": {
+        "pos": (0.0, 0.0, 0.0),
+        "rot": (1.0, 0.0, 0.0, 0.0),
+        "dof_pos": (0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+        "dof_vel": [0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
+    },
+    "device_id": 0,
+    "list_config": [{"params": {"A": -1, "B": -2}}, {"params": {"A": -3, "B": -4}}],
+}
+
 basic_demo_cfg_nested_dict_and_list = {
     "dict_1": {
         "dict_2": {"func": dummy_function2},
@@ -504,6 +516,13 @@ class TestConfigClass(unittest.TestCase):
         cfg_dict = {"env": {"num_envs": 22, "viewer": None}}
         update_class_from_dict(cfg, cfg_dict)
         self.assertDictEqual(asdict(cfg), basic_demo_cfg_change_with_none_correct)
+
+    def test_config_update_dict_tuple(self):
+        """Test updating configclass using a dictionary that modifies a tuple."""
+        cfg = BasicDemoCfg()
+        cfg_dict = {"list_config": [{"params": {"A": -1, "B": -2}}, {"params": {"A": -3, "B": -4}}]}
+        update_class_from_dict(cfg, cfg_dict)
+        self.assertDictEqual(asdict(cfg), basic_demo_cfg_change_with_tuple_correct)
 
     def test_config_update_nested_dict(self):
         """Test updating configclass with sub-dictionaries."""

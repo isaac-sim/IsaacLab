@@ -7,7 +7,7 @@ Changelog
 Fixed
 ^^^^^
 
-* Fixed the issue with using list or tuples of ``configclass`` within a ``configclass``. Ealier, the list of
+* Fixed the issue with using list or tuples of ``configclass`` within a ``configclass``. Earlier, the list of
   configclass objects were not converted to dictionary properly when ``to_dict`` function was called.
 
 
