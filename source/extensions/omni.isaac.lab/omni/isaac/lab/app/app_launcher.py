@@ -281,7 +281,7 @@ class AppLauncher:
             default="",
             help=(
                 "Command line arguments for Omniverse Kit as a string separated by a space delimiter."
-                ' Example usage: --ov_args "--ext-folder=/path/to/ext1 --ext-folder=/path/to/ext2"'
+                ' Example usage: --kit_args "--ext-folder=/path/to/ext1 --ext-folder=/path/to/ext2"'
             ),
         )
 
