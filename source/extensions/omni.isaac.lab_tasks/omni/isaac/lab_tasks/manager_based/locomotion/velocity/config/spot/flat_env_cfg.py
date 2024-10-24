@@ -294,13 +294,6 @@ class SpotTerminationsCfg:
 
 
 @configclass
-class SpotCurriculumCfg:
-    """Curriculum terms for the MDP."""
-
-    pass
-
-
-@configclass
 class SpotFlatEnvCfg(LocomotionVelocityRoughEnvCfg):
 
     # Basic settings'
@@ -312,7 +305,6 @@ class SpotFlatEnvCfg(LocomotionVelocityRoughEnvCfg):
     rewards: SpotRewardsCfg = SpotRewardsCfg()
     terminations: SpotTerminationsCfg = SpotTerminationsCfg()
     events: SpotEventCfg = SpotEventCfg()
-    curriculum: SpotCurriculumCfg = SpotCurriculumCfg()
 
     # Viewer
     viewer = ViewerCfg(eye=(10.5, 10.5, 0.3), origin_type="world", env_index=0, asset_name="robot")

@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.10.9 (2024-10-22)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Sets curriculum and commands to None in manager-based environment configurations when not needed.
+  Earlier, this was done by making an empty configuration object, which is now unnecessary.
+
+
 0.10.8 (2024-10-22)
 ~~~~~~~~~~~~~~~~~~~
 
