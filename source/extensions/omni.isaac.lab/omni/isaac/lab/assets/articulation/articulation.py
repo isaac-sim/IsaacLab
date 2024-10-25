@@ -97,6 +97,7 @@ class Articulation(AssetBase):
             cfg: A configuration instance.
         """
         super().__init__(cfg)
+        self.cached_body_ids = {}
 
     """
     Properties
@@ -347,7 +348,7 @@ class Articulation(AssetBase):
         """Read the velocity of the bodies in the articulation from the simulation."""
         if env_ids is None:
             env_ids = slice(None)
-        body_ids, _ = self.find_bodies(name_keys, preserve_order)
+        body_ids = self.cached_body_ids.get(name_keys, self.find_bodies(name_keys, preserve_order)[0])
         return self._data.body_vel_w[env_ids, body_ids]
 
     """

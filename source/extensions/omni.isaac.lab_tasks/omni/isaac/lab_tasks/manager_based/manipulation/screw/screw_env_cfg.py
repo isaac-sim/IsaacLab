@@ -321,12 +321,12 @@ class BaseScrewEnvCfg(ManagerBasedRLEnvCfg):
         self.env_params.scene = self.env_params.get("scene", OmegaConf.create())
         self.env_params.sim = self.env_params.get("sim", OmegaConf.create())
         self.env_params.sim.physx = self.env_params.sim.get("physx", OmegaConf.create())
-        self.env_params.scene.screw_type = self.env_params.scene.get("screw_type", "m8_tight") # m8_tight m16_tight
+        self.env_params.scene.screw_type = self.env_params.scene.get("screw_type", "m16_loose") # m8_tight m16_tight
         self.env_params.scene.nut = self.env_params.scene.get("nut", OmegaConf.create())
         self.env_params.sim.dt = self.env_params.sim.get("dt", 1.0 / 60.0)
         self.env_params.sim.physx.friction_offset_threshold = self.env_params.sim.physx.get("friction_offset_threshold", 0.04)
         self.env_params.sim.physx.enable_ccd = self.env_params.sim.physx.get("enable_ccd", False)
-        self.env_params.decimation = self.env_params.get("decimation", 1)
+        self.env_params.decimation = self.env_params.get("decimation", 2)
 
     def __post_init__(self):
         """Post initialization."""

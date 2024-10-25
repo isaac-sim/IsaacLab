@@ -14,8 +14,8 @@ from omni.isaac.lab_tasks.utils.wrappers.rsl_rl import (
 
 @configclass
 class KukaScrewPPORunnerCfg(RslRlOnPolicyRunnerCfg):
-    num_steps_per_env = 24
-    max_iterations = 1000
+    num_steps_per_env = 32
+    max_iterations = 50000
     save_interval = 500
     experiment_name = "kuka_screw"
     run_name = ""
@@ -25,8 +25,8 @@ class KukaScrewPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     empirical_normalization = True
     policy = RslRlPpoActorCriticCfg(
         init_noise_std=1.0,
-        actor_hidden_dims=[128, 128],
-        critic_hidden_dims=[128, 128],
+        actor_hidden_dims=[128, 256, 128],
+        critic_hidden_dims=[128, 256, 128],
         activation="elu",
     )
     algorithm = RslRlPpoAlgorithmCfg(

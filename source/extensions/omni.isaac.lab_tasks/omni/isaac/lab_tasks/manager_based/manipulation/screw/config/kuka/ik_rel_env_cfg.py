@@ -14,6 +14,7 @@ from omni.isaac.lab.envs import ManagerBasedEnv
 from omni.isaac.lab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
 from omni.isaac.lab.managers import EventTermCfg as EventTerm
 from omni.isaac.lab.managers import ObservationTermCfg as ObsTerm
+from omni.isaac.lab.managers import TerminationTermCfg as DoneTerm
 from omni.isaac.lab.managers import RewardTermCfg as RewTerm
 from omni.isaac.lab.managers import SceneEntityCfg
 from omni.isaac.lab.sensors import ContactSensorCfg
@@ -81,8 +82,8 @@ class reset_scene_to_grasp_state(ManagerTermBase):
         robot_material[..., 1] = 2
         robot.root_physx_view.set_material_properties(robot_material, torch.arange(env.scene.num_envs, device="cpu"))
 
-        # env.unwrapped.write_state(self.cached_pre_grasp_state[env_ids].clone(), env_ids)
-        env.unwrapped.write_state(self.cached_grasp_state[env_ids].clone(), env_ids)
+        env.unwrapped.write_state(self.cached_pre_grasp_state[env_ids].clone(), env_ids)
+        # env.unwrapped.write_state(self.cached_grasp_state[env_ids].clone(), env_ids)
 
 @configclass
 class EventCfg:
@@ -96,6 +97,26 @@ class EventCfg:
 def robot_tool_pose(env: ManagerBasedEnv):
     return env.unwrapped.scene["robot"].read_body_state_w("victor_left_tool0")[:, 0]
 
+
+def terminate_if_nut_fallen(env):
+    # relative pose between gripper and nut
+    nut_root_pose = env.unwrapped.scene["nut"].read_root_state_from_sim()
+    gripper_state_w = robot_tool_pose(env)
+    relative_pos = nut_root_pose[:, :3] - gripper_state_w[:, :3]
+    relative_pos, relative_quat = math_utils.subtract_frame_transforms(
+        nut_root_pose[:, :3], nut_root_pose[:, 3:7],
+        gripper_state_w[:, :3], gripper_state_w[:, 3:7]
+    )
+    ideal_relative_pose = torch.tensor([[ 0.0018,  0.9668, -0.2547, -0.0181]], device=env.device)
+    ideal_relative_pose = ideal_relative_pose.repeat(relative_pos.shape[0], 1)
+    quat_dis = math_utils.quat_error_magnitude(relative_quat, ideal_relative_pose)
+    dis = torch.norm(relative_pos, dim=-1)
+    return torch.logical_or(dis > 0.03 , quat_dis > 0.3)
+
+def terminate_if_far_from_nut(env):
+    diff = mdp.rel_nut_bolt_tip_distance(env)
+    return torch.norm(diff, dim=-1) > 0.05
+
 @configclass
 class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
     """Configuration for the IK-based relative Kuka nut threading environment."""
@@ -106,7 +127,7 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         self.env_params.scene.robot = self.env_params.scene.get("robot", OmegaConf.create())
         # self.pre_grasp_path
         robot_params = self.env_params.scene.robot
-        robot_params["collision_approximation"] = robot_params.get("collision_approximation", "convexHull2")
+        robot_params["collision_approximation"] = robot_params.get("collision_approximation", "convexHull")
         robot_params["contact_offset"] = robot_params.get("contact_offset", 0.002)
         robot_params["rest_offset"] = robot_params.get("rest_offset", 0.001)
         robot_params["max_depenetration_velocity"] = robot_params.get("max_depenetration_velocity", 0.5)
@@ -129,8 +150,6 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         # post init of parent
         super().__post_init__()
         self.events = EventCfg()
-        # self.scene.robot.spawn.collision_props = sim_utils.CollisionPropertiesCfg(
-        #     contact_offset=0.002, rest_offset=0.001)
         robot_params = self.env_params.scene.robot
         self.scene.robot = KUKA_VICTOR_LEFT_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         if robot_params.collision_approximation == "convexHull":
@@ -160,19 +179,23 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         self.scene.nut.spawn.rigid_props.angular_damping = nut_params.angular_damping
 
         # override actions
-        # self.act_lows = [-0.0001, -0.0001, -0.015, -0.01, -0.01, -0.8]
-        # self.act_highs = [0.0001, 0.0001, 0.015, 0.01, 0.01, 0.]
-        # scale = [0.001, 0.001, 0.01, 0.01, 0.01, 0.8]
+        
+        self.scene.robot.actuators["victor_left_arm"].stiffness = 300.0
+        self.scene.robot.actuators["victor_left_arm"].damping = 100.0
+        self.scene.robot.actuators["victor_left_gripper"].velocity_limit = 1
         self.act_lows = [-0.0001, -0.0001, -0.015, -0.01, -0.01, -0.8]
         self.act_highs = [0.0001, 0.0001, 0.015, 0.01, 0.01, 0.]
         scale = [0.001, 0.001, 0.01, 0.01, 0.01, 0.8]
+        # self.act_lows = [-0.003, -0.003, -0.01, -0.01, -0.01, -0.2]
+        # self.act_highs = [0.003, 0.003, 0.01, 0.01, 0.01, 0.]
+        # scale = [0.003, 0.003, 0.01, 0.01, 0.01, 0.2]
 
         self.actions.arm_action = DifferentialInverseKinematicsActionCfg(
             asset_name="robot",
             joint_names=["victor_left_arm_joint.*"],
             body_name="victor_left_tool0",
             controller=DifferentialIKControllerCfg(command_type="pose", use_relative_mode=True, 
-                                                   ik_method="dls", ik_params={"lambda_val": 0.05}),
+                                                   ik_method="dls", ik_params={"lambda_val": 0.1}),
             scale=scale,
         )
 
@@ -199,19 +222,25 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         self.observations.policy.tool_pose = ObsTerm(
             func=robot_tool_pose,
         )
-        # # self.scene.bolt.spawn.activate_contact_sensors = True
-        # self.scene.nut.spawn.activate_contact_sensors = True
+        
+        # terminations
+        # self.terminations.nut_fallen = DoneTerm(func=terminate_if_nut_fallen)
+        self.terminations.far_from_nut = DoneTerm(func=terminate_if_far_from_nut)
+        self.scene.nut.spawn.activate_contact_sensors = True
 
-        # # Only contact with the finger tips
-        # # gripper_path_regex = "{ENV_REGEX_NS}/Robot/.*finger.*_link_3"
-        # # gripper_prim_paths = sim_utils.find_matching_prims(gripper_path_regex)
         # self.scene.contact_sensor = ContactSensorCfg(
         #     prim_path="{ENV_REGEX_NS}/Nut/factory_nut",
         #     filter_prim_paths_expr=["{ENV_REGEX_NS}/Robot/.*finger.*_link_3"],
         #     update_period=0.0,
         #     max_contact_data_count=512,
         # )
-        # self.rewards.contact_force_penalty = RewTerm(
-        #     func=mdp.contact_forces,
-        #     params={"threshold":0, "sensor_cfg": SceneEntityCfg(name="contact_sensor")},
-        #     weight=0.01)
+        self.scene.contact_sensor = ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/Nut/factory_nut",
+            filter_prim_paths_expr= ["{ENV_REGEX_NS}/Bolt/factory_bolt"],
+            update_period=0.0,
+        )
+        self.rewards.contact_force_penalty = RewTerm(
+            func=mdp.contact_forces,
+            params={"threshold":1, "sensor_cfg": SceneEntityCfg(name="contact_sensor")},
+            weight=0.0000001)
+        self.rewards.action_rate.weight =-0.00000001
