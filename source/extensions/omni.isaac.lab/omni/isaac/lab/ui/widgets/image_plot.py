@@ -195,7 +195,7 @@ class ImagePlot(UIWidgetWrapper):
                 omni.isaac.ui.ui_utils.dropdown_builder(
                     label="Mode",
                     type="dropdown",
-                    items=["None", "Normalization", "Colorization"],
+                    items=["Original", "Normalization", "Colorization"],
                     tooltip="Select a mode",
                     on_clicked_fn=_change_mode,
                 )
