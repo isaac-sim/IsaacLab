@@ -134,6 +134,15 @@ class TestEventManager(unittest.TestCase):
         self.assertEqual(len(self.event_man.active_terms["reset"]), 1)
         self.assertEqual(len(self.event_man.active_terms["custom"]), 2)
 
+    def test_config_empty(self):
+        """Test the creation of reward manager with empty config."""
+        self.event_man = EventManager(None, self.env)
+        self.assertEqual(len(self.event_man.active_terms), 0)
+
+        # print the expected string
+        print()
+        print(self.event_man)
+
     def test_invalid_event_func_module(self):
         """Test the handling of invalid event function's module in string representation."""
         cfg = {
