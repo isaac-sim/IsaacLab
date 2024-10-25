@@ -97,6 +97,7 @@ Table of Contents
    source/features/hydra
    source/features/multi_gpu
    source/features/tiled_rendering
+   source/features/ray
    source/features/reproducibility
 
 .. toctree::

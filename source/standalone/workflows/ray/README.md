@@ -1,4 +1,5 @@
 #TODO: Move me into docs/Convert to RST ;p (Would love to put into Features)
+#IN PROCESS OF BEING CONVERTED TO DOCS, BUT CORE CONTENT READY FOR REVIEW
 
 # Welcome to Isaac-Ray ;-)
 
@@ -68,7 +69,7 @@ for more information. This guide does not explicitly support SLURM, but it shoul
 Google Cloud is currently the only platform tested, although
 any cloud provider should work if one configures the following:
 
-- An container registry (NGC, GCS artifact registry, AWS ECR, etc) where you have
+- An container registry (NGC, GCS artifact registry, AWS ECR, etc) with
 	an Isaac Lab image that you can pull with the correct permissions, configured to
 	support Ray and nvidia-smi
 	- See ```cluster_configs/Dockerfile``` to see how to modify the ```isaac-lab-base```
