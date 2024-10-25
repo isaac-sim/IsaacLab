@@ -8,8 +8,6 @@ import importlib.util
 import os
 import subprocess
 import sys
-import time
-
 import isaac_ray_util
 import ray
 from ray import air, tune
@@ -23,46 +21,56 @@ from ray.tune.search.repeater import Repeater
 
 # from ray.tune.search.bayesopt import BayesOptSearch
 
+DOCKER_PREFIX = "/workspace/isaaclab/"
+BASE_DIR = os.path.expanduser("~")
+PYTHON_EXEC = "./isaaclab.sh -p"
+RL_GAMES_WORKFLOW = "source/standalone/workflows/rl_games/train.py"
+
 
 class IsaacLabTuneTrainable(tune.Trainable):
     def setup(self, config):
         self.data = None
 
         if hasattr(self, "checkpoint"):
-            config["runner_args"]["checkpoint_singleton"] = self.checkpoint
-        experiment = isaac_ray_util.invoke_run(config)
+            config["runner_args"]["--checkpoint"] = self.checkpoint
+        invoke_cmd = isaac_ray_util.get_invocation_command_from_cfg(cfg=config, python_cmd=PYTHON_EXEC)
+        experiment = isaac_ray_util.execute_job(
+            invoke_cmd, identifier_string="", extract_experiment=True, persistent_dir=BASE_DIR
+        )
+        print(f"[INFO]: Tuner recovered experiment info {experiment}")
         self.proc = experiment["proc"]
         self.experiment_name = experiment["experiment_name"]
-        self.logdir = experiment["logdir"]
-        self.tensorboard_logdir = self.logdir / "summaries"
+        self.isaac_logdir = experiment["logdir"]
+        self.tensorboard_logdir = self.isaac_logdir + f"/{self.experiment_name}/summaries"
 
     def step(self):
         if self.proc is None:  # failed to start, return negative signal
             raise RuntimeError("Could not start desired trial.")
         if self.proc.poll() is not None:
-            return {"Done": True}
+            self.data["done"] = True
+            print("[INFO]: Process finished, returning...")
+            return self.data
         else:
             data = isaac_ray_util.load_tensorboard_logs(self.tensorboard_logdir)
-            while self.data == data:
-                time.sleep(0.1)  # avoid busy wait...
-                data = isaac_ray_util.load_tensorboard_logs(self.tensorboard_logdir)
-            print(f"New data {data}")
+            print(f"{data = }")
+            self.data = data
             return data
 
-    def save_checkpoint(self, checkpoint_dir):
-        # Not sure if this is even needed tbh
-        model_name = self.logdir.split("/")[-2]
-        checkpoint = self.logdir / "nn" / model_name + ".pth"
+    def save_checkpoint(self, checkpoint_dir: str):
+        model_name = self.isaac_logdir.split("/")[-2]
+        checkpoint = self.isaac_logdir + f"{self.experiment_name}/nn/{model_name}.pth"
         subprocess.call(["cp", f"{checkpoint}", f"{checkpoint_dir}"])
 
-    def load_checkpoint(self, checkpoint_dir):
+    def load_checkpoint(self, checkpoint_dir: str):
         model_name = checkpoint_dir.split("/")[-2]
-        self.checkpoint = checkpoint_dir / model_name + ".pth"
+        self.checkpoint = checkpoint_dir + f"/{model_name}.pth"
 
 
-def invoke_tuning_run(cfg: dict, metric: str = "rewards/time", mode: str = "max", num_samples: int = 10000):
+def invoke_tuning_run(
+    cfg: dict, storage_path: str, metric: str = "rewards/time", mode: str = "max", num_samples: int = 10000
+):
     if not ray.is_initialized():
-        ray.init(address="auto")
+        ray.init(address="auto", log_to_driver=True)
     resources = isaac_ray_util.get_gpu_node_resources(one_node_only=True)
     print(f"[INFO]: Resources per worker: {resources}")
     print(f"[INFO]: Using config {cfg}")
@@ -76,7 +84,6 @@ def invoke_tuning_run(cfg: dict, metric: str = "rewards/time", mode: str = "max"
     searcher = OptunaSearch(
         metric=metric,
         mode=mode,  # ,
-        # space=cfg
     )
 
     # Repeat each configuration 3 times
@@ -91,14 +98,16 @@ def invoke_tuning_run(cfg: dict, metric: str = "rewards/time", mode: str = "max"
             scheduler=None,  # No scheduler is used
             num_samples=num_samples,  # Ensure args.num_samples is well-defined
         ),
-        run_config=air.RunConfig(name="BOHB_test", verbose=1, failure_config=air.FailureConfig(fail_fast=True)),
+        run_config=air.RunConfig(
+            name="Isaac", storage_path=storage_path, verbose=1, failure_config=air.FailureConfig(fail_fast=True)
+        ),
     )
 
     # Execute the tuning
     results = tuner.fit()
 
     # Output the best hyperparameters
-    print("Best hyperparameters found were: ", results.get.best_result().config)
+    print(f"Best hyperparameters found were: {results.get_best_result(mode=mode, metric=metric)}")
 
 
 class JobCfg:
@@ -113,8 +122,11 @@ class RLGamesCameraJobCfg(JobCfg):
     def __init__(self, cfg={}, vary_env_count: bool = False, vary_cnn: bool = False, vary_mlp: bool = False):
         cfg = isaac_ray_util.populate_isaac_ray_cfg_args(cfg)
         # Set up basic runner args
-        cfg["runner_args"]["singletons"] = tune.choice([["--headless", "--enable_cameras"]])
-        cfg["workflow"] = tune.choice(["/workspace/isaaclab/workflows/rl_games/train.py"])
+        cfg["runner_args"]["headless_singleton"] = tune.choice(["--headless"])
+        cfg["runner_args"]["enable_cameras_singleton"] = tune.choice(["--enable_cameras"])
+        cfg["workflow"] = tune.choice(
+            ["/workspace/isaaclab/source/standalone/workflows/rl_games/train.py"]
+        )  # TODO: pull out source
 
         cfg["hydra_args"]["agent.params.config.save_best_after"] = tune.choice([5])
         cfg["hydra_args"]["agent.params.config.save_frequency"] = tune.choice([5])
@@ -215,7 +227,34 @@ if __name__ == "__main__":
         required=False,
         help="Name of the hyperparameter sweep class to use",
     )
+    parser.add_argument(
+        "--mode",
+        choices=["local", "docker"],
+        default="docker",
+        help=(
+            "Set to local to use ./isaaclab.sh -p python, set to "
+            "remote to use /workspace/isaaclab/isaaclab.sh -p python"
+        ),
+    )
+    parser.add_argument(
+        "--storage_path",
+        type=str,
+        default="/tmp",
+        required=False,
+        help=(
+            "Where to store experiments. Can be directory for local dev"
+            "Must be a bucket your cluster has access to for remote."
+        ),
+    )
+
     args = parser.parse_args()
+
+    if args.mode == "docker":
+        BASE_DIR = DOCKER_PREFIX  # ensure logs are dumped to persistent location
+        PYTHON_EXEC = DOCKER_PREFIX + PYTHON_EXEC[2:]
+        RL_GAMES_WORKFLOW = DOCKER_PREFIX + RL_GAMES_WORKFLOW
+        print(f"Using docker mode {PYTHON_EXEC = } {RL_GAMES_WORKFLOW = }")
+
     file_path = args.cfg_file
     class_name = args.cfg_class
     print(f"Attempting to use sweep config from {file_path = } {class_name = }")
@@ -233,7 +272,7 @@ if __name__ == "__main__":
         print(f"[INFO]: Successfully instantiated class '{class_name}' from {file_path}")
         cfg = instance.cfg
         print(f"[INFO]: Grabbed the following hyperparameter sweep config: \n {cfg}")
-        invoke_tuning_run(cfg)
+        invoke_tuning_run(cfg, storage_path=args.storage_path)
 
     else:
         raise AttributeError(f"[ERROR]:Class '{class_name}' not found in {file_path}")

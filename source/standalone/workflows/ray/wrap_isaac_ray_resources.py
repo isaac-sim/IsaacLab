@@ -3,79 +3,21 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 import argparse
-import subprocess
-from datetime import datetime
 
 import isaac_ray_util
 import ray
 
 
-@ray.remote
-def execute_job(job: str, identifier_string: str = "job 0", test_mode: bool = False) -> str:
-    start_time = datetime.now().strftime("%H:%M:%S.%f")
-    result_details = []
-    result_details.append("---------------------------------")
-    result_details.append(f"\n Invocation job: {job}")
-    if test_mode:
-        import torch
-
-        try:
-            result = subprocess.run(
-                ["nvidia-smi", "--query-gpu=name,memory.free,serial", "--format=csv,noheader,nounits"],
-                capture_output=True,
-                check=True,
-                text=True,
-            )
-            output = result.stdout.strip().split("\n")
-            for gpu_info in output:
-                name, memory_free, serial = gpu_info.split(", ")
-                result_details.append({"Name": name, "Memory Available": f"{memory_free} MB", "Serial Number": serial})
-            num_gpus_detected = torch.cuda.device_count()
-            result_details.append(f"# Detected GPUs from PyTorch: {num_gpus_detected}")
-        except subprocess.CalledProcessError as e:
-            print(f"Error calling nvidia-smi: {e.stderr}")
-            result_details.append({"error": "Failed to retrieve GPU information"})
-    else:
-        try:
-
-            def prepend_identifier(text):
-                return f"{identifier_string}: {text}"
-
-            # Start the subprocess and set up pipes for real-time output
-            process = subprocess.Popen(
-                job, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, bufsize=1
-            )
-            # Use a list to collect output for final summary
-            output_lines = []
-            with process.stdout:
-                for line in iter(process.stdout.readline, ""):
-                    print(prepend_identifier(line.strip()))  # Print in real-time
-                    output_lines.append(line.strip())  # Collect for summary
-            with process.stderr:
-                for line in iter(process.stderr.readline, ""):
-                    print(prepend_identifier(line.strip()))  # Print errors in real-time
-                    output_lines.append(line.strip())  # Collect for summary
-            process.wait()  # Wait for the process to complete
-            result_details.extend([prepend_identifier(line) + "\n" for line in output_lines])
-        except subprocess.SubprocessError as e:
-            print(prepend_identifier(f"[ERROR]: Exception during subprocess execution: {str(e)}"))
-            result_details.append("[ERROR]: Exception occurred during job execution")
-
-    now = datetime.now().strftime("%H:%M:%S.%f")
-    print(prepend_identifier(f"[INFO]: Job Started at {start_time}, completed at {now}"))
-    result_str = f"[INFO]: Job Started at {start_time}, completed at {now} | Result details: {' '.join(result_details)}"
-    return result_str
-
-
-def main(
+def wrap_resources_to_jobs(
     jobs: list[str],
     num_workers: int | None,
     num_gpus: float | None,
     num_cpus: float | None,
     ram_gb: float | None,
     test_mode: bool = False,
-):
-    ray.init(address="auto", log_to_driver=True)
+) -> None:
+    if not ray.is_initialized():
+        ray.init(address="auto", log_to_driver=True)
     print("Connected to Ray cluster.")
     print("[INFO]: Assuming homogeneous worker cluster resources.")
     print("[INFO]: Create more than one cluster for heterogeneous jobs.")
@@ -128,9 +70,9 @@ def main(
 
     for i, job in enumerate(jobs):
         print(f"Submitting job {i + 1} of {len(jobs)} with job '{job}'")
-        job = execute_job.options(num_gpus=num_gpus, num_cpus=num_cpus, memory=ram_gb * 1024).remote(
-            job, f"Job {i}", test_mode
-        )
+        job = isaac_ray_util.remote_execute_job.options(
+            num_gpus=num_gpus, num_cpus=num_cpus, memory=ram_gb * 1024
+        ).remote(job, f"Job {i}", test_mode)
         job_results.append(job)
 
     results = ray.get(job_results)
@@ -154,7 +96,7 @@ if __name__ == "__main__":
     jobs = " ".join(args.jobs)
     formatted_jobs = jobs.split("+")
     print(f"[INFO]: Isaac Ray Wrapper received jobs {formatted_jobs = }")
-    main(
+    wrap_resources_to_jobs(
         formatted_jobs,
         args.num_workers_per_node,
         args.num_gpu_per_job,

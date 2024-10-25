@@ -38,7 +38,7 @@ def read_cluster_spec(fn: str | None = None) -> list[dict]:
     return clusters
 
 
-def submit_job(cluster: dict, job_command: str, test_mode: bool):
+def submit_job(cluster: dict, job_command: str, test_mode: bool) -> None:
     """
     Submits a job to a single cluster, prints the final result and Ray dashboard URL at the end.
     Adds optional test mode for GPU checking.
@@ -72,7 +72,7 @@ def submit_job(cluster: dict, job_command: str, test_mode: bool):
     print("----------------------------------------------------")
 
 
-def submit_jobs_to_clusters(jobs: list[str], clusters: list[dict], test_mode: bool):
+def submit_jobs_to_clusters(jobs: list[str], clusters: list[dict], test_mode: bool) -> None:
     """
     Submit all jobs to their respective clusters, cycling through clusters if there are more jobs than clusters.
     """

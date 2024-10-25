@@ -3,59 +3,36 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 import argparse
+import os
 import re
 import subprocess
-import time
+from datetime import datetime
 
 import ray
 from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 
 
-def load_tensorboard_logs(directory, max_entries=100):
-    # Initialize the event accumulator with a size guidance
-    size_guidance = {"scalars": max_entries}  # Limit the number of entries for scalars
+def load_tensorboard_logs(directory: str) -> dict:
+    # Initialize the event accumulator with a size guidance for only the latest entry
+    size_guidance = {"scalars": 1}  # Load only the latest entry for scalars
     event_acc = EventAccumulator(directory, size_guidance=size_guidance)
     event_acc.Reload()  # Load all data from the directory
 
-    # Extract all scalars logged
-    scalars = {}
+    # Extract the latest scalars logged
+    latest_scalars = {}
     for tag in event_acc.Tags()["scalars"]:
         events = event_acc.Scalars(tag)
-        values = [event.value for event in events]
-        scalars[tag] = values
-    return scalars
+        if events:  # Check if there is at least one entry
+            latest_event = events[-1]  # Get the latest entry
+            latest_scalars[tag] = latest_event.value
+    return latest_scalars
 
 
-def extract_experiment_info(output):
-    """Extract experiment name and log directory from the subprocess output."""
-    experiment_name_pattern = r"Exact experiment name requested from command line: (\S+)"
-    logdir_pattern = r"\[INFO\] Logging experiment in directory: (.+)"
-
-    experiment_name = None
-    logdir = None
-
-    # Iterate through the output lines
-    for line in output.splitlines():
-        experiment_match = re.search(experiment_name_pattern, line)
-        logdir_match = re.search(logdir_pattern, line)
-
-        if experiment_match:
-            experiment_name = experiment_match.group(1)
-        if logdir_match:
-            logdir = logdir_match.group(1)
-
-        # Break if both are found
-        if experiment_name and logdir:
-            break
-
-    return experiment_name, logdir
-
-
-def invoke_run(cfg, max_line_count=2000):
+def get_invocation_command_from_cfg(cfg: dict, python_cmd: str = "/workspace/isaaclab/isaaclab.sh -p") -> str:
     runner_args = []
     hydra_args = []
 
-    def process_args(args, target_list):
+    def process_args(args, target_list, is_hydra=False):
         for key, value in args.items():
             # for example, key: singletons | value: List
             if isinstance(value, dict):
@@ -64,65 +41,121 @@ def invoke_run(cfg, max_line_count=2000):
             elif isinstance(value, list):
                 target_list.extend(value)
             else:
-                target_list.append(f"{value}")
+                if not is_hydra:
+                    if "--" in key:  # must be command line argument
+                        target_list.append(f"{key} {value}")
+                    else:  # singleton like --headless or --enable_cameras
+                        target_list.append(f"{value}")
+                else:
+                    target_list.append(f"{key}={value}")
             print(f"{target_list[-1]}")
 
     print(f"[INFO]: Starting workflow {cfg['workflow']}")
 
     process_args(cfg["runner_args"], runner_args)
     print(f"[INFO]: Retrieved workflow runner args: {runner_args}")
-    process_args(cfg["hydra_args"], hydra_args)
+    process_args(cfg["hydra_args"], hydra_args, is_hydra=True)
     print(f"[INFO]: Retrieved hydra args: {hydra_args}")
+    invoke_cmd = python_cmd + " " + cfg["workflow"] + " "
+    invoke_cmd += " ".join(runner_args) + " " + " ".join(hydra_args)
+    return invoke_cmd
 
-    proc = subprocess.Popen(
-        ["/workspace/isaaclab/isaaclab.sh", "-p", cfg["workflow"], *runner_args, *hydra_args],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
+
+@ray.remote
+def remote_execute_job(
+    job_cmd: str, identifier_string: str, test_mode: bool = False, extract_experiment: bool = False
+) -> str | dict:
+    return execute_job(
+        job_cmd=job_cmd, identifier_string=identifier_string, test_mode=test_mode, extract_experiment=extract_experiment
     )
 
-    log_output = ""
-    lines_read = 0
-    experiment_name = None
-    logdir = None
-    success_detected = False
-    error_detected = False
 
-    error_message = "There was an error running python"
-    success_message = "epoch: 1/"  # Check for the first epoch start
+def execute_job(
+    job_cmd, identifier_string="job 0", test_mode=False, extract_experiment=False, persistent_dir: str | None = None
+) -> str | dict:
+    start_time = datetime.now().strftime("%H:%M:%S.%f")
+    result_details = [f"{identifier_string}: ---------------------------------"]
+    result_details.append(f"\n{identifier_string}: Invocation job: {job_cmd}")
 
-    while lines_read < max_line_count and not (experiment_name and logdir and success_detected):
-        line = proc.stdout.readline()
-        if line:
-            log_output += line
-            lines_read += 1
+    if test_mode:
+        import torch
 
-            # Check for experiment info
-            if not experiment_name or not logdir:
-                experiment_match = re.search(r"Exact experiment name requested from command line: (\S+)", line)
-                logdir_match = re.search(r"\[INFO\] Logging experiment in directory: (.+)", line)
-                if experiment_match:
-                    experiment_name = experiment_match.group(1)
-                if logdir_match:
-                    logdir = logdir_match.group(1)
+        try:
+            result = subprocess.run(
+                ["nvidia-smi", "--query-gpu=name,memory.free,serial", "--format=csv,noheader,nounits"],
+                capture_output=True,
+                check=True,
+                text=True,
+            )
+            output = result.stdout.strip().split("\n")
+            for gpu_info in output:
+                name, memory_free, serial = gpu_info.split(", ")
+                result_details.append({"Name": name, "Memory Available": f"{memory_free} MB", "Serial Number": serial})
+            num_gpus_detected = torch.cuda.device_count()
+            result_details.append(f"# Detected GPUs from PyTorch: {num_gpus_detected}")
+        except subprocess.CalledProcessError as e:
+            print(f"Error calling nvidia-smi: {e.stderr}")
+            result_details.append({"error": "Failed to retrieve GPU information"})
+    else:
+        print(f"{identifier_string} [INFO]: Invocation job {job_cmd}")
 
-            # Check for success or error
-            if success_message in line:
-                success_detected = True
-            if error_message in line:
-                error_detected = True
-                break  # Stop processing if an error is detected
+        if persistent_dir:
+            og_dir = os.getcwd()
+            os.chdir(persistent_dir)
+        process = subprocess.Popen(
+            job_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, bufsize=1
+        )
+        if persistent_dir:
+            os.chdir(og_dir)
+        experiment_name = None
+        logdir = None
+        experiment_info_pattern = re.compile("Exact experiment name requested from command line: (.+)")
+        logdir_pattern = re.compile(r"\[INFO\] Logging experiment in directory: (.+)$")
+        err_pattern = re.compile("There was an error (.+)$")
+        with process.stdout as stdout:
+            for line in iter(stdout.readline, ""):
+                line = line.strip()
+                result_details.append(f"{identifier_string}: {line}")
+                print(f"{identifier_string}: {line}")
 
-        time.sleep(0.1)  # Sleep to avoid busy wait
+                if extract_experiment:
+                    exp_match = experiment_info_pattern.search(line)
+                    log_match = logdir_pattern.search(line)
+                    err_match = err_pattern.search(line)
+                    if err_match:
+                        raise ValueError("Encountered an error during trial run.")
 
-    if error_detected or experiment_name is None or logdir is None:
-        print(f"Error during experiment run, or could not find logdir: \n {log_output}")
-        return {"proc": None, "experiment_name": None, "logdir": None}
-    print(f"[INFO]: Extracted experiment name {experiment_name} and logdir {logdir}")
-    return {"proc": proc, "experiment_name": experiment_name, "logdir": logdir}
+                    if exp_match:
+                        experiment_name = exp_match.group(1)
+                    if log_match:
+                        logdir = log_match.group(1)
+
+                    if experiment_name and logdir:
+                        result = {
+                            "experiment_name": experiment_name,
+                            "logdir": logdir,
+                            "proc": process,
+                            "result": " ".join(result_details),
+                        }
+                        return result
+
+        with process.stderr as stderr:
+            for line in iter(stderr.readline, ""):
+                line = line.strip()
+                result_details.append(f"{identifier_string}: {line}")
+                print(f"{identifier_string}: {line}")
+
+        process.wait()  # Wait for the subprocess to finish naturally if not exited early
+
+    now = datetime.now().strftime("%H:%M:%S.%f")
+    completion_info = f"{identifier_string}: Job Started at {start_time}, completed at {now}"
+    print(completion_info)
+    result_details.append(completion_info)
+
+    return (" ".join(result_details),)
 
 
-def get_gpu_node_resources(total_resources: bool = False, one_node_only: bool = False):
+def get_gpu_node_resources(total_resources: bool = False, one_node_only: bool = False) -> dict:
     if not ray.is_initialized():
         ray.init(address="auto")
 
@@ -187,7 +220,7 @@ def add_cluster_args(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def populate_isaac_ray_cfg_args(cfg: dict = {}):
+def populate_isaac_ray_cfg_args(cfg: dict = {}) -> dict:
     if "runner_args" not in cfg:
         cfg["runner_args"] = {}
     if "hydra_args" not in cfg:

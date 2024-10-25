@@ -199,7 +199,7 @@ For several nodes, resource isolation is not needed to run jobs in parallel.
 	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py --jobs wrap_isaac_ray_resources.py --jobs <JOB0>+<JOB1>
 	```
 
-	For example,
+	For example, training jobs can be run
 	```
 	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py --jobs \
 	wrap_isaac_ray_resources.py --jobs /workspace/isaaclab/isaaclab.sh -p /workspace/isaaclab/source/standalone/workflows/rl_games/train.py --task Isaac-Cartpole-v0 --headless+/workspace/isaaclab/isaaclab.sh -p /workspace/isaaclab/source/standalone/workflows/rl_games/train.py --task Isaac-Cartpole-RGB-Camera-Direct-v0 --headless --enable_cameras agent.params.config.max_epochs=150
@@ -207,10 +207,10 @@ For several nodes, resource isolation is not needed to run jobs in parallel.
 
 
 	#### Tuning
-	For example,
+	For example, a tuning can be run on a remote cluster with the following command:
 
 	```
-	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py --jobs isaac_ray_tune.py --cfg_file hyperparameter_tuning/vision_cartpole.py --cfg_class CartpoleRGBNoTuneJobCfg
+	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py --jobs isaac_ray_tune.py --cfg_file hyperparameter_tuning/vision_cartpole_cfg.py --cfg_class CartpoleRGBNoTuneJobCfg
 	```
 
 8. When the distributed job is completed, stop the cluster to conserve resources.
