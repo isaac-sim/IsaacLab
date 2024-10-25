@@ -65,17 +65,24 @@ class reset_scene_to_grasp_state(ManagerTermBase):
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
         screw_type = self._env.cfg.scene.screw_type
-        cached_pre_grasp_state = pickle.load(open(f"data/kuka_{screw_type}_pre_grasp.pkl", "rb"))
+        subdir = self._env.cfg.env_params.scene.robot.collision_approximation  
+        cached_pre_grasp_state = pickle.load(open(f"cached/{subdir}/kuka_{screw_type}_pre_grasp.pkl", "rb"))
         cached_pre_grasp_state = SmartDict(cached_pre_grasp_state).to_tensor(device=env.device)
         self.cached_pre_grasp_state = cached_pre_grasp_state.apply(lambda x: repeat(x, "1 ... -> n ...", n=env.num_envs).clone())
-        if os.path.exists(f"data/kuka_{screw_type}_grasp.pkl"):
-            cached_grasp_state = pickle.load(open(f"data/kuka_{screw_type}_grasp.pkl", "rb"))
+        if os.path.exists(f"cached/{subdir}/kuka_{screw_type}_grasp.pkl"):
+            cached_grasp_state = pickle.load(open(f"cached/{subdir}/kuka_{screw_type}_grasp.pkl", "rb"))
             cached_grasp_state = SmartDict(cached_grasp_state).to_tensor(device=env.device)
             self.cached_grasp_state = cached_grasp_state.apply(lambda x: repeat(x, "1 ... -> n ...", n=env.num_envs).clone())
 
     def __call__(self, env: ManagerBasedEnv, env_ids: torch.Tensor):
-        env.unwrapped.write_state(self.cached_pre_grasp_state[env_ids].clone(), env_ids)
-        # env.unwrapped.write_state(self.cached_grasp_state[env_ids].clone(), env_ids)
+        robot = env.unwrapped.scene["robot"]
+        robot_material = robot.root_physx_view.get_material_properties()
+        robot_material[..., 0] = 2
+        robot_material[..., 1] = 2
+        robot.root_physx_view.set_material_properties(robot_material, torch.arange(env.scene.num_envs, device="cpu"))
+
+        # env.unwrapped.write_state(self.cached_pre_grasp_state[env_ids].clone(), env_ids)
+        env.unwrapped.write_state(self.cached_grasp_state[env_ids].clone(), env_ids)
 
 @configclass
 class EventCfg:
@@ -99,14 +106,14 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         self.env_params.scene.robot = self.env_params.scene.get("robot", OmegaConf.create())
         # self.pre_grasp_path
         robot_params = self.env_params.scene.robot
-        robot_params["collision_approximation"] = robot_params.get("collision_approximation", "convexHull")
-        robot_params["contact_offset"] = robot_params.get("contact_offset", 0.001)
-        robot_params["rest_offset"] = robot_params.get("rest_offset", 0.00)
+        robot_params["collision_approximation"] = robot_params.get("collision_approximation", "convexHull2")
+        robot_params["contact_offset"] = robot_params.get("contact_offset", 0.002)
+        robot_params["rest_offset"] = robot_params.get("rest_offset", 0.001)
         robot_params["max_depenetration_velocity"] = robot_params.get("max_depenetration_velocity", 0.5)
         robot_params["sleep_threshold"] = robot_params.get("sleep_threshold", None)
         robot_params["stabilization_threshold"] = robot_params.get("stabilization_threshold", None)
-        robot_params["static_friction"] = robot_params.get("static_friction", 1)
-        robot_params["dynamic_friction"] = robot_params.get("dynamic_friction", 1)
+        robot_params["static_friction"] = robot_params.get("static_friction", 2)
+        robot_params["dynamic_friction"] = robot_params.get("dynamic_friction", 2)
         robot_params["compliant_contact_stiffness"] = robot_params.get("compliant_contact_stiffness", 0.)
         robot_params["compliant_contact_damping"] = robot_params.get("compliant_contact_damping", 0.)
 
@@ -127,7 +134,8 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         robot_params = self.env_params.scene.robot
         self.scene.robot = KUKA_VICTOR_LEFT_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         if robot_params.collision_approximation == "convexHull":
-            # self.scene.robot.spawn.usd_path = "assets/victor/victor_left_arm_with_gripper_v2/victor_left_arm_with_gripper_v2.usd"
+            self.scene.robot.spawn.usd_path = "assets/victor/victor_left_arm_with_gripper_v2/victor_left_arm_with_gripper_v2.usd"
+        elif robot_params.collision_approximation == "convexHull2":
             self.scene.robot.spawn.usd_path = "assets/victor/victor_left_arm/victor_left_arm.usd"
         self.scene.robot.init_state.pos = [-0.15, -0.5, -0.8]
 
@@ -177,6 +185,7 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
             highs=self.gripper_act_highs,
             use_relative_mode=True,
             is_accumulate_action=True,
+            keep_grasp_state=True
         )
         self.viewer.eye = (0.3, 0, 0.15)
         

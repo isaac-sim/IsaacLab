@@ -74,7 +74,7 @@ def main():
     """Running keyboard teleoperation with Isaac Lab manipulation environment."""
     # parse configuration
     cfg = OmegaConf.create()
-    vv = {"scene.screw_type":  "m16_tight"}
+    vv = {"scene.screw_type":  "m8_tight"}
     cfg = update_config(cfg, vv)
     env_cfg = parse_env_cfg(
         args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs, 
