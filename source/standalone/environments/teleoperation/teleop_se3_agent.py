@@ -100,7 +100,7 @@ def main():
         if "Kuka" in args_cli.task:
             teleop_interface = Se3RobotiqKeyboard(
                 pos_sensitivity=1 * args_cli.sensitivity,
-                rot_sensitivity=1* args_cli.sensitivity,
+                rot_sensitivity=1 * args_cli.sensitivity,
                 gripper_sensitivity=0.02 * args_cli.sensitivity,
             )
         else:
@@ -128,9 +128,6 @@ def main():
     counter = 0
     record_forces = False
     forces, frames = [], []
-    gripper_deltas = torch.zeros(100, 1, 2, device=env.unwrapped.device)
-    gripper_deltas[10:50] = 0.025
-    gripper_deltas[50:90] = -0.025
     for i in range(10):
         frame = env.unwrapped.render()
     # cached_env_state = SmartDict(pickle.load(open("data/kuka_nut_thread_pre_grasp.pkl", "rb")))

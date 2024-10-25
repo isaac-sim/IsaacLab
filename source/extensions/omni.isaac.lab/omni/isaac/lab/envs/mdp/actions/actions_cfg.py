@@ -256,6 +256,11 @@ class DifferentialInverseKinematicsActionCfg(ActionTermCfg):
     """Scale factor for the action. Defaults to 1.0."""
     controller: DifferentialIKControllerCfg = MISSING
     """The configuration for the differential IK controller."""
+    ema_alpha: float = 0
+    """The weight for the moving average (float or dict of regex expressions). Defaults to 1.0.
+
+    If set to 1.0, the processed action is applied directly without any moving average window.
+    """
 
 
 @configclass
@@ -287,3 +292,4 @@ class Robotiq3FingerActionCfg(ActionTermCfg):
     class_type: type[ActionTerm] = robotiq_3f_actions.Robotiq3FingerAction
     use_relative_mode: bool = True
     is_accumulate_action: bool = False
+    keep_grasp_state: bool = False

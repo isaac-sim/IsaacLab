@@ -88,6 +88,8 @@ class Robotiq3FingerAction(ActionTerm):
 
     def process_actions(self, actions: torch.Tensor):
         """Compute joint angles based on opening and scissor values"""
+        if self.cfg.keep_grasp_state:
+            actions[:] = 0
         if self.cfg.use_relative_mode:
             if self.cfg.is_accumulate_action:
                 joint_pos_curr = self._asset.read_joint_state_from_sim(joint_ids=self._joint_ids)["position_target"]

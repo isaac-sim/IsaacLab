@@ -144,7 +144,6 @@ class ScrewSceneCfg(InteractiveSceneCfg):
                 radius=1e-3,
                 rigid_props=sim_utils.RigidBodyPropertiesCfg(
                     kinematic_enabled=True,
-                    disable_gravity=True,
                 ),
                 collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=False),
             ),
@@ -168,7 +167,6 @@ class ScrewSceneCfg(InteractiveSceneCfg):
             prim_path="{ENV_REGEX_NS}/Nut",
             spawn=sim_utils.UsdFileCfg(
                 usd_path=self.screw_dict["nut_path"],
-                # usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_nut_m8_tight/factory_nut_m8_tight.usd",
                 rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True),
             ),
         )
@@ -206,8 +204,6 @@ class ScrewSceneCfg(InteractiveSceneCfg):
 ##
 # MDP settings
 ##
-
-
 @configclass
 class BaseActionsCfg:
     """Action specifications for the MDP."""
@@ -276,16 +272,6 @@ class EventCfg:
         mode="reset",
     )
 
-    # reset_robot_joints = EventTerm(
-    #     func=mdp.reset_joints_by_scale,
-    #     mode="reset",
-    #     params={
-    #         "position_range": (0.5, 1.5),
-    #         "velocity_range": (0.0, 0.0),
-    #     },
-    # )
-
-
 @configclass
 class CurriculumCfg:
     """Curriculum terms for the MDP."""
@@ -335,7 +321,7 @@ class BaseScrewEnvCfg(ManagerBasedRLEnvCfg):
         self.env_params.scene = self.env_params.get("scene", OmegaConf.create())
         self.env_params.sim = self.env_params.get("sim", OmegaConf.create())
         self.env_params.sim.physx = self.env_params.sim.get("physx", OmegaConf.create())
-        self.env_params.scene.screw_type = self.env_params.scene.get("screw_type", "m8_loose") # m8_tight m16_tight
+        self.env_params.scene.screw_type = self.env_params.scene.get("screw_type", "m8_tight") # m8_tight m16_tight
         self.env_params.scene.nut = self.env_params.scene.get("nut", OmegaConf.create())
         self.env_params.sim.dt = self.env_params.sim.get("dt", 1.0 / 60.0)
         self.env_params.sim.physx.friction_offset_threshold = self.env_params.sim.physx.get("friction_offset_threshold",
