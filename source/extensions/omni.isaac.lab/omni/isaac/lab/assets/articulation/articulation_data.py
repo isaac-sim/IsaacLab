@@ -6,11 +6,7 @@
 import torch
 import weakref
 
-<<<<<<< HEAD
 import omni.log
-=======
-import carb
->>>>>>> b7cb73cec (formatting)
 import omni.physics.tensors.impl.api as physx
 
 import omni.isaac.lab.utils.math as math_utils
@@ -78,6 +74,10 @@ class ArticulationData:
         self._joint_pos = TimestampedBuffer()
         self._joint_acc = TimestampedBuffer()
         self._joint_vel = TimestampedBuffer()
+
+        # deprecation warning check
+        self._root_state_dep_warn = False
+        self._body_state_dep_warn = False
 
     def update(self, dt: float):
         # update the simulation timestamp
@@ -270,14 +270,12 @@ class ArticulationData:
         the linear and angular velocities are of the articulation root's center of mass frame.
         """
 
-<<<<<<< HEAD
-        omni.log.warn(
-=======
-        carb.log_warn(
->>>>>>> b7cb73cec (formatting)
-            "DeprecationWarning: root_state_w and it's derived properties will be deprecated in a future release."
-            " Please use root_link_state_w or root_com_state_w."
-        )
+        if not self._root_state_dep_warn:
+            omni.log.warn(
+                "DeprecationWarning: root_state_w and it's derived properties will be deprecated in a future release."
+                " Please use root_link_state_w or root_com_state_w."
+            )
+            self._root_state_dep_warn = True
 
         if self._root_state_w.timestamp < self._sim_timestamp:
             # read data from simulation
@@ -345,14 +343,12 @@ class ArticulationData:
         velocities are of the articulation links's center of mass frame.
         """
 
-<<<<<<< HEAD
-        omni.log.warn(
-=======
-        carb.log_warn(
->>>>>>> b7cb73cec (formatting)
-            "DeprecationWarning: body_state_w and it's derived properties will be deprecated in a future release."
-            " Please use body_link_state_w or bodt_com_state_w."
-        )
+        if not self._body_state_dep_warn:
+            omni.log.warn(
+                "DeprecationWarning: body_state_w and it's derived properties will be deprecated in a future release."
+                " Please use body_link_state_w or bodt_com_state_w."
+            )
+            self._body_state_dep_warn = True
 
         if self._body_state_w.timestamp < self._sim_timestamp:
             self._physics_sim_view.update_articulations_kinematic()

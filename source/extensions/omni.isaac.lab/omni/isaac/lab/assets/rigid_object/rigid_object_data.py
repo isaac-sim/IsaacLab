@@ -69,6 +69,9 @@ class RigidObjectData:
         self._root_com_state_w = TimestampedBuffer()
         self._body_acc_w = TimestampedBuffer()
 
+        # deprecation warning check
+        self._root_state_dep_warn = False
+
     def update(self, dt: float):
         """Updates the data for the rigid object.
 
@@ -117,11 +120,12 @@ class RigidObjectData:
         The position and orientation are of the rigid body's actor frame. Meanwhile, the linear and angular
         velocities are of the rigid body's center of mass frame.
         """
-
-        omni.log.warn(
-            "DeprecationWarning: root_state_w and it's derived properties will be deprecated in a future release."
-            " Please use root_link_state_w or root_com_state_w."
-        )
+        if not self._root_state_dep_warn:
+            omni.log.warn(
+                "DeprecationWarning: root_state_w and it's derived properties will be deprecated in a future release."
+                " Please use root_link_state_w or root_com_state_w."
+            )
+            self._root_state_dep_warn = True
 
         if self._root_state_w.timestamp < self._sim_timestamp:
             # read data from simulation
@@ -186,6 +190,7 @@ class RigidObjectData:
         The position and orientation are of the rigid bodies' actor frame. Meanwhile, the linear and angular
         velocities are of the rigid bodies' center of mass frame.
         """
+
         omni.log.warn(
             "DeprecationWarning: body_state_w and it's derived properties will be deprecated in a future release."
             " Please use body_link_state_w or bodt_com_state_w."
