@@ -5,6 +5,7 @@
 import pathlib
 import sys
 
+# Allow for import of items from the ray workflow.
 UTIL_DIR = pathlib.Path(__file__).parent.parent.parent
 sys.path.append(str(UTIL_DIR))
 import isaac_ray_tune

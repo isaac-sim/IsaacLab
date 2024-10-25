@@ -2,24 +2,19 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-
 import argparse
 import importlib.util
 import os
 import subprocess
 import sys
+
 import isaac_ray_util
 import ray
 from ray import air, tune
-
-# from ray.tune.schedulers import HyperBandForBOHB
-# from ray.tune.search.bohb import TuneBOHB
 from ray.tune.search.optuna import OptunaSearch
-
-# from ray.tune.search.concurrency_limiter import ConcurrencyLimiter
 from ray.tune.search.repeater import Repeater
 
-# from ray.tune.search.bayesopt import BayesOptSearch
+# from ray.tune.search.bayesopt import BayesOptSearch # TODO: Add support
 
 DOCKER_PREFIX = "/workspace/isaaclab/"
 BASE_DIR = os.path.expanduser("~")
@@ -28,7 +23,13 @@ RL_GAMES_WORKFLOW = "source/standalone/workflows/rl_games/train.py"
 
 
 class IsaacLabTuneTrainable(tune.Trainable):
-    def setup(self, config):
+    """The Isaac Ray Tune Trainable.
+    This class uses the standalone workflows to start jobs, along with the hydra integration.
+    This class achieves Ray-based logging through reading the tensorboard logs from
+    the standalone workflows.
+    """
+
+    def setup(self, config: dict) -> None:
         self.data = None
 
         if hasattr(self, "checkpoint"):
@@ -43,11 +44,11 @@ class IsaacLabTuneTrainable(tune.Trainable):
         self.isaac_logdir = experiment["logdir"]
         self.tensorboard_logdir = self.isaac_logdir + f"/{self.experiment_name}/summaries"
 
-    def step(self):
+    def step(self) -> dict:
         if self.proc is None:  # failed to start, return negative signal
             raise RuntimeError("Could not start desired trial.")
         if self.proc.poll() is not None:
-            self.data["done"] = True
+            self.data["Done"] = True
             print("[INFO]: Process finished, returning...")
             return self.data
         else:
@@ -56,19 +57,37 @@ class IsaacLabTuneTrainable(tune.Trainable):
             self.data = data
             return data
 
-    def save_checkpoint(self, checkpoint_dir: str):
-        model_name = self.isaac_logdir.split("/")[-2]
-        checkpoint = self.isaac_logdir + f"{self.experiment_name}/nn/{model_name}.pth"
+    def save_checkpoint(self, checkpoint_dir: str) -> None:
+        model_name = self.isaac_logdir.split("/")[-1]
+        checkpoint = self.isaac_logdir + f"/{self.experiment_name}/nn/{model_name}.pth"
         subprocess.call(["cp", f"{checkpoint}", f"{checkpoint_dir}"])
 
-    def load_checkpoint(self, checkpoint_dir: str):
+    def load_checkpoint(self, checkpoint_dir: str) -> None:
         model_name = checkpoint_dir.split("/")[-2]
         self.checkpoint = checkpoint_dir + f"/{model_name}.pth"
 
 
 def invoke_tuning_run(
-    cfg: dict, storage_path: str, metric: str = "rewards/time", mode: str = "max", num_samples: int = 10000
-):
+    cfg: dict,
+    storage_path: str,
+    metric: str = "rewards/time",
+    mode: str = "max",
+    num_samples: int = 1000,
+    repeat_run_count: int = 3,
+) -> None:
+    """Invoke an Isaac-Ray tuning run
+
+    Args:
+        cfg: A configuration extracted from :class:JobCfg, similar in format to :class:RLGamesCameraJobCfg
+        storage_path: Either a local path on a single-node tuning workflow, or a bucket that
+            a cluster has access to for a multi-node workflow.
+        metric: The metric to tune to optimize. Defaults to "rewards/time".
+        mode: Which mode to run the optimization. Defaults to "max".
+        num_samples: The number of total samples to draw from
+            the search space when tuning. Equal to the total number of runs. Defaults to 1000.
+        repeat_run_count: The number of times to repeat each hyperparameter
+            configuration. Defaults to 3.
+    """
     if not ray.is_initialized():
         ray.init(address="auto", log_to_driver=True)
     resources = isaac_ray_util.get_gpu_node_resources(one_node_only=True)
@@ -80,14 +99,14 @@ def invoke_tuning_run(
         resources,
     )
 
-    # Define BOHB Search Algorithm
+    # Search Algorithm # TODO: Support other search algorithms, and Scheduling option instead of repeater
     searcher = OptunaSearch(
         metric=metric,
         mode=mode,  # ,
     )
 
     # Repeat each configuration 3 times
-    repeat_search = Repeater(searcher, repeat=3)
+    repeat_search = Repeater(searcher, repeat=repeat_run_count)
 
     # Running the experiment using the new Ray Tune API
     tuner = tune.Tuner(
@@ -95,11 +114,11 @@ def invoke_tuning_run(
         param_space=cfg,
         tune_config=tune.TuneConfig(
             search_alg=repeat_search,
-            scheduler=None,  # No scheduler is used
+            scheduler=None,  # No scheduler is used to be compatible with Repeater.
             num_samples=num_samples,  # Ensure args.num_samples is well-defined
         ),
         run_config=air.RunConfig(
-            name="Isaac", storage_path=storage_path, verbose=1, failure_config=air.FailureConfig(fail_fast=True)
+            name="Isaac-Ray;-)", storage_path=storage_path, verbose=1, failure_config=air.FailureConfig(fail_fast=True)
         ),
     )
 
@@ -108,9 +127,13 @@ def invoke_tuning_run(
 
     # Output the best hyperparameters
     print(f"Best hyperparameters found were: {results.get_best_result(mode=mode, metric=metric)}")
+    print(results.get_dataframe())
 
 
 class JobCfg:
+    """To be compatible with :meth: invoke_tuning_run and :class:IsaacLabTuneTrainable,
+    at a minimum, the tune job should inherit from this class."""
+
     def __init__(self, cfg):
         assert "runner_args" in cfg, "No runner arguments specified."
         assert "workflow" in cfg, "No workflow specified."
@@ -119,14 +142,16 @@ class JobCfg:
 
 
 class RLGamesCameraJobCfg(JobCfg):
+    """In order to be compatible with :meth: invoke_tuning_run, and
+    :class:IsaacLabTuneTrainable , configurations should
+    be in a similar format to this class."""
+
     def __init__(self, cfg={}, vary_env_count: bool = False, vary_cnn: bool = False, vary_mlp: bool = False):
         cfg = isaac_ray_util.populate_isaac_ray_cfg_args(cfg)
         # Set up basic runner args
         cfg["runner_args"]["headless_singleton"] = tune.choice(["--headless"])
         cfg["runner_args"]["enable_cameras_singleton"] = tune.choice(["--enable_cameras"])
-        cfg["workflow"] = tune.choice(
-            ["/workspace/isaaclab/source/standalone/workflows/rl_games/train.py"]
-        )  # TODO: pull out source
+        cfg["workflow"] = tune.choice([RL_GAMES_WORKFLOW])
 
         cfg["hydra_args"]["agent.params.config.save_best_after"] = tune.choice([5])
         cfg["hydra_args"]["agent.params.config.save_frequency"] = tune.choice([5])
@@ -178,12 +203,11 @@ class RLGamesCameraJobCfg(JobCfg):
                     "initializer": {"name": tune.choice(["default", "he_uniform", "glorot_uniform"])},
                 }
 
-            if vary_mlp:
-                cfg["hydra_args"]["agents.params.network.mlp"] = {
-                    "layers": tune.sample_from(
-                        lambda _: [generate_mlp_layer() for _ in range(tune.randint(1, 10).sample())]
-                    )
-                }
+            cfg["hydra_args"]["agents.params.network.mlp"] = {
+                "layers": tune.sample_from(
+                    lambda _: [generate_mlp_layer() for _ in range(tune.randint(1, 10).sample())]
+                )
+            }
         super().__init__(cfg)
 
 
@@ -239,10 +263,10 @@ if __name__ == "__main__":
     parser.add_argument(
         "--storage_path",
         type=str,
-        default="/tmp",
+        default=os.path.expanduser("~/isaac_ray_logs"),
         required=False,
         help=(
-            "Where to store experiments. Can be directory for local dev"
+            "Where to store experiments. Can be directory for local dev, "
             "Must be a bucket your cluster has access to for remote."
         ),
     )
@@ -253,11 +277,11 @@ if __name__ == "__main__":
         BASE_DIR = DOCKER_PREFIX  # ensure logs are dumped to persistent location
         PYTHON_EXEC = DOCKER_PREFIX + PYTHON_EXEC[2:]
         RL_GAMES_WORKFLOW = DOCKER_PREFIX + RL_GAMES_WORKFLOW
-        print(f"Using docker mode {PYTHON_EXEC = } {RL_GAMES_WORKFLOW = }")
+        print(f"[INFO]: Using docker mode {PYTHON_EXEC = } {RL_GAMES_WORKFLOW = }")
 
     file_path = args.cfg_file
     class_name = args.cfg_class
-    print(f"Attempting to use sweep config from {file_path = } {class_name = }")
+    print(f"[INFO]: Attempting to use sweep config from {file_path = } {class_name = }")
     module_name = os.path.splitext(os.path.basename(file_path))[0]
 
     spec = importlib.util.spec_from_file_location(module_name, file_path)

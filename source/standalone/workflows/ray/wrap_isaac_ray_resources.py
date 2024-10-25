@@ -16,11 +16,24 @@ def wrap_resources_to_jobs(
     ram_gb: float | None,
     test_mode: bool = False,
 ) -> None:
+    """
+    Provided a list of jobs, dispatch one Ray worker per available node,
+    unless otherwise specified by resource constraints.
+
+    Args:
+        jobs: bash commands to execute on a Ray cluster
+        num_workers: How many workers to split each node into. If None is ignored
+        num_gpus: How many GPUs to allocate per worker. If None is ignored
+        num_cpus: How many CPUs to allocate per worker. If None is ignored
+        ram_gb: How many gigabytes of RAM to allocate per worker. If None is ignore
+        test_mode: If set to true, ignore jobs, and try only nvidia-smi. Defaults to False.
+
+    """
     if not ray.is_initialized():
         ray.init(address="auto", log_to_driver=True)
-    print("Connected to Ray cluster.")
-    print("[INFO]: Assuming homogeneous worker cluster resources.")
-    print("[INFO]: Create more than one cluster for heterogeneous jobs.")
+    print("[INFO]: Connected to Ray cluster.")
+    print("[WARNING]: Assuming homogeneous worker cluster resources.")
+    print("[WARNING]: Create more than one cluster for heterogeneous jobs.")
 
     # Helper function to format resource information
     def format_resources(resources):
@@ -77,8 +90,8 @@ def wrap_resources_to_jobs(
 
     results = ray.get(job_results)
     for i, result in enumerate(results):
-        print(f"Job {i} result: {result}")
-    print("All jobs completed.")
+        print(f"[INFO]: Job {i} result: {result}")
+    print("[INFO]: All jobs completed.")
 
 
 if __name__ == "__main__":

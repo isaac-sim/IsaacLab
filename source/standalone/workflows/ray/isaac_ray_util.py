@@ -13,6 +13,14 @@ from tensorboard.backend.event_processing.event_accumulator import EventAccumula
 
 
 def load_tensorboard_logs(directory: str) -> dict:
+    """From a tensorboard directory, get the latest scalar values.
+
+    Args:
+        directory: The directory of the tensorboard logging.
+
+    Returns:
+        The latest available scalar values.
+    """
     # Initialize the event accumulator with a size guidance for only the latest entry
     size_guidance = {"scalars": 1}  # Load only the latest entry for scalars
     event_acc = EventAccumulator(directory, size_guidance=size_guidance)
@@ -29,6 +37,16 @@ def load_tensorboard_logs(directory: str) -> dict:
 
 
 def get_invocation_command_from_cfg(cfg: dict, python_cmd: str = "/workspace/isaaclab/isaaclab.sh -p") -> str:
+    """Provided a python invocation, as well as a configuration with runner arguments and hydra
+    arguments, combine them into a single shell command that can be run for a training run
+
+    Args:
+        cfg: A dict with the runner args and hydra args desired for a training run.
+        python_cmd: Which python to use. Defaults to "/workspace/isaaclab/isaaclab.sh -p".
+
+    Returns:
+        A shell training run command (invocation)
+    """
     runner_args = []
     hydra_args = []
 
@@ -65,14 +83,37 @@ def get_invocation_command_from_cfg(cfg: dict, python_cmd: str = "/workspace/isa
 def remote_execute_job(
     job_cmd: str, identifier_string: str, test_mode: bool = False, extract_experiment: bool = False
 ) -> str | dict:
+    """This method has an identical signature to :meth:execute_job , with the ray remote decorator"""
     return execute_job(
         job_cmd=job_cmd, identifier_string=identifier_string, test_mode=test_mode, extract_experiment=extract_experiment
     )
 
 
 def execute_job(
-    job_cmd, identifier_string="job 0", test_mode=False, extract_experiment=False, persistent_dir: str | None = None
+    job_cmd: str,
+    identifier_string: str = "job 0",
+    test_mode: bool = False,
+    extract_experiment: bool = False,
+    persistent_dir: str | None = None,
 ) -> str | dict:
+    """Issue a job (shell command).
+
+    Args:
+        job_cmd: The shell command to run.
+        identifier_string: What prefix to add to make logs easier to differentiate
+            across clusters or jobs. Defaults to "job 0".
+        test_mode: When true, only run 'nvidia-smi'. Defaults to False.
+        extract_experiment: When true, search for experiment details from a training run. Defaults to False.
+        persistent_dir: When supplied, change to run the directory in a persistent
+            directory. Can be used to avoid losing logs in the /tmp directory. Defaults to None.
+
+    Raises:
+        ValueError: If the job is unable to start, or throws an error. Most likely to happen
+            due to running out of memory.
+
+    Returns:
+        Relevant information from the job
+    """
     start_time = datetime.now().strftime("%H:%M:%S.%f")
     result_details = [f"{identifier_string}: ---------------------------------"]
     result_details.append(f"\n{identifier_string}: Invocation job: {job_cmd}")
@@ -156,6 +197,15 @@ def execute_job(
 
 
 def get_gpu_node_resources(total_resources: bool = False, one_node_only: bool = False) -> dict:
+    """Get information about available GPU node resources.
+
+    Args:
+        total_resources: When true, return total available resources. Defaults to False.
+        one_node_only: When true, return resources for a single node. Defaults to False.
+
+    Returns:
+        Resource information.
+    """
     if not ray.is_initialized():
         ray.init(address="auto")
 
@@ -221,6 +271,7 @@ def add_cluster_args(parser: argparse.ArgumentParser) -> None:
 
 
 def populate_isaac_ray_cfg_args(cfg: dict = {}) -> dict:
+    """Small utility method to create empty fields if needed for a configuration."""
     if "runner_args" not in cfg:
         cfg["runner_args"] = {}
     if "hydra_args" not in cfg:

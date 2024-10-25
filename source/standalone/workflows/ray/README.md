@@ -1,9 +1,10 @@
-#TODO: Move me into docs ;p
+#TODO: Move me into docs/Convert to RST ;p (Would love to put into Features)
 
-# Welcome to Isaac-Ray
+# Welcome to Isaac-Ray ;-)
 
 Ray helps streamline running more than one training run and hyperparameter tuning,
 both for parallel and in sequence runs, as well as for both local and cloud-based training.
+Ray integrates nicely with the existing hydra configuration system support.
 
 The Ray integration is useful for the following:
 - Several training runs at once in parallel or consecutively with minimal interaction
@@ -28,9 +29,8 @@ To install base Python dependencies, run
 
 To install the Python dependencies for tuning specifically, run
 ```
-./isaaclab.sh -p -m pip install hpbandster ConfigSpace
+./isaaclab.sh -p -m pip install optuna bayesian-optimization
  ```
-
 # Setup / Cluster Configuration
 
 ## Local and Other Setups
@@ -65,14 +65,14 @@ See the [Ray community SLURM support](https://docs.ray.io/en/latest/cluster/vms/
 for more information. This guide does not explicitly support SLURM, but it should still be compatible.
 
 ## Cloud Setup (Not needed for local development)
-
-On your cloud provider of choice, configure the following
+Google Cloud is currently the only platform tested, although
+any cloud provider should work if one configures the following:
 
 - An container registry (NGC, GCS artifact registry, AWS ECR, etc) where you have
 	an Isaac Lab image that you can pull with the correct permissions, configured to
 	support Ray and nvidia-smi
 	- See ```cluster_configs/Dockerfile``` to see how to modify the ```isaac-lab-base```
-		container for Ray compatibility. Ray should use the isaac sim python shebang, and nvidia-smi
+		container for Ray compatibility. Ray should use the isaac sim python shebang, and ``nvidia-smi``
 		should work within the container. Be careful with the setup here as
 		paths need to be configured correctly for everything to work. It's likely that
 		the example dockerfile will work for you out of the box.
@@ -81,13 +81,12 @@ On your cloud provider of choice, configure the following
 	and has the Ray operator enabled with correct IAM permissions.
 - A ``kuberay.yaml.ninja`` file that describes how to allocate resources (already included for
 	google cloud)
-- It is highly recommended to create a storage bucket to dump experiment logs/checkpoints to.
+- A storage bucket to dump experiment logs/checkpoints to, that your cluster has access to.
 
-An example of what a cloud deploy might look look like is in ``cloud_cluster_configs/google_cloud``. Google Cloud is currently
-the only one supported out of the box.
+An example of what a cloud deploy might look look like is in ``cloud_cluster_configs/google_cloud``.
 
 
-# Running Local Experiments
+# Running Local Experiments (Or on a single remote VM)
 1. Test that the cluster works with
 
 	```
@@ -132,10 +131,19 @@ For several nodes, resource isolation is not needed to run jobs in parallel.
 	--num_workers_per_node <NUM_TO_DIVIDE_TOTAL_RESOURCES_BY> \
 	--jobs <JOB0>+<JOB1>
 	```
+3. The following demonstrates how to submit Tune Jobs. Simply define your job similar
+	to ```RLGamesCameraJobCfg```
+
+	```
+	./isaaclab.sh -p source/standalone/workflors/ray/isaac_ray_tune.py \
+	--mode local
+	--cfg_file hyperparameter_tuning/vision_cartpole_cfg.py \
+	--cfg_class CartpoleRGBNoTuneJobCfg --storage_path ~/isaac_cartpole
+	```
 
 # Running Remote Experiments
 
-### Kubernetes / KubeRay Specific (You can skip these steps if you've already set up the Ray Cluster)
+### Kubernetes / KubeRay Specific (These steps can be skipped if the Ray cluster is configured)
 
 1. Start the kubernetes server and verify access
 
@@ -146,7 +154,19 @@ For several nodes, resource isolation is not needed to run jobs in parallel.
 	``kubectl get crds | grep ray`` should list rayclusters.ray.io , rayjobs.ray.io , and
 	rayservices.ray.io
 
-3. Spin up the KubeRay integration from the template cluster configuration file
+3. Ensure that the cluster will have access to the storage bucket. This can be done
+	through IAM roles, or on google cloud, this can be done with the existing
+	``kuberay.yaml.jina`` by running ```gcloud auth application-default login```
+	and creating a secret prior to spinning up the cluster with the following command
+	(**Warning: use at your own discretion as this may pose a security risk**):
+	 ```
+	 kubectl create secret generic bucket-access \
+	--from-file=key.json=/path/to/your/key.json \
+	--namespace=<your-namespace>
+	```
+	Key path is likely ``~/.config/gcloud/application_default_credentials.json``)
+
+4. Spin up the KubeRay integration from the template cluster configuration file
 
 	See ``./isaaclab.sh -p source/standalone/workflows/ray/launch.py -h``
 	for all possible arguments
@@ -158,14 +178,14 @@ For several nodes, resource isolation is not needed to run jobs in parallel.
 	 --cluster_host google_cloud --namespace <NAMESPACE>  --image <CUSTOM_ISAAC_RAY_IMAGE> --min_workers 4 --max_workers 16
 	 ```
 
-4. Check that the KubeRay cluster creation worked with `kubectl get pods` and `kubectl describe pods`.
+5. Check that the KubeRay cluster creation worked with `kubectl get pods` and `kubectl describe pods`.
 	It may take a few minutes for the cluster to spin up. If there is an error, or a crash loop backup,
 	or the pods are stuck on pending, logs can be inspected with ``kubectl logs <POD_NAME>``. When all pods
 	have a ``Running`` status, the cluster is ready to tune hyperparameters.
 
 ### Shared Steps for Kubernetes/KubeRay and Ray Clusters
 
-5. Create a ```~/.cluster_config``` file. If the cluster was configured with Kubernetes/KubeRay,
+6. Create a ```~/.cluster_config``` file. If the cluster was configured with Kubernetes/KubeRay,
 	the following script can be run to automate the config creation.
 
 	```
@@ -179,7 +199,7 @@ For several nodes, resource isolation is not needed to run jobs in parallel.
 	name: <CLUSTER_NAME> address: http://<RAY_HEAD_IP>.<RAY_DASHBOARD_PORT>
 	```
 
-6. Check that that it is possible to issue jobs to the cluster, that all GPUs are available,
+7. Check that that it is possible to issue jobs to the cluster, that all GPUs are available,
 	that Ray is installed correctly, nvidia-smi works, and that the needed deps
 	for Ray/Isaac Lab are found on the path through the following command.
 
@@ -187,7 +207,7 @@ For several nodes, resource isolation is not needed to run jobs in parallel.
 	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py --test
 	```
 
-7. Start the distributed Ray job. See the following examples for training and tuning:
+8. Start the distributed Ray job. See the following examples for training and tuning:
 
 	***For several training runs on the same cluster, separate the jobs by the ```+``` delimiter as
 	described for the local steps.*** For more information on using ```wrap_isaac_ray_resources.py```
@@ -210,32 +230,26 @@ For several nodes, resource isolation is not needed to run jobs in parallel.
 	For example, a tuning can be run on a remote cluster with the following command:
 
 	```
-	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py --jobs isaac_ray_tune.py --cfg_file hyperparameter_tuning/vision_cartpole_cfg.py --cfg_class CartpoleRGBNoTuneJobCfg
+	./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py --jobs isaac_ray_tune.py --cfg_file hyperparameter_tuning/vision_cartpole_cfg.py --cfg_class CartpoleRGBNoTuneJobCfg --storage <YOUR_BUCKET_PATH_HERE>
 	```
 
-8. When the distributed job is completed, stop the cluster to conserve resources.
+9. When the distributed job is completed, stop the cluster to conserve resources.
 
 	For Kubernetes/KubeRay, this can be done with
 
 	``kubectl get raycluster | egrep 'hyperparameter-tuner' | awk '{print $1}' | xargs kubectl delete raycluster``
 
+	and
+
+	```
+	kubectl delete secret bucket-access
+	```
 	For clusters, this can be done from the head node with
 
 	``ray stop``
 
 	For the recommended single machine setup, this can also be done through ```CTRL + C``` on the
 	terminal running the one-liner ray configuration.
-
-## Retrieving Files/Weights From Remote
-
-Generally, it's best practice to store large files or weights in a storage bucket within the cloud from
-the training runs.
-
-This can be achieved by supplying the storage_path option to the ``isaac_ray_tune.py`` job,
-as long as the ray cluster has access to the storage bucket.
-
-However, for the sake of prototyping, it is possible to manually retrieve files from KubeRay clusters
-with ```kubectl cp```.
 
 ## Advanced Usage
 
@@ -254,6 +268,7 @@ hyperparameters could be simultaneously tuned in parallel with heterogeneous res
 
 ####  Kubernetes / KubeRay Specific : For Cloud or Kubernetes Local
 1. Create several homogeneous ray clusters at once by specifying the ``--num_clusters`` flag to ``launch.py``.
+	(Remember to create a secret if needed for bucket access prior to this step)
 	For example,
 
 	```
@@ -305,11 +320,19 @@ hyperparameters could be simultaneously tuned in parallel with heterogeneous res
 
 6. Clean up the cluster to conserve resources
 
-	For example,
+	For KubeRay-based systems, this may look like:
 	```
 	kubectl get raycluster | egrep 'hyperparameter-tuner' | awk '{print $1}' | xargs kubectl delete raycluster
 	```
-##
-Notes for Development
+	and
+	```
+	kubectl delete secret bucket-access
+	```
 
-https://discuss.ray.io/t/how-to-define-fcnet-hiddens-size-and-number-of-layers-in-rllib-tune/6504/18
+### Notes:
+
+- HyperbandOpt doesn't seem to support nested dictionaries
+
+- Should add Felix Yu to author list
+
+- [Randomizing layer sizes](https://discuss.ray.io/t/how-to-define-fcnet-hiddens-size-and-number-of-layers-in-rllib-tune/6504/18)

@@ -50,6 +50,8 @@ spec:
           fsGroup: 100
         containers:
           - env:
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: "/var/secrets/{{secret_name}}/key.json"
             image: {{ image }}
             imagePullPolicy: Always
             name: ray-head
@@ -66,6 +68,9 @@ spec:
             volumeMounts:
               - mountPath: /tmp/ray
                 name: ray-logs
+              - mountPath: /var/secrets/{{secret_name}}
+                name: {{secret_name}}
+                readOnly: true
             command: ["/bin/bash", "-c", "ray start --head --port=6379 --object-manager-port=8076 --dashboard-host=0.0.0.0 --dashboard-port=8265 --include-dashboard=true && tail -f /dev/null"]
           - image: fluent/fluent-bit:1.9.6
             name: fluentbit
@@ -88,6 +93,9 @@ spec:
             name: fluentbit-config
           - name: ray-logs
             emptyDir: {}
+          - name: {{secret_name}}
+            secret:
+              secretName: {{secret_name}}
 
   workerGroupSpecs:
     - groupName: gpu-group
@@ -96,7 +104,6 @@ spec:
       rayStartParams:
         block: "true"
         ray-debugger-external: "true"
-        redis-password: {{ redis_password }}
       replicas: {{ starting_worker_count }}
       template:
         metadata:
@@ -112,6 +119,8 @@ spec:
             fsGroup: 100
           containers:
             - env:
+              - name: GOOGLE_APPLICATION_CREDENTIALS
+                value: "/var/secrets/{{secret_name}}/key.json"
               - name: NVIDIA_VISIBLE_DEVICES
                 value: "all"
               - name: NVIDIA_DRIVER_CAPABILITIES
@@ -133,6 +142,9 @@ spec:
               volumeMounts:
                 - mountPath: /tmp/ray
                   name: ray-logs
+                - mountPath: /var/secrets/{{secret_name}}
+                  name: {{secret_name}}
+                  readOnly: true
               command: ["/bin/bash", "-c", "ray start --address={{ name }}-head.{{ namespace }}.svc.cluster.local:6379 && tail -f /dev/null"]
             - image: fluent/fluent-bit:1.9.6
               name: fluentbit
@@ -146,6 +158,7 @@ spec:
               volumeMounts:
                 - mountPath: /tmp/ray
                   name: ray-logs
+
           imagePullSecrets: []
           nodeSelector:
             cloud.google.com/gke-accelerator: {{ worker_accelerator }}
@@ -160,3 +173,6 @@ spec:
               name: fluentbit-config
             - name: ray-logs
               emptyDir: {}
+            - name: {{secret_name}}
+              secret:
+                secretName: {{secret_name}}

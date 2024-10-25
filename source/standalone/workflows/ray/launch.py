@@ -15,6 +15,12 @@ RAY_DIR = pathlib.Path(__file__).parent
 
 
 def apply_manifest(args: argparse.Namespace) -> None:
+    """Provided a Jinja templated ray.io/v1alpha1 file,
+    populate the arguments and create the cluster.
+
+    Args:
+        args: Possible arguments concerning cluster parameters.
+    """
     # Load Kubernetes configuration
     config.load_kube_config()
 
@@ -157,6 +163,9 @@ def parse_args() -> argparse.Namespace:
         type=float,  # to be able to schedule partial CPU heads
         default=4,
         help="The number of CPUs to give the Ray head.",
+    )
+    arg_parser.add_argument(
+        "--secret_name", default="bucket-access", type=str, help="The name of the secret that allows for bucket access."
     )
 
     arg_parser.add_argument("--head_ram_gb", type=int, default=4, help="How many gigs of ram to give the Ray head")

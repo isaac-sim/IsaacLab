@@ -3,6 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""
+Automatically determine cluster names and Ray IP addresses through kubectl,
+"""
 import argparse
 import os
 import re
@@ -12,7 +15,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
-def get_pods(namespace="default"):
+def get_pods(namespace: str = "default") -> list[tuple]:
     cmd = ["kubectl", "get", "pods", "-n", namespace, "--no-headers"]
     output = subprocess.check_output(cmd).decode()
     pods = []
@@ -24,7 +27,7 @@ def get_pods(namespace="default"):
     return pods
 
 
-def get_clusters(pods, cluster_name_prefix):
+def get_clusters(pods: list, cluster_name_prefix: str) -> set:
     clusters = set()
     # Modify regex pattern to match the entire structure including `-head` or `-worker`
     for pod_name, _ in pods:
@@ -34,7 +37,7 @@ def get_clusters(pods, cluster_name_prefix):
     return sorted(clusters)
 
 
-def check_clusters_running(pods, clusters):
+def check_clusters_running(pods: list, clusters: set) -> bool:
     clusters_running = True
     for cluster in clusters:
         cluster_pods = [p for p in pods if p[0].startswith(cluster)]
@@ -46,7 +49,7 @@ def check_clusters_running(pods, clusters):
     return clusters_running
 
 
-def get_ray_address(head_pod, namespace="default"):
+def get_ray_address(head_pod: str, namespace: str = "default") -> str:
     cmd = ["kubectl", "logs", head_pod, "-c", "ray-head", "-n", namespace]
     try:
         output = subprocess.check_output(cmd).decode()
@@ -59,16 +62,7 @@ def get_ray_address(head_pod, namespace="default"):
         return None
 
 
-def get_ray_status(head_pod, namespace="default"):
-    cmd = ["kubectl", "exec", head_pod, "-c", "ray-head", "-n", namespace, "--", "ray", "status"]
-    try:
-        output = subprocess.check_output(cmd).decode()
-        return output
-    except subprocess.CalledProcessError:
-        return None
-
-
-def process_cluster(cluster_info):
+def process_cluster(cluster_info: dict) -> str:
     cluster, pods, namespace = cluster_info
     head_pod = None
     for pod_name, status in pods:
@@ -82,9 +76,6 @@ def process_cluster(cluster_info):
     ray_address = get_ray_address(head_pod, namespace=namespace)
     if not ray_address:
         return f"Error: Could not find RAY_ADDRESS for cluster {cluster}\n"
-    ray_status = get_ray_status(head_pod, namespace=namespace)
-    if not ray_status:
-        return f"Error: Could not get ray status for cluster {cluster}\n"
     output_line = (  # num_cpu: {num_cpu} num_gpu: {num_gpu} ram_gb: {ram_gb} total_workers: {total_workers}\n"
         f"name: {cluster} address: {ray_address} \n"
     )
