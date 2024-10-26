@@ -50,8 +50,10 @@ class ActionTerm(ManagerTermBase):
         """
         # call the base class constructor
         super().__init__(cfg, env)
-        self.lows = cfg.lows
-        self.highs = cfg.highs
+        # self.lows = cfg.lows
+        # self.highs = cfg.highs
+        self.act_lows = torch.tensor(cfg.lows, device=self.device)[None]
+        self.act_highs = torch.tensor(cfg.highs, device=self.device)[None]
 
         # parse config to obtain asset to which the term is applied
         self._asset: AssetBase = self._env.scene[self.cfg.asset_name]
@@ -195,8 +197,8 @@ class ActionManager(ManagerBase):
         self.cfg.debug_vis = False
         for term in self._terms.values():
             self.cfg.debug_vis |= term.cfg.debug_vis
-        lows = [term.lows for term in self._terms.values()]
-        highs = [term.highs for term in self._terms.values()]
+        lows = [term.cfg.lows for term in self._terms.values()]
+        highs = [term.cfg.highs for term in self._terms.values()]
         self.single_action_space = gym.spaces.Box(
             low=np.concatenate(lows), high=np.concatenate(highs), dtype=np.float32
         )

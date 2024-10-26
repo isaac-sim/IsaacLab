@@ -37,9 +37,8 @@ import copy
 from typing import Literal
 import omni.isaac.lab.utils.math as math_utils
 import torch
-##
+
 # Scene definition
-##
 FRAME_MARKER_SMALL_CFG = copy.deepcopy(FRAME_MARKER_CFG)
 FRAME_MARKER_SMALL_CFG.markers["frame"].scale = (0.008, 0.008, 0.008)
 RED_PLATE_MARKER_CFG = VisualizationMarkersCfg(
@@ -173,9 +172,7 @@ class ScrewSceneCfg(InteractiveSceneCfg):
 
         self.bolt: RigidObjectCfg = RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/Bolt",
-            spawn=sim_utils.UsdFileCfg(
-                usd_path=self.screw_dict["bolt_path"],
-            ),
+            spawn=sim_utils.UsdFileCfg(usd_path=self.screw_dict["bolt_path"]),
             init_state=self.screw_dict["bolt_init_state"],
         )
 
@@ -229,7 +226,6 @@ class BaseObservationsCfg:
         nut_quat = ObsTerm(func=mdp.root_quat_w, params={"asset_cfg": SceneEntityCfg("nut")})
         nut_lin_vel = ObsTerm(func=mdp.root_lin_vel_w, params={"asset_cfg": SceneEntityCfg("nut")})
         nut_ang_vel = ObsTerm(func=mdp.root_ang_vel_w, params={"asset_cfg": SceneEntityCfg("nut")})
-        # actions = ObsTerm(func=mdp.last_action)
 
         def __post_init__(self):
             self.enable_corruption = False
@@ -272,18 +268,6 @@ class EventCfg:
         mode="reset",
     )
 
-@configclass
-class CurriculumCfg:
-    """Curriculum terms for the MDP."""
-
-    # action_rate = CurrTerm(
-    #     func=mdp.modify_reward_weight, params={"term_name": "action_rate", "weight": -0.005, "num_steps": 4500}
-    # )
-
-    # joint_vel = CurrTerm(
-    #     func=mdp.modify_reward_weight, params={"term_name": "joint_vel", "weight": -0.001, "num_steps": 4500}
-    # )
-
 
 ##
 # Environment configuration
@@ -302,7 +286,7 @@ class BaseScrewEnvCfg(ManagerBasedRLEnvCfg):
     rewards = MISSING
     terminations = MISSING
     events: EventCfg = EventCfg()
-    curriculum: CurriculumCfg = CurriculumCfg()
+    curriculum = MISSING
 
     sim: SimulationCfg = SimulationCfg(
         dt=1.0 / 60.0,
@@ -318,15 +302,31 @@ class BaseScrewEnvCfg(ManagerBasedRLEnvCfg):
 
     def get_default_env_params(self):
         """Set default environment parameters."""
-        self.params.scene = self.params.get("scene", OmegaConf.create())
-        self.params.sim = self.params.get("sim", OmegaConf.create())
-        self.params.sim.physx = self.params.sim.get("physx", OmegaConf.create())
-        self.params.scene.screw_type = self.params.scene.get("screw_type", "m16_loose") # m8_tight m16_tight
-        self.params.scene.nut = self.params.scene.get("nut", OmegaConf.create())
-        self.params.sim.dt = self.params.sim.get("dt", 1.0 / 120.0)
-        self.params.sim.physx.friction_offset_threshold = self.params.sim.physx.get("friction_offset_threshold", 0.04)
-        self.params.sim.physx.enable_ccd = self.params.sim.physx.get("enable_ccd", False)
-        self.params.decimation = self.params.get("decimation", 1)
+        # Initialize params structure
+        params = self.params
+        params.scene = params.get("scene", OmegaConf.create())
+        params.sim = params.get("sim", OmegaConf.create())
+        params.actions = params.get("actions", OmegaConf.create())
+        params.observations = params.get("observations", OmegaConf.create())
+        params.rewards = params.get("rewards", OmegaConf.create())
+        params.terminations = params.get("terminations", OmegaConf.create())
+        params.events = params.get("events", OmegaConf.create())
+        params.sim.physx = params.sim.get("physx", OmegaConf.create())
+        params.scene.nut = params.scene.get("nut", OmegaConf.create())
+        
+        params.scene.screw_type = params.scene.get("screw_type", "m16_loose") # m8_tight m16_tight
+        params.sim.dt = params.sim.get("dt", 1.0 / 120.0)
+        params.sim.physx.friction_offset_threshold = params.sim.physx.get("friction_offset_threshold", 0.04)
+        params.sim.physx.enable_ccd = params.sim.physx.get("enable_ccd", False)
+        params.decimation = params.get("decimation", 1)
+        
+        # By default use the default params in USD
+        nut_params = params.scene.nut
+        nut_params.max_depenetration_velocity = nut_params.get("max_depenetration_velocity", None)
+        nut_params.sleep_threshold = nut_params.get("sleep_threshold", None)
+        nut_params.stabilization_threshold = nut_params.get("stabilization_threshold", None)
+        nut_params.linear_damping = nut_params.get("linear_damping", None)
+        nut_params.angular_damping = nut_params.get("angular_damping", None)
 
     def __post_init__(self):
         """Post initialization."""
@@ -339,6 +339,15 @@ class BaseScrewEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.dt = self.params.sim.dt
         self.sim.physx.friction_offset_threshold = self.params.sim.physx.friction_offset_threshold
         self.sim.physx.enable_ccd = self.params.sim.physx.enable_ccd
+        
+        nut = self.scene.nut
+        nut_params = self.params.scene.nut
+        nut.spawn.rigid_props.max_depenetration_velocity = nut_params.max_depenetration_velocity
+        nut.spawn.rigid_props.sleep_threshold = nut_params.sleep_threshold
+        nut.spawn.rigid_props.stabilization_threshold = nut_params.stabilization_threshold
+        nut.spawn.rigid_props.linear_damping = nut_params.linear_damping
+        nut.spawn.rigid_props.angular_damping = nut_params.angular_damping
+        
         self.episode_length_s = 24
         self.viewer.origin_type = "asset_root"
         self.viewer.asset_name = "bolt"

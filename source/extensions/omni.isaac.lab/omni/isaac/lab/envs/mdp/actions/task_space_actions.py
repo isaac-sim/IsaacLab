@@ -127,6 +127,7 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         # store the raw actions
         self._raw_actions[:] = actions
         self._processed_actions[:] = self.raw_actions * self._scale
+        self._processed_actions = torch.clamp(self._processed_actions, self.act_lows, self.act_highs)
         # obtain quantities from simulation
         ee_pos_curr, ee_quat_curr = self._compute_frame_pose()
         # set command into controller
