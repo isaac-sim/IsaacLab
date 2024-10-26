@@ -318,27 +318,27 @@ class BaseScrewEnvCfg(ManagerBasedRLEnvCfg):
 
     def get_default_env_params(self):
         """Set default environment parameters."""
-        self.env_params.scene = self.env_params.get("scene", OmegaConf.create())
-        self.env_params.sim = self.env_params.get("sim", OmegaConf.create())
-        self.env_params.sim.physx = self.env_params.sim.get("physx", OmegaConf.create())
-        self.env_params.scene.screw_type = self.env_params.scene.get("screw_type", "m16_loose") # m8_tight m16_tight
-        self.env_params.scene.nut = self.env_params.scene.get("nut", OmegaConf.create())
-        self.env_params.sim.dt = self.env_params.sim.get("dt", 1.0 / 60.0)
-        self.env_params.sim.physx.friction_offset_threshold = self.env_params.sim.physx.get("friction_offset_threshold", 0.04)
-        self.env_params.sim.physx.enable_ccd = self.env_params.sim.physx.get("enable_ccd", False)
-        self.env_params.decimation = self.env_params.get("decimation", 2)
+        self.params.scene = self.params.get("scene", OmegaConf.create())
+        self.params.sim = self.params.get("sim", OmegaConf.create())
+        self.params.sim.physx = self.params.sim.get("physx", OmegaConf.create())
+        self.params.scene.screw_type = self.params.scene.get("screw_type", "m16_loose") # m8_tight m16_tight
+        self.params.scene.nut = self.params.scene.get("nut", OmegaConf.create())
+        self.params.sim.dt = self.params.sim.get("dt", 1.0 / 120.0)
+        self.params.sim.physx.friction_offset_threshold = self.params.sim.physx.get("friction_offset_threshold", 0.04)
+        self.params.sim.physx.enable_ccd = self.params.sim.physx.get("enable_ccd", False)
+        self.params.decimation = self.params.get("decimation", 1)
 
     def __post_init__(self):
         """Post initialization."""
         self.get_default_env_params()
-        self.screw_type = self.env_params.scene.screw_type
+        self.screw_type = self.params.scene.screw_type
         self.scene = ScrewSceneCfg(num_envs=4096, env_spacing=2.5, screw_type=self.screw_type)
         # general settings
-        self.decimation = self.env_params.decimation
+        self.decimation = self.params.decimation
         self.sim.render_interval = self.decimation
-        self.sim.dt = self.env_params.sim.dt
-        self.sim.physx.friction_offset_threshold = self.env_params.sim.physx.friction_offset_threshold
-        self.sim.physx.enable_ccd = self.env_params.sim.physx.enable_ccd
+        self.sim.dt = self.params.sim.dt
+        self.sim.physx.friction_offset_threshold = self.params.sim.physx.friction_offset_threshold
+        self.sim.physx.enable_ccd = self.params.sim.physx.enable_ccd
         self.episode_length_s = 24
         self.viewer.origin_type = "asset_root"
         self.viewer.asset_name = "bolt"
@@ -386,7 +386,7 @@ class BaseNutTightenEnvCfg(BaseScrewEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
-        screw_dict = asset_factory[self.env_params.scene.screw_type]
+        screw_dict = asset_factory[self.params.scene.screw_type]
         self.scene.nut.init_state = screw_dict["nut_init_state_tighten"]
         self.scene.bolt_frame = FrameTransformerCfg(
             prim_path="{ENV_REGEX_NS}/Origin",
@@ -460,7 +460,7 @@ class BaseNutThreadEnvCfg(BaseScrewEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
-        screw_dict = asset_factory[self.env_params.scene.screw_type]
+        screw_dict = asset_factory[self.params.scene.screw_type]
         self.scene.nut.init_state = screw_dict["nut_init_state_thread"]
 
         self.scene.nut_frame = FrameTransformerCfg(

@@ -81,7 +81,7 @@ def main():
     cfg = update_config(cfg, vv)
     env_cfg = parse_env_cfg(
         args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs, 
-        use_fabric=not args_cli.disable_fabric, env_params=cfg
+        use_fabric=not args_cli.disable_fabric, params=cfg
     )
     # modify configuration
     env_cfg.terminations.time_out = None

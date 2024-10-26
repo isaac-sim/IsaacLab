@@ -66,7 +66,7 @@ class reset_scene_to_grasp_state(ManagerTermBase):
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
         screw_type = self._env.cfg.scene.screw_type
-        subdir = self._env.cfg.env_params.scene.robot.collision_approximation  
+        subdir = env.cfg.params.scene.robot.collision_approximation  
         cached_pre_grasp_state = pickle.load(open(f"cached/{subdir}/kuka_{screw_type}_pre_grasp.pkl", "rb"))
         cached_pre_grasp_state = SmartDict(cached_pre_grasp_state).to_tensor(device=env.device)
         self.cached_pre_grasp_state = cached_pre_grasp_state.apply(lambda x: repeat(x, "1 ... -> n ...", n=env.num_envs).clone())
@@ -82,8 +82,8 @@ class reset_scene_to_grasp_state(ManagerTermBase):
         robot_material[..., 1] = 2
         robot.root_physx_view.set_material_properties(robot_material, torch.arange(env.scene.num_envs, device="cpu"))
 
-        env.unwrapped.write_state(self.cached_pre_grasp_state[env_ids].clone(), env_ids)
-        # env.unwrapped.write_state(self.cached_grasp_state[env_ids].clone(), env_ids)
+        # env.unwrapped.write_state(self.cached_pre_grasp_state[env_ids].clone(), env_ids)
+        env.unwrapped.write_state(self.cached_grasp_state[env_ids].clone(), env_ids)
 
 @configclass
 class EventCfg:
@@ -123,10 +123,10 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
 
     def get_default_env_params(self):
         super().get_default_env_params()
-        self.env_params.sim.dt = self.env_params.sim.get("dt", 1.0 / 120.0)
-        self.env_params.scene.robot = self.env_params.scene.get("robot", OmegaConf.create())
+        self.params.sim.dt = self.params.sim.get("dt", 1.0 / 120.0)
+        self.params.scene.robot = self.params.scene.get("robot", OmegaConf.create())
         # self.pre_grasp_path
-        robot_params = self.env_params.scene.robot
+        robot_params = self.params.scene.robot
         robot_params["collision_approximation"] = robot_params.get("collision_approximation", "convexHull")
         robot_params["contact_offset"] = robot_params.get("contact_offset", 0.002)
         robot_params["rest_offset"] = robot_params.get("rest_offset", 0.001)
@@ -137,9 +137,11 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         robot_params["dynamic_friction"] = robot_params.get("dynamic_friction", 2)
         robot_params["compliant_contact_stiffness"] = robot_params.get("compliant_contact_stiffness", 0.)
         robot_params["compliant_contact_damping"] = robot_params.get("compliant_contact_damping", 0.)
-
+        robot_params["arm_stiffness"] = robot_params.get("arm_stiffness", 300.0)
+        robot_params["arm_damping"] = robot_params.get("arm_damping", 100.0)
+        
         # By default use the default params in USD
-        nut_params = self.env_params.scene.nut
+        nut_params = self.params.scene.nut
         nut_params["max_depenetration_velocity"] = nut_params.get("max_depenetration_velocity", None)
         nut_params["sleep_threshold"] = nut_params.get("sleep_threshold", None)
         nut_params["stabilization_threshold"] = nut_params.get("stabilization_threshold", None)
@@ -150,7 +152,7 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         # post init of parent
         super().__post_init__()
         self.events = EventCfg()
-        robot_params = self.env_params.scene.robot
+        robot_params = self.params.scene.robot
         self.scene.robot = KUKA_VICTOR_LEFT_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         if robot_params.collision_approximation == "convexHull":
             self.scene.robot.spawn.usd_path = "assets/victor/victor_left_arm_with_gripper_v2/victor_left_arm_with_gripper_v2.usd"
@@ -171,7 +173,7 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
             compliant_contact_damping=robot_params.compliant_contact_damping,
         )
 
-        nut_params = self.env_params.scene.nut
+        nut_params = self.params.scene.nut
         self.scene.nut.spawn.rigid_props.max_depenetration_velocity = nut_params.max_depenetration_velocity
         self.scene.nut.spawn.rigid_props.sleep_threshold = nut_params.sleep_threshold
         self.scene.nut.spawn.rigid_props.stabilization_threshold = nut_params.stabilization_threshold
@@ -180,11 +182,11 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
 
         # override actions
         
-        self.scene.robot.actuators["victor_left_arm"].stiffness = 300.0
-        self.scene.robot.actuators["victor_left_arm"].damping = 100.0
+        self.scene.robot.actuators["victor_left_arm"].stiffness = robot_params.arm_stiffness
+        self.scene.robot.actuators["victor_left_arm"].damping = robot_params.arm_damping
         self.scene.robot.actuators["victor_left_gripper"].velocity_limit = 1
-        self.act_lows = [-0.0001, -0.0001, -0.015, -0.01, -0.01, -0.8]
-        self.act_highs = [0.0001, 0.0001, 0.015, 0.01, 0.01, 0.]
+        self.act_lows = [-0.001, -0.001, -0.015, -0.01, -0.01, -0.8]
+        self.act_highs = [0.001, 0.001, 0.015, 0.01, 0.01, 0.0]
         scale = [0.001, 0.001, 0.01, 0.01, 0.01, 0.8]
         # self.act_lows = [-0.003, -0.003, -0.01, -0.01, -0.01, -0.2]
         # self.act_highs = [0.003, 0.003, 0.01, 0.01, 0.01, 0.]

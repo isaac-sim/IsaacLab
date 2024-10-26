@@ -79,5 +79,5 @@ class ManagerBasedRLEnvCfg(ManagerBasedEnvCfg):
 
     Please refer to the :class:`omni.isaac.lab.managers.CommandManager` class for more details.
     """
-    env_params: DictConfig = OmegaConf.create()
+    params: DictConfig = OmegaConf.create()
     """Additional environment parameters."""

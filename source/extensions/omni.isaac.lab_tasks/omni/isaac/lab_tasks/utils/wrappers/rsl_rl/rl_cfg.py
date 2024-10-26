@@ -6,6 +6,8 @@
 from dataclasses import MISSING
 from typing import Literal
 
+from omegaconf import DictConfig, OmegaConf
+
 from omni.isaac.lab.utils import configclass
 
 
@@ -147,3 +149,30 @@ class RslRlOnPolicyRunnerCfg:
 
     If regex expression, the latest (alphabetical order) matching file will be loaded.
     """
+
+    params: DictConfig = OmegaConf.create()
+    """Additional agent parameters."""
+    
+    def __post_init__(self):
+        # update the configuration with the additional parameters
+        self.num_steps_per_env = self.params.get("agent.num_steps_per_env", self.num_steps_per_env)
+        self.max_iterations = self.params.get("agent.max_iterations", self.max_iterations)
+        self.save_interval = self.params.get("agent.save_interval", self.save_interval)
+        self.experiment_name = self.params.get("agent.experiment_name", self.experiment_name)
+        self.run_name = self.params.get("agent.run_name", self.run_name)
+        self.logger = self.params.get("agent.logger", self.logger)
+        self.wandb_project = self.params.get("agent.wandb_project", self.wandb_project)
+        self.resume = self.params.get("agent.resume", self.resume)
+        self.load_run = self.params.get("agent.load_run", self.load_run)
+        self.load_checkpoint = self.params.get("agent.load_checkpoint", self.load_checkpoint)
+        
+        self.empirical_normalization = self.params.get("agent.empirical_normalization", self.empirical_normalization)
+        self.algorithm.entropy_coef = self.params.get("agent.algorithm.entropy_coef", self.algorithm.entropy_coef)
+        self.algorithm.learning_rate = self.params.get("agent.algorithm.learning_rate", self.algorithm.learning_rate)
+        self.algorithm.gamma = self.params.get("agent.algorithm.gamma", self.algorithm.gamma)
+        self.algorithm.lam = self.params.get("agent.algorithm.lam", self.algorithm.lam)
+        self.algorithm.desired_kl = self.params.get("agent.algorithm.desired_kl", self.algorithm.desired_kl)
+        self.policy.init_noise_std = self.params.get("agent.policy.init_noise_std", self.policy.init_noise_std)
+        self.policy.actor_hidden_dims = self.params.get("agent.policy.actor_hidden_dims", self.policy.actor_hidden_dims)
+        self.policy.critic_hidden_dims = self.params.get("agent.policy.critic_hidden_dims", self.policy.critic_hidden_dims)
+        self.policy.activation = self.params.get("agent.policy.activation", self.policy.activation)
