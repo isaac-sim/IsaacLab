@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.27.6 (2024-10-25)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed usage of ``meshes`` property in :class:`omni.isaac.lab.sensors.RayCasterCamera` to use ``self.meshes`` instead of the undefined ``RayCaster.meshes``.
+* Fixed issue in :class:`omni.isaac.lab.envs.ui.BaseEnvWindow` where undefined configs were being accessed when creating debug visualization elements in UI.
+
+
 0.27.5 (2024-10-25)
 ~~~~~~~~~~~~~~~~~~~
 
