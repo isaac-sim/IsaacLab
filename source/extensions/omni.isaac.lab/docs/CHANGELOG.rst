@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.27.5 (2024-10-25)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added utilities for serializing/deserializing Gymnasium spaces.
+
+
 0.27.4 (2024-10-18)
 ~~~~~~~~~~~~~~~~~~~
 
