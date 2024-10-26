@@ -11,6 +11,14 @@ import yaml
 from jinja2 import Environment, FileSystemLoader
 from kubernetes import config
 
+"""This script helps create one or more KubeRay clusters.
+
+Usage:
+
+.. code-block:: bash
+
+    ./isaaclab.sh -p source/standalone/workflows/ray/launch.py -h
+"""
 RAY_DIR = pathlib.Path(__file__).parent
 
 

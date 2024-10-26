@@ -3,9 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""
-Automatically determine cluster names and Ray IP addresses through kubectl,
-"""
 import argparse
 import os
 import re
@@ -13,6 +10,17 @@ import subprocess
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+"""
+This script requires that kubectl is installed and KubeRay was used to create the cluster.
+
+Creates a config file containing ``name: <NAME> address: http://<IP>:<PORT>`` on
+a new line for each cluster.
+
+Usage:
+
+.. code-block:: bash ./isaaclab.sh -p source/standalone/workflows/ray/grok_cluster_with_kubectl.py -h
+"""
 
 
 def get_pods(namespace: str = "default") -> list[tuple]:

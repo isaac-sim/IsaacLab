@@ -14,7 +14,27 @@ from ray import air, tune
 from ray.tune.search.optuna import OptunaSearch
 from ray.tune.search.repeater import Repeater
 
-# from ray.tune.search.bayesopt import BayesOptSearch # TODO: Add support
+"""
+This script breaks down an aggregate tuning job, as defined by a hyperparameter sweep configuration,
+into individual jobs (shell commands) to run on the GPU-enabled nodes of the cluster.
+By default, (unless combined as a sub-job in a resource-wrapped aggregate job
+or ``--num_workers_per_node`` is specified), one worker is created
+for each GPU-enabled node in the cluster for each individual job.
+
+Each hyperparameter sweep configuration should include the workflow,
+runner arguments, and hydra arguments to vary.
+
+This assumes that all workers in a cluster are homogeneous. For heterogeneous workloads,
+create several heterogeneous clusters (with homogeneous nodes in each cluster),
+then submit several overall-cluster jobs with :file:`../submit_isaac_ray_job.py`.
+KubeRay clusters on Google GKE can be created with :file:`../launch.py`
+
+Usage:
+
+.. code-block:: bash
+
+    ./isaaclab.sh -p source/standalone/workflows/ray/isaac_ray_tune.py -h
+"""
 
 DOCKER_PREFIX = "/workspace/isaaclab/"
 BASE_DIR = os.path.expanduser("~")
@@ -70,10 +90,12 @@ class IsaacLabTuneTrainable(tune.Trainable):
 def invoke_tuning_run(
     cfg: dict,
     storage_path: str,
+    num_workers_per_node: int = 1,
     metric: str = "rewards/time",
     mode: str = "max",
     num_samples: int = 1000,
     repeat_run_count: int = 3,
+    ray_address: str = "auto",
 ) -> None:
     """Invoke an Isaac-Ray tuning run
 
@@ -81,16 +103,22 @@ def invoke_tuning_run(
         cfg: A configuration extracted from :class:JobCfg, similar in format to :class:RLGamesCameraJobCfg
         storage_path: Either a local path on a single-node tuning workflow, or a bucket that
             a cluster has access to for a multi-node workflow.
+        num_workers_per_node: how many workers to split each node into
         metric: The metric to tune to optimize. Defaults to "rewards/time".
         mode: Which mode to run the optimization. Defaults to "max".
         num_samples: The number of total samples to draw from
             the search space when tuning. Equal to the total number of runs. Defaults to 1000.
         repeat_run_count: The number of times to repeat each hyperparameter
             configuration. Defaults to 3.
+        ray_address: What ray address to connect to. Defaults to 'auto'
     """
     if not ray.is_initialized():
-        ray.init(address="auto", log_to_driver=True)
+        ray.init(address=ray_address, log_to_driver=True)
     resources = isaac_ray_util.get_gpu_node_resources(one_node_only=True)
+
+    for key, value in resources:
+        resources[key] = value / num_workers_per_node
+
     print(f"[INFO]: Resources per worker: {resources}")
     print(f"[INFO]: Using config {cfg}")
     # Define trainable with specific resource allocation
@@ -237,6 +265,7 @@ class RLGamesTheiaCameraJob(RLGamesCameraJobCfg):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Tune Cartpole.")
     parser.add_argument("--tune_type", choices=["standard_no_tune", "standard", "resnet", "theia"])
+    parser.add_argument("--ray_address", type=str, default="auto", help="the Ray address.")
     parser.add_argument(
         "--cfg_file",
         type=str,
@@ -270,6 +299,11 @@ if __name__ == "__main__":
             "Must be a bucket your cluster has access to for remote."
         ),
     )
+    parser.add_argument(
+        "--num_workers_per_node",
+        type=int,
+        help="Supply to split each node into num_workers evenly.",
+    )
 
     args = parser.parse_args()
 
@@ -296,7 +330,12 @@ if __name__ == "__main__":
         print(f"[INFO]: Successfully instantiated class '{class_name}' from {file_path}")
         cfg = instance.cfg
         print(f"[INFO]: Grabbed the following hyperparameter sweep config: \n {cfg}")
-        invoke_tuning_run(cfg, storage_path=args.storage_path)
+        invoke_tuning_run(
+            cfg,
+            storage_path=args.storage_path,
+            num_workers_per_node=args.num_workers_per_node,
+            ray_address=args.ray_address,
+        )
 
     else:
         raise AttributeError(f"[ERROR]:Class '{class_name}' not found in {file_path}")

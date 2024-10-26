@@ -2,7 +2,6 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-import argparse
 import os
 import re
 import subprocess
@@ -83,7 +82,7 @@ def get_invocation_command_from_cfg(cfg: dict, python_cmd: str = "/workspace/isa
 def remote_execute_job(
     job_cmd: str, identifier_string: str, test_mode: bool = False, extract_experiment: bool = False
 ) -> str | dict:
-    """This method has an identical signature to :meth:execute_job , with the ray remote decorator"""
+    """This method has an identical signature to :meth:`execute_job`, with the ray remote decorator"""
     return execute_job(
         job_cmd=job_cmd, identifier_string=identifier_string, test_mode=test_mode, extract_experiment=extract_experiment
     )
@@ -242,32 +241,6 @@ def get_gpu_node_resources(total_resources: bool = False, one_node_only: bool = 
         return node_resources_dict[first_node_id]
 
     return node_resources_dict
-
-
-def add_cluster_args(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--name", type=str, help="The name of the Ray Cluster to train on.")
-
-    parser.add_argument(
-        "--num_gpu_per_job",
-        type=float,  # can actually do fractional GPUs if so desired
-        help="The total amount of GPUs dispatched across all training job on the cluster",
-    )
-    parser.add_argument(
-        "--num_cpu_per_job",
-        type=float,
-        help="The total amount of CPUs dispatched across all raining job on the cluster",
-    )
-    parser.add_argument(
-        "--gb_ram_per_job",
-        type=float,
-        default=None,
-        help="The total gigabytes of RAM dispatched across all training jobs on the cluster",
-    )
-    parser.add_argument(
-        "--num_workers_per_node",
-        type=int,
-        help="Supply to split nodes into multiple workers. Meant for local development",
-    )
 
 
 def populate_isaac_ray_cfg_args(cfg: dict = {}) -> dict:

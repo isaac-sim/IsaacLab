@@ -2,10 +2,43 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+
 import argparse
 
 import isaac_ray_util
 import ray
+
+"""
+This script dispatches sub-job(s) (either individual jobs or tuning aggregate jobs)
+to worker(s) on GPU-enabled node(s) of a specific cluster as part of an resource-wrapped aggregate
+job. If no desired compute resources for each sub-job are specified,
+this script creates one worker per available node for each node with GPU(s) in the cluster.
+If the desired resources for each sub-job is specified,
+the maximum number of workers possible with the desired resources are created for each node
+with GPU(s) in the cluster. It is also possible to split available node resources for each node
+into the desired number of workers with the ``--num_workers_per_node`` flag, to be able to easily
+parallelize sub-jobs on multi-GPU nodes. Due to Isaac Lab requiring a GPU,
+this ignores all CPU only nodes such as loggers.
+
+Sub-jobs are separated by the + delimiter. The ``--jobs`` argument must be the last
+argument supplied to the script.
+
+If there is more than one available worker, and more than one sub-job,
+sub-jobs will be executed in parallel. If there are more sub-jobs than workers, sub-jobs will
+be dispatched to workers as they become available. There is no limit on the number
+of sub-jobs that can be near-simultaneously submitted.
+
+This assumes that all workers in a cluster are homogeneous. For heterogeneous workloads,
+create several heterogeneous clusters (with homogeneous nodes in each cluster),
+then submit several overall-cluster jobs with :file:`../submit_isaac_ray_job.py`.
+KubeRay clusters on Google GKE can be created with :file:`../launch.py`
+
+Usage:
+
+.. code-block:: bash
+
+    ./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py -h
+"""
 
 
 def wrap_resources_to_jobs(
@@ -15,9 +48,10 @@ def wrap_resources_to_jobs(
     num_cpus: float | None,
     ram_gb: float | None,
     test_mode: bool = False,
+    ray_address: str = "auto",
 ) -> None:
     """
-    Provided a list of jobs, dispatch one Ray worker per available node,
+    Provided a list of jobs, dispatch jobs to one worker per available node,
     unless otherwise specified by resource constraints.
 
     Args:
@@ -27,10 +61,11 @@ def wrap_resources_to_jobs(
         num_cpus: How many CPUs to allocate per worker. If None is ignored
         ram_gb: How many gigabytes of RAM to allocate per worker. If None is ignore
         test_mode: If set to true, ignore jobs, and try only nvidia-smi. Defaults to False.
+        ray_address: What ray address to connect to. Defaults to 'auto'
 
     """
     if not ray.is_initialized():
-        ray.init(address="auto", log_to_driver=True)
+        ray.init(address=ray_address, log_to_driver=True)
     print("[INFO]: Connected to Ray cluster.")
     print("[WARNING]: Assuming homogeneous worker cluster resources.")
     print("[WARNING]: Create more than one cluster for heterogeneous jobs.")
@@ -96,24 +131,47 @@ def wrap_resources_to_jobs(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Submit multiple jobs with optional GPU testing.")
-    isaac_ray_util.add_cluster_args(parser)
+    parser.add_argument("--name", type=str, help="The name of the Ray Cluster to train on.")
+    parser.add_argument("--ray_address", type=str, default="auto", help="the Ray address.")
+    parser.add_argument(
+        "--num_gpu_per_job",
+        type=float,
+        help="The number of GPUS to use per on-cluster job.",
+    )
+    parser.add_argument(
+        "--num_cpu_per_job",
+        type=float,
+        help="The number of CPUS to use per on-cluster job.",
+    )
+    parser.add_argument(
+        "--gb_ram_per_job",
+        type=float,
+        default=None,
+        help="The gigabytes of RAM to user per on-cluster job",
+    )
+    parser.add_argument(
+        "--num_workers_per_node",
+        type=int,
+        help="Supply to split each node into num_workers evenly.",
+    )
     parser.add_argument("--test", action="store_true", help="Run nvidia-smi test instead of the arbitrary job")
     parser.add_argument(
-        "--jobs",
+        "--sub_jobs",
         type=str,
         nargs=argparse.REMAINDER,
         help="This should be last wrapper argument. Jobs separated by the + delimiter to run on a cluster.",
     )
     args = parser.parse_args()
 
-    jobs = " ".join(args.jobs)
+    jobs = " ".join(args.sub_jobs)
     formatted_jobs = jobs.split("+")
     print(f"[INFO]: Isaac Ray Wrapper received jobs {formatted_jobs = }")
     wrap_resources_to_jobs(
-        formatted_jobs,
-        args.num_workers_per_node,
-        args.num_gpu_per_job,
-        args.num_cpu_per_job,
-        args.gb_ram_per_job,
-        args.test,
+        jobs=formatted_jobs,
+        num_workers=args.num_workers_per_node,
+        num_gpus=args.num_gpu_per_job,
+        num_cpus=args.num_cpu_per_job,
+        ram_gb=args.gb_ram_per_job,
+        test_mode=args.test,
+        ray_address=args.ray_address,
     )

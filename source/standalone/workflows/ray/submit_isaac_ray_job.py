@@ -2,6 +2,7 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+
 import argparse
 import os
 import time
@@ -9,11 +10,39 @@ from concurrent.futures import ThreadPoolExecutor
 
 from ray import job_submission
 
+"""
+This script submits aggregate job(s) to cluster(s) described in a
+config file containing ``name: <NAME> address: http://<IP>:<PORT>`` on
+a new line for each cluster. For KubeRay clusters, this file
+can be automatically created with :file:`grok_cluster_with_kubectl.py`
+
+Aggregate job(s) are matched with cluster(s) via the following relation:
+cluster_line_index_submitted_to = job_index % total_cluster_count
+
+Aggregate jobs are separated by the * delimiter. The ``--jobs`` argument must be
+the last argument supplied to the script.
+
+An aggregate job could be a :file:`../isaac_ray_tune.py` tuning job, which automatically
+creates several individual jobs when started on a cluster. Alternatively, an aggregate job
+could be a :file:'../wrap_isaac_ray_resources.py` resource-wrapped job,
+which may contain several individual or tuning sub-jobs, with sub-jobs separated by
+the + delimiter.
+
+If there are more aggregate jobs than cluster(s), aggregate jobs will be submitted
+as clusters become available via the defined relation above. If there are less aggregate job(s)
+than clusters, some clusters will not receive aggregate job(s). The maximum number of
+aggregate jobs that can be run simultaneously is equal to the number of workers created by
+default by a ThreadPoolExecutor on the machine submitting jobs due to fetching the log output after
+jobs finish, which is unlikely to constrain overall-job submission.
+
+Usage:
+
+.. code-block:: bash
+
+    ./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py -h
+"""
 script_directory = os.path.dirname(os.path.abspath(__file__))
-
-# Consolidated configuration
 CONFIG = {"working_dir": script_directory, "executable": "/workspace/isaaclab/isaaclab.sh -p"}
-
 WRAP_SCRIPT = "wrap_isaac_ray_resources.py"
 
 
@@ -81,7 +110,7 @@ def submit_jobs_to_clusters(jobs: list[str], clusters: list[dict], test_mode: bo
 
     if test_mode:
         jobs = [""] * len(clusters)  # Test mode will populate the jobs correctly, want to submit to all clusters
-    with ThreadPoolExecutor(max_workers=len(clusters)) as executor:
+    with ThreadPoolExecutor() as executor:
         for idx, job_command in enumerate(jobs):
             # Cycle through clusters using modulus to wrap around if there are more jobs than clusters
             cluster = clusters[idx % len(clusters)]
@@ -90,28 +119,22 @@ def submit_jobs_to_clusters(jobs: list[str], clusters: list[dict], test_mode: bo
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Submit multiple GPU jobs to multiple Ray clusters.")
+    parser.add_argument("--config_file", default="~/.cluster_config", help="The cluster config path.")
     parser.add_argument("--test", action="store_true", help="Run with test mode enabled for all jobs.")
     parser.add_argument(
-        "--jobs",
+        "--aggregate_jobs",
         type=str,
         nargs=argparse.REMAINDER,
-        help=(
-            "This should be last argument. Jobs separated by the + delimiter to run on a cluster. "
-            "For more than one cluster, separate cluster dispatches by the * delimiter. "
-            "For more than one cluster, jobs are matched with the ~/.cluster_config in the order "
-            "that they appear. If there are more jobs than clusters, they will be submitted in "
-            "modulus order that they appear. (Say with clusters c1 and c2, and jobs j1 j2 j3 j4) "
-            "jobs j1 and j3 will be submitted to cluster c1, and jobs j2 and j4 will be submitted to cluster c2. "
-        ),
+        help="This should be last argument. The aggregate jobs to submit separated by the * delimiter.",
     )
     args = parser.parse_args()
     if args.jobs is not None:
-        jobs = " ".join(args.jobs)
+        jobs = " ".join(args.aggregate_jobs)
         formatted_jobs = jobs.split("*")
         if len(formatted_jobs) > 1:
             print("Warning; Split jobs by cluster with the * delimiter")
     else:
         formatted_jobs = []
     print(f"[INFO]: Isaac Ray Wrapper received jobs {formatted_jobs = }")
-    clusters = read_cluster_spec()
+    clusters = read_cluster_spec(args.config_file)
     submit_jobs_to_clusters(formatted_jobs, clusters, args.test)
