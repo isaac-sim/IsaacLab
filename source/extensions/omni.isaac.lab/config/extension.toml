@@ -1,7 +1,15 @@
 [package]
 
 # Note: Semantic Versioning is used: https://semver.org/
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
 version = "0.27.3"
+=======
+version = "0.27.6"
+>>>>>>> Stashed changes
+=======
+version = "0.27.6"
+>>>>>>> Stashed changes
 
 # Description
 title = "Isaac Lab framework for Robot Learning"

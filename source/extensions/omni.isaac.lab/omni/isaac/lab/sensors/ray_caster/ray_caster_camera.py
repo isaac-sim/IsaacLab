@@ -87,7 +87,7 @@ class RayCasterCamera(RayCaster):
             f"Ray-Caster-Camera @ '{self.cfg.prim_path}': \n"
             f"\tview type            : {self._view.__class__}\n"
             f"\tupdate period (s)    : {self.cfg.update_period}\n"
-            f"\tnumber of meshes     : {len(RayCaster.meshes)}\n"
+            f"\tnumber of meshes     : {len(self.meshes)}\n"
             f"\tnumber of sensors    : {self._view.count}\n"
             f"\tnumber of rays/sensor: {self.num_rays}\n"
             f"\ttotal number of rays : {self.num_rays * self._view.count}\n"
