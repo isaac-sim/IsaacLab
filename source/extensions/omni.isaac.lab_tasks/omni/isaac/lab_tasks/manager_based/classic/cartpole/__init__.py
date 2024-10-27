@@ -10,24 +10,19 @@ Cartpole balancing environment.
 import gymnasium as gym
 
 from . import agents
-from .cartpole_camera_env_cfg import (
-    CartpoleDepthCameraEnvCfg,
-    CartpoleResNet18CameraEnvCfg,
-    CartpoleRGBCameraEnvCfg,
-    CartpoleTheiaTinyCameraEnvCfg,
-)
-from .cartpole_env_cfg import CartpoleEnvCfg
 
 ##
 # Register Gym environments.
 ##
+
+task_dir = "omni.isaac.lab_tasks.manager_based.classic.cartpole"
 
 gym.register(
     id="Isaac-Cartpole-v0",
     entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": CartpoleEnvCfg,
+        "env_cfg_entry_point": f"{task_dir}.cartpole_env_cfg:CartpoleEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:CartpolePPORunnerCfg",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg.yaml",
@@ -40,7 +35,7 @@ gym.register(
     entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": CartpoleRGBCameraEnvCfg,
+        "env_cfg_entry_point": f"{task_dir}.cartpole_camera_env_cfg:CartpoleRGBCameraEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
     },
 )
@@ -50,7 +45,7 @@ gym.register(
     entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": CartpoleDepthCameraEnvCfg,
+        "env_cfg_entry_point": f"{task_dir}.cartpole_camera_env_cfg:CartpoleDepthCameraEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
     },
 )
