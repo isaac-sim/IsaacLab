@@ -8,7 +8,7 @@ Fixed
 ^^^^^
 
 * Modified frozen feature extraction encoder preprocessing and inference to only normalize once while using
-  exclusively GPU operations for inference.
+  exclusively GPU operations for inference, with correct conversion to device.
 
 
 0.27.7 (2024-10-28)
