@@ -126,7 +126,7 @@ class TestMeshConverter(unittest.TestCase):
         mesh_converter = MeshConverter(mesh_config)
 
         # check that mesh conversion is successful
-        self._check_mesh_conversion(mesh_converter, mesh_config)
+        self._check_mesh_conversion(mesh_converter)
 
     def test_convert_stl(self):
         """Convert an STL file"""
@@ -139,7 +139,7 @@ class TestMeshConverter(unittest.TestCase):
         mesh_converter = MeshConverter(mesh_config)
 
         # check that mesh conversion is successful
-        self._check_mesh_conversion(mesh_converter, mesh_config)
+        self._check_mesh_conversion(mesh_converter)
 
     def test_convert_fbx(self):
         """Convert an FBX file"""
@@ -152,14 +152,14 @@ class TestMeshConverter(unittest.TestCase):
         mesh_converter = MeshConverter(mesh_config)
 
         # check that mesh conversion is successful
-        self._check_mesh_conversion(mesh_converter, mesh_config)
+        self._check_mesh_conversion(mesh_converter)
 
     def test_convert_default_xform_transforms(self):
         """Convert an OBJ file and check that default xform transforms are applied correctly"""
         mesh_config = MeshConverterCfg(asset_path=self.assets["obj"])
         mesh_converter = MeshConverter(mesh_config)
         # check that mesh conversion is successful
-        self._check_mesh_conversion(mesh_converter, mesh_config)
+        self._check_mesh_conversion(mesh_converter)
 
     def test_collider_no_approximation(self):
         """Convert an OBJ file using no approximation"""
@@ -242,7 +242,7 @@ class TestMeshConverter(unittest.TestCase):
     Helper functions.
     """
 
-    def _check_mesh_conversion(self, mesh_converter: MeshConverter, mesh_config: MeshConverterCfg):
+    def _check_mesh_conversion(self, mesh_converter: MeshConverter):
         """Check that mesh is loadable and stage is valid."""
         # Load the mesh
         prim_path = "/World/Object"
@@ -265,12 +265,12 @@ class TestMeshConverter(unittest.TestCase):
 
         # Check mesh settings
         pos = tuple(prim_utils.get_prim_at_path("/World/Object/geometry").GetAttribute("xformOp:translate").Get())
-        self.assertEqual(pos, mesh_config.translation)
+        self.assertEqual(pos, mesh_converter.cfg.translation)
         quat = prim_utils.get_prim_at_path("/World/Object/geometry").GetAttribute("xformOp:orient").Get()
         quat = (quat.GetReal(), quat.GetImaginary()[0], quat.GetImaginary()[1], quat.GetImaginary()[2])
-        self.assertEqual(quat, mesh_config.rotation)
+        self.assertEqual(quat, mesh_converter.cfg.rotation)
         scale = tuple(prim_utils.get_prim_at_path("/World/Object/geometry").GetAttribute("xformOp:scale").Get())
-        self.assertEqual(scale, mesh_config.scale)
+        self.assertEqual(scale, mesh_converter.cfg.scale)
 
     def _check_mesh_collider_settings(self, mesh_converter: MeshConverter):
         # Check prim can be properly spawned
