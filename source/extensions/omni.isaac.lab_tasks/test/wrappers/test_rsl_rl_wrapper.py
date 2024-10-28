@@ -69,10 +69,10 @@ class TestRslRlVecEnvWrapper(unittest.TestCase):
                     # wrap environment
                     env = RslRlVecEnvWrapper(env)
                 except Exception as e:
-                    if "env" in locals():
+                    if "env" in locals() and hasattr(env, "_is_closed"):
                         env.close()
                     else:
-                        if hasattr(e, "obj") and hasattr(e.obj, "close"):
+                        if hasattr(e, "obj") and hasattr(e.obj, "_is_closed"):
                             e.obj.close()
                     self.fail(f"Failed to set-up the environment for task {task_name}. Error: {e}")
 
