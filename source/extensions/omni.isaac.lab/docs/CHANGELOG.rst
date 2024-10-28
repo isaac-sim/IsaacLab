@@ -1,6 +1,24 @@
 Changelog
 ---------
 
+0.27.5 (2024-10-25)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added utilities for serializing/deserializing Gymnasium spaces.
+
+
+0.27.4 (2024-10-18)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Updated installation path instructions for Windows in the Isaac Lab documentation to remove redundancy in the use of %USERPROFILE% for path definitions.
+
+
 0.27.3 (2024-10-22)
 ~~~~~~~~~~~~~~~~~~~
 
