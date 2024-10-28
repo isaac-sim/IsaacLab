@@ -719,6 +719,15 @@ class TestCamera(unittest.TestCase):
             for im_data in camera.data.output.values():
                 self.assertEqual(im_data.shape, (1, camera_cfg.height, camera_cfg.width, 1))
 
+    def test_sensor_print(self):
+        """Test sensor print is working correctly."""
+        # Create sensor
+        sensor = Camera(cfg=self.camera_cfg)
+        # Play sim
+        self.sim.reset()
+        # print info
+        print(sensor)
+
     """
     Helper functions.
     """
