@@ -20,6 +20,8 @@ import unittest
 
 import omni.usd
 
+from omni.isaac.lab.envs import DirectMARLEnv, multi_agent_to_single_agent
+
 import omni.isaac.lab_tasks  # noqa: F401
 from omni.isaac.lab_tasks.utils.parse_cfg import load_cfg_from_registry, parse_env_cfg
 from omni.isaac.lab_tasks.utils.wrappers.rl_games import RlGamesVecEnvWrapper
@@ -55,13 +57,24 @@ class TestRlGamesVecEnvWrapper(unittest.TestCase):
                 print(f">>> Running test for environment: {task_name}")
                 # create a new stage
                 omni.usd.get_context().new_stage()
-                # parse configuration
-                env_cfg = parse_env_cfg(task_name, device=self.device, num_envs=self.num_envs)
-                agent_cfg = load_cfg_from_registry(task_name, "rl_games_cfg_entry_point")  # noqa: F841
-                # create environment
-                env = gym.make(task_name, cfg=env_cfg)
-                # wrap environment
-                env = RlGamesVecEnvWrapper(env, "cuda:0", 100, 100)
+                try:
+                    # parse configuration
+                    env_cfg = parse_env_cfg(task_name, device=self.device, num_envs=self.num_envs)
+                    agent_cfg = load_cfg_from_registry(task_name, "rl_games_cfg_entry_point")  # noqa: F841
+                    # create environment
+                    env = gym.make(task_name, cfg=env_cfg)
+                    # convert to single-agent instance if required by the RL algorithm
+                    if isinstance(env.unwrapped, DirectMARLEnv):
+                        env = multi_agent_to_single_agent(env)
+                    # wrap environment
+                    env = RlGamesVecEnvWrapper(env, "cuda:0", 100, 100)
+                except Exception as e:
+                    if "env" in locals() and hasattr(env, "_is_closed"):
+                        env.close()
+                    else:
+                        if hasattr(e, "obj") and hasattr(e.obj, "_is_closed"):
+                            e.obj.close()
+                    self.fail(f"Failed to set-up the environment for task {task_name}. Error: {e}")
 
                 # reset environment
                 obs = env.reset()

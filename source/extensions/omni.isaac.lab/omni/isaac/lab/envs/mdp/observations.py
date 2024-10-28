@@ -17,10 +17,13 @@ from typing import TYPE_CHECKING
 import omni.isaac.lab.utils.math as math_utils
 from omni.isaac.lab.assets import Articulation, RigidObject
 from omni.isaac.lab.managers import SceneEntityCfg
-from omni.isaac.lab.sensors import Camera, RayCaster, RayCasterCamera, TiledCamera
+from omni.isaac.lab.managers.manager_base import ManagerTermBase
+from omni.isaac.lab.managers.manager_term_cfg import ObservationTermCfg
+from omni.isaac.lab.sensors import Camera, Imu, RayCaster, RayCasterCamera, TiledCamera
 
 if TYPE_CHECKING:
     from omni.isaac.lab.envs import ManagerBasedEnv, ManagerBasedRLEnv
+
 
 """
 Root state.
@@ -182,6 +185,48 @@ def body_incoming_wrench(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg) -> tor
     return link_incoming_forces.view(env.num_envs, -1)
 
 
+def imu_orientation(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("imu")) -> torch.Tensor:
+    """Imu sensor orientation w.r.t the env.scene.origin.
+
+    Args:
+        env: The environment.
+        asset_cfg: The SceneEntity associated with an Imu sensor.
+
+    Returns:
+        Orientation quaternion (wxyz), shape of torch.tensor is (num_env,4).
+    """
+    asset: Imu = env.scene[asset_cfg.name]
+    return asset.data.quat_w
+
+
+def imu_ang_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("imu")) -> torch.Tensor:
+    """Imu sensor angular velocity w.r.t. env.scene.origin expressed in the sensor frame.
+
+    Args:
+        env: The environment.
+        asset_cfg: The SceneEntity associated with an Imu sensor.
+
+    Returns:
+        Angular velocity (rad/s), shape of torch.tensor is (num_env,3).
+    """
+    asset: Imu = env.scene[asset_cfg.name]
+    return asset.data.ang_vel_b
+
+
+def imu_lin_acc(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("imu")) -> torch.Tensor:
+    """Imu sensor linear acceleration w.r.t. env.scene.origin expressed in sensor frame.
+
+    Args:
+        env: The environment.
+        asset_cfg: The SceneEntity associated with an Imu sensor.
+
+    Returns:
+        linear acceleration (m/s^2), shape of torch.tensor is (num_env,3).
+    """
+    asset: Imu = env.scene[asset_cfg.name]
+    return asset.data.lin_acc_b
+
+
 def image(
     env: ManagerBasedEnv,
     sensor_cfg: SceneEntityCfg = SceneEntityCfg("tiled_camera"),
@@ -229,6 +274,134 @@ def image(
             images[images == float("inf")] = 0
 
     return images.clone()
+
+
+class image_features(ManagerTermBase):
+    """Extracted image features from a pre-trained frozen encoder.
+
+    This method calls the :meth:`image` function to retrieve images, and then performs
+    inference on those images.
+    """
+
+    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
+        super().__init__(cfg, env)
+        from torchvision import models
+        from transformers import AutoModel
+
+        def create_theia_model(model_name):
+            return {
+                "model": (
+                    lambda: AutoModel.from_pretrained(f"theaiinstitute/{model_name}", trust_remote_code=True)
+                    .eval()
+                    .to("cuda:0")
+                ),
+                "preprocess": lambda img: (img - torch.amin(img, dim=(1, 2), keepdim=True)) / (
+                    torch.amax(img, dim=(1, 2), keepdim=True) - torch.amin(img, dim=(1, 2), keepdim=True)
+                ),
+                "inference": lambda model, images: model.forward_feature(
+                    images, do_rescale=False, interpolate_pos_encoding=True
+                ),
+            }
+
+        def create_resnet_model(resnet_name):
+            return {
+                "model": lambda: getattr(models, resnet_name)(pretrained=True).eval().to("cuda:0"),
+                "preprocess": lambda img: (
+                    img.permute(0, 3, 1, 2)  # Convert [batch, height, width, 3] -> [batch, 3, height, width]
+                    - torch.tensor([0.485, 0.456, 0.406], device=img.device).view(1, 3, 1, 1)
+                ) / torch.tensor([0.229, 0.224, 0.225], device=img.device).view(1, 3, 1, 1),
+                "inference": lambda model, images: model(images),
+            }
+
+        # List of Theia models
+        theia_models = [
+            "theia-tiny-patch16-224-cddsv",
+            "theia-tiny-patch16-224-cdiv",
+            "theia-small-patch16-224-cdiv",
+            "theia-base-patch16-224-cdiv",
+            "theia-small-patch16-224-cddsv",
+            "theia-base-patch16-224-cddsv",
+        ]
+
+        # List of ResNet models
+        resnet_models = ["resnet18", "resnet34", "resnet50", "resnet101"]
+
+        self.default_model_zoo_cfg = {}
+
+        # Add Theia models to the zoo
+        for model_name in theia_models:
+            self.default_model_zoo_cfg[model_name] = create_theia_model(model_name)
+
+        # Add ResNet models to the zoo
+        for resnet_name in resnet_models:
+            self.default_model_zoo_cfg[resnet_name] = create_resnet_model(resnet_name)
+
+        self.model_zoo_cfg = self.default_model_zoo_cfg
+        self.model_zoo = {}
+
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        sensor_cfg: SceneEntityCfg = SceneEntityCfg("tiled_camera"),
+        data_type: str = "rgb",
+        convert_perspective_to_orthogonal: bool = False,
+        model_zoo_cfg: dict | None = None,
+        model_name: str = "ResNet18",
+        model_device: str | None = "cuda:0",
+        reset_model: bool = False,
+    ) -> torch.Tensor:
+        """Extracted image features from a pre-trained frozen encoder.
+
+        Args:
+            env: The environment.
+            sensor_cfg: The sensor configuration to poll. Defaults to SceneEntityCfg("tiled_camera").
+            data_type: THe sensor configuration datatype. Defaults to "rgb".
+            convert_perspective_to_orthogonal: Whether to orthogonalize perspective depth images.
+                This is used only when the data type is "distance_to_camera". Defaults to False.
+            model_zoo_cfg: Map from model name to model configuration dictionary. Each model
+                configuration dictionary should include the following entries:
+                - "model": A callable that returns the model when invoked without arguments.
+                - "preprocess": A callable that processes the images and returns the preprocessed results.
+                - "inference": A callable that, when given the model and preprocessed images,
+                    returns the extracted features.
+            model_name: The name of the model to use for inference. Defaults to "ResNet18".
+            model_device: The device to store and infer models on. This can be used help offload
+                computation from the main environment GPU. Defaults to "cuda:0".
+            reset_model: Initialize the model even if it already exists. Defaults to False.
+
+        Returns:
+            torch.Tensor: the image features, on the same device as the image
+        """
+        if model_zoo_cfg is not None:  # use other than default
+            self.model_zoo_cfg.update(model_zoo_cfg)
+
+        if model_name not in self.model_zoo or reset_model:
+            # The following allows to only load a desired subset of a model zoo into GPU memory
+            # as it becomes needed, in a "lazy" evaluation.
+            print(f"[INFO]: Adding {model_name} to the model zoo")
+            self.model_zoo[model_name] = self.model_zoo_cfg[model_name]["model"]()
+
+        if model_device is not None and self.model_zoo[model_name].device != model_device:
+            # want to offload vision model inference to another device
+            self.model_zoo[model_name] = self.model_zoo[model_name].to(model_device)
+
+        images = image(
+            env=env,
+            sensor_cfg=sensor_cfg,
+            data_type=data_type,
+            convert_perspective_to_orthogonal=convert_perspective_to_orthogonal,
+            normalize=True,  # want this for training stability
+        )
+
+        image_device = images.device
+
+        if model_device is not None:
+            images = images.to(model_device)
+
+        proc_images = self.model_zoo_cfg[model_name]["preprocess"](images)
+        features = self.model_zoo_cfg[model_name]["inference"](self.model_zoo[model_name], proc_images)
+
+        return features.to(image_device).clone()
 
 
 """

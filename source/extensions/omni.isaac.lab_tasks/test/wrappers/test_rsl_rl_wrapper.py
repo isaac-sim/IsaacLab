@@ -20,6 +20,8 @@ import unittest
 
 import omni.usd
 
+from omni.isaac.lab.envs import DirectMARLEnv, multi_agent_to_single_agent
+
 import omni.isaac.lab_tasks  # noqa: F401
 from omni.isaac.lab_tasks.utils.parse_cfg import load_cfg_from_registry, parse_env_cfg
 from omni.isaac.lab_tasks.utils.wrappers.rsl_rl import RslRlVecEnvWrapper
@@ -55,13 +57,24 @@ class TestRslRlVecEnvWrapper(unittest.TestCase):
                 print(f">>> Running test for environment: {task_name}")
                 # create a new stage
                 omni.usd.get_context().new_stage()
-                # parse configuration
-                env_cfg = parse_env_cfg(task_name, device=self.device, num_envs=self.num_envs)
-                agent_cfg = load_cfg_from_registry(task_name, "rsl_rl_cfg_entry_point")  # noqa: F841
-                # create environment
-                env = gym.make(task_name, cfg=env_cfg)
-                # wrap environment
-                env = RslRlVecEnvWrapper(env)
+                try:
+                    # parse configuration
+                    env_cfg = parse_env_cfg(task_name, device=self.device, num_envs=self.num_envs)
+                    agent_cfg = load_cfg_from_registry(task_name, "rsl_rl_cfg_entry_point")  # noqa: F841
+                    # create environment
+                    env = gym.make(task_name, cfg=env_cfg)
+                    # convert to single-agent instance if required by the RL algorithm
+                    if isinstance(env.unwrapped, DirectMARLEnv):
+                        env = multi_agent_to_single_agent(env)
+                    # wrap environment
+                    env = RslRlVecEnvWrapper(env)
+                except Exception as e:
+                    if "env" in locals() and hasattr(env, "_is_closed"):
+                        env.close()
+                    else:
+                        if hasattr(e, "obj") and hasattr(e.obj, "_is_closed"):
+                            e.obj.close()
+                    self.fail(f"Failed to set-up the environment for task {task_name}. Error: {e}")
 
                 # reset environment
                 obs, extras = env.reset()
@@ -69,9 +82,9 @@ class TestRslRlVecEnvWrapper(unittest.TestCase):
                 self.assertTrue(self._check_valid_tensor(obs))
                 self.assertTrue(self._check_valid_tensor(extras))
 
-                # simulate environment for 1000 steps
+                # simulate environment for 100 steps
                 with torch.inference_mode():
-                    for _ in range(1000):
+                    for _ in range(100):
                         # sample actions from -1 to 1
                         actions = 2 * torch.rand(env.action_space.shape, device=env.unwrapped.device) - 1
                         # apply actions

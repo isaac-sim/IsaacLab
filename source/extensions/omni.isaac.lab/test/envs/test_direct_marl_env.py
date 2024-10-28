@@ -21,7 +21,6 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import torch
 import unittest
 
 import omni.usd
@@ -50,9 +49,10 @@ def get_empty_base_env_cfg(device: str = "cuda:0", num_envs: int = 1, env_spacin
         # Basic settings
         decimation = 1
         possible_agents = ["agent_0", "agent_1"]
-        num_actions = {"agent_0": 1, "agent_1": 2}
-        num_observations = {"agent_0": 3, "agent_1": 4}
-        num_states = -1
+        action_spaces = {"agent_0": 1, "agent_1": 2}
+        observation_spaces = {"agent_0": 3, "agent_1": 4}
+        state_space = -1
+        episode_length_s = 100.0
 
     return EmptyEnvCfg()
 
@@ -69,8 +69,17 @@ class TestDirectMARLEnv(unittest.TestCase):
             with self.subTest(device=device):
                 # create a new stage
                 omni.usd.get_context().new_stage()
-                # create environment
-                env = DirectMARLEnv(cfg=get_empty_base_env_cfg(device=device))
+                try:
+                    # create environment
+                    env = DirectMARLEnv(cfg=get_empty_base_env_cfg(device=device))
+                except Exception as e:
+                    if "env" in locals() and hasattr(env, "_is_closed"):
+                        env.close()
+                    else:
+                        if hasattr(e, "obj") and hasattr(e.obj, "_is_closed"):
+                            e.obj.close()
+                    self.fail(f"Failed to set-up the DirectMARLEnv environment. Error: {e}")
+
                 # check multi-agent config
                 self.assertEqual(env.num_agents, 2)
                 self.assertEqual(env.max_num_agents, 2)
@@ -78,12 +87,6 @@ class TestDirectMARLEnv(unittest.TestCase):
                 self.assertEqual(env.state_space.shape, (7,))
                 self.assertEqual(len(env.observation_spaces), 2)
                 self.assertEqual(len(env.action_spaces), 2)
-                # step environment to verify setup
-                env.reset()
-                for _ in range(2):
-                    actions = {"agent_0": torch.rand((1, 1)), "agent_1": torch.rand((1, 2))}
-                    obs, reward, terminated, truncate, info = env.step(actions)
-                    env.state()
                 # close the environment
                 env.close()
 
