@@ -10,6 +10,7 @@ import yaml
 
 from jinja2 import Environment, FileSystemLoader
 from kubernetes import config
+import isaac_ray_util
 
 """This script helps create one or more KubeRay clusters.
 
@@ -18,6 +19,20 @@ Usage:
 .. code-block:: bash
 
     ./isaaclab.sh -p source/standalone/workflows/ray/launch.py -h
+
+    # Examples
+
+    # The following creates 8 GPUx1 nvidia l4 workers
+    ./isaaclab.sh -p source/standalone/workflows/ray/launch.py --cluster_host google_cloud \
+        --namespace <NAMESPACE> --image <YOUR_ISAAC_RAY_IMAGE> \
+        --num_workers 8 --num_clusters 1 --worker_accelerator nvidia-l4 --gpu_per_worker 1
+
+    # The following creates 1 GPUx1 nvidia l4 worker, 2 GPUx2 nvidia-tesla-t4 workers, 
+    # and 2 GPUx4 nvidia-tesla-t4 GPU workers
+    ./isaaclab.sh -p source/standalone/workflows/ray/launch.py --cluster_host google_cloud \
+        --namespace <NAMESPACE> --image <YOUR_ISAAC_RAY_IMAGE> \
+        --num_workers 1 2 --num_clusters 1 \
+        --worker_accelerator nvidia-l4 nvidia-tesla-t4 --gpu_per_worker 1 2 4
 """
 RAY_DIR = pathlib.Path(__file__).parent
 
@@ -34,7 +49,6 @@ def apply_manifest(args: argparse.Namespace) -> None:
 
     # Set up Jinja2 environment for loading templates
     templates_dir = RAY_DIR / "cluster_configs" / args.cluster_host
-    print(templates_dir)
     file_loader = FileSystemLoader(str(templates_dir))
     jinja_env = Environment(loader=file_loader, keep_trailing_newline=True)
 
@@ -43,7 +57,7 @@ def apply_manifest(args: argparse.Namespace) -> None:
 
     # Convert args namespace to a dictionary
     template_params = vars(args)
-
+        
     # Load and render the template
     template = jinja_env.get_template(template_file)
     file_contents = template.render(template_params)
@@ -54,10 +68,6 @@ def apply_manifest(args: argparse.Namespace) -> None:
 
     # Apply the Kubernetes manifest using kubectl
     try:
-        print("Populated the following Ray Configuration from the config file and CLI args")
-        print("<START OF CONFIG BELOW")
-        print(cleaned_yaml_string)
-        print("<END OF CONFIG ABOVE")
         subprocess.run(["kubectl", "apply", "-f", "-"], input=cleaned_yaml_string, text=True, check=True)
     except subprocess.CalledProcessError as e:
         exit(f"An error occurred while running `kubectl`: {e}")
@@ -79,7 +89,7 @@ def parse_args() -> argparse.Namespace:
         "--cluster_host",
         type=str,
         default="google_cloud",
-        choices=["google_cloud", "local"],
+        choices=["google_cloud"],
         help=(
             "In the cluster_configs directory, the name of the folder where a tune.yaml.jinja"
             "file exists defining the KubeRay config. Currently only google_cloud is supported."
@@ -90,7 +100,7 @@ def parse_args() -> argparse.Namespace:
         "--name",
         type=str,
         required=False,
-        default="isaac-lab-hyperparameter-tuner",
+        default="isaacray",
         help="Name of the Kubernetes deployment.",
     )
 
@@ -115,55 +125,21 @@ def parse_args() -> argparse.Namespace:
 
     arg_parser.add_argument(
         "--worker_accelerator",
+        nargs="+",
         type=str,
-        default="nvidia-l4",
-        help="The name of a gpu accelerator available with Google.",
+        default=["nvidia-l4"],
+        help="GPU accelerator name. Supply more than one for heterogenous resources.",
     )
 
-    arg_parser.add_argument(
-        "--min_workers",
-        type=int,
-        required=False,
-        default=2,
-        help="Minimum number of workers.",
-    )
-
-    arg_parser.add_argument(
-        "--max_workers",
-        type=int,
-        required=False,
-        default=8,
-        help="Maximum number of workers.",
-    )
-
-    arg_parser.add_argument(
-        "--starting_worker_count",
-        type=int,
-        default=1,
-        help="Initial number of workers to start with.",
-    )
-
-    arg_parser.add_argument("--cpu_per_worker", type=int, default=8, help="Number of CPUs to assign to each worker pod")
-
-    arg_parser.add_argument(
-        "--gpu_per_worker",
-        type=int,
-        default=1,
-        help="Number of GPUs to assign to each worker pod.",
-    )
-
-    arg_parser.add_argument("--worker_ram_gb", type=int, default=16, help="How many gigs of RAM to use")
-
+    arg_parser = isaac_ray_util.add_resource_arguments(arg_parser, 
+                                                        cluster_create_defaults=True)
+    
     arg_parser.add_argument(
         "--num_clusters",
         type=int,
         default=1,
         help=(
             "How many Ray Clusters to create."
-            "This should be greater than 1 "
-            "ONLY IF you are tuning several agents "
-            "OR IF you are tuning agents "
-            "in separate environments at the same time."
         ),
     )
     arg_parser.add_argument(
@@ -177,15 +153,10 @@ def parse_args() -> argparse.Namespace:
     )
 
     arg_parser.add_argument("--head_ram_gb", type=int, default=4, help="How many gigs of ram to give the Ray head")
+    args = arg_parser.parse_args()
+    return isaac_ray_util.fill_in_missing_resources(args, cluster_creation_flag=True)
 
-    return arg_parser.parse_args()
-
-
-if __name__ == "__main__":
-    """
-    Usage:
-    python3 launch.py -h
-    """
+def main():
     args = parse_args()
 
     if "head" in args.name:
@@ -197,3 +168,6 @@ if __name__ == "__main__":
         for i in range(args.num_clusters):
             args.name = default_name + "-" + str(i)
             apply_manifest(args)
+
+if __name__ == "__main__":
+    main()

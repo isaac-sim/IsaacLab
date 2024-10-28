@@ -57,12 +57,14 @@ def check_clusters_running(pods: list, clusters: set) -> bool:
     return clusters_running
 
 
-def get_ray_address(head_pod: str, namespace: str = "default") -> str:
-    cmd = ["kubectl", "logs", head_pod, "-c", "ray-head", "-n", namespace]
+def get_ray_address(head_pod: str, namespace: str = "default",
+                    ray_head_name: str = "head") -> str:
+    cmd = ["kubectl", "logs", head_pod, "-c", ray_head_name, "-n", namespace]
     try:
         output = subprocess.check_output(cmd).decode()
-    except subprocess.CalledProcessError:
-        return None
+    except subprocess.CalledProcessError as e:
+        raise ValueError(f"Could not enter head container with cmd {cmd}: {e}"
+                            "Perhaps try a different namespace or ray head name.")
     match = re.search(r"RAY_ADDRESS='([^']+)'", output)
     if match:
         return match.group(1)
@@ -70,7 +72,7 @@ def get_ray_address(head_pod: str, namespace: str = "default") -> str:
         return None
 
 
-def process_cluster(cluster_info: dict) -> str:
+def process_cluster(cluster_info: dict, ray_head_name:str = "head") -> str:
     cluster, pods, namespace = cluster_info
     head_pod = None
     for pod_name, status in pods:
@@ -81,7 +83,7 @@ def process_cluster(cluster_info: dict) -> str:
         return f"Error: Could not find head pod for cluster {cluster}\n"
 
     # Get RAY_ADDRESS and status
-    ray_address = get_ray_address(head_pod, namespace=namespace)
+    ray_address = get_ray_address(head_pod, namespace=namespace, ray_head_name=ray_head_name)
     if not ray_address:
         return f"Error: Could not find RAY_ADDRESS for cluster {cluster}\n"
     output_line = (  # num_cpu: {num_cpu} num_gpu: {num_gpu} ram_gb: {ram_gb} total_workers: {total_workers}\n"
@@ -94,14 +96,17 @@ def main():
     # Parse command-line arguments
     parser = argparse.ArgumentParser(description="Process Ray clusters and save their specifications.")
     parser.add_argument(
-        "--cluster-prefix", default="isaac-lab-hyperparameter-tuner", help="The prefix for the cluster names."
+        "--prefix", default="isaacray", help="The prefix for the cluster names."
     )
-    parser.add_argument("--output-file", default="~/.cluster_config", help="The file to save cluster specifications.")
+    parser.add_argument("--output", default="~/.cluster_config", help="The file to save cluster specifications.")
+    parser.add_argument("--ray_head_name", 
+                        default="head", 
+                        help="The metadata name for the ray head container")
     args = parser.parse_args()
 
-    CLUSTER_NAME_PREFIX = args.cluster_prefix
+    CLUSTER_NAME_PREFIX = args.prefix
     # Expand user directory for output file
-    CLUSTER_SPEC_FILE = os.path.expanduser(args.output_file)
+    CLUSTER_SPEC_FILE = os.path.expanduser(args.output)
 
     # Get current namespace
     try:
@@ -144,7 +149,9 @@ def main():
     results_lock = threading.Lock()  # Create a lock for thread-safe results collection
 
     with ThreadPoolExecutor() as executor:
-        future_to_cluster = {executor.submit(process_cluster, info): info[0] for info in cluster_infos}
+        future_to_cluster = {
+            executor.submit(process_cluster, 
+                            info, args.ray_head_name): info[0] for info in cluster_infos}
         for future in as_completed(future_to_cluster):
             cluster_name = future_to_cluster[future]
             try:

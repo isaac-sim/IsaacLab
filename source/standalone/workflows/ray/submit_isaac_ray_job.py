@@ -19,7 +19,7 @@ can be automatically created with :file:`grok_cluster_with_kubectl.py`
 Aggregate job(s) are matched with cluster(s) via the following relation:
 cluster_line_index_submitted_to = job_index % total_cluster_count
 
-Aggregate jobs are separated by the * delimiter. The ``--jobs`` argument must be
+Aggregate jobs are separated by the * delimiter. The ``--aggregate_jobs`` argument must be
 the last argument supplied to the script.
 
 An aggregate job could be a :file:`../isaac_ray_tune.py` tuning job, which automatically
@@ -43,7 +43,6 @@ Usage:
 """
 script_directory = os.path.dirname(os.path.abspath(__file__))
 CONFIG = {"working_dir": script_directory, "executable": "/workspace/isaaclab/isaaclab.sh -p"}
-WRAP_SCRIPT = "wrap_isaac_ray_resources.py"
 
 
 def read_cluster_spec(fn: str | None = None) -> list[dict]:
@@ -67,14 +66,13 @@ def read_cluster_spec(fn: str | None = None) -> list[dict]:
     return clusters
 
 
-def submit_job(cluster: dict, job_command: str, test_mode: bool) -> None:
+def submit_job(cluster: dict, job_command: str) -> None:
     """
     Submits a job to a single cluster, prints the final result and Ray dashboard URL at the end.
-    Adds optional test mode for GPU checking.
     """
     address = cluster["address"]
     cluster_name = cluster["name"]
-    print(f"Submitting job to cluster '{cluster_name}' at {address}")  # with {num_gpus} GPUs.")
+    print(f"[INFO]: Submitting job to cluster '{cluster_name}' at {address}")  # with {num_gpus} GPUs.")
     client = job_submission.JobSubmissionClient(address)
     runtime_env = {"working_dir": CONFIG["working_dir"], "executable": CONFIG["executable"]}
     print(f"[INFO]: Checking contents of the directory: {CONFIG['working_dir']}")
@@ -82,11 +80,8 @@ def submit_job(cluster: dict, job_command: str, test_mode: bool) -> None:
         dir_contents = os.listdir(CONFIG["working_dir"])
         print(f"[INFO]: Directory contents: {dir_contents}")
     except Exception as e:
-        print(f"[INFO] Failed to list directory contents: {str(e)}")
-
-    wrapped_command = f"{WRAP_SCRIPT + ' --test' if test_mode else ''} {job_command if job_command else ' '}"
-
-    entrypoint = f"{CONFIG['executable']} {wrapped_command}"
+        print(f"[INFO]: Failed to list directory contents: {str(e)}")
+    entrypoint = f"{CONFIG['executable']} {job_command}"
     print(f"[INFO]: Attempting entrypoint {entrypoint = } in cluster {cluster}")
     job_id = client.submit_job(entrypoint=entrypoint, runtime_env=runtime_env)
     status = client.get_job_status(job_id)
@@ -101,26 +96,29 @@ def submit_job(cluster: dict, job_command: str, test_mode: bool) -> None:
     print("----------------------------------------------------")
 
 
-def submit_jobs_to_clusters(jobs: list[str], clusters: list[dict], test_mode: bool) -> None:
+def submit_jobs_to_clusters(jobs: list[str], clusters: list[dict]) -> None:
     """
     Submit all jobs to their respective clusters, cycling through clusters if there are more jobs than clusters.
     """
     if not clusters:
         raise ValueError("No clusters available for job submission.")
 
-    if test_mode:
-        jobs = [""] * len(clusters)  # Test mode will populate the jobs correctly, want to submit to all clusters
+    if len(jobs) < len(clusters):
+        print("[INFO]: Less jobs than clusters, some clusters will not receive jobs")
+    elif len(jobs) == len(clusters):
+        print(f"[INFO]: Exactly one job per cluster")
+    else:
+        print("[INFO]: More jobs than clusters, jobs submitted as clusters become available.")
     with ThreadPoolExecutor() as executor:
         for idx, job_command in enumerate(jobs):
             # Cycle through clusters using modulus to wrap around if there are more jobs than clusters
             cluster = clusters[idx % len(clusters)]
-            executor.submit(submit_job, cluster, job_command, test_mode)
+            executor.submit(submit_job, cluster, job_command)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Submit multiple GPU jobs to multiple Ray clusters.")
     parser.add_argument("--config_file", default="~/.cluster_config", help="The cluster config path.")
-    parser.add_argument("--test", action="store_true", help="Run with test mode enabled for all jobs.")
     parser.add_argument(
         "--aggregate_jobs",
         type=str,
@@ -128,7 +126,7 @@ if __name__ == "__main__":
         help="This should be last argument. The aggregate jobs to submit separated by the * delimiter.",
     )
     args = parser.parse_args()
-    if args.jobs is not None:
+    if args.aggregate_jobs is not None:
         jobs = " ".join(args.aggregate_jobs)
         formatted_jobs = jobs.split("*")
         if len(formatted_jobs) > 1:
@@ -137,4 +135,4 @@ if __name__ == "__main__":
         formatted_jobs = []
     print(f"[INFO]: Isaac Ray Wrapper received jobs {formatted_jobs = }")
     clusters = read_cluster_spec(args.config_file)
-    submit_jobs_to_clusters(formatted_jobs, clusters, args.test)
+    submit_jobs_to_clusters(formatted_jobs, clusters)

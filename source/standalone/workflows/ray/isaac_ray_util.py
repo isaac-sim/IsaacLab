@@ -2,14 +2,14 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+import ray
+from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
+
+import argparse
 import os
 import re
 import subprocess
 from datetime import datetime
-
-import ray
-from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
-
 
 def load_tensorboard_logs(directory: str) -> dict:
     """From a tensorboard directory, get the latest scalar values.
@@ -94,6 +94,7 @@ def execute_job(
     test_mode: bool = False,
     extract_experiment: bool = False,
     persistent_dir: str | None = None,
+
 ) -> str | dict:
     """Issue a job (shell command).
 
@@ -114,8 +115,10 @@ def execute_job(
         Relevant information from the job
     """
     start_time = datetime.now().strftime("%H:%M:%S.%f")
-    result_details = [f"{identifier_string}: ---------------------------------"]
-    result_details.append(f"\n{identifier_string}: Invocation job: {job_cmd}")
+    result_details = [f"{identifier_string}: ---------------------------------\n"]
+    result_details.append(f"{identifier_string}:[INFO]: Invocation {job_cmd} \n")
+    node_id = ray.get_runtime_context().get_node_id()
+    result_details.append(f"{identifier_string}:[INFO]: Ray Node ID: {node_id} \n")
 
     if test_mode:
         import torch
@@ -130,15 +133,33 @@ def execute_job(
             output = result.stdout.strip().split("\n")
             for gpu_info in output:
                 name, memory_free, serial = gpu_info.split(", ")
-                result_details.append({"Name": name, "Memory Available": f"{memory_free} MB", "Serial Number": serial})
+                result_details.append(f"{identifier_string}[INFO]: Name: {name}|Memory Available: {memory_free} MB|Serial Number {serial} \n")
+            
+            # Get GPU count from PyTorch
             num_gpus_detected = torch.cuda.device_count()
-            result_details.append(f"# Detected GPUs from PyTorch: {num_gpus_detected}")
+            result_details.append(f"{identifier_string}[INFO]: Detected GPUs from PyTorch: {num_gpus_detected} \n")
+            
+            # Check CUDA_VISIBLE_DEVICES and count the number of visible GPUs
+            cuda_visible_devices = os.environ.get("CUDA_VISIBLE_DEVICES", None)
+            if cuda_visible_devices:
+                visible_devices_count = len(cuda_visible_devices.split(","))
+                result_details.append(f"{identifier_string}[INFO]: GPUs visible via CUDA_VISIBLE_DEVICES: {visible_devices_count} \n")
+            else:
+                visible_devices_count = len(output)  # All GPUs visible if CUDA_VISIBLE_DEVICES is not set
+                result_details.append(f"{identifier_string}[INFO]: CUDA_VISIBLE_DEVICES not set; all GPUs visible ({visible_devices_count}) \n")
+            
+            # If PyTorch GPU count disagrees with nvidia-smi, reset CUDA_VISIBLE_DEVICES and rerun detection
+            if num_gpus_detected != len(output):
+                result_details.append(f"{identifier_string}[WARNING]: PyTorch and nvidia-smi disagree on GPU count! Re-running with all GPUs visible. \n")
+                result_details.append(f"{identifier_string}[INFO]: This shows that GPU resources were isolated.\n")
+                os.environ["CUDA_VISIBLE_DEVICES"] = ",".join([str(i) for i in range(len(output))])
+                num_gpus_detected_after_reset = torch.cuda.device_count()
+                result_details.append(f"{identifier_string}[INFO]: After setting CUDA_VISIBLE_DEVICES, PyTorch detects {num_gpus_detected_after_reset} GPUs \n")
+            
         except subprocess.CalledProcessError as e:
             print(f"Error calling nvidia-smi: {e.stderr}")
             result_details.append({"error": "Failed to retrieve GPU information"})
     else:
-        print(f"{identifier_string} [INFO]: Invocation job {job_cmd}")
-
         if persistent_dir:
             og_dir = os.getcwd()
             os.chdir(persistent_dir)
@@ -188,32 +209,39 @@ def execute_job(
         process.wait()  # Wait for the subprocess to finish naturally if not exited early
 
     now = datetime.now().strftime("%H:%M:%S.%f")
-    completion_info = f"{identifier_string}: Job Started at {start_time}, completed at {now}"
+    completion_info = f"\n[INFO]: {identifier_string}: Job Started at {start_time}, completed at {now}\n"
     print(completion_info)
     result_details.append(completion_info)
+    return " ".join(result_details)
 
-    return (" ".join(result_details),)
 
-
-def get_gpu_node_resources(total_resources: bool = False, one_node_only: bool = False) -> dict:
+def get_gpu_node_resources(total_resources: bool = False, 
+                            one_node_only: bool = False,
+                            include_gb_ram: bool = False,
+                            include_id: bool = False,
+                            ray_address: str = "auto") -> list[dict]|dict:
     """Get information about available GPU node resources.
 
     Args:
         total_resources: When true, return total available resources. Defaults to False.
         one_node_only: When true, return resources for a single node. Defaults to False.
+        include_gb_ram: Set to true to convert MB to GB in result
+        include_id: Set to true to include node ID 
+        ray_address: The ray address to connect to.
 
     Returns:
-        Resource information.
+        Resource information for all nodes, sorted by descending GPU count, then descending CPU 
+        count, then descending RAM capacity, and finally by node ID in ascending order if available,
+        or simply the resource for a single node if requested.
     """
     if not ray.is_initialized():
-        ray.init(address="auto")
+        ray.init(address=ray_address)
 
     nodes = ray.nodes()
-    node_resources_dict = {}
+    node_resources = []
     total_cpus = 0
     total_gpus = 0
     total_memory = 0  # in bytes
-    total_object_store_memory = 0  # in bytes
 
     for node in nodes:
         if node["Alive"] and "GPU" in node["Resources"]:
@@ -222,26 +250,106 @@ def get_gpu_node_resources(total_resources: bool = False, one_node_only: bool = 
             cpus = resources.get("CPU", 0)
             gpus = resources.get("GPU", 0)
             memory = resources.get("memory", 0)
-            object_store_memory = resources.get("object_store_memory", 0)
+            node_resources.append({"cpu": cpus, "gpu": gpus, "memory": memory})
 
-            node_resources_dict[node_id] = {"cpu": cpus, "gpu": gpus, "memory": memory}
+            if include_id:
+                node_resources[-1]["id"] = node_id
+            if include_gb_ram:
+                node_resources[-1]["ram_gb"] = memory / 1024**3
 
             total_cpus += cpus
             total_gpus += gpus
             total_memory += memory
-            total_object_store_memory += object_store_memory
+    node_resources = sorted(node_resources, key=lambda x: (-x["gpu"], 
+                                                            -x["cpu"],
+                                                            -x["memory"], 
+                                                            x.get("id", "")))
 
     if total_resources:
         # Return summed total resources
         return {"cpu": total_cpus, "gpu": total_gpus, "memory": total_memory}
 
-    if one_node_only and node_resources_dict:
-        # Return resources of the first node in the dictionary
-        first_node_id = list(node_resources_dict.keys())[0]
-        return node_resources_dict[first_node_id]
+    if one_node_only and node_resources:
+        return node_resources[0]
 
-    return node_resources_dict
+    return node_resources
 
+def add_resource_arguments(arg_parser: argparse.ArgumentParser,
+                           defaults: list | None = None,
+                            cluster_create_defaults: bool =False,) -> argparse.ArgumentParser:
+    """Add resource arguments to a cluster; this is shared across both 
+    wrapping resources and launching clusters.
+
+    Args:
+        arg_parser: the argparser to add the arguments to. This argparser is mutated.
+        defaults: The default values for GPUs, CPUs, RAM, and Num Workers
+        cluster_create_defaults: Set to true to populate reasonable defaults for creating clusters.
+    Returns:
+        _description_
+    """
+    if defaults is None:
+        if cluster_create_defaults:
+            defaults = [[1], [8], [16], [1]]
+        else:
+            defaults = [None, None, None, [1]]
+    arg_parser.add_argument("--gpu_per_worker", nargs='+', type=int, default=defaults[0], 
+                            help="Number of GPUs per worker node. Supply more than one for heterogeneous resources")
+    arg_parser.add_argument("--cpu_per_worker", nargs='+', type=int, default=defaults[1], 
+                            help="Number of CPUs per worker node. Supply more than one for heterogeneous resources")
+    arg_parser.add_argument("--ram_gb_per_worker", nargs='+', type=int, default=defaults[2], 
+                            help="RAM in GB per worker node. Supply more than one for heterogeneous resources.")
+    arg_parser.add_argument("--num_workers", 
+                        nargs='+', 
+                        type=int, 
+                        default=defaults[3], 
+                        help="Number of desired workers. Supply more than one for heterogeneous resources.")
+    return arg_parser
+
+def fill_in_missing_resources(args: argparse.Namespace, 
+                            resources: dict | None = None,
+                            cluster_creation_flag: bool = False,
+                            policy: callable = max):
+    """ Normalize the lengths of resource lists based on the longest list provided. """
+    print("[INFO]: Filling in missing command line arguments with best guess...")
+    if resources is None:
+        resources = {
+            'gpu_per_worker': args.gpu_per_worker,
+            'cpu_per_worker': args.cpu_per_worker,
+            'ram_gb_per_worker': args.ram_gb_per_worker,
+            'num_workers': args.num_workers
+        }
+        if cluster_creation_flag:
+            cluster_creation_resources = {
+                'worker_accelerator': args.worker_accelerator
+            }
+            resources.update(cluster_creation_resources)
+
+    # Calculate the maximum length of any list
+    max_length = max(len(v) for v in resources.values())
+    print(f"[INFO]: Resource list lengths:")
+    for key, value in resources.items():
+        print(f"[INFO] {key}: {len(value)} values {value}")
+
+    # Extend each list to match the maximum length using the maximum value in each list
+    for key, value in resources.items():
+        potential_value = getattr(args, key)
+        if potential_value is not None:
+            max_value = policy(policy(value), policy(potential_value))
+        else:
+            max_value = policy(value)
+        extension_length = max_length - len(value)
+        if extension_length > 0:  # Only extend if the current list is shorter than max_length
+            print(f"\n[WARNING]: Resource '{key}' needs extension:")
+            print(f"[INFO] Current length: {len(value)}")
+            print(f"[INFO] Target length: {max_length}")
+            print(f"[INFO] Filling in {extension_length} missing values with {max_value}")
+            print(f"[INFO] To avoid auto-filling, provide {extension_length} more {key} value(s)")
+            value.extend([max_value] * extension_length)
+        setattr(args, key, value)
+        resources[key] = value
+        print(f"[INFO] Final {key} values: {getattr(args, key)}")
+    print("[INFO]: Done filling in command line arguments...\n\n")
+    return args
 
 def populate_isaac_ray_cfg_args(cfg: dict = {}) -> dict:
     """Small utility method to create empty fields if needed for a configuration."""

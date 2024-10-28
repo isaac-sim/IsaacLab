@@ -1,8 +1,4 @@
-# Spin up: `kubectl apply -f tune.yaml`.
-# Check if exists: `kubectl get pods`
-# Delete `kubectl delete -f tune.yaml`.
-# Jinja is used for templating here as full helm setup seems overkill
-# Reminder to self: use built in hydra stuff
+# Jinja is used for templating here as full helm setup is excessive for application 
 apiVersion: ray.io/v1alpha1
 kind: RayCluster
 metadata:
@@ -34,7 +30,7 @@ spec:
       apiVersion: v1
       kind: Service
       metadata:
-        name: {{ name }}-head
+        name: head
       spec:
         type: LoadBalancer
     template:
@@ -54,7 +50,7 @@ spec:
               value: "/var/secrets/{{secret_name}}/key.json"
             image: {{ image }}
             imagePullPolicy: Always
-            name: ray-head
+            name: head
             resources:
               limits:
                 cpu: "{{ num_head_cpu }}"
@@ -98,13 +94,15 @@ spec:
               secretName: {{secret_name}}
 
   workerGroupSpecs:
-    - groupName: gpu-group
-      maxReplicas: {{ max_workers }}
-      minReplicas: {{ min_workers }}
+    {% for it in range(gpu_per_worker|length) %}
+    - groupName: "{{ worker_accelerator[it] }}x{{ gpu_per_worker[it] }}-cpu-{{ cpu_per_worker[it] }}-ram-gb-{{ ram_gb_per_worker[it] }}"
+      replicas: {{ num_workers[it] }}
+      maxReplicas: {{ num_workers[it] }}
+      minReplicas: {{ num_workers[it] }}
       rayStartParams:
         block: "true"
         ray-debugger-external: "true"
-      replicas: {{ starting_worker_count }}
+        replicas: "{{num_workers[it]}}"
       template:
         metadata:
           annotations: {}
@@ -131,13 +129,13 @@ spec:
               name: ray-worker
               resources:
                 limits:
-                  cpu: "{{ cpu_per_worker }}"
-                  memory: {{ worker_ram_gb }}G
-                  nvidia.com/gpu: "{{ gpu_per_worker }}"
+                  cpu: "{{ cpu_per_worker[it] }}"
+                  memory: {{ ram_gb_per_worker[it] }}G
+                  nvidia.com/gpu: "{{ gpu_per_worker[it] }}"
                 requests:
-                  cpu: "{{ cpu_per_worker }}"
-                  memory: {{ worker_ram_gb }}G
-                  nvidia.com/gpu: "{{ gpu_per_worker }}"
+                  cpu: "{{ cpu_per_worker[it] }}"
+                  memory: {{ ram_gb_per_worker[it] }}G
+                  nvidia.com/gpu: "{{ gpu_per_worker[it] }}"
               securityContext: {}
               volumeMounts:
                 - mountPath: /tmp/ray
@@ -145,7 +143,7 @@ spec:
                 - mountPath: /var/secrets/{{secret_name}}
                   name: {{secret_name}}
                   readOnly: true
-              command: ["/bin/bash", "-c", "ray start --address={{ name }}-head.{{ namespace }}.svc.cluster.local:6379 && tail -f /dev/null"]
+              command: ["/bin/bash", "-c", "ray start --address=head.{{ namespace }}.svc.cluster.local:6379 && tail -f /dev/null"]
             - image: fluent/fluent-bit:1.9.6
               name: fluentbit
               resources:
@@ -161,7 +159,7 @@ spec:
 
           imagePullSecrets: []
           nodeSelector:
-            cloud.google.com/gke-accelerator: {{ worker_accelerator }}
+            cloud.google.com/gke-accelerator: {{ worker_accelerator[it] }}
             iam.gke.io/gke-metadata-server-enabled: "true"
           tolerations:
             - key: "nvidia.com/gpu"
@@ -176,3 +174,4 @@ spec:
             - name: {{secret_name}}
               secret:
                 secretName: {{secret_name}}
+    {% endfor %}

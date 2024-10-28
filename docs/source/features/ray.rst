@@ -30,9 +30,10 @@ For clarity, this guide refers to the jobs one layer below the topmost aggregate
 
 Both resource-wrapped and tuning aggregate jobs dispatch individual jobs to a designated Ray
 cluster, which leverages the cluster's resources (e.g., a single workstation node or multiple nodes)
-to execute these jobs with workers in parallel and/or sequentially. By default, aggregate jobs use all available resources on each available GPU-enabled
-node for each sub-job worker. This can be changed through specifying the ``--num_workers_per_node``
-argument, especially critical for parallel aggregate job processing on local or virtual multi-GPU machines
+to execute these jobs with workers in parallel and/or sequentially. By default, aggregate jobs use all \
+available resources on each available GPU-enabled node for each sub-job worker. This can be changed through 
+specifying the ``--num_workers_per_node`` argument, especially critical for parallel aggregate 
+job processing on local or virtual multi-GPU machines
 
 In resource-wrapped aggregate jobs, each sub-job and its
 resource requirements are defined manually, enabling resource isolation.
@@ -92,6 +93,12 @@ The pythonic dependencies can be installed with:
   ./isaaclab.sh -p -m pip install ray[default, tune]==2.31.0
   ./isaaclab.sh -p -m pip install optuna bayesian-optimization
 
+If using KubeRay clusters on Google GKE with the batteries-included cluster launch file,
+the following dependencies are also needed.
+.. code-block:: bash
+
+  ./isaaclab.sh -p -m pip install kubernetes Jinja2
+
 **Setup: Cluster Configuration**
 --------------------------------
 
@@ -126,8 +133,11 @@ any cloud provider should work if one configures the following:
   long as the base image has already been built as in the container guide
 - A Kubernetes setup with available NVIDIA RTX (likely ``l4`` or ``l40``) GPU-passthrough node-pool resources,
   that has access to your container registry/storage bucket and has the Ray operator enabled with correct IAM
-  permissions. This can be easily achieved with services such as Google GKE Autopilot or AWS EKS Fargate,
-  provided that your account or organization has been granted a GPU-budget.
+  permissions. This can be easily achieved with services such as Google GKE or AWS EKS,
+  provided that your account or organization has been granted a GPU-budget. It is recommended 
+  to use manual kubernetes services as opposed to "autopilot" services for cost-effective
+  experimentation as this way clusters can be completely shut down when not in use, although
+  this may installing the `Nvidia GPU Operator <https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/google-gke.html>`_
 - A ``kuberay.yaml.ninja`` file that describes how to allocate resources (already included for
   Google Cloud)
 - A storage bucket to dump experiment logs/checkpoints to, that the cluster has ``read/write`` access to.
@@ -182,21 +192,25 @@ Single-Node Ray Cluster (Local/VM)
   # Two jobs, one after another
   ./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py --sub_jobs wrap_isaac_ray_resources.py --jobs ./isaaclab.sh -p source/standalone/workflows/rl_games/train.py --task Isaac-Cartpole-v0 --headless+./isaaclab.sh -p source/standalone/workflows/rl_games/train.py --task Isaac-Cartpole-RGB-Camera-Direct-v0 --headless --enable_cameras agent.params.config.max_epochs=150
 
-3,) Submitting tuning aggregate jobs that create many individual sub-jobs can be tested as follows:
+3.) Submitting tuning aggregate jobs that create many individual sub-jobs can be tested as follows:
 
 .. code-block:: bash
 
-  /isaaclab.sh -p source/standalone/workflors/ray/isaac_ray_tune.py \
+  /isaaclab.sh -p source/standalone/workflows/ray/isaac_ray_tune.py \
 	--mode local
 	--cfg_file hyperparameter_tuning/vision_cartpole_cfg.py \
 	--cfg_class CartpoleRGBNoTuneJobCfg --storage_path ~/isaac_cartpole
 
 Multiple-Node Ray Cluster
 '''''''''''''''''''''''''
-On a multiple-node Ray cluster, it is assumed that resources are homogeneous across workers (although not necessarily
-the head Node).
+On a multiple-node Ray cluster, it is assumed that resources are homogeneous across GPU-enabled
+nodes. The Isaac Ray integration includes utilities for managing KubeRay clusters,
+as well as functionality that is shared across both KubeRay and pure Ray clusters.
 
-  Still being copied from README
+KubeRay Specific
+~~~~~~~~~~~~~~~~
+
+1.) Verify cluster access with ``kubectl cluster-info``
 
 Multiple-Cluster Multiple-Node Ray
 ''''''''''''''''''''''''''''''''''
