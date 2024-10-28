@@ -21,18 +21,18 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import carb
 import torch
 import unittest
 
+import carb
 import omni.usd
+from omni.isaac.core.utils.extensions import enable_extension
 
 from omni.isaac.lab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg
 from omni.isaac.lab.envs.ui import ManagerBasedRLEnvWindow
 from omni.isaac.lab.scene import InteractiveSceneCfg
 from omni.isaac.lab.utils import configclass
 
-from omni.isaac.core.utils.extensions import enable_extension
 enable_extension("omni.isaac.ui")
 
 

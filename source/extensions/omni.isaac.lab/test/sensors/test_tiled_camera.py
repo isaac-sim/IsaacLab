@@ -1304,6 +1304,15 @@ class TestTiledCamera(unittest.TestCase):
         del camera_tiled
         del camera_usd
 
+    def test_sensor_print(self):
+        """Test sensor print is working correctly."""
+        # Create sensor
+        sensor = TiledCamera(cfg=self.camera_cfg)
+        # Play sim
+        self.sim.reset()
+        # print info
+        print(sensor)
+
     """
     Helper functions.
     """

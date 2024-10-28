@@ -817,20 +817,14 @@ class TestWarpCamera(unittest.TestCase):
             atol=1e-4,
         )
 
-    def test_camera_print(self):
-        """Test camera print is working correctly."""
-        # Create camera
-        camera = RayCasterCamera(cfg=self.camera_cfg)
+    def test_sensor_print(self):
+        """Test sensor print is working correctly."""
+        # Create sensor
+        sensor = RayCasterCamera(cfg=self.camera_cfg)
         # Play sim
         self.sim.reset()
-        # Simulate for a few steps
-        # note: This is a workaround to ensure that the textures are loaded.
-        #   Check "Known Issues" section in the documentation for more details.
-        for _ in range(5):
-            self.sim.step()
-        camera.update(self.dt)
-        # print camera info
-        print(camera)
+        # print info
+        print(sensor)
 
 
 if __name__ == "__main__":
