@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.2.0" />
-    <meta name="docbuild:last-update" content="Oct 26, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 28, 2024"/>
   </head>
   
   
@@ -658,7 +658,7 @@
     <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">square</span><span class="p">(</span><span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">joint_acc</span><span class="p">[:,</span> <span class="n">asset_cfg</span><span class="o">.</span><span class="n">joint_ids</span><span class="p">]),</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="joint_deviation_l1"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.joint_deviation_l1">[docs]</a><span class="k">def</span> <span class="nf">joint_deviation_l1</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span> <span class="o">=</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">))</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<div class="viewcode-block" id="joint_deviation_l1"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.joint_deviation_l1">[docs]</a><span class="k">def</span> <span class="nf">joint_deviation_l1</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">,</span> <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span> <span class="o">=</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">))</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Penalize joint positions that deviate from the default one.&quot;&quot;&quot;</span>
     <span class="c1"># extract the used quantities (to enable type-hinting)</span>
     <span class="n">asset</span><span class="p">:</span> <span class="n">Articulation</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="p">[</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
@@ -842,7 +842,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 26, 2024.
+  Last updated on Oct 28, 2024.
   <br/>
 </p>
   </div>
