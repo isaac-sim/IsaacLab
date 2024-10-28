@@ -17,8 +17,7 @@ from ray.tune.search.repeater import Repeater
 """
 This script breaks down an aggregate tuning job, as defined by a hyperparameter sweep configuration,
 into individual jobs (shell commands) to run on the GPU-enabled nodes of the cluster.
-By default, (unless combined as a sub-job in a resource-wrapped aggregate job
-or ``--num_workers_per_node`` is specified), one worker is created
+By default, (unless combined as a sub-job in a resource-wrapped aggregate job), one worker is created
 for each GPU-enabled node in the cluster for each individual job.
 
 Each hyperparameter sweep configuration should include the workflow,
@@ -116,9 +115,6 @@ def invoke_tuning_run(
         ray.init(address=ray_address, log_to_driver=True)
     resources = isaac_ray_util.get_gpu_node_resources(one_node_only=True)
 
-    for key, value in resources:
-        resources[key] = value / num_workers_per_node
-
     print(f"[INFO]: Resources per worker: {resources}")
     print(f"[INFO]: Using config {cfg}")
     # Define trainable with specific resource allocation
@@ -167,6 +163,7 @@ class JobCfg:
 
     def __init__(self, cfg):
         assert "runner_args" in cfg, "No runner arguments specified."
+        assert "--task" in cfg["runner_args"], "No task specified."
         assert "workflow" in cfg, "No workflow specified."
         assert "hydra_args" in cfg, "No hypeparameters specified."
         self.cfg = cfg
@@ -302,11 +299,6 @@ if __name__ == "__main__":
             "Must be a bucket your cluster has access to for remote."
         ),
     )
-    parser.add_argument(
-        "--num_workers_per_node",
-        type=int,
-        help="Supply to split each node into num_workers evenly.",
-    )
 
     args = parser.parse_args()
 
@@ -336,7 +328,6 @@ if __name__ == "__main__":
         invoke_tuning_run(
             cfg,
             storage_path=args.storage_path,
-            num_workers_per_node=args.num_workers_per_node,
             ray_address=args.ray_address,
         )
 
