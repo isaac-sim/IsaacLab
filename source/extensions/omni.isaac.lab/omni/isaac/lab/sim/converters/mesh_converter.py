@@ -117,14 +117,26 @@ class MeshConverter(AssetConverterBase):
             prim_path=xform_prim.GetPath(),
             **{"stage": stage},
         )
-        if cfg.rotation:
-            # Rotate mesh so that it is Z-up in the world
-            attr_rotate = xform_prim.GetAttribute("xformOp:orient")
-            assert attr_rotate.Set(Gf.Quatd(*cfg.rotation))
-        if cfg.scale:
-            # Scale mesh to meters
-            attr_scale = xform_prim.GetAttribute("xformOp:scale")
-            assert attr_scale.Set(Gf.Vec3d(*cfg.scale))
+
+        # Apply translation, rotation, and scale to the Xform
+        geom_xform = UsdGeom.Xform(geom_prim)
+        geom_xform.ClearXformOpOrder()
+
+        # Remove any existing rotation attributes
+        rotate_attr = geom_prim.GetAttribute("xformOp:rotateXYZ")
+        if rotate_attr:
+            geom_prim.RemoveProperty(rotate_attr.GetName())
+
+        # translation
+        translate_op = geom_xform.AddTranslateOp(UsdGeom.XformOp.PrecisionDouble)
+        translate_op.Set(Gf.Vec3d(*cfg.translation))
+        # rotation
+        orient_op = geom_xform.AddOrientOp(UsdGeom.XformOp.PrecisionDouble)
+        orient_op.Set(Gf.Quatd(*cfg.rotation))
+        # scale
+        scale_op = geom_xform.AddScaleOp(UsdGeom.XformOp.PrecisionDouble)
+        scale_op.Set(Gf.Vec3d(*cfg.scale))
+
         # Handle instanceable
         # Create a new Xform prim that will be the prototype prim
         if cfg.make_instanceable:
@@ -191,11 +203,9 @@ class MeshConverter(AssetConverterBase):
             True if the conversion succeeds.
         """
         enable_extension("omni.kit.asset_converter")
-        enable_extension("omni.usd.metrics.assembler")
 
         import omni.kit.asset_converter
         import omni.usd
-        from omni.metrics.assembler.core import get_metrics_assembler_interface
 
         # Create converter context
         converter_context = omni.kit.asset_converter.AssetConverterContext()
@@ -235,10 +245,6 @@ class MeshConverter(AssetConverterBase):
         base_prim = temp_stage.DefinePrim(prim_path, "Xform")
         prim = temp_stage.DefinePrim(f"{prim_path}/geometry", "Xform")
         prim.GetReferences().AddReference(out_file_non_metric)
-        cache = UsdUtils.StageCache.Get()
-        cache.Insert(temp_stage)
-        stage_id = cache.GetId(temp_stage).ToLongInt()
-        get_metrics_assembler_interface().resolve_stage(stage_id)
         temp_stage.SetDefaultPrim(base_prim)
         temp_stage.Export(out_file)
         return success
