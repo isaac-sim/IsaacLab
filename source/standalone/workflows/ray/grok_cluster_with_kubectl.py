@@ -57,14 +57,14 @@ def check_clusters_running(pods: list, clusters: set) -> bool:
     return clusters_running
 
 
-def get_ray_address(head_pod: str, namespace: str = "default",
-                    ray_head_name: str = "head") -> str:
+def get_ray_address(head_pod: str, namespace: str = "default", ray_head_name: str = "head") -> str:
     cmd = ["kubectl", "logs", head_pod, "-c", ray_head_name, "-n", namespace]
     try:
         output = subprocess.check_output(cmd).decode()
     except subprocess.CalledProcessError as e:
-        raise ValueError(f"Could not enter head container with cmd {cmd}: {e}"
-                            "Perhaps try a different namespace or ray head name.")
+        raise ValueError(
+            f"Could not enter head container with cmd {cmd}: {e}Perhaps try a different namespace or ray head name."
+        )
     match = re.search(r"RAY_ADDRESS='([^']+)'", output)
     if match:
         return match.group(1)
@@ -72,7 +72,7 @@ def get_ray_address(head_pod: str, namespace: str = "default",
         return None
 
 
-def process_cluster(cluster_info: dict, ray_head_name:str = "head") -> str:
+def process_cluster(cluster_info: dict, ray_head_name: str = "head") -> str:
     cluster, pods, namespace = cluster_info
     head_pod = None
     for pod_name, status in pods:
@@ -95,13 +95,9 @@ def process_cluster(cluster_info: dict, ray_head_name:str = "head") -> str:
 def main():
     # Parse command-line arguments
     parser = argparse.ArgumentParser(description="Process Ray clusters and save their specifications.")
-    parser.add_argument(
-        "--prefix", default="isaacray", help="The prefix for the cluster names."
-    )
+    parser.add_argument("--prefix", default="isaacray", help="The prefix for the cluster names.")
     parser.add_argument("--output", default="~/.cluster_config", help="The file to save cluster specifications.")
-    parser.add_argument("--ray_head_name", 
-                        default="head", 
-                        help="The metadata name for the ray head container")
+    parser.add_argument("--ray_head_name", default="head", help="The metadata name for the ray head container")
     args = parser.parse_args()
 
     CLUSTER_NAME_PREFIX = args.prefix
@@ -150,8 +146,8 @@ def main():
 
     with ThreadPoolExecutor() as executor:
         future_to_cluster = {
-            executor.submit(process_cluster, 
-                            info, args.ray_head_name): info[0] for info in cluster_infos}
+            executor.submit(process_cluster, info, args.ray_head_name): info[0] for info in cluster_infos
+        }
         for future in as_completed(future_to_cluster):
             cluster_name = future_to_cluster[future]
             try:

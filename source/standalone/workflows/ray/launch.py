@@ -8,9 +8,9 @@ import pathlib
 import subprocess
 import yaml
 
+import isaac_ray_util
 from jinja2 import Environment, FileSystemLoader
 from kubernetes import config
-import isaac_ray_util
 
 """This script helps create one or more KubeRay clusters.
 
@@ -27,7 +27,7 @@ Usage:
         --namespace <NAMESPACE> --image <YOUR_ISAAC_RAY_IMAGE> \
         --num_workers 8 --num_clusters 1 --worker_accelerator nvidia-l4 --gpu_per_worker 1
 
-    # The following creates 1 GPUx1 nvidia l4 worker, 2 GPUx2 nvidia-tesla-t4 workers, 
+    # The following creates 1 GPUx1 nvidia l4 worker, 2 GPUx2 nvidia-tesla-t4 workers,
     # and 2 GPUx4 nvidia-tesla-t4 GPU workers
     ./isaaclab.sh -p source/standalone/workflows/ray/launch.py --cluster_host google_cloud \
         --namespace <NAMESPACE> --image <YOUR_ISAAC_RAY_IMAGE> \
@@ -57,7 +57,7 @@ def apply_manifest(args: argparse.Namespace) -> None:
 
     # Convert args namespace to a dictionary
     template_params = vars(args)
-        
+
     # Load and render the template
     template = jinja_env.get_template(template_file)
     file_contents = template.render(template_params)
@@ -128,19 +128,16 @@ def parse_args() -> argparse.Namespace:
         nargs="+",
         type=str,
         default=["nvidia-l4"],
-        help="GPU accelerator name. Supply more than one for heterogenous resources.",
+        help="GPU accelerator name. Supply more than one for heterogeneous resources.",
     )
 
-    arg_parser = isaac_ray_util.add_resource_arguments(arg_parser, 
-                                                        cluster_create_defaults=True)
-    
+    arg_parser = isaac_ray_util.add_resource_arguments(arg_parser, cluster_create_defaults=True)
+
     arg_parser.add_argument(
         "--num_clusters",
         type=int,
         default=1,
-        help=(
-            "How many Ray Clusters to create."
-        ),
+        help="How many Ray Clusters to create.",
     )
     arg_parser.add_argument(
         "--num_head_cpu",
@@ -156,6 +153,7 @@ def parse_args() -> argparse.Namespace:
     args = arg_parser.parse_args()
     return isaac_ray_util.fill_in_missing_resources(args, cluster_creation_flag=True)
 
+
 def main():
     args = parse_args()
 
@@ -168,6 +166,7 @@ def main():
         for i in range(args.num_clusters):
             args.name = default_name + "-" + str(i)
             apply_manifest(args)
+
 
 if __name__ == "__main__":
     main()

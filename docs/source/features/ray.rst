@@ -31,8 +31,8 @@ For clarity, this guide refers to the jobs one layer below the topmost aggregate
 Both resource-wrapped and tuning aggregate jobs dispatch individual jobs to a designated Ray
 cluster, which leverages the cluster's resources (e.g., a single workstation node or multiple nodes)
 to execute these jobs with workers in parallel and/or sequentially. By default, aggregate jobs use all \
-available resources on each available GPU-enabled node for each sub-job worker. This can be changed through 
-specifying the ``--num_workers_per_node`` argument, especially critical for parallel aggregate 
+available resources on each available GPU-enabled node for each sub-job worker. This can be changed through
+specifying the ``--num_workers_per_node`` argument, especially critical for parallel aggregate
 job processing on local or virtual multi-GPU machines
 
 In resource-wrapped aggregate jobs, each sub-job and its
@@ -134,7 +134,7 @@ any cloud provider should work if one configures the following:
 - A Kubernetes setup with available NVIDIA RTX (likely ``l4`` or ``l40``) GPU-passthrough node-pool resources,
   that has access to your container registry/storage bucket and has the Ray operator enabled with correct IAM
   permissions. This can be easily achieved with services such as Google GKE or AWS EKS,
-  provided that your account or organization has been granted a GPU-budget. It is recommended 
+  provided that your account or organization has been granted a GPU-budget. It is recommended
   to use manual kubernetes services as opposed to "autopilot" services for cost-effective
   experimentation as this way clusters can be completely shut down when not in use, although
   this may installing the `Nvidia GPU Operator <https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/google-gke.html>`_

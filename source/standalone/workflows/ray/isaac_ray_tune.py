@@ -146,10 +146,10 @@ def invoke_tuning_run(
             num_samples=num_samples,  # Ensure args.num_samples is well-defined
         ),
         run_config=air.RunConfig(
-            name=f"IsaacRay-{cfg["runner_args"]["--task"]}-tune", 
-            storage_path=storage_path, 
-            verbose=1, 
-            failure_config=air.FailureConfig(fail_fast=True)
+            name=f"IsaacRay-{cfg['runner_args']['--task']}-tune",
+            storage_path=storage_path,
+            verbose=1,
+            failure_config=air.FailureConfig(fail_fast=True),
         ),
     )
 

@@ -106,7 +106,7 @@ def submit_jobs_to_clusters(jobs: list[str], clusters: list[dict]) -> None:
     if len(jobs) < len(clusters):
         print("[INFO]: Less jobs than clusters, some clusters will not receive jobs")
     elif len(jobs) == len(clusters):
-        print(f"[INFO]: Exactly one job per cluster")
+        print("[INFO]: Exactly one job per cluster")
     else:
         print("[INFO]: More jobs than clusters, jobs submitted as clusters become available.")
     with ThreadPoolExecutor() as executor:
