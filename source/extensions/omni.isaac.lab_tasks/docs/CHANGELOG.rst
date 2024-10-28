@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+0.10.11 (2024-10-28)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added feature extracted observation cartpole examples.
+
 0.10.10 (2024-10-25)
 ~~~~~~~~~~~~~~~~~~~~
 
