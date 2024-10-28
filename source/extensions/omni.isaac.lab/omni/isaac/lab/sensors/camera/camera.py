@@ -13,6 +13,7 @@ from tensordict import TensorDict
 from typing import TYPE_CHECKING, Any, Literal
 
 import carb
+import omni.isaac.core.utils.stage as stage_utils
 import omni.kit.commands
 import omni.usd
 from omni.isaac.core.prims import XFormPrimView
@@ -21,11 +22,14 @@ from pxr import UsdGeom
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.utils import to_camel_case
 from omni.isaac.lab.utils.array import convert_to_torch
-from omni.isaac.lab.utils.math import quat_from_matrix
+from omni.isaac.lab.utils.math import (
+    convert_camera_frame_orientation_convention,
+    create_rotation_matrix_from_view,
+    quat_from_matrix,
+)
 
 from ..sensor_base import SensorBase
 from .camera_data import CameraData
-from .utils import convert_orientation_convention, create_rotation_matrix_from_view
 
 if TYPE_CHECKING:
     from .camera_cfg import CameraCfg
@@ -116,7 +120,9 @@ class Camera(SensorBase):
         if self.cfg.spawn is not None:
             # compute the rotation offset
             rot = torch.tensor(self.cfg.offset.rot, dtype=torch.float32).unsqueeze(0)
-            rot_offset = convert_orientation_convention(rot, origin=self.cfg.offset.convention, target="opengl")
+            rot_offset = convert_camera_frame_orientation_convention(
+                rot, origin=self.cfg.offset.convention, target="opengl"
+            )
             rot_offset = rot_offset.squeeze(0).numpy()
             # ensure vertical aperture is set, otherwise replace with default for squared pixels
             if self.cfg.spawn.vertical_aperture is None:
@@ -251,7 +257,7 @@ class Camera(SensorBase):
             # TODO: Adjust to handle aperture offsets once supported by omniverse
             #   Internal ticket from rendering team: OM-42611
             if params["horizontal_aperture_offset"] > 1e-4 or params["vertical_aperture_offset"] > 1e-4:
-                carb.log_warn("Camera aperture offsets are not supported by Omniverse. These parameters are ignored.")
+                omni.log.warn("Camera aperture offsets are not supported by Omniverse. These parameters are ignored.")
 
             # change data for corresponding camera index
             sensor_prim = self._sensor_prims[i]
@@ -289,7 +295,7 @@ class Camera(SensorBase):
         - :obj:`"ros"`    - forward axis: +Z - up axis -Y - Offset is applied in the ROS convention
         - :obj:`"world"`  - forward axis: +X - up axis +Z - Offset is applied in the World Frame convention
 
-        See :meth:`omni.isaac.lab.sensors.camera.utils.convert_orientation_convention` for more details
+        See :meth:`omni.isaac.lab.sensors.camera.utils.convert_camera_frame_orientation_convention` for more details
         on the conventions.
 
         Args:
@@ -318,7 +324,7 @@ class Camera(SensorBase):
                 orientations = torch.from_numpy(orientations).to(device=self._device)
             elif not isinstance(orientations, torch.Tensor):
                 orientations = torch.tensor(orientations, device=self._device)
-            orientations = convert_orientation_convention(orientations, origin=convention, target="opengl")
+            orientations = convert_camera_frame_orientation_convention(orientations, origin=convention, target="opengl")
         # set the pose
         self._view.set_world_poses(positions, orientations, env_ids)
 
@@ -339,8 +345,10 @@ class Camera(SensorBase):
         # resolve env_ids
         if env_ids is None:
             env_ids = self._ALL_INDICES
+        # get up axis of current stage
+        up_axis = stage_utils.get_stage_up_axis()
         # set camera poses using the view
-        orientations = quat_from_matrix(create_rotation_matrix_from_view(eyes, targets, device=self._device))
+        orientations = quat_from_matrix(create_rotation_matrix_from_view(eyes, targets, up_axis, device=self._device))
         self._view.set_world_poses(eyes, orientations, env_ids)
 
     """
@@ -596,7 +604,9 @@ class Camera(SensorBase):
         # get the poses from the view
         poses, quat = self._view.get_world_poses(env_ids)
         self._data.pos_w[env_ids] = poses
-        self._data.quat_w_world[env_ids] = convert_orientation_convention(quat, origin="opengl", target="world")
+        self._data.quat_w_world[env_ids] = convert_camera_frame_orientation_convention(
+            quat, origin="opengl", target="world"
+        )
 
     def _create_annotator_data(self):
         """Create the buffers to store the annotator data.

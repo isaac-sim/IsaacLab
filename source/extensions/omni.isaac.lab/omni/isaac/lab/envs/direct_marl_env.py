@@ -14,11 +14,12 @@ import torch
 import weakref
 from abc import abstractmethod
 from collections.abc import Sequence
+from dataclasses import MISSING
 from typing import Any, ClassVar
 
-import carb
 import omni.isaac.core.utils.torch as torch_utils
 import omni.kit.app
+import omni.log
 from omni.isaac.version import get_version
 
 from omni.isaac.lab.managers import EventManager
@@ -30,6 +31,7 @@ from omni.isaac.lab.utils.timer import Timer
 from .common import ActionType, AgentID, EnvStepReturn, ObsType, StateType
 from .direct_marl_env_cfg import DirectMARLEnvCfg
 from .ui import ViewportCameraController
+from .utils.spaces import sample_space, spec_to_gym_space
 
 
 class DirectMARLEnv:
@@ -72,6 +74,8 @@ class DirectMARLEnv:
             RuntimeError: If a simulation context already exists. The environment must always create one
                 since it configures the simulation context and controls the simulation.
         """
+        # check that the config is valid
+        cfg.validate()
         # store inputs to class
         self.cfg = cfg
         # store the render mode
@@ -83,7 +87,7 @@ class DirectMARLEnv:
         if self.cfg.seed is not None:
             self.cfg.seed = self.seed(self.cfg.seed)
         else:
-            carb.log_warn("Seed not set for the environment. The environment creation may not be deterministic.")
+            omni.log.warn("Seed not set for the environment. The environment creation may not be deterministic.")
 
         # create a simulation context to control the simulator
         if SimulationContext.instance() is None:
@@ -102,10 +106,10 @@ class DirectMARLEnv:
         if self.cfg.sim.render_interval < self.cfg.decimation:
             msg = (
                 f"The render interval ({self.cfg.sim.render_interval}) is smaller than the decimation "
-                f"({self.cfg.decimation}). Multiple multiple render calls will happen for each environment step."
+                f"({self.cfg.decimation}). Multiple render calls will happen for each environment step."
                 "If this is not intended, set the render interval to be equal to the decimation."
             )
-            carb.log_warn(msg)
+            omni.log.warn(msg)
 
         # generate scene
         with Timer("[INFO]: Time taken for scene creation", "scene_creation"):
@@ -164,10 +168,6 @@ class DirectMARLEnv:
         # -- init buffers
         self.episode_length_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
         self.reset_buf = torch.zeros(self.num_envs, dtype=torch.bool, device=self.sim.device)
-        self.actions = {
-            agent: torch.zeros(self.num_envs, self.cfg.num_actions[agent], device=self.sim.device)
-            for agent in self.cfg.possible_agents
-        }
 
         # setup the observation, state and action spaces
         self._configure_env_spaces()
@@ -406,16 +406,19 @@ class DirectMARLEnv:
         """Returns the state for the environment.
 
         The state-space is used for centralized training or asymmetric actor-critic architectures. It is configured
-        using the :attr:`DirectMARLEnvCfg.num_states` parameter.
+        using the :attr:`DirectMARLEnvCfg.state_space` parameter.
 
         Returns:
-            The states for the environment, or None if :attr:`DirectMARLEnvCfg.num_states` parameter is zero.
+            The states for the environment, or None if :attr:`DirectMARLEnvCfg.state_space` parameter is zero.
         """
-        if not self.cfg.num_states:
+        if not self.cfg.state_space:
             return None
         # concatenate and return the observations as state
-        if self.cfg.num_states < 0:
-            self.state_buf = torch.cat([self.obs_dict[agent] for agent in self.cfg.possible_agents], dim=-1)
+        # FIXME: This implementation assumes the spaces are fundamental ones. Fix it to support composite spaces
+        if isinstance(self.cfg.state_space, int) and self.cfg.state_space < 0:
+            self.state_buf = torch.cat(
+                [self.obs_dict[agent].reshape(self.num_envs, -1) for agent in self.cfg.possible_agents], dim=-1
+            )
         # compute and return custom environment state
         else:
             self.state_buf = self._get_states()
@@ -568,25 +571,45 @@ class DirectMARLEnv:
         self.agents = self.cfg.possible_agents
         self.possible_agents = self.cfg.possible_agents
 
+        # show deprecation message and overwrite configuration
+        if self.cfg.num_actions is not None:
+            omni.log.warn("DirectMARLEnvCfg.num_actions is deprecated. Use DirectMARLEnvCfg.action_spaces instead.")
+            if isinstance(self.cfg.action_spaces, type(MISSING)):
+                self.cfg.action_spaces = self.cfg.num_actions
+        if self.cfg.num_observations is not None:
+            omni.log.warn(
+                "DirectMARLEnvCfg.num_observations is deprecated. Use DirectMARLEnvCfg.observation_spaces instead."
+            )
+            if isinstance(self.cfg.observation_spaces, type(MISSING)):
+                self.cfg.observation_spaces = self.cfg.num_observations
+        if self.cfg.num_states is not None:
+            omni.log.warn("DirectMARLEnvCfg.num_states is deprecated. Use DirectMARLEnvCfg.state_space instead.")
+            if isinstance(self.cfg.state_space, type(MISSING)):
+                self.cfg.state_space = self.cfg.num_states
+
         # set up observation and action spaces
         self.observation_spaces = {
-            agent: gym.spaces.Box(low=-np.inf, high=np.inf, shape=(self.cfg.num_observations[agent],))
-            for agent in self.cfg.possible_agents
+            agent: spec_to_gym_space(self.cfg.observation_spaces[agent]) for agent in self.cfg.possible_agents
         }
         self.action_spaces = {
-            agent: gym.spaces.Box(low=-np.inf, high=np.inf, shape=(self.cfg.num_actions[agent],))
-            for agent in self.cfg.possible_agents
+            agent: spec_to_gym_space(self.cfg.action_spaces[agent]) for agent in self.cfg.possible_agents
         }
 
         # set up state space
-        if not self.cfg.num_states:
+        if not self.cfg.state_space:
             self.state_space = None
-        if self.cfg.num_states < 0:
-            self.state_space = gym.spaces.Box(
-                low=-np.inf, high=np.inf, shape=(sum(self.cfg.num_observations.values()),)
+        if isinstance(self.cfg.state_space, int) and self.cfg.state_space < 0:
+            self.state_space = gym.spaces.flatten_space(
+                gym.spaces.Tuple([self.observation_spaces[agent] for agent in self.cfg.possible_agents])
             )
         else:
-            self.state_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(self.cfg.num_states,))
+            self.state_space = spec_to_gym_space(self.cfg.state_space)
+
+        # instantiate actions (needed for tasks for which the observations computation is dependent on the actions)
+        self.actions = {
+            agent: sample_space(self.action_spaces[agent], self.sim.device, batch_size=self.num_envs, fill_value=0)
+            for agent in self.cfg.possible_agents
+        }
 
     def _reset_idx(self, env_ids: Sequence[int]):
         """Reset environments based on specified indices.
@@ -664,8 +687,8 @@ class DirectMARLEnv:
     def _get_states(self) -> StateType:
         """Compute and return the states for the environment.
 
-        This method is only called (and therefore has to be implemented) when the :attr:`DirectMARLEnvCfg.num_states`
-        parameter is greater than zero.
+        This method is only called (and therefore has to be implemented) when the :attr:`DirectMARLEnvCfg.state_space`
+        parameter is not a number less than or equal to zero.
 
         Returns:
             The states for the environment.

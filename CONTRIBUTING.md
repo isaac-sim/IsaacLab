@@ -5,4 +5,4 @@ the framework more mature and useful for everyone. These may happen in forms of 
 design proposals and more.
 
 For general information on how to contribute see
-<https://isaac-sim.github.io/IsaacLab/source/refs/contributing.html>.
+<https://isaac-sim.github.io/IsaacLab/main/source/refs/contributing.html>.

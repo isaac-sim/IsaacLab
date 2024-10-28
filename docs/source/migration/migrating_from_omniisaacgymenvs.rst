@@ -46,9 +46,9 @@ Below is an example skeleton of a task config class:
       # env
       decimation = 2
       episode_length_s = 5.0
-      num_actions = 1
-      num_observations = 4
-      num_states = 0
+      action_space = 1
+      observation_space = 4
+      state_space = 0
       # task-specific parameters
       ...
 
@@ -158,9 +158,9 @@ The following parameters must be set for each environment config:
 
    decimation = 2
    episode_length_s = 5.0
-   num_actions = 1
-   num_observations = 4
-   num_states = 0
+   action_space = 1
+   observation_space = 4
+   state_space = 0
 
 
 RL Config Setup
@@ -501,9 +501,9 @@ Task config in Isaac Lab can be split into the main task configuration class and
 |   clipObservations: 5.0                                         |     decimation = 2                                              |
 |   clipActions: 1.0                                              |     episode_length_s = 5.0                                      |
 |   controlFrequencyInv: 2 # 60 Hz                                |     action_scale = 100.0  # [N]                                 |
-|                                                                 |     num_actions = 1                                             |
-| sim:                                                            |     num_observations = 4                                        |
-|                                                                 |     num_states = 0                                              |
+|                                                                 |     action_space = 1                                            |
+| sim:                                                            |     observation_space = 4                                       |
+|                                                                 |     state_space = 0                                             |
 |   dt: 0.0083 # 1/120 s                                          |     # reset                                                     |
 |   use_gpu_pipeline: ${eq:${...pipeline},"gpu"}                  |     max_cart_pos = 3.0                                          |
 |   gravity: [0.0, 0.0, -9.81]                                    |     initial_pole_angle_range = [-0.25, 0.25]                    |
