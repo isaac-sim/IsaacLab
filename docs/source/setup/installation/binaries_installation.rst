@@ -38,7 +38,7 @@ To check the minimum system requirements,refer to the documentation
          :sync: windows
 
          On Windows systems, by default,Isaac Sim is installed in the directory
-         ``C:\Users\%USERPROFILE%\AppData\Local\ov\pkg\isaac_sim-*``, with ``*`` corresponding to the Isaac Sim version.
+         ``%USERPROFILE%\AppData\Local\ov\pkg\isaac_sim-*``, with ``*`` corresponding to the Isaac Sim version.
 
 Verifying the Isaac Sim installation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -66,7 +66,7 @@ variables to your terminal for the remaining of the installation instructions:
       .. code:: batch
 
          :: Isaac Sim root directory
-         set ISAACSIM_PATH="C:\Users\%USERPROFILE%\AppData\Local\ov\pkg\isaac-sim-4.2.0"
+         set ISAACSIM_PATH="%USERPROFILE%\AppData\Local\ov\pkg\isaac-sim-4.2.0"
          :: Isaac Sim python executable
          set ISAACSIM_PYTHON_EXE="%ISAACSIM_PATH:"=%\python.bat"
 

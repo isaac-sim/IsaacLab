@@ -1,6 +1,35 @@
 Changelog
 ---------
 
+0.10.10 (2024-10-25)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed issues with defining Gymnasium spaces in Direct workflows due to Hydra/OmegaConf limitations with non-primitive types.
+
+
+0.10.9 (2024-10-22)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Sets curriculum and commands to None in manager-based environment configurations when not needed.
+  Earlier, this was done by making an empty configuration object, which is now unnecessary.
+
+
+0.10.8 (2024-10-22)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the wrong selection of body id's in the :meth:`omni.isaac.lab_tasks.manager_based.locomotion.velocity.mdp.rewards.feet_slide`
+  reward function. This makes sure the right IDs are selected for the bodies.
+
+
 0.10.7 (2024-10-02)
 ~~~~~~~~~~~~~~~~~~~
 

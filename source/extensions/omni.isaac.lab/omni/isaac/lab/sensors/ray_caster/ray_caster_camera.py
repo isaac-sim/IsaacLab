@@ -281,7 +281,7 @@ class RayCasterCamera(RayCaster):
         self.ray_hits_w, ray_depth, ray_normal, _ = raycast_mesh(
             ray_starts_w,
             ray_directions_w,
-            mesh=RayCasterCamera.meshes[self.cfg.mesh_prim_paths[0]],
+            mesh=self.meshes[self.cfg.mesh_prim_paths[0]],
             max_dist=1e6,
             return_distance=any(
                 [name in self.cfg.data_types for name in ["distance_to_image_plane", "distance_to_camera"]]
