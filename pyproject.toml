@@ -49,7 +49,7 @@ known_third_party = [
     "omni.kit.*",
     "warp",
     "carb",
-    "Semantics"
+    "Semantics",
 ]
 # Imports from this repository
 known_first_party = "omni.isaac.lab"

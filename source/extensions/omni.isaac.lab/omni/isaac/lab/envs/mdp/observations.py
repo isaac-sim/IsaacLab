@@ -347,7 +347,7 @@ class image_features(ManagerTermBase):
         convert_perspective_to_orthogonal: bool = False,
         model_zoo_cfg: dict | None = None,
         model_name: str = "ResNet18",
-        model_device: str | None = None,
+        model_device: str | None = "cuda:0",
         reset_model: bool = False,
     ) -> torch.Tensor:
         """Extracted image features from a pre-trained frozen encoder.
