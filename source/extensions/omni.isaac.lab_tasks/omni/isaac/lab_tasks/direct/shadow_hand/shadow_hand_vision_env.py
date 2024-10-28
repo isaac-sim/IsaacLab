@@ -88,7 +88,7 @@ class ShadowHandVisionEnv(InHandManipulationEnv):
         sem.GetSemanticDataAttr().Set("cube")
         # clone and replicate (no need to filter for this environment)
         self.scene.clone_environments(copy_from_source=False)
-        # add articultion to scene - we must register to scene to randomize with EventManager
+        # add articulation to scene - we must register to scene to randomize with EventManager
         self.scene.articulations["robot"] = self.hand
         self.scene.rigid_objects["object"] = self.object
         self.scene.sensors["tiled_camera"] = self._tiled_camera
