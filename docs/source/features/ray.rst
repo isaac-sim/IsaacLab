@@ -227,7 +227,7 @@ that the cluster job submission address is known.
 
   .. literalinclude:: ../../../source/standalone/workflows/ray/isaac_ray_tune.py
     :language: python
-    :emphasize-lines: 17-35, 160-239
+    :emphasize-lines: 17-35
 
   For example, see the Cartpole Example configurations.
 
@@ -236,7 +236,7 @@ that the cluster job submission address is known.
 
   .. literalinclude:: ../../../source/standalone/workflows/ray/hyperparameter_tuning/vision_cartpole_cfg.py
     :language: python
-    :emphasize-lines: 17-35, 160-239
+    :emphasize-lines: 17-35
 
 Submitting tuning aggregate jobs that create many individual sub-jobs can be tested as follows.
 
@@ -268,6 +268,7 @@ Shared Steps Between KubeRay and Pure Ray Part I
 1.) Build the Isaac Ray image, and upload it to your container registry of choice.
 
 .. code-block:: bash
+
   # Login with NGC (nvcr.io) registry first, see docker steps in repo.
   ./isaaclab.sh -p docker/container.py start
   docker build -t <REGISTRY/IMAGE_NAME> -f source/standalone/workflows/ray/cluster_configs/Dockerfile .
@@ -281,6 +282,7 @@ easily be installed with ``snap install k9s --devmode``.
 1.) Verify cluster access, and that the correct operators are installed.
 
 .. code-block:: bash
+
   # Verify cluster access
   kubectl cluster-info
   # If using a manually managed cluster (not Autopilot or the like)
@@ -328,6 +330,7 @@ Shared Steps Between KubeRay and Pure Ray Part II
 1.) Test that your cluster is operational with the following.
 
 .. code-block:: bash
+
   # Test that NVIDIA GPUs are visible and that Ray is operation with the following command:
   ./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py
 	--jobs wrap_isaac_ray_resources.py --test
@@ -342,6 +345,7 @@ Shared Steps Between KubeRay and Pure Ray Part II
     :emphasize-lines: 12-42
 
 .. code-block:: bash
+
   # General Template
   ./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py
 	--jobs <JOB0>+<JOB1>+<JOB2>
@@ -357,7 +361,7 @@ Shared Steps Between KubeRay and Pure Ray Part II
 
   .. literalinclude:: ../../../source/standalone/workflows/ray/isaac_ray_tune.py
     :language: python
-    :emphasize-lines: 17-35, 160-239
+    :emphasize-lines: 17-35
 
   For example, see the Cartpole Example configurations.
 
@@ -366,7 +370,7 @@ Shared Steps Between KubeRay and Pure Ray Part II
 
   .. literalinclude:: ../../../source/standalone/workflows/ray/hyperparameter_tuning/vision_cartpole_cfg.py
     :language: python
-    :emphasize-lines: 17-35, 160-239
+    :emphasize-lines: 17-35
 
 Tuning jobs can be submitted with the previous script as with other jobs.
 
