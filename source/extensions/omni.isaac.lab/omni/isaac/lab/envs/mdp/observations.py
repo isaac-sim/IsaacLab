@@ -295,25 +295,40 @@ class image_features(ManagerTermBase):
                     .eval()
                     .to("cuda:0")
                 ),
-                "preprocess": lambda img: {"pixel_values": 
-                    ( # This deconstructs default inferencing (CPU in transformers) into GPU only operations
-                    ( # as adviced by first author of Theia paper
-                        # Shifts mean, standard deviation, and format to match training set
-                        img.permute(0, 3, 1, 2).float()  # Convert [batch, height, width, 3] -> [batch, 3, height, width]
-                        - torch.tensor([0.485, 0.456, 0.406], device=img.device).view(1, 3, 1, 1)
-                    ) / torch.tensor([0.229, 0.224, 0.225], device=img.device).view(1, 3, 1, 1)
-                    ) / 255},
-                "inference": lambda model, images: # Taken from Transformers; inference converted to be GPU only
-                    model.backbone.model(**images, interpolate_pos_encoding=True).last_hidden_state[:, 1:]
+                "preprocess": lambda img: {
+                    "pixel_values": (  # This deconstructs default inferencing (CPU in transformers) into GPU only operations
+                        (  # as advised by first author of Theia paper
+                            # Shifts mean, standard deviation, and format to match training set
+                            img.permute(
+                                0, 3, 1, 2
+                            ).float()  # Convert [batch, height, width, 3] -> [batch, 3, height, width]
+                            - torch.tensor([0.485, 0.456, 0.406], device=img.device).view(1, 3, 1, 1)
+                        )
+                        / torch.tensor([0.229, 0.224, 0.225], device=img.device).view(1, 3, 1, 1)
+                    ) / 255
+                },
+                "inference": lambda model, images: model.backbone.model(  # Taken from Transformers; inference converted to be GPU only
+                    **images, interpolate_pos_encoding=True
+                ).last_hidden_state[
+                    :, 1:
+                ],
             }
 
         def create_resnet_model(resnet_name):
             return {
                 "model": lambda: getattr(models, resnet_name)(pretrained=True).eval().to("cuda:0"),
-                "preprocess": lambda img: ((
-                    img.permute(0, 3, 1, 2).float()  # Convert [batch, height, width, 3] -> [batch, 3, height, width]
-                    - torch.tensor([0.485, 0.456, 0.406], device=img.device).view(1, 3, 1, 1)
-                ) / torch.tensor([0.229, 0.224, 0.225], device=img.device).view(1, 3, 1, 1)) / 255,
+                "preprocess": (
+                    lambda img: (
+                        (
+                            img.permute(
+                                0, 3, 1, 2
+                            ).float()  # Convert [batch, height, width, 3] -> [batch, 3, height, width]
+                            - torch.tensor([0.485, 0.456, 0.406], device=img.device).view(1, 3, 1, 1)
+                        )
+                        / torch.tensor([0.229, 0.224, 0.225], device=img.device).view(1, 3, 1, 1)
+                    )
+                    / 255
+                ),
                 "inference": lambda model, images: model(images),
             }
 

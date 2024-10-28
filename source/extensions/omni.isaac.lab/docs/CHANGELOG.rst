@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.27.8 (2024-10-28)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Modified frozen feature extraction encoder preprocessing and inference to only normalize once while using
+  exclusively GPU operations for inference.
+
 
 0.27.7 (2024-10-28)
 ~~~~~~~~~~~~~~~~~~~
