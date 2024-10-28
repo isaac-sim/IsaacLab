@@ -226,8 +226,7 @@ class MeshConverter(AssetConverterBase):
 
         # Create converter task
         instance = omni.kit.asset_converter.get_instance()
-        out_file_non_metric = out_file.replace(".usd", "_non_metric.usd")
-        task = instance.create_converter_task(in_file, out_file_non_metric, None, converter_context)
+        task = instance.create_converter_task(in_file, out_file, None, converter_context)
         # Start conversion task and wait for it to finish
         success = True
         while True:
@@ -244,7 +243,7 @@ class MeshConverter(AssetConverterBase):
 
         base_prim = temp_stage.DefinePrim(prim_path, "Xform")
         prim = temp_stage.DefinePrim(f"{prim_path}/geometry", "Xform")
-        prim.GetReferences().AddReference(out_file_non_metric)
+        prim.GetReferences().AddReference(out_file)
         temp_stage.SetDefaultPrim(base_prim)
         temp_stage.Export(out_file)
         return success
