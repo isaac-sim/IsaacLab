@@ -16,12 +16,15 @@ from .allegro_hand_env_cfg import AllegroHandEnvCfg
 # Register Gym environments.
 ##
 
+task_entry = "omni.isaac.lab_tasks.direct.allegro_hand"
+inhand_task_entry = "omni.isaac.lab_tasks.direct.inhand_manipulation"
+
 gym.register(
     id="Isaac-Repose-Cube-Allegro-Direct-v0",
-    entry_point="omni.isaac.lab_tasks.direct.inhand_manipulation:InHandManipulationEnv",
+    entry_point=f"{inhand_task_entry}.inhand_manipulation_env:InHandManipulationEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": AllegroHandEnvCfg,
+        "env_cfg_entry_point": f"{task_entry}.allegro_hand_env_cfg:AllegroHandEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:AllegroHandPPORunnerCfg",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg.yaml",

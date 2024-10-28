@@ -15,14 +15,14 @@ from . import agents
 # Register Gym environments.
 ##
 
-task_dir = "omni.isaac.lab_tasks.manager_based.classic.humanoid"
+task_entry = "omni.isaac.lab_tasks.manager_based.classic.humanoid"
 
 gym.register(
     id="Isaac-Humanoid-v0",
     entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{task_dir}.humanoid_env_cfg:HumanoidEnvCfg",
+        "env_cfg_entry_point": f"{task_entry}.humanoid_env_cfg:HumanoidEnvCfg",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:HumanoidPPORunnerCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg.yaml",

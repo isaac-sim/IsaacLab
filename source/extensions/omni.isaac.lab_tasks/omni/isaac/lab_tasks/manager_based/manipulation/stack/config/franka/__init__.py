@@ -8,7 +8,7 @@ import gymnasium as gym
 # Register Gym environments.
 ##
 
-task_dir = "omni.isaac.lab_tasks.manager_based.manipulation.stack.config.franka"
+task_entry = "omni.isaac.lab_tasks.manager_based.manipulation.stack.config.franka"
 
 ##
 # Joint Position Control
@@ -18,7 +18,7 @@ gym.register(
     id="Isaac-Stack-Cube-Franka-v0",
     entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
     kwargs={
-        "env_cfg_entry_point": f"{task_dir}.stack_joint_pos_env_cfg:FrankaCubeStackEnvCfg",
+        "env_cfg_entry_point": f"{task_entry}.stack_joint_pos_env_cfg:FrankaCubeStackEnvCfg",
     },
     disable_env_checker=True,
 )
@@ -32,7 +32,7 @@ gym.register(
     id="Isaac-Stack-Cube-Franka-IK-Rel-v0",
     entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
     kwargs={
-        "env_cfg_entry_point": f"{task_dir}.stack_ik_rel_env_cfg:FrankaCubeStackEnvCfg",
+        "env_cfg_entry_point": f"{task_entry}.stack_ik_rel_env_cfg:FrankaCubeStackEnvCfg",
     },
     disable_env_checker=True,
 )
