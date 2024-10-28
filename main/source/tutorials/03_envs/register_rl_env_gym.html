@@ -728,19 +728,24 @@ call for the cartpole environment in the <code class="docutils literal notransla
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">gymnasium</span> <span class="k">as</span> <span class="nn">gym</span>
 
 <span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">agents</span>
-<span class="hll"><span class="kn">from</span> <span class="nn">.cartpole_camera_env_cfg</span> <span class="kn">import</span> <span class="n">CartpoleDepthCameraEnvCfg</span><span class="p">,</span> <span class="n">CartpoleRGBCameraEnvCfg</span>
-</span><span class="kn">from</span> <span class="nn">.cartpole_env_cfg</span> <span class="kn">import</span> <span class="n">CartpoleEnvCfg</span>
-
+<span class="hll"><span class="kn">from</span> <span class="nn">.cartpole_camera_env_cfg</span> <span class="kn">import</span> <span class="p">(</span>
+</span>    <span class="n">CartpoleDepthCameraEnvCfg</span><span class="p">,</span>
+    <span class="n">CartpoleResNet18CameraEnvCfg</span><span class="p">,</span>
+    <span class="n">CartpoleRGBCameraEnvCfg</span><span class="p">,</span>
+    <span class="n">CartpoleTheiaTinyCameraEnvCfg</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">.cartpole_env_cfg</span> <span class="kn">import</span> <span class="n">CartpoleEnvCfg</span>
+<span class="hll">
+</span><span class="hll"><span class="c1">##</span>
+</span><span class="c1"># Register Gym environments.</span>
 <span class="c1">##</span>
-<span class="c1"># Register Gym environments.</span>
-<span class="c1">##</span>
-
-<span class="hll"><span class="n">gym</span><span class="o">.</span><span class="n">register</span><span class="p">(</span>
-</span><span class="hll">    <span class="nb">id</span><span class="o">=</span><span class="s2">&quot;Isaac-Cartpole-v0&quot;</span><span class="p">,</span>
-</span>    <span class="n">entry_point</span><span class="o">=</span><span class="s2">&quot;omni.isaac.lab.envs:ManagerBasedRLEnv&quot;</span><span class="p">,</span>
+<span class="hll">
+</span><span class="n">gym</span><span class="o">.</span><span class="n">register</span><span class="p">(</span>
+    <span class="nb">id</span><span class="o">=</span><span class="s2">&quot;Isaac-Cartpole-v0&quot;</span><span class="p">,</span>
+    <span class="n">entry_point</span><span class="o">=</span><span class="s2">&quot;omni.isaac.lab.envs:ManagerBasedRLEnv&quot;</span><span class="p">,</span>
     <span class="n">disable_env_checker</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-<span class="hll">    <span class="n">kwargs</span><span class="o">=</span><span class="p">{</span>
-</span>        <span class="s2">&quot;env_cfg_entry_point&quot;</span><span class="p">:</span> <span class="n">CartpoleEnvCfg</span><span class="p">,</span>
+    <span class="n">kwargs</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">&quot;env_cfg_entry_point&quot;</span><span class="p">:</span> <span class="n">CartpoleEnvCfg</span><span class="p">,</span>
         <span class="s2">&quot;rl_games_cfg_entry_point&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">agents</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">:rl_games_ppo_cfg.yaml&quot;</span><span class="p">,</span>
         <span class="s2">&quot;rsl_rl_cfg_entry_point&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">agents</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">.rsl_rl_ppo_cfg:CartpolePPORunnerCfg&quot;</span><span class="p">,</span>
         <span class="s2">&quot;skrl_cfg_entry_point&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">agents</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">:skrl_ppo_cfg.yaml&quot;</span><span class="p">,</span>
@@ -749,7 +754,7 @@ call for the cartpole environment in the <code class="docutils literal notransla
 <span class="p">)</span>
 
 <span class="n">gym</span><span class="o">.</span><span class="n">register</span><span class="p">(</span>
-    <span class="nb">id</span><span class="o">=</span><span class="s2">&quot;Isaac-Cartpole-RGB-Camera-v0&quot;</span><span class="p">,</span>
+    <span class="nb">id</span><span class="o">=</span><span class="s2">&quot;Isaac-Cartpole-RGB-v0&quot;</span><span class="p">,</span>
     <span class="n">entry_point</span><span class="o">=</span><span class="s2">&quot;omni.isaac.lab.envs:ManagerBasedRLEnv&quot;</span><span class="p">,</span>
     <span class="n">disable_env_checker</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
     <span class="n">kwargs</span><span class="o">=</span><span class="p">{</span>
@@ -759,12 +764,32 @@ call for the cartpole environment in the <code class="docutils literal notransla
 <span class="p">)</span>
 
 <span class="n">gym</span><span class="o">.</span><span class="n">register</span><span class="p">(</span>
-    <span class="nb">id</span><span class="o">=</span><span class="s2">&quot;Isaac-Cartpole-Depth-Camera-v0&quot;</span><span class="p">,</span>
+    <span class="nb">id</span><span class="o">=</span><span class="s2">&quot;Isaac-Cartpole-Depth-v0&quot;</span><span class="p">,</span>
     <span class="n">entry_point</span><span class="o">=</span><span class="s2">&quot;omni.isaac.lab.envs:ManagerBasedRLEnv&quot;</span><span class="p">,</span>
     <span class="n">disable_env_checker</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
     <span class="n">kwargs</span><span class="o">=</span><span class="p">{</span>
         <span class="s2">&quot;env_cfg_entry_point&quot;</span><span class="p">:</span> <span class="n">CartpoleDepthCameraEnvCfg</span><span class="p">,</span>
         <span class="s2">&quot;rl_games_cfg_entry_point&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">agents</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">:rl_games_camera_ppo_cfg.yaml&quot;</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">)</span>
+
+<span class="n">gym</span><span class="o">.</span><span class="n">register</span><span class="p">(</span>
+    <span class="nb">id</span><span class="o">=</span><span class="s2">&quot;Isaac-Cartpole-RGB-ResNet18-v0&quot;</span><span class="p">,</span>
+    <span class="n">entry_point</span><span class="o">=</span><span class="s2">&quot;omni.isaac.lab.envs:ManagerBasedRLEnv&quot;</span><span class="p">,</span>
+    <span class="n">disable_env_checker</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">kwargs</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">&quot;env_cfg_entry_point&quot;</span><span class="p">:</span> <span class="n">CartpoleResNet18CameraEnvCfg</span><span class="p">,</span>
+        <span class="s2">&quot;rl_games_cfg_entry_point&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">agents</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">:rl_games_feature_ppo_cfg.yaml&quot;</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">)</span>
+
+<span class="n">gym</span><span class="o">.</span><span class="n">register</span><span class="p">(</span>
+    <span class="nb">id</span><span class="o">=</span><span class="s2">&quot;Isaac-Cartpole-RGB-TheiaTiny-v0&quot;</span><span class="p">,</span>
+    <span class="n">entry_point</span><span class="o">=</span><span class="s2">&quot;omni.isaac.lab.envs:ManagerBasedRLEnv&quot;</span><span class="p">,</span>
+    <span class="n">disable_env_checker</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">kwargs</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">&quot;env_cfg_entry_point&quot;</span><span class="p">:</span> <span class="n">CartpoleTheiaTinyCameraEnvCfg</span><span class="p">,</span>
+        <span class="s2">&quot;rl_games_cfg_entry_point&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">agents</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">:rl_games_feature_ppo_cfg.yaml&quot;</span><span class="p">,</span>
     <span class="p">},</span>
 <span class="p">)</span>
 </pre></div>

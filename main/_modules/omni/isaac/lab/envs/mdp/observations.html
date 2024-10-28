@@ -516,10 +516,13 @@
 <span class="kn">import</span> <span class="nn">omni.isaac.lab.utils.math</span> <span class="k">as</span> <span class="nn">math_utils</span>
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.assets</span> <span class="kn">import</span> <span class="n">Articulation</span><span class="p">,</span> <span class="n">RigidObject</span>
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.managers</span> <span class="kn">import</span> <span class="n">SceneEntityCfg</span>
+<span class="kn">from</span> <span class="nn">omni.isaac.lab.managers.manager_base</span> <span class="kn">import</span> <span class="n">ManagerTermBase</span>
+<span class="kn">from</span> <span class="nn">omni.isaac.lab.managers.manager_term_cfg</span> <span class="kn">import</span> <span class="n">ObservationTermCfg</span>
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.sensors</span> <span class="kn">import</span> <span class="n">Camera</span><span class="p">,</span> <span class="n">Imu</span><span class="p">,</span> <span class="n">RayCaster</span><span class="p">,</span> <span class="n">RayCasterCamera</span><span class="p">,</span> <span class="n">TiledCamera</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
     <span class="kn">from</span> <span class="nn">omni.isaac.lab.envs</span> <span class="kn">import</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span> <span class="n">ManagerBasedRLEnv</span>
+
 
 <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">Root state.</span>
@@ -770,6 +773,134 @@
             <span class="n">images</span><span class="p">[</span><span class="n">images</span> <span class="o">==</span> <span class="nb">float</span><span class="p">(</span><span class="s2">&quot;inf&quot;</span><span class="p">)]</span> <span class="o">=</span> <span class="mi">0</span>
 
     <span class="k">return</span> <span class="n">images</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="image_features"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.observations.image_features">[docs]</a><span class="k">class</span> <span class="nc">image_features</span><span class="p">(</span><span class="n">ManagerTermBase</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Extracted image features from a pre-trained frozen encoder.</span>
+
+<span class="sd">    This method calls the :meth:`image` function to retrieve images, and then performs</span>
+<span class="sd">    inference on those images.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="image_features.__init__"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.observations.image_features.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">ObservationTermCfg</span><span class="p">,</span> <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">env</span><span class="p">)</span>
+        <span class="kn">from</span> <span class="nn">torchvision</span> <span class="kn">import</span> <span class="n">models</span>
+        <span class="kn">from</span> <span class="nn">transformers</span> <span class="kn">import</span> <span class="n">AutoModel</span>
+
+        <span class="k">def</span> <span class="nf">create_theia_model</span><span class="p">(</span><span class="n">model_name</span><span class="p">):</span>
+            <span class="k">return</span> <span class="p">{</span>
+                <span class="s2">&quot;model&quot;</span><span class="p">:</span> <span class="p">(</span>
+                    <span class="k">lambda</span><span class="p">:</span> <span class="n">AutoModel</span><span class="o">.</span><span class="n">from_pretrained</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;theaiinstitute/</span><span class="si">{</span><span class="n">model_name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">trust_remote_code</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                    <span class="o">.</span><span class="n">eval</span><span class="p">()</span>
+                    <span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="s2">&quot;cuda:0&quot;</span><span class="p">)</span>
+                <span class="p">),</span>
+                <span class="s2">&quot;preprocess&quot;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">img</span><span class="p">:</span> <span class="p">(</span><span class="n">img</span> <span class="o">-</span> <span class="n">torch</span><span class="o">.</span><span class="n">amin</span><span class="p">(</span><span class="n">img</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="n">keepdim</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span> <span class="o">/</span> <span class="p">(</span>
+                    <span class="n">torch</span><span class="o">.</span><span class="n">amax</span><span class="p">(</span><span class="n">img</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="n">keepdim</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="o">-</span> <span class="n">torch</span><span class="o">.</span><span class="n">amin</span><span class="p">(</span><span class="n">img</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="n">keepdim</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                <span class="p">),</span>
+                <span class="s2">&quot;inference&quot;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">model</span><span class="p">,</span> <span class="n">images</span><span class="p">:</span> <span class="n">model</span><span class="o">.</span><span class="n">forward_feature</span><span class="p">(</span>
+                    <span class="n">images</span><span class="p">,</span> <span class="n">do_rescale</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">interpolate_pos_encoding</span><span class="o">=</span><span class="kc">True</span>
+                <span class="p">),</span>
+            <span class="p">}</span>
+
+        <span class="k">def</span> <span class="nf">create_resnet_model</span><span class="p">(</span><span class="n">resnet_name</span><span class="p">):</span>
+            <span class="k">return</span> <span class="p">{</span>
+                <span class="s2">&quot;model&quot;</span><span class="p">:</span> <span class="k">lambda</span><span class="p">:</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">models</span><span class="p">,</span> <span class="n">resnet_name</span><span class="p">)(</span><span class="n">pretrained</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">eval</span><span class="p">()</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="s2">&quot;cuda:0&quot;</span><span class="p">),</span>
+                <span class="s2">&quot;preprocess&quot;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">img</span><span class="p">:</span> <span class="p">(</span>
+                    <span class="n">img</span><span class="o">.</span><span class="n">permute</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>  <span class="c1"># Convert [batch, height, width, 3] -&gt; [batch, 3, height, width]</span>
+                    <span class="o">-</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([</span><span class="mf">0.485</span><span class="p">,</span> <span class="mf">0.456</span><span class="p">,</span> <span class="mf">0.406</span><span class="p">],</span> <span class="n">device</span><span class="o">=</span><span class="n">img</span><span class="o">.</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+                <span class="p">)</span> <span class="o">/</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([</span><span class="mf">0.229</span><span class="p">,</span> <span class="mf">0.224</span><span class="p">,</span> <span class="mf">0.225</span><span class="p">],</span> <span class="n">device</span><span class="o">=</span><span class="n">img</span><span class="o">.</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span>
+                <span class="s2">&quot;inference&quot;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">model</span><span class="p">,</span> <span class="n">images</span><span class="p">:</span> <span class="n">model</span><span class="p">(</span><span class="n">images</span><span class="p">),</span>
+            <span class="p">}</span>
+
+        <span class="c1"># List of Theia models</span>
+        <span class="n">theia_models</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="s2">&quot;theia-tiny-patch16-224-cddsv&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;theia-tiny-patch16-224-cdiv&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;theia-small-patch16-224-cdiv&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;theia-base-patch16-224-cdiv&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;theia-small-patch16-224-cddsv&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;theia-base-patch16-224-cddsv&quot;</span><span class="p">,</span>
+        <span class="p">]</span>
+
+        <span class="c1"># List of ResNet models</span>
+        <span class="n">resnet_models</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;resnet18&quot;</span><span class="p">,</span> <span class="s2">&quot;resnet34&quot;</span><span class="p">,</span> <span class="s2">&quot;resnet50&quot;</span><span class="p">,</span> <span class="s2">&quot;resnet101&quot;</span><span class="p">]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">default_model_zoo_cfg</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="c1"># Add Theia models to the zoo</span>
+        <span class="k">for</span> <span class="n">model_name</span> <span class="ow">in</span> <span class="n">theia_models</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">default_model_zoo_cfg</span><span class="p">[</span><span class="n">model_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">create_theia_model</span><span class="p">(</span><span class="n">model_name</span><span class="p">)</span>
+
+        <span class="c1"># Add ResNet models to the zoo</span>
+        <span class="k">for</span> <span class="n">resnet_name</span> <span class="ow">in</span> <span class="n">resnet_models</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">default_model_zoo_cfg</span><span class="p">[</span><span class="n">resnet_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">create_resnet_model</span><span class="p">(</span><span class="n">resnet_name</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">model_zoo_cfg</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_model_zoo_cfg</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">model_zoo</span> <span class="o">=</span> <span class="p">{}</span></div>
+
+    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span>
+        <span class="n">sensor_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span> <span class="o">=</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;tiled_camera&quot;</span><span class="p">),</span>
+        <span class="n">data_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;rgb&quot;</span><span class="p">,</span>
+        <span class="n">convert_perspective_to_orthogonal</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">model_zoo_cfg</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">model_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;ResNet18&quot;</span><span class="p">,</span>
+        <span class="n">model_device</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="s2">&quot;cuda:0&quot;</span><span class="p">,</span>
+        <span class="n">reset_model</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Extracted image features from a pre-trained frozen encoder.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            env: The environment.</span>
+<span class="sd">            sensor_cfg: The sensor configuration to poll. Defaults to SceneEntityCfg(&quot;tiled_camera&quot;).</span>
+<span class="sd">            data_type: THe sensor configuration datatype. Defaults to &quot;rgb&quot;.</span>
+<span class="sd">            convert_perspective_to_orthogonal: Whether to orthogonalize perspective depth images.</span>
+<span class="sd">                This is used only when the data type is &quot;distance_to_camera&quot;. Defaults to False.</span>
+<span class="sd">            model_zoo_cfg: Map from model name to model configuration dictionary. Each model</span>
+<span class="sd">                configuration dictionary should include the following entries:</span>
+<span class="sd">                - &quot;model&quot;: A callable that returns the model when invoked without arguments.</span>
+<span class="sd">                - &quot;preprocess&quot;: A callable that processes the images and returns the preprocessed results.</span>
+<span class="sd">                - &quot;inference&quot;: A callable that, when given the model and preprocessed images,</span>
+<span class="sd">                    returns the extracted features.</span>
+<span class="sd">            model_name: The name of the model to use for inference. Defaults to &quot;ResNet18&quot;.</span>
+<span class="sd">            model_device: The device to store and infer models on. This can be used help offload</span>
+<span class="sd">                computation from the main environment GPU. Defaults to &quot;cuda:0&quot;.</span>
+<span class="sd">            reset_model: Initialize the model even if it already exists. Defaults to False.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            torch.Tensor: the image features, on the same device as the image</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">model_zoo_cfg</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>  <span class="c1"># use other than default</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">model_zoo_cfg</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">model_zoo_cfg</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">model_name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_zoo</span> <span class="ow">or</span> <span class="n">reset_model</span><span class="p">:</span>
+            <span class="c1"># The following allows to only load a desired subset of a model zoo into GPU memory</span>
+            <span class="c1"># as it becomes needed, in a &quot;lazy&quot; evaluation.</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[INFO]: Adding </span><span class="si">{</span><span class="n">model_name</span><span class="si">}</span><span class="s2"> to the model zoo&quot;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">model_zoo</span><span class="p">[</span><span class="n">model_name</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_zoo_cfg</span><span class="p">[</span><span class="n">model_name</span><span class="p">][</span><span class="s2">&quot;model&quot;</span><span class="p">]()</span>
+
+        <span class="k">if</span> <span class="n">model_device</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_zoo</span><span class="p">[</span><span class="n">model_name</span><span class="p">]</span><span class="o">.</span><span class="n">device</span> <span class="o">!=</span> <span class="n">model_device</span><span class="p">:</span>
+            <span class="c1"># want to offload vision model inference to another device</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">model_zoo</span><span class="p">[</span><span class="n">model_name</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_zoo</span><span class="p">[</span><span class="n">model_name</span><span class="p">]</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">model_device</span><span class="p">)</span>
+
+        <span class="n">images</span> <span class="o">=</span> <span class="n">image</span><span class="p">(</span>
+            <span class="n">env</span><span class="o">=</span><span class="n">env</span><span class="p">,</span>
+            <span class="n">sensor_cfg</span><span class="o">=</span><span class="n">sensor_cfg</span><span class="p">,</span>
+            <span class="n">data_type</span><span class="o">=</span><span class="n">data_type</span><span class="p">,</span>
+            <span class="n">convert_perspective_to_orthogonal</span><span class="o">=</span><span class="n">convert_perspective_to_orthogonal</span><span class="p">,</span>
+            <span class="n">normalize</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>  <span class="c1"># want this for training stability</span>
+        <span class="p">)</span>
+
+        <span class="n">image_device</span> <span class="o">=</span> <span class="n">images</span><span class="o">.</span><span class="n">device</span>
+
+        <span class="k">if</span> <span class="n">model_device</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">images</span> <span class="o">=</span> <span class="n">images</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">model_device</span><span class="p">)</span>
+
+        <span class="n">proc_images</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_zoo_cfg</span><span class="p">[</span><span class="n">model_name</span><span class="p">][</span><span class="s2">&quot;preprocess&quot;</span><span class="p">](</span><span class="n">images</span><span class="p">)</span>
+        <span class="n">features</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_zoo_cfg</span><span class="p">[</span><span class="n">model_name</span><span class="p">][</span><span class="s2">&quot;inference&quot;</span><span class="p">](</span><span class="bp">self</span><span class="o">.</span><span class="n">model_zoo</span><span class="p">[</span><span class="n">model_name</span><span class="p">],</span> <span class="n">proc_images</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">features</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">image_device</span><span class="p">)</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span></div>
 
 
 <span class="sd">&quot;&quot;&quot;</span>
