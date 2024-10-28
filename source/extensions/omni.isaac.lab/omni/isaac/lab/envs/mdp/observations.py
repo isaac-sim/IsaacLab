@@ -400,9 +400,12 @@ class image_features(ManagerTermBase):
             print(f"[INFO]: Adding {model_name} to the model zoo")
             self.model_zoo[model_name] = self.model_zoo_cfg[model_name]["model"]()
 
-        if model_device is not None and self.model_zoo[model_name].device != model_device:
-            # want to offload vision model inference to another device
-            self.model_zoo[model_name] = self.model_zoo[model_name].to(model_device)
+        if model_device is not None:
+            # Check if the model is on the intended device by checking the device of its first parameter
+            current_device = next(self.model_zoo[model_name].parameters()).device
+            # Want to offload computation to another device...
+            if current_device != model_device:
+                self.model_zoo[model_name] = self.model_zoo[model_name].to(model_device)
 
         images = image(
             env=env,
