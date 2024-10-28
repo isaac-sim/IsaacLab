@@ -21,7 +21,6 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import torch
 import unittest
 
 import carb
