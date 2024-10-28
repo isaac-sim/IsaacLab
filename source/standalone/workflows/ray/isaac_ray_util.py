@@ -301,7 +301,7 @@ def add_resource_arguments(
         defaults: The default values for GPUs, CPUs, RAM, and Num Workers
         cluster_create_defaults: Set to true to populate reasonable defaults for creating clusters.
     Returns:
-        _description_
+        The argparser with the standard resource arguments.
     """
     if defaults is None:
         if cluster_create_defaults:

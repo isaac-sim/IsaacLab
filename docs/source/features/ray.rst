@@ -32,7 +32,7 @@ Both resource-wrapped and tuning aggregate jobs dispatch individual jobs to a de
 cluster, which leverages the cluster's resources (e.g., a single workstation node or multiple nodes)
 to execute these jobs with workers in parallel and/or sequentially. By default, aggregate jobs use all \
 available resources on each available GPU-enabled node for each sub-job worker. This can be changed through
-specifying the ``--num_workers_per_node`` argument, especially critical for parallel aggregate
+specifying the ``--num_workers`` argument, especially critical for parallel aggregate
 job processing on local or virtual multi-GPU machines
 
 In resource-wrapped aggregate jobs, each sub-job and its
@@ -57,7 +57,7 @@ sweep configuration. This assumes homogeneous node resource composition for node
 
 The following script can be used to submit aggregate
 jobs to one or more Ray cluster(s), which can be used for
-running jobs on a remote cluster or simultaneous jobs with hetereogeneous
+running jobs on a remote cluster or simultaneous jobs with heterogeneous
 resource requirements:
 
 .. dropdown:: source/standalone/workflows/ray/submit_isaac_ray_job.py (submitting aggregate jobs)
@@ -75,6 +75,17 @@ The following script can be used to extract KubeRay Cluster information for aggr
   .. literalinclude:: ../../../source/standalone/workflows/ray/grok_cluster_with_kubectl.py
     :language: python
     :emphasize-lines: 14-23
+
+The following script can be used to easily create clusters on Google GKE.
+
+.. dropdown:: source/standalone/workflows/ray/launch.py
+  :icon: code
+
+  .. literalinclude:: ../../../source/standalone/workflows/ray/launch.py
+    :language: python
+    :emphasize-lines: 14-44
+
+The following script can be used t
 
 **Installation**
 ----------------
@@ -164,7 +175,7 @@ Isaac SLURM support independent of Ray has been tested, unlike Ray SLURM.
 Provided that there is a Ray cluster running with a correct configuration, select one of the following guides
 that matches your Cluster configuration.
 
-Single-Node Ray Cluster (Local/VM)
+Single Ray Cluster (Local/VM)
 ''''''''''''''''''''''''''''''''''
 1.) Testing that the cluster works:
 
@@ -177,16 +188,20 @@ Single-Node Ray Cluster (Local/VM)
 .. code-block:: bash
 
   # Generic Templates-----------------------------------
+  ./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py -h
   # No resource isolation; no parallelization:
   ./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py
     --sub_jobs <JOB0>+<JOB1>+<JOB2>
-  # Automatic Resource Isolation; Option A: needed for parallelization
+  # Automatic Resource Isolation; Example A: needed for parallelization
   ./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py \
-	--num_workers_per_node <NUM_TO_DIVIDE_TOTAL_RESOURCES_BY> \
-	--jobs <JOB0>+<JOB1>
-  # Manual Resource Isolation; Option B:  needed for parallelization
-  ./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py --num_cpu_per_job <CPU> \
-	--num_gpu_per_job <GPU> --gb_ram_per_job <RAM> --jobs <JOB0>+<JOB1>
+	--num_workers <NUM_TO_DIVIDE_TOTAL_RESOURCES_BY> \
+	--sub_jobs <JOB0>+<JOB1>
+  # Manual Resource Isolation; Example B:  needed for parallelization
+  ./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py --num_cpu_per_worker <CPU> \
+	--gpu_per_worker <GPU> --ram_gb_per_worker <RAM> --sub_jobs <JOB0>+<JOB1>
+  # Manual Resource Isolation; Example C: Needed for parallelization, for heterogeneous workloads
+  ./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py --num_cpu_per_worker <CPU> \
+	--gpu_per_worker <GPU1> <GPU2> --ram_gb_per_worker <RAM> --sub_jobs <JOB0>+<JOB1>
 
   # Examples----------------------------------------
   # Two jobs, one after another
@@ -196,10 +211,18 @@ Single-Node Ray Cluster (Local/VM)
 
 .. code-block:: bash
 
+  # Example A:
   /isaaclab.sh -p source/standalone/workflows/ray/isaac_ray_tune.py \
 	--mode local
 	--cfg_file hyperparameter_tuning/vision_cartpole_cfg.py \
 	--cfg_class CartpoleRGBNoTuneJobCfg --storage_path ~/isaac_cartpole
+  # Example B: Resource Wrapped:
+  ./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py --num_cpu_per_job <CPU> \
+	--gpu_per_worker <GPU> --ram_gb_per_worker <RAM> \
+  --sub_jobs /isaaclab.sh -p source/standalone/workflows/ray/isaac_ray_tune.py \
+	--mode local
+	--cfg_file hyperparameter_tuning/vision_cartpole_cfg.py \
+	--cfg_class CartpoleRGBNoTuneJobCfg --storage_path ~/isaac_cartpol
 
 Multiple-Node Ray Cluster
 '''''''''''''''''''''''''
@@ -209,8 +232,24 @@ as well as functionality that is shared across both KubeRay and pure Ray cluster
 
 KubeRay Specific
 ~~~~~~~~~~~~~~~~
+`k9s <https://github.com/derailed/k9s>`_ is a great tool for monitoring your clusters.
 
-1.) Verify cluster access with ``kubectl cluster-info``
+1.) Verify cluster access, and that the correct operators are installed
+
+.. code-block:: bash
+  # Verify cluster access
+  kubectl cluster-info
+  # If using a manually managed cluster (not Autopilot or the like)
+  # verify that there are node pools
+  kubectl get nodes
+  # Check that the ray operator is installed on the cluster 
+  # should list rayclusters.ray.io , rayjobs.ray.io , and rayservices.ray.io
+  kubectl get crds | grep ray
+  # Check that the NVIDIA Driver Operator is installed on the cluster 
+  # should list clusterpolicies.nvidia.com
+  kubectl get crds | grep nvidia
+
+2.) Still being copied from README
 
 Multiple-Cluster Multiple-Node Ray
 ''''''''''''''''''''''''''''''''''
@@ -227,5 +266,5 @@ recreated! For KubeRay clusters, this can be done via
 
 .. code-block:: bash
 
-  kubectl get raycluster | egrep 'hyperparameter-tuner' | awk '{print $1}' | xargs kubectl delete raycluster
+  kubectl get raycluster | egrep 'isaacray' | awk '{print $1}' | xargs kubectl delete raycluster
   kubectl delete secret bucket-access

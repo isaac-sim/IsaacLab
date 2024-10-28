@@ -17,7 +17,7 @@ this script creates one worker per available node for each node with GPU(s) in t
 If the desired resources for each sub-job is specified,
 the maximum number of workers possible with the desired resources are created for each node
 with GPU(s) in the cluster. It is also possible to split available node resources for each node
-into the desired number of workers with the ``--num_workers_per_node`` flag, to be able to easily
+into the desired number of workers with the ``--num_workers`` flag, to be able to easily
 parallelize sub-jobs on multi-GPU nodes. Due to Isaac Lab requiring a GPU,
 this ignores all CPU only nodes such as loggers.
 
