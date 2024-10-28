@@ -408,7 +408,7 @@ class Articulation(AssetBase):
             physx_env_ids = self._ALL_INDICES
         # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
-        self._data.root_state_w[env_ids, 7:] = root_velocity.clone()
+        self._data.root_state_w[env_ids, 7:] = root_velocity
         self._data.body_acc_w[env_ids] = 0.0
         # set into simulation
         self.root_physx_view.set_root_velocities(self._data.root_state_w[:, 7:], indices=physx_env_ids)
@@ -463,7 +463,7 @@ class Articulation(AssetBase):
         self.set_joint_position_target(joint_state["position_target"], env_ids=env_ids)
         self.set_joint_velocity_target(joint_state["velocity_target"], env_ids=env_ids)
         self.set_joint_effort_target(joint_state["effort_target"], env_ids=env_ids)
-        self.write_data_to_sim()
+        # self.write_data_to_sim()
 
     def write_joint_stiffness_to_sim(
             self,

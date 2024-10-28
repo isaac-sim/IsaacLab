@@ -38,7 +38,7 @@ def spawn_sdf_kuka(
         orientation: tuple[float, float, float, float] | None = None,
 ) -> Usd.Prim:
     robot_prim = sim_utils.spawn_from_usd(prim_path, cfg, translation, orientation)
-    robot_path = prim_utils.get_prim_path(robot_prim)
+    # robot_path = prim_utils.get_prim_path(robot_prim)
     # collision_approximation = "sdf"
     # # collision_approximation = "convexDecomposition"
     # predicate = lambda path: "link_3/collisions" in path and "finger" in path
@@ -75,19 +75,7 @@ KUKA_VICTOR_LEFT_CFG = ArticulationCfg(
             "victor_left_arm_joint_5"        : -2.2058,
             "victor_left_arm_joint_6"        : 1.0290,
             "victor_left_arm_joint_7"        : 0.42154,
-            # # gripper finger states
-            # "victor_left_finger_a_joint_1": 0.890168571428571,
-            # "victor_left_finger_a_joint_2": 0,
-            # "victor_left_finger_a_joint_3": -0.8901685714285714,
-            # "victor_left_finger_b_joint_1": 0.890168571428571,
-            # "victor_left_finger_b_joint_2": 0,
-            # "victor_left_finger_b_joint_3": -0.8901685714285714,
-            # "victor_left_finger_c_joint_1": 0.890168571428571,
-            # "victor_left_finger_c_joint_2": 0,
-            # "victor_left_finger_c_joint_3": -0.8901685714285714,
-            # # gripper scissors states
-            # "victor_left_palm_finger_b_joint": 0.115940392156862,
-            # "victor_left_palm_finger_c_joint": -0.11594039215686275,
+
             "victor_left_finger_a_joint_1"   : 0.73443,
             "victor_left_finger_a_joint_2"   : 0,
             "victor_left_finger_a_joint_3"   : -0.73443,

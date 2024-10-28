@@ -78,16 +78,20 @@ class reset_scene_to_grasp_state(ManagerTermBase):
             cached_grasp_state = SmartDict(cached_grasp_state).to_tensor(device=env.device)
             self.cached_grasp_state = cached_grasp_state.apply(lambda x: repeat(x, "1 ... -> n ...", n=env.num_envs).clone())
 
-    def __call__(self, env: ManagerBasedEnv, env_ids: torch.Tensor, reset_target: str):
+    def __call__(self, env: ManagerBasedEnv, env_ids: torch.Tensor, 
+                 static_friction: float, dynamic_friction: float,
+                 reset_target: str):
+        # return
         # robot = env.unwrapped.scene["robot"]
         # robot_material = robot.root_physx_view.get_material_properties()
-        # robot_material[..., 0] = 2
-        # robot_material[..., 1] = 2
+        # robot_material[..., 0] = static_friction
+        # robot_material[..., 1] = dynamic_friction
         # robot.root_physx_view.set_material_properties(robot_material, torch.arange(env.scene.num_envs, device="cpu"))
-        if reset_target == "pre_grasp":
-            env.unwrapped.write_state(self.cached_pre_grasp_state[env_ids].clone(), env_ids)
-        elif reset_target == "grasp":
-            env.unwrapped.write_state(self.cached_grasp_state[env_ids].clone(), env_ids)
+        # if reset_target == "pre_grasp":
+        #     env.unwrapped.write_state(self.cached_pre_grasp_state[env_ids].clone(), env_ids)
+        # elif reset_target == "grasp":
+        #     env.unwrapped.write_state(self.cached_grasp_state[env_ids].clone(), env_ids)
+        env.unwrapped.write_state(self.cached_grasp_state[env_ids].clone(), env_ids)
 
 @configclass
 class EventCfg:
@@ -139,6 +143,9 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         robot_params.compliant_contact_damping = robot_params.get("compliant_contact_damping", 0.)
         robot_params.arm_stiffness = robot_params.get("arm_stiffness", 300.0)
         robot_params.arm_damping = robot_params.get("arm_damping", 100.0)
+        robot_params.gripper_stiffness = robot_params.get("gripper_stiffness", 2e2)
+        robot_params.gripper_damping = robot_params.get("gripper_damping", 1e2)
+        robot_params.gripper_effort_limit = robot_params.get("gripper_effort_limit", 200.0)
         
         action_params = self.params.actions
         action_params.ik_lambda = action_params.get("ik_lambda", 0.1)
@@ -180,7 +187,9 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         robot.actuators["victor_left_arm"].stiffness = robot_params.arm_stiffness
         robot.actuators["victor_left_arm"].damping = robot_params.arm_damping
         robot.actuators["victor_left_gripper"].velocity_limit = 1
-        
+        robot.actuators["victor_left_gripper"].effort_limit = robot_params.gripper_effort_limit
+        robot.actuators["victor_left_gripper"].stiffness = robot_params.gripper_stiffness
+        robot.actuators["victor_left_gripper"].damping = robot_params.gripper_damping
         # action
         action_params = self.params.actions
         arm_lows = [-0.001, -0.001, -0.015, -0.01, -0.01, -0.8]
@@ -224,7 +233,9 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         self.events = EventCfg()
         self.events.reset_default = EventTerm(
             func=reset_scene_to_grasp_state,
-            params={"reset_target": self.params.events.reset_target},
+            params={"reset_target": self.params.events.reset_target,
+                    "static_friction": robot_params.static_friction,
+                    "dynamic_friction": robot_params.dynamic_friction},
             mode="reset",
         )
         
