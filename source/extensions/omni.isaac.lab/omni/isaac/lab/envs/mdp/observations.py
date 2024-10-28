@@ -364,7 +364,7 @@ class image_features(ManagerTermBase):
                 - "preprocess": A callable that processes the images and returns the preprocessed results.
                 - "inference": A callable that, when given the model and preprocessed images,
                     returns the extracted features.
-            model_name: The model to use for inference. Defaults to "ResNet18".
+            model_name: The name of the model to use for inference. Defaults to "ResNet18".
             model_device: The device to store and infer models on. This can be used help offload
                 computation from the main environment GPU. Defaults to "cuda:0".
             reset_model: Initialize the model even if it already exists. Defaults to False.
