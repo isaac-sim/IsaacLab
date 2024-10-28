@@ -28,6 +28,7 @@ Guidelines for modifications:
 * Mayank Mittal
 * Nikita Rudin
 * Pascal Roth
+* Sheikh Dawood
 
 ## Contributors
 
@@ -41,9 +42,11 @@ Guidelines for modifications:
 * Calvin Yu
 * Chenyu Yang
 * David Yang
+* Dorsa Rohani
 * Gary Lvov
 * Giulio Romualdi
 * HoJin Jeon
+* Jan Kerner
 * Jean Tampon
 * Jia Lin Yuan
 * Jingzhou Liu
@@ -51,6 +54,7 @@ Guidelines for modifications:
 * Kaixi Bao
 * Kourosh Darvish
 * Lionel Gulich
+* Louis Le Lay
 * Lorenz Wellhausen
 * Masoud Moghani
 * Michael Gussert
@@ -69,6 +73,7 @@ Guidelines for modifications:
 * Zhengyu Zhang
 * Ziqi Fan
 * Qian Wan
+* Wei Yang
 
 ## Acknowledgements
 

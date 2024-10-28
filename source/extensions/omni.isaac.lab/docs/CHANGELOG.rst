@@ -1,6 +1,102 @@
 Changelog
 ---------
 
+0.27.5 (2024-10-25)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added utilities for serializing/deserializing Gymnasium spaces.
+
+
+0.27.4 (2024-10-18)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Updated installation path instructions for Windows in the Isaac Lab documentation to remove redundancy in the use of %USERPROFILE% for path definitions.
+
+
+0.27.3 (2024-10-22)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the issue with using list or tuples of ``configclass`` within a ``configclass``. Earlier, the list of
+  configclass objects were not converted to dictionary properly when ``to_dict`` function was called.
+
+
+0.27.2 (2024-10-21)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``--kit_args`` to :class:`~omni.isaac.lab.app.AppLauncher` to allow passing command line arguments directly to Omniverse Kit SDK.
+
+
+0.27.1 (2024-10-20)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~omni.isaac.lab.sim.RenderCfg` and the attribute :attr:`~omni.isaac.lab.sim.SimulationCfg.render` for
+  specifying render related settings.
+
+
+0.27.0 (2024-10-14)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a method to :class:`~omni.isaac.lab.utils.configclass` to check for attributes with values of
+  type ``MISSING``. This is useful when the user wants to check if a certain attribute has been set or not.
+* Added the configuration validation check inside the constructor of all the core classes
+  (such as sensor base, asset base, scene and environment base classes).
+* Added support for environments without commands by leaving the attribute
+  :attr:`omni.isaac.lab.envs.ManagerBasedRLEnvCfg.commands` as None. Before, this had to be done using
+  the class :class:`omni.isaac.lab.command_generators.NullCommandGenerator`.
+* Moved the ``meshes`` attribute in the :class:`omni.isaac.lab.sensors.RayCaster` class from class variable to instance variable.
+   This prevents the meshes to overwrite each other.
+
+
+0.26.0 (2024-10-16)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added Imu sensor implementation that directly accesses the physx view :class:`omni.isaac.lab.sensors.Imu`. The
+  sensor comes with a configuration class :class:`omni.isaac.lab.sensors.ImuCfg` and data class
+  :class:`omni.isaac.lab.sensors.ImuData`.
+* Moved and renamed :meth:`omni.isaac.lab.sensors.camera.utils.convert_orientation_convention` to :meth:`omni.isaac.lab.utils.math.convert_camera_frame_orientation_convention`
+* Moved :meth:`omni.isaac.lab.sensors.camera.utils.create_rotation_matrix_from_view` to :meth:`omni.isaac.lab.utils.math.create_rotation_matrix_from_view`
+
+
+0.25.2 (2024-10-16)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added support for different Gymnasium spaces (``Box``, ``Discrete``, ``MultiDiscrete``, ``Tuple`` and ``Dict``)
+  to define observation, action and state spaces in the direct workflow.
+* Added :meth:`sample_space` to environment utils to sample supported spaces where data containers are torch tensors.
+
+Changed
+^^^^^^^
+
+* Mark the :attr:`num_observations`, :attr:`num_actions` and :attr:`num_states` in :class:`DirectRLEnvCfg` as deprecated
+  in favor of :attr:`observation_space`, :attr:`action_space` and :attr:`state_space` respectively.
+* Mark the :attr:`num_observations`, :attr:`num_actions` and :attr:`num_states` in :class:`DirectMARLEnvCfg` as deprecated
+  in favor of :attr:`observation_spaces`, :attr:`action_spaces` and :attr:`state_space` respectively.
+
+
 0.25.1 (2024-10-10)
 ~~~~~~~~~~~~~~~~~~~
 
