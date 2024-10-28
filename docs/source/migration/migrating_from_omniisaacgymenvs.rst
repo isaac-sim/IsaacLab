@@ -638,7 +638,7 @@ Adding actors to the scene has been replaced by ``self.scene.articulations["cart
 |         reset_xform_properties=False                      |         copy_from_source=False)                          |
 |     )                                                     |     self.scene.filter_collisions(                        |
 |     scene.add(self._cartpoles)                            |         global_prim_paths=[])                            |
-|     return                                                |     # add articulation to scene                           |
+|     return                                                |     # add articulation to scene                          |
 |                                                           |     self.scene.articulations["cartpole"] = self.cartpole |
 | def get_cartpole(self):                                   |                                                          |
 |     cartpole = Cartpole(                                  |     # add lights                                         |
