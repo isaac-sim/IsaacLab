@@ -1190,10 +1190,11 @@ class Articulation(AssetBase):
         # parse fixed tendons properties if they exist
         if self.num_fixed_tendons > 0:
             stage = stage_utils.get_current_stage()
+            dof_paths = self.root_physx_view.dof_paths
 
             # iterate over all joints to find tendons attached to them
             for j in range(self.num_joints):
-                usd_joint_path = self.root_physx_view.dof_paths[0][j]
+                usd_joint_path = dof_paths[0][j]
                 # check whether joint has tendons - tendon name follows the joint name it is attached to
                 joint = UsdPhysics.Joint.Get(stage, usd_joint_path)
                 if joint.GetPrim().HasAPI(PhysxSchema.PhysxTendonAxisRootAPI):
