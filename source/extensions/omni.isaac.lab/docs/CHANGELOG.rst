@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+0.27.6 (2024-10-28)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added sanity check if command term is valid type.
+
 0.27.5 (2024-10-25)
 ~~~~~~~~~~~~~~~~~~~
 
