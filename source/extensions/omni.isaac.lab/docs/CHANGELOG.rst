@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+0.27.8 (2024-10-30)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Cache PhysX view's DOF paths before looping when processing fixed articulation tendons.
+
 
 0.27.7 (2024-10-28)
 ~~~~~~~~~~~~~~~~~~~
