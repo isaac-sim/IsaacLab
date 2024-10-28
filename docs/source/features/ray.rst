@@ -242,10 +242,10 @@ KubeRay Specific
   # If using a manually managed cluster (not Autopilot or the like)
   # verify that there are node pools
   kubectl get nodes
-  # Check that the ray operator is installed on the cluster 
+  # Check that the ray operator is installed on the cluster
   # should list rayclusters.ray.io , rayjobs.ray.io , and rayservices.ray.io
   kubectl get crds | grep ray
-  # Check that the NVIDIA Driver Operator is installed on the cluster 
+  # Check that the NVIDIA Driver Operator is installed on the cluster
   # should list clusterpolicies.nvidia.com
   kubectl get crds | grep nvidia
 

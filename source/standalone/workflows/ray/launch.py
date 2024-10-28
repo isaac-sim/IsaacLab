@@ -15,7 +15,7 @@ from kubernetes import config
 """This script helps create one or more KubeRay clusters.
 
 This script assumes that there is an existing secret that provides credentials
-to access cloud storage. This secret could be created with 
+to access cloud storage. This secret could be created with
 
 .. code-block:: bash
     gcloud auth login # https://cloud.google.com/sdk/docs/install
