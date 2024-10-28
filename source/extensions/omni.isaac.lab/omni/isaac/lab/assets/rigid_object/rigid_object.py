@@ -241,6 +241,7 @@ class RigidObject(AssetBase):
             physx_env_ids = self._ALL_INDICES
         # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
+        # self._data.root_state_w[env_ids, :7].copy_(root_pose)
         self._data.root_state_w[env_ids, :7] = root_pose
         # convert root quaternion from wxyz to xyzw
         root_poses_xyzw = self._data.root_state_w[:, :7]
@@ -262,7 +263,8 @@ class RigidObject(AssetBase):
             physx_env_ids = self._ALL_INDICES
         # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
-        self._data.root_state_w[env_ids, 7:] = root_velocity.clone()
+        # self._data.root_state_w[env_ids, 7:].copy_(root_velocity)
+        self._data.root_state_w[env_ids, 7:] = root_velocity
         self._data.body_acc_w[env_ids] = 0.0
         # set into simulation
         self.root_physx_view.set_velocities(self._data.root_state_w[:, 7:], indices=physx_env_ids)

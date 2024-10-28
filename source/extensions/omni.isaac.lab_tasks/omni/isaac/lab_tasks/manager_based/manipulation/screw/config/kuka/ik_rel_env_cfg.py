@@ -91,7 +91,7 @@ class reset_scene_to_grasp_state(ManagerTermBase):
         #     env.unwrapped.write_state(self.cached_pre_grasp_state[env_ids].clone(), env_ids)
         # elif reset_target == "grasp":
         #     env.unwrapped.write_state(self.cached_grasp_state[env_ids].clone(), env_ids)
-        env.unwrapped.write_state(self.cached_grasp_state[env_ids].clone(), env_ids)
+        env.unwrapped.write_state(self.cached_grasp_state[env_ids], env_ids)
 
 @configclass
 class EventCfg:
