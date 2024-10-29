@@ -4,14 +4,14 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """
-Script to run an environment with a pick, lift and place state machine.
+Script to run an environment with a pick and lift state machine.
 
 The state machine is implemented in the kernel function `infer_state_machine`.
 It uses the `warp` library to run the state machine in parallel on the GPU.
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p source/standalone/environments/state_machine/lift_and_place_cube.py --num_envs 32
+    ./isaaclab.sh -p source/standalone/environments/state_machine/lift_cube_sm.py --num_envs 32
 
 """
 
@@ -22,7 +22,7 @@ import argparse
 from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
-parser = argparse.ArgumentParser(description="Pick, lift and place state machine for lift environments.")
+parser = argparse.ArgumentParser(description="Pick and lift state machine for lift environments.")
 parser.add_argument(
     "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
 )
@@ -69,9 +69,6 @@ class PickSmState:
     APPROACH_OBJECT = wp.constant(2)
     GRASP_OBJECT = wp.constant(3)
     LIFT_OBJECT = wp.constant(4)
-    APPROACH_ABOVE_PLACE_POSITION = wp.constant(5)
-    APPROACH_PLACE_POSITION = wp.constant(6)
-    PLACE_OBJECT = wp.constant(7)
 
 
 class PickSmWaitTime:
@@ -82,9 +79,6 @@ class PickSmWaitTime:
     APPROACH_OBJECT = wp.constant(0.6)
     GRASP_OBJECT = wp.constant(0.3)
     LIFT_OBJECT = wp.constant(1.0)
-    APPROACH_ABOVE_PLACE_POSITION = wp.constant(0.5)
-    APPROACH_PLACE_POSITION = wp.constant(0.6)
-    PLACE_OBJECT = wp.constant(0.3)
 
 
 @wp.kernel
@@ -95,8 +89,6 @@ def infer_state_machine(
     ee_pose: wp.array(dtype=wp.transform),
     object_pose: wp.array(dtype=wp.transform),
     des_object_pose: wp.array(dtype=wp.transform),
-    place_pose: wp.array(dtype=wp.transform),
-    des_place_pose: wp.array(dtype=wp.transform),
     des_ee_pose: wp.array(dtype=wp.transform),
     gripper_state: wp.array(dtype=float),
     offset: wp.array(dtype=wp.transform),
@@ -147,42 +139,14 @@ def infer_state_machine(
         # wait for a while
         if sm_wait_time[tid] >= PickSmWaitTime.LIFT_OBJECT:
             # move to next state and reset wait time
-            sm_state[tid] = PickSmState.APPROACH_ABOVE_PLACE_POSITION
+            sm_state[tid] = PickSmState.LIFT_OBJECT
             sm_wait_time[tid] = 0.0
-    elif state == PickSmState.APPROACH_ABOVE_PLACE_POSITION:
-        des_ee_pose[tid] = wp.transform_multiply(offset[tid], place_pose[tid])
-        gripper_state[tid] = GripperState.CLOSE
-
-        if sm_wait_time[tid] >= PickSmWaitTime.APPROACH_ABOVE_PLACE_POSITION:
-            # move to next state and reset wait time
-            sm_state[tid] = PickSmState.APPROACH_PLACE_POSITION
-            sm_wait_time[tid] = 0.0
-    elif state == PickSmState.APPROACH_PLACE_POSITION:
-        des_ee_pose[tid] = des_place_pose[tid]
-        gripper_state[tid] = GripperState.CLOSE
-        # TODO: error between current and desired ee pose below threshold
-        # wait for a while
-        if sm_wait_time[tid] >= PickSmWaitTime.APPROACH_PLACE_POSITION:
-            # move to next state and reset wait time
-            sm_state[tid] = PickSmState.PLACE_OBJECT # or PickSmState.REST
-            sm_wait_time[tid] = 0.0
-    elif state == PickSmState.PLACE_OBJECT:
-        des_ee_pose[tid] = des_place_pose[tid]
-        gripper_state[tid] = GripperState.OPEN
-        # TODO: error between current and desired ee pose below threshold
-        # wait for a while
-        if sm_wait_time[tid] >= PickSmWaitTime.PLACE_OBJECT:
-            # move to next state and reset wait time
-            sm_state[tid] = PickSmState.PLACE_OBJECT
-            sm_wait_time[tid] = 0.0
-
-
     # increment wait time
     sm_wait_time[tid] = sm_wait_time[tid] + dt[tid]
 
 
 class PickAndLiftSm:
-    """A simple state machine in a robot's task space to pick, lift and place an object.
+    """A simple state machine in a robot's task space to pick and lift an object.
 
     The state machine is implemented as a warp kernel. It takes in the current state of
     the robot's end-effector and the object, and outputs the desired state of the robot's
@@ -194,9 +158,6 @@ class PickAndLiftSm:
     3. APPROACH_OBJECT: The robot moves to the object.
     4. GRASP_OBJECT: The robot grasps the object.
     5. LIFT_OBJECT: The robot lifts the object to the desired pose. This is the final state.
-    6. APPROACH_ABOVE_PLACE_POSITION: The robot moves above the place position.
-    7. APPROACH_PLACE_POSITION: The robot moves to the place position.
-    8. PLACE_OBJECT: The robot drops the object.
     """
 
     def __init__(self, dt: float, num_envs: int, device: torch.device | str = "cpu"):
@@ -240,21 +201,17 @@ class PickAndLiftSm:
         self.sm_state[env_ids] = 0
         self.sm_wait_time[env_ids] = 0.0
 
-    def compute(self, ee_pose: torch.Tensor, object_pose: torch.Tensor, des_object_pose: torch.Tensor, place_pose: torch.Tensor, des_place_pose: torch.Tensor):
+    def compute(self, ee_pose: torch.Tensor, object_pose: torch.Tensor, des_object_pose: torch.Tensor):
         """Compute the desired state of the robot's end-effector and the gripper."""
         # convert all transformations from (w, x, y, z) to (x, y, z, w)
         ee_pose = ee_pose[:, [0, 1, 2, 4, 5, 6, 3]]
         object_pose = object_pose[:, [0, 1, 2, 4, 5, 6, 3]]
         des_object_pose = des_object_pose[:, [0, 1, 2, 4, 5, 6, 3]]
-        place_pose = place_pose[:, [0, 1, 2, 4, 5, 6, 3]]
-        des_place_pose = des_place_pose[:, [0, 1, 2, 4, 5, 6, 3]]
 
         # convert to warp
         ee_pose_wp = wp.from_torch(ee_pose.contiguous(), wp.transform)
         object_pose_wp = wp.from_torch(object_pose.contiguous(), wp.transform)
         des_object_pose_wp = wp.from_torch(des_object_pose.contiguous(), wp.transform)
-        place_pose_wp = wp.from_torch(place_pose.contiguous(), wp.transform)
-        des_place_pose_wp = wp.from_torch(des_place_pose.contiguous(), wp.transform)
 
         # run state machine
         wp.launch(
@@ -267,8 +224,6 @@ class PickAndLiftSm:
                 ee_pose_wp,
                 object_pose_wp,
                 des_object_pose_wp,
-                place_pose_wp,
-                des_place_pose_wp,
                 self.des_ee_pose_wp,
                 self.des_gripper_state_wp,
                 self.offset_wp,
@@ -297,7 +252,7 @@ def main():
 
     # create action buffers (position + quaternion)
     actions = torch.zeros(env.unwrapped.action_space.shape, device=env.unwrapped.device)
-    actions[:, 4] = 1.0
+    actions[:, 3] = 1.0
     # desired object orientation (we only do position control of object)
     desired_orientation = torch.zeros((env.unwrapped.num_envs, 4), device=env.unwrapped.device)
     desired_orientation[:, 1] = 1.0
@@ -320,15 +275,12 @@ def main():
             object_position = object_data.root_pos_w - env.unwrapped.scene.env_origins
             # -- target object frame
             desired_position = env.unwrapped.command_manager.get_command("object_pose")[..., :3]
-            desired_place_position = env.unwrapped.command_manager.get_command("place_pose")[..., :3]
 
             # advance state machine
             actions = pick_sm.compute(
                 torch.cat([tcp_rest_position, tcp_rest_orientation], dim=-1),
                 torch.cat([object_position, desired_orientation], dim=-1),
                 torch.cat([desired_position, desired_orientation], dim=-1),
-                torch.cat([desired_place_position, desired_orientation], dim=-1),
-                torch.cat([desired_place_position, desired_orientation], dim=-1),
             )
 
             # reset state machine
