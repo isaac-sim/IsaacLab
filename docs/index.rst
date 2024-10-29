@@ -74,7 +74,9 @@ Table of Contents
    :maxdepth: 2
    :caption: Getting Started
 
+   source/setup/ecosystem
    source/setup/installation/index
+   source/setup/installation/cloud_installation
    source/setup/faq
 
 .. toctree::
