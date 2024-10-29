@@ -1,4 +1,3 @@
-# This dockerfile only works because of Felix Yu's help #TODO: Add Felix to contributors list
 FROM isaac-lab-base:latest
 ENV PATH="/usr/local/nvidia/bin:$PATH"
 ENV LD_LIBRARY_PATH="/usr/local/nvidia/lib64"
