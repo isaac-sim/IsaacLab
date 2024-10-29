@@ -70,8 +70,8 @@ class PickSmState:
     GRASP_OBJECT = wp.constant(3)
     LIFT_OBJECT = wp.constant(4)
     APPROACH_PLACE_POSITION = wp.constant(5)
-    APPROACH_DROP = wp.constant(6)
-    PLACE_OBJECT = wp.constant(7)
+    PLACE_OBJECT = wp.constant(6)
+    DROP_OBJECT = wp.constant(7)
 
 
 class PickSmWaitTime:
@@ -82,10 +82,9 @@ class PickSmWaitTime:
     APPROACH_OBJECT = wp.constant(0.6)
     GRASP_OBJECT = wp.constant(0.3)
     LIFT_OBJECT = wp.constant(1.0)
-    APPROACH_PLACE_POSITION = wp.constant(1.0) 
-    APPROACH_DROP = wp.constant(0.6)
-    PLACE_OBJECT = wp.constant(0.5)
-
+    APPROACH_PLACE_POSITION = wp.constant(0.5)
+    PLACE_OBJECT = wp.constant(0.6)
+    DROP_OBJECT = wp.constant(0.3)
 
 
 @wp.kernel
@@ -151,21 +150,12 @@ def infer_state_machine(
             sm_state[tid] = PickSmState.APPROACH_PLACE_POSITION
             sm_wait_time[tid] = 0.0
 
+    # approach place position
     elif state == PickSmState.APPROACH_PLACE_POSITION:
-        des_ee_pose[tid] = wp.transform_multiply(offset[tid], object_pose[tid])
+        des_ee_pose[tid] = wp.transform_multiply(offset[tid], place_pose[tid])
         gripper_state[tid] = GripperState.CLOSE
-        # TODO: error between current and desired ee pose below threshold
-        # wait for a while
+
         if sm_wait_time[tid] >= PickSmWaitTime.APPROACH_PLACE_POSITION:
-            # move to next state and reset wait time
-            sm_state[tid] = PickSmState.APPROACH_DROP
-            sm_wait_time[tid] = 0.0
-    elif state == PickSmState.APPROACH_DROP:
-        des_ee_pose[tid] = object_pose[tid]
-        gripper_state[tid] = GripperState.CLOSE
-        # TODO: error between current and desired ee pose below threshold
-        # wait for a while
-        if sm_wait_time[tid] >= PickSmWaitTime.APPROACH_DROP:
             # move to next state and reset wait time
             sm_state[tid] = PickSmState.PLACE_OBJECT
             sm_wait_time[tid] = 0.0
@@ -178,8 +168,17 @@ def infer_state_machine(
         # wait for a while
         if sm_wait_time[tid] >= PickSmWaitTime.PLACE_OBJECT:
             # move to next state and reset wait time
-            gripper_state[tid] = GripperState.OPEN
-            sm_state[tid] = PickSmState.PLACE_OBJECT # or PickSmState.REST
+            sm_state[tid] = PickSmState.DROP_OBJECT # or PickSmState.REST
+            sm_wait_time[tid] = 0.0
+
+    elif state == PickSmState.DROP_OBJECT:
+        des_ee_pose[tid] = des_place_pose[tid]
+        gripper_state[tid] = GripperState.OPEN
+        # TODO: error between current and desired ee pose below threshold
+        # wait for a while
+        if sm_wait_time[tid] >= PickSmWaitTime.DROP_OBJECT:
+            # move to next state and reset wait time
+            sm_state[tid] = PickSmState.DROP_OBJECT
             sm_wait_time[tid] = 0.0
 
 
@@ -225,7 +224,7 @@ class PickAndLiftSm:
 
         # approach above object offset
         self.offset = torch.zeros((self.num_envs, 7), device=self.device)
-        self.offset[:, 2] = 0.05
+        self.offset[:, 2] = 0.1
         self.offset[:, -1] = 1.0  # warp expects quaternion as (x, y, z, w)
 
         # convert to warp
@@ -330,7 +329,7 @@ def main():
                 torch.cat([tcp_rest_position, tcp_rest_orientation], dim=-1),
                 torch.cat([object_position, desired_orientation], dim=-1),
                 torch.cat([desired_position, desired_orientation], dim=-1),
-                torch.cat([tcp_rest_position, desired_orientation], dim=-1),
+                torch.cat([desired_place_position, desired_orientation], dim=-1),
                 torch.cat([desired_place_position, desired_orientation], dim=-1),
             )
 

@@ -18,11 +18,49 @@ if TYPE_CHECKING:
 
 
 def object_is_lifted(
-    env: ManagerBasedRLEnv, minimal_height: float, object_cfg: SceneEntityCfg = SceneEntityCfg("object")
+    env: ManagerBasedRLEnv, minimal_height: float, maximal_height: float, object_cfg: SceneEntityCfg = SceneEntityCfg("object")
 ) -> torch.Tensor:
     """Reward the agent for lifting the object above the minimal height."""
     object: RigidObject = env.scene[object_cfg.name]
-    return torch.where(object.data.root_pos_w[:, 2] > minimal_height, 1.0, 0.0)
+    return torch.where((object.data.root_pos_w[:, 2] > minimal_height) & (object.data.root_pos_w[:, 2] < maximal_height), 1.0, 0.0)
+
+def object_is_placed(
+    env: ManagerBasedRLEnv, 
+    distance_threshold: float,
+    height_threshold: float,
+    object_cfg: SceneEntityCfg = SceneEntityCfg("object")
+) -> torch.Tensor:
+    """Reward the agent for placing the object at the target position.
+    
+    Args:
+        env: Environment instance
+        distance_threshold: Maximum allowed xy-distance from target
+        height_threshold: Maximum allowed height difference from target
+        object_cfg: Object configuration
+        
+    Returns:
+        Binary reward tensor (1.0 for successful placement, 0.0 otherwise)
+    """
+    # Get object and target information
+    object: RigidObject = env.scene[object_cfg.name]
+    place_command = env.command_manager.get_command("place_pose")
+    
+    # Get positions
+    object_pos = object.data.root_pos_w
+    target_pos = place_command[:, :3]
+    
+    # Check xy-distance to target
+    xy_distance = torch.norm(object_pos[:, :2] - target_pos[:, :2], dim=1)
+    
+    # Check height difference
+    height_diff = torch.abs(object_pos[:, 2] - target_pos[:, 2])
+    
+    # Return 1.0 if within thresholds, 0.0 otherwise
+    return torch.where(
+        (xy_distance < distance_threshold) & (height_diff < height_threshold),
+        1.0,
+        0.0
+    )
 
 
 def object_ee_distance(
@@ -49,6 +87,7 @@ def object_goal_distance(
     env: ManagerBasedRLEnv,
     std: float,
     minimal_height: float,
+    maximal_height: float,
     command_name: str,
     robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
     object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
@@ -64,4 +103,13 @@ def object_goal_distance(
     # distance of the end-effector to the object: (num_envs,)
     distance = torch.norm(des_pos_w - object.data.root_pos_w[:, :3], dim=1)
     # rewarded if the object is lifted above the threshold
-    return (object.data.root_pos_w[:, 2] > minimal_height) * (1 - torch.tanh(distance / std))
+    
+    if command_name == "object_pose":
+        # for lifting - reward when above minimal height
+        return ((object.data.root_pos_w[:, 2] > minimal_height) & (object.data.root_pos_w[:, 2] < maximal_height)) * (1 - torch.tanh(distance / std))
+    elif command_name == "place_pose":
+        # for placing - reward getting close to place position
+        target_height = des_pos_w[:, 2]  # Get height from command
+        height_diff = torch.abs(object.data.root_pos_w[:, 2] - target_height)
+        return 1 - torch.tanh((distance + height_diff) / std)
+
