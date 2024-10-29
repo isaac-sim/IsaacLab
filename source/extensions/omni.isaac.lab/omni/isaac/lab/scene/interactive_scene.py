@@ -503,7 +503,7 @@ class InteractiveScene:
                 raise ValueError(f"Unknown asset config type for {asset_name}: {asset_cfg}")
 
             # store prims in collision groups
-            if hasattr(asset_cfg, "collision_group"):
+            if isinstance(asset_cfg, AssetBaseCfg):
                 if asset_cfg.collision_group == -1:
                     asset_paths = sim_utils.find_matching_prim_paths(asset_cfg.prim_path)
                     self._collision_groups["global"] += asset_paths
