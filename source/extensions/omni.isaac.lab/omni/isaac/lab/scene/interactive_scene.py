@@ -341,6 +341,38 @@ class InteractiveScene:
         """
         return self._extras
 
+    @property
+    def state(self) -> dict[str, dict[str, torch.Tensor]]:
+        """Returns the state of the scene entities.
+
+        Returns:
+            A dictionary of the state of the scene entities.
+        """
+        return self.get_state(is_relative=False)
+
+    def get_state(self, is_relative: bool = False) -> dict[str, dict[str, torch.Tensor]]:
+        """Returns the state of the scene entities.
+
+        Returns:
+            A dictionary of the state of the scene entities.
+        """
+        state = dict()
+        # -- assets
+        state["articulation"] = dict()
+        for asset_name, articulation in self._articulations.items():
+            state["articulation"][asset_name] = articulation.data.joint_pos.clone()
+        state["deformable_object"] = dict()
+        for asset_name, deformable_object in self._deformable_objects.items():
+            state["deformable_object"][asset_name] = deformable_object.data.root_state_w.clone()
+            if is_relative:
+                state["deformable_object"][asset_name][:, 0:3] -= self.env_origins
+        state["rigid_object"] = dict()
+        for asset_name, rigid_object in self._rigid_objects.items():
+            state["rigid_object"][asset_name] = rigid_object.data.root_state_w.clone()
+            if is_relative:
+                state["rigid_object"][asset_name][:, 0:3] -= self.env_origins
+        return state
+
     """
     Operations.
     """
@@ -364,6 +396,37 @@ class InteractiveScene:
         # -- sensors
         for sensor in self._sensors.values():
             sensor.reset(env_ids)
+
+    def reset_to(
+        self, state: dict[str, dict[str, torch.Tensor]], env_ids: Sequence[int] | None = None, is_relative: bool = False
+    ):
+        """Resets the scene entities to the given state.
+
+        Args:
+            state: The state to reset the scene entities to.
+            env_ids: The indices of the environments to reset.
+                Defaults to None (all instances).
+            is_relative: If set to True, the state is considered relative to the environment origins.
+        """
+        if env_ids is None:
+            env_ids = slice(None)
+        # -- assets
+        for asset_name, articulation in self._articulations.items():
+            joint_position = torch.Tensor(state["articulation"][asset_name])
+            articulation.write_joint_state_to_sim(joint_position, torch.zeros_like(joint_position), env_ids=env_ids)
+            articulation.set_joint_position_target(joint_position, env_ids=env_ids)
+            articulation.set_joint_velocity_target(torch.zeros_like(joint_position), env_ids=env_ids)
+        for asset_name, deformable_object in self._deformable_objects.items():
+            asset_state = state["deformable_object"][asset_name]
+            if is_relative:
+                asset_state[:, 0:3] += self.env_origins[env_ids]
+            deformable_object.write_root_state_to_sim(asset_state, env_ids=env_ids)
+        for asset_name, rigid_object in self._rigid_objects.items():
+            asset_state = state["rigid_object"][asset_name]
+            if is_relative:
+                asset_state[:, 0:3] += self.env_origins[env_ids]
+            rigid_object.write_root_state_to_sim(asset_state, env_ids=env_ids)
+        self.write_data_to_sim()
 
     def write_data_to_sim(self):
         """Writes the data of the scene entities to the simulation."""
