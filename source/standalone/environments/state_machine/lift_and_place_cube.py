@@ -4,14 +4,14 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """
-Script to run an environment with a pick and lift state machine.
+Script to run an environment with a pick, lift and place state machine.
 
 The state machine is implemented in the kernel function `infer_state_machine`.
 It uses the `warp` library to run the state machine in parallel on the GPU.
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p source/standalone/environments/state_machine/lift_cube_sm.py --num_envs 32
+    ./isaaclab.sh -p source/standalone/environments/state_machine/lift_and_place_cube.py --num_envs 32
 
 """
 
@@ -22,7 +22,7 @@ import argparse
 from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
-parser = argparse.ArgumentParser(description="Pick and lift state machine for lift environments.")
+parser = argparse.ArgumentParser(description="Pick, lift and place state machine for lift environments.")
 parser.add_argument(
     "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
 )
@@ -69,9 +69,9 @@ class PickSmState:
     APPROACH_OBJECT = wp.constant(2)
     GRASP_OBJECT = wp.constant(3)
     LIFT_OBJECT = wp.constant(4)
-    APPROACH_PLACE_POSITION = wp.constant(5)
-    PLACE_OBJECT = wp.constant(6)
-    DROP_OBJECT = wp.constant(7)
+    APPROACH_ABOVE_PLACE_POSITION = wp.constant(5)
+    APPROACH_PLACE_POSITION = wp.constant(6)
+    PLACE_OBJECT = wp.constant(7)
 
 
 class PickSmWaitTime:
@@ -82,9 +82,9 @@ class PickSmWaitTime:
     APPROACH_OBJECT = wp.constant(0.6)
     GRASP_OBJECT = wp.constant(0.3)
     LIFT_OBJECT = wp.constant(1.0)
-    APPROACH_PLACE_POSITION = wp.constant(0.5)
-    PLACE_OBJECT = wp.constant(0.6)
-    DROP_OBJECT = wp.constant(0.3)
+    APPROACH_ABOVE_PLACE_POSITION = wp.constant(0.5)
+    APPROACH_PLACE_POSITION = wp.constant(0.6)
+    PLACE_OBJECT = wp.constant(0.3)
 
 
 @wp.kernel
@@ -147,38 +147,33 @@ def infer_state_machine(
         # wait for a while
         if sm_wait_time[tid] >= PickSmWaitTime.LIFT_OBJECT:
             # move to next state and reset wait time
-            sm_state[tid] = PickSmState.APPROACH_PLACE_POSITION
+            sm_state[tid] = PickSmState.APPROACH_ABOVE_PLACE_POSITION
             sm_wait_time[tid] = 0.0
-
-    # approach place position
-    elif state == PickSmState.APPROACH_PLACE_POSITION:
+    elif state == PickSmState.APPROACH_ABOVE_PLACE_POSITION:
         des_ee_pose[tid] = wp.transform_multiply(offset[tid], place_pose[tid])
         gripper_state[tid] = GripperState.CLOSE
 
-        if sm_wait_time[tid] >= PickSmWaitTime.APPROACH_PLACE_POSITION:
+        if sm_wait_time[tid] >= PickSmWaitTime.APPROACH_ABOVE_PLACE_POSITION:
             # move to next state and reset wait time
-            sm_state[tid] = PickSmState.PLACE_OBJECT
+            sm_state[tid] = PickSmState.APPROACH_PLACE_POSITION
             sm_wait_time[tid] = 0.0
-
-    # place object 
-    elif state == PickSmState.PLACE_OBJECT:
+    elif state == PickSmState.APPROACH_PLACE_POSITION:
         des_ee_pose[tid] = des_place_pose[tid]
         gripper_state[tid] = GripperState.CLOSE
         # TODO: error between current and desired ee pose below threshold
         # wait for a while
-        if sm_wait_time[tid] >= PickSmWaitTime.PLACE_OBJECT:
+        if sm_wait_time[tid] >= PickSmWaitTime.APPROACH_PLACE_POSITION:
             # move to next state and reset wait time
-            sm_state[tid] = PickSmState.DROP_OBJECT # or PickSmState.REST
+            sm_state[tid] = PickSmState.PLACE_OBJECT # or PickSmState.REST
             sm_wait_time[tid] = 0.0
-
-    elif state == PickSmState.DROP_OBJECT:
+    elif state == PickSmState.PLACE_OBJECT:
         des_ee_pose[tid] = des_place_pose[tid]
         gripper_state[tid] = GripperState.OPEN
         # TODO: error between current and desired ee pose below threshold
         # wait for a while
-        if sm_wait_time[tid] >= PickSmWaitTime.DROP_OBJECT:
+        if sm_wait_time[tid] >= PickSmWaitTime.PLACE_OBJECT:
             # move to next state and reset wait time
-            sm_state[tid] = PickSmState.DROP_OBJECT
+            sm_state[tid] = PickSmState.PLACE_OBJECT
             sm_wait_time[tid] = 0.0
 
 
@@ -187,7 +182,7 @@ def infer_state_machine(
 
 
 class PickAndLiftSm:
-    """A simple state machine in a robot's task space to pick and lift an object.
+    """A simple state machine in a robot's task space to pick, lift and place an object.
 
     The state machine is implemented as a warp kernel. It takes in the current state of
     the robot's end-effector and the object, and outputs the desired state of the robot's
@@ -199,6 +194,9 @@ class PickAndLiftSm:
     3. APPROACH_OBJECT: The robot moves to the object.
     4. GRASP_OBJECT: The robot grasps the object.
     5. LIFT_OBJECT: The robot lifts the object to the desired pose. This is the final state.
+    6. APPROACH_ABOVE_PLACE_POSITION: The robot moves above the place position.
+    7. APPROACH_PLACE_POSITION: The robot moves to the place position.
+    8. PLACE_OBJECT: The robot drops the object.
     """
 
     def __init__(self, dt: float, num_envs: int, device: torch.device | str = "cpu"):

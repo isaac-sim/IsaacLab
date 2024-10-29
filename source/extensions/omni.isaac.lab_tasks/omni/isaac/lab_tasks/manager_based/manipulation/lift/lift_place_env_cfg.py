@@ -143,33 +143,6 @@ class EventCfg:
         },
     )
 
-def object_is_placed(
-    env: ManagerBasedRLEnv, 
-    distance_threshold: float,
-    height_threshold: float,
-    object_cfg: SceneEntityCfg = SceneEntityCfg("object")
-) -> torch.Tensor:
-    """Reward the agent for placing the object at target position."""
-    object: RigidObject = env.scene[object_cfg.name]
-    place_command = env.command_manager.get_command("place_pose")
-    
-    # Get positions
-    object_pos = object.data.root_pos_w
-    target_pos = place_command[:, :3]
-    
-    # Check xy-distance to target
-    xy_distance = torch.norm(object_pos[:, :2] - target_pos[:, :2], dim=1)
-    
-    # Check height difference
-    height_diff = torch.abs(object_pos[:, 2] - target_pos[:, 2])
-    
-    # Return 1.0 if within thresholds, 0.0 otherwise
-    return torch.where(
-        (xy_distance < distance_threshold) & (height_diff < height_threshold),
-        1.0,
-        0.0
-    )
-
 
 @configclass
 class RewardsCfg:
@@ -214,7 +187,7 @@ class RewardsCfg:
     )
 
     object_placed = RewTerm(
-        func=object_is_placed,  # Reference the function directly
+        func=mdp.object_is_placed,  # Reference the function directly
         params={
             "distance_threshold": 0.02,
             "height_threshold": 0.01,
