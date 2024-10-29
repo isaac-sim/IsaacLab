@@ -18,7 +18,7 @@ This script assumes that there is an existing secret that provides credentials
 to access cloud storage. This secret could be created with
 
 .. code-block:: bash
-    gcloud auth login # https://cloud.google.com/sdk/docs/install
+    gcloud auth application-default login # https://cloud.google.com/sdk/docs/install
 
     kubectl create secret generic bucket-access \
         --from-file=key.json=/home/<USERNAME>/.config/gcloud/application_default_credentials.json \

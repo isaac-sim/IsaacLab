@@ -229,7 +229,7 @@ that the cluster job submission address is known.
     :language: python
     :emphasize-lines: 17-35
 
-  For example, see the Cartpole Example configurations.
+For example, see the Cartpole Example configurations.
 
 .. dropdown:: source/standalone/workflows/ray/hyperparameter_tuning/vision_cartpole_cfg.py (submitting aggregate jobs)
   :icon: code
@@ -354,6 +354,7 @@ Shared Steps Between KubeRay and Pure Ray Part II
 	#and ```source/standalone/workflows/rl_games/train.py``` with ```/workspace/isaaclab/source/standalone/workflows/rl_games/train.py```)'
   ./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py --aggregate_jobs wrap_isaac_ray_resources.py --sub_jobs ./isaaclab.sh -p source/standalone/workflows/rl_games/train.py --task Isaac-Cartpole-v0 --headless+./isaaclab.sh -p source/standalone/workflows/rl_games/train.py --task Isaac-Cartpole-RGB-Camera-Direct-v0 --headless --enable_cameras agent.params.config.max_epochs=150
   # For more than one cluster, and/or more than one aggregate job, separate aggregate jobs with the * delimiter.
+
 3.) For tuning jobs, specify the hyperparameter sweep similar to :class:`RLGamesCameraJobCfg` in the following file:
 
 .. dropdown:: source/standalone/workflows/ray/isaac_ray_tune.py (submitting aggregate jobs)
@@ -363,7 +364,7 @@ Shared Steps Between KubeRay and Pure Ray Part II
     :language: python
     :emphasize-lines: 17-35
 
-  For example, see the Cartpole Example configurations.
+For example, see the Cartpole Example configurations.
 
 .. dropdown:: source/standalone/workflows/ray/hyperparameter_tuning/vision_cartpole_cfg.py (submitting aggregate jobs)
   :icon: code
