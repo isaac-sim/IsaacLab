@@ -9,6 +9,11 @@ Added
 
 * Added sanity check if command term is valid type.
 
+Fixed
+^^^^^
+
+* Fixed correct iteration over group_cfg_items
+
 0.27.5 (2024-10-25)
 ~~~~~~~~~~~~~~~~~~~
 
