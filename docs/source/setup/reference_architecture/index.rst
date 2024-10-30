@@ -35,10 +35,10 @@ The reference architecture for Isaac Lab comprises the following components:
 5. Register with Gymnasium
 6. Environment Wrapping
 7. Run Training 
-  * Single GPU Training
-  * Multi-GPU Training
-  * Multi-Node Training
-  * Cloud-based Training
+* Single GPU Training
+* Multi-GPU Training
+* Multi-Node Training
+* Cloud-based Training
 8. Run Testing
 
 
@@ -57,6 +57,7 @@ the following ways:
 
 2. Design your assets or robot in any software of your choice and export it to USD using Isaac Sim 
 converters. 
+
 * Isaac Sim supports the different converters/importers to USD such as the `CAD Converter`_, `URDF Importer`_, `MJCF Importer`_, `Onshape Importer`_ etc.  
   More details are found here and in the Importing Robots section in the `Isaac Sim Reference Architecture`_
 
@@ -134,7 +135,7 @@ for each component.
 
 .. tip::
 
-   To learn more on how you can design your own manager-based environment, see :ref:`tutorial-create-manager-rl-env`.
+  To learn more on how you can design your own manager-based environment, see :ref:`tutorial-create-manager-rl-env`.
   
 
 
