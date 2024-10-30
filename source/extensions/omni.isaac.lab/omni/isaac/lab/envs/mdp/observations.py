@@ -297,8 +297,8 @@ class image_features(ManagerTermBase):
     - "inference": A callable that, when given the model and the images, returns the extracted features.
 
     If the model zoo configuration is not provided, the default model zoo configurations are used. The default
-    model zoo configurations include the models from Theia and ResNet. These models are loaded from
-    `Hugging-Face transformers <https://huggingface.co/docs/transformers/index>`_ and
+    model zoo configurations include the models from Theia :cite:`shang2024theia` and ResNet :cite:`he2016deep`.
+    These models are loaded from `Hugging-Face transformers <https://huggingface.co/docs/transformers/index>`_ and
     `PyTorch torchvision <https://pytorch.org/vision/stable/models.html>`_ respectively.
 
     Args:
@@ -326,8 +326,11 @@ class image_features(ManagerTermBase):
 
         # extract parameters from the configuration
         self.model_zoo_cfg: dict = cfg.params.get("model_zoo_cfg")  # type: ignore
-        self.model_name: str = cfg.params.get("model_name", "ResNet18")  # type: ignore
+        self.model_name: str = cfg.params.get("model_name", "resnet18")  # type: ignore
         self.model_device: str = cfg.params.get("model_device", env.device)  # type: ignore
+
+        # convert the model name to lowercase
+        self.model_name = self.model_name.lower()
 
         # List of Theia models - These are configured through `_prepare_theia_transformer_model` function
         default_theia_models = [
@@ -463,7 +466,16 @@ class image_features(ManagerTermBase):
 
         def _load_model() -> torch.nn.Module:
             """Load the ResNet model."""
-            model = getattr(models, model_name)(weights="ResNet50_Weights.DEFAULT").eval()
+            # map the model name to the weights
+            resnet_weights = {
+                "resnet18": "ResNet18_Weights.IMAGENET1K_V1",
+                "resnet34": "ResNet34_Weights.IMAGENET1K_V1",
+                "resnet50": "ResNet50_Weights.IMAGENET1K_V1",
+                "resnet101": "ResNet101_Weights.IMAGENET1K_V1",
+            }
+
+            # load the model
+            model = getattr(models, model_name)(weights=resnet_weights[model_name]).eval()
             return model.to(model_device)
 
         def _inference(model, images: torch.Tensor) -> torch.Tensor:
