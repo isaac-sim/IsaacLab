@@ -51,7 +51,6 @@ def spawn_sdf_kuka(
 
 KUKA_VICTOR_LEFT_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        # usd_path="assets/victor/victor_left_arm_with_gripper_v2/victor_left_arm_with_gripper_v2.usd",
         usd_path="assets/victor/victor_left_arm_with_gripper_sdf_v3/victor_left_arm_with_gripper_sdf_v3.usd",
         func=spawn_sdf_kuka,
         activate_contact_sensors=False,

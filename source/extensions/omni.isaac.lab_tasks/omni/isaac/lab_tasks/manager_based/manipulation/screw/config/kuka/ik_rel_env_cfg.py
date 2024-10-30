@@ -19,6 +19,8 @@ from omni.isaac.lab.managers import ObservationTermCfg as ObsTerm
 from omni.isaac.lab.managers import TerminationTermCfg as DoneTerm
 from omni.isaac.lab.managers import RewardTermCfg as RewTerm
 from omni.isaac.lab.managers import EventTermCfg, ManagerTermBase
+
+from omni.isaac.lab.assets import Articulation, RigidObject
 from omni.isaac.lab.managers import SceneEntityCfg
 from omni.isaac.lab.sensors import ContactSensorCfg
 from omni.isaac.lab.sim.spawners import materials
@@ -87,11 +89,11 @@ class reset_scene_to_grasp_state(ManagerTermBase):
         # robot_material[..., 0] = static_friction
         # robot_material[..., 1] = dynamic_friction
         # robot.root_physx_view.set_material_properties(robot_material, torch.arange(env.scene.num_envs, device="cpu"))
-        # if reset_target == "pre_grasp":
-        #     env.unwrapped.write_state(self.cached_pre_grasp_state[env_ids].clone(), env_ids)
-        # elif reset_target == "grasp":
-        #     env.unwrapped.write_state(self.cached_grasp_state[env_ids].clone(), env_ids)
-        env.unwrapped.write_state(self.cached_grasp_state[env_ids], env_ids)
+        if reset_target == "pre_grasp":
+            env.unwrapped.write_state(self.cached_pre_grasp_state[env_ids].clone(), env_ids)
+        elif reset_target == "grasp":
+            env.unwrapped.write_state(self.cached_grasp_state[env_ids].clone(), env_ids)
+        # env.unwrapped.write_state(self.cached_grasp_state[env_ids], env_ids)
 
 @configclass
 class EventCfg:
@@ -120,6 +122,30 @@ def terminate_if_nut_fallen(env):
 def terminate_if_far_from_bolt(env):
     diff = mdp.rel_nut_bolt_tip_distance(env)
     return torch.norm(diff, dim=-1) > 0.05
+
+def initialize_contact_properties(env: ManagerBasedEnv, 
+                                env_ids: torch.Tensor | None,
+                                asset_cfg: SceneEntityCfg,
+                                contact_offset: float, rest_offset: float):
+    asset: RigidObject | Articulation = env.unwrapped.scene[asset_cfg.name]
+    
+    # resolve environment ids
+    if env_ids is None:
+        env_ids = torch.arange(env.scene.num_envs, device="cpu")
+    else:
+        env_ids = env_ids.cpu()
+    # Note: shape of contact_offset and bodies are not matched
+    # since there're several virtual body in kuka.
+    # if asset_cfg.body_ids == slice(None):
+    #     body_ids = torch.arange(asset.num_bodies, dtype=torch.int, device="cpu")
+    # else:
+    #     body_ids = torch.tensor(asset_cfg.body_ids, dtype=torch.int, device="cpu")
+    cur_contact_offset = asset.root_physx_view.get_contact_offsets()
+    cur_contact_offset[env_ids] = contact_offset
+    asset.root_physx_view.set_contact_offsets(cur_contact_offset, env_ids)
+    cur_rest_offset = asset.root_physx_view.get_rest_offset()
+    cur_rest_offset[env_ids] = rest_offset
+    asset.root_physx_view.set_rest_offset(cur_rest_offset, env_ids)
 
 @configclass
 class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
@@ -151,6 +177,14 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         action_params.ik_lambda = action_params.get("ik_lambda", 0.1)
         action_params.keep_grasp_state = action_params.get("keep_grasp_state", False)
         
+        rewards_params = self.params.rewards
+        rewards_params.coarse_nut_w = rewards_params.get("coarse_nut_w", 0.5)
+        rewards_params.fine_nut_w = rewards_params.get("fine_nut_w", 2.0)
+        rewards_params.upright_reward_w = rewards_params.get("upright_reward_w", 1)
+        rewards_params.task_success_w = rewards_params.get("task_success_w", 2.0)
+        rewards_params.action_rate_w = rewards_params.get("action_rate_w", -0.000001)
+        rewards_params.contact_force_penalty_w = rewards_params.get("contact_force_penalty_w", -0.0000001)
+        
         termination_params = self.params.terminations
         termination_params.far_from_bolt = termination_params.get("far_from_bolt", True)
         termination_params.nut_fallen = termination_params.get("nut_fallen", False)
@@ -170,6 +204,7 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
             robot.spawn.usd_path = "assets/victor/victor_left_arm_with_gripper_v2/victor_left_arm_with_gripper_v2.usd"
         elif robot_params.collision_approximation == "convexHull2":
             robot.spawn.usd_path = "assets/victor/victor_left_arm/victor_left_arm.usd"
+            # robot.spawn.usd_path = "assets/victor/victor_left_arm_v2/victor_left_arm_v2.usd"
         robot.init_state.pos = [-0.15, -0.5, -0.8]
 
         robot.spawn.collision_props.contact_offset = robot_params.contact_offset
@@ -178,12 +213,12 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         robot.spawn.rigid_props.sleep_threshold = robot_params.sleep_threshold
         robot.spawn.rigid_props.stabilization_threshold = robot_params.stabilization_threshold
 
-        robot.spawn.physics_material = materials.RigidBodyMaterialCfg(
-            static_friction=robot_params.static_friction,
-            dynamic_friction=robot_params.dynamic_friction,
-            compliant_contact_stiffness=robot_params.compliant_contact_stiffness,
-            compliant_contact_damping=robot_params.compliant_contact_damping,
-        )
+        # robot.spawn.physics_material = materials.RigidBodyMaterialCfg(
+        #     static_friction=robot_params.static_friction,
+        #     dynamic_friction=robot_params.dynamic_friction,
+        #     compliant_contact_stiffness=robot_params.compliant_contact_stiffness,
+        #     compliant_contact_damping=robot_params.compliant_contact_damping,
+        # )
         robot.actuators["victor_left_arm"].stiffness = robot_params.arm_stiffness
         robot.actuators["victor_left_arm"].damping = robot_params.arm_damping
         robot.actuators["victor_left_gripper"].velocity_limit = 1
@@ -192,9 +227,9 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         robot.actuators["victor_left_gripper"].damping = robot_params.gripper_damping
         # action
         action_params = self.params.actions
-        arm_lows = [-0.001, -0.001, -0.015, -0.01, -0.01, -0.8]
-        arm_highs = [0.001, 0.001, 0.015, 0.01, 0.01, 0.0]
-        scale = [0.001, 0.001, 0.01, 0.01, 0.01, 0.8]
+        arm_lows = [-0.001, -0.001, -0.01, -0.001, -0.001, -0.8]
+        arm_highs = [0.001, 0.001, 0.01, 0.001, 0.001, 0.0]
+        scale = [0.001, 0.001, 0.01, 0.001, 0.001, 0.8]
         self.actions.arm_action = DifferentialInverseKinematicsActionCfg(
             asset_name="robot",
             joint_names=["victor_left_arm_joint.*"],
@@ -231,6 +266,23 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         
         # events
         self.events = EventCfg()
+        self.events.set_robot_collision = EventTerm(
+            func=mdp.randomize_rigid_body_material,
+            mode="startup",
+            params={"asset_cfg": SceneEntityCfg("robot", body_names=".*"),
+                    "static_friction_range": (robot_params.static_friction, robot_params.static_friction),
+                    "dynamic_friction_range": (robot_params.dynamic_friction, robot_params.dynamic_friction),
+                    "restitution_range": (0.0, 0.0),
+                    "num_buckets": 1},
+        )
+        # self.events.set_robot_properties = EventTerm(
+        #     func=initialize_contact_properties,
+        #     params={
+        #         "asset_cfg": SceneEntityCfg("robot", body_names=".*finger.*"),
+        #         "contact_offset": robot_params.contact_offset,
+        #         "rest_offset": robot_params.rest_offset},
+        #     mode="startup",
+        # )
         self.events.reset_default = EventTerm(
             func=reset_scene_to_grasp_state,
             params={"reset_target": self.params.events.reset_target,
@@ -258,9 +310,16 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
             filter_prim_paths_expr= ["{ENV_REGEX_NS}/Bolt/factory_bolt"],
             update_period=0.0,
         )
+        
+        # rewards
+        rewards_params = self.params.rewards
+        self.rewards.coarse_nut.weight = rewards_params.coarse_nut_w
+        self.rewards.fine_nut.weight = rewards_params.fine_nut_w
+        self.rewards.upright_reward.weight = rewards_params.upright_reward_w
+        self.rewards.task_success.weight = rewards_params.task_success_w
+        self.rewards.action_rate.weight = rewards_params.action_rate_w
         self.rewards.contact_force_penalty = RewTerm(
             func=mdp.contact_forces,
             params={"threshold":1, "sensor_cfg": SceneEntityCfg(name="contact_sensor")},
-            weight=-0.0000001)
-        self.rewards.action_rate.weight =-0.00000001
+            weight=rewards_params.contact_force_penalty_w)
         self.viewer.eye = (0.3, 0, 0.15)

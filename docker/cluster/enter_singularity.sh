@@ -74,7 +74,7 @@ singularity exec \
     bash
 
 # # copy resulting cache files back to host
-# rsync -azPv $CLUSTER_ISAAC_SIM_CACHE_DIR $CLUSTER_ISAAC_SIM_CACHE_DIR/..
+# rsync -azPv $CLUSTER_ISAAC_SIM_CACHE_DIR $CLUSTERdocker-isaac-sim_ISAAC_SIM_CACHE_DIR/..
 
 # # if defined, remove the temporary isaaclab directory pushed when the job was submitted
 # if $REMOVE_CODE_COPY_AFTER_JOB; then

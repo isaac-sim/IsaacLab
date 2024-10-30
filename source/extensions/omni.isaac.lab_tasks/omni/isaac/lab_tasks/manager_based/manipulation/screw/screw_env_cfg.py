@@ -466,7 +466,7 @@ class BaseNutThreadEnvCfg(BaseScrewEnvCfg):
 
     def __init__(self):
         super().__init__()  # Call the parent class's __init__ method
-
+    
     def __post_init__(self):
         super().__post_init__()
         screw_dict = asset_factory[self.params.scene.screw_type]

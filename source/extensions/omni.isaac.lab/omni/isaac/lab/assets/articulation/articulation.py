@@ -442,15 +442,6 @@ class Articulation(AssetBase):
         self._data.joint_pos[env_ids, joint_ids] = position
         self._data.joint_vel[env_ids, joint_ids] = velocity
         self._data._previous_joint_vel[env_ids, joint_ids] = velocity
-        # if joint_ids != slice(None):
-        #     self._data.joint_pos[env_ids, joint_ids] = position
-        #     self._data.joint_vel[env_ids, joint_ids] = velocity
-        #     self._data._previous_joint_vel[env_ids, joint_ids] = velocity
-        #     # print("???")
-        # else:
-        #     self._data.joint_pos.index_copy_(0, physx_env_ids, position)
-        #     self._data.joint_vel.index_copy_(0, physx_env_ids, velocity)
-        #     self._data._previous_joint_vel.index_copy_(0, physx_env_ids, velocity)
         # self._data.joint_acc[env_ids, joint_ids] = 0.0
         # Need to invalidate the buffer to trigger the update with the new root pose.
         self._data._body_state_w.timestamp = -1.0
@@ -748,9 +739,6 @@ class Articulation(AssetBase):
         if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
         # set targets
-        # if joint_ids != slice(None):
-        #     self._data.joint_pos_target.index_copy_(0, env_ids, target)
-        # else:
         self._data.joint_pos_target[env_ids, joint_ids] = target
 
     def set_joint_velocity_target(
@@ -777,9 +765,6 @@ class Articulation(AssetBase):
         if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
         # set targets
-        # if joint_ids != slice(None):
-        #     self._data.joint_vel_target.index_copy_(0, env_ids, target)
-        # else:
         self._data.joint_vel_target[env_ids, joint_ids] = target
 
     def set_joint_effort_target(
@@ -806,9 +791,6 @@ class Articulation(AssetBase):
         if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
         # set targets
-        # if joint_ids != slice(None):
-        #     self._data.joint_effort_target.index_copy_(0, env_ids, target)
-        # else:
         self._data.joint_effort_target[env_ids, joint_ids] = target
 
     """
