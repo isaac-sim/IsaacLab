@@ -66,14 +66,14 @@ Isaac Lab accepts URDF or USD files for assets. The first step to training using
 have the USD file of your asset and the USD or URDF file of your robot. This can be achieved in 
 the following ways:
 
-a. Design your assets or robot in Isaac Sim and export the USD file.
-b. Design your assets or robot in any software of your choice and export it to USD using Isaac Sim 
+1. Design your assets or robot in Isaac Sim and export the USD file.
+2. Design your assets or robot in any software of your choice and export it to USD using Isaac Sim 
 converters. 
-  * Isaac Sim supports the different converters/importers to USD such as the `CAD Converter`_, 
+* Isaac Sim supports the different converters/importers to USD such as the `CAD Converter`_, 
   `URDF Importer`_, `MJCF Importer`_, `Onshape Importer`_ etc. 
   
   More details are found here and in the Importing Robots section in the `Isaac Sim Reference Architecture`_
-c. If you already have the URDF file of your robot, you do not need to convert to USD as Isaac Lab takes URDF.
+3. If you already have the URDF file of your robot, you do not need to convert to USD as Isaac Lab takes URDF.
 
 
 **Component 2 - Asset Configuration**
@@ -95,7 +95,7 @@ like Anyrobotics Anymal, Unitree H1 Humanoid, etc. as well as
 lights, and more. We provide their asset file and configuration classes. 
 Users can also define their own assets using the configuration classes. 
 
-Follow the tutorial on `how to write an Articulation and ArticulationCfg class<https://isaac-sim.github.io/IsaacLab/main/source/how-to/write_articulation_cfg.html>`__. 
+Follow the tutorial on `how to write an Articulation and ArticulationCfg class <https://isaac-sim.github.io/IsaacLab/main/source/how-to/write_articulation_cfg.html>`__. 
 
 **Component 3 - Scene Configuration**
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -108,8 +108,8 @@ which includes the cartpole, ground plane, and dome light.
 
 **Component 4 - Robot Learning Task Design**
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Now, we have the scene for the task, but we need to define the 
-`reinforcement learning <https://www.andrew.cmu.edu/course/10-703/textbook/BartoSutton.pdf>`__ (RL) task 
+Now, we have the scene for the task, but we need to define the robot learning task. We will focus on
+`reinforcement learning <https://www.andrew.cmu.edu/course/10-703/textbook/BartoSutton.pdf>`__ (RL) algorithm here. We define the RL task
 that the agent is going to do. RL tasks are defined as a Markov Decision Process (MDP), 
 which is a stochastic decision-making process where optional decisions are made for the agents 
 considering their current state and environment they interact with. The environment provides the 
@@ -121,7 +121,7 @@ be defined by the user for the agent to perform the given task.
 
 In Isaac Lab, we provide two different workflows for designing environments.
 
-.. admonition:: Manager-based 
+**Manager-based**
 
 .. image:: ./images/x.png
       :width: 600px
@@ -134,6 +134,7 @@ applying actions, and applying randomization. As a user, you define different co
 for each component. 
 
 - An RL task should have the following configuration classes:
+
   - Observations Config: Defines the agents’ observations for the task.
   - Actions Config: Defines the agent’s action type, i.e. how the output of the agent are mapped to 
     the robot's control inputs.
@@ -213,11 +214,6 @@ More information is available `on the GitHub page for wrapping environments<http
 
 .. _CAD Converter: https://docs.omniverse.nvidia.com/extensions/latest/ext_cad-converter.html
 .. _URDF Importer: https://docs.omniverse.nvidia.com/isaacsim/latest/advanced_tutorials/tutorial_advanced_import_urdf.html
-.. _ MJCF Importer: https://docs.omniverse.nvidia.com/isaacsim/latest/advanced_tutorials/tutorial_advanced_import_mjcf.html#import-mjcf
-.. _ Onshape Importer: https://docs.omniverse.nvidia.com/extensions/latest/ext_onshape.html
-.. _ Isaac Sim Reference Architecture: https://docs.omniverse.nvidia.com/isaacsim/latest/isaac_sim_reference_architecture.html
-.. _
-.. _
-.. _
-.. _
-.. _
+.. _MJCF Importer: https://docs.omniverse.nvidia.com/isaacsim/latest/advanced_tutorials/tutorial_advanced_import_mjcf.html#import-mjcf
+.. _Onshape Importer: https://docs.omniverse.nvidia.com/extensions/latest/ext_onshape.html
+.. _Isaac Sim Reference Architecture: https://docs.omniverse.nvidia.com/isaacsim/latest/isaac_sim_reference_architecture.html
