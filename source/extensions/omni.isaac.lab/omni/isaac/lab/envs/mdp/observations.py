@@ -323,7 +323,7 @@ class image_features(ManagerTermBase):
         super().__init__(cfg, env)
 
         # extract parameters from the configuration
-        self.model_zoo_cfg: dict = cfg.params.get("model_zoo_cfg", None)  # type: ignore
+        self.model_zoo_cfg: dict = cfg.params.get("model_zoo_cfg")  # type: ignore
         self.model_name: str = cfg.params.get("model_name", "ResNet18")  # type: ignore
         self.model_device: str = cfg.params.get("model_device", env.device)  # type: ignore
 
@@ -345,11 +345,11 @@ class image_features(ManagerTermBase):
                 f"Model name '{self.model_name}' not found in the provided model zoo configuration."
                 " Please add the model to the model zoo configuration or use a different model name."
                 f" Available models in the provided list: {list(self.model_zoo_cfg.keys())}."
-                f"\nHint: If you want to use a default model, consider using one of the following models:"
+                "\nHint: If you want to use a default model, consider using one of the following models:"
                 f" {default_theia_models + default_resnet_models}. In this case, you can remove the"
                 " 'model_zoo_cfg' parameter from the observation term configuration."
             )
-        elif self.model_zoo_cfg is None:
+        if self.model_zoo_cfg is None:
             if self.model_name in default_theia_models:
                 model_config = self._prepare_theia_transformer_model(self.model_name, self.model_device)
             elif self.model_name in default_resnet_models:
