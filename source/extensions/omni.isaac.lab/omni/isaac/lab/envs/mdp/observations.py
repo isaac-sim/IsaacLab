@@ -297,7 +297,7 @@ class image_features(ManagerTermBase):
 
     If the model zoo configuration is not provided, the default model zoo configurations are used. The default
     model zoo configurations include the models from Theia and ResNet. These models are loaded from
-    `Hugging-Face Theia <https://huggingface.co/docs/transformers/index>`_ and
+    `Hugging-Face transformers <https://huggingface.co/docs/transformers/index>`_ and
     `PyTorch torchvision <https://pytorch.org/vision/stable/models.html>`_ respectively.
 
     Args:
