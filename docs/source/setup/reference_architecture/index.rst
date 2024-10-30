@@ -54,10 +54,12 @@ have the USD file of your asset and the USD or URDF file of your robot. This can
 the following ways:
 
 1. Design your assets or robot in Isaac Sim and export the USD file.
+
 2. Design your assets or robot in any software of your choice and export it to USD using Isaac Sim 
 converters. 
 * Isaac Sim supports the different converters/importers to USD such as the `CAD Converter`_, `URDF Importer`_, `MJCF Importer`_, `Onshape Importer`_ etc.  
   More details are found here and in the Importing Robots section in the `Isaac Sim Reference Architecture`_
+
 3. If you already have the URDF file of your robot, you do not need to convert to USD as Isaac Lab takes URDF.
 
 
@@ -198,7 +200,7 @@ please refer to the `Wrapping environments <https://isaac-sim.github.io/IsaacLab
 
 Finally, the last step is to run the training of the RL agent. Isaac Lab provides scripts which utilizes four popular RL libraries for training the models (GPU-based training):
 
-* `StableBaselines3 <https://stable-baselines3.readthedocs.io/en/master/>`__`
+* `StableBaselines3 <https://stable-baselines3.readthedocs.io/en/master/>`__
 * `RSL-RL <https://github.com/leggedrobotics/rsl_rl>`__
 * `RL-Games <https://github.com/Denys88/rl_games>`__
 * `SKRL <https://skrl.readthedocs.io/en/latest/>`__
@@ -272,9 +274,11 @@ Follow the tutorial on `multi-GPU training <https://isaac-sim.github.io/IsaacLab
 
 
 **Multi-Node Training**
+
 Isaac Lab supports scaling up training by training on multiple nodes/machines. Learn more from the `technical documentation <https://isaac-sim.github.io/IsaacLab/main/source/features/multi_gpu.html#multi-node-training>`__.
 
 **Cloud-Based Training**
+
 Isaac Lab can be deployed alongside Isaac Sim onto the public clouds with `Isaac Automator <https://github.com/isaac-sim/IsaacAutomator>`__. AWS, GCP, Azure, and Alibaba Cloud are currently supported. Follow the tutorial on `how to run Isaac Lab in the cloud <https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/cloud_installation.html>`__.
 
 
@@ -332,7 +336,11 @@ Check out our resources on using Isaac Lab with your robots.
 
 
 
+.. tip::
 
+   It is important to keep the pull request as small as possible. This makes it easier for the
+   maintainers to review your code. If you are making multiple changes, please send multiple pull requests.
+   Large pull requests are difficult to review and may take a long time to merge.
 
 
 
