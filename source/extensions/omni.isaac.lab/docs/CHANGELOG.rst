@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.27.8 (2024-10-30)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the attributes :attr:`~omni.isaac.lab.sim.converters.MeshConverterCfg.translation`, :attr:`~omni.isaac.lab.sim.converters.MeshConverterCfg.rotation`,
+  :attr:`~omni.isaac.lab.sim.converters.MeshConverterCfg.scale` to translate, rotate, and scale meshes
+  when importing them with :class:`~omni.isaac.lab.sim.converters.MeshConverter`.
+
 
 0.27.7 (2024-10-28)
 ~~~~~~~~~~~~~~~~~~~
