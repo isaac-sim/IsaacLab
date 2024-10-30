@@ -148,16 +148,13 @@ class CartpoleDepthCameraEnvCfg(CartpoleEnvCfg):
 
 @configclass
 class CartpoleResNet18CameraEnvCfg(CartpoleRGBCameraEnvCfg):
+    """Configuration for the cartpole environment with ResNet18 features as observations."""
+
     observations: ResNet18ObservationCfg = ResNet18ObservationCfg()
 
 
 @configclass
 class CartpoleTheiaTinyCameraEnvCfg(CartpoleRGBCameraEnvCfg):
-    """
-    Due to TheiaTiny's size in GPU memory, we reduce the number of environments by default.
-    This helps reduce the possibility of crashing on more modest hardware.
-    The following configuration uses ~12gb VRAM at peak.
-    """
+    """Configuration for the cartpole environment with Theia-Tiny features as observations."""
 
-    scene: CartpoleSceneCfg = CartpoleRGBCameraSceneCfg(num_envs=128, env_spacing=20)
     observations: TheiaTinyObservationCfg = TheiaTinyObservationCfg()
