@@ -75,6 +75,7 @@ Guidelines for modifications:
 * Ziqi Fan
 * Qian Wan
 * Wei Yang
+* Oyindamola Omotuyi
 
 ## Acknowledgements
 
