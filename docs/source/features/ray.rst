@@ -28,8 +28,7 @@ The Ray integration is useful for the following:
 The core functionality shared by Isaac-Ray consists of two main scripts that enable the orchestration
 of resource-wrapped and tuning aggregate jobs. These scripts facilitate the decomposition of
 aggregate jobs (overarching experiments) into individual jobs, which are discrete commands
-executed on the cluster. An aggregate job can include multiple individual jobs
-and, in the case of resource-wrapped jobs, can also encompass tuning aggregate jobs.
+executed on the cluster. An aggregate job can include multiple individual jobs.
 For clarity, this guide refers to the jobs one layer below the topmost aggregate level as sub-jobs.
 
 Both resource-wrapped and tuning aggregate jobs dispatch individual jobs to a designated Ray
@@ -242,18 +241,11 @@ Submitting tuning aggregate jobs that create many individual sub-jobs can be tes
 
 .. code-block:: bash
 
-  # Example A:
+  # Example A: Local
   /isaaclab.sh -p source/standalone/workflows/ray/isaac_ray_tune.py \
 	--mode local
 	--cfg_file hyperparameter_tuning/vision_cartpole_cfg.py \
 	--cfg_class CartpoleRGBNoTuneJobCfg --storage_path ~/isaac_cartpole
-  # Example B: Resource Wrapped:
-  ./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py --num_cpu_per_job <CPU> \
-	--gpu_per_worker <GPU> --ram_gb_per_worker <RAM> \
-  --sub_jobs /isaaclab.sh -p source/standalone/workflows/ray/isaac_ray_tune.py \
-	--mode local
-	--cfg_file hyperparameter_tuning/vision_cartpole_cfg.py \
-	--cfg_class CartpoleRGBNoTuneJobCfg --storage_path ~/isaac_cartpol
 
 Remote Ray Cluster Setup and Use
 '''''''''''''''''''''''''''''''''

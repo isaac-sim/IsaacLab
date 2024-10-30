@@ -66,17 +66,25 @@ class IsaacLabTuneTrainable(tune.Trainable):
         self.experiment_name = experiment["experiment_name"]
         self.isaac_logdir = experiment["logdir"]
         self.tensorboard_logdir = self.isaac_logdir + f"/{self.experiment_name}/summaries"
+        self.done = False
+
+    def reset_config(self, new_config):
+        self.setup(new_config)
 
     def step(self) -> dict:
         if self.proc is None:  # failed to start, return negative signal
             raise RuntimeError("Could not start desired trial.")
         if self.proc.poll() is not None:
-            self.data["Done"] = True
+            self.data["done"] = True
             print("[INFO]: Process finished, returning...")
+            if self.done:
+                raise ValueError("Previously tried to halt trial to no avail.")
+            self.done = True
             return self.data
         else:
             data = isaac_ray_util.load_tensorboard_logs(self.tensorboard_logdir)
             self.data = data
+            self.data["done"] = False
             return data
 
     def save_checkpoint(self, checkpoint_dir: str) -> None:
@@ -88,8 +96,9 @@ class IsaacLabTuneTrainable(tune.Trainable):
         model_name = checkpoint_dir.split("/")[-2]
         self.checkpoint = checkpoint_dir + f"/{model_name}.pth"
 
-    def default_resource_request(self, config):
-        return tune.PlacementGroupFactory(isaac_ray_util.get_gpu_node_resources())
+    def default_resource_request(self):
+        resources = isaac_ray_util.get_gpu_node_resources(one_node_only=True)
+        return tune.PlacementGroupFactory([{"CPU": resources["cpu"], "GPU": resources["gpu"]}])
 
 
 def invoke_tuning_run(
@@ -102,8 +111,10 @@ def invoke_tuning_run(
         cfg: A configuration extracted from :class:JobCfg, similar in format to :class:RLGamesCameraJobCfg
         args: Arguments related to tuning fetched from the argparser.
     """
+    resources = isaac_ray_util.get_gpu_node_resources()
+    print(f"[INFO]: Available resources {resources}")
     if not ray.is_initialized():
-        ray.init(address=args.ray_address, log_to_driver=True)
+        ray.init(address=args.ray_address, log_to_driver=False, num_gpus=len(resources))
 
     print(f"[INFO]: Using config {cfg}")
     # Define trainable with specific resource allocation
@@ -125,9 +136,11 @@ def invoke_tuning_run(
             search_alg=repeat_search,
             scheduler=None,  # No scheduler is used to be compatible with Repeater.
             num_samples=args.num_samples,
+            reuse_actors=True,
+            # max_concurrent_trials=len(isaac_ray_util.get_gpu_node_resources())
         ),
         run_config=air.RunConfig(
-            name=f"IsaacRay-{cfg['runner_args']['--task']}-tune",
+            name=f"IsaacRay-{args.cfg_class}-tune",
             storage_path=args.storage_path,
             verbose=1,
             failure_config=air.FailureConfig(fail_fast=True),
@@ -136,10 +149,9 @@ def invoke_tuning_run(
 
     # Execute the tuning
     results = tuner.fit()
-
-    # Output the best hyperparameters
-    print(f"Best hyperparameters found were: {results.get_best_result(mode=cfg.mode, metric=cfg.metric)}")
     print(results.get_dataframe())
+    # Output the best hyperparameters
+    print(f"Best hyperparameters found were: {results.get_best_result(mode=args.mode, metric=args.metric)}")
 
 
 class JobCfg:
@@ -152,100 +164,6 @@ class JobCfg:
         assert "workflow" in cfg, "No workflow specified."
         assert "hydra_args" in cfg, "No hypeparameters specified."
         self.cfg = cfg
-
-
-class RLGamesCameraJobCfg(JobCfg):
-    """In order to be compatible with :meth: invoke_tuning_run, and
-    :class:IsaacLabTuneTrainable , configurations should
-    be in a similar format to this class."""
-
-    def __init__(self, cfg={}, vary_env_count: bool = False, vary_cnn: bool = False, vary_mlp: bool = False):
-        cfg = isaac_ray_util.populate_isaac_ray_cfg_args(cfg)
-        # Set up basic runner args
-        cfg["runner_args"]["headless_singleton"] = tune.choice(["--headless"])
-        cfg["runner_args"]["enable_cameras_singleton"] = tune.choice(["--enable_cameras"])
-        cfg["workflow"] = tune.choice([RL_GAMES_WORKFLOW])
-
-        cfg["hydra_args"]["agent.params.config.save_best_after"] = tune.choice([5])
-        cfg["hydra_args"]["agent.params.config.save_frequency"] = tune.choice([5])
-        cfg["hydra_args"]["agent.params.config.max_epochs"] = tune.choice([200])
-
-        if vary_env_count:
-
-            def batch_size_divisors(batch_size, min_size=128):
-                return [i for i in range(1, batch_size + 1) if batch_size % i == 0 and i > min_size]
-
-            cfg["runner_args"]["--num_envs"] = tune.randint(2**6, 2**14 + 1)
-            cfg["hydra_args"]["agent.params.config.horizon_length"] = tune.randint(1, 200)
-            cfg["hydra_args"]["agent.params.config.minibatch_size.config"] = (
-                tune.sample_from(
-                    lambda spec: tune.choice(
-                        batch_size_divisors(
-                            spec.config.hydra_args["agent.params.config.horizon_length"]
-                            * spec.config.runner_args["--num_envs"]
-                            * spec.config.runner_args["--num_envs"]
-                        )
-                    )
-                ),
-            )
-        if vary_cnn:
-
-            def generate_cnn_layer():
-                return {
-                    "filters": tune.randint(2**4, 2**9 + 1),
-                    "kernel_size": tune.randint(2**1, 2**4 + 1),
-                    "strides": tune.randint(2**1, 2**4 + 1),
-                    "padding": tune.choice([0, 1]),  # Padding remains as a discrete choice
-                }
-
-            cfg["hydra_args"]["agents.params.network.cnn"] = {
-                "type": "conv2d",
-                "activation": tune.choice(["relu", "tanh", "sigmoid"]),
-                "initializer": {"name": tune.choice(["default", "he_uniform", "glorot_uniform"])},
-                "regularizer": {
-                    "name": tune.choice([None, "l2", "l1"]),
-                },
-                "convs": [generate_cnn_layer() for _ in range(tune.randint(1, 6).sample())],
-            }
-
-        if vary_mlp:
-
-            def generate_mlp_layer():
-                return {
-                    "units": tune.randint(2**3, 2**12),
-                    "activation": tune.choice(["relu", "tanh", "sigmoid", "elu"]),
-                    "initializer": {"name": tune.choice(["default", "he_uniform", "glorot_uniform"])},
-                }
-
-            cfg["hydra_args"]["agents.params.network.mlp"] = {
-                "layers": tune.sample_from(
-                    lambda _: [generate_mlp_layer() for _ in range(tune.randint(1, 10).sample())]
-                )
-            }
-        super().__init__(cfg)
-
-
-class RLGamesResNetCameraJob(RLGamesCameraJobCfg):
-    def __init__(self, cfg: dict = {}):
-        cfg = isaac_ray_util.populate_isaac_ray_cfg_args(cfg)
-        cfg["hydra_args"]["env.observations.policy.image.params.model_name"] = tune.choice(
-            ["resnet18", "resnet34", "resnet50", "resnet101"]
-        )
-        super().__init__(cfg, vary_env_count=True, vary_cnn=False, vary_mlp=True)
-
-
-class RLGamesTheiaCameraJob(RLGamesCameraJobCfg):
-    def __init__(self, cfg: dict = {}):
-        cfg = isaac_ray_util.populate_isaac_ray_cfg_args(cfg)
-        cfg["hydra_args"]["env.observations.policy.image.params.model_name"] = tune.choice([
-            "theia-tiny-patch16-224-cddsv",
-            "theia-tiny-patch16-224-cdiv",
-            "theia-small-patch16-224-cdiv",
-            "theia-base-patch16-224-cdiv",
-            "theia-small-patch16-224-cddsv",
-            "theia-base-patch16-224-cddsv",
-        ])
-        super().__init__(cfg, vary_env_count=True, vary_cnn=False, vary_mlp=True)
 
 
 if __name__ == "__main__":

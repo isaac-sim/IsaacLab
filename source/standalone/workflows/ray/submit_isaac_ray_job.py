@@ -25,7 +25,7 @@ the last argument supplied to the script.
 An aggregate job could be a :file:`../isaac_ray_tune.py` tuning job, which automatically
 creates several individual jobs when started on a cluster. Alternatively, an aggregate job
 could be a :file:'../wrap_isaac_ray_resources.py` resource-wrapped job,
-which may contain several individual or tuning sub-jobs, with sub-jobs separated by
+which may contain several individual sub-jobs separated by
 the + delimiter.
 
 If there are more aggregate jobs than cluster(s), aggregate jobs will be submitted

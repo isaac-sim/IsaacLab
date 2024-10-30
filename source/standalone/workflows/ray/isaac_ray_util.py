@@ -95,6 +95,7 @@ def execute_job(
     test_mode: bool = False,
     extract_experiment: bool = False,
     persistent_dir: str | None = None,
+    log_all_output: bool = False,
 ) -> str | dict:
     """Issue a job (shell command).
 
@@ -191,7 +192,8 @@ def execute_job(
             for line in iter(stdout.readline, ""):
                 line = line.strip()
                 result_details.append(f"{identifier_string}: {line}")
-                print(f"{identifier_string}: {line}")
+                if log_all_output:
+                    print(f"{identifier_string}: {line}")
 
                 if extract_experiment:
                     exp_match = experiment_info_pattern.search(line)

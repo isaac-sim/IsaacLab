@@ -152,14 +152,14 @@ def parse_args() -> argparse.Namespace:
     arg_parser.add_argument(
         "--num_head_cpu",
         type=float,  # to be able to schedule partial CPU heads
-        default=4,
+        default=8,
         help="The number of CPUs to give the Ray head.",
     )
     arg_parser.add_argument(
         "--secret_name", default="bucket-access", type=str, help="The name of the secret that allows for bucket access."
     )
 
-    arg_parser.add_argument("--head_ram_gb", type=int, default=4, help="How many gigs of ram to give the Ray head")
+    arg_parser.add_argument("--head_ram_gb", type=int, default=8, help="How many gigs of ram to give the Ray head")
     args = arg_parser.parse_args()
     return isaac_ray_util.fill_in_missing_resources(args, cluster_creation_flag=True)
 
