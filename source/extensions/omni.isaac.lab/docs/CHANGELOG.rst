@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+0.27.9 (2024-10-30)
+~~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed TensorDict usage in favor of Python dictionary in sensors
+
 
 0.27.7 (2024-10-28)
 ~~~~~~~~~~~~~~~~~~~
