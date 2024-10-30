@@ -58,7 +58,7 @@ the following ways:
 
 2. Design your assets or robot in any software of your choice and export it to USD using Isaac Sim converters. 
 
-  - Isaac Sim supports the different converters/importers to USD such as the `CAD Converter`_, `URDF Importer`_, `MJCF Importer`_, `Onshape Importer`_ etc.  
+  - Isaac Sim supports the different converters/importers to USD such as the `CAD Converter`_, `URDF Importer`_, `MJCF Importer`_, `Onshape Importer`_, etc.  
     More details are found here and in the Importing Robots section in the `Isaac Sim Reference Architecture`_
 
 3. If you already have the URDF file of your robot, you do not need to convert to USD as Isaac Lab takes URDF.
@@ -97,7 +97,7 @@ which includes the cartpole, ground plane, and dome light.
 **Component 4 - Robot Learning Task Design**
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Now, we have the scene for the task, but we need to define the robot learning task. We will focus on
-`reinforcement learning <https://www.andrew.cmu.edu/course/10-703/textbook/BartoSutton.pdf>`__ (RL) algorithm here. We define the RL task
+`reinforcement learning (RL) <https://www.andrew.cmu.edu/course/10-703/textbook/BartoSutton.pdf>`__ algorithm here. We define the RL task
 that the agent is going to do. RL tasks are defined as a Markov Decision Process (MDP), 
 which is a stochastic decision-making process where optional decisions are made for the agents 
 considering their current state and environment they interact with. The environment provides the 
@@ -158,7 +158,7 @@ their own environments. For more technical information about the two workflows, 
 
 In addition to designing the RL task, you will need to design your agent’s model, the neural 
 network policy and value function. To train the RL agent to solve the task, you need to define 
-the hyperparameters such as number of epochs, learning rate etc. for training and the 
+the hyperparameters such as number of epochs, learning rate, etc. for training and the 
 policy/value model architecture. This is defined in the training configuration file specific 
 to the RL library you want to use. Examples are created under the agent's folder in each task directory. 
 See an example of `RSL-RL <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/locomotion/velocity/config/anymal_b/agents/rsl_rl_ppo_cfg.py>`__ for Anymal-B.
@@ -309,7 +309,7 @@ First, you need a robot with the required sensors and processing computer such a
 
 Once the observations are extracted, they are passed into the model which delivers the action using the model inferencing runtime. The commanded action from the model serves as setpoints for the action controller. The action controller outputs scaled actions which are then used to control the robot to get to the next state, and this continues till the task is done. 
 
-NVIDIA Isaac platform provides some tools for state estimation, including visual slam and inferencing engines such as `TensorRT <https://developer.nvidia.com/tensorrt-getting-started#:~:text=NVIDIA%C2%AE%20TensorRT%E2%84%A2%20is,high%20throughput%20for%20production%20applications.>`__. Other inferencing runtime includes `OnnxRuntime <https://onnxruntime.ai/>`__, direct inferencing on the PyTorch model etc.
+NVIDIA Isaac platform provides some tools for state estimation, including visual slam and inferencing engines such as `TensorRT <https://developer.nvidia.com/tensorrt-getting-started#:~:text=NVIDIA%C2%AE%20TensorRT%E2%84%A2%20is,high%20throughput%20for%20production%20applications.>`__. Other inferencing runtime includes `OnnxRuntime <https://onnxruntime.ai/>`__, direct inferencing on the PyTorch model, etc.
 
 
 
