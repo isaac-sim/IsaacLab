@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.2.0" />
-    <meta name="docbuild:last-update" content="Oct 28, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 30, 2024"/>
   </head>
   
   
@@ -600,6 +600,7 @@ for more fine-grained control over the environment logic. This is useful when op
 or when implementing complex logic that is difficult to decompose into separate components.</p>
 <section id="manager-based-environments">
 <h2>Manager-Based Environments<a class="headerlink" href="#manager-based-environments" title="Permalink to this heading">#</a></h2>
+<a class="reference internal image-reference" href="../../../_images/Manager-basedTaskWorkflow.jpg"><img alt="Manager-based Task Workflow" src="../../../_images/Manager-basedTaskWorkflow.jpg" style="width: 100%;" /></a>
 <p>A majority of environment implementations follow a similar structure. The environment processes the input actions,
 steps through the simulation, computes observations and reward signals, applies randomization, and resets the terminated
 environments. Motivated by this, the environment can be decomposed into individual components that handle each of these tasks.
@@ -669,6 +670,7 @@ specifications.</p>
 </section>
 <section id="direct-environments">
 <h2>Direct Environments<a class="headerlink" href="#direct-environments" title="Permalink to this heading">#</a></h2>
+<a class="reference internal image-reference" href="../../../_images/Direct-basedTaskWorkflow.jpg"><img alt="Direct-based Task Workflow" src="../../../_images/Direct-basedTaskWorkflow.jpg" style="width: 100%;" /></a>
 <p>The direct-style environment aligns more closely with traditional implementations of environments,
 where a single script directly implements the reward function, observation function, resets, and all the other components
 of the environment. This approach does not require the manager classes. Instead, users are provided the complete freedom
@@ -818,7 +820,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 28, 2024.
+  Last updated on Oct 30, 2024.
   <br/>
 </p>
   </div>
