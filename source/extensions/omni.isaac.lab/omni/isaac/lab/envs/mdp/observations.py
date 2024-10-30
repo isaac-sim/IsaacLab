@@ -311,6 +311,8 @@ class image_features(ManagerTermBase):
         model_name: The name of the model to use for inference. Defaults to "resnet18".
         model_device: The device to store and infer the model on. This is useful when offloading the computation
             from the environment simulation device. Defaults to the environment device.
+        inference_kwargs: Additional keyword arguments to pass to the inference function. Defaults to None,
+            which means no additional arguments are passed.
 
     Returns:
         The extracted features tensor. Shape is (num_envs, feature_dim).
@@ -385,6 +387,7 @@ class image_features(ManagerTermBase):
         model_zoo_cfg: dict | None = None,
         model_name: str = "resnet18",
         model_device: str | None = None,
+        inference_kwargs: dict | None = None,
     ) -> torch.Tensor:
         # obtain the images from the sensor
         image_data = image(
@@ -397,7 +400,7 @@ class image_features(ManagerTermBase):
         # store the device of the image
         image_device = image_data.device
         # forward the images through the model
-        features = self._inference_fn(self._model, image_data)
+        features = self._inference_fn(self._model, image_data, **(inference_kwargs or {}))
 
         # move the features back to the image device
         return features.detach().to(image_device)
