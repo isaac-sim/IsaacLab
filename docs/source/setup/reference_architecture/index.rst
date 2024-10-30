@@ -35,10 +35,10 @@ The reference architecture for Isaac Lab comprises the following components:
 5. Register with Gymnasium
 6. Environment Wrapping
 7. Run Training 
-* Single GPU Training
-* Multi-GPU Training
-* Multi-Node Training
-* Cloud-based Training
+  * Single GPU Training
+  * Multi-GPU Training
+  * Multi-Node Training
+  * Cloud-based Training
 8. Run Testing
 
 
