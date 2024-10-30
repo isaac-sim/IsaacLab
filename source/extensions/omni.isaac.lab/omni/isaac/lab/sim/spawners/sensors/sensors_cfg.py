@@ -229,3 +229,65 @@ class FisheyeCameraCfg(PinholeCameraCfg):
 
     fisheye_polynomial_f: float = 0.0
     """Sixth component of fisheye polynomial. Defaults to 0.0."""
+
+
+@configclass
+class LidarCfg(SpawnerCfg):
+    """
+    Lidar Configuration Table
+    +-------------+-----------+-----------------------------------+---------------------------+
+    | Manufacturer| Model     | UI Name                           | Config Name               |
+    +=============+===========+===================================+===========================+
+    | HESAI       |PandarXT-32| PandarXT-32 10hz                  | Hesai_XT32_SD10           |
+    +-------------+-----------+-----------------------------------+---------------------------+
+    | Ouster      | OS0       | OS0 128 10hz @ 1024 resolution    | OS0_128ch10hz1024res      |
+    |             |           | OS0 128 10hz @ 2048 resolution    | OS0_128ch10hz2048res      |
+    |             |           | OS0 128 10hz @ 512 resolution     | OS0_128ch10hz512res       |
+    |             |           | OS0 128 20hz @ 1024 resolution    | OS0_128ch20hz1024res      |
+    |             |           | OS0 128 20hz @ 512 resolution     | OS0_128ch20hz512res       |
+    +-------------+-----------+-----------------------------------+---------------------------+
+    | Ouster      | OS1       | OS1 32 10hz @ 1024 resolution     | OS1_32ch10hz1024res       |
+    |             |           | OS1 32 10hz @ 2048 resolution     | OS1_32ch10hz2048res       |
+    |             |           | OS1 32 10hz @ 512 resolution      | OS1_32ch10hz512res        |
+    |             |           | OS1 32 20hz @ 1024 resolution     | OS1_32ch20hz1024res       |
+    |             |           | OS1 32 20hz @ 512 resolution      | OS1_32ch20hz512res        |
+    +-------------+-----------+-----------------------------------+---------------------------+
+    | SICK        | TiM781    | SICK TiM781                       | Sick_TiM781               |
+    +-------------+-----------+-----------------------------------+---------------------------+
+    | SLAMTEC     |RPLidar S2E| RPLidar S2E                       | RPLIDAR_S2E               |
+    +-------------+-----------+-----------------------------------+---------------------------+
+    | Velodyne    | VLS-128   | Velodyne VLS-128                  | Velodyne_VLS128           |
+    +-------------+-----------+-----------------------------------+---------------------------+
+    | ZVISION     | ML-30s+   | ML-30s+                           | ZVISION_ML30S             |
+    |             | ML-Xs     | ML-Xs                             | ZVISION_MLXS              |
+    +-------------+-----------+-----------------------------------+---------------------------+
+    | NVIDIA      | Generic   | Rotating                          | Example_Rotary            |
+    |             | Generic   | Solid State                       | Example_Solid_State       |
+    |             | Debug     | Simple Solid State                | Simple_Example_Solid_State|
+    +-------------+-----------+-----------------------------------+---------------------------+
+    """
+    func = sensors.spawn_lidar
+    
+    lidar_type: str = "Example_Rotary"
+
+    class LidarType: 
+        '''Class variables for autocompletion'''
+        HESAI_PandarXT_32 = "Hesai_XT32_SD10"
+        OUSTER_OS0_128_10HZ_1024RES = "OS0_128ch10hz1024res"
+        OUSTER_OS0_128_10HZ_2048RES = "OS0_128ch10hz2048res"
+        OUSTER_OS0_128_10HZ_512RES = "OS0_128ch10hz512res"
+        OUSTER_OS0_128_20HZ_1024RES = "OS0_128ch20hz1024res"
+        OUSTER_OS0_128_20HZ_512RES = "OS0_128ch20hz512res"
+        OUSTER_OS1_32_10HZ_1024RES = "OS1_32ch10hz1024res"
+        OUSTER_OS1_32_10HZ_2048RES = "OS1_32ch10hz2048res"
+        OUSTER_OS1_32_10HZ_512RES = "OS1_32ch10hz512res"
+        OUSTER_OS1_32_20HZ_1024RES = "OS1_32ch20hz1024res"
+        OUSTER_OS1_32_20HZ_512RES = "OS1_32ch20hz512res"
+        SICK_TIM781 = "Sick_TiM781"
+        SLAMTEC_RPLIDAR_S2E = "RPLIDAR_S2E"
+        VELODYNE_VLS128 = "Velodyne_VLS128"
+        ZVISION_ML30S = "ZVISION_ML30S"
+        ZVISION_MLXS = "ZVISION_MLXS"
+        EXAMPLE_ROTARY = "Example_Rotary"
+        EXAMPLE_SOLID_STATE = "Example_Solid_State"
+        SIMPLE_EXAMPLE_SOLID_STATE = "Simple_Example_Solid_State"
