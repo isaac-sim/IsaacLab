@@ -206,10 +206,10 @@ Finally, the last step is to run the training of the RL agent. Isaac Lab provide
 * `RL-Games <https://github.com/Denys88/rl_games>`__
 * `SKRL <https://skrl.readthedocs.io/en/latest/>`__
 
+
 .. note::
 
- Isaac Lab does not provide the implementation of these RL libraries. They are already implemented by different authors. 
- We provide the environment and the training framework that takes place with the popular RLlibraries.
+  Isaac Lab does not provide the implementation of these RL libraries. They are already implemented by different authors. We provide the environment and the training framework that takes place with the popular RLlibraries.
 
 
 
@@ -253,6 +253,7 @@ For single GPU training, the following steps show how training works in Isaac Si
 The next state is then passed in the flow till the training reaches the specified training steps or epochs. The final product is the trained model/agent.
 
 
+
 **Multi-GPU Training**
 
 .. image:: ./images/MultiGPUDataFlow.png
@@ -274,9 +275,11 @@ Follow the tutorial on `multi-GPU training <https://isaac-sim.github.io/IsaacLab
  Currently, this feature is only available for RL-games and skrl libraries workflows and only supported on Linux.
 
 
+
 **Multi-Node Training**
 
 Isaac Lab supports scaling up training by training on multiple nodes/machines. Learn more from the `technical documentation <https://isaac-sim.github.io/IsaacLab/main/source/features/multi_gpu.html#multi-node-training>`__.
+
 
 **Cloud-Based Training**
 
