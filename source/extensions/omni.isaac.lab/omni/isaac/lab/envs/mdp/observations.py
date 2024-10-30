@@ -293,6 +293,7 @@ class image_features(ManagerTermBase):
     entries:
 
     - "model": A callable that returns the model when invoked without arguments.
+    - "reset": A callable that resets the model. This is useful when the model has a state that needs to be reset.
     - "inference": A callable that, when given the model and the images, returns the extracted features.
 
     If the model zoo configuration is not provided, the default model zoo configurations are used. The default
@@ -365,7 +366,15 @@ class image_features(ManagerTermBase):
 
         # Retrieve the model, preprocess and inference functions
         self._model = model_config["model"]()
+        self._reset_fn = model_config.get("reset")
         self._inference_fn = model_config["inference"]
+
+    def reset(self, env_ids: torch.Tensor | None = None):
+        # reset the model if a reset function is provided
+        # this might be useful when the model has a state that needs to be reset
+        # for example: video transformers
+        if self._reset_fn is not None:
+            self._reset_fn(self._model, env_ids)
 
     def __call__(
         self,
@@ -454,7 +463,7 @@ class image_features(ManagerTermBase):
 
         def _load_model() -> torch.nn.Module:
             """Load the ResNet model."""
-            model = getattr(models, model_name)(pretrained=True).eval()
+            model = getattr(models, model_name)(weights="ResNet50_Weights.DEFAULT").eval()
             return model.to(model_device)
 
         def _inference(model, images: torch.Tensor) -> torch.Tensor:
