@@ -42,7 +42,7 @@ def get_pods(namespace: str = "default") -> list[tuple]:
 
 
 def get_clusters(pods: list, cluster_name_prefix: str) -> set:
-    """Get unique cluster name(s). Works for one or more clusters, groks based off of the number of head nodes"""
+    """Get unique cluster name(s). Works for one or more clusters, based off of the number of head nodes"""
     clusters = set()
     # Modify regex pattern to match the entire structure including `-head` or `-worker`
     for pod_name, _ in pods:
@@ -53,18 +53,20 @@ def get_clusters(pods: list, cluster_name_prefix: str) -> set:
 
 
 def check_clusters_running(pods: list, clusters: set) -> bool:
+    """Check that all of the pods in all provided clusters are running"""
     clusters_running = False
     for cluster in clusters:
         cluster_pods = [p for p in pods if p[0].startswith(cluster)]
         total_pods = len(cluster_pods)
         running_pods = len([p for p in cluster_pods if p[1] == "Running"])
-        if running_pods == total_pods and len(running_pods) > 0:
-            clusters_running = False
+        if running_pods == total_pods and running_pods > 0:
+            clusters_running = True
             break
     return clusters_running
 
 
 def get_ray_address(head_pod: str, namespace: str = "default", ray_head_name: str = "head") -> str:
+    """Given a cluster head pod, check it's logs, which should include the ray address which can accept job requests."""
     cmd = ["kubectl", "logs", head_pod, "-c", ray_head_name, "-n", namespace]
     try:
         output = subprocess.check_output(cmd).decode()
@@ -80,6 +82,7 @@ def get_ray_address(head_pod: str, namespace: str = "default", ray_head_name: st
 
 
 def process_cluster(cluster_info: dict, ray_head_name: str = "head") -> str:
+    """For each cluster, check that it is running, and get the Ray head address that will accept jobs."""
     cluster, pods, namespace = cluster_info
     head_pod = None
     for pod_name, status in pods:

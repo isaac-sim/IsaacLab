@@ -27,7 +27,7 @@ to access cloud storage. This secret could be created with
 Usage:
 
 .. code-block:: bash
-
+    # If the head node is stuck on container creating, make sure to create a secret
     ./isaaclab.sh -p source/standalone/workflows/ray/launch.py -h
 
     # Examples
