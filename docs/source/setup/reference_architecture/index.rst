@@ -34,8 +34,8 @@ point for environment configuration, task design, and policy training and testin
 
 
 .. image:: ./images/IsaacLabRA.png
-      :width: 600px
-      :align: center
+      :width: 1000px
+      :figwidth: 100%
       :alt: Isaac Lab Reference Architecture
 
 
@@ -48,10 +48,10 @@ The reference architecture for Isaac Lab comprises the following components:
 5. Register with Gymnasium
 6. Environment Wrapping
 7. Run Training 
-  - Single GPU Training
-  - Multi-GPU Training
-  - Multi-Node Training
-  - Cloud-based Training
+  * Single GPU Training
+  * Multi-GPU Training
+  * Multi-Node Training
+  * Cloud-based Training
 8. Run Testing
 
 
@@ -69,7 +69,7 @@ the following ways:
 a. Design your assets or robot in Isaac Sim and export the USD file.
 b. Design your assets or robot in any software of your choice and export it to USD using Isaac Sim 
 converters. 
-  - Isaac Sim supports the different converters/importers to USD such as the `CAD Converter<https://docs.omniverse.nvidia.com/extensions/latest/ext_cad-converter.html>`__, 
+  * Isaac Sim supports the different converters/importers to USD such as the `CAD Converter`_, 
   `URDF Importer<https://docs.omniverse.nvidia.com/isaacsim/latest/advanced_tutorials/tutorial_advanced_import_urdf.html>`__, 
   `MJCF Importer<https://docs.omniverse.nvidia.com/isaacsim/latest/advanced_tutorials/tutorial_advanced_import_mjcf.html#import-mjcf>`__, 
   `Onshape Importer<https://docs.omniverse.nvidia.com/extensions/latest/ext_onshape.html>` etc. More details are found here and in the 
@@ -210,3 +210,6 @@ More information is available `on the GitHub page for wrapping environments<http
 
 **Component 7 - Run Training**
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+.. _CAD Converter: https://docs.omniverse.nvidia.com/extensions/latest/ext_cad-converter.html
