@@ -296,7 +296,9 @@ class image_features(ManagerTermBase):
     - "inference": A callable that, when given the model and the images, returns the extracted features.
 
     If the model zoo configuration is not provided, the default model zoo configurations are used. The default
-    model zoo configurations include the models from Theia and ResNet.
+    model zoo configurations include the models from Theia and ResNet. These models are loaded from
+    `Hugging-Face Theia <https://huggingface.co/docs/transformers/index>`_ and
+    `PyTorch torchvision <https://pytorch.org/vision/stable/models.html>`_ respectively.
 
     Args:
         sensor_cfg: The sensor configuration to poll. Defaults to SceneEntityCfg("tiled_camera").
@@ -403,7 +405,7 @@ class image_features(ManagerTermBase):
             model_device: The device to store and infer the model on.
 
         Returns:
-            A dictionary containing the model, preprocess and inference functions.
+            A dictionary containing the model and inference functions.
         """
         from transformers import AutoModel
 
@@ -424,18 +426,19 @@ class image_features(ManagerTermBase):
             """
             # Move the image to the model device
             image_proc = images.to(model_device)
+            # permute the image to (num_envs, channel, height, width)
+            image_proc = image_proc.permute(0, 3, 1, 2).float() / 255.0
             # Normalize the image
-            min_img = torch.amin(image_proc, dim=(1, 2), keepdim=True)
-            max_img = torch.amax(image_proc, dim=(1, 2), keepdim=True)
-            image_proc = (image_proc - min_img) / (max_img - min_img)
+            mean = torch.tensor([0.485, 0.456, 0.406], device=model_device).view(1, 3, 1, 1)
+            std = torch.tensor([0.229, 0.224, 0.225], device=model_device).view(1, 3, 1, 1)
+            image_proc = (image_proc - mean) / std
 
-            return model.forward_feature(image_proc, do_rescale=False, interpolate_pos_encoding=True)
+            # Taken from Transformers; inference converted to be GPU only
+            features = model.backbone.model(pixel_values=image_proc, interpolate_pos_encoding=True)
+            return features.last_hidden_state[:, 1:]
 
         # return the model, preprocess and inference functions
-        return {
-            "model": _load_model,
-            "inference": _inference,
-        }
+        return {"model": _load_model, "inference": _inference}
 
     def _prepare_resnet_model(self, model_name: str, model_device: str) -> dict:
         """Prepare the ResNet model for inference.
@@ -445,7 +448,7 @@ class image_features(ManagerTermBase):
             model_device: The device to store and infer the model on.
 
         Returns:
-            A dictionary containing the model, preprocess and inference functions.
+            A dictionary containing the model and inference functions.
         """
         from torchvision import models
 
@@ -467,20 +470,17 @@ class image_features(ManagerTermBase):
             # move the image to the model device
             image_proc = images.to(model_device)
             # permute the image to (num_envs, channel, height, width)
-            image_proc = img_proc.permute(0, 3, 1, 2)
+            image_proc = image_proc.permute(0, 3, 1, 2).float() / 255.0
             # normalize the image
-            mean = torch.tensor([0.485, 0.456, 0.406], device=image_proc.device).view(1, 3, 1, 1)
-            std = torch.tensor([0.229, 0.224, 0.225], device=image_proc.device).view(1, 3, 1, 1)
+            mean = torch.tensor([0.485, 0.456, 0.406], device=model_device).view(1, 3, 1, 1)
+            std = torch.tensor([0.229, 0.224, 0.225], device=model_device).view(1, 3, 1, 1)
             image_proc = (image_proc - mean) / std
 
             # forward the image through the model
             return model(image_proc)
 
         # return the model, preprocess and inference functions
-        return {
-            "model": _load_model,
-            "inference": _inference,
-        }
+        return {"model": _load_model, "inference": _inference}
 
 
 """
