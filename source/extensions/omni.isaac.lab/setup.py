@@ -31,6 +31,8 @@ INSTALL_REQUIRES = [
     # procedural-generation
     "trimesh",
     "pyglet<2",
+    "transformers",
+    "einops",
 ]
 
 PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu118"]
