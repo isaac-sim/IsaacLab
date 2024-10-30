@@ -35,12 +35,10 @@ The reference architecture for Isaac Lab comprises the following components:
 5. Register with Gymnasium
 6. Environment Wrapping
 7. Run Training 
-
-* Single GPU Training
-* Multi-GPU Training
-* Multi-Node Training
-* Cloud-based Training
-
+  * Single GPU Training
+  * Multi-GPU Training
+  * Multi-Node Training
+  * Cloud-based Training
 8. Run Testing
 
 
@@ -60,8 +58,8 @@ the following ways:
 
 2. Design your assets or robot in any software of your choice and export it to USD using Isaac Sim converters. 
 
-* Isaac Sim supports the different converters/importers to USD such as the `CAD Converter`_, `URDF Importer`_, `MJCF Importer`_, `Onshape Importer`_ etc.  
-  More details are found here and in the Importing Robots section in the `Isaac Sim Reference Architecture`_
+  - Isaac Sim supports the different converters/importers to USD such as the `CAD Converter`_, `URDF Importer`_, `MJCF Importer`_, `Onshape Importer`_ etc.  
+    More details are found here and in the Importing Robots section in the `Isaac Sim Reference Architecture`_
 
 3. If you already have the URDF file of your robot, you do not need to convert to USD as Isaac Lab takes URDF.
 
@@ -235,21 +233,21 @@ For single GPU training, the following steps show how training works in Isaac Si
 
 2. In Isaac Lab
 
-  a. We add randomization to the states defined in the event configuration class to obtain the observation for the task. 
-  b. The observations are computed as PyTorch tensors, and it can optionally include the action provided by the trained model.
+  - We add randomization to the states defined in the event configuration class to obtain the observation for the task. 
+  - The observations are computed as PyTorch tensors, and it can optionally include the action provided by the trained model.
 
 3. In the RL library
-  a. The observation is passed to the policy. 
-  b. The policy is trained to output the right actions for the robot using RL library algorithms such as PPO, TRPO, etc. 
-  c. The actions can serve either as a setpoint for a controller that generates the action to the robot or used directly as the action to the robot based on the task.
-  d. Action types such as joint position for a quadruped is an input to a joint controller, velocity of 1 or 0 is used to control the cart directly in the cartpole task, etc.
-  e. In addition, based on how the task is defined, the previous action can be part of the next set of observations that is sent.
+  - The observation is passed to the policy. 
+  - The policy is trained to output the right actions for the robot using RL library algorithms such as PPO, TRPO, etc. 
+  - The actions can serve either as a setpoint for a controller that generates the action to the robot or used directly as the action to the robot based on the task.
+  - Action types such as joint position for a quadruped is an input to a joint controller, velocity of 1 or 0 is used to control the cart directly in the cartpole task, etc.
+  - In addition, based on how the task is defined, the previous action can be part of the next set of observations that is sent.
 
 4. In Isaac Sim
-  a. The actions from the policy are sent back to Isaac Sim to control the agent that is learning i.e. the robot. This is the physics simulation (sim) step. This generates the next states in Isaac Sim and the rewards are calculated in Isaac Lab. 
+  - The actions from the policy are sent back to Isaac Sim to control the agent that is learning i.e. the robot. This is the physics simulation (sim) step. This generates the next states in Isaac Sim and the rewards are calculated in Isaac Lab. 
 
 5. Rendering
-  a.  The scene can be rendered to produce the cameras' images.
+  - The scene can be rendered to produce the cameras' images.
 
 
 The next state is then passed in the flow till the training reaches the specified training steps or epochs. The final product is the trained model/agent.
@@ -338,12 +336,6 @@ Check out our resources on using Isaac Lab with your robots.
 * `Closing the Sim-to-Real Gap: Training Spot Quadruped Locomotion with NVIDIA Isaac Lab <https://developer.nvidia.com/blog/closing-the-sim-to-real-gap-training-spot-quadruped-locomotion-with-nvidia-isaac-lab/>`__
 
 
-
-.. tip::
-
-   It is important to keep the pull request as small as possible. This makes it easier for the
-   maintainers to review your code. If you are making multiple changes, please send multiple pull requests.
-   Large pull requests are difficult to review and may take a long time to merge.
 
 
 
