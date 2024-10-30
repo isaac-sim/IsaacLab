@@ -36,7 +36,7 @@ or when implementing complex logic that is difficult to decompose into separate 
 Manager-Based Environments
 --------------------------
 
-.. image:: ./Manager-basedTaskWorkflow.jpg
+.. image:: ../../_static/task-workflows/manager-based.jpg
       :width: 100%
       :alt: Manager-based Task Workflow
 
@@ -92,7 +92,7 @@ specifications.
 Direct Environments
 -------------------
 
-.. image:: ./Direct-basedTaskWorkflow.jpg
+.. image:: ../../_static/task-workflows/direct-based.jpg
       :width: 100%
       :alt: Direct-based Task Workflow
 
