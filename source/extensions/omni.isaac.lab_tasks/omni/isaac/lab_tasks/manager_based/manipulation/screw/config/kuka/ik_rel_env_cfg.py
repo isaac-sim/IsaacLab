@@ -71,12 +71,12 @@ class reset_scene_to_grasp_state(ManagerTermBase):
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv, ):
         super().__init__(cfg, env)
         screw_type = self._env.cfg.scene.screw_type
-        subdir = env.cfg.params.scene.robot.collision_approximation  
-        cached_pre_grasp_state = pickle.load(open(f"cached/{subdir}/kuka_{screw_type}_pre_grasp.pkl", "rb"))
+        col_approx = env.cfg.params.scene.robot.collision_approximation  
+        cached_pre_grasp_state = pickle.load(open(f"cached/{col_approx}/{screw_type}/kuka_pre_grasp.pkl", "rb"))
         cached_pre_grasp_state = SmartDict(cached_pre_grasp_state).to_tensor(device=env.device)
         self.cached_pre_grasp_state = cached_pre_grasp_state.apply(lambda x: repeat(x, "1 ... -> n ...", n=env.num_envs).clone())
-        if os.path.exists(f"cached/{subdir}/kuka_{screw_type}_grasp.pkl"):
-            cached_grasp_state = pickle.load(open(f"cached/{subdir}/kuka_{screw_type}_grasp.pkl", "rb"))
+        if os.path.exists(f"cached/{col_approx}/{screw_type}/kuka_grasp.pkl"):
+            cached_grasp_state = pickle.load(open(f"cached/{col_approx}/{screw_type}/kuka_grasp.pkl", "rb"))
             cached_grasp_state = SmartDict(cached_grasp_state).to_tensor(device=env.device)
             self.cached_grasp_state = cached_grasp_state.apply(lambda x: repeat(x, "1 ... -> n ...", n=env.num_envs).clone())
 

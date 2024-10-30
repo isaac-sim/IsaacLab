@@ -133,8 +133,6 @@ def main():
     forces, frames = [], []
     for i in range(10):
         frame = env.unwrapped.render()
-    # cached_env_state = SmartDict(pickle.load(open("data/kuka_nut_thread_pre_grasp.pkl", "rb")))
-    # env.unwrapped.write_state(cached_env_state)
     # simulate environment
     while simulation_app.is_running():
         # run everything in inference mode
