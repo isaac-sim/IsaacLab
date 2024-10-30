@@ -17,7 +17,9 @@ from ray import tune
 class RLGamesCameraJobCfg(isaac_ray_tune.JobCfg):
     """In order to be compatible with :meth: invoke_tuning_run, and
     :class:IsaacLabTuneTrainable , configurations should
-    be in a similar format to this class."""
+    be in a similar format to this class. This class can vary env count/horizon length,
+    CNN structure, and MLP structure. Broad possible ranges are set, the specific values
+    that work can be found via tuning. Tuning results can inform better ranges for a second tuning run."""
 
     def __init__(self, cfg={}, vary_env_count: bool = False, vary_cnn: bool = False, vary_mlp: bool = False):
         cfg = isaac_ray_util.populate_isaac_ray_cfg_args(cfg)
@@ -30,13 +32,14 @@ class RLGamesCameraJobCfg(isaac_ray_tune.JobCfg):
         cfg["hydra_args"]["agent.params.config.save_frequency"] = tune.choice([5])
         cfg["hydra_args"]["agent.params.config.max_epochs"] = tune.choice([200])
 
-        if vary_env_count:
-
+        if vary_env_count:  # Vary the env count, and horizon length, and select a compatible mini-batch size
+            # Check from 512 to 8196 envs in powers of 2
+            # check horizon lengths of 8 to 256
             def batch_size_divisors(batch_size, min_size=128):
                 return [i for i in range(1, batch_size + 1) if batch_size % i == 0 and i > min_size]
 
-            cfg["runner_args"]["--num_envs"] = tune.randint(2**6, 2**14 + 1)
-            cfg["hydra_args"]["agent.params.config.horizon_length"] = tune.randint(1, 200)
+            cfg["runner_args"]["--num_envs"] = tune.choice([2**x for x in range(9, 13)])
+            cfg["hydra_args"]["agent.params.config.horizon_length"] = tune.choice([2**x for x in range(3, 8)])
             cfg["hydra_args"]["agent.params.config.minibatch_size.config"] = (
                 tune.sample_from(
                     lambda spec: tune.choice(
@@ -49,7 +52,7 @@ class RLGamesCameraJobCfg(isaac_ray_tune.JobCfg):
                 ),
             )
         if vary_cnn:
-
+            # Vary the CNN structure; size, kernel size, filters, for 1 to 8 CNN layers
             def generate_cnn_layer():
                 return {
                     "filters": tune.randint(2**4, 2**9 + 1),
@@ -65,11 +68,11 @@ class RLGamesCameraJobCfg(isaac_ray_tune.JobCfg):
                 "regularizer": {
                     "name": tune.choice([None, "l2", "l1"]),
                 },
-                "convs": [generate_cnn_layer() for _ in range(tune.randint(1, 6).sample())],
+                "convs": [generate_cnn_layer() for _ in range(tune.randint(1, 8).sample())],
             }
 
         if vary_mlp:
-
+            # Vary the MLP structure; neurons (units) per layer, number of layers,
             def generate_mlp_layer():
                 return {
                     "units": tune.randint(2**3, 2**12),

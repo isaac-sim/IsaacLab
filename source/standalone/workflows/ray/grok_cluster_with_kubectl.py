@@ -29,6 +29,7 @@ Usage:
 
 
 def get_pods(namespace: str = "default") -> list[tuple]:
+    """Get a list of all of the pods in the namespace"""
     cmd = ["kubectl", "get", "pods", "-n", namespace, "--no-headers"]
     output = subprocess.check_output(cmd).decode()
     pods = []
@@ -41,6 +42,7 @@ def get_pods(namespace: str = "default") -> list[tuple]:
 
 
 def get_clusters(pods: list, cluster_name_prefix: str) -> set:
+    """Get unique cluster name(s). Works for one or more clusters, groks based off of the number of head nodes"""
     clusters = set()
     # Modify regex pattern to match the entire structure including `-head` or `-worker`
     for pod_name, _ in pods:
@@ -51,12 +53,12 @@ def get_clusters(pods: list, cluster_name_prefix: str) -> set:
 
 
 def check_clusters_running(pods: list, clusters: set) -> bool:
-    clusters_running = True
+    clusters_running = False
     for cluster in clusters:
         cluster_pods = [p for p in pods if p[0].startswith(cluster)]
         total_pods = len(cluster_pods)
         running_pods = len([p for p in cluster_pods if p[1] == "Running"])
-        if running_pods != total_pods:
+        if running_pods == total_pods and len(running_pods) > 0:
             clusters_running = False
             break
     return clusters_running
@@ -105,9 +107,9 @@ def main():
     parser.add_argument("--ray_head_name", default="head", help="The metadata name for the ray head container")
     args = parser.parse_args()
 
-    CLUSTER_NAME_PREFIX = args.prefix
+    cluster_name_prefix = args.prefix
     # Expand user directory for output file
-    CLUSTER_SPEC_FILE = os.path.expanduser(args.output)
+    cluster_spec_file = os.path.expanduser(args.output)
 
     # Get current namespace
     try:
@@ -126,9 +128,9 @@ def main():
     pods = get_pods(namespace=CURRENT_NAMESPACE)
 
     # Get clusters
-    clusters = get_clusters(pods, CLUSTER_NAME_PREFIX)
+    clusters = get_clusters(pods, cluster_name_prefix)
     if not clusters:
-        print(f"No clusters found with prefix {CLUSTER_NAME_PREFIX}")
+        print(f"No clusters found with prefix {cluster_name_prefix}")
         return
 
     # Wait for clusters to be running
@@ -166,13 +168,13 @@ def main():
     results.sort()
 
     # Write sorted results to the output file
-    with open(CLUSTER_SPEC_FILE, "w") as f:
+    with open(cluster_spec_file, "w") as f:
         for result in results:
             f.write(result)
 
-    print(f"Cluster spec information saved to {CLUSTER_SPEC_FILE}")
+    print(f"Cluster spec information saved to {cluster_spec_file}")
     # Display the contents of the config file
-    with open(CLUSTER_SPEC_FILE) as f:
+    with open(cluster_spec_file) as f:
         print(f.read())
 
 
