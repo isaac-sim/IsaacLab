@@ -143,7 +143,6 @@ def spawn_camera(
     # return the prim
     return prim_utils.get_prim_at_path(prim_path)
 
-
 @clone
 def spawn_lidar(
     prim_path: str,
