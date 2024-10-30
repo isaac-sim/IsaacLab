@@ -293,8 +293,7 @@ class image_features(ManagerTermBase):
     entries:
 
     - "model": A callable that returns the model when invoked without arguments.
-    - "preprocess": A callable that processes the images and returns the preprocessed results.
-    - "inference": A callable that, when given the model and preprocessed images, returns the extracted features.
+    - "inference": A callable that, when given the model and the images, returns the extracted features.
 
     If the model zoo configuration is not provided, the default model zoo configurations are used. The default
     model zoo configurations include the models from Theia and ResNet.
@@ -364,7 +363,6 @@ class image_features(ManagerTermBase):
 
         # Retrieve the model, preprocess and inference functions
         self._model = model_config["model"]()
-        self._preprocess_fn = model_config["preprocess"]
         self._inference_fn = model_config["inference"]
 
     def __call__(
@@ -387,10 +385,8 @@ class image_features(ManagerTermBase):
         )
         # store the device of the image
         image_device = image_data.device
-        # preprocess the images and obtain the features
-        image_processed = self._preprocess_fn(image_data)
         # forward the images through the model
-        features = self._inference_fn(self._model, image_processed)
+        features = self._inference_fn(self._model, image_data)
 
         # move the features back to the image device
         return features.detach().to(image_device)
@@ -416,23 +412,6 @@ class image_features(ManagerTermBase):
             model = AutoModel.from_pretrained(f"theaiinstitute/{model_name}", trust_remote_code=True).eval()
             return model.to(model_device)
 
-        def _preprocess_image(img: torch.Tensor) -> torch.Tensor:
-            """Preprocess the image for the Theia transformer model.
-
-            Args:
-                img: The image tensor to preprocess. Shape is (num_envs, height, width, channel).
-
-            Returns:
-                The preprocessed image tensor. Shape is (num_envs, height, width, channel).
-            """
-            # Move the image to the model device
-            img = img.to(model_device)
-            # Normalize the image
-            min_img = torch.amin(img, dim=(1, 2), keepdim=True)
-            max_img = torch.amax(img, dim=(1, 2), keepdim=True)
-
-            return (img - min_img) / (max_img - min_img)
-
         def _inference(model, images: torch.Tensor) -> torch.Tensor:
             """Inference the Theia transformer model.
 
@@ -443,12 +422,18 @@ class image_features(ManagerTermBase):
             Returns:
                 The extracted features tensor. Shape is (num_envs, feature_dim).
             """
-            return model.forward_feature(images, do_rescale=False, interpolate_pos_encoding=True)
+            # Move the image to the model device
+            image_proc = images.to(model_device)
+            # Normalize the image
+            min_img = torch.amin(image_proc, dim=(1, 2), keepdim=True)
+            max_img = torch.amax(image_proc, dim=(1, 2), keepdim=True)
+            image_proc = (image_proc - min_img) / (max_img - min_img)
+
+            return model.forward_feature(image_proc, do_rescale=False, interpolate_pos_encoding=True)
 
         # return the model, preprocess and inference functions
         return {
             "model": _load_model,
-            "preprocess": _preprocess_image,
             "inference": _inference,
         }
 
@@ -469,25 +454,6 @@ class image_features(ManagerTermBase):
             model = getattr(models, model_name)(pretrained=True).eval()
             return model.to(model_device)
 
-        def _preprocess_image(img: torch.Tensor) -> torch.Tensor:
-            """Preprocess the image for the ResNet model.
-
-            Args:
-                img: The image tensor to preprocess. Shape is (num_envs, height, width, channel).
-
-            Returns:
-                The preprocessed image tensor. Shape is (num_envs, channel, height, width).
-            """
-            # move the image to the model device
-            img = img.to(model_device)
-            # permute the image to (num_envs, channel, height, width)
-            img = img.permute(0, 3, 1, 2)
-            # normalize the image
-            mean = torch.tensor([0.485, 0.456, 0.406], device=img.device).view(1, 3, 1, 1)
-            std = torch.tensor([0.229, 0.224, 0.225], device=img.device).view(1, 3, 1, 1)
-
-            return (img - mean) / std
-
         def _inference(model, images: torch.Tensor) -> torch.Tensor:
             """Inference the ResNet model.
 
@@ -498,12 +464,21 @@ class image_features(ManagerTermBase):
             Returns:
                 The extracted features tensor. Shape is (num_envs, feature_dim).
             """
-            return model(images)
+            # move the image to the model device
+            image_proc = images.to(model_device)
+            # permute the image to (num_envs, channel, height, width)
+            image_proc = img_proc.permute(0, 3, 1, 2)
+            # normalize the image
+            mean = torch.tensor([0.485, 0.456, 0.406], device=image_proc.device).view(1, 3, 1, 1)
+            std = torch.tensor([0.229, 0.224, 0.225], device=image_proc.device).view(1, 3, 1, 1)
+            image_proc = (image_proc - mean) / std
+
+            # forward the image through the model
+            return model(image_proc)
 
         # return the model, preprocess and inference functions
         return {
             "model": _load_model,
-            "preprocess": _preprocess_image,
             "inference": _inference,
         }
 
