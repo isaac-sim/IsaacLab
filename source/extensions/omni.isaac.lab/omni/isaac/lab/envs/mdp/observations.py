@@ -383,7 +383,7 @@ class image_features(ManagerTermBase):
             sensor_cfg=sensor_cfg,
             data_type=data_type,
             convert_perspective_to_orthogonal=convert_perspective_to_orthogonal,
-            normalize=True,  # need this for training stability
+            normalize=False,  # we pre-process based on model
         )
         # store the device of the image
         image_device = image_data.device
