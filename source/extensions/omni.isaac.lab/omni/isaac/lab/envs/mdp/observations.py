@@ -381,7 +381,7 @@ class image_features(ManagerTermBase):
             print(f"[INFO]: Adding {model_name} to the model zoo")
             self.model_zoo[model_name] = self.model_zoo_cfg[model_name]["model"]()
 
-        if model_device is not None and self.model_zoo[model_name].device != model_device:
+        if model_device is not None:
             # want to offload vision model inference to another device
             self.model_zoo[model_name] = self.model_zoo[model_name].to(model_device)
 
