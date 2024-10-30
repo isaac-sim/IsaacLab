@@ -1,19 +1,6 @@
 Isaac Lab Reference Architecture
 ====================================
 
-What is NVIDIA Isaac Lab?
----------------------------------
-Isaac Lab is a unified and modular framework for robot learning that aims to simplify common workflows in robotics research, such as reinforcement learning (RL) and imitation learning). It is built upon NVIDIA Isaac Sim to leverage the latest simulation capabilities for photorealistic scenes, as well as  fast and accurate simulation.
-
-Isaac Lab provides over 16 robots with 26 environments, and we are actively working on adding more environments to the list. Current Environments include four (4) Classic tasks - Cartpole, Cartpole with camera, Humanoid, and Ant; six (6) fixed-arm manipulation tasks; seventeen (17) Legged locomotion tasks - Quadrupeds and Humanoids; and two (2) Navigation tasks - Quadruped and Quadcopter. Robots include but are not limited to:
-
-* Classic - Cartpole, Humanoid, Ant
-* Fixed-Arms - UR10, Franka, Allegro, Shadow Hand
-* Quadrupeds – Anybotics Anymal-B, Anymal-C, Anymal-D, Unitree A1, Unitree Go1, Unitree Go2, Boston Dynamics Spot
-* Humanoids - Unitree H1, Unitree G1
-
-Key features available in Isaac Lab include fast and accurate physics simulation provided by PhysX, tiled rendering APIs for vectorized rendering, domain randomization for improving robustness and adaptability, and support for running in the cloud.
-
 What is this document?
 ---------------------------------
 This document presents an overview of the end-to-end reinforcement learning process with 
@@ -152,7 +139,7 @@ for each component.
   - To learn more on how you can design your own manager-based environment, see :ref:`tutorial-create-manager-rl-env`.
 
 
-.. admonition:: Direct
+**Direct**
 
 .. image:: ./images/x.png
     :width: 600px
@@ -174,7 +161,7 @@ network policy and value function. To train the RL agent to solve the task, you 
 the hyperparameters such as number of epochs, learning rate etc. for training and the 
 policy/value model architecture. This is defined in the training configuration file specific 
 to the RL library you want to use. Examples are created under the agent's folder in each task directory. 
-See an example of `RSL-RL<https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/locomotion/velocity/config/anymal_b/agents/rsl_rl_ppo_cfg.py>`__ for Anymal-B.
+See an example of `RSL-RL <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/locomotion/velocity/config/anymal_b/agents/rsl_rl_ppo_cfg.py>`__ for Anymal-B.
 
 
 **Component 5 - Register with Gymnasium**
@@ -183,33 +170,65 @@ See an example of `RSL-RL<https://github.com/isaac-sim/IsaacLab/blob/main/source
 The next step is to register the environments with the gymnasium registry. 
 Registration is a way to make the environment accessible and reusable across different 
 RL algorithms and experiments. This is common in the RL community. Follow the tutorial on 
-`Registering an Environment<https://isaac-sim.github.io/IsaacLab/main/source/tutorials/03_envs/register_rl_env_gym.html>`__ to learn more about how to register in your own environment.
+`Registering an Environment <https://isaac-sim.github.io/IsaacLab/main/source/tutorials/03_envs/register_rl_env_gym.html>`__ to learn more about how to register in your own environment.
 
 **Component 6 - Environment Wrapping**
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 In running your RL task, you might want to change the behavior of your environment without 
 changing the environment itself. For example, you might want to create functions to modify 
 observations or rewards, record videos, or enforce time limits. Isaac Lab utilizes the API 
-available in the `gymnasium.Wrapper<https://gymnasium.farama.org/api/wrappers/#gymnasium.Wrapper>`__ class to create interfaces to the simulated environments. 
+available in the `gymnasium.Wrapper <https://gymnasium.farama.org/api/wrappers/#gymnasium.Wrapper>`__ class to create interfaces to the simulated environments. 
 
 Some wrappers include:
-- `Video Wrappers<https://isaac-sim.github.io/IsaacLab/main/source/how-to/wrap_rl_env.html#wrapper-for-recording-videos>`__
-- `RL Libraries Wrappers<https://isaac-sim.github.io/IsaacLab/main/source/how-to/wrap_rl_env.html#wrapper-for-learning-frameworks>`__
+- `Video Wrappers <https://isaac-sim.github.io/IsaacLab/main/source/how-to/wrap_rl_env.html#wrapper-for-recording-videos>`__
+- `RL Libraries Wrappers <https://isaac-sim.github.io/IsaacLab/main/source/how-to/wrap_rl_env.html#wrapper-for-learning-frameworks>`__
 
 Most RL libraries expect their own variation of an environment interface. This means the 
 data types needed by each library differs. Isaac Lab provides its own wrappers to convert 
 the environment into the expected interface by the RL library a user wants to use. These are 
-specified in the `Isaac Lab utils wrapper module<https://isaac-sim.github.io/IsaacLab/main/source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#module-omni.isaac.lab_tasks.utils.wrappers>`__.
+specified in the `Isaac Lab utils wrapper module <https://isaac-sim.github.io/IsaacLab/main/source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#module-omni.isaac.lab_tasks.utils.wrappers>`__.
 
-See the `full list<https://gymnasium.farama.org/api/wrappers/#gymnasium.Wrapper>`__ of other wrappers APIs.. For more information on how these wrappers work, 
-please refer to the `Wrapping environments<https://isaac-sim.github.io/IsaacLab/main/source/how-to/wrap_rl_env.html#how-to-env-wrappers>`__ documentation.
+See the `full list <https://gymnasium.farama.org/api/wrappers/#gymnasium.Wrapper>`__ of other wrappers APIs.. For more information on how these wrappers work, 
+please refer to the `Wrapping environments <https://isaac-sim.github.io/IsaacLab/main/source/how-to/wrap_rl_env.html#how-to-env-wrappers>`__ documentation.
 
 .. admonition:: Adding your own wrappers
 You can define your own wrappers by adding them to the Isaac Lab utils wrapper module. 
-More information is available `on the GitHub page for wrapping environments<https://isaac-sim.github.io/IsaacLab/main/source/how-to/wrap_rl_env.html#adding-new-wrappers>`__.
+More information is available `on the GitHub page for wrapping environments <https://isaac-sim.github.io/IsaacLab/main/source/how-to/wrap_rl_env.html#adding-new-wrappers>`__.
 
 **Component 7 - Run Training**
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+Finally, the last step is to run the training of the RL agent. Isaac Lab provides scripts which utilizes four popular RL libraries for training the models (GPU-based training):
+
+* `StableBaselines3 <https://stable-baselines3.readthedocs.io/en/master/>`__`
+* `RSL-RL <https://github.com/leggedrobotics/rsl_rl>`__
+* `RL-Games <https://github.com/Denys88/rl_games>`__
+* `SKRL <https://skrl.readthedocs.io/en/latest/>`__
+
+.. note::
+
+ Isaac Lab does not provide the implementation of these RL libraries. They are already implemented by different authors. 
+ We provide the environment and the training framework that takes place with the popular RLlibraries.
+
+
+**Single GPU Training**
+Isaac Lab supports training massively parallel environments to speed up RL training and provides rich data for the model to train. 
+For single GPU training, the following steps show how training works in Isaac Sim and Isaac Lab:
+
+1. Isaac Sim provides the asset states such as robot and sensor states, including the observations defined in the task observation config class. 
+2. In Isaac Lab
+a. We add randomization to the states defined in the event configuration class to obtain the observation for the task. 
+b. The observations are computed as PyTorch tensors, and it can optionally include the action provided by the trained model.
+
+
+
+
+
+
+
+
+
 
 
 .. _CAD Converter: https://docs.omniverse.nvidia.com/extensions/latest/ext_cad-converter.html
@@ -217,3 +236,9 @@ More information is available `on the GitHub page for wrapping environments<http
 .. _MJCF Importer: https://docs.omniverse.nvidia.com/isaacsim/latest/advanced_tutorials/tutorial_advanced_import_mjcf.html#import-mjcf
 .. _Onshape Importer: https://docs.omniverse.nvidia.com/extensions/latest/ext_onshape.html
 .. _Isaac Sim Reference Architecture: https://docs.omniverse.nvidia.com/isaacsim/latest/isaac_sim_reference_architecture.html
+
+
+If you want to integrate a different version of the provided algorithms or your learning library, you can follow 
+`these instructions <https://isaac-sim.github.io/IsaacLab/main/source/how-to/add_own_library.html>`__. 
+
+See the  `minimum system requirement <https://docs.omniverse.nvidia.com/isaacsim/latest/installation/requirements.html>`__ for training.
