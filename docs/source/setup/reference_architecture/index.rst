@@ -35,10 +35,12 @@ The reference architecture for Isaac Lab comprises the following components:
 5. Register with Gymnasium
 6. Environment Wrapping
 7. Run Training 
-  * Single GPU Training
-  * Multi-GPU Training
-  * Multi-Node Training
-  * Cloud-based Training
+
+* Single GPU Training
+* Multi-GPU Training
+* Multi-Node Training
+* Cloud-based Training
+
 8. Run Testing
 
 
@@ -53,10 +55,10 @@ Isaac Lab accepts URDF or USD files for assets. The first step to training using
 have the USD file of your asset and the USD or URDF file of your robot. This can be achieved in 
 the following ways:
 
+
 1. Design your assets or robot in Isaac Sim and export the USD file.
 
-2. Design your assets or robot in any software of your choice and export it to USD using Isaac Sim 
-converters. 
+2. Design your assets or robot in any software of your choice and export it to USD using Isaac Sim converters. 
 
 * Isaac Sim supports the different converters/importers to USD such as the `CAD Converter`_, `URDF Importer`_, `MJCF Importer`_, `Onshape Importer`_ etc.  
   More details are found here and in the Importing Robots section in the `Isaac Sim Reference Architecture`_
