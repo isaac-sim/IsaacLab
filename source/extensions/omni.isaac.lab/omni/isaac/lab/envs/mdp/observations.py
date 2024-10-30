@@ -308,7 +308,7 @@ class image_features(ManagerTermBase):
             This is used only when the data type is "distance_to_camera". Defaults to False.
         model_zoo_cfg: A user-defined dictionary that maps different model names to their respective configurations.
             Defaults to None. If None, the default model zoo configurations are used.
-        model_name: The name of the model to use for inference. Defaults to "ResNet18".
+        model_name: The name of the model to use for inference. Defaults to "resnet18".
         model_device: The device to store and infer the model on. This is useful when offloading the computation
             from the environment simulation device. Defaults to the environment device.
 
@@ -328,9 +328,6 @@ class image_features(ManagerTermBase):
         self.model_zoo_cfg: dict = cfg.params.get("model_zoo_cfg")  # type: ignore
         self.model_name: str = cfg.params.get("model_name", "resnet18")  # type: ignore
         self.model_device: str = cfg.params.get("model_device", env.device)  # type: ignore
-
-        # convert the model name to lowercase
-        self.model_name = self.model_name.lower()
 
         # List of Theia models - These are configured through `_prepare_theia_transformer_model` function
         default_theia_models = [
@@ -386,7 +383,7 @@ class image_features(ManagerTermBase):
         data_type: str = "rgb",
         convert_perspective_to_orthogonal: bool = False,
         model_zoo_cfg: dict | None = None,
-        model_name: str = "ResNet18",
+        model_name: str = "resnet18",
         model_device: str | None = None,
     ) -> torch.Tensor:
         # obtain the images from the sensor
