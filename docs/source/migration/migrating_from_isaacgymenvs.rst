@@ -660,7 +660,7 @@ the need to set simulation parameters for actors in the task implementation.
 |     self._create_ground_plane()                                        |         copy_from_source=False)                                     |
 |     self._create_envs(self.num_envs,                                   |     self.scene.filter_collisions(                                   |
 |         self.cfg["env"]['envSpacing'],                                 |         global_prim_paths=[])                                       |
-|         int(np.sqrt(self.num_envs)))                                   |     # add articulation to scene                                      |
+|         int(np.sqrt(self.num_envs)))                                   |     # add articulation to scene                                     |
 |                                                                        |     self.scene.articulations["cartpole"] = self.cartpole            |
 | def _create_ground_plane(self):                                        |     # add lights                                                    |
 |     plane_params = gymapi.PlaneParams()                                |     light_cfg = sim_utils.DomeLightCfg(                             |
