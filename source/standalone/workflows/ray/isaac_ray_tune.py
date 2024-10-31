@@ -5,7 +5,6 @@
 import argparse
 import importlib.util
 import os
-import subprocess
 import sys
 from time import sleep
 
@@ -176,7 +175,6 @@ def invoke_tuning_run(cfg: dict, args: argparse.Namespace) -> None:
         )
 
         run_config = ray.train.RunConfig(
-            storage_path=args.storage_path,
             name="mlflow",
             callbacks=[mlflow_callback],
             checkpoint_config=ray.train.CheckpointConfig(checkpoint_frequency=0, checkpoint_at_end=False),
@@ -199,9 +197,9 @@ def invoke_tuning_run(cfg: dict, args: argparse.Namespace) -> None:
 
     # Save results to mounted volume
     if args.run_mode == "local":
-        print("[DONE!]: Check results with tensorboard")
+        print("[DONE!]: Check results with tensorboard dashboard")
     else:
-        print("[DONE!]: Check results with MLFlow ")
+        print("[DONE!]: Check results with MLFlow dashboard")
 
 
 class JobCfg:
@@ -281,6 +279,7 @@ if __name__ == "__main__":
 
         if args.mlflow_uri is not None:
             import mlflow
+
             mlflow.set_tracking_uri(args.mlflow_uri)
             from ray.air.integrations.mlflow import MLflowLoggerCallback
         else:

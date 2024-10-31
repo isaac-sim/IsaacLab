@@ -97,7 +97,7 @@ class RLGamesResNetCameraJob(RLGamesCameraJobCfg):
 
 
 class RLGamesTheiaCameraJob(RLGamesCameraJobCfg):
-    """Try diferent Theia sizes."""
+    """Try different Theia sizes."""
 
     def __init__(self, cfg: dict = {}):
         cfg = isaac_ray_util.populate_isaac_ray_cfg_args(cfg)

@@ -38,11 +38,12 @@ jobs finish, which is unlikely to constrain overall-job submission.
 Usage:
 
 .. code-block:: bash
+
     # Example; submitting a tuning job
     ./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py --aggregate_jobs
-    /workspace/isaaclab/isaaclab.sh -p /workspace/isaaclab/source/standalone/workflors/ray/isaac_ray_tune.py \
-	--cfg_file hyperparameter_tuning/vision_cartpole_cfg.py \
-	--cfg_class CartpoleRGBNoTuneJobCfg --mlflow_uri <ML_FLOW_URI>
+    /workspace/isaaclab/isaaclab.sh -p /workspace/isaaclab/source/standalone/workflors/ray/isaac_ray_tune.py \\
+        --cfg_file hyperparameter_tuning/vision_cartpole_cfg.py \\
+        --cfg_class CartpoleRGBNoTuneJobCfg --mlflow_uri <ML_FLOW_URI>
 
     # Example: Submitting resource wrapped job
     ./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py --aggregate_jobs wrap_isaac_ray_resources.py --sub_jobs ./isaaclab.sh -p source/standalone/workflows/rl_games/train.py --task Isaac-Cartpole-v0 --headless+./isaaclab.sh -p source/standalone/workflows/rl_games/train.py --task Isaac-Cartpole-RGB-Camera-Direct-v0 --headless --enable_cameras agent.params.config.max_epochs=150
