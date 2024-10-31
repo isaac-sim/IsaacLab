@@ -447,7 +447,7 @@ class TestRigidObject(unittest.TestCase):
                         cfg = sim_utils.GroundPlaneCfg(
                             physics_material=materials.RigidBodyMaterialCfg(
                                 static_friction=static_friction_coefficient,
-                                dynamic_friction=static_friction_coefficient,
+                                dynamic_friction=static_friction_coefficient, # This shouldn't be required but is due to a bug in PhysX
                             )
                         )
                         cfg.func("/World/GroundPlane", cfg)
