@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.2.0" />
-    <meta name="docbuild:last-update" content="Oct 30, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 31, 2024"/>
   </head>
   
   
@@ -685,42 +685,46 @@
 
 
 <div class="viewcode-block" id="imu_orientation"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.observations.imu_orientation">[docs]</a><span class="k">def</span> <span class="nf">imu_orientation</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span> <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span> <span class="o">=</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;imu&quot;</span><span class="p">))</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Imu sensor orientation w.r.t the env.scene.origin.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Imu sensor orientation in the simulation world frame.</span>
 
 <span class="sd">    Args:</span>
 <span class="sd">        env: The environment.</span>
-<span class="sd">        asset_cfg: The SceneEntity associated with an Imu sensor.</span>
+<span class="sd">        asset_cfg: The SceneEntity associated with an IMU sensor. Defaults to SceneEntityCfg(&quot;imu&quot;).</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">        Orientation quaternion (wxyz), shape of torch.tensor is (num_env,4).</span>
+<span class="sd">        Orientation in the world frame in (w, x, y, z) quaternion form. Shape is (num_envs, 4).</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># extract the used quantities (to enable type-hinting)</span>
     <span class="n">asset</span><span class="p">:</span> <span class="n">Imu</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="p">[</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
+    <span class="c1"># return the orientation quaternion</span>
     <span class="k">return</span> <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">quat_w</span></div>
 
 
 <div class="viewcode-block" id="imu_ang_vel"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.observations.imu_ang_vel">[docs]</a><span class="k">def</span> <span class="nf">imu_ang_vel</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span> <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span> <span class="o">=</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;imu&quot;</span><span class="p">))</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Imu sensor angular velocity w.r.t. env.scene.origin expressed in the sensor frame.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Imu sensor angular velocity w.r.t. environment origin expressed in the sensor frame.</span>
 
 <span class="sd">    Args:</span>
 <span class="sd">        env: The environment.</span>
-<span class="sd">        asset_cfg: The SceneEntity associated with an Imu sensor.</span>
+<span class="sd">        asset_cfg: The SceneEntity associated with an IMU sensor. Defaults to SceneEntityCfg(&quot;imu&quot;).</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">        Angular velocity (rad/s), shape of torch.tensor is (num_env,3).</span>
+<span class="sd">        The angular velocity (rad/s) in the sensor frame. Shape is (num_envs, 3).</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># extract the used quantities (to enable type-hinting)</span>
     <span class="n">asset</span><span class="p">:</span> <span class="n">Imu</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="p">[</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
+    <span class="c1"># return the angular velocity</span>
     <span class="k">return</span> <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">ang_vel_b</span></div>
 
 
 <div class="viewcode-block" id="imu_lin_acc"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.observations.imu_lin_acc">[docs]</a><span class="k">def</span> <span class="nf">imu_lin_acc</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span> <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span> <span class="o">=</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;imu&quot;</span><span class="p">))</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Imu sensor linear acceleration w.r.t. env.scene.origin expressed in sensor frame.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Imu sensor linear acceleration w.r.t. the environment origin expressed in sensor frame.</span>
 
 <span class="sd">    Args:</span>
 <span class="sd">        env: The environment.</span>
-<span class="sd">        asset_cfg: The SceneEntity associated with an Imu sensor.</span>
+<span class="sd">        asset_cfg: The SceneEntity associated with an IMU sensor. Defaults to SceneEntityCfg(&quot;imu&quot;).</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">        linear acceleration (m/s^2), shape of torch.tensor is (num_env,3).</span>
+<span class="sd">        The linear acceleration (m/s^2) in the sensor frame. Shape is (num_envs, 3).</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">asset</span><span class="p">:</span> <span class="n">Imu</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="p">[</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
     <span class="k">return</span> <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">lin_acc_b</span></div>
@@ -778,42 +782,56 @@
 <div class="viewcode-block" id="image_features"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.observations.image_features">[docs]</a><span class="k">class</span> <span class="nc">image_features</span><span class="p">(</span><span class="n">ManagerTermBase</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Extracted image features from a pre-trained frozen encoder.</span>
 
-<span class="sd">    This method calls the :meth:`image` function to retrieve images, and then performs</span>
-<span class="sd">    inference on those images.</span>
+<span class="sd">    This term uses models from the model zoo in PyTorch and extracts features from the images.</span>
+
+<span class="sd">    It calls the :func:`image` function to get the images and then processes them using the model zoo.</span>
+
+<span class="sd">    A user can provide their own model zoo configuration to use different models for feature extraction.</span>
+<span class="sd">    The model zoo configuration should be a dictionary that maps different model names to a dictionary</span>
+<span class="sd">    that defines the model, preprocess and inference functions. The dictionary should have the following</span>
+<span class="sd">    entries:</span>
+
+<span class="sd">    - &quot;model&quot;: A callable that returns the model when invoked without arguments.</span>
+<span class="sd">    - &quot;reset&quot;: A callable that resets the model. This is useful when the model has a state that needs to be reset.</span>
+<span class="sd">    - &quot;inference&quot;: A callable that, when given the model and the images, returns the extracted features.</span>
+
+<span class="sd">    If the model zoo configuration is not provided, the default model zoo configurations are used. The default</span>
+<span class="sd">    model zoo configurations include the models from Theia :cite:`shang2024theia` and ResNet :cite:`he2016deep`.</span>
+<span class="sd">    These models are loaded from `Hugging-Face transformers &lt;https://huggingface.co/docs/transformers/index&gt;`_ and</span>
+<span class="sd">    `PyTorch torchvision &lt;https://pytorch.org/vision/stable/models.html&gt;`_ respectively.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        sensor_cfg: The sensor configuration to poll. Defaults to SceneEntityCfg(&quot;tiled_camera&quot;).</span>
+<span class="sd">        data_type: The sensor data type. Defaults to &quot;rgb&quot;.</span>
+<span class="sd">        convert_perspective_to_orthogonal: Whether to orthogonalize perspective depth images.</span>
+<span class="sd">            This is used only when the data type is &quot;distance_to_camera&quot;. Defaults to False.</span>
+<span class="sd">        model_zoo_cfg: A user-defined dictionary that maps different model names to their respective configurations.</span>
+<span class="sd">            Defaults to None. If None, the default model zoo configurations are used.</span>
+<span class="sd">        model_name: The name of the model to use for inference. Defaults to &quot;resnet18&quot;.</span>
+<span class="sd">        model_device: The device to store and infer the model on. This is useful when offloading the computation</span>
+<span class="sd">            from the environment simulation device. Defaults to the environment device.</span>
+<span class="sd">        inference_kwargs: Additional keyword arguments to pass to the inference function. Defaults to None,</span>
+<span class="sd">            which means no additional arguments are passed.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        The extracted features tensor. Shape is (num_envs, feature_dim).</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        ValueError: When the model name is not found in the provided model zoo configuration.</span>
+<span class="sd">        ValueError: When the model name is not found in the default model zoo configuration.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
 <div class="viewcode-block" id="image_features.__init__"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.observations.image_features.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">ObservationTermCfg</span><span class="p">,</span> <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">):</span>
+        <span class="c1"># initialize the base class</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">env</span><span class="p">)</span>
-        <span class="kn">from</span> <span class="nn">torchvision</span> <span class="kn">import</span> <span class="n">models</span>
-        <span class="kn">from</span> <span class="nn">transformers</span> <span class="kn">import</span> <span class="n">AutoModel</span>
 
-        <span class="k">def</span> <span class="nf">create_theia_model</span><span class="p">(</span><span class="n">model_name</span><span class="p">):</span>
-            <span class="k">return</span> <span class="p">{</span>
-                <span class="s2">&quot;model&quot;</span><span class="p">:</span> <span class="p">(</span>
-                    <span class="k">lambda</span><span class="p">:</span> <span class="n">AutoModel</span><span class="o">.</span><span class="n">from_pretrained</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;theaiinstitute/</span><span class="si">{</span><span class="n">model_name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">trust_remote_code</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-                    <span class="o">.</span><span class="n">eval</span><span class="p">()</span>
-                    <span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="s2">&quot;cuda:0&quot;</span><span class="p">)</span>
-                <span class="p">),</span>
-                <span class="s2">&quot;preprocess&quot;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">img</span><span class="p">:</span> <span class="p">(</span><span class="n">img</span> <span class="o">-</span> <span class="n">torch</span><span class="o">.</span><span class="n">amin</span><span class="p">(</span><span class="n">img</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="n">keepdim</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span> <span class="o">/</span> <span class="p">(</span>
-                    <span class="n">torch</span><span class="o">.</span><span class="n">amax</span><span class="p">(</span><span class="n">img</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="n">keepdim</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="o">-</span> <span class="n">torch</span><span class="o">.</span><span class="n">amin</span><span class="p">(</span><span class="n">img</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="n">keepdim</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-                <span class="p">),</span>
-                <span class="s2">&quot;inference&quot;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">model</span><span class="p">,</span> <span class="n">images</span><span class="p">:</span> <span class="n">model</span><span class="o">.</span><span class="n">forward_feature</span><span class="p">(</span>
-                    <span class="n">images</span><span class="p">,</span> <span class="n">do_rescale</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">interpolate_pos_encoding</span><span class="o">=</span><span class="kc">True</span>
-                <span class="p">),</span>
-            <span class="p">}</span>
+        <span class="c1"># extract parameters from the configuration</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">model_zoo_cfg</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;model_zoo_cfg&quot;</span><span class="p">)</span>  <span class="c1"># type: ignore</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">model_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;model_name&quot;</span><span class="p">,</span> <span class="s2">&quot;resnet18&quot;</span><span class="p">)</span>  <span class="c1"># type: ignore</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">model_device</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;model_device&quot;</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>  <span class="c1"># type: ignore</span>
 
-        <span class="k">def</span> <span class="nf">create_resnet_model</span><span class="p">(</span><span class="n">resnet_name</span><span class="p">):</span>
-            <span class="k">return</span> <span class="p">{</span>
-                <span class="s2">&quot;model&quot;</span><span class="p">:</span> <span class="k">lambda</span><span class="p">:</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">models</span><span class="p">,</span> <span class="n">resnet_name</span><span class="p">)(</span><span class="n">pretrained</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">eval</span><span class="p">()</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="s2">&quot;cuda:0&quot;</span><span class="p">),</span>
-                <span class="s2">&quot;preprocess&quot;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">img</span><span class="p">:</span> <span class="p">(</span>
-                    <span class="n">img</span><span class="o">.</span><span class="n">permute</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>  <span class="c1"># Convert [batch, height, width, 3] -&gt; [batch, 3, height, width]</span>
-                    <span class="o">-</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([</span><span class="mf">0.485</span><span class="p">,</span> <span class="mf">0.456</span><span class="p">,</span> <span class="mf">0.406</span><span class="p">],</span> <span class="n">device</span><span class="o">=</span><span class="n">img</span><span class="o">.</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
-                <span class="p">)</span> <span class="o">/</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([</span><span class="mf">0.229</span><span class="p">,</span> <span class="mf">0.224</span><span class="p">,</span> <span class="mf">0.225</span><span class="p">],</span> <span class="n">device</span><span class="o">=</span><span class="n">img</span><span class="o">.</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span>
-                <span class="s2">&quot;inference&quot;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">model</span><span class="p">,</span> <span class="n">images</span><span class="p">:</span> <span class="n">model</span><span class="p">(</span><span class="n">images</span><span class="p">),</span>
-            <span class="p">}</span>
-
-        <span class="c1"># List of Theia models</span>
-        <span class="n">theia_models</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="c1"># List of Theia models - These are configured through `_prepare_theia_transformer_model` function</span>
+        <span class="n">default_theia_models</span> <span class="o">=</span> <span class="p">[</span>
             <span class="s2">&quot;theia-tiny-patch16-224-cddsv&quot;</span><span class="p">,</span>
             <span class="s2">&quot;theia-tiny-patch16-224-cdiv&quot;</span><span class="p">,</span>
             <span class="s2">&quot;theia-small-patch16-224-cdiv&quot;</span><span class="p">,</span>
@@ -821,22 +839,43 @@
             <span class="s2">&quot;theia-small-patch16-224-cddsv&quot;</span><span class="p">,</span>
             <span class="s2">&quot;theia-base-patch16-224-cddsv&quot;</span><span class="p">,</span>
         <span class="p">]</span>
+        <span class="c1"># List of ResNet models - These are configured through `_prepare_resnet_model` function</span>
+        <span class="n">default_resnet_models</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;resnet18&quot;</span><span class="p">,</span> <span class="s2">&quot;resnet34&quot;</span><span class="p">,</span> <span class="s2">&quot;resnet50&quot;</span><span class="p">,</span> <span class="s2">&quot;resnet101&quot;</span><span class="p">]</span>
 
-        <span class="c1"># List of ResNet models</span>
-        <span class="n">resnet_models</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;resnet18&quot;</span><span class="p">,</span> <span class="s2">&quot;resnet34&quot;</span><span class="p">,</span> <span class="s2">&quot;resnet50&quot;</span><span class="p">,</span> <span class="s2">&quot;resnet101&quot;</span><span class="p">]</span>
+        <span class="c1"># Check if model name is specified in the model zoo configuration</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_zoo_cfg</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_zoo_cfg</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Model name &#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">model_name</span><span class="si">}</span><span class="s2">&#39; not found in the provided model zoo configuration.&quot;</span>
+                <span class="s2">&quot; Please add the model to the model zoo configuration or use a different model name.&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot; Available models in the provided list: </span><span class="si">{</span><span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model_zoo_cfg</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span><span class="si">}</span><span class="s2">.&quot;</span>
+                <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Hint: If you want to use a default model, consider using one of the following models:&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot; </span><span class="si">{</span><span class="n">default_theia_models</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">default_resnet_models</span><span class="si">}</span><span class="s2">. In this case, you can remove the&quot;</span>
+                <span class="s2">&quot; &#39;model_zoo_cfg&#39; parameter from the observation term configuration.&quot;</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_zoo_cfg</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_name</span> <span class="ow">in</span> <span class="n">default_theia_models</span><span class="p">:</span>
+                <span class="n">model_config</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_prepare_theia_transformer_model</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model_name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_device</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_name</span> <span class="ow">in</span> <span class="n">default_resnet_models</span><span class="p">:</span>
+                <span class="n">model_config</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_prepare_resnet_model</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model_name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_device</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Model name &#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">model_name</span><span class="si">}</span><span class="s2">&#39; not found in the default model zoo configuration.&quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot; Available models: </span><span class="si">{</span><span class="n">default_theia_models</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">default_resnet_models</span><span class="si">}</span><span class="s2">.&quot;</span>
+                <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">model_config</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_zoo_cfg</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">model_name</span><span class="p">]</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">default_model_zoo_cfg</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="c1"># Retrieve the model, preprocess and inference functions</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_model</span> <span class="o">=</span> <span class="n">model_config</span><span class="p">[</span><span class="s2">&quot;model&quot;</span><span class="p">]()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_reset_fn</span> <span class="o">=</span> <span class="n">model_config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;reset&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_inference_fn</span> <span class="o">=</span> <span class="n">model_config</span><span class="p">[</span><span class="s2">&quot;inference&quot;</span><span class="p">]</span></div>
 
-        <span class="c1"># Add Theia models to the zoo</span>
-        <span class="k">for</span> <span class="n">model_name</span> <span class="ow">in</span> <span class="n">theia_models</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">default_model_zoo_cfg</span><span class="p">[</span><span class="n">model_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">create_theia_model</span><span class="p">(</span><span class="n">model_name</span><span class="p">)</span>
-
-        <span class="c1"># Add ResNet models to the zoo</span>
-        <span class="k">for</span> <span class="n">resnet_name</span> <span class="ow">in</span> <span class="n">resnet_models</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">default_model_zoo_cfg</span><span class="p">[</span><span class="n">resnet_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">create_resnet_model</span><span class="p">(</span><span class="n">resnet_name</span><span class="p">)</span>
-
-        <span class="bp">self</span><span class="o">.</span><span class="n">model_zoo_cfg</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_model_zoo_cfg</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">model_zoo</span> <span class="o">=</span> <span class="p">{}</span></div>
+<div class="viewcode-block" id="image_features.reset"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.observations.image_features.reset">[docs]</a>    <span class="k">def</span> <span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="c1"># reset the model if a reset function is provided</span>
+        <span class="c1"># this might be useful when the model has a state that needs to be reset</span>
+        <span class="c1"># for example: video transformers</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reset_fn</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_reset_fn</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_model</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span></div>
 
     <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
@@ -845,62 +884,123 @@
         <span class="n">data_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;rgb&quot;</span><span class="p">,</span>
         <span class="n">convert_perspective_to_orthogonal</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
         <span class="n">model_zoo_cfg</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-        <span class="n">model_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;ResNet18&quot;</span><span class="p">,</span>
-        <span class="n">model_device</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="s2">&quot;cuda:0&quot;</span><span class="p">,</span>
-        <span class="n">reset_model</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">model_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;resnet18&quot;</span><span class="p">,</span>
+        <span class="n">model_device</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">inference_kwargs</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Extracted image features from a pre-trained frozen encoder.</span>
-
-<span class="sd">        Args:</span>
-<span class="sd">            env: The environment.</span>
-<span class="sd">            sensor_cfg: The sensor configuration to poll. Defaults to SceneEntityCfg(&quot;tiled_camera&quot;).</span>
-<span class="sd">            data_type: THe sensor configuration datatype. Defaults to &quot;rgb&quot;.</span>
-<span class="sd">            convert_perspective_to_orthogonal: Whether to orthogonalize perspective depth images.</span>
-<span class="sd">                This is used only when the data type is &quot;distance_to_camera&quot;. Defaults to False.</span>
-<span class="sd">            model_zoo_cfg: Map from model name to model configuration dictionary. Each model</span>
-<span class="sd">                configuration dictionary should include the following entries:</span>
-<span class="sd">                - &quot;model&quot;: A callable that returns the model when invoked without arguments.</span>
-<span class="sd">                - &quot;preprocess&quot;: A callable that processes the images and returns the preprocessed results.</span>
-<span class="sd">                - &quot;inference&quot;: A callable that, when given the model and preprocessed images,</span>
-<span class="sd">                    returns the extracted features.</span>
-<span class="sd">            model_name: The name of the model to use for inference. Defaults to &quot;ResNet18&quot;.</span>
-<span class="sd">            model_device: The device to store and infer models on. This can be used help offload</span>
-<span class="sd">                computation from the main environment GPU. Defaults to &quot;cuda:0&quot;.</span>
-<span class="sd">            reset_model: Initialize the model even if it already exists. Defaults to False.</span>
-
-<span class="sd">        Returns:</span>
-<span class="sd">            torch.Tensor: the image features, on the same device as the image</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="n">model_zoo_cfg</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>  <span class="c1"># use other than default</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">model_zoo_cfg</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">model_zoo_cfg</span><span class="p">)</span>
-
-        <span class="k">if</span> <span class="n">model_name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_zoo</span> <span class="ow">or</span> <span class="n">reset_model</span><span class="p">:</span>
-            <span class="c1"># The following allows to only load a desired subset of a model zoo into GPU memory</span>
-            <span class="c1"># as it becomes needed, in a &quot;lazy&quot; evaluation.</span>
-            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[INFO]: Adding </span><span class="si">{</span><span class="n">model_name</span><span class="si">}</span><span class="s2"> to the model zoo&quot;</span><span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">model_zoo</span><span class="p">[</span><span class="n">model_name</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_zoo_cfg</span><span class="p">[</span><span class="n">model_name</span><span class="p">][</span><span class="s2">&quot;model&quot;</span><span class="p">]()</span>
-
-        <span class="k">if</span> <span class="n">model_device</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_zoo</span><span class="p">[</span><span class="n">model_name</span><span class="p">]</span><span class="o">.</span><span class="n">device</span> <span class="o">!=</span> <span class="n">model_device</span><span class="p">:</span>
-            <span class="c1"># want to offload vision model inference to another device</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">model_zoo</span><span class="p">[</span><span class="n">model_name</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_zoo</span><span class="p">[</span><span class="n">model_name</span><span class="p">]</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">model_device</span><span class="p">)</span>
-
-        <span class="n">images</span> <span class="o">=</span> <span class="n">image</span><span class="p">(</span>
+        <span class="c1"># obtain the images from the sensor</span>
+        <span class="n">image_data</span> <span class="o">=</span> <span class="n">image</span><span class="p">(</span>
             <span class="n">env</span><span class="o">=</span><span class="n">env</span><span class="p">,</span>
             <span class="n">sensor_cfg</span><span class="o">=</span><span class="n">sensor_cfg</span><span class="p">,</span>
             <span class="n">data_type</span><span class="o">=</span><span class="n">data_type</span><span class="p">,</span>
             <span class="n">convert_perspective_to_orthogonal</span><span class="o">=</span><span class="n">convert_perspective_to_orthogonal</span><span class="p">,</span>
-            <span class="n">normalize</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>  <span class="c1"># want this for training stability</span>
+            <span class="n">normalize</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>  <span class="c1"># we pre-process based on model</span>
         <span class="p">)</span>
+        <span class="c1"># store the device of the image</span>
+        <span class="n">image_device</span> <span class="o">=</span> <span class="n">image_data</span><span class="o">.</span><span class="n">device</span>
+        <span class="c1"># forward the images through the model</span>
+        <span class="n">features</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_inference_fn</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_model</span><span class="p">,</span> <span class="n">image_data</span><span class="p">,</span> <span class="o">**</span><span class="p">(</span><span class="n">inference_kwargs</span> <span class="ow">or</span> <span class="p">{}))</span>
 
-        <span class="n">image_device</span> <span class="o">=</span> <span class="n">images</span><span class="o">.</span><span class="n">device</span>
+        <span class="c1"># move the features back to the image device</span>
+        <span class="k">return</span> <span class="n">features</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">image_device</span><span class="p">)</span>
 
-        <span class="k">if</span> <span class="n">model_device</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">images</span> <span class="o">=</span> <span class="n">images</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">model_device</span><span class="p">)</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Helper functions.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
-        <span class="n">proc_images</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_zoo_cfg</span><span class="p">[</span><span class="n">model_name</span><span class="p">][</span><span class="s2">&quot;preprocess&quot;</span><span class="p">](</span><span class="n">images</span><span class="p">)</span>
-        <span class="n">features</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_zoo_cfg</span><span class="p">[</span><span class="n">model_name</span><span class="p">][</span><span class="s2">&quot;inference&quot;</span><span class="p">](</span><span class="bp">self</span><span class="o">.</span><span class="n">model_zoo</span><span class="p">[</span><span class="n">model_name</span><span class="p">],</span> <span class="n">proc_images</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">_prepare_theia_transformer_model</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">model_device</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Prepare the Theia transformer model for inference.</span>
 
-        <span class="k">return</span> <span class="n">features</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">image_device</span><span class="p">)</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span></div>
+<span class="sd">        Args:</span>
+<span class="sd">            model_name: The name of the Theia transformer model to prepare.</span>
+<span class="sd">            model_device: The device to store and infer the model on.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A dictionary containing the model and inference functions.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">transformers</span> <span class="kn">import</span> <span class="n">AutoModel</span>
+
+        <span class="k">def</span> <span class="nf">_load_model</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">:</span>
+<span class="w">            </span><span class="sd">&quot;&quot;&quot;Load the Theia transformer model.&quot;&quot;&quot;</span>
+            <span class="n">model</span> <span class="o">=</span> <span class="n">AutoModel</span><span class="o">.</span><span class="n">from_pretrained</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;theaiinstitute/</span><span class="si">{</span><span class="n">model_name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">trust_remote_code</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">eval</span><span class="p">()</span>
+            <span class="k">return</span> <span class="n">model</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">model_device</span><span class="p">)</span>
+
+        <span class="k">def</span> <span class="nf">_inference</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">images</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">            </span><span class="sd">&quot;&quot;&quot;Inference the Theia transformer model.</span>
+
+<span class="sd">            Args:</span>
+<span class="sd">                model: The Theia transformer model.</span>
+<span class="sd">                images: The preprocessed image tensor. Shape is (num_envs, height, width, channel).</span>
+
+<span class="sd">            Returns:</span>
+<span class="sd">                The extracted features tensor. Shape is (num_envs, feature_dim).</span>
+<span class="sd">            &quot;&quot;&quot;</span>
+            <span class="c1"># Move the image to the model device</span>
+            <span class="n">image_proc</span> <span class="o">=</span> <span class="n">images</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">model_device</span><span class="p">)</span>
+            <span class="c1"># permute the image to (num_envs, channel, height, width)</span>
+            <span class="n">image_proc</span> <span class="o">=</span> <span class="n">image_proc</span><span class="o">.</span><span class="n">permute</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">float</span><span class="p">()</span> <span class="o">/</span> <span class="mf">255.0</span>
+            <span class="c1"># Normalize the image</span>
+            <span class="n">mean</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([</span><span class="mf">0.485</span><span class="p">,</span> <span class="mf">0.456</span><span class="p">,</span> <span class="mf">0.406</span><span class="p">],</span> <span class="n">device</span><span class="o">=</span><span class="n">model_device</span><span class="p">)</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="n">std</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([</span><span class="mf">0.229</span><span class="p">,</span> <span class="mf">0.224</span><span class="p">,</span> <span class="mf">0.225</span><span class="p">],</span> <span class="n">device</span><span class="o">=</span><span class="n">model_device</span><span class="p">)</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="n">image_proc</span> <span class="o">=</span> <span class="p">(</span><span class="n">image_proc</span> <span class="o">-</span> <span class="n">mean</span><span class="p">)</span> <span class="o">/</span> <span class="n">std</span>
+
+            <span class="c1"># Taken from Transformers; inference converted to be GPU only</span>
+            <span class="n">features</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">backbone</span><span class="o">.</span><span class="n">model</span><span class="p">(</span><span class="n">pixel_values</span><span class="o">=</span><span class="n">image_proc</span><span class="p">,</span> <span class="n">interpolate_pos_encoding</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">features</span><span class="o">.</span><span class="n">last_hidden_state</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">:]</span>
+
+        <span class="c1"># return the model, preprocess and inference functions</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;model&quot;</span><span class="p">:</span> <span class="n">_load_model</span><span class="p">,</span> <span class="s2">&quot;inference&quot;</span><span class="p">:</span> <span class="n">_inference</span><span class="p">}</span>
+
+    <span class="k">def</span> <span class="nf">_prepare_resnet_model</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">model_device</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Prepare the ResNet model for inference.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            model_name: The name of the ResNet model to prepare.</span>
+<span class="sd">            model_device: The device to store and infer the model on.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A dictionary containing the model and inference functions.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">torchvision</span> <span class="kn">import</span> <span class="n">models</span>
+
+        <span class="k">def</span> <span class="nf">_load_model</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">:</span>
+<span class="w">            </span><span class="sd">&quot;&quot;&quot;Load the ResNet model.&quot;&quot;&quot;</span>
+            <span class="c1"># map the model name to the weights</span>
+            <span class="n">resnet_weights</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s2">&quot;resnet18&quot;</span><span class="p">:</span> <span class="s2">&quot;ResNet18_Weights.IMAGENET1K_V1&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;resnet34&quot;</span><span class="p">:</span> <span class="s2">&quot;ResNet34_Weights.IMAGENET1K_V1&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;resnet50&quot;</span><span class="p">:</span> <span class="s2">&quot;ResNet50_Weights.IMAGENET1K_V1&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;resnet101&quot;</span><span class="p">:</span> <span class="s2">&quot;ResNet101_Weights.IMAGENET1K_V1&quot;</span><span class="p">,</span>
+            <span class="p">}</span>
+
+            <span class="c1"># load the model</span>
+            <span class="n">model</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">models</span><span class="p">,</span> <span class="n">model_name</span><span class="p">)(</span><span class="n">weights</span><span class="o">=</span><span class="n">resnet_weights</span><span class="p">[</span><span class="n">model_name</span><span class="p">])</span><span class="o">.</span><span class="n">eval</span><span class="p">()</span>
+            <span class="k">return</span> <span class="n">model</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">model_device</span><span class="p">)</span>
+
+        <span class="k">def</span> <span class="nf">_inference</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">images</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">            </span><span class="sd">&quot;&quot;&quot;Inference the ResNet model.</span>
+
+<span class="sd">            Args:</span>
+<span class="sd">                model: The ResNet model.</span>
+<span class="sd">                images: The preprocessed image tensor. Shape is (num_envs, channel, height, width).</span>
+
+<span class="sd">            Returns:</span>
+<span class="sd">                The extracted features tensor. Shape is (num_envs, feature_dim).</span>
+<span class="sd">            &quot;&quot;&quot;</span>
+            <span class="c1"># move the image to the model device</span>
+            <span class="n">image_proc</span> <span class="o">=</span> <span class="n">images</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">model_device</span><span class="p">)</span>
+            <span class="c1"># permute the image to (num_envs, channel, height, width)</span>
+            <span class="n">image_proc</span> <span class="o">=</span> <span class="n">image_proc</span><span class="o">.</span><span class="n">permute</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">float</span><span class="p">()</span> <span class="o">/</span> <span class="mf">255.0</span>
+            <span class="c1"># normalize the image</span>
+            <span class="n">mean</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([</span><span class="mf">0.485</span><span class="p">,</span> <span class="mf">0.456</span><span class="p">,</span> <span class="mf">0.406</span><span class="p">],</span> <span class="n">device</span><span class="o">=</span><span class="n">model_device</span><span class="p">)</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="n">std</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([</span><span class="mf">0.229</span><span class="p">,</span> <span class="mf">0.224</span><span class="p">,</span> <span class="mf">0.225</span><span class="p">],</span> <span class="n">device</span><span class="o">=</span><span class="n">model_device</span><span class="p">)</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="n">image_proc</span> <span class="o">=</span> <span class="p">(</span><span class="n">image_proc</span> <span class="o">-</span> <span class="n">mean</span><span class="p">)</span> <span class="o">/</span> <span class="n">std</span>
+
+            <span class="c1"># forward the image through the model</span>
+            <span class="k">return</span> <span class="n">model</span><span class="p">(</span><span class="n">image_proc</span><span class="p">)</span>
+
+        <span class="c1"># return the model, preprocess and inference functions</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;model&quot;</span><span class="p">:</span> <span class="n">_load_model</span><span class="p">,</span> <span class="s2">&quot;inference&quot;</span><span class="p">:</span> <span class="n">_inference</span><span class="p">}</span></div>
 
 
 <span class="sd">&quot;&quot;&quot;</span>
@@ -975,7 +1075,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 30, 2024.
+  Last updated on Oct 31, 2024.
   <br/>
 </p>
   </div>

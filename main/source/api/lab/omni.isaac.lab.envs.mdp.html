@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.2.0" />
-    <meta name="docbuild:last-update" content="Oct 30, 2024"/>
+    <meta name="docbuild:last-update" content="Oct 31, 2024"/>
   </head>
   
   
@@ -582,6 +582,7 @@
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.observations.image"><code class="docutils literal notranslate"><span class="pre">image()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.observations.image_features"><code class="docutils literal notranslate"><span class="pre">image_features</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.observations.image_features.__init__"><code class="docutils literal notranslate"><span class="pre">image_features.__init__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.observations.image_features.reset"><code class="docutils literal notranslate"><span class="pre">image_features.reset()</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.observations.last_action"><code class="docutils literal notranslate"><span class="pre">last_action()</span></code></a></li>
@@ -941,7 +942,7 @@ the observation introduced by the function.</p>
 <td><p>Incoming spatial wrench on bodies of an articulation in the simulation world frame.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.observations.imu_orientation" title="omni.isaac.lab.envs.mdp.observations.imu_orientation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">imu_orientation</span></code></a>(env[, asset_cfg])</p></td>
-<td><p>Imu sensor orientation w.r.t the env.scene.origin.</p></td>
+<td><p>Imu sensor orientation in the simulation world frame.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.observations.imu_ang_vel" title="omni.isaac.lab.envs.mdp.observations.imu_ang_vel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">imu_ang_vel</span></code></a>(env[, asset_cfg])</p></td>
 <td><p>Imu sensor angular velocity w.r.t.</p></td>
@@ -1073,16 +1074,16 @@ the same orientation.</p>
 <dl class="py function">
 <dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.observations.imu_orientation">
 <span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.envs.mdp.observations.</span></span><span class="sig-name descname"><span class="pre">imu_orientation</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnv" title="omni.isaac.lab.envs.ManagerBasedEnv"><span class="pre">ManagerBasedEnv</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">asset_cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="omni.isaac.lab.managers.html#omni.isaac.lab.managers.SceneEntityCfg" title="omni.isaac.lab.managers.SceneEntityCfg"><span class="pre">SceneEntityCfg</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">SceneEntityCfg(name='imu',</span> <span class="pre">joint_names=None,</span> <span class="pre">joint_ids=slice(None,</span> <span class="pre">None,</span> <span class="pre">None),</span> <span class="pre">fixed_tendon_names=None,</span> <span class="pre">fixed_tendon_ids=slice(None,</span> <span class="pre">None,</span> <span class="pre">None),</span> <span class="pre">body_names=None,</span> <span class="pre">body_ids=slice(None,</span> <span class="pre">None,</span> <span class="pre">None),</span> <span class="pre">preserve_order=False)</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a></span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/envs/mdp/observations.html#imu_orientation"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.envs.mdp.observations.imu_orientation" title="Permalink to this definition">#</a></dt>
-<dd><p>Imu sensor orientation w.r.t the env.scene.origin.</p>
+<dd><p>Imu sensor orientation in the simulation world frame.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>env</strong> – The environment.</p></li>
-<li><p><strong>asset_cfg</strong> – The SceneEntity associated with an Imu sensor.</p></li>
+<li><p><strong>asset_cfg</strong> – The SceneEntity associated with an IMU sensor. Defaults to SceneEntityCfg(“imu”).</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>Orientation quaternion (wxyz), shape of torch.tensor is (num_env,4).</p>
+<dd class="field-even"><p>Orientation in the world frame in (w, x, y, z) quaternion form. Shape is (num_envs, 4).</p>
 </dd>
 </dl>
 </dd></dl>
@@ -1090,16 +1091,16 @@ the same orientation.</p>
 <dl class="py function">
 <dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.observations.imu_ang_vel">
 <span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.envs.mdp.observations.</span></span><span class="sig-name descname"><span class="pre">imu_ang_vel</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnv" title="omni.isaac.lab.envs.ManagerBasedEnv"><span class="pre">ManagerBasedEnv</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">asset_cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="omni.isaac.lab.managers.html#omni.isaac.lab.managers.SceneEntityCfg" title="omni.isaac.lab.managers.SceneEntityCfg"><span class="pre">SceneEntityCfg</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">SceneEntityCfg(name='imu',</span> <span class="pre">joint_names=None,</span> <span class="pre">joint_ids=slice(None,</span> <span class="pre">None,</span> <span class="pre">None),</span> <span class="pre">fixed_tendon_names=None,</span> <span class="pre">fixed_tendon_ids=slice(None,</span> <span class="pre">None,</span> <span class="pre">None),</span> <span class="pre">body_names=None,</span> <span class="pre">body_ids=slice(None,</span> <span class="pre">None,</span> <span class="pre">None),</span> <span class="pre">preserve_order=False)</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a></span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/envs/mdp/observations.html#imu_ang_vel"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.envs.mdp.observations.imu_ang_vel" title="Permalink to this definition">#</a></dt>
-<dd><p>Imu sensor angular velocity w.r.t. env.scene.origin expressed in the sensor frame.</p>
+<dd><p>Imu sensor angular velocity w.r.t. environment origin expressed in the sensor frame.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>env</strong> – The environment.</p></li>
-<li><p><strong>asset_cfg</strong> – The SceneEntity associated with an Imu sensor.</p></li>
+<li><p><strong>asset_cfg</strong> – The SceneEntity associated with an IMU sensor. Defaults to SceneEntityCfg(“imu”).</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>Angular velocity (rad/s), shape of torch.tensor is (num_env,3).</p>
+<dd class="field-even"><p>The angular velocity (rad/s) in the sensor frame. Shape is (num_envs, 3).</p>
 </dd>
 </dl>
 </dd></dl>
@@ -1107,16 +1108,16 @@ the same orientation.</p>
 <dl class="py function">
 <dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.observations.imu_lin_acc">
 <span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.envs.mdp.observations.</span></span><span class="sig-name descname"><span class="pre">imu_lin_acc</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnv" title="omni.isaac.lab.envs.ManagerBasedEnv"><span class="pre">ManagerBasedEnv</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">asset_cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="omni.isaac.lab.managers.html#omni.isaac.lab.managers.SceneEntityCfg" title="omni.isaac.lab.managers.SceneEntityCfg"><span class="pre">SceneEntityCfg</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">SceneEntityCfg(name='imu',</span> <span class="pre">joint_names=None,</span> <span class="pre">joint_ids=slice(None,</span> <span class="pre">None,</span> <span class="pre">None),</span> <span class="pre">fixed_tendon_names=None,</span> <span class="pre">fixed_tendon_ids=slice(None,</span> <span class="pre">None,</span> <span class="pre">None),</span> <span class="pre">body_names=None,</span> <span class="pre">body_ids=slice(None,</span> <span class="pre">None,</span> <span class="pre">None),</span> <span class="pre">preserve_order=False)</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a></span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/envs/mdp/observations.html#imu_lin_acc"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.envs.mdp.observations.imu_lin_acc" title="Permalink to this definition">#</a></dt>
-<dd><p>Imu sensor linear acceleration w.r.t. env.scene.origin expressed in sensor frame.</p>
+<dd><p>Imu sensor linear acceleration w.r.t. the environment origin expressed in sensor frame.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>env</strong> – The environment.</p></li>
-<li><p><strong>asset_cfg</strong> – The SceneEntity associated with an Imu sensor.</p></li>
+<li><p><strong>asset_cfg</strong> – The SceneEntity associated with an IMU sensor. Defaults to SceneEntityCfg(“imu”).</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>linear acceleration (m/s^2), shape of torch.tensor is (num_env,3).</p>
+<dd class="field-even"><p>The linear acceleration (m/s^2) in the sensor frame. Shape is (num_envs, 3).</p>
 </dd>
 </dl>
 </dd></dl>
@@ -1153,13 +1154,55 @@ Defaults to True.</p></li>
 <dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.observations.image_features">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.envs.mdp.observations.</span></span><span class="sig-name descname"><span class="pre">image_features</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/envs/mdp/observations.html#image_features"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.envs.mdp.observations.image_features" title="Permalink to this definition">#</a></dt>
 <dd><p>Extracted image features from a pre-trained frozen encoder.</p>
-<p>This method calls the <a class="reference internal" href="#omni.isaac.lab.envs.mdp.observations.image" title="omni.isaac.lab.envs.mdp.observations.image"><code class="xref py py-meth docutils literal notranslate"><span class="pre">image()</span></code></a> function to retrieve images, and then performs
-inference on those images.</p>
+<p>This term uses models from the model zoo in PyTorch and extracts features from the images.</p>
+<p>It calls the <a class="reference internal" href="#omni.isaac.lab.envs.mdp.observations.image" title="omni.isaac.lab.envs.mdp.observations.image"><code class="xref py py-func docutils literal notranslate"><span class="pre">image()</span></code></a> function to get the images and then processes them using the model zoo.</p>
+<p>A user can provide their own model zoo configuration to use different models for feature extraction.
+The model zoo configuration should be a dictionary that maps different model names to a dictionary
+that defines the model, preprocess and inference functions. The dictionary should have the following
+entries:</p>
+<ul class="simple">
+<li><p>“model”: A callable that returns the model when invoked without arguments.</p></li>
+<li><p>“reset”: A callable that resets the model. This is useful when the model has a state that needs to be reset.</p></li>
+<li><p>“inference”: A callable that, when given the model and the images, returns the extracted features.</p></li>
+</ul>
+<p>If the model zoo configuration is not provided, the default model zoo configurations are used. The default
+model zoo configurations include the models from Theia <span id="id1">[<a class="reference internal" href="../../refs/bibliography.html#id17" title="Jinghuan Shang, Karl Schmeckpeper, Brandon B May, Maria Vittoria Minniti, Tarik Kelestemur, David Watkins, and Laura Herlant. Theia: distilling diverse vision foundation models for robot learning. arXiv preprint arXiv:2407.20179, 2024.">SSM+24</a>]</span> and ResNet <span id="id2">[<a class="reference internal" href="../../refs/bibliography.html#id18" title="Kaiming He, Xiangyu Zhang, Shaoqing Ren, and Jian Sun. Deep residual learning for image recognition. In Proceedings of the IEEE conference on computer vision and pattern recognition, 770–778. 2016.">HZRS16</a>]</span>.
+These models are loaded from <a class="reference external" href="https://huggingface.co/docs/transformers/index">Hugging-Face transformers</a> and
+<a class="reference external" href="https://pytorch.org/vision/stable/models.html">PyTorch torchvision</a> respectively.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>sensor_cfg</strong> – The sensor configuration to poll. Defaults to SceneEntityCfg(“tiled_camera”).</p></li>
+<li><p><strong>data_type</strong> – The sensor data type. Defaults to “rgb”.</p></li>
+<li><p><strong>convert_perspective_to_orthogonal</strong> – Whether to orthogonalize perspective depth images.
+This is used only when the data type is “distance_to_camera”. Defaults to False.</p></li>
+<li><p><strong>model_zoo_cfg</strong> – A user-defined dictionary that maps different model names to their respective configurations.
+Defaults to None. If None, the default model zoo configurations are used.</p></li>
+<li><p><strong>model_name</strong> – The name of the model to use for inference. Defaults to “resnet18”.</p></li>
+<li><p><strong>model_device</strong> – The device to store and infer the model on. This is useful when offloading the computation
+from the environment simulation device. Defaults to the environment device.</p></li>
+<li><p><strong>inference_kwargs</strong> – Additional keyword arguments to pass to the inference function. Defaults to None,
+which means no additional arguments are passed.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The extracted features tensor. Shape is (num_envs, feature_dim).</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.13)"><strong>ValueError</strong></a> – When the model name is not found in the provided model zoo configuration.</p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.13)"><strong>ValueError</strong></a> – When the model name is not found in the default model zoo configuration.</p></li>
+</ul>
+</dd>
+</dl>
 <p><strong>Methods:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.observations.image_features.__init__" title="omni.isaac.lab.envs.mdp.observations.image_features.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>(cfg, env)</p></td>
 <td><p>Initialize the manager term.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.observations.image_features.reset" title="omni.isaac.lab.envs.mdp.observations.image_features.reset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset</span></code></a>([env_ids])</p></td>
+<td><p>Resets the manager term.</p></td>
 </tr>
 </tbody>
 </table>
@@ -1174,6 +1217,18 @@ inference on those images.</p>
 <li><p><strong>cfg</strong> – The configuration object.</p></li>
 <li><p><strong>env</strong> – The environment instance.</p></li>
 </ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.observations.image_features.reset">
+<span class="sig-name descname"><span class="pre">reset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/envs/mdp/observations.html#image_features.reset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.envs.mdp.observations.image_features.reset" title="Permalink to this definition">#</a></dt>
+<dd><p>Resets the manager term.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>env_ids</strong> – The environment ids. Defaults to None, in which case
+all environments are considered.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -3578,7 +3633,7 @@ the termination introduced by the function.</p>
 <span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.envs.mdp.terminations.</span></span><span class="sig-name descname"><span class="pre">command_resample</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnv" title="omni.isaac.lab.envs.ManagerBasedRLEnv"><span class="pre">ManagerBasedRLEnv</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">command_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_resamples</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a></span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/envs/mdp/terminations.html#command_resample"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.envs.mdp.terminations.command_resample" title="Permalink to this definition">#</a></dt>
 <dd><p>Terminate the episode based on the total number of times commands have been re-sampled.</p>
 <p>This makes the maximum episode length fluid in nature as it depends on how the commands are
-sampled. It is useful in situations where delayed rewards are used <span id="id1">[<a class="reference internal" href="../../refs/bibliography.html#id10" title="Nikita Rudin, David Hoeller, Marko Bjelonic, and Marco Hutter. Advanced skills by learning locomotion and local navigation end-to-end. In 2022 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS), volume, 2497-2503. 2022. doi:10.1109/IROS47612.2022.9981198.">RHBH22</a>]</span>.</p>
+sampled. It is useful in situations where delayed rewards are used <span id="id3">[<a class="reference internal" href="../../refs/bibliography.html#id10" title="Nikita Rudin, David Hoeller, Marko Bjelonic, and Marco Hutter. Advanced skills by learning locomotion and local navigation end-to-end. In 2022 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS), volume, 2497-2503. 2022. doi:10.1109/IROS47612.2022.9981198.">RHBH22</a>]</span>.</p>
 </dd></dl>
 
 <dl class="py function">
@@ -3744,6 +3799,7 @@ the curriculum introduced by the function.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.observations.image"><code class="docutils literal notranslate"><span class="pre">image()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.observations.image_features"><code class="docutils literal notranslate"><span class="pre">image_features</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.observations.image_features.__init__"><code class="docutils literal notranslate"><span class="pre">image_features.__init__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.observations.image_features.reset"><code class="docutils literal notranslate"><span class="pre">image_features.reset()</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.observations.last_action"><code class="docutils literal notranslate"><span class="pre">last_action()</span></code></a></li>
@@ -4062,7 +4118,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 30, 2024.
+  Last updated on Oct 31, 2024.
   <br/>
 </p>
   </div>
