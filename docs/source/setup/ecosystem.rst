@@ -6,9 +6,9 @@ for robot learning that exploits latest simulation technologies. It is designed 
 and aims to simplify common workflows in robotics research (such as RL, learning from demonstrations, and
 motion planning). While it includes some pre-built environments, sensors, and tasks, its main goal is to
 provide an open-sourced, unified, and easy-to-use interface for developing and testing custom environments
-and robot learning algorithms. 
+and robot learning algorithms.
 
-Working with Isaac Lab requires the installation of Isaac Sim, which is packaged with core robotics tools 
+Working with Isaac Lab requires the installation of Isaac Sim, which is packaged with core robotics tools
 that Isaac Lab depends on, including URDF and MJCF importers, simulation managers, and ROS features. Isaac
 Sim also builds on top of the Nvidia Omniverse platform, leveraging advanced physics simulation from PhysX,
 photorealistic rendering technologies, and Universal Scene Description (USD) for scene creation.
