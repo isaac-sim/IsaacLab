@@ -10,39 +10,33 @@ from dataclasses import dataclass
 from tensordict import TensorDict
 from typing import Any
 
-@dataclass
-class RtxLidarInfo:
-    numChannels: int = 0
-    numEchos: int = 0
-    numReturnsPerScan: int = 0
-    renderProductPath: str = ''
-    ticksPerScan: int = 0
-    transform: bool = False
+RTX_LIDAR_INFO_FIELDS = {"numChannels": int, 
+                         "numEchos": int, 
+                         "numReturnsPerScan": int, 
+                         "renderProductPath": str,
+                         "ticksPerScan": int, 
+                         "transform": torch.Tensor }
 
 @dataclass
 class RtxLidarData:
 
     info: list[dict[str, Any]] = None    
-        # numChannels: int = 0
-        # numEchos: int = 0
-        # numReturnsPerScan: int = 0
-        # renderProductPath: str = ''
-        # ticksPerScan: int = 0
-        # transform: bool = False
 
     output: TensorDict = None
-        # azimuth: torch.Tensor
-        # beamId: torch.Tensor
-        # data: torch.Tensor
-        # distance: torch.Tensor
-        # elevation: torch.Tensor
-        # emitterId: torch.Tensor
-        # index: torch.Tensor
-        # intensity: torch.Tensor
-        # materialId: torch.Tensor
-        # normal: torch.Tensor
-        # objectId: torch.Tensor
-        # timestamp: torch.Tensor
-        # velocity: torch.Tensor
+        # Always returned
+            # data: torch.Tensor
+            # distance: torch.Tensor
+            # intensity: torch.Tensor
+        # Optional
+            # azimuth: torch.Tensor
+            # beamId: torch.Tensor
+            # elevation: torch.Tensor
+            # emitterId: torch.Tensor
+            # index: torch.Tensor
+            # materialId: torch.Tensor
+            # normal: torch.Tensor
+            # objectId: torch.Tensor
+            # timestamp: torch.Tensor
+            # velocity: torch.Tensor
 
     

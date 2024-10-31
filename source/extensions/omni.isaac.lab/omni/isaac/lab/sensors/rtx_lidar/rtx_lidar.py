@@ -32,7 +32,7 @@ from omni.isaac.lab.utils.math import (
 
 from ..sensor_base import SensorBase
 
-from .rtx_lidar_data import RtxLidarData, RtxLidarInfo
+from .rtx_lidar_data import RtxLidarData, RTX_LIDAR_INFO_FIELDS
 
 if TYPE_CHECKING:
     from .rtx_lidar_cfg import RtxLidarCfg
@@ -169,14 +169,6 @@ class RtxLidar(SensorBase):
 
         self._render_product_paths: list[str] = list()
         self._rep_registry: list[rep.annotators.Annotator] = []
-        
-        annotator_type = "RtxSensorCpuIsaacCreateRTXLidarScanBuffer"
-
-        # Resolve device name
-        if "cuda" in self._device:
-            device_name = self._device.split(":")[0]
-        else:
-            device_name = "cpu"
 
         # Obtain current stage
         stage = omni.usd.get_context().get_stage()
@@ -190,16 +182,8 @@ class RtxLidar(SensorBase):
             # Add to list
             sensor_prim = UsdGeom.Camera(lidar_prim)
             self._sensor_prims.append(sensor_prim)
-
-            # Get render product
-            # From Isaac Sim 2023.1 onwards, render product is a HydraTexture so we need to extract the path
-            render_prod_path = rep.create.render_product(lidar_prim_path, [1, 1])
-            if not isinstance(render_prod_path, str):
-                render_prod_path = render_prod_path.path
-            self._render_product_paths.append(render_prod_path)
             
-            init_params = {"outputDistance" : False,
-                            "outputIntensity" : False,
+            init_params = {
                             "outputAzimuth" : False,
                             "outputElevation" : False,
                             "outputNormal" : False,
@@ -210,14 +194,13 @@ class RtxLidar(SensorBase):
                             "outputObjectId" : False,
                             "outputTimestamp" : True,
                            }
-            
-            for name in self.cfg.data_types:
 
-                if name == "distance":
-                    init_params["outputDistance"]= True
-                elif name == "intensity":
-                    init_params["outputIntensity"] = True
-                elif name == "azimuth":
+            # create annotator node
+            annotator_type = "RtxSensorCpuIsaacCreateRTXLidarScanBuffer"
+            rep_annotator = rep.AnnotatorRegistry.get_annotator(annotator_type)
+            # turn on any optional data type returns
+            for name in self.cfg.optional_data_types:
+                if name == "azimuth":
                     init_params["outputAzimuth"] = True
                 elif name == "elevation":
                     init_params["outputElevation"] = True
@@ -234,15 +217,22 @@ class RtxLidar(SensorBase):
                 elif name == "objectId":
                     init_params["outputObjectId"] = True
 
+            rep_annotator.initialize(**init_params)
+
+            # Get render product
+            # From Isaac Sim 2023.1 onwards, render product is a HydraTexture so we need to extract the path
+            render_prod_path = rep.create.render_product(lidar_prim_path, [1, 1])
+            if not isinstance(render_prod_path, str):
+                render_prod_path = render_prod_path.path
+            self._render_product_paths.append(render_prod_path)
+
+            rep_annotator.attach(render_prod_path)
+            self._rep_registry.append(rep_annotator)
+            
             # Debug draw
             if self.cfg.debug_vis:
                 self.writer = rep.writers.get("RtxLidarDebugDrawPointCloudBuffer")
                 self.writer.attach([render_prod_path])
-
-            # create annotator node
-            rep_annotator = rep.AnnotatorRegistry.get_annotator(annotator_type,  do_array_copy=False)
-            rep_annotator.attach(render_prod_path)
-            self._rep_registry.append(rep_annotator)
 
         # Create internal buffers
         self._create_buffers()
@@ -256,7 +246,7 @@ class RtxLidar(SensorBase):
         # since the size of the output data is not known in advance, we leave it as None
         # the memory will be allocated when the buffer() function is called for the first time.
         self._data.output = TensorDict({}, batch_size=self._view.count, device=self.device)
-        self._data.info = [{name: None for name in RtxLidarInfo.__dataclass_fields__} for _ in range(self._view.count)]
+        self._data.info = [{name: None for name in RTX_LIDAR_INFO_FIELDS} for _ in range(self._view.count)]
         # self._data.info = [None for _ in range(self._view.count)]
 
     def _update_buffers_impl(self, env_ids: Sequence[int]):
@@ -279,7 +269,7 @@ class RtxLidar(SensorBase):
 
             # store the info
             for info_key, info_value in info.items():
-                if info_key in RtxLidarInfo.__dataclass_fields__:
+                if info_key in RTX_LIDAR_INFO_FIELDS.keys():
                     self._data.info[index][info_key] = info_value
                 else:
                     if info_key not in info_data_all_lidar:

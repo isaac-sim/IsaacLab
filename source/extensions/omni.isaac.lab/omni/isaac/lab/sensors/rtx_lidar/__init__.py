@@ -4,5 +4,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from .rtx_lidar import RtxLidar
-from .rtx_lidar_data import RtxLidarData, RtxLidarInfo
+from .rtx_lidar_data import RtxLidarData, RTX_LIDAR_INFO_FIELDS
 from .rtx_lidar_cfg import RtxLidarCfg
