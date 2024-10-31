@@ -9,7 +9,12 @@ from __future__ import annotations
 import torch
 
 import omni.usd
-from pxr import Semantics
+
+# from Isaac Sim 4.2 onwards, pxr.Semantics is deprecated
+try:
+    import Semantics
+except ModuleNotFoundError:
+    from pxr import Semantics
 
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.assets import Articulation, RigidObject
@@ -43,8 +48,8 @@ class ShadowHandVisionEnvCfg(ShadowHandEnvCfg):
     feature_extractor = FeatureExtractorCfg()
 
     # env
-    num_observations = 164 + 27  # state observation + vision CNN embedding
-    num_states = 187 + 27  # asymettric states + vision CNN embedding
+    observation_space = 164 + 27  # state observation + vision CNN embedding
+    state_space = 187 + 27  # asymettric states + vision CNN embedding
 
 
 @configclass

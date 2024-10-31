@@ -54,6 +54,8 @@ extensions = [
     "sphinxcontrib.icon",
     "sphinx_copybutton",
     "sphinx_design",
+    "sphinx_tabs.tabs",  # backwards compatibility for building docs on v1.0.0
+    "sphinx_multiversion",
 ]
 
 # mathjax hacks
@@ -115,7 +117,7 @@ templates_path = []
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "README.md", "licenses/*"]
+exclude_patterns = ["_build", "_redirect", "_templates", "Thumbs.db", ".DS_Store", "README.md", "licenses/*"]
 
 # Mock out modules that are not available on RTD
 autodoc_mock_imports = [
@@ -127,6 +129,7 @@ autodoc_mock_imports = [
     "warp",
     "pxr",
     "omni.kit",
+    "omni.log",
     "omni.usd",
     "omni.client",
     "omni.physx",
@@ -189,7 +192,7 @@ language = "en"
 
 import sphinx_book_theme
 
-html_title = "Isaac Lab documentation"
+html_title = "Isaac Lab Documentation"
 html_theme_path = [sphinx_book_theme.get_html_theme_path()]
 html_theme = "sphinx_book_theme"
 html_favicon = "source/_static/favicon.ico"
@@ -212,7 +215,7 @@ html_theme_options = {
     "show_toc_level": 1,
     "use_sidenotes": True,
     "logo": {
-        "text": "Isaac Lab documentation",
+        "text": "Isaac Lab Documentation",
         "image_light": "source/_static/NVIDIA-logo-white.png",
         "image_dark": "source/_static/NVIDIA-logo-black.png",
     },
@@ -239,7 +242,19 @@ html_theme_options = {
     "icon_links_label": "Quick Links",
 }
 
-html_sidebars = {"**": ["navbar-logo.html", "icon-links.html", "search-field.html", "sbt-sidebar-nav.html"]}
+templates_path = [
+    "_templates",
+]
+
+# Whitelist pattern for remotes
+smv_remote_whitelist = r"^.*$"
+# Whitelist pattern for branches (set to None to ignore all branches)
+smv_branch_whitelist = os.getenv("SMV_BRANCH_WHITELIST", r"^(main|devel)$")
+# Whitelist pattern for tags (set to None to ignore all tags)
+smv_tag_whitelist = os.getenv("SMV_TAG_WHITELIST", r"^v[1-9]\d*\.\d+\.\d+$")
+html_sidebars = {
+    "**": ["navbar-logo.html", "versioning.html", "icon-links.html", "search-field.html", "sbt-sidebar-nav.html"]
+}
 
 
 # -- Advanced configuration -------------------------------------------------
@@ -247,7 +262,7 @@ html_sidebars = {"**": ["navbar-logo.html", "icon-links.html", "search-field.htm
 
 def skip_member(app, what, name, obj, skip, options):
     # List the names of the functions you want to skip here
-    exclusions = ["from_dict", "to_dict", "replace", "copy", "__post_init__"]
+    exclusions = ["from_dict", "to_dict", "replace", "copy", "validate", "__post_init__"]
     if name in exclusions:
         return True
     return None

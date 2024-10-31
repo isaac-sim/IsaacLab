@@ -1,8 +1,8 @@
 Changelog
 ---------
 
-0.24.16 (2024-09-28)
-~~~~~~~~~~~~~~~~~~~~
+0.27.8 (2024-09-28)
+~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
@@ -20,13 +20,201 @@ Changed
   :class:`omni.isaac.lab.sensors.ray_caster.TiledCamera` clipped the values to zero.
 
 
+0.27.7 (2024-10-28)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added frozen encoder feature extraction observation space with ResNet and Theia
+
+
+0.27.6 (2024-10-25)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed usage of ``meshes`` property in :class:`omni.isaac.lab.sensors.RayCasterCamera` to use ``self.meshes`` instead of the undefined ``RayCaster.meshes``.
+* Fixed issue in :class:`omni.isaac.lab.envs.ui.BaseEnvWindow` where undefined configs were being accessed when creating debug visualization elements in UI.
+
+
+0.27.5 (2024-10-25)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added utilities for serializing/deserializing Gymnasium spaces.
+
+
+0.27.4 (2024-10-18)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Updated installation path instructions for Windows in the Isaac Lab documentation to remove redundancy in the use of %USERPROFILE% for path definitions.
+
+
+0.27.3 (2024-10-22)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the issue with using list or tuples of ``configclass`` within a ``configclass``. Earlier, the list of
+  configclass objects were not converted to dictionary properly when ``to_dict`` function was called.
+
+
+0.27.2 (2024-10-21)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``--kit_args`` to :class:`~omni.isaac.lab.app.AppLauncher` to allow passing command line arguments directly to Omniverse Kit SDK.
+
+
+0.27.1 (2024-10-20)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~omni.isaac.lab.sim.RenderCfg` and the attribute :attr:`~omni.isaac.lab.sim.SimulationCfg.render` for
+  specifying render related settings.
+
+
+0.27.0 (2024-10-14)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a method to :class:`~omni.isaac.lab.utils.configclass` to check for attributes with values of
+  type ``MISSING``. This is useful when the user wants to check if a certain attribute has been set or not.
+* Added the configuration validation check inside the constructor of all the core classes
+  (such as sensor base, asset base, scene and environment base classes).
+* Added support for environments without commands by leaving the attribute
+  :attr:`omni.isaac.lab.envs.ManagerBasedRLEnvCfg.commands` as None. Before, this had to be done using
+  the class :class:`omni.isaac.lab.command_generators.NullCommandGenerator`.
+* Moved the ``meshes`` attribute in the :class:`omni.isaac.lab.sensors.RayCaster` class from class variable to instance variable.
+   This prevents the meshes to overwrite each other.
+
+
+0.26.0 (2024-10-16)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added Imu sensor implementation that directly accesses the physx view :class:`omni.isaac.lab.sensors.Imu`. The
+  sensor comes with a configuration class :class:`omni.isaac.lab.sensors.ImuCfg` and data class
+  :class:`omni.isaac.lab.sensors.ImuData`.
+* Moved and renamed :meth:`omni.isaac.lab.sensors.camera.utils.convert_orientation_convention` to :meth:`omni.isaac.lab.utils.math.convert_camera_frame_orientation_convention`
+* Moved :meth:`omni.isaac.lab.sensors.camera.utils.create_rotation_matrix_from_view` to :meth:`omni.isaac.lab.utils.math.create_rotation_matrix_from_view`
+
+
+0.25.2 (2024-10-16)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added support for different Gymnasium spaces (``Box``, ``Discrete``, ``MultiDiscrete``, ``Tuple`` and ``Dict``)
+  to define observation, action and state spaces in the direct workflow.
+* Added :meth:`sample_space` to environment utils to sample supported spaces where data containers are torch tensors.
+
+Changed
+^^^^^^^
+
+* Mark the :attr:`num_observations`, :attr:`num_actions` and :attr:`num_states` in :class:`DirectRLEnvCfg` as deprecated
+  in favor of :attr:`observation_space`, :attr:`action_space` and :attr:`state_space` respectively.
+* Mark the :attr:`num_observations`, :attr:`num_actions` and :attr:`num_states` in :class:`DirectMARLEnvCfg` as deprecated
+  in favor of :attr:`observation_spaces`, :attr:`action_spaces` and :attr:`state_space` respectively.
+
+
+0.25.1 (2024-10-10)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed potential issue where default joint positions can fall outside of the limits being set with Articulation's
+  ``write_joint_limits_to_sim`` API.
+
+
+0.25.0 (2024-10-06)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added configuration classes for spawning assets from a list of individual asset configurations randomly
+  at the specified prim paths.
+
+
+0.24.20 (2024-10-07)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the :meth:`omni.isaac.lab.envs.mdp.events.randomize_rigid_body_material` function to
+  correctly sample friction and restitution from the given ranges.
+
+
+0.24.19 (2024-10-05)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added new functionalities to the FrameTransformer to make it more general. It is now possible to track:
+
+  * Target frames that aren't children of the source frame prim_path
+  * Target frames that are based upon the source frame prim_path
+
+
+0.24.18 (2024-10-04)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixes parsing and application of ``size`` parameter for :class:`~omni.isaac.lab.sim.spawn.GroundPlaneCfg` to correctly
+  scale the grid-based ground plane.
+
+
+0.24.17 (2024-10-04)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the deprecation notice for using ``pxr.Semantics``. The corresponding modules use ``Semantics`` module
+  directly.
+
+
+0.24.16 (2024-10-03)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Renamed the observation function :meth:`grab_images` to :meth:`image` to follow convention of noun-based naming.
+* Renamed the function :meth:`convert_perspective_depth_to_orthogonal_depth` to a shorter name
+  :meth:`omni.isaac.lab.utils.math.orthogonalize_perspective_depth`.
+
+
 0.24.15 (2024-09-20)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
 
-* Added :meth:`grab_images` to be able to use images for an observation term in manager based environments
+* Added :meth:`grab_images` to be able to use images for an observation term in manager-based environments.
 
 
 0.24.14 (2024-09-20)
@@ -35,10 +223,10 @@ Added
 Added
 ^^^^^
 
-* Added :meth:`convert_perspective_depth_to_orthogonal_depth`. :meth:`unproject_depth` assumes
-  that the input depth image is orthogonal. The new :meth:`convert_perspective_depth_to_orthogonal_depth`
-  can be used to convert a perspective depth image into an orthogonal depth image, so that the point cloud
-  can be unprojected correctly with :meth:`unproject_depth`.
+* Added the method :meth:`convert_perspective_depth_to_orthogonal_depth` to convert perspective depth
+  images to orthogonal depth images. This is useful for the :meth:`~omni.isaac.lab.utils.math.unproject_depth`,
+  since it expects orthogonal depth images as inputs.
+
 
 0.24.13 (2024-09-08)
 ~~~~~~~~~~~~~~~~~~~~

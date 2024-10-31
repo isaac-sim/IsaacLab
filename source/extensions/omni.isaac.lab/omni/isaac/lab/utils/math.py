@@ -8,6 +8,7 @@
 # needed to import for allowing type-hinting: torch.Tensor | np.ndarray
 from __future__ import annotations
 
+import math
 import numpy as np
 import torch
 import torch.nn.functional
@@ -987,31 +988,126 @@ Projection operations.
 
 
 @torch.jit.script
-def unproject_depth(depth: torch.Tensor, intrinsics: torch.Tensor) -> torch.Tensor:
-    r"""Unproject depth image into a pointcloud. This method assumes that depth
-    is provided orthogonally relative to the image plane, as opposed to absolutely relative to the camera's
-    principal point (perspective depth). To unproject a perspective depth image, use
-    :meth:`convert_perspective_depth_to_orthogonal_depth` to convert
-    to an orthogonal depth image prior to calling this method. Otherwise, the
-    created point cloud will be distorted, especially around the edges.
+def orthogonalize_perspective_depth(depth: torch.Tensor, intrinsics: torch.Tensor) -> torch.Tensor:
+    """Converts perspective depth image to orthogonal depth image.
 
-    This function converts depth images into points given the calibration matrix of the camera.
+    Perspective depth images contain distances measured from the camera's optical center.
+    Meanwhile, orthogonal depth images provide the distance from the camera's image plane.
+    This method uses the camera geometry to convert perspective depth to orthogonal depth image.
+
+    The function assumes that the width and height are both greater than 1.
+
+    Args:
+        depth: The perspective depth images. Shape is (H, W) or or (H, W, 1) or (N, H, W) or (N, H, W, 1).
+        intrinsics: The camera's calibration matrix. If a single matrix is provided, the same
+            calibration matrix is used across all the depth images in the batch.
+            Shape is (3, 3) or (N, 3, 3).
+
+    Returns:
+        The orthogonal depth images. Shape matches the input shape of depth images.
+
+    Raises:
+        ValueError: When depth is not of shape (H, W) or (H, W, 1) or (N, H, W) or (N, H, W, 1).
+        ValueError: When intrinsics is not of shape (3, 3) or (N, 3, 3).
+    """
+    # Clone inputs to avoid in-place modifications
+    perspective_depth_batch = depth.clone()
+    intrinsics_batch = intrinsics.clone()
+
+    # Check if inputs are batched
+    is_batched = perspective_depth_batch.dim() == 4 or (
+        perspective_depth_batch.dim() == 3 and perspective_depth_batch.shape[-1] != 1
+    )
+
+    # Track whether the last dimension was singleton
+    add_last_dim = False
+    if perspective_depth_batch.dim() == 4 and perspective_depth_batch.shape[-1] == 1:
+        add_last_dim = True
+        perspective_depth_batch = perspective_depth_batch.squeeze(dim=3)  # (N, H, W, 1) -> (N, H, W)
+    if perspective_depth_batch.dim() == 3 and perspective_depth_batch.shape[-1] == 1:
+        add_last_dim = True
+        perspective_depth_batch = perspective_depth_batch.squeeze(dim=2)  # (H, W, 1) -> (H, W)
+
+    if perspective_depth_batch.dim() == 2:
+        perspective_depth_batch = perspective_depth_batch[None]  # (H, W) -> (1, H, W)
+
+    if intrinsics_batch.dim() == 2:
+        intrinsics_batch = intrinsics_batch[None]  # (3, 3) -> (1, 3, 3)
+
+    if is_batched and intrinsics_batch.shape[0] == 1:
+        intrinsics_batch = intrinsics_batch.expand(perspective_depth_batch.shape[0], -1, -1)  # (1, 3, 3) -> (N, 3, 3)
+
+    # Validate input shapes
+    if perspective_depth_batch.dim() != 3:
+        raise ValueError(f"Expected depth images to have 2, 3, or 4 dimensions; got {depth.shape}.")
+    if intrinsics_batch.dim() != 3:
+        raise ValueError(f"Expected intrinsics to have shape (3, 3) or (N, 3, 3); got {intrinsics.shape}.")
+
+    # Image dimensions
+    im_height, im_width = perspective_depth_batch.shape[1:]
+
+    # Get the intrinsics parameters
+    fx = intrinsics_batch[:, 0, 0].view(-1, 1, 1)
+    fy = intrinsics_batch[:, 1, 1].view(-1, 1, 1)
+    cx = intrinsics_batch[:, 0, 2].view(-1, 1, 1)
+    cy = intrinsics_batch[:, 1, 2].view(-1, 1, 1)
+
+    # Create meshgrid of pixel coordinates
+    u_grid = torch.arange(im_width, device=depth.device, dtype=depth.dtype)
+    v_grid = torch.arange(im_height, device=depth.device, dtype=depth.dtype)
+    u_grid, v_grid = torch.meshgrid(u_grid, v_grid, indexing="xy")
+
+    # Expand the grids for batch processing
+    u_grid = u_grid.unsqueeze(0).expand(perspective_depth_batch.shape[0], -1, -1)
+    v_grid = v_grid.unsqueeze(0).expand(perspective_depth_batch.shape[0], -1, -1)
+
+    # Compute the squared terms for efficiency
+    x_term = ((u_grid - cx) / fx) ** 2
+    y_term = ((v_grid - cy) / fy) ** 2
+
+    # Calculate the orthogonal (normal) depth
+    orthogonal_depth = perspective_depth_batch / torch.sqrt(1 + x_term + y_term)
+
+    # Restore the last dimension if it was present in the input
+    if add_last_dim:
+        orthogonal_depth = orthogonal_depth.unsqueeze(-1)
+
+    # Return to original shape if input was not batched
+    if not is_batched:
+        orthogonal_depth = orthogonal_depth.squeeze(0)
+
+    return orthogonal_depth
+
+
+@torch.jit.script
+def unproject_depth(depth: torch.Tensor, intrinsics: torch.Tensor, is_ortho: bool = True) -> torch.Tensor:
+    r"""Un-project depth image into a pointcloud.
+
+    This function converts orthogonal or perspective depth images into points given the calibration matrix
+    of the camera. It uses the following transformation based on camera geometry:
 
     .. math::
         p_{3D} = K^{-1} \times [u, v, 1]^T \times d
 
-    where :math:`p_{3D}` is the 3D point, :math:`d` is the depth value, :math:`u` and :math:`v` are
-    the pixel coordinates and :math:`K` is the intrinsic matrix.
-
-    If `depth` is a batch of depth images and `intrinsics` is a single intrinsic matrix, the same
-    calibration matrix is applied to all depth images in the batch.
+    where :math:`p_{3D}` is the 3D point, :math:`d` is the depth value (measured from the image plane),
+    :math:`u` and :math:`v` are the pixel coordinates and :math:`K` is the intrinsic matrix.
 
     The function assumes that the width and height are both greater than 1. This makes the function
     deal with many possible shapes of depth images and intrinsics matrices.
 
+    .. note::
+        If :attr:`is_ortho` is False, the input depth images are transformed to orthogonal depth images
+        by using the :meth:`orthogonalize_perspective_depth` method.
+
     Args:
         depth: The depth measurement. Shape is (H, W) or or (H, W, 1) or (N, H, W) or (N, H, W, 1).
-        intrinsics: A tensor providing camera's calibration matrix. Shape is (3, 3) or (N, 3, 3).
+        intrinsics: The camera's calibration matrix. If a single matrix is provided, the same
+            calibration matrix is used across all the depth images in the batch.
+            Shape is (3, 3) or (N, 3, 3).
+        is_ortho: Whether the input depth image is orthogonal or perspective depth image. If True, the input
+            depth image is considered as the *orthogonal* type, where the measurements are from the camera's
+            image plane. If False, the depth image is considered as the *perspective* type, where the
+            measurements are from the camera's optical center. Defaults to True.
 
     Returns:
         The 3D coordinates of points. Shape is (P, 3) or (N, P, 3).
@@ -1020,8 +1116,14 @@ def unproject_depth(depth: torch.Tensor, intrinsics: torch.Tensor) -> torch.Tens
         ValueError: When depth is not of shape (H, W) or (H, W, 1) or (N, H, W) or (N, H, W, 1).
         ValueError: When intrinsics is not of shape (3, 3) or (N, 3, 3).
     """
-    depth_batch = depth.clone()
+    # clone inputs to avoid in-place modifications
     intrinsics_batch = intrinsics.clone()
+    # convert depth image to orthogonal if needed
+    if not is_ortho:
+        depth_batch = orthogonalize_perspective_depth(depth, intrinsics)
+    else:
+        depth_batch = depth.clone()
+
     # check if inputs are batched
     is_batched = depth_batch.dim() == 4 or (depth_batch.dim() == 3 and depth_batch.shape[-1] != 1)
     # make sure inputs are batched
@@ -1065,105 +1167,6 @@ def unproject_depth(depth: torch.Tensor, intrinsics: torch.Tensor) -> torch.Tens
 
 
 @torch.jit.script
-def convert_perspective_depth_to_orthogonal_depth(
-    perspective_depth: torch.Tensor, intrinsics: torch.Tensor
-) -> torch.Tensor:
-    r"""Provided depth image(s) where depth is provided as the distance to the principal
-    point of the camera (perspective depth), this function converts it so that depth
-    is provided as the distance to the camera's image plane (orthogonal depth).
-
-    This is helpful because `unproject_depth` assumes that depth is expressed in
-    the orthogonal depth format.
-
-    If `perspective_depth` is a batch of depth images and `intrinsics` is a single intrinsic matrix,
-    the same calibration matrix is applied to all depth images in the batch.
-
-    The function assumes that the width and height are both greater than 1.
-
-    Args:
-        perspective_depth: The depth measurement obtained with the distance_to_camera replicator.
-            Shape is (H, W) or or (H, W, 1) or (N, H, W) or (N, H, W, 1).
-        intrinsics: A tensor providing camera's calibration matrix. Shape is (3, 3) or (N, 3, 3).
-
-    Returns:
-        The depth image as if obtained by the distance_to_image_plane replicator. Shape
-            matches the input shape of depth
-
-    Raises:
-        ValueError: When depth is not of shape (H, W) or (H, W, 1) or (N, H, W) or (N, H, W, 1).
-        ValueError: When intrinsics is not of shape (3, 3) or (N, 3, 3).
-    """
-
-    # Clone inputs to avoid in-place modifications
-    perspective_depth_batch = perspective_depth.clone()
-    intrinsics_batch = intrinsics.clone()
-
-    # Check if inputs are batched
-    is_batched = perspective_depth_batch.dim() == 4 or (
-        perspective_depth_batch.dim() == 3 and perspective_depth_batch.shape[-1] != 1
-    )
-
-    # Track whether the last dimension was singleton
-    add_last_dim = False
-    if perspective_depth_batch.dim() == 4 and perspective_depth_batch.shape[-1] == 1:
-        add_last_dim = True
-        perspective_depth_batch = perspective_depth_batch.squeeze(dim=3)  # (N, H, W, 1) -> (N, H, W)
-    if perspective_depth_batch.dim() == 3 and perspective_depth_batch.shape[-1] == 1:
-        add_last_dim = True
-        perspective_depth_batch = perspective_depth_batch.squeeze(dim=2)  # (H, W, 1) -> (H, W)
-
-    if perspective_depth_batch.dim() == 2:
-        perspective_depth_batch = perspective_depth_batch[None]  # (H, W) -> (1, H, W)
-
-    if intrinsics_batch.dim() == 2:
-        intrinsics_batch = intrinsics_batch[None]  # (3, 3) -> (1, 3, 3)
-
-    if is_batched and intrinsics_batch.shape[0] == 1:
-        intrinsics_batch = intrinsics_batch.expand(perspective_depth_batch.shape[0], -1, -1)  # (1, 3, 3) -> (N, 3, 3)
-
-    # Validate input shapes
-    if perspective_depth_batch.dim() != 3:
-        raise ValueError(f"Expected perspective_depth to have 2, 3, or 4 dimensions; got {perspective_depth.shape}.")
-    if intrinsics_batch.dim() != 3:
-        raise ValueError(f"Expected intrinsics to have shape (3, 3) or (N, 3, 3); got {intrinsics.shape}.")
-
-    # Image dimensions
-    im_height, im_width = perspective_depth_batch.shape[1:]
-
-    # Get the intrinsics parameters
-    fx = intrinsics_batch[:, 0, 0].view(-1, 1, 1)
-    fy = intrinsics_batch[:, 1, 1].view(-1, 1, 1)
-    cx = intrinsics_batch[:, 0, 2].view(-1, 1, 1)
-    cy = intrinsics_batch[:, 1, 2].view(-1, 1, 1)
-
-    # Create meshgrid of pixel coordinates
-    u_grid = torch.arange(im_width, device=perspective_depth.device, dtype=perspective_depth.dtype)
-    v_grid = torch.arange(im_height, device=perspective_depth.device, dtype=perspective_depth.dtype)
-    u_grid, v_grid = torch.meshgrid(u_grid, v_grid, indexing="xy")
-
-    # Expand the grids for batch processing
-    u_grid = u_grid.unsqueeze(0).expand(perspective_depth_batch.shape[0], -1, -1)
-    v_grid = v_grid.unsqueeze(0).expand(perspective_depth_batch.shape[0], -1, -1)
-
-    # Compute the squared terms for efficiency
-    x_term = ((u_grid - cx) / fx) ** 2
-    y_term = ((v_grid - cy) / fy) ** 2
-
-    # Calculate the orthogonal (normal) depth
-    normal_depth = perspective_depth_batch / torch.sqrt(1 + x_term + y_term)
-
-    # Restore the last dimension if it was present in the input
-    if add_last_dim:
-        normal_depth = normal_depth.unsqueeze(-1)
-
-    # Return to original shape if input was not batched
-    if not is_batched:
-        normal_depth = normal_depth.squeeze(0)
-
-    return normal_depth
-
-
-@torch.jit.script
 def project_points(points: torch.Tensor, intrinsics: torch.Tensor) -> torch.Tensor:
     r"""Projects 3D points into 2D image plane.
 
@@ -1191,8 +1194,10 @@ def project_points(points: torch.Tensor, intrinsics: torch.Tensor) -> torch.Tens
     Returns:
         Projected 3D coordinates of points. Shape is (P, 3) or (N, P, 3).
     """
+    # clone the inputs to avoid in-place operations modifying the original data
     points_batch = points.clone()
     intrinsics_batch = intrinsics.clone()
+
     # check if inputs are batched
     is_batched = points_batch.dim() == 2
     # make sure inputs are batched
@@ -1205,12 +1210,14 @@ def project_points(points: torch.Tensor, intrinsics: torch.Tensor) -> torch.Tens
         raise ValueError(f"Expected points to have dim = 3: got shape {points.shape}.")
     if intrinsics_batch.dim() != 3:
         raise ValueError(f"Expected intrinsics to have shape (3, 3) or (N, 3, 3): got shape {intrinsics.shape}.")
+
     # project points into 2D image plane
     points_2d = torch.matmul(intrinsics_batch, points_batch.transpose(1, 2))
     points_2d = points_2d / points_2d[:, -1, :].unsqueeze(1)  # normalize by last coordinate
     points_2d = points_2d.transpose_(1, 2)  # (N, 3, P) -> (N, P, 3)
     # replace last coordinate with depth
     points_2d[:, :, -1] = points_batch[:, :, -1]
+
     # return points in same shape as input
     if not is_batched:
         points_2d = points_2d.squeeze(0)  # (1, 3, P) -> (3, P)
@@ -1412,3 +1419,143 @@ def sample_cylinder(
     xyz[..., 2].uniform_(h_min, h_max)
     # return positions
     return xyz
+
+
+"""
+Orientation Conversions
+"""
+
+
+def convert_camera_frame_orientation_convention(
+    orientation: torch.Tensor,
+    origin: Literal["opengl", "ros", "world"] = "opengl",
+    target: Literal["opengl", "ros", "world"] = "ros",
+) -> torch.Tensor:
+    r"""Converts a quaternion representing a rotation from one convention to another.
+
+    In USD, the camera follows the ``"opengl"`` convention. Thus, it is always in **Y up** convention.
+    This means that the camera is looking down the -Z axis with the +Y axis pointing up , and +X axis pointing right.
+    However, in ROS, the camera is looking down the +Z axis with the +Y axis pointing down, and +X axis pointing right.
+    Thus, the camera needs to be rotated by :math:`180^{\circ}` around the X axis to follow the ROS convention.
+
+    .. math::
+
+        T_{ROS} = \begin{bmatrix} 1 & 0 & 0 & 0 \\ 0 & -1 & 0 & 0 \\ 0 & 0 & -1 & 0 \\ 0 & 0 & 0 & 1 \end{bmatrix} T_{USD}
+
+    On the other hand, the typical world coordinate system is with +X pointing forward, +Y pointing left,
+    and +Z pointing up. The camera can also be set in this convention by rotating the camera by :math:`90^{\circ}`
+    around the X axis and :math:`-90^{\circ}` around the Y axis.
+
+    .. math::
+
+        T_{WORLD} = \begin{bmatrix} 0 & 0 & -1 & 0 \\ -1 & 0 & 0 & 0 \\ 0 & 1 & 0 & 0 \\ 0 & 0 & 0 & 1 \end{bmatrix} T_{USD}
+
+    Thus, based on their application, cameras follow different conventions for their orientation. This function
+    converts a quaternion from one convention to another.
+
+    Possible conventions are:
+
+    - :obj:`"opengl"` - forward axis: -Z - up axis +Y - Offset is applied in the OpenGL (Usd.Camera) convention
+    - :obj:`"ros"`    - forward axis: +Z - up axis -Y - Offset is applied in the ROS convention
+    - :obj:`"world"`  - forward axis: +X - up axis +Z - Offset is applied in the World Frame convention
+
+    Args:
+        orientation: Quaternion of form `(w, x, y, z)` with shape (..., 4) in source convention.
+        origin: Convention to convert from. Defaults to "opengl".
+        target: Convention to convert to. Defaults to "ros".
+
+    Returns:
+        Quaternion of form `(w, x, y, z)` with shape (..., 4) in target convention
+    """
+    if target == origin:
+        return orientation.clone()
+
+    # -- unify input type
+    if origin == "ros":
+        # convert from ros to opengl convention
+        rotm = matrix_from_quat(orientation)
+        rotm[:, :, 2] = -rotm[:, :, 2]
+        rotm[:, :, 1] = -rotm[:, :, 1]
+        # convert to opengl convention
+        quat_gl = quat_from_matrix(rotm)
+    elif origin == "world":
+        # convert from world (x forward and z up) to opengl convention
+        rotm = matrix_from_quat(orientation)
+        rotm = torch.matmul(
+            rotm,
+            matrix_from_euler(torch.tensor([math.pi / 2, -math.pi / 2, 0], device=orientation.device), "XYZ"),
+        )
+        # convert to isaac-sim convention
+        quat_gl = quat_from_matrix(rotm)
+    else:
+        quat_gl = orientation
+
+    # -- convert to target convention
+    if target == "ros":
+        # convert from opengl to ros convention
+        rotm = matrix_from_quat(quat_gl)
+        rotm[:, :, 2] = -rotm[:, :, 2]
+        rotm[:, :, 1] = -rotm[:, :, 1]
+        return quat_from_matrix(rotm)
+    elif target == "world":
+        # convert from opengl to world (x forward and z up) convention
+        rotm = matrix_from_quat(quat_gl)
+        rotm = torch.matmul(
+            rotm,
+            matrix_from_euler(torch.tensor([math.pi / 2, -math.pi / 2, 0], device=orientation.device), "XYZ").T,
+        )
+        return quat_from_matrix(rotm)
+    else:
+        return quat_gl.clone()
+
+
+def create_rotation_matrix_from_view(
+    eyes: torch.Tensor,
+    targets: torch.Tensor,
+    up_axis: Literal["Y", "Z"] = "Z",
+    device: str = "cpu",
+) -> torch.Tensor:
+    """Compute the rotation matrix from world to view coordinates.
+
+    This function takes a vector ''eyes'' which specifies the location
+    of the camera in world coordinates and the vector ''targets'' which
+    indicate the position of the object.
+    The output is a rotation matrix representing the transformation
+    from world coordinates -> view coordinates.
+
+        The inputs eyes and targets can each be a
+        - 3 element tuple/list
+        - torch tensor of shape (1, 3)
+        - torch tensor of shape (N, 3)
+
+    Args:
+        eyes: Position of the camera in world coordinates.
+        targets: Position of the object in world coordinates.
+        up_axis: The up axis of the camera. Defaults to "Z".
+        device: The device to create torch tensors on. Defaults to "cpu".
+
+    The vectors are broadcast against each other so they all have shape (N, 3).
+
+    Returns:
+        R: (N, 3, 3) batched rotation matrices
+
+    Reference:
+    Based on PyTorch3D (https://github.com/facebookresearch/pytorch3d/blob/eaf0709d6af0025fe94d1ee7cec454bc3054826a/pytorch3d/renderer/cameras.py#L1635-L1685)
+    """
+    if up_axis == "Y":
+        up_axis_vec = torch.tensor((0, 1, 0), device=device, dtype=torch.float32).repeat(eyes.shape[0], 1)
+    elif up_axis == "Z":
+        up_axis_vec = torch.tensor((0, 0, 1), device=device, dtype=torch.float32).repeat(eyes.shape[0], 1)
+    else:
+        raise ValueError(f"Invalid up axis: {up_axis}. Valid options are 'Y' and 'Z'.")
+
+    # get rotation matrix in opengl format (-Z forward, +Y up)
+    z_axis = -torch.nn.functional.normalize(targets - eyes, eps=1e-5)
+    x_axis = torch.nn.functional.normalize(torch.cross(up_axis_vec, z_axis, dim=1), eps=1e-5)
+    y_axis = torch.nn.functional.normalize(torch.cross(z_axis, x_axis, dim=1), eps=1e-5)
+    is_close = torch.isclose(x_axis, torch.tensor(0.0), atol=5e-3).all(dim=1, keepdim=True)
+    if is_close.any():
+        replacement = torch.nn.functional.normalize(torch.cross(y_axis, z_axis, dim=1), eps=1e-5)
+        x_axis = torch.where(is_close, replacement, x_axis)
+    R = torch.cat((x_axis[:, None, :], y_axis[:, None, :], z_axis[:, None, :]), dim=1)
+    return R.transpose(1, 2)

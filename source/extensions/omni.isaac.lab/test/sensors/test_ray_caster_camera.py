@@ -918,6 +918,15 @@ class TestWarpCamera(unittest.TestCase):
             atol=1e-4,
         )
 
+    def test_sensor_print(self):
+        """Test sensor print is working correctly."""
+        # Create sensor
+        sensor = RayCasterCamera(cfg=self.camera_cfg)
+        # Play sim
+        self.sim.reset()
+        # print info
+        print(sensor)
+
 
 if __name__ == "__main__":
     run_tests()
