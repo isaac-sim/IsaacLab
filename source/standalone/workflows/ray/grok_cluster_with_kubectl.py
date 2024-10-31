@@ -15,7 +15,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 This script requires that kubectl is installed and KubeRay was used to create the cluster.
 
 Creates a config file containing ``name: <NAME> address: http://<IP>:<PORT>`` on
-a new line for each cluster.
+a new line for each cluster, and also fetches the MLFlow URI.
 
 Usage:
 

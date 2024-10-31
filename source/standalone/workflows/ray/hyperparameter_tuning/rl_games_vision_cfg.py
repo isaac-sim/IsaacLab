@@ -27,14 +27,12 @@ class RLGamesCameraJobCfg(isaac_ray_tune.JobCfg):
         cfg["runner_args"]["headless_singleton"] = tune.choice(["--headless"])
         cfg["runner_args"]["enable_cameras_singleton"] = tune.choice(["--enable_cameras"])
         cfg["workflow"] = tune.choice([isaac_ray_tune.RL_GAMES_WORKFLOW])
-
-        # cfg["hydra_args"]["agent.params.config.save_best_after"] = tune.choice([5])
-        # cfg["hydra_args"]["agent.params.config.save_frequency"] = tune.choice([5])
         cfg["hydra_args"]["agent.params.config.max_epochs"] = tune.choice([200])
 
         if vary_env_count:  # Vary the env count, and horizon length, and select a compatible mini-batch size
             # Check from 512 to 8196 envs in powers of 2
             # check horizon lengths of 8 to 256
+            # More envs should be better, but different batch sizes can improve gradient estimation
             def batch_size_divisors(batch_size, min_size=128):
                 return [i for i in range(1, batch_size + 1) if batch_size % i == 0 and i > min_size]
 
@@ -52,18 +50,16 @@ class RLGamesCameraJobCfg(isaac_ray_tune.JobCfg):
                 ),
             )
         if vary_cnn:
-            if vary_cnn:
-                num_layers = tune.randint(3, 7)
+            if vary_cnn:  # Vary the depth, and size of the layers in the CNN part of the agent
+                num_layers = tune.randint(2, 5)
                 cfg["hydra_args"]["agent.params.network.cnn.type"] = tune.choice(["conv2d"])
                 cfg["hydra_args"]["agent.params.network.cnn.activation"] = tune.choice(["relu", "elu"])
                 cfg["hydra_args"]["agent.params.network.cnn.initializer"] = tune.choice(["{name:default}"])
                 cfg["hydra_args"]["agent.params.network.cnn.regularizer"] = tune.choice(["{name:None}"])
-
-                # Fix the parameter names in the convs configuration
                 cfg["hydra_args"]["agent.params.network.cnn.convs"] = tune.sample_from(
                     lambda _: [
                         {
-                            "filters": tune.randint(16, 64).sample(),
+                            "filters": tune.randint(16, 32).sample(),
                             "kernel_size": tune.choice(["3", "4", "6", "8"]).sample(),
                             "strides": tune.choice(["1", "2", "3", "4"]).sample(),
                             "padding": tune.choice(["0", "1"]).sample(),
@@ -81,7 +77,7 @@ class RLGamesCameraJobCfg(isaac_ray_tune.JobCfg):
                     "initializer": {"name": tune.choice(["default", "he_uniform", "glorot_uniform"])},
                 }
 
-            cfg["hydra_args"]["agents.params.network.mlp"] = {
+            cfg["hydra_args"]["agent.params.network.mlp"] = {
                 "layers": tune.sample_from(
                     lambda _: [generate_mlp_layer() for _ in range(tune.randint(1, 10).sample())]
                 )
@@ -90,6 +86,8 @@ class RLGamesCameraJobCfg(isaac_ray_tune.JobCfg):
 
 
 class RLGamesResNetCameraJob(RLGamesCameraJobCfg):
+    """Try different ResNet sizes."""
+
     def __init__(self, cfg: dict = {}):
         cfg = isaac_ray_util.populate_isaac_ray_cfg_args(cfg)
         cfg["hydra_args"]["env.observations.policy.image.params.model_name"] = tune.choice(
@@ -99,6 +97,8 @@ class RLGamesResNetCameraJob(RLGamesCameraJobCfg):
 
 
 class RLGamesTheiaCameraJob(RLGamesCameraJobCfg):
+    """Try diferent Theia sizes."""
+
     def __init__(self, cfg: dict = {}):
         cfg = isaac_ray_util.populate_isaac_ray_cfg_args(cfg)
         cfg["hydra_args"]["env.observations.policy.image.params.model_name"] = tune.choice([

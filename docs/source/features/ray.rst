@@ -104,6 +104,8 @@ The pythonic dependencies can be installed with:
 
   ./isaaclab.sh -p -m pip install ray[default, tune]==2.31.0
   ./isaaclab.sh -p -m pip install optuna bayesian-optimization
+  # MLFlow is needed for fetching logs on clusters
+  ./isaaclab.sh -p -m pip install mlflow
 
 If using KubeRay clusters on Google GKE with the batteries-included cluster launch file,
 the following dependencies are also needed.
@@ -111,8 +113,8 @@ the following dependencies are also needed.
 
   ./isaaclab.sh -p -m pip install kubernetes Jinja2
 
-**Setup: Cluster Configuration**
---------------------------------
+**Setup Overview: Cluster Configuration**
+-----------------------------------------
 
 Select one of the following methods to create a Ray Cluster to accept and execute dispatched jobs.
 
@@ -125,8 +127,6 @@ multiple-GPU machines. This Ray server will run indefinitely until it is stopped
 .. code-block:: bash
 
   echo "import ray; ray.init(); import time; [time.sleep(10) for _ in iter(int, 1)]" | ./isaaclab.sh -p
-
-More in-detail steps for job submission are provided below in Dispatching Jobs and Tuning - Simple Ray Cluster below.
 
 KubeRay Clusters
 ''''''''''''''''
@@ -152,11 +152,9 @@ any cloud provider should work if one configures the following:
   to use manual kubernetes services as opposed to "autopilot" services for cost-effective
   experimentation as this way clusters can be completely shut down when not in use, although
   this may require installing the `Nvidia GPU Operator <https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/google-gke.html>`_
+- An MLFlow server that your cluster has access to.
 - A ``kuberay.yaml.ninja`` file that describes how to allocate resources (already included for
   Google Cloud, which can be referenced for the format and MLFlow integration)
-
-More in-detail setup steps for uploading the image, authentication, creating the cluster easily for Google GKE,
-and job submission are provided as part of Dispatching Jobs and Tuning - Remote Ray Cluster Setup and Use below.
 
 Ray Clusters (Without Kubernetes)
 '''''''''''''''''''''''''''''''''
@@ -167,14 +165,6 @@ Ray Clusters (Without Kubernetes)
 See the `Ray Clusters Overview <https://docs.ray.io/en/latest/cluster/getting-started.html>`_ or
 `Anyscale <https://www.anyscale.com/product>`_ for more information
 
-More in-detail setup steps for uploading the image, and job submission steps are provided as part of
-Dispatching Jobs and Tuning - Remote Ray Cluster Setup and Use below.
-
-SLURM Ray Cluster
-'''''''''''''''''
-See the `Ray Community SLURM support <https://docs.ray.io/en/latest/cluster/vms/user-guides/community/slurm.html#slurm-network-ray>`_
-for more information. This functionality is theoretically possible, although the existing
-Isaac SLURM support independent of Ray has been tested, unlike Ray SLURM.
 
 **Dispatching Jobs and Tuning**
 -------------------------------
@@ -193,60 +183,42 @@ that the cluster job submission address is known.
 
   ./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py --test
 
-2.) Submitting resource-wrapped sub-jobs to the cluster can be done as follows.
-  **Ensure that sub-jobs are separated by the ``+`` delimiter.**
+2.) Submitting resource-wrapped sub-jobs can be done as described in the following file:
 
-.. code-block:: bash
+.. dropdown:: source/standalone/workflows/ray/wrap_isaac_ray_resources.py
+:icon: code
 
-  # Generic Templates-----------------------------------
-  ./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py -h
-  # No resource isolation; no parallelization:
-  ./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py
-    --sub_jobs <JOB0>+<JOB1>+<JOB2>
-  # Automatic Resource Isolation; Example A: needed for parallelization
-  ./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py \
-	--num_workers <NUM_TO_DIVIDE_TOTAL_RESOURCES_BY> \
-	--sub_jobs <JOB0>+<JOB1>
-  # Manual Resource Isolation; Example B:  needed for parallelization
-  ./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py --num_cpu_per_worker <CPU> \
-	--gpu_per_worker <GPU> --ram_gb_per_worker <RAM> --sub_jobs <JOB0>+<JOB1>
-  # Manual Resource Isolation; Example C: Needed for parallelization, for heterogeneous workloads
-  ./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py --num_cpu_per_worker <CPU> \
-	--gpu_per_worker <GPU1> <GPU2> --ram_gb_per_worker <RAM> --sub_jobs <JOB0>+<JOB1>
+.. literalinclude:: ../../../source/standalone/workflows/ray/wrap_isaac_ray_resources.py
+  :language: python
+  :emphasize-lines: 12-64
 
-  # Examples----------------------------------------
-  # Two jobs, one after another
-  ./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py --sub_jobs wrap_isaac_ray_resources.py --jobs ./isaaclab.sh -p source/standalone/workflows/rl_games/train.py --task Isaac-Cartpole-v0 --headless+./isaaclab.sh -p source/standalone/workflows/rl_games/train.py --task Isaac-Cartpole-RGB-Camera-Direct-v0 --headless --enable_cameras agent.params.config.max_epochs=150
+3.) For tuning jobs, specify the hyperparameter sweep similar to the following two files.
 
-3.) For tuning jobs, specify the hyperparameter sweep similar to :class:`RLGamesCameraJobCfg` in the following file:
-
-.. dropdown:: source/standalone/workflows/ray/isaac_ray_tune.py (submitting aggregate jobs)
-  :icon: code
-
-  .. literalinclude:: ../../../source/standalone/workflows/ray/isaac_ray_tune.py
-    :language: python
-    :emphasize-lines: 17-35
-
-For example, see the Cartpole Example configurations.
-
-.. dropdown:: source/standalone/workflows/ray/hyperparameter_tuning/vision_cartpole_cfg.py (submitting aggregate jobs)
+.. dropdown:: source/standalone/workflows/ray/hyperparameter_tuning/rl_games_vision_cfg.py
   :icon: code
 
   .. literalinclude:: ../../../source/standalone/workflows/ray/hyperparameter_tuning/vision_cartpole_cfg.py
     :language: python
     :emphasize-lines: 17-35
 
-Submitting tuning aggregate jobs that create many individual sub-jobs can be tested as follows.
+.. dropdown:: source/standalone/workflows/ray/hyperparameter_tuning/vision_cartpole_cfg.py
+  :icon: code
 
-To view the logs, simply run ``tensorboard --logdir=<LOCAL_STORAGE_PATH>``
+  .. literalinclude:: ../../../source/standalone/workflows/ray/hyperparameter_tuning/vision_cartpole_cfg.py
+    :language: python
+    :emphasize-lines: 17-35
 
-.. code-block:: bash
+Then, see the local examples in the following file to see how to start a tuning run.
 
-  # Example A: Local
-  /isaaclab.sh -p source/standalone/workflows/ray/isaac_ray_tune.py \
-	--mode local
-	--cfg_file hyperparameter_tuning/vision_cartpole_cfg.py \
-	--cfg_class CartpoleRGBNoTuneJobCfg --storage_path ~/isaac_cartpole
+.. dropdown:: source/standalone/workflows/ray/isaac_ray_tune.py
+  :icon: code
+
+  .. literalinclude:: ../../../source/standalone/workflows/ray/isaac_ray_tune.py
+    :language: python
+    :emphasize-lines: 17-35
+
+
+**To view the logs, simply run ``tensorboard --logdir=<LOCAL_STORAGE_PATH>``**
 
 Remote Ray Cluster Setup and Use
 '''''''''''''''''''''''''''''''''
@@ -264,7 +236,9 @@ Shared Steps Between KubeRay and Pure Ray Part I
 
   # Login with NGC (nvcr.io) registry first, see docker steps in repo.
   ./isaaclab.sh -p docker/container.py start
+  # Build the special Isaac Lab Ray Image
   docker build -t <REGISTRY/IMAGE_NAME> -f source/standalone/workflows/ray/cluster_configs/Dockerfile .
+  # Push the image to your registry of choice.
   docker push <REGISTRY/IMAGE_NAME>
 
 KubeRay Specific
@@ -288,9 +262,13 @@ easily be installed with ``snap install k9s --devmode``.
   # should list clusterpolicies.nvidia.com
   kubectl get crds | grep nvidia
 
-2.) Create the KubeRay cluster. This can be done automatically for Google GKE,
-    where instricutions are included in the following creation file. More than once cluster
-    can be created at once. Each cluster can have heterogeneous resources if so desired.
+2.) Create the KubeRay cluster and an MLFlow server for receiving logs
+  that your cluster has access to. This can be done automatically for Google GKE,
+    where instructions are included in the following creation file. More than once cluster
+    can be created at once. Each cluster can have heterogeneous resources if so desired,
+    although only
+    For other cloud services, the ``kuberay.yaml.ninja`` will be similar to that of
+    Google's.
 
 .. dropdown:: source/standalone/workflows/ray/launch.py
   :icon: code
@@ -299,8 +277,11 @@ easily be installed with ``snap install k9s --devmode``.
     :language: python
     :emphasize-lines: 14-44
 
-3.) Fetch the KubeRay cluster IP addresses. This can be done automatically for KubeRay clusters,
-      where instructions are included in the following fetching file.
+3.) Fetch the KubeRay cluster IP addresses, and the MLFLow Server IP.
+    This can be done automatically for KubeRay clusters,
+    where instructions are included in the following fetching file.
+    The KubeRay clusters are saved to a file, but the MLFLow Server IP is
+    printed.
 
 .. dropdown:: source/standalone/workflows/ray/grok_cluster_with_kubectl.py
   :icon: code
@@ -317,6 +298,8 @@ Ray Specific
 2.) Create a ``~/.cluster_config`` file, where ``name: <NAME> address: http://<IP>:<PORT>`` is on
   a new line for each unique cluster. For one cluster, there should only be one line in this file.
 
+3.) Start an MLFLow Server to receive the logs that the ray cluster has access to,
+  and determine the server URI.
 
 Shared Steps Between KubeRay and Pure Ray Part II
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -337,17 +320,6 @@ Shared Steps Between KubeRay and Pure Ray Part II
     :language: python
     :emphasize-lines: 12-42
 
-.. code-block:: bash
-
-  # General Template
-  ./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py
-	--jobs <JOB0>+<JOB1>+<JOB2>
-  # Example 1: Submitting two jobs
-  # (To run within a container, replace ```./isaaclab.sh -p``` with ```/workspace/isaaclab/isaaclab.sh -p```
-	#and ```source/standalone/workflows/rl_games/train.py``` with ```/workspace/isaaclab/source/standalone/workflows/rl_games/train.py```)'
-  ./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py --aggregate_jobs wrap_isaac_ray_resources.py --sub_jobs ./isaaclab.sh -p source/standalone/workflows/rl_games/train.py --task Isaac-Cartpole-v0 --headless+./isaaclab.sh -p source/standalone/workflows/rl_games/train.py --task Isaac-Cartpole-RGB-Camera-Direct-v0 --headless --enable_cameras agent.params.config.max_epochs=150
-  # For more than one cluster, and/or more than one aggregate job, separate aggregate jobs with the * delimiter.
-
 3.) For tuning jobs, specify the hyperparameter sweep similar to :class:`RLGamesCameraJobCfg` in the following file:
 
 .. dropdown:: source/standalone/workflows/ray/isaac_ray_tune.py (submitting aggregate jobs)
@@ -366,17 +338,11 @@ For example, see the Cartpole Example configurations.
     :language: python
     :emphasize-lines: 17-35
 
-Tuning jobs can be submitted with the previous script as with other jobs.
+Tuning jobs can also be submitted via :file:` ../../../source/standalone/workflows/ray/submit_isaac_ray_job.py`
 
-.. code-block:: bash
-
-  ./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py --aggregate_jobs
-  /workspace/isaaclab/isaaclab.sh -p /workspace/isaaclab/source/standalone/workflors/ray/isaac_ray_tune.py \
-	--cfg_file hyperparameter_tuning/vision_cartpole_cfg.py \
-	--cfg_class CartpoleRGBNoTuneJobCfg --storage_path <YOUR_STORAGE_BUCKET>
-
-To fetch the logs, port forward 5050 with
-``kubectl port-forward service/isaacray-mlflow 5000:5000`` and visit ``localhost:5050``
+To view the tuning results, view the MLFLow dashboard of the server that you created.
+For KubeRay, this can be done through port forwarding the MLFlow dashboard, with
+``kubectl port-forward service/isaacray-mlflow 5000:5000`` and visiting``localhost:5050``
 
 **Cluster Cleanup**
 '''''''''''''''''''
@@ -387,6 +353,6 @@ recreated! For KubeRay clusters, this can be done via
 
 .. code-block:: bash
 
-  kubectl get raycluster | egrep 'isaacray' | awk '{print $1}' | xargs kubectl delete raycluster
-  kubectl get deployments | egrep 'mlflow' | awk '{print $1}' | xargs kubectl delete deployment
+  kubectl get raycluster | egrep 'isaacray' | awk '{print $1}' | xargs kubectl delete raycluster &&
+  kubectl get deployments | egrep 'mlflow' | awk '{print $1}' | xargs kubectl delete deployment &&
   kubectl get services | egrep 'mlflow' | awk '{print $1}' | xargs kubectl delete service

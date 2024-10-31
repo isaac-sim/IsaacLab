@@ -29,6 +29,10 @@ create several heterogeneous clusters (with homogeneous nodes in each cluster),
 then submit several overall-cluster jobs with :file:`../submit_isaac_ray_job.py`.
 KubeRay clusters on Google GKE can be created with :file:`../launch.py`
 
+To report tune metrics on clusters, a running MLFlow server with a known URI that the cluster has
+access to is required. For KubeRay clusters configured with :file:`../launch.py`, this is included
+automatically, and can be easily found with with :file:`grok_cluster_with_kubectl.py`
+
 Usage:
 
 .. code-block:: bash
@@ -38,14 +42,14 @@ Usage:
     # Examples
     # Local
     ./isaaclab.sh -p source/standalone/workflows/ray/isaac_ray_tune.py --run_mode local \
-    --storage_path /home/<USERNAME>/exp_result \
     --cfg_file hyperparameter_tuning/vision_cartpole_cfg.py \
     --cfg_cls CartpoleRGBNoTuneJobCfg
+
     # Remote (run grok cluster or create config file mentioned in :file:`submit_isaac_ray_job.py`)
     ./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py \
     --aggregate_jobs isaac_ray_tune.py
     --cfg_file hyperparameter_tuning/vision_cartpole_cfg.py \
-    --cfg_cls CartpoleRGBNoTuneJobCfg
+    --cfg_cls CartpoleRGBNoTuneJobCfg --mlflow_uri <MFLOW_URI_FROM_GROK_OR_MANUAL>
 
 """
 
@@ -56,22 +60,21 @@ RL_GAMES_WORKFLOW = "source/standalone/workflows/rl_games/train.py"
 
 
 class IsaacLabTuneTrainable(tune.Trainable):
-    """The Isaac Ray Tune Trainable.
+    """The Isaac Lab Ray Tune Trainable.
     This class uses the standalone workflows to start jobs, along with the hydra integration.
     This class achieves Ray-based logging through reading the tensorboard logs from
     the standalone workflows.
     """
 
     def setup(self, config: dict) -> None:
+        """Get the invocation command, return quick for easy scheduling."""
         self.data = None
-
-        if hasattr(self, "checkpoint"):
-            config["runner_args"]["--checkpoint"] = self.checkpoint
         self.invoke_cmd = isaac_ray_util.get_invocation_command_from_cfg(cfg=config, python_cmd=PYTHON_EXEC)
         print(f"[INFO]: Recovered invocation with {self.invoke_cmd}")
         self.experiment = None
 
     def reset_config(self, new_config):
+        """Allow environments to be re-used by fetching a new invocation command"""
         self.setup(new_config)
         return True
 
@@ -100,9 +103,6 @@ class IsaacLabTuneTrainable(tune.Trainable):
         if self.proc.poll() is not None:  # process finished, signal finish
             self.data["done"] = True
             print("[INFO]: Process finished, returning...")
-            if self.done:
-                raise ValueError("Previously tried to halt trial to no avail.")
-            self.done = True
             return self.data
         else:  # wait until the logs are ready or fresh
             data = isaac_ray_util.load_tensorboard_logs(self.tensorboard_logdir)
@@ -120,22 +120,17 @@ class IsaacLabTuneTrainable(tune.Trainable):
             self.data["done"] = False
             return data
 
-    def save_checkpoint(self, checkpoint_dir: str) -> None:
-        model_name = self.isaac_logdir.split("/")[-1]
-        checkpoint = self.isaac_logdir + f"/{self.experiment_name}/nn/{model_name}.pth"
-        subprocess.call(["cp", f"{checkpoint}", f"{checkpoint_dir}"])
-
-    def load_checkpoint(self, checkpoint_dir: str) -> None:
-        model_name = checkpoint_dir.split("/")[-2]
-        self.checkpoint = checkpoint_dir + f"/{model_name}.pth"
-
     def default_resource_request(self):
+        """How many resources each trainable uses. Assumes homogeneous resources across gpu nodes,
+        and that each trainable is meant for one node, where it uses all available resources."""
         resources = isaac_ray_util.get_gpu_node_resources(one_node_only=True)
         return tune.PlacementGroupFactory([{"CPU": resources["CPU"], "GPU": resources["GPU"]}], strategy="STRICT_PACK")
 
 
 def invoke_tuning_run(cfg: dict, args: argparse.Namespace) -> None:
-    """Invoke an Isaac-Ray tuning run optimized for Kubernetes deployment
+    """Invoke an Isaac-Ray tuning run.
+
+    Log either to a local directory or to MLFlow.
     Args:
         cfg: Configuration dictionary extracted from job setup
         args: Command-line arguments related to tuning.
@@ -143,6 +138,9 @@ def invoke_tuning_run(cfg: dict, args: argparse.Namespace) -> None:
     # Allow for early exit
     os.environ["TUNE_DISABLE_STRICT_METRIC_CHECKING"] = "1"
 
+    print("[WARNING]: Not saving checkpoints, just running experiment...")
+    print("[INFO]: Model parameters and metrics will be preserved.")
+    print("[WARNING]: For homogeneous cluster resources only...")
     # Get available resources
     resources = isaac_ray_util.get_gpu_node_resources()
     print(f"[INFO]: Available resources {resources}")
@@ -166,21 +164,22 @@ def invoke_tuning_run(cfg: dict, args: argparse.Namespace) -> None:
     if args.run_mode == "local":  # Standard config, to file
         run_config = air.RunConfig(
             name=f"IsaacRay-{args.cfg_class}-tune",
-            storage_path=args.storage_path,
             verbose=1,
         )
 
     elif args.run_mode == "remote":  # MFlow, to MFlow server ;)
+        mlflow_callback = MLflowLoggerCallback(
+            tracking_uri=args.mlflow_uri,
+            experiment_name=f"IsaacRay-{args.cfg_class}-tune",
+            save_artifact=False,
+            tags={"run_mode": "remote", "cfg_class": args.cfg_class},
+        )
+
         run_config = ray.train.RunConfig(
-            storage_path=args.mlflow_uri,
+            storage_path=args.storage_path,
             name="mlflow",
-            callbacks=[
-                MLflowLoggerCallback(
-                    tracking_uri=args.mlflow_uri,
-                    experiment_name=f"IsaacRay-{args.cfg_class}-tune",
-                    save_artifact=True,
-                )
-            ],
+            callbacks=[mlflow_callback],
+            checkpoint_config=ray.train.CheckpointConfig(checkpoint_frequency=0, checkpoint_at_end=False),
         )
 
     # Configure the tuning job
@@ -244,17 +243,6 @@ if __name__ == "__main__":
         ),
     )
     parser.add_argument(
-        "--storage_path",
-        type=str,
-        default=None,
-        required=False,
-        help=(
-            "Where to store experiments. Can be directory for local dev, "
-            "Must be a bucket your cluster has access to for remote."
-        ),
-    )
-
-    parser.add_argument(
         "--mlflow_uri",
         type=str,
         default=None,
@@ -293,7 +281,8 @@ if __name__ == "__main__":
 
         if args.mlflow_uri is not None:
             import mlflow
-            from ray.air.integrations.mlflow import MLflowLoggerCallback, setup_mlflow
+            mlflow.set_tracking_uri(args.mlflow_uri)
+            from ray.air.integrations.mlflow import MLflowLoggerCallback
         else:
             raise ValueError("Please provide a result MFLow URI server.")
 

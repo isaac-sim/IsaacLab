@@ -391,6 +391,7 @@ def populate_isaac_ray_cfg_args(cfg: dict = {}) -> dict:
 
 
 def _dicts_equal(d1: dict, d2: dict, tol=1e-9) -> bool:
+    """Check if two dicts are equal; helps ensure only new logs are returned."""
     if d1.keys() != d2.keys():
         return False
     for key in d1:
