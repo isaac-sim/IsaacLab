@@ -382,7 +382,7 @@ def randomize_joint_parameters(
 
     # resolve joint indices
     if asset_cfg.joint_ids == slice(None):
-        joint_ids = torch.arange(asset.num_joints, dtype=torch.int, device=asset.device)
+        joint_ids = slice(None)  # for optimization purposes
     else:
         joint_ids = torch.tensor(asset_cfg.joint_ids, dtype=torch.int, device=asset.device)
 
@@ -966,7 +966,8 @@ def _randomize_prop_by_op(
         dim_0_ids = slice(None)
     else:
         n_dim_0 = len(dim_0_ids)
-        dim_0_ids = dim_0_ids[:, None]
+        if not isinstance(dim_1_ids, slice):
+            dim_0_ids = dim_0_ids[:, None]
     # -- dim 1
     if isinstance(dim_1_ids, slice):
         n_dim_1 = data.shape[1]
