@@ -83,10 +83,12 @@ class MeshConverter(AssetConverterBase):
 
         # Check if mesh_file_basename is a valid USD identifier
         if not Tf.IsValidIdentifier(mesh_file_basename):
-            print(f"Warning: File name '{mesh_file_basename}.{mesh_file_format}' is invalid for the input mesh path.")
-            # Correct the name to a valid identifier ang update the basename
+            # Correct the name to a valid identifier and update the basename
+            mesh_file_basename_original = mesh_file_basename
             mesh_file_basename = Tf.MakeValidIdentifier(mesh_file_basename)
-            print(f"Warning: Using '{mesh_file_basename}.{mesh_file_format}' as the identifier for this conversion.")
+            omni.log.warn(
+                f"Input file name '{mesh_file_basename_original}' is an invalid identifier for the mesh prim path. Renaming it to '{mesh_file_basename}' for the conversion."
+             )
 
         # Convert USD
         asyncio.get_event_loop().run_until_complete(
