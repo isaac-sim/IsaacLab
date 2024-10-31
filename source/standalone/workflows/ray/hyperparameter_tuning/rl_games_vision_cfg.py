@@ -28,8 +28,8 @@ class RLGamesCameraJobCfg(isaac_ray_tune.JobCfg):
         cfg["runner_args"]["enable_cameras_singleton"] = tune.choice(["--enable_cameras"])
         cfg["workflow"] = tune.choice([isaac_ray_tune.RL_GAMES_WORKFLOW])
 
-        cfg["hydra_args"]["agent.params.config.save_best_after"] = tune.choice([5])
-        cfg["hydra_args"]["agent.params.config.save_frequency"] = tune.choice([5])
+        # cfg["hydra_args"]["agent.params.config.save_best_after"] = tune.choice([5])
+        # cfg["hydra_args"]["agent.params.config.save_frequency"] = tune.choice([5])
         cfg["hydra_args"]["agent.params.config.max_epochs"] = tune.choice([200])
 
         if vary_env_count:  # Vary the env count, and horizon length, and select a compatible mini-batch size
@@ -52,24 +52,25 @@ class RLGamesCameraJobCfg(isaac_ray_tune.JobCfg):
                 ),
             )
         if vary_cnn:
-            # Vary the CNN structure; size, kernel size, filters, for 1 to 8 CNN layers
-            def generate_cnn_layer():
-                return {
-                    "filters": tune.randint(2**4, 2**9 + 1),
-                    "kernel_size": tune.randint(2**1, 2**4 + 1),
-                    "strides": tune.randint(2**1, 2**4 + 1),
-                    "padding": tune.choice([0, 1]),  # Padding remains as a discrete choice
-                }
+            if vary_cnn:
+                num_layers = tune.randint(3, 7)
+                cfg["hydra_args"]["agent.params.network.cnn.type"] = tune.choice(["conv2d"])
+                cfg["hydra_args"]["agent.params.network.cnn.activation"] = tune.choice(["relu", "elu"])
+                cfg["hydra_args"]["agent.params.network.cnn.initializer"] = tune.choice(["{name:default}"])
+                cfg["hydra_args"]["agent.params.network.cnn.regularizer"] = tune.choice(["{name:None}"])
 
-            cfg["hydra_args"]["agents.params.network.cnn"] = {
-                "type": "conv2d",
-                "activation": tune.choice(["relu", "tanh", "sigmoid"]),
-                "initializer": {"name": tune.choice(["default", "he_uniform", "glorot_uniform"])},
-                "regularizer": {
-                    "name": tune.choice([None, "l2", "l1"]),
-                },
-                "convs": [generate_cnn_layer() for _ in range(tune.randint(1, 8).sample())],
-            }
+                # Fix the parameter names in the convs configuration
+                cfg["hydra_args"]["agent.params.network.cnn.convs"] = tune.sample_from(
+                    lambda _: [
+                        {
+                            "filters": tune.randint(16, 64).sample(),
+                            "kernel_size": tune.choice(["3", "4", "6", "8"]).sample(),
+                            "strides": tune.choice(["1", "2", "3", "4"]).sample(),
+                            "padding": tune.choice(["0", "1"]).sample(),
+                        }
+                        for _ in range(num_layers.sample())
+                    ]
+                )
 
         if vary_mlp:
             # Vary the MLP structure; neurons (units) per layer, number of layers,

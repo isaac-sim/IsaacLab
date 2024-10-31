@@ -7,6 +7,8 @@ import importlib.util
 import os
 import subprocess
 import sys
+from math import isclose
+from time import sleep
 
 import isaac_ray_util
 import ray
@@ -35,6 +37,17 @@ Usage:
     ./isaaclab.sh -p source/standalone/workflows/ray/isaac_ray_tune.py -h
 
     # Examples
+    # Local
+    ./isaaclab.sh -p source/standalone/workflows/ray/isaac_ray_tune.py --run_mode local \
+    --storage_path /home/<USERNAME>/exp_result \
+    --cfg_file hyperparameter_tuning/vision_cartpole_cfg.py \
+    --cfg_cls CartpoleRGBNoTuneJobCfg
+    # Remote (run grok cluster or create config file mentioned in :file:`submit_isaac_ray_job.py`)
+    ./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py \
+    --aggregate_jobs isaac_ray_tune.py
+    --storage_path <BUCKET_PATH> \
+    --cfg_file hyperparameter_tuning/vision_cartpole_cfg.py \
+    --cfg_cls CartpoleRGBNoTuneJobCfg
 
 
 """
@@ -57,32 +70,54 @@ class IsaacLabTuneTrainable(tune.Trainable):
 
         if hasattr(self, "checkpoint"):
             config["runner_args"]["--checkpoint"] = self.checkpoint
-        invoke_cmd = isaac_ray_util.get_invocation_command_from_cfg(cfg=config, python_cmd=PYTHON_EXEC)
-        experiment = isaac_ray_util.execute_job(
-            invoke_cmd, identifier_string="", extract_experiment=True, persistent_dir=BASE_DIR
-        )
-        print(f"[INFO]: Tuner recovered experiment info {experiment}")
-        self.proc = experiment["proc"]
-        self.experiment_name = experiment["experiment_name"]
-        self.isaac_logdir = experiment["logdir"]
-        self.tensorboard_logdir = self.isaac_logdir + f"/{self.experiment_name}/summaries"
-        self.done = False
+        self.invoke_cmd = isaac_ray_util.get_invocation_command_from_cfg(cfg=config, python_cmd=PYTHON_EXEC)
+        print(f"[INFO]: Recovered invocation with {self.invoke_cmd}")
+        self.experiment = None
 
     def reset_config(self, new_config):
         self.setup(new_config)
+        return True
 
     def step(self) -> dict:
-        if self.proc is None:  # failed to start, return negative signal
-            raise RuntimeError("Could not start desired trial.")
-        if self.proc.poll() is not None:
+        if self.experiment is None:  # start experiment
+            # When including this as first step instead of setup, experiments get scheduled faster
+            # Don't want to block the scheduler while the experiment spins up
+            print(f"[INFO]: Invoking experiment as first step with {self.invoke_cmd}...")
+            experiment = isaac_ray_util.execute_job(
+                self.invoke_cmd,
+                identifier_string="",
+                extract_experiment=True,
+                persistent_dir=BASE_DIR,
+            )
+            self.experiment = experiment
+            print(f"[INFO]: Tuner recovered experiment info {experiment}")
+            self.proc = experiment["proc"]
+            self.experiment_name = experiment["experiment_name"]
+            self.isaac_logdir = experiment["logdir"]
+            self.tensorboard_logdir = self.isaac_logdir + f"/{self.experiment_name}/summaries"
+            self.done = False
+        if self.proc is None:
+            raise ValueError("Could not start trial.")
+
+        if self.proc.poll() is not None:  # process finished, signal finish
             self.data["done"] = True
             print("[INFO]: Process finished, returning...")
             if self.done:
                 raise ValueError("Previously tried to halt trial to no avail.")
             self.done = True
             return self.data
-        else:
+        else:  # wait until the logs are ready or fresh
             data = isaac_ray_util.load_tensorboard_logs(self.tensorboard_logdir)
+
+            while data is None:
+                data = isaac_ray_util.load_tensorboard_logs(self.tensorboard_logdir)
+                sleep(1 / 100)
+
+            if self.data is not None:
+                while _dicts_equal(data, self.data):
+                    data = isaac_ray_util.load_tensorboard_logs(self.tensorboard_logdir)
+                    sleep(1 / 100)
+
             self.data = data
             self.data["done"] = False
             return data
@@ -98,7 +133,19 @@ class IsaacLabTuneTrainable(tune.Trainable):
 
     def default_resource_request(self):
         resources = isaac_ray_util.get_gpu_node_resources(one_node_only=True)
-        return tune.PlacementGroupFactory([{"CPU": resources["cpu"], "GPU": resources["gpu"]}])
+        return tune.PlacementGroupFactory([{"CPU": resources["CPU"], "GPU": resources["GPU"]}], strategy="STRICT_PACK")
+
+
+def _dicts_equal(d1: dict, d2: dict, tol=1e-9) -> bool:
+    if d1.keys() != d2.keys():
+        return False
+    for key in d1:
+        if isinstance(d1[key], float) and isinstance(d2[key], float):
+            if not isclose(d1[key], d2[key], abs_tol=tol):
+                return False
+        elif d1[key] != d2[key]:
+            return False
+    return True
 
 
 def invoke_tuning_run(
@@ -111,6 +158,7 @@ def invoke_tuning_run(
         cfg: A configuration extracted from :class:JobCfg, similar in format to :class:RLGamesCameraJobCfg
         args: Arguments related to tuning fetched from the argparser.
     """
+    os.environ["TUNE_DISABLE_STRICT_METRIC_CHECKING"] = "1"  # Allow for early exit
     resources = isaac_ray_util.get_gpu_node_resources()
     print(f"[INFO]: Available resources {resources}")
     if not ray.is_initialized():
@@ -206,11 +254,22 @@ if __name__ == "__main__":
     parser.add_argument("--metric", type=str, default="rewards/time", help="What metric to tune for.")
 
     parser.add_argument(
-        "--mode", choices=["max", "min"], default="max", help="What to optimize the metric to while tuning"
+        "--mode",
+        choices=["max", "min"],
+        default="max",
+        help="What to optimize the metric to while tuning",
     )
-    parser.add_argument("--num_samples", type=int, default=100, help="How many hyperparameter runs to try total.")
     parser.add_argument(
-        "--repeat_run_count", type=int, default=3, help="How many times to repeat each hyperparameter config."
+        "--num_samples",
+        type=int,
+        default=100,
+        help="How many hyperparameter runs to try total.",
+    )
+    parser.add_argument(
+        "--repeat_run_count",
+        type=int,
+        default=3,
+        help="How many times to repeat each hyperparameter config.",
     )
 
     args = parser.parse_args()

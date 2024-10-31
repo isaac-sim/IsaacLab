@@ -70,8 +70,8 @@ def wrap_resources_to_jobs(jobs: list[str], args: argparse.Namespace) -> None:
     num_nodes = len(gpu_node_resources)
     # Populate arguments
     formatted_node_resources = {
-        "gpu_per_worker": [gpu_node_resources[i]["gpu"] for i in range(num_nodes)],
-        "cpu_per_worker": [gpu_node_resources[i]["cpu"] for i in range(num_nodes)],
+        "gpu_per_worker": [gpu_node_resources[i]["GPU"] for i in range(num_nodes)],
+        "cpu_per_worker": [gpu_node_resources[i]["CPU"] for i in range(num_nodes)],
         "ram_gb_per_worker": [gpu_node_resources[i]["ram_gb"] for i in range(num_nodes)],
         "num_workers": args.num_workers,  # By default, 1 worker por node
     }

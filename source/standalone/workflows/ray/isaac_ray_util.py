@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 import argparse
+import json
 import os
 import re
 import subprocess
@@ -37,44 +38,39 @@ def load_tensorboard_logs(directory: str) -> dict:
 
 
 def get_invocation_command_from_cfg(cfg: dict, python_cmd: str = "/workspace/isaaclab/isaaclab.sh -p") -> str:
-    """Provided a python invocation, as well as a configuration with runner arguments and hydra
-    arguments, combine them into a single shell command that can be run for a training run
-
-    Args:
-        cfg: A dict with the runner args and hydra args desired for a training run.
-        python_cmd: Which python to use. Defaults to "/workspace/isaaclab/isaaclab.sh -p".
-
-    Returns:
-        A shell training run command (invocation)
-    """
+    """Generate command with proper Hydra arguments"""
     runner_args = []
     hydra_args = []
 
     def process_args(args, target_list, is_hydra=False):
         for key, value in args.items():
-            # for example, key: singletons | value: List
-            if isinstance(value, dict):
-                for subkey, subvalue in value.items():
-                    target_list.append(f" {subkey}={subvalue} ")
-            elif isinstance(value, list):
-                target_list.extend(value)
+            if not is_hydra:
+                if key.endswith("_singleton"):
+                    target_list.append(value)
+                elif key.startswith("--"):
+                    target_list.append(f"{key} {value}")  # Space instead of = for runner args
+                else:
+                    target_list.append(f"{value}")
             else:
-                if not is_hydra:
-                    if "--" in key:  # must be command line argument
-                        target_list.append(f"{key} {value}")
-                    else:  # singleton like --headless or --enable_cameras
-                        target_list.append(f"{value}")
+                if isinstance(value, list):
+                    # General formatting for any dictionary-like arrays
+                    formatted_items = []
+                    for item in value:
+                        parts = [f"{k}:{v}" for k, v in item.items()]
+                        formatted_items.append(f"{{{','.join(parts)}}}")
+                    target_list.append(f"'{key}=[{','.join(formatted_items)}]'")
+                elif isinstance(value, str) and ("{" in value or "}" in value):
+                    target_list.append(f"'{key}={value}'")
                 else:
                     target_list.append(f"{key}={value}")
-            print(f"{target_list[-1]}")
 
     print(f"[INFO]: Starting workflow {cfg['workflow']}")
-
     process_args(cfg["runner_args"], runner_args)
     print(f"[INFO]: Retrieved workflow runner args: {runner_args}")
     process_args(cfg["hydra_args"], hydra_args, is_hydra=True)
     print(f"[INFO]: Retrieved hydra args: {hydra_args}")
-    invoke_cmd = python_cmd + " " + cfg["workflow"] + " "
+
+    invoke_cmd = f"{python_cmd} {cfg['workflow']} "
     invoke_cmd += " ".join(runner_args) + " " + " ".join(hydra_args)
     return invoke_cmd
 
@@ -191,7 +187,7 @@ def execute_job(
         with process.stdout as stdout:
             for line in iter(stdout.readline, ""):
                 line = line.strip()
-                result_details.append(f"{identifier_string}: {line}")
+                result_details.append(f"{identifier_string}: {line} \n")
                 if log_all_output:
                     print(f"{identifier_string}: {line}")
 
@@ -200,7 +196,7 @@ def execute_job(
                     log_match = logdir_pattern.search(line)
                     err_match = err_pattern.search(line)
                     if err_match:
-                        raise ValueError("Encountered an error during trial run.")
+                        raise ValueError(f"Encountered an error during trial run. {' '.join(result_details)}")
 
                     if exp_match:
                         experiment_name = exp_match.group(1)
@@ -268,7 +264,7 @@ def get_gpu_node_resources(
             cpus = resources.get("CPU", 0)
             gpus = resources.get("GPU", 0)
             memory = resources.get("memory", 0)
-            node_resources.append({"cpu": cpus, "gpu": gpus, "memory": memory})
+            node_resources.append({"CPU": cpus, "GPU": gpus, "memory": memory})
 
             if include_id:
                 node_resources[-1]["id"] = node_id
@@ -278,11 +274,11 @@ def get_gpu_node_resources(
             total_cpus += cpus
             total_gpus += gpus
             total_memory += memory
-    node_resources = sorted(node_resources, key=lambda x: (-x["gpu"], -x["cpu"], -x["memory"], x.get("id", "")))
+    node_resources = sorted(node_resources, key=lambda x: (-x["GPU"], -x["CPU"], -x["memory"], x.get("id", "")))
 
     if total_resources:
         # Return summed total resources
-        return {"cpu": total_cpus, "gpu": total_gpus, "memory": total_memory}
+        return {"CPU": total_cpus, "GPU": total_gpus, "memory": total_memory}
 
     if one_node_only and node_resources:
         return node_resources[0]
