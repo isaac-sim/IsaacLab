@@ -39,6 +39,7 @@ The reference architecture for Isaac Lab comprises the following components:
 4. **Register with Gymnasium**
 5. **Environment Wrapping**
 6. **Run Training**
+
   * Single GPU Training
   * Multi-GPU Training
   * Multi-Node Training
@@ -261,24 +262,24 @@ For single GPU training, the following steps show how training works in Isaac Si
 
 2. In Isaac Lab
 
-  - We add randomization to the states defined in the event configuration class to obtain the observation for the task. 
-  - The observations are computed as PyTorch tensors, and it can optionally include the action provided by the trained model.
+  * We add randomization to the states defined in the event configuration class to obtain the observation for the task. 
+  * The observations are computed as PyTorch tensors, and it can optionally include the action provided by the trained model.
 
 3. In the RL library
 
-  - The observation is passed to the policy. 
-  - The policy is trained to output the right actions for the robot using RL library algorithms such as PPO, TRPO, etc. 
-  - The actions can serve either as a setpoint for a controller that generates the action to the robot or used directly as the action to the robot based on the task.
-  - Action types such as joint position for a quadruped is an input to a joint controller, velocity of 1 or 0 is used to control the cart directly in the cartpole task, etc.
-  - In addition, based on how the task is defined, the previous action can be part of the next set of observations that is sent.
+  * The observation is passed to the policy. 
+  * The policy is trained to output the right actions for the robot using RL library algorithms such as PPO, TRPO, etc. 
+  * The actions can serve either as a setpoint for a controller that generates the action to the robot or used directly as the action to the robot based on the task.
+  * Action types such as joint position for a quadruped is an input to a joint controller, velocity of 1 or 0 is used to control the cart directly in the cartpole task, etc.
+  * In addition, based on how the task is defined, the previous action can be part of the next set of observations that is sent.
 
 4. In Isaac Sim
   
-  - The actions from the policy are sent back to Isaac Sim to control the agent that is learning i.e. the robot. This is the physics simulation (sim) step. This generates the next states in Isaac Sim and the rewards are calculated in Isaac Lab. 
+  * The actions from the policy are sent back to Isaac Sim to control the agent that is learning i.e. the robot. This is the physics simulation (sim) step. This generates the next states in Isaac Sim and the rewards are calculated in Isaac Lab. 
 
 5. Rendering
 
-  - The scene can be rendered to produce the cameras' images.
+  * The scene can be rendered to produce the cameras' images.
 
 
 The next state is then passed in the flow till the training reaches the specified training steps or epochs. The final product is the trained model/agent.
@@ -298,8 +299,6 @@ The next state is then passed in the flow till the training reaches the specifie
     :class: only-dark
     :align: center
     :alt: Multi GPU Training Data Flow
-
-
 
 |
 
@@ -374,10 +373,11 @@ Check out our resources on using Isaac Lab with your robots.
 
 **Review Our Documentation & Samples Resources**
 
-* `Isaac Lab`_
+* `Isaac Lab Tutorials`_
 * `Fast-Track Robot Learning in Simulation Using NVIDIA Isaac Lab`_
 * `Supercharge Robotics Workflows with AI and Simulation Using NVIDIA Isaac Sim 4.0 and NVIDIA Isaac Lab`_
 * `Closing the Sim-to-Real Gap: Training Spot Quadruped Locomotion with NVIDIA Isaac Lab <https://developer.nvidia.com/blog/closing-the-sim-to-real-gap-training-spot-quadruped-locomotion-with-nvidia-isaac-lab/>`__
+* `Additional Resources`_
 
 **Learn More About Featured NVIDIA Solutions**
 
@@ -398,7 +398,7 @@ Check out our resources on using Isaac Lab with your robots.
 .. _Scale AI-Enabled Robotics Development Workloads with NVIDIA OSMO: https://developer.nvidia.com/blog/scale-ai-enabled-robotics-development-workloads-with-nvidia-osmo/
 .. _Isaac Perceptor: https://developer.nvidia.com/isaac/perceptor
 .. _Isaac Manipulator: https://developer.nvidia.com/isaac/manipulator
-
-.. _Isaac Lab: https://isaac-sim.github.io/IsaacLab/main/index.html
+.. _Additional Resources: https://isaac-sim.github.io/IsaacLab/main/source/refs/additional_resources.html 
+.. _Isaac Lab Tutorials: file:///home/oomotuyi/isaac/IsaacLab/docs/_build/current/source/tutorials/index.html
 .. _Fast-Track Robot Learning in Simulation Using NVIDIA Isaac Lab: https://developer.nvidia.com/blog/fast-track-robot-learning-in-simulation-using-nvidia-isaac-lab/
 .. _Supercharge Robotics Workflows with AI and Simulation Using NVIDIA Isaac Sim 4.0 and NVIDIA Isaac Lab: https://developer.nvidia.com/blog/supercharge-robotics-workflows-with-ai-and-simulation-using-nvidia-isaac-sim-4-0-and-nvidia-isaac-lab/
