@@ -5,37 +5,27 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-import numpy as np
 import re
 import torch
 from collections.abc import Sequence
 from tensordict import TensorDict
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any
 
 import carb
-import omni.isaac.core.utils.stage as stage_utils
 import omni.kit.commands
 import omni.usd
 from omni.isaac.core.prims import XFormPrimView
 from pxr import UsdGeom
 
 import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.utils import to_camel_case
 from omni.isaac.lab.utils.array import convert_to_torch
-from omni.isaac.lab.utils.math import (
-    convert_camera_frame_orientation_convention,
-    create_rotation_matrix_from_view,
-    quat_from_matrix,
-)
 
 from ..sensor_base import SensorBase
-
-from .rtx_lidar_data import RtxLidarData, RTX_LIDAR_INFO_FIELDS
+from .rtx_lidar_data import RTX_LIDAR_INFO_FIELDS, RtxLidarData
 
 if TYPE_CHECKING:
     from .rtx_lidar_cfg import RtxLidarCfg
+
 
 class RtxLidar(SensorBase):
 
@@ -77,7 +67,7 @@ class RtxLidar(SensorBase):
         matching_prims = sim_utils.find_matching_prims(self.cfg.prim_path)
         if len(matching_prims) == 0:
             raise RuntimeError(f"Could not find prim with path {self.cfg.prim_path}.")
-        
+
         self._sensor_prims: list[UsdGeom.Camera] = list()
         # Create empty variables for storing output data
         self._data = RtxLidarData()
@@ -101,7 +91,7 @@ class RtxLidar(SensorBase):
     def frame(self) -> torch.tensor:
         """Frame number when the measurement took place."""
         return self._frame
-    
+
     @property
     def render_product_paths(self) -> list[str]:
         """The path of the render products for the cameras.
@@ -109,7 +99,7 @@ class RtxLidar(SensorBase):
         This can be used via replicator interfaces to attach to writes or external annotator registry.
         """
         return self._render_product_paths
-    
+
     """
     Operations
     """
@@ -146,8 +136,7 @@ class RtxLidar(SensorBase):
             )
 
         import omni.replicator.core as rep
-        from omni.syntheticdata.scripts.SyntheticData import SyntheticData
-    
+
         super()._initialize_impl()
         print("super_init_impl")
         # Create a view for the sensor
@@ -159,7 +148,7 @@ class RtxLidar(SensorBase):
                 f"Number of camera prims in the view ({self._view.count}) does not match"
                 f" the number of environments ({self._num_envs})."
             )
-        
+
         # Create all env_ids buffer
         self._ALL_INDICES = torch.arange(self._view.count, device=self._device, dtype=torch.long)
         # Create frame count buffer
@@ -182,18 +171,18 @@ class RtxLidar(SensorBase):
             # Add to list
             sensor_prim = UsdGeom.Camera(lidar_prim)
             self._sensor_prims.append(sensor_prim)
-            
+
             init_params = {
-                            "outputAzimuth" : False,
-                            "outputElevation" : False,
-                            "outputNormal" : False,
-                            "outputVelocity" : False,
-                            "outputBeamId" : False,
-                            "outputEmitterId" : False,
-                            "outputMaterialId" : False,
-                            "outputObjectId" : False,
-                            "outputTimestamp" : True,
-                           }
+                "outputAzimuth": False,
+                "outputElevation": False,
+                "outputNormal": False,
+                "outputVelocity": False,
+                "outputBeamId": False,
+                "outputEmitterId": False,
+                "outputMaterialId": False,
+                "outputObjectId": False,
+                "outputTimestamp": True,
+            }
 
             # create annotator node
             annotator_type = "RtxSensorCpuIsaacCreateRTXLidarScanBuffer"
@@ -232,7 +221,7 @@ class RtxLidar(SensorBase):
 
             rep_annotator.attach(render_prod_path)
             self._rep_registry.append(rep_annotator)
-            
+
             # Debug draw
             if self.cfg.debug_vis:
                 self.writer = rep.writers.get("RtxLidarDebugDrawPointCloudBuffer")
@@ -258,7 +247,7 @@ class RtxLidar(SensorBase):
         # Increment frame count
         self._frame[env_ids] += 1
         data_all_lidar = list()
-        info_data_all_lidar: dict[str,list] = {}
+        info_data_all_lidar: dict[str, list] = {}
 
         print("update")
         # iterate over all the annotators
@@ -267,7 +256,7 @@ class RtxLidar(SensorBase):
             output = self._rep_registry[index].get_data()
             # process the output
             data, info = self._process_annotator_output("", output)
-            
+
             # # add data to output
             data_all_lidar.append(data)
 
@@ -275,14 +264,14 @@ class RtxLidar(SensorBase):
             for info_key, info_value in info.items():
                 if info_key in RTX_LIDAR_INFO_FIELDS.keys():
                     if info_key == "transform":
-                        self._data.info[index][info_key] = torch.tensor(info_value,device=self.device)
+                        self._data.info[index][info_key] = torch.tensor(info_value, device=self.device)
                     else:
                         self._data.info[index][info_key] = info_value
                 else:
                     if info_key not in info_data_all_lidar:
-                        info_data_all_lidar[info_key] =[torch.tensor(info_value,device=self._device)]
+                        info_data_all_lidar[info_key] = [torch.tensor(info_value, device=self._device)]
                     else:
-                        info_data_all_lidar[info_key].append(torch.tensor(info_value,device=self._device))
+                        info_data_all_lidar[info_key].append(torch.tensor(info_value, device=self._device))
 
             # concatenate the data along the batch dimension
             self._data.output["data"] = torch.stack(data_all_lidar, dim=0)

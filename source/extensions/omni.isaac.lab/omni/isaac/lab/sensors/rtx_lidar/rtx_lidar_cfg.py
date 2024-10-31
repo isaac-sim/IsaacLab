@@ -7,11 +7,13 @@ from __future__ import annotations
 
 from dataclasses import MISSING
 from typing import Literal
+
 from omni.isaac.lab.sensors import SensorBaseCfg
 from omni.isaac.lab.sim import LidarCfg
 from omni.isaac.lab.utils import configclass
 
 from .rtx_lidar import RtxLidar
+
 
 @configclass
 class RtxLidarCfg(SensorBaseCfg):
@@ -27,6 +29,8 @@ class RtxLidarCfg(SensorBaseCfg):
 
     class_type: type = RtxLidar
     offset: OffsetCfg = OffsetCfg()
-    optional_data_types: list[Literal["azimuth","beamId","elevation","emitterId","index","materialId","normal","objectId","velocity"]] = []
-    data_frame: Literal["world","sensor"] = "world"
+    optional_data_types: list[
+        Literal["azimuth", "beamId", "elevation", "emitterId", "index", "materialId", "normal", "objectId", "velocity"]
+    ] = []
+    data_frame: Literal["world", "sensor"] = "world"
     spawn: LidarCfg | None = MISSING

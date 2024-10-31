@@ -266,12 +266,14 @@ class LidarCfg(SpawnerCfg):
     |             | Debug     | Simple Solid State                | Simple_Example_Solid_State|
     +-------------+-----------+-----------------------------------+---------------------------+
     """
+
     func = sensors.spawn_lidar
-    
+
     lidar_type: str = "Example_Rotary"
 
-    class LidarType: 
-        '''Class variables for autocompletion'''
+    class LidarType:
+        """Class variables for autocompletion"""
+
         HESAI_PandarXT_32 = "Hesai_XT32_SD10"
         OUSTER_OS0_128_10HZ_1024RES = "OS0_128ch10hz1024res"
         OUSTER_OS0_128_10HZ_2048RES = "OS0_128ch10hz2048res"
