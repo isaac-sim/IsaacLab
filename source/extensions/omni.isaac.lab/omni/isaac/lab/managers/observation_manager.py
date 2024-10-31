@@ -253,7 +253,7 @@ class ObservationManager(ManagerBase):
                 obs = term_cfg.noise.func(obs, term_cfg.noise)
             if term_cfg.clip:
                 obs = obs.clip_(min=term_cfg.clip[0], max=term_cfg.clip[1])
-            if term_cfg.scale is not None:
+            if term_cfg.scale:
                 obs = obs.mul_(term_cfg.scale)
             # add value to list
             group_obs[name] = obs
@@ -347,12 +347,12 @@ class ObservationManager(ManagerBase):
                     if isinstance(term_cfg.scale, tuple) and len(term_cfg.scale) != obs_dims[1]:
                         raise ValueError(
                             f"Scale for observation term '{term_name}' in group '{group_name}'"
-                            f" does not match the dimensions of the observation. Expected: {obs_dims[1] - 1}"
+                            f" does not match the dimensions of the observation. Expected: {obs_dims[1]}"
                             f" but received: {len(term_cfg.scale)}."
                         )
 
-                    if isinstance(term_cfg.scale, tuple):
-                        term_cfg.scale = torch.tensor(term_cfg.scale, device=self._env.device)
+                    # cast the scale into torch tensor
+                    term_cfg.scale = torch.tensor(term_cfg.scale, dtype=torch.float, device=self._env.device)
 
                 # prepare modifiers for each observation
                 if term_cfg.modifiers is not None:
