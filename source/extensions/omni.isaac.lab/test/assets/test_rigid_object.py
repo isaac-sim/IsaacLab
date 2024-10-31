@@ -570,7 +570,7 @@ class TestRigidObject(unittest.TestCase):
 
                             cube_object_materials = torch.cat([static_friction, dynamic_friction, restitution], dim=-1)
 
-                            # Add friction to cube
+                            # Add restitution to cube
                             cube_object.root_physx_view.set_material_properties(cube_object_materials, indices)
 
                             curr_z_velocity = cube_object.data.root_lin_vel_w[:, 2].clone()
