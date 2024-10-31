@@ -63,9 +63,15 @@ class ObservationManager(ManagerBase):
             env: The environment instance.
 
         Raises:
+            ValueError: If the configuration is None.
             RuntimeError: If the shapes of the observation terms in a group are not compatible for concatenation
                 and the :attr:`~ObservationGroupCfg.concatenate_terms` attribute is set to True.
         """
+        # check that cfg is not None
+        if cfg is None:
+            raise ValueError("Observation manager configuration is None. Please provide a valid configuration.")
+
+        # call the base class constructor (this will parse the terms config)
         super().__init__(cfg, env)
 
         # compute combined vector for obs group

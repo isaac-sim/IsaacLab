@@ -42,16 +42,21 @@ Guidelines for modifications:
 * Calvin Yu
 * Chenyu Yang
 * David Yang
+* Dorsa Rohani
+* Felix Yu
 * Gary Lvov
 * Giulio Romualdi
 * HoJin Jeon
+* Jan Kerner
 * Jean Tampon
 * Jia Lin Yuan
+* Jinghuan Shang
 * Jingzhou Liu
 * Johnson Sun
 * Kaixi Bao
 * Kourosh Darvish
 * Lionel Gulich
+* Louis Le Lay
 * Lorenz Wellhausen
 * Masoud Moghani
 * Michael Gussert
@@ -70,6 +75,7 @@ Guidelines for modifications:
 * Zhengyu Zhang
 * Ziqi Fan
 * Qian Wan
+* Wei Yang
 
 ## Acknowledgements
 

@@ -125,7 +125,7 @@ class CartpoleCameraEnv(DirectRLEnv):
         self.scene.clone_environments(copy_from_source=False)
         self.scene.filter_collisions(global_prim_paths=[])
 
-        # add articultion and sensors to scene
+        # add articulation and sensors to scene
         self.scene.articulations["cartpole"] = self._cartpole
         self.scene.sensors["tiled_camera"] = self._tiled_camera
         # add lights

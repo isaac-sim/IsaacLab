@@ -8,7 +8,7 @@ Tiled-Camera Rendering
     This feature is only available from Isaac Sim version 4.2.0 onwards.
 
     Tiled rendering in combination with image processing networks require heavy memory resources, especially
-    at larger resolutions. We recommend running at 512 cameras in the scene on RTX 4090 GPUs or similar.
+    at larger resolutions. We recommend running 512 cameras in the scene on RTX 4090 GPUs or similar.
 
 
 Tiled rendering APIs provide a vectorized interface for collecting data from camera sensors.
@@ -129,3 +129,39 @@ Instance Segmentation
 - If ``colorize_instance_segmentation=True`` in the camera config, a 4-channel RGBA image will be returned with dimension (B, H, W, 4) and type ``torch.uint8``. The info ``idToLabels`` dictionary will be the mapping from color to USD prim path of that semantic entity. The info ``idToSemantics`` dictionary will be the mapping from color to semantic labels of that semantic entity.
 
 - If ``colorize_instance_segmentation=False``, a buffer of dimension (B, H, W, 1) of type ``torch.int32`` will be returned, containing the instance ID of each pixel. The info ``idToLabels`` dictionary will be the mapping from instance ID to USD prim path of that semantic entity. The info ``idToSemantics`` dictionary will be the mapping from instance ID to semantic labels of that semantic entity.
+
+
+Current Limitations
+-------------------
+
+Due to current limitations in the renderer, we can have only **one** :class:`~sensors.TiledCamera` instance in the scene.
+For use cases that require a setup with more than one camera, we can imitate the multi-camera behavior by moving the location
+of the camera in between render calls in a step.
+
+For example, in a stereo vision setup, the below snippet can be implemented:
+
+.. code-block:: python
+
+    # render image from "first" camera
+    camera_data_1 = self._tiled_camera.data.output["rgb"].clone() / 255.0
+    # update camera transform to the "second" camera location
+    self._tiled_camera.set_world_poses(
+        positions=pos,
+        orientations=rot,
+        convention="world"
+    )
+    # step the renderer
+    self.sim.render()
+    self._tiled_camera.update(0, force_recompute=True)
+    # render image from "second" camera
+    camera_data_2 = self._tiled_camera.data.output["rgb"].clone() / 255.0
+
+Note that this approach still limits the rendering resolution to be identical for all cameras. Currently, there is no workaround
+to achieve different resolution images using :class:`~sensors.TiledCamera`. The best approach is to use the largest resolution out of all of the
+desired resolutions and add additional scaling or cropping operations to the rendered output as a post-processing step.
+
+In addition, there may be visible quality differences when comparing render outputs of different numbers of environments.
+Currently, any combined resolution that has a width less than 265 pixels or height less than 265 will automatically switch
+to the DLAA anti-aliasing mode, which does not perform up-sampling during anti-aliasing. For resolutions larger than 265 in both
+width and height dimensions, we default to using the "performance" DLSS mode for anti-aliasing for performance benefits.
+Anti-aliasing modes and other rendering parameters can be specified in the :class:`~sim.RenderCfg`.
