@@ -456,6 +456,7 @@ class TestRigidObject(unittest.TestCase):
                         sim.reset()
 
                         # Set static friction to be non-zero
+                        # Dynamic friction also needs to be zero due to a bug in PhysX
                         static_friction = torch.Tensor([[static_friction_coefficient]] * num_cubes)
                         dynamic_friction = torch.Tensor([[static_friction_coefficient]] * num_cubes)
                         restitution = torch.zeros(num_cubes, 1)
