@@ -408,11 +408,16 @@ class BaseEnvWindow:
                 alignment=omni.ui.Alignment.LEFT_CENTER,
                 tooltip=text,
             )
+            has_cfg = hasattr(elem, "cfg") and elem.cfg is not None
+            is_checked = False
+            if has_cfg:
+                is_checked = (hasattr(elem.cfg, "debug_vis") and elem.cfg.debug_vis) or (
+                    hasattr(elem, "debug_vis") and elem.debug_vis
+                )
             self.ui_window_elements[f"{name}_cb"] = SimpleCheckBox(
                 model=omni.ui.SimpleBoolModel(),
                 enabled=elem.has_debug_vis_implementation,
-                checked=(hasattr(elem.cfg, "debug_vis") and elem.cfg.debug_vis)
-                or (hasattr(elem, "debug_vis") and elem.debug_vis),
+                checked=is_checked,
                 on_checked_fn=lambda value, e=weakref.proxy(elem): e.set_debug_vis(value),
             )
             omni.isaac.ui.ui_utils.add_line_rect_flourish()
