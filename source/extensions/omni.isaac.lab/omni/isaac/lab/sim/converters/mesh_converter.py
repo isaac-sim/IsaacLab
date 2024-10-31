@@ -80,7 +80,7 @@ class MeshConverter(AssetConverterBase):
         # resolve mesh name and format
         mesh_file_basename, mesh_file_format = os.path.basename(cfg.asset_path).split(".")
         mesh_file_format = mesh_file_format.lower()
-
+        print(f"Convert {cfg.asset_path} to {self.usd_path}. mesh_file_basename: {mesh_file_basename}")
         # Convert USD
         asyncio.get_event_loop().run_until_complete(
             self._convert_mesh_to_usd(
@@ -98,6 +98,7 @@ class MeshConverter(AssetConverterBase):
         geom_prim = stage.GetPrimAtPath(f"/{mesh_file_basename}/geometry")
         for prim in stage.Traverse():
             print(f"Prim: {prim.GetPath()}")
+        print("Done")
         # Move all meshes to underneath new Xform
         for child_mesh_prim in geom_prim.GetChildren():
             if child_mesh_prim.GetTypeName() == "Mesh":
