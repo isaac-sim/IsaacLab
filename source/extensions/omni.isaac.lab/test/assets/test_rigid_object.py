@@ -475,7 +475,9 @@ class TestRigidObject(unittest.TestCase):
                         cube_object.write_root_velocity_to_sim(torch.zeros((num_cubes, 6), device=sim.device))
                         cube_mass = cube_object.root_physx_view.get_masses()
                         gravity_magnitude = abs(sim.cfg.gravity[2])
-                        # friction static condition
+                        # 2 cases: force applied is below and above mu
+                        # below mu: block should not move as the force applied is <= mu
+                        # above mu: block should move as the force applied is > mu
                         for force in "below_mu", "above_mu":
                             with self.subTest(force=force):
                                 # set initial velocity to zero
