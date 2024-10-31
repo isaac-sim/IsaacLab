@@ -178,8 +178,8 @@ class CommandTerm(ManagerTermBase):
         Args:
             env_ids: The list of environment IDs to resample.
         """
-        # resample the time left before resampling
         if len(env_ids) != 0:
+            # resample the time left before resampling
             self.time_left[env_ids] = self.time_left[env_ids].uniform_(*self.cfg.resampling_time_range)
             # increment the command counter
             self.command_counter[env_ids] += 1
