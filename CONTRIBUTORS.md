@@ -50,6 +50,7 @@ Guidelines for modifications:
 * Jan Kerner
 * Jean Tampon
 * Jia Lin Yuan
+* Jinghuan Shang
 * Jingzhou Liu
 * Johnson Sun
 * Kaixi Bao
