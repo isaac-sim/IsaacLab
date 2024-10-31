@@ -559,19 +559,20 @@ class LiveLinePlot(UIWidgetWrapper):
 
     def _rescale_btn_pressed(self):
         """Autoscale the y-axis to the current data."""
-        y_min = np.round(
-            min([min(y) for idx, y in enumerate(self._y_data) if self._series_visible[idx]]),
-            4,
-        )
-        y_max = np.round(
-            max([max(y) for idx, y in enumerate(self._y_data) if self._series_visible[idx]]),
-            4,
-        )
-        if y_min == y_max:
-            y_max += 1e-4  # Make sure axes don't collapse
+        if any(self._series_visible):
+            y_min = np.round(
+                min([min(y) for idx, y in enumerate(self._y_data) if self._series_visible[idx]]),
+                4,
+            )
+            y_max = np.round(
+                max([max(y) for idx, y in enumerate(self._y_data) if self._series_visible[idx]]),
+                4,
+            )
+            if y_min == y_max:
+                y_max += 1e-4  # Make sure axes don't collapse
 
-        self._y_max = y_max
-        self._y_min = y_min
+            self._y_max = y_max
+            self._y_min = y_min
 
         if hasattr(self, "lower_limit_drag") and hasattr(self, "upper_limit_drag"):
             self.lower_limit_drag.model.set_value(self._y_min)

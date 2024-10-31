@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 
 import carb
 import omni
+import omni.log
 
 from .ui_widget_wrapper import UIWidgetWrapper
 
@@ -18,6 +19,29 @@ if TYPE_CHECKING:
 
 
 class ImagePlot(UIWidgetWrapper):
+    """An image plot widget to display live data.
+
+    It has the following Layout where the mode frame is only useful for depth images:
+    +-------------------------------------------------------+
+    |                  containing_frame                     |
+    |+-----------------------------------------------------+|
+    |                   main_plot_frame                     |
+    ||+---------------------------------------------------+||
+    |||                    plot_frames                    |||
+    |||                                                   |||
+    |||                                                   |||
+    |||               (Image Plot Data)                   |||
+    |||                                                   |||
+    |||                                                   |||
+    |||+-------------------------------------------------+|||
+    |||                   mode_frame                      |||
+    |||                                                   |||
+    |||    [x][Absolute] [x][Grayscaled] [ ][Colorized]   |||
+    |+-----------------------------------------------------+|
+    +-------------------------------------------------------+
+
+    """
+
     def __init__(
         self,
         image: np.ndarray | None,
@@ -38,10 +62,11 @@ class ImagePlot(UIWidgetWrapper):
             show_min_max: Whether to show the min and max values of the image
             unit: Tuple of (scale, name) for the unit of the image
         """
-
         self._show_min_max = show_min_max
         self._unit_scale = unit[0]
         self._unit_name = unit[1]
+
+        self._curr_mode = "None"
 
         self._has_built = False
 
@@ -80,19 +105,27 @@ class ImagePlot(UIWidgetWrapper):
 
         height, width = image.shape[:2]
 
-        # convert image to 4-channel RGBA
-        if image.ndim == 2:
-            image = np.dstack((image, image, image, np.full((height, width, 1), 255, dtype=np.uint8)))
-        elif image.ndim == 3:
-            if image.shape[2] == 3:
-                image = np.dstack((image, np.full((height, width, 1), 255, dtype=np.uint8)))
-            elif image.shape[2] == 1:  # depth image
-                # Normalize the depth image to a range [0, 1]
+        if self._curr_mode == "Normalization":
+            image = (image - image.min()) / (image.max() - image.min())
+            image = (image * 255).astype(np.uint8)
+        elif self._curr_mode == "Colorization":
+            if image.ndim == 3 and image.shape[2] == 3:
+                omni.log.warn("Colorization mode is only available for single channel images")
+            else:
                 image = (image - image.min()) / (image.max() - image.min())
-                # Apply a colormap from Matplotlib (e.g., 'jet', 'viridis', etc.)
                 colormap = cm.get_cmap("jet")
-                # Map normalized depth values to colors
-                image = (colormap(image).squeeze(2) * 255).astype(np.uint8)
+                if image.ndim == 3 and image.shape[2] == 1:
+                    image = (colormap(image).squeeze(2) * 255).astype(np.uint8)
+                else:
+                    image = (colormap(image) * 255).astype(np.uint8)
+
+        # convert image to 4-channel RGBA
+        if image.ndim == 2 or (image.ndim == 3 and image.shape[2] == 1):
+            image = np.dstack((image, image, image, np.full((height, width, 1), 255, dtype=np.uint8)))
+
+        elif image.ndim == 3 and image.shape[2] == 3:
+            image = np.dstack((image, np.full((height, width, 1), 255, dtype=np.uint8)))
+
         self._byte_provider.set_bytes_data(image.flatten().data, [width, height])
 
     def update_min_max(self, image: np.ndarray):
@@ -129,5 +162,40 @@ class ImagePlot(UIWidgetWrapper):
 
             if self._show_min_max:
                 self._min_max_label = omni.ui.Label(self._get_unit_description(0, 0))
+
+            omni.ui.Spacer(height=8)
+            self._mode_frame = omni.ui.Frame(build_fn=self._build_mode_frame)
+
             omni.ui.Spacer(width=5)
         self._has_built = True
+
+    def _build_mode_frame(self):
+        """Build the frame containing the mode selection for the plots.
+
+        This is an internal function to build the frame containing the mode selection for the plots. This function
+        should only be called from within the build function of a frame.
+
+        The built widget has the following layout:
+        +-------------------------------------------------------+
+        |                   legends_frame                       |
+        ||+---------------------------------------------------+||
+        |||                                                   |||
+        |||    [x][Series 1] [x][Series 2] [ ][Series 3]      |||
+        |||                                                   |||
+        |||+-------------------------------------------------+|||
+        |+-----------------------------------------------------+|
+        +-------------------------------------------------------+
+        """
+        with omni.ui.HStack():
+            with omni.ui.HStack():
+
+                def _change_mode(value):
+                    self._curr_mode = value
+
+                omni.isaac.ui.ui_utils.dropdown_builder(
+                    label="Mode",
+                    type="dropdown",
+                    items=["Original", "Normalization", "Colorization"],
+                    tooltip="Select a mode",
+                    on_clicked_fn=_change_mode,
+                )
