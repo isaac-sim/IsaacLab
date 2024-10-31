@@ -234,7 +234,7 @@ If you want to integrate a different version of the provided algorithms or your 
 
 .. note::
 
-  See the  `minimum system requirements <https://docs.omniverse.nvidia.com/isaacsim/latest/installation/requirements.html>`__ for training using Isaac Lab.
+  See the  `minimum system requirements <https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/index.html>`__ for training using Isaac Lab.
 
 
 **Single GPU Training**
