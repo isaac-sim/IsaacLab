@@ -219,7 +219,7 @@ will automatically be created for the actor. This avoids the need to separately 
 |     self._cartpoles = ArticulationView(                                      |     # clone, filter, and replicate                                     |
 |                  prim_paths_expr="/World/envs/.*/Cartpole",                  |     self.scene.clone_environments(copy_from_source=False)              |
 |                  name="cartpole_view", reset_xform_properties=False          |     self.scene.filter_collisions(global_prim_paths=[])                 |
-|     )                                                                        |     # add articulation to scene                                         |
+|     )                                                                        |     # add articulation to scene                                        |
 |     scene.add(self._cartpoles)                                               |     self.scene.articulations["cartpole"] = self.cartpole               |
 |                                                                              |     # add lights                                                       |
 |                                                                              |     light_cfg = sim_utils.DomeLightCfg(intensity=2000.0)               |
