@@ -219,7 +219,7 @@ will automatically be created for the actor. This avoids the need to separately 
 |     self._cartpoles = ArticulationView(                                      |     # clone, filter, and replicate                                     |
 |                  prim_paths_expr="/World/envs/.*/Cartpole",                  |     self.scene.clone_environments(copy_from_source=False)              |
 |                  name="cartpole_view", reset_xform_properties=False          |     self.scene.filter_collisions(global_prim_paths=[])                 |
-|     )                                                                        |     # add articultion to scene                                         |
+|     )                                                                        |     # add articulation to scene                                        |
 |     scene.add(self._cartpoles)                                               |     self.scene.articulations["cartpole"] = self.cartpole               |
 |                                                                              |     # add lights                                                       |
 |                                                                              |     light_cfg = sim_utils.DomeLightCfg(intensity=2000.0)               |
@@ -638,7 +638,7 @@ Adding actors to the scene has been replaced by ``self.scene.articulations["cart
 |         reset_xform_properties=False                      |         copy_from_source=False)                          |
 |     )                                                     |     self.scene.filter_collisions(                        |
 |     scene.add(self._cartpoles)                            |         global_prim_paths=[])                            |
-|     return                                                |     # add articultion to scene                           |
+|     return                                                |     # add articulation to scene                          |
 |                                                           |     self.scene.articulations["cartpole"] = self.cartpole |
 | def get_cartpole(self):                                   |                                                          |
 |     cartpole = Cartpole(                                  |     # add lights                                         |
