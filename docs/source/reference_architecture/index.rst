@@ -15,7 +15,7 @@ in the robot learning field, including those at research labs, Original Equipmen
 Solutions Providers, Solutions Integrators (SI),  and independent software vendors (ISV). It offers 
 guidance on utilizing Isaac Lab’s robot training framework and workflows as a foundational starting 
 point for environment configuration, task design, and policy training and testing. 
-
+|
 
 
 .. image:: ../_static/reference-architecture/isaac-lab-ra-light.svg
@@ -29,22 +29,22 @@ point for environment configuration, task design, and policy training and testin
     :alt: Isaac Lab Reference Architecture
 
 
+|
 
 The reference architecture for Isaac Lab comprises the following components:
 
-1. Asset Input
-2. Configuration - Assets & Scene
-3. Robot Learning Task Design 
-4. Register with Gymnasium
-5. Environment Wrapping
-6. Run Training
+1. **Asset Input**
+2. **Configuration - Assets & Scene**
+3. **Robot Learning Task Design** 
+4. **Register with Gymnasium**
+5. **Environment Wrapping**
+6. **Run Training**
+  * Single GPU Training
+  * Multi-GPU Training
+  * Multi-Node Training
+  * Cloud-based Training
 
-* Single GPU Training
-* Multi-GPU Training
-* Multi-Node Training
-* Cloud-based Training
-
-7. Run Testing
+7. **Run Testing**
 
 
 **Components**
@@ -196,8 +196,9 @@ observations or rewards, record videos, or enforce time limits. Isaac Lab utiliz
 available in the `gymnasium.Wrapper <https://gymnasium.farama.org/api/wrappers/#gymnasium.Wrapper>`__ class to create interfaces to the simulated environments. 
 
 Some wrappers include:
-- `Video Wrappers <https://isaac-sim.github.io/IsaacLab/main/source/how-to/wrap_rl_env.html#wrapper-for-recording-videos>`__
-- `RL Libraries Wrappers <https://isaac-sim.github.io/IsaacLab/main/source/how-to/wrap_rl_env.html#wrapper-for-learning-frameworks>`__
+
+* `Video Wrappers <https://isaac-sim.github.io/IsaacLab/main/source/how-to/wrap_rl_env.html#wrapper-for-recording-videos>`__
+* `RL Libraries Wrappers <https://isaac-sim.github.io/IsaacLab/main/source/how-to/wrap_rl_env.html#wrapper-for-learning-frameworks>`__
 
 Most RL libraries expect their own variation of an environment interface. This means the 
 data types needed by each library differs. Isaac Lab provides its own wrappers to convert 
@@ -207,9 +208,9 @@ specified in the `Isaac Lab utils wrapper module <https://isaac-sim.github.io/Is
 See the `full list <https://gymnasium.farama.org/api/wrappers/#gymnasium.Wrapper>`__ of other wrappers APIs.. For more information on how these wrappers work, 
 please refer to the `Wrapping environments <https://isaac-sim.github.io/IsaacLab/main/source/how-to/wrap_rl_env.html#how-to-env-wrappers>`__ documentation.
 
-.. tip:: Adding your own wrappers
+**Adding your own wrappers**
     
-  You can define your own wrappers by adding them to the Isaac Lab utils wrapper module. More information is available `on the GitHub page for wrapping environments <https://isaac-sim.github.io/IsaacLab/main/source/how-to/wrap_rl_env.html#adding-new-wrappers>`__.
+You can define your own wrappers by adding them to the Isaac Lab utils wrapper module. More information is available `on the GitHub page for wrapping environments <https://isaac-sim.github.io/IsaacLab/main/source/how-to/wrap_rl_env.html#adding-new-wrappers>`__.
 
 **Component 6 - Run Training**
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -233,10 +234,12 @@ If you want to integrate a different version of the provided algorithms or your 
 
 .. note::
 
-  See the  `minimum system requirements <https://docs.omniverse.nvidia.com/isaacsim/latest/installation/requirements.html>`__ for training.
+  See the  `minimum system requirements <https://docs.omniverse.nvidia.com/isaacsim/latest/installation/requirements.html>`__ for training using Isaac Lab.
 
 
 **Single GPU Training**
+
+|
 
 .. image:: ../_static/reference-architecture/single-gpu-training-light.svg
     :class: only-light
@@ -249,6 +252,7 @@ If you want to integrate a different version of the provided algorithms or your 
     :alt: Single GPU Training Data Flow
 
 
+|
 
 Isaac Lab supports training massively parallel environments to speed up RL training and provides rich data for the model to train. 
 For single GPU training, the following steps show how training works in Isaac Sim and Isaac Lab:
@@ -262,19 +266,19 @@ For single GPU training, the following steps show how training works in Isaac Si
 
 3. In the RL library
 
-- The observation is passed to the policy. 
-- The policy is trained to output the right actions for the robot using RL library algorithms such as PPO, TRPO, etc. 
-- The actions can serve either as a setpoint for a controller that generates the action to the robot or used directly as the action to the robot based on the task.
-- Action types such as joint position for a quadruped is an input to a joint controller, velocity of 1 or 0 is used to control the cart directly in the cartpole task, etc.
-- In addition, based on how the task is defined, the previous action can be part of the next set of observations that is sent.
+  - The observation is passed to the policy. 
+  - The policy is trained to output the right actions for the robot using RL library algorithms such as PPO, TRPO, etc. 
+  - The actions can serve either as a setpoint for a controller that generates the action to the robot or used directly as the action to the robot based on the task.
+  - Action types such as joint position for a quadruped is an input to a joint controller, velocity of 1 or 0 is used to control the cart directly in the cartpole task, etc.
+  - In addition, based on how the task is defined, the previous action can be part of the next set of observations that is sent.
 
 4. In Isaac Sim
   
-- The actions from the policy are sent back to Isaac Sim to control the agent that is learning i.e. the robot. This is the physics simulation (sim) step. This generates the next states in Isaac Sim and the rewards are calculated in Isaac Lab. 
+  - The actions from the policy are sent back to Isaac Sim to control the agent that is learning i.e. the robot. This is the physics simulation (sim) step. This generates the next states in Isaac Sim and the rewards are calculated in Isaac Lab. 
 
 5. Rendering
 
-- The scene can be rendered to produce the cameras' images.
+  - The scene can be rendered to produce the cameras' images.
 
 
 The next state is then passed in the flow till the training reaches the specified training steps or epochs. The final product is the trained model/agent.
@@ -282,6 +286,8 @@ The next state is then passed in the flow till the training reaches the specifie
 
 
 **Multi-GPU Training**
+
+|
 
 .. image:: ../_static/reference-architecture/multi-gpu-training-light.svg
     :class: only-light
@@ -295,6 +301,7 @@ The next state is then passed in the flow till the training reaches the specifie
 
 
 
+|
 
 Isaac Lab supports scaling up training by taking advantage of multi-GPU and multi-node training on Linux using the PyTorch distributed framework. Multi-GPU training follows a similar workflow as the single GPU training except that you run the training on more than 1 GPU. Isaac Sim and Isaac Lab are launched in a separate process on each GPU when training. These training jobs can be easily scaled across heterogeneous and distributed environments with workflow orchestrators like `NVIDIA OSMO <https://developer.nvidia.com/osmo>`__.
 
@@ -343,7 +350,8 @@ Isaac Lab provides scripts for `testing/playing the trained policy <https://isaa
     :alt: Isaac Lab Trained Policy Deployment
 
 
-
+|
+ 
 To deploy your trained model in simulation, you would need what is shown in the flow diagram. Note, this is a sample reference architecture, hence it can be tweaked for a different application. 
 First, you need a robot with the required sensors and processing computer such as `NVIDIA Jetson <https://www.nvidia.com/en-us/autonomous-machines/embedded-systems/>`__ to deploy on. Next, you need a state estimator for your robot. The state estimator should be able to deliver the list of observations used for training. 
 
@@ -357,7 +365,7 @@ NVIDIA Isaac platform provides some tools for state estimation, including visual
 **Summary**
 -----------------
 
-This document presents a reference architecture for Isaac Lab that has undergone SQA testing. We have provided a user-friendly guide to end-to-end reinforcement learning with Isaac Lab and Isaac Sim from training to real-world deployment, including demos, examples, and documentation links.
+This document presents a reference architecture for Isaac Lab that has undergone SQA testing. We have provided a user-friendly guide to end-to-end robot learning with Isaac Lab and Isaac Sim from training to real-world deployment, including demos, examples, and documentation links.
 
 
 **How to Get Started**
