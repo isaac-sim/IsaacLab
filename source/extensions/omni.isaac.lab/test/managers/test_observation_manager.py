@@ -292,7 +292,9 @@ class TestObservationManager(unittest.TestCase):
         self.assertEqual((self.env.num_envs, 12), obs_critic.shape)
         self.assertEqual((self.env.num_envs, 128, 256, 4), obs_image.shape)
         # check that the scales are applied correctly
-        torch.testing.assert_close(self.env.data.pos_w * torch.tensor(pos_scale_tuple, device=self.env.device), obs_critic[:, :3])
+        torch.testing.assert_close(
+            self.env.data.pos_w * torch.tensor(pos_scale_tuple, device=self.env.device), obs_critic[:, :3]
+        )
         torch.testing.assert_close(self.env.data.lin_vel_w * 1.5, obs_critic[:, 3:6])
         # make sure that the data are the same for same terms
         # -- within group
