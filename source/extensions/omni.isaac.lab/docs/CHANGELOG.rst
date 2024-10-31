@@ -7,7 +7,9 @@ Changelog
 Changed
 ^^^^^^^
 
-* Cache PhysX view's DOF paths before looping when processing fixed articulation tendons.
+* Cached the PhysX view's joint paths before looping over them when processing fixed joint tendons
+  inside the :class:`Articulation` class. This helps improve the processing time for the tendons.
+
 
 
 0.27.7 (2024-10-28)
