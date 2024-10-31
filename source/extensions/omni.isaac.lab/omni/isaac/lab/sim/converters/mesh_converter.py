@@ -96,6 +96,8 @@ class MeshConverter(AssetConverterBase):
         # Get the default prim (which is the root prim) -- "/{mesh_file_basename}"
         xform_prim = stage.GetDefaultPrim()
         geom_prim = stage.GetPrimAtPath(f"/{mesh_file_basename}/geometry")
+        for prim in stage.Traverse():
+            print(f"Prim: {prim.GetPath()}")
         # Move all meshes to underneath new Xform
         for child_mesh_prim in geom_prim.GetChildren():
             if child_mesh_prim.GetTypeName() == "Mesh":
