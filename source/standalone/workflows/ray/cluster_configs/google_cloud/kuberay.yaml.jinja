@@ -46,8 +46,6 @@ spec:
           fsGroup: 100
         containers:
           - env:
-            - name: GOOGLE_APPLICATION_CREDENTIALS
-              value: "/var/secrets/{{secret_name}}/key.json"
             image: {{ image }}
             imagePullPolicy: Always
             name: head
@@ -64,9 +62,6 @@ spec:
             volumeMounts:
               - mountPath: /tmp/ray
                 name: ray-logs
-              - mountPath: /var/secrets/{{secret_name}}
-                name: {{secret_name}}
-                readOnly: true
             command: ["/bin/bash", "-c", "ray start --head --port=6379 --object-manager-port=8076 --dashboard-host=0.0.0.0 --dashboard-port=8265 --include-dashboard=true && tail -f /dev/null"]
           - image: fluent/fluent-bit:1.9.6
             name: fluentbit
@@ -89,9 +84,6 @@ spec:
             name: fluentbit-config
           - name: ray-logs
             emptyDir: {}
-          - name: {{secret_name}}
-            secret:
-              secretName: {{secret_name}}
 
   workerGroupSpecs:
     {% for it in range(gpu_per_worker|length) %}
@@ -117,8 +109,6 @@ spec:
             fsGroup: 100
           containers:
             - env:
-              - name: GOOGLE_APPLICATION_CREDENTIALS
-                value: "/var/secrets/{{secret_name}}/key.json"
               - name: NVIDIA_VISIBLE_DEVICES
                 value: "all"
               - name: NVIDIA_DRIVER_CAPABILITIES
@@ -140,9 +130,6 @@ spec:
               volumeMounts:
                 - mountPath: /tmp/ray
                   name: ray-logs
-                - mountPath: /var/secrets/{{secret_name}}
-                  name: {{secret_name}}
-                  readOnly: true
               command: ["/bin/bash", "-c", "ray start --address=head.{{ namespace }}.svc.cluster.local:6379 && tail -f /dev/null"]
             - image: fluent/fluent-bit:1.9.6
               name: fluentbit
@@ -171,7 +158,47 @@ spec:
               name: fluentbit-config
             - name: ray-logs
               emptyDir: {}
-            - name: {{secret_name}}
-              secret:
-                secretName: {{secret_name}}
     {% endfor %}
+
+---
+# ML Flow Server - for fetching logs
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{name}}-mlflow
+  namespace: {{ namespace }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mlflow
+  template:
+    metadata:
+      labels:
+        app: mlflow
+    spec:
+      containers:
+      - name: mlflow
+        image: ghcr.io/mlflow/mlflow:v2.9.2
+        ports:
+        - containerPort: 5000
+        command: ["mlflow"]
+        args:
+        - server
+        - --host=0.0.0.0
+        - --port=5000
+        - --backend-store-uri=sqlite:///mlflow.db
+---
+# ML Flow Service (for port forwarding, kubectl port-forward service/{name}-mlflow 5000:5000)
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{name}}-mlflow
+  namespace: {{ namespace }}
+spec:
+  selector:
+    app: mlflow
+  ports:
+  - port: 5000
+    targetPort: 5000
+  type: ClusterIP

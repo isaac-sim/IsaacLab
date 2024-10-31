@@ -14,16 +14,6 @@ from kubernetes import config
 
 """This script helps create one or more KubeRay clusters.
 
-This script assumes that there is an existing secret that provides credentials
-to access cloud storage. This secret could be created with
-
-.. code-block:: bash
-    gcloud auth application-default login # https://cloud.google.com/sdk/docs/install
-
-    kubectl create secret generic bucket-access \
-        --from-file=key.json=/home/<USERNAME>/.config/gcloud/application_default_credentials.json \
-        --namespace=<your-namespace>
-
 Usage:
 
 .. code-block:: bash
@@ -49,7 +39,9 @@ RAY_DIR = pathlib.Path(__file__).parent
 
 def apply_manifest(args: argparse.Namespace) -> None:
     """Provided a Jinja templated ray.io/v1alpha1 file,
-    populate the arguments and create the cluster.
+    populate the arguments and create the cluster. Additionally, create
+    kubernetes containers for resources separated by '---' from the rest
+    of the file.
 
     Args:
         args: Possible arguments concerning cluster parameters.
@@ -72,9 +64,17 @@ def apply_manifest(args: argparse.Namespace) -> None:
     template = jinja_env.get_template(template_file)
     file_contents = template.render(template_params)
 
-    # Parse the rendered YAML
-    parsed_yaml = yaml.safe_load(file_contents)
-    cleaned_yaml_string = yaml.dump(parsed_yaml)
+    # Parse all YAML documents in the rendered template
+    all_yamls = []
+    for doc in yaml.safe_load_all(file_contents):
+        all_yamls.append(doc)
+
+    # Convert back to YAML string, preserving multiple documents
+    cleaned_yaml_string = ""
+    for i, doc in enumerate(all_yamls):
+        if i > 0:
+            cleaned_yaml_string += "\n---\n"
+        cleaned_yaml_string += yaml.dump(doc)
 
     # Apply the Kubernetes manifest using kubectl
     try:
@@ -154,9 +154,6 @@ def parse_args() -> argparse.Namespace:
         type=float,  # to be able to schedule partial CPU heads
         default=8,
         help="The number of CPUs to give the Ray head.",
-    )
-    arg_parser.add_argument(
-        "--secret_name", default="bucket-access", type=str, help="The name of the secret that allows for bucket access."
     )
 
     arg_parser.add_argument("--head_ram_gb", type=int, default=8, help="How many gigs of ram to give the Ray head")

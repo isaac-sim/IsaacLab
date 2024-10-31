@@ -10,3 +10,5 @@ sed -i "1i $(echo "#!/workspace/isaaclab/_isaac_sim/python.sh")" # Make Ray use 
 /isaac-sim/kit/python/bin/ray && ln -s /isaac-sim/kit/python/bin/ray /usr/local/bin/ray # Link ray into bin so it can be used with ra" command
 # The following is only needed for tuning
 RUN /workspace/isaaclab/_isaac_sim/python.sh -m pip install optuna bayesian-optimization # tuning specific deps
+# The following is only needed for tuning logging
+RUN /workspace/isaaclab/_isaac_sim/python.sh -m pip install mlflow

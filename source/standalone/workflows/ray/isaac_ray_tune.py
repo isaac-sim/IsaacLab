@@ -7,7 +7,6 @@ import importlib.util
 import os
 import subprocess
 import sys
-from math import isclose
 from time import sleep
 
 import isaac_ray_util
@@ -45,10 +44,8 @@ Usage:
     # Remote (run grok cluster or create config file mentioned in :file:`submit_isaac_ray_job.py`)
     ./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py \
     --aggregate_jobs isaac_ray_tune.py
-    --storage_path <BUCKET_PATH> \
     --cfg_file hyperparameter_tuning/vision_cartpole_cfg.py \
     --cfg_cls CartpoleRGBNoTuneJobCfg
-
 
 """
 
@@ -96,6 +93,7 @@ class IsaacLabTuneTrainable(tune.Trainable):
             self.isaac_logdir = experiment["logdir"]
             self.tensorboard_logdir = self.isaac_logdir + f"/{self.experiment_name}/summaries"
             self.done = False
+
         if self.proc is None:
             raise ValueError("Could not start trial.")
 
@@ -111,12 +109,12 @@ class IsaacLabTuneTrainable(tune.Trainable):
 
             while data is None:
                 data = isaac_ray_util.load_tensorboard_logs(self.tensorboard_logdir)
-                sleep(1 / 100)
+                sleep(2)  # Lazy report metrics to avoid performance overhead
 
             if self.data is not None:
-                while _dicts_equal(data, self.data):
+                while isaac_ray_util._dicts_equal(data, self.data):
                     data = isaac_ray_util.load_tensorboard_logs(self.tensorboard_logdir)
-                    sleep(1 / 100)
+                    sleep(2)  # Lazy report metrics to avoid performance overhead
 
             self.data = data
             self.data["done"] = False
@@ -136,70 +134,75 @@ class IsaacLabTuneTrainable(tune.Trainable):
         return tune.PlacementGroupFactory([{"CPU": resources["CPU"], "GPU": resources["GPU"]}], strategy="STRICT_PACK")
 
 
-def _dicts_equal(d1: dict, d2: dict, tol=1e-9) -> bool:
-    if d1.keys() != d2.keys():
-        return False
-    for key in d1:
-        if isinstance(d1[key], float) and isinstance(d2[key], float):
-            if not isclose(d1[key], d2[key], abs_tol=tol):
-                return False
-        elif d1[key] != d2[key]:
-            return False
-    return True
-
-
-def invoke_tuning_run(
-    cfg: dict,
-    args: argparse.Namespace,
-) -> None:
-    """Invoke an Isaac-Ray tuning run
-
+def invoke_tuning_run(cfg: dict, args: argparse.Namespace) -> None:
+    """Invoke an Isaac-Ray tuning run optimized for Kubernetes deployment
     Args:
-        cfg: A configuration extracted from :class:JobCfg, similar in format to :class:RLGamesCameraJobCfg
-        args: Arguments related to tuning fetched from the argparser.
+        cfg: Configuration dictionary extracted from job setup
+        args: Command-line arguments related to tuning.
     """
-    os.environ["TUNE_DISABLE_STRICT_METRIC_CHECKING"] = "1"  # Allow for early exit
+    # Allow for early exit
+    os.environ["TUNE_DISABLE_STRICT_METRIC_CHECKING"] = "1"
+
+    # Get available resources
     resources = isaac_ray_util.get_gpu_node_resources()
     print(f"[INFO]: Available resources {resources}")
+
     if not ray.is_initialized():
-        ray.init(address=args.ray_address, log_to_driver=False, num_gpus=len(resources))
+        ray.init(
+            address=args.ray_address,
+            log_to_driver=True,
+            num_gpus=len(resources),
+        )
 
     print(f"[INFO]: Using config {cfg}")
-    # Define trainable with specific resource allocation
 
-    # Search Algorithm # TODO: Support other search algorithms, and Scheduling option instead of repeater
+    # Configure the search algorithm and the repeater
     searcher = OptunaSearch(
         metric=args.metric,
-        mode=args.mode,  # ,
+        mode=args.mode,
     )
-
-    # Repeat each configuration 3 times
     repeat_search = Repeater(searcher, repeat=args.repeat_run_count)
 
-    # Running the experiment using the new Ray Tune API
+    if args.run_mode == "local":  # Standard config, to file
+        run_config = air.RunConfig(
+            name=f"IsaacRay-{args.cfg_class}-tune",
+            storage_path=args.storage_path,
+            verbose=1,
+        )
+
+    elif args.run_mode == "remote":  # MFlow, to MFlow server ;)
+        run_config = ray.train.RunConfig(
+            storage_path=args.mlflow_uri,
+            name="mlflow",
+            callbacks=[
+                MLflowLoggerCallback(
+                    tracking_uri=args.mlflow_uri,
+                    experiment_name=f"IsaacRay-{args.cfg_class}-tune",
+                    save_artifact=True,
+                )
+            ],
+        )
+
+    # Configure the tuning job
     tuner = tune.Tuner(
         IsaacLabTuneTrainable,
         param_space=cfg,
         tune_config=tune.TuneConfig(
             search_alg=repeat_search,
-            scheduler=None,  # No scheduler is used to be compatible with Repeater.
             num_samples=args.num_samples,
             reuse_actors=True,
-            # max_concurrent_trials=len(isaac_ray_util.get_gpu_node_resources())
         ),
-        run_config=air.RunConfig(
-            name=f"IsaacRay-{args.cfg_class}-tune",
-            storage_path=args.storage_path,
-            verbose=1,
-            failure_config=air.FailureConfig(fail_fast=True),
-        ),
+        run_config=run_config,
     )
 
     # Execute the tuning
     results = tuner.fit()
-    print(results.get_dataframe())
-    # Output the best hyperparameters
-    print(f"Best hyperparameters found were: {results.get_best_result(mode=args.mode, metric=args.metric)}")
+
+    # Save results to mounted volume
+    if args.run_mode == "local":
+        print("[DONE!]: Check results with tensorboard")
+    else:
+        print("[DONE!]: Check results with MLFlow ")
 
 
 class JobCfg:
@@ -233,8 +236,8 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--run_mode",
-        choices=["local", "docker"],
-        default="docker",
+        choices=["local", "remote"],
+        default="remote",
         help=(
             "Set to local to use ./isaaclab.sh -p python, set to "
             "remote to use /workspace/isaaclab/isaaclab.sh -p python"
@@ -243,12 +246,20 @@ if __name__ == "__main__":
     parser.add_argument(
         "--storage_path",
         type=str,
-        default=os.path.expanduser("~/isaac_ray_logs"),
+        default=None,
         required=False,
         help=(
             "Where to store experiments. Can be directory for local dev, "
             "Must be a bucket your cluster has access to for remote."
         ),
+    )
+
+    parser.add_argument(
+        "--mlflow_uri",
+        type=str,
+        default=None,
+        required=False,
+        help="The MLFlow Uri.",
     )
 
     parser.add_argument("--metric", type=str, default="rewards/time", help="What metric to tune for.")
@@ -274,11 +285,17 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    if args.run_mode == "docker":
+    if args.run_mode == "remote":
         BASE_DIR = DOCKER_PREFIX  # ensure logs are dumped to persistent location
         PYTHON_EXEC = DOCKER_PREFIX + PYTHON_EXEC[2:]
         RL_GAMES_WORKFLOW = DOCKER_PREFIX + RL_GAMES_WORKFLOW
-        print(f"[INFO]: Using docker mode {PYTHON_EXEC = } {RL_GAMES_WORKFLOW = }")
+        print(f"[INFO]: Using remote mode {PYTHON_EXEC = } {RL_GAMES_WORKFLOW = }")
+
+        if args.mlflow_uri is not None:
+            import mlflow
+            from ray.air.integrations.mlflow import MLflowLoggerCallback, setup_mlflow
+        else:
+            raise ValueError("Please provide a result MFLow URI server.")
 
     file_path = args.cfg_file
     class_name = args.cfg_class

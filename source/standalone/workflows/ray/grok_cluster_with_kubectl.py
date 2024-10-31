@@ -28,6 +28,21 @@ Usage:
 """
 
 
+def get_namespace() -> str:
+    """Get the current Kubernetes namespace from the context, fallback to default if not set"""
+    try:
+        namespace = (
+            subprocess.check_output(["kubectl", "config", "view", "--minify", "--output", "jsonpath={..namespace}"])
+            .decode()
+            .strip()
+        )
+        if not namespace:
+            namespace = "default"
+    except subprocess.CalledProcessError:
+        namespace = "default"
+    return namespace
+
+
 def get_pods(namespace: str = "default") -> list[tuple]:
     """Get a list of all of the pods in the namespace"""
     cmd = ["kubectl", "get", "pods", "-n", namespace, "--no-headers"]
@@ -42,14 +57,57 @@ def get_pods(namespace: str = "default") -> list[tuple]:
 
 
 def get_clusters(pods: list, cluster_name_prefix: str) -> set:
-    """Get unique cluster name(s). Works for one or more clusters, based off of the number of head nodes"""
+    """
+    Get unique cluster name(s). Works for one or more clusters, based off of the number of head nodes.
+    Excludes MLflow deployments.
+    """
     clusters = set()
-    # Modify regex pattern to match the entire structure including `-head` or `-worker`
     for pod_name, _ in pods:
+        # Skip MLflow pods
+        if "-mlflow" in pod_name:
+            continue
+
         match = re.match(r"(" + re.escape(cluster_name_prefix) + r"[-\w]+)", pod_name)
         if match:
-            clusters.add(match.group(1).split("-head")[0].split("-worker")[0])
+            # Get base name without head/worker suffix
+            base_name = match.group(1).split("-head")[0].split("-worker")[0]
+            clusters.add(base_name)
     return sorted(clusters)
+
+
+def get_mlflow_info(namespace: str = None, cluster_prefix: str = "isaacray") -> str:
+    """
+    Get MLflow service information if it exists in the namespace with the given prefix.
+    Only works for a single cluster instance.
+    Args:
+        namespace: Kubernetes namespace
+        cluster_prefix: Base cluster name (without -head/-worker suffixes)
+    Returns:
+        MLflow service URL
+    """
+    # Strip any -head or -worker suffixes to get base name
+    if namespace is None:
+        namespace = get_namespace()
+    pods = get_pods(namespace=namespace)
+    clusters = get_clusters(pods=pods, cluster_name_prefix=cluster_prefix)
+    if len(clusters) > 1:
+        raise ValueError("More than one cluster matches prefix, could not automatically determine mlflow info.")
+
+    base_name = cluster_prefix.split("-head")[0].split("-worker")[0]
+    mlflow_name = f"{base_name}-mlflow"
+
+    cmd = ["kubectl", "get", "svc", mlflow_name, "-n", namespace, "--no-headers"]
+    try:
+        output = subprocess.check_output(cmd).decode()
+        fields = output.strip().split()
+
+        # Get cluster IP
+        cluster_ip = fields[2]
+        port = "5000"  # Default MLflow port
+
+        return f"http://{cluster_ip}:{port}"
+    except subprocess.CalledProcessError as e:
+        raise ValueError(f"Could not grok MLflow: {e}")  # Fixed f-string
 
 
 def check_clusters_running(pods: list, clusters: set) -> bool:
@@ -96,10 +154,9 @@ def process_cluster(cluster_info: dict, ray_head_name: str = "head") -> str:
     ray_address = get_ray_address(head_pod, namespace=namespace, ray_head_name=ray_head_name)
     if not ray_address:
         return f"Error: Could not find RAY_ADDRESS for cluster {cluster}\n"
-    output_line = (  # num_cpu: {num_cpu} num_gpu: {num_gpu} ram_gb: {ram_gb} total_workers: {total_workers}\n"
-        f"name: {cluster} address: {ray_address} \n"
-    )
-    return output_line
+
+    # Return only cluster and ray address
+    return f"name: {cluster} address: {ray_address}\n"
 
 
 def main():
@@ -108,24 +165,17 @@ def main():
     parser.add_argument("--prefix", default="isaacray", help="The prefix for the cluster names.")
     parser.add_argument("--output", default="~/.cluster_config", help="The file to save cluster specifications.")
     parser.add_argument("--ray_head_name", default="head", help="The metadata name for the ray head container")
+    parser.add_argument(
+        "--namespace", help="Kubernetes namespace to use. If not provided, will detect from current context."
+    )
     args = parser.parse_args()
 
-    cluster_name_prefix = args.prefix
-    # Expand user directory for output file
-    cluster_spec_file = os.path.expanduser(args.output)
-
-    # Get current namespace
-    try:
-        CURRENT_NAMESPACE = (
-            subprocess.check_output(["kubectl", "config", "view", "--minify", "--output", "jsonpath={..namespace}"])
-            .decode()
-            .strip()
-        )
-        if not CURRENT_NAMESPACE:
-            CURRENT_NAMESPACE = "default"
-    except subprocess.CalledProcessError:
-        CURRENT_NAMESPACE = "default"
+    # Get namespace from args or detect it
+    CURRENT_NAMESPACE = args.namespace if args.namespace else get_namespace()
     print(f"Using namespace: {CURRENT_NAMESPACE}")
+
+    cluster_name_prefix = args.prefix
+    cluster_spec_file = os.path.expanduser(args.output)
 
     # Get all pods
     pods = get_pods(namespace=CURRENT_NAMESPACE)
@@ -138,11 +188,21 @@ def main():
 
     # Wait for clusters to be running
     while True:
-        pods = get_pods(namespace=CURRENT_NAMESPACE)  # Refresh pods list inside loop
+        pods = get_pods(namespace=CURRENT_NAMESPACE)
         if check_clusters_running(pods, clusters):
             break
         print("Waiting for all clusters to spin up...")
         time.sleep(5)
+
+    print("Checking for MLflow:")
+    # Check MLflow status for each cluster
+    for cluster in clusters:
+        try:
+            mlflow_address = get_mlflow_info(CURRENT_NAMESPACE, cluster)
+            print(f"MLflow address for {cluster}: {mlflow_address}")
+        except ValueError as e:
+            print(f"ML Flow not located: {e}")
+    print()
 
     # Prepare cluster info for parallel processing
     cluster_infos = []
@@ -152,7 +212,7 @@ def main():
 
     # Use ThreadPoolExecutor to process clusters in parallel
     results = []
-    results_lock = threading.Lock()  # Create a lock for thread-safe results collection
+    results_lock = threading.Lock()
 
     with ThreadPoolExecutor() as executor:
         future_to_cluster = {
@@ -170,7 +230,7 @@ def main():
     # Sort results alphabetically by cluster name
     results.sort()
 
-    # Write sorted results to the output file
+    # Write sorted results to the output file (Ray info only)
     with open(cluster_spec_file, "w") as f:
         for result in results:
             f.write(result)

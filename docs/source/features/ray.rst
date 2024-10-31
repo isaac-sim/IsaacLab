@@ -153,8 +153,7 @@ any cloud provider should work if one configures the following:
   experimentation as this way clusters can be completely shut down when not in use, although
   this may require installing the `Nvidia GPU Operator <https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/google-gke.html>`_
 - A ``kuberay.yaml.ninja`` file that describes how to allocate resources (already included for
-  Google Cloud)
-- A storage bucket to dump experiment logs/checkpoints to, that the cluster has ``read/write`` access to.
+  Google Cloud, which can be referenced for the format and MLFlow integration)
 
 More in-detail setup steps for uploading the image, authentication, creating the cluster easily for Google GKE,
 and job submission are provided as part of Dispatching Jobs and Tuning - Remote Ray Cluster Setup and Use below.
@@ -239,6 +238,8 @@ For example, see the Cartpole Example configurations.
 
 Submitting tuning aggregate jobs that create many individual sub-jobs can be tested as follows.
 
+To view the logs, simply run ``tensorboard --logdir=<LOCAL_STORAGE_PATH>``
+
 .. code-block:: bash
 
   # Example A: Local
@@ -311,7 +312,7 @@ easily be installed with ``snap install k9s --devmode``.
 Ray Specific
 ~~~~~~~~~~~~
 
-1.) Verify cluster access and storage bucket access.
+1.) Verify cluster access.
 
 2.) Create a ``~/.cluster_config`` file, where ``name: <NAME> address: http://<IP>:<PORT>`` is on
   a new line for each unique cluster. For one cluster, there should only be one line in this file.
@@ -374,6 +375,8 @@ Tuning jobs can be submitted with the previous script as with other jobs.
 	--cfg_file hyperparameter_tuning/vision_cartpole_cfg.py \
 	--cfg_class CartpoleRGBNoTuneJobCfg --storage_path <YOUR_STORAGE_BUCKET>
 
+To fetch the logs, port forward 5050 with
+``kubectl port-forward service/isaacray-mlflow 5000:5000`` and visit ``localhost:5050``
 
 **Cluster Cleanup**
 '''''''''''''''''''
@@ -385,4 +388,5 @@ recreated! For KubeRay clusters, this can be done via
 .. code-block:: bash
 
   kubectl get raycluster | egrep 'isaacray' | awk '{print $1}' | xargs kubectl delete raycluster
-  kubectl delete secret bucket-access
+  kubectl get deployments | egrep 'mlflow' | awk '{print $1}' | xargs kubectl delete deployment
+  kubectl get services | egrep 'mlflow' | awk '{print $1}' | xargs kubectl delete service

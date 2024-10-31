@@ -22,7 +22,7 @@ class CartpoleRGBNoTuneJobCfg(rl_games_vision_cfg.RLGamesCameraJobCfg):
         super().__init__(cfg, vary_env_count=False, vary_cnn=False, vary_mlp=False)
 
 
-class CartpoleRGBCNNOnly(rl_games_vision_cfg.RLGamesCameraJobCfg):
+class CartpoleRGBCNNOnlyJobCfg(rl_games_vision_cfg.RLGamesCameraJobCfg):
     def __init__(self, cfg: dict = {}):
         cfg = isaac_ray_util.populate_isaac_ray_cfg_args(cfg)
         cfg["runner_args"]["--task"] = tune.choice(["Isaac-Cartpole-RGB-v0"])

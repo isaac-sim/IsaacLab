@@ -3,11 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 import argparse
-import json
 import os
 import re
 import subprocess
 from datetime import datetime
+from math import isclose
 
 import ray
 from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
@@ -388,3 +388,15 @@ def populate_isaac_ray_cfg_args(cfg: dict = {}) -> dict:
     if "hydra_args" not in cfg:
         cfg["hydra_args"] = {}
     return cfg
+
+
+def _dicts_equal(d1: dict, d2: dict, tol=1e-9) -> bool:
+    if d1.keys() != d2.keys():
+        return False
+    for key in d1:
+        if isinstance(d1[key], float) and isinstance(d2[key], float):
+            if not isclose(d1[key], d2[key], abs_tol=tol):
+                return False
+        elif d1[key] != d2[key]:
+            return False
+    return True
