@@ -146,8 +146,9 @@ def spawn_lidar(
     prim_path: str,
     cfg: sensors_cfg.LidarCfg,
     translation: tuple[float, float, float] | None = None,
-    orientation: tuple[float, float, float, float] | None = None,
+    orientation: tuple[float, float, float, float] = (1.0,0.0,0.0,0.0),
 ) -> Usd.Prim:
+    print("spawn",orientation)
     # spawn camera if it doesn't exist.
     if not prim_utils.is_prim_path_valid(prim_path):
         #prim_utils.create_prim(prim_path, "Camera", translation=translation, orientation=orientation)
@@ -157,7 +158,7 @@ def spawn_lidar(
         parent=None,
         config=cfg.lidar_type,
         translation=translation,
-        orientation=Gf.Quatd(1,0,0,0),
+        orientation=Gf.Quatd(orientation[0],orientation[1],orientation[2],orientation[3]),
     )
     else:
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")

@@ -217,6 +217,10 @@ class RtxLidar(SensorBase):
                 elif name == "objectId":
                     init_params["outputObjectId"] = True
 
+            # transform the data output to be relative to sensor frame
+            if self.cfg.data_frame == "sensor":
+                init_params["transformPoints"] = False
+
             rep_annotator.initialize(**init_params)
 
             # Get render product
@@ -246,7 +250,7 @@ class RtxLidar(SensorBase):
         # since the size of the output data is not known in advance, we leave it as None
         # the memory will be allocated when the buffer() function is called for the first time.
         self._data.output = TensorDict({}, batch_size=self._view.count, device=self.device)
-        self._data.info = [{name: None for name in RTX_LIDAR_INFO_FIELDS} for _ in range(self._view.count)]
+        self._data.info = [{name: None for name in RTX_LIDAR_INFO_FIELDS.keys()} for _ in range(self._view.count)]
         # self._data.info = [None for _ in range(self._view.count)]
 
     def _update_buffers_impl(self, env_ids: Sequence[int]):
@@ -270,7 +274,10 @@ class RtxLidar(SensorBase):
             # store the info
             for info_key, info_value in info.items():
                 if info_key in RTX_LIDAR_INFO_FIELDS.keys():
-                    self._data.info[index][info_key] = info_value
+                    if info_key == "transform":
+                        self._data.info[index][info_key] = torch.tensor(info_value,device=self.device)
+                    else:
+                        self._data.info[index][info_key] = info_value
                 else:
                     if info_key not in info_data_all_lidar:
                         info_data_all_lidar[info_key] =[torch.tensor(info_value,device=self._device)]
