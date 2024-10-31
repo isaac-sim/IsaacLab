@@ -134,30 +134,43 @@ class TheiaTinyObservationCfg:
 class CartpoleRGBCameraEnvCfg(CartpoleEnvCfg):
     """Configuration for the cartpole environment with RGB camera."""
 
-    scene: CartpoleSceneCfg = CartpoleRGBCameraSceneCfg(num_envs=1024, env_spacing=20)
+    scene: CartpoleRGBCameraSceneCfg = CartpoleRGBCameraSceneCfg(num_envs=1024, env_spacing=20)
     observations: RGBObservationsCfg = RGBObservationsCfg()
+
+    def __post_init__(self):
+        super().__post_init__()
+        # remove ground as it obstructs the camera
+        self.scene.ground = None
+        # viewer settings
+        self.viewer.eye = (7.0, 0.0, 2.5)
+        self.viewer.lookat = (0.0, 0.0, 2.5)
 
 
 @configclass
 class CartpoleDepthCameraEnvCfg(CartpoleEnvCfg):
     """Configuration for the cartpole environment with depth camera."""
 
-    scene: CartpoleSceneCfg = CartpoleDepthCameraSceneCfg(num_envs=1024, env_spacing=20)
+    scene: CartpoleDepthCameraSceneCfg = CartpoleDepthCameraSceneCfg(num_envs=1024, env_spacing=20)
     observations: DepthObservationsCfg = DepthObservationsCfg()
+
+    def __post_init__(self):
+        super().__post_init__()
+        # remove ground as it obstructs the camera
+        self.scene.ground = None
+        # viewer settings
+        self.viewer.eye = (7.0, 0.0, 2.5)
+        self.viewer.lookat = (0.0, 0.0, 2.5)
 
 
 @configclass
 class CartpoleResNet18CameraEnvCfg(CartpoleRGBCameraEnvCfg):
+    """Configuration for the cartpole environment with ResNet18 features as observations."""
+
     observations: ResNet18ObservationCfg = ResNet18ObservationCfg()
 
 
 @configclass
 class CartpoleTheiaTinyCameraEnvCfg(CartpoleRGBCameraEnvCfg):
-    """
-    Due to TheiaTiny's size in GPU memory, we reduce the number of environments by default.
-    This helps reduce the possibility of crashing on more modest hardware.
-    The following configuration uses ~12gb VRAM at peak.
-    """
+    """Configuration for the cartpole environment with Theia-Tiny features as observations."""
 
-    scene: CartpoleSceneCfg = CartpoleRGBCameraSceneCfg(num_envs=128, env_spacing=20)
     observations: TheiaTinyObservationCfg = TheiaTinyObservationCfg()
