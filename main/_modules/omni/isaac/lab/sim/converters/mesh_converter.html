@@ -509,7 +509,7 @@
 <span class="kn">import</span> <span class="nn">omni.kit.commands</span>
 <span class="kn">import</span> <span class="nn">omni.usd</span>
 <span class="kn">from</span> <span class="nn">omni.isaac.core.utils.extensions</span> <span class="kn">import</span> <span class="n">enable_extension</span>
-<span class="kn">from</span> <span class="nn">pxr</span> <span class="kn">import</span> <span class="n">Usd</span><span class="p">,</span> <span class="n">UsdGeom</span><span class="p">,</span> <span class="n">UsdPhysics</span><span class="p">,</span> <span class="n">UsdUtils</span>
+<span class="kn">from</span> <span class="nn">pxr</span> <span class="kn">import</span> <span class="n">Tf</span><span class="p">,</span> <span class="n">Usd</span><span class="p">,</span> <span class="n">UsdGeom</span><span class="p">,</span> <span class="n">UsdPhysics</span><span class="p">,</span> <span class="n">UsdUtils</span>
 
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.sim.converters.asset_converter_base</span> <span class="kn">import</span> <span class="n">AssetConverterBase</span>
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.sim.converters.mesh_converter_cfg</span> <span class="kn">import</span> <span class="n">MeshConverterCfg</span>
@@ -579,6 +579,16 @@
         <span class="c1"># resolve mesh name and format</span>
         <span class="n">mesh_file_basename</span><span class="p">,</span> <span class="n">mesh_file_format</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">asset_path</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="p">)</span>
         <span class="n">mesh_file_format</span> <span class="o">=</span> <span class="n">mesh_file_format</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+
+        <span class="c1"># Check if mesh_file_basename is a valid USD identifier</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">Tf</span><span class="o">.</span><span class="n">IsValidIdentifier</span><span class="p">(</span><span class="n">mesh_file_basename</span><span class="p">):</span>
+            <span class="c1"># Correct the name to a valid identifier and update the basename</span>
+            <span class="n">mesh_file_basename_original</span> <span class="o">=</span> <span class="n">mesh_file_basename</span>
+            <span class="n">mesh_file_basename</span> <span class="o">=</span> <span class="n">Tf</span><span class="o">.</span><span class="n">MakeValidIdentifier</span><span class="p">(</span><span class="n">mesh_file_basename</span><span class="p">)</span>
+            <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Input file name &#39;</span><span class="si">{</span><span class="n">mesh_file_basename_original</span><span class="si">}</span><span class="s2">&#39; is an invalid identifier for the mesh prim path.&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot; Renaming it to &#39;</span><span class="si">{</span><span class="n">mesh_file_basename</span><span class="si">}</span><span class="s2">&#39; for the conversion.&quot;</span>
+            <span class="p">)</span>
 
         <span class="c1"># Convert USD</span>
         <span class="n">asyncio</span><span class="o">.</span><span class="n">get_event_loop</span><span class="p">()</span><span class="o">.</span><span class="n">run_until_complete</span><span class="p">(</span>
