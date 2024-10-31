@@ -132,10 +132,7 @@ class CommandTerm(ManagerTermBase):
         # resolve the environment IDs
         if env_ids is None:
             env_ids = slice(None)
-        # set the command counter to zero
-        self.command_counter[env_ids] = 0
-        # resample the command
-        self._resample(env_ids)
+
         # add logging metrics
         extras = {}
         for metric_name, metric_value in self.metrics.items():
@@ -143,6 +140,12 @@ class CommandTerm(ManagerTermBase):
             extras[metric_name] = torch.mean(metric_value[env_ids]).item()
             # reset the metric value
             metric_value[env_ids] = 0.0
+
+        # set the command counter to zero
+        self.command_counter[env_ids] = 0
+        # resample the command
+        self._resample(env_ids)
+
         return extras
 
     def compute(self, dt: float):
