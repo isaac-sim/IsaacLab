@@ -253,7 +253,7 @@ class ObservationManager(ManagerBase):
                 obs = term_cfg.noise.func(obs, term_cfg.noise)
             if term_cfg.clip:
                 obs = obs.clip_(min=term_cfg.clip[0], max=term_cfg.clip[1])
-            if term_cfg.scale:
+            if term_cfg.scale is not None:
                 obs = obs.mul_(term_cfg.scale)
             # add value to list
             group_obs[name] = obs
