@@ -89,7 +89,7 @@ class MeshConverter(AssetConverterBase):
             omni.log.warn(
                 f"Input file name '{mesh_file_basename_original}' is an invalid identifier for the mesh prim path."
                 f" Renaming it to '{mesh_file_basename}' for the conversion."
-             )
+            )
 
         # Convert USD
         asyncio.get_event_loop().run_until_complete(
