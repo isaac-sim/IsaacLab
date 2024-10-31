@@ -43,12 +43,14 @@ Guidelines for modifications:
 * Chenyu Yang
 * David Yang
 * Dorsa Rohani
+* Felix Yu
 * Gary Lvov
 * Giulio Romualdi
 * HoJin Jeon
 * Jan Kerner
 * Jean Tampon
 * Jia Lin Yuan
+* Jinghuan Shang
 * Jingzhou Liu
 * Johnson Sun
 * Kaixi Bao

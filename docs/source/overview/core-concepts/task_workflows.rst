@@ -36,6 +36,10 @@ or when implementing complex logic that is difficult to decompose into separate 
 Manager-Based Environments
 --------------------------
 
+.. image:: ./Manager-basedTaskWorkflow.jpg
+      :width: 100%
+      :alt: Manager-based Task Workflow
+
 A majority of environment implementations follow a similar structure. The environment processes the input actions,
 steps through the simulation, computes observations and reward signals, applies randomization, and resets the terminated
 environments. Motivated by this, the environment can be decomposed into individual components that handle each of these tasks.
@@ -87,6 +91,10 @@ specifications.
 
 Direct Environments
 -------------------
+
+.. image:: ./Direct-basedTaskWorkflow.jpg
+      :width: 100%
+      :alt: Direct-based Task Workflow
 
 The direct-style environment aligns more closely with traditional implementations of environments,
 where a single script directly implements the reward function, observation function, resets, and all the other components
