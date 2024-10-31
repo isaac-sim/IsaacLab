@@ -712,7 +712,7 @@ commands to the mesh nodes to move the soft body.</p>
 </span><span class="hll"><span class="linenos">109</span>            <span class="c1"># write nodal state to simulation</span>
 </span><span class="hll"><span class="linenos">110</span>            <span class="n">cube_object</span><span class="o">.</span><span class="n">write_nodal_state_to_sim</span><span class="p">(</span><span class="n">nodal_state</span><span class="p">)</span>
 </span><span class="linenos">111</span>
-<span class="hll"><span class="linenos">112</span>            <span class="c1"># write kinematic target to nodal state and free all vertices</span>
+<span class="hll"><span class="linenos">112</span>            <span class="c1"># Write the nodal state to the kinematic target and free all vertices</span>
 </span><span class="hll"><span class="linenos">113</span>            <span class="n">nodal_kinematic_target</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="n">nodal_state</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span>
 </span><span class="hll"><span class="linenos">114</span>            <span class="n">nodal_kinematic_target</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.0</span>
 </span><span class="hll"><span class="linenos">115</span>            <span class="n">cube_object</span><span class="o">.</span><span class="n">write_nodal_kinematic_target_to_sim</span><span class="p">(</span><span class="n">nodal_kinematic_target</span><span class="p">)</span>
@@ -852,7 +852,7 @@ kinematic targets in the next section.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span>            <span class="c1"># write nodal state to simulation</span>
             <span class="n">cube_object</span><span class="o">.</span><span class="n">write_nodal_state_to_sim</span><span class="p">(</span><span class="n">nodal_state</span><span class="p">)</span>
 
-            <span class="c1"># write kinematic target to nodal state and free all vertices</span>
+            <span class="c1"># Write the nodal state to the kinematic target and free all vertices</span>
             <span class="n">nodal_kinematic_target</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="n">nodal_state</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span>
             <span class="n">nodal_kinematic_target</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.0</span>
             <span class="n">cube_object</span><span class="o">.</span><span class="n">write_nodal_kinematic_target_to_sim</span><span class="p">(</span><span class="n">nodal_kinematic_target</span><span class="p">)</span>

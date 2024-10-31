@@ -873,7 +873,7 @@ will automatically be created for the actor. This avoids the need to separately 
   <span class="c1"># clone, filter, and replicate</span>
   <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">clone_environments</span><span class="p">(</span><span class="n">copy_from_source</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
   <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">filter_collisions</span><span class="p">(</span><span class="n">global_prim_paths</span><span class="o">=</span><span class="p">[])</span>
-  <span class="c1"># add articultion to scene</span>
+  <span class="c1"># add articulation to scene</span>
   <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">articulations</span><span class="p">[</span><span class="s2">&quot;cartpole&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span>
   <span class="c1"># add lights</span>
   <span class="n">light_cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">DomeLightCfg</span><span class="p">(</span><span class="n">intensity</span><span class="o">=</span><span class="mf">2000.0</span><span class="p">)</span>
@@ -1371,7 +1371,7 @@ Adding actors to the scene has been replaced by <code class="docutils literal no
         <span class="n">copy_from_source</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">filter_collisions</span><span class="p">(</span>
         <span class="n">global_prim_paths</span><span class="o">=</span><span class="p">[])</span>
-    <span class="c1"># add articultion to scene</span>
+    <span class="c1"># add articulation to scene</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">articulations</span><span class="p">[</span><span class="s2">&quot;cartpole&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span>
 
     <span class="c1"># add lights</span>
