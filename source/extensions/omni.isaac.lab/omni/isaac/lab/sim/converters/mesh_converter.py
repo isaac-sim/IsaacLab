@@ -87,7 +87,8 @@ class MeshConverter(AssetConverterBase):
             mesh_file_basename_original = mesh_file_basename
             mesh_file_basename = Tf.MakeValidIdentifier(mesh_file_basename)
             omni.log.warn(
-                f"Input file name '{mesh_file_basename_original}' is an invalid identifier for the mesh prim path. Renaming it to '{mesh_file_basename}' for the conversion."
+                f"Input file name '{mesh_file_basename_original}' is an invalid identifier for the mesh prim path."
+                f" Renaming it to '{mesh_file_basename}' for the conversion."
              )
 
         # Convert USD
