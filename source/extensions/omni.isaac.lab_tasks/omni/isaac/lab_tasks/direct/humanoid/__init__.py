@@ -10,7 +10,6 @@ Humanoid locomotion environment.
 import gymnasium as gym
 
 from . import agents
-from .humanoid_env import HumanoidEnv, HumanoidEnvCfg
 
 ##
 # Register Gym environments.

@@ -55,7 +55,7 @@ gym.register(
     entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": CartpoleResNet18CameraEnvCfg,
+        "env_cfg_entry_point": f"{task_entry}.cartpole_camera_env_cfg:CartpoleResNet18CameraEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_feature_ppo_cfg.yaml",
     },
 )
@@ -65,7 +65,7 @@ gym.register(
     entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": CartpoleTheiaTinyCameraEnvCfg,
+        "env_cfg_entry_point": f"{task_entry}.cartpole_camera_env_cfg:CartpoleTheiaTinyCameraEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_feature_ppo_cfg.yaml",
     },
 )

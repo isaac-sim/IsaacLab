@@ -10,8 +10,6 @@ Shadow Hand environment.
 import gymnasium as gym
 
 from . import agents
-from .shadow_hand_env_cfg import ShadowHandEnvCfg, ShadowHandOpenAIEnvCfg
-from .shadow_hand_vision_env import ShadowHandVisionEnvCfg, ShadowHandVisionEnvPlayCfg
 
 ##
 # Register Gym environments.

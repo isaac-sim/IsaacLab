@@ -10,7 +10,6 @@ Quacopter environment.
 import gymnasium as gym
 
 from . import agents
-from .quadcopter_env import QuadcopterEnv, QuadcopterEnvCfg
 
 ##
 # Register Gym environments.

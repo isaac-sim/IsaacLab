@@ -10,7 +10,6 @@ Inverted Double Pendulum on a Cart balancing environment.
 import gymnasium as gym
 
 from . import agents
-from .cart_double_pendulum_env import CartDoublePendulumEnv, CartDoublePendulumEnvCfg
 
 ##
 # Register Gym environments.

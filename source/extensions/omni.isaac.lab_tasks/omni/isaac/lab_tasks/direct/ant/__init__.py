@@ -10,7 +10,6 @@ Ant locomotion environment.
 import gymnasium as gym
 
 from . import agents
-from .ant_env import AntEnv, AntEnvCfg
 
 ##
 # Register Gym environments.

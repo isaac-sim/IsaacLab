@@ -10,8 +10,6 @@ ShadowHand Over environment.
 import gymnasium as gym
 
 from . import agents
-from .shadow_hand_over_env import ShadowHandOverEnv
-from .shadow_hand_over_env_cfg import ShadowHandOverEnvCfg
 
 ##
 # Register Gym environments.
