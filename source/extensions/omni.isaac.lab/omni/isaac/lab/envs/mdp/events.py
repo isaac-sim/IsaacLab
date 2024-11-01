@@ -330,7 +330,9 @@ def randomize_actuator_gains(
             actuator_joint_indices = torch.tensor(actuator.joint_indices, device=asset.device)
             asset_joint_ids = torch.tensor(asset_cfg.joint_ids, device=asset.device)
             # the indices of the joints in the actuator that have to be randomized
-            actuator_indices = torch.nonzero(torch.isin(actuator_joint_indices, asset_joint_ids)).squeeze(0)
+            actuator_indices = torch.nonzero(torch.isin(actuator_joint_indices, asset_joint_ids)).view(-1)
+            if len(actuator_indices) == 0:
+                continue
             # maps actuator indices that have to be randomized to global joint indices
             global_indices = actuator_joint_indices[actuator_indices]
         # Randomize stiffness
