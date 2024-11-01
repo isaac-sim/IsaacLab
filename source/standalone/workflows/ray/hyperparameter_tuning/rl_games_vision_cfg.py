@@ -110,12 +110,11 @@ class RLGamesCameraJobCfg(isaac_ray_tune.JobCfg):
                 # decrease MLP size to prevent running out of memory on L4
                 max_num_layers = 2
                 max_neurons_per_layer = 32
-                
+
             num_layers = tune.randint(1, max_num_layers)
 
             def get_mlp_layers(_):
-                return [tune.randint(4, max_neurons_per_layer).sample() for _ in 
-                        range(num_layers.sample())]
+                return [tune.randint(4, max_neurons_per_layer).sample() for _ in range(num_layers.sample())]
 
             cfg["hydra_args"]["agent.params.network.mlp.units"] = tune.sample_from(get_mlp_layers)
             cfg["hydra_args"]["agent.params.network.mlp.initializer.name"] = tune.choice(["default"]).sample()
