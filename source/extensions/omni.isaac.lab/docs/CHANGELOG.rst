@@ -1,18 +1,33 @@
 Changelog
 ---------
 
-0.27.6 (2024-10-28)
+0.27.8 (2024-11-01)
+~~~~~~~~~~~~~~~~~~~
+Fixed
+^^^^^
+
+* Added sanity check if the term is a valid type inside the command manager.
+* Corrected the iteration over ``group_cfg_items`` inside the observation manager.
+
+
+0.27.7 (2024-10-28)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
 
-* Added sanity check if the term is a valid type inside the command manager.
+* Added frozen encoder feature extraction observation space with ResNet and Theia
+
+
+0.27.6 (2024-10-28)
+~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
 
-* Corrected the iteration over ``group_cfg_items`` inside the observation manager.
+* Fixed usage of ``meshes`` property in :class:`omni.isaac.lab.sensors.RayCasterCamera` to use ``self.meshes`` instead of the undefined ``RayCaster.meshes``.
+* Fixed issue in :class:`omni.isaac.lab.envs.ui.BaseEnvWindow` where undefined configs were being accessed when creating debug visualization elements in UI.
+
 
 0.27.5 (2024-10-25)
 ~~~~~~~~~~~~~~~~~~~
