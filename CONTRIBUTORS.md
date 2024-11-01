@@ -74,6 +74,7 @@ Guidelines for modifications:
 * Wei Yang
 * Xavier Nal
 * Yang Jin
+* Yujian Zhang
 * Zhengyu Zhang
 * Ziqi Fan
 
