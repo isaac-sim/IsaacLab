@@ -105,7 +105,7 @@ def wrap_resources_to_jobs(jobs: list[str], args: argparse.Namespace) -> None:
         num_gpus = args.gpu_per_worker[i] / args.num_workers[i]
         num_cpus = args.cpu_per_worker[i] / args.num_workers[i]
         memory = (args.ram_gb_per_worker[i] * 1024**3) / args.num_workers[i]
-        print(f"[INFO]: Requesting {num_gpus = } {num_cpus = } {memory = } id = {gpu_node['id']}")
+        print(f"[INFO]: Requesting {num_gpus=} {num_cpus=} {memory=} id={gpu_node['id']}")
         job = isaac_ray_util.remote_execute_job.options(
             num_gpus=num_gpus,
             num_cpus=num_cpus,
@@ -137,5 +137,5 @@ if __name__ == "__main__":
         formatted_jobs = jobs.split("+")
     else:
         formatted_jobs = []
-    print(f"[INFO]: Isaac Ray Wrapper received jobs {formatted_jobs = }")
+    print(f"[INFO]: Isaac Ray Wrapper received jobs {formatted_jobs=}")
     wrap_resources_to_jobs(jobs=formatted_jobs, args=args)

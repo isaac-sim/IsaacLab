@@ -279,7 +279,7 @@ if __name__ == "__main__":
         base_dir = docker_prefix  # ensure logs are dumped to persistent location
         python_exec = docker_prefix + python_exec[2:]
         rl_games_workflow = docker_prefix + rl_games_workflow
-        print(f"[INFO]: Using remote mode {python_exec = } {rl_games_workflow = }")
+        print(f"[INFO]: Using remote mode {python_exec=} {rl_games_workflow=}")
 
         if args.mlflow_uri is not None:
             import mlflow
@@ -291,7 +291,7 @@ if __name__ == "__main__":
 
     file_path = args.cfg_file
     class_name = args.cfg_class
-    print(f"[INFO]: Attempting to use sweep config from {file_path = } {class_name = }")
+    print(f"[INFO]: Attempting to use sweep config from {file_path=} {class_name=}")
     module_name = os.path.splitext(os.path.basename(file_path))[0]
 
     spec = importlib.util.spec_from_file_location(module_name, file_path)

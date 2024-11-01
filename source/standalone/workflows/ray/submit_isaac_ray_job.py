@@ -92,7 +92,7 @@ def submit_job(cluster: dict, job_command: str) -> None:
     except Exception as e:
         print(f"[INFO]: Failed to list directory contents: {str(e)}")
     entrypoint = f"{CONFIG['executable']} {job_command}"
-    print(f"[INFO]: Attempting entrypoint {entrypoint = } in cluster {cluster}")
+    print(f"[INFO]: Attempting entrypoint {entrypoint=} in cluster {cluster}")
     job_id = client.submit_job(entrypoint=entrypoint, runtime_env=runtime_env)
     status = client.get_job_status(job_id)
     while status in [job_submission.JobStatus.PENDING, job_submission.JobStatus.RUNNING]:
@@ -143,6 +143,6 @@ if __name__ == "__main__":
             print("Warning; Split jobs by cluster with the * delimiter")
     else:
         formatted_jobs = []
-    print(f"[INFO]: Isaac Ray Wrapper received jobs {formatted_jobs = }")
+    print(f"[INFO]: Isaac Ray Wrapper received jobs {formatted_jobs=}")
     clusters = read_cluster_spec(args.config_file)
     submit_jobs_to_clusters(formatted_jobs, clusters)
