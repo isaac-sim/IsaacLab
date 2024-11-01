@@ -15,7 +15,7 @@ from omni.isaac.lab_tasks.utils.wrappers.rsl_rl import (
 @configclass
 class NavigationEnvPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 8
-    max_iterations = 1500
+    max_iterations = 15000
     save_interval = 50
     experiment_name = "anymal_c_navigation"
     empirical_normalization = False
