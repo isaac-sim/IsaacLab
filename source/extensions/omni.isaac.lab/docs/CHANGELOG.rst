@@ -7,12 +7,12 @@ Changelog
 Added
 ^^^^^
 
-* Added sanity check if command term is valid type.
+* Added sanity check if the term is a valid type inside the command manager.
 
 Fixed
 ^^^^^
 
-* Fixed correct iteration over group_cfg_items
+* Corrected the iteration over ``group_cfg_items`` inside the observation manager.
 
 0.27.5 (2024-10-25)
 ~~~~~~~~~~~~~~~~~~~
