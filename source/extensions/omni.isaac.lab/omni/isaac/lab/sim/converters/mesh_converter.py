@@ -10,7 +10,7 @@ import omni
 import omni.kit.commands
 import omni.usd
 from omni.isaac.core.utils.extensions import enable_extension
-from pxr import Gf, Usd, UsdGeom, UsdPhysics, UsdUtils
+from pxr import Gf, Tf, Usd, UsdGeom, UsdPhysics, UsdUtils
 
 from omni.isaac.lab.sim.converters.asset_converter_base import AssetConverterBase
 from omni.isaac.lab.sim.converters.mesh_converter_cfg import MeshConverterCfg
@@ -81,6 +81,17 @@ class MeshConverter(AssetConverterBase):
         # resolve mesh name and format
         mesh_file_basename, mesh_file_format = os.path.basename(cfg.asset_path).split(".")
         mesh_file_format = mesh_file_format.lower()
+
+        # Check if mesh_file_basename is a valid USD identifier
+        if not Tf.IsValidIdentifier(mesh_file_basename):
+            # Correct the name to a valid identifier and update the basename
+            mesh_file_basename_original = mesh_file_basename
+            mesh_file_basename = Tf.MakeValidIdentifier(mesh_file_basename)
+            omni.log.warn(
+                f"Input file name '{mesh_file_basename_original}' is an invalid identifier for the mesh prim path."
+                f" Renaming it to '{mesh_file_basename}' for the conversion."
+            )
+
         # Convert USD
         asyncio.get_event_loop().run_until_complete(
             self._convert_mesh_to_usd(in_file=cfg.asset_path, out_file=self.usd_path)

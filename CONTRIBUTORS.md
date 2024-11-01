@@ -63,19 +63,20 @@ Guidelines for modifications:
 * Muhong Guo
 * Nuralem Abizov
 * Özhan Özen
+* Qian Wan
 * Qinxi Yu
 * René Zurbrügg
 * Ritvik Singh
 * Rosario Scalise
+* Ryley McCarroll
 * Shafeef Omar
 * Vladimir Fokow
 * Wei Yang
 * Xavier Nal
 * Yang Jin
+* Yujian Zhang
 * Zhengyu Zhang
 * Ziqi Fan
-* Qian Wan
-* Wei Yang
 
 ## Acknowledgements
 
