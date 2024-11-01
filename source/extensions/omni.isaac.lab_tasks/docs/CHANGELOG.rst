@@ -7,8 +7,9 @@ Changelog
 Changed
 ^^^^^^^
 
-* Define task entry points as string when registering.
-* Ignore ``mdp`` directories during import.
+* Defined the Gymnasium task entry points with configuration strings instead of class types.
+  This avoids unnecessary imports and improves the load types.
+* Added the ability to ignore ``mdp`` directories during the recursive module search.
 
 
 0.10.12 (2024-10-28)
