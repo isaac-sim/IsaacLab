@@ -317,7 +317,7 @@ class ObservationManager(ManagerBase):
             else:
                 group_cfg_items = group_cfg.__dict__.items()
             # iterate over all the terms in each group
-            for term_name, term_cfg in group_cfg.__dict__.items():
+            for term_name, term_cfg in group_cfg_items:
                 # skip non-obs settings
                 if term_name in ["enable_corruption", "concatenate_terms"]:
                     continue
