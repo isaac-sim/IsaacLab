@@ -229,15 +229,18 @@ class MeshConverter(AssetConverterBase):
 
         # Create converter task
         instance = omni.kit.asset_converter.get_instance()
+        print(f"Converting {prim_path} on instance {instance}")
         task = instance.create_converter_task(in_file, out_file, None, converter_context)
         # Start conversion task and wait for it to finish
-        success = True
-        while True:
-            success = await task.wait_until_finished()
-            if not success:
-                await asyncio.sleep(0.1)
-            else:
-                break
+        success = await task.wait_until_finished()
+        if not success:
+            print(task.get_error_message())
+        # while True:
+        #     success = await task.wait_until_finished()
+        #     if not success:
+        #         await asyncio.sleep(0.1)
+        #     else:
+        #         break
 
         temp_stage = Usd.Stage.CreateInMemory()
         UsdGeom.SetStageUpAxis(temp_stage, UsdGeom.Tokens.z)
