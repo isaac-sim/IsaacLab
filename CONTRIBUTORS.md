@@ -50,6 +50,7 @@ Guidelines for modifications:
 * Jan Kerner
 * Jean Tampon
 * Jia Lin Yuan
+* Jinghuan Shang
 * Jingzhou Liu
 * Johnson Sun
 * Kaixi Bao
@@ -71,6 +72,7 @@ Guidelines for modifications:
 * Wei Yang
 * Xavier Nal
 * Yang Jin
+* Yujian Zhang
 * Zhengyu Zhang
 * Ziqi Fan
 * Qian Wan

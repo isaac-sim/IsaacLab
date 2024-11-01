@@ -394,5 +394,8 @@ class CommandManager(ManagerBase):
                 )
             # create the action term
             term = term_cfg.class_type(term_cfg, self._env)
+            # sanity check if term is valid type
+            if not isinstance(term, CommandTerm):
+                raise TypeError(f"Returned object for the term '{term_name}' is not of type CommandType.")
             # add class to dict
             self._terms[term_name] = term
