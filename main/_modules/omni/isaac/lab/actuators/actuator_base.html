@@ -705,6 +705,7 @@
 <span class="sd">            TypeError: If the parameter value is not of the expected type.</span>
 <span class="sd">            TypeError: If the default value is not of the expected type.</span>
 <span class="sd">            ValueError: If the parameter value is None and no default value is provided.</span>
+<span class="sd">            ValueError: If the default value tensor is the wrong shape.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># create parameter buffer</span>
         <span class="n">param</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_num_envs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_joints</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
@@ -729,7 +730,14 @@
                 <span class="n">param</span><span class="p">[:]</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">default_value</span><span class="p">)</span>
             <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">default_value</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
                 <span class="c1"># if tensor, then use the same tensor for all joints</span>
-                <span class="n">param</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">default_value</span><span class="o">.</span><span class="n">float</span><span class="p">()</span>
+                <span class="k">if</span> <span class="n">default_value</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_num_envs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_joints</span><span class="p">):</span>
+                    <span class="n">param</span> <span class="o">=</span> <span class="n">default_value</span><span class="o">.</span><span class="n">float</span><span class="p">()</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="s2">&quot;Invalid default value tensor shape.</span><span class="se">\n</span><span class="s2">&quot;</span>
+                        <span class="sa">f</span><span class="s2">&quot;Got: </span><span class="si">{</span><span class="n">default_value</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+                        <span class="sa">f</span><span class="s2">&quot;Expected: </span><span class="si">{</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_num_envs</span><span class="p">,</span><span class="w"> </span><span class="bp">self</span><span class="o">.</span><span class="n">num_joints</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span>
+                    <span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
                     <span class="sa">f</span><span class="s2">&quot;Invalid type for default value: </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">default_value</span><span class="p">)</span><span class="si">}</span><span class="s2"> for &quot;</span>
