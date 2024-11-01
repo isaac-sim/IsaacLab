@@ -64,13 +64,14 @@ class MeshConverter(AssetConverterBase):
     def _convert_asset(self, cfg: MeshConverterCfg):
         """Generate USD from OBJ, STL or FBX.
 
-        It stores the asset in the following format:
+        The USD file has Y-up axis and is scaled to meters.
+        The asset hierarchy is arranged as follows:
 
-        /file_name (default prim)
-          |- /geometry <- Made instanceable if requested
-            |- /Looks
-            |- /mesh
-
+        .. code-block:: none
+            prim_path (default prim)
+                |- /geometry/Looks
+                |- /geometry/mesh
+    
         Args:
             cfg: The configuration for conversion of mesh to USD.
 
@@ -83,22 +84,31 @@ class MeshConverter(AssetConverterBase):
         print(f"Convert {cfg.asset_path} to {self.usd_path}. mesh_file_basename: {mesh_file_basename}")
         # Convert USD
         asyncio.get_event_loop().run_until_complete(
-            self._convert_mesh_to_usd(
-                in_file=cfg.asset_path, out_file=self.usd_path, prim_path=f"/{mesh_file_basename}"
-            )
+            self._convert_mesh_to_usd(in_file=cfg.asset_path, out_file=self.usd_path)
         )
+        # Create a new stage, set Z up and meters per unit
+        temp_stage = Usd.Stage.CreateInMemory()
+        UsdGeom.SetStageUpAxis(temp_stage, UsdGeom.Tokens.z)
+        UsdGeom.SetStageMetersPerUnit(temp_stage, 1.0)
+        UsdPhysics.SetStageKilogramsPerUnit(temp_stage, 1.0)
+        # Add mesh to stage
+        base_prim = temp_stage.DefinePrim(f"/{mesh_file_basename}", "Xform")
+        prim = temp_stage.DefinePrim(f"/{mesh_file_basename}/geometry", "Xform")
+        prim.GetReferences().AddReference(self.usd_path)
+        temp_stage.SetDefaultPrim(base_prim)
+        temp_stage.Export(self.usd_path)
+
         # Open converted USD stage
-        # note: This opens a new stage and does not use the stage created earlier by the user
-        # create a new stage
         stage = Usd.Stage.Open(self.usd_path)
-        # add USD to stage cache
+        # Need to reload the stage to get the new prim structure, otherwise it can be taken from the cache
+        stage.Reload()
+        # Add USD to stage cache
         stage_id = UsdUtils.StageCache.Get().Insert(stage)
         # Get the default prim (which is the root prim) -- "/{mesh_file_basename}"
         xform_prim = stage.GetDefaultPrim()
         geom_prim = stage.GetPrimAtPath(f"/{mesh_file_basename}/geometry")
         for prim in stage.Traverse():
             print(f"Prim: {prim.GetPath()}")
-        print("Done")
         # Move all meshes to underneath new Xform
         for child_mesh_prim in geom_prim.GetChildren():
             if child_mesh_prim.GetTypeName() == "Mesh":
@@ -177,28 +187,18 @@ class MeshConverter(AssetConverterBase):
     """
 
     @staticmethod
-    async def _convert_mesh_to_usd(
-        in_file: str, out_file: str, prim_path: str, load_materials: bool = True
-    ) -> bool:
+    async def _convert_mesh_to_usd(in_file: str, out_file: str, load_materials: bool = True) -> bool:
         """Convert mesh from supported file types to USD.
 
         This function uses the Omniverse Asset Converter extension to convert a mesh file to USD.
         It is an asynchronous function and should be called using `asyncio.get_event_loop().run_until_complete()`.
 
         The converted asset is stored in the USD format in the specified output file.
-        The USD file has Y-up axis and is scaled to meters.
-
-        The asset hierarchy is arranged as follows:
-
-        .. code-block:: none
-            prim_path (default prim)
-                |- /geometry/Looks
-                |- /geometry/mesh
+        The USD file has Y-up axis and is scaled to cm.
 
         Args:
             in_file: The file to convert.
             out_file: The path to store the output file.
-            prim_path: The prim path of the mesh.
             load_materials: Set to True to enable attaching materials defined in the input file
                 to the generated USD mesh. Defaults to True.
 
@@ -229,27 +229,9 @@ class MeshConverter(AssetConverterBase):
 
         # Create converter task
         instance = omni.kit.asset_converter.get_instance()
-        print(f"Converting {prim_path} on instance {instance}")
         task = instance.create_converter_task(in_file, out_file, None, converter_context)
         # Start conversion task and wait for it to finish
         success = await task.wait_until_finished()
         if not success:
             print(task.get_error_message())
-        # while True:
-        #     success = await task.wait_until_finished()
-        #     if not success:
-        #         await asyncio.sleep(0.1)
-        #     else:
-        #         break
-
-        temp_stage = Usd.Stage.CreateInMemory()
-        UsdGeom.SetStageUpAxis(temp_stage, UsdGeom.Tokens.z)
-        UsdGeom.SetStageMetersPerUnit(temp_stage, 1.0)
-        UsdPhysics.SetStageKilogramsPerUnit(temp_stage, 1.0)
-
-        base_prim = temp_stage.DefinePrim(prim_path, "Xform")
-        prim = temp_stage.DefinePrim(f"{prim_path}/geometry", "Xform")
-        prim.GetReferences().AddReference(out_file)
-        temp_stage.SetDefaultPrim(base_prim)
-        temp_stage.Export(out_file)
         return success
