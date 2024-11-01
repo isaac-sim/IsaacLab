@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.27.8 (2024-11-01)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added sanity check if the term is a valid type inside the command manager.
+* Corrected the iteration over ``group_cfg_items`` inside the observation manager.
+
 
 0.27.7 (2024-10-28)
 ~~~~~~~~~~~~~~~~~~~
