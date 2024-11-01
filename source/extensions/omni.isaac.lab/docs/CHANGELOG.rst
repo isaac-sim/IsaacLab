@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.27.1 (2024-10-23)
+0.27.9 (2024-11-01)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -10,7 +10,82 @@ Added
 * Added the :class:`omni.isaac.lab.utils.types.ArticulationActions` class to store the joint actions
   for an articulation. Earlier, the class from Isaac Sim was being used. However, it used a different
   type for the joint actions which was not compatible with the Isaac Lab framework.
-  
+
+
+0.27.8 (2024-11-01)
+
+Fixed
+^^^^^
+
+* Added sanity check if the term is a valid type inside the command manager.
+* Corrected the iteration over ``group_cfg_items`` inside the observation manager.
+
+
+0.27.7 (2024-10-28)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added frozen encoder feature extraction observation space with ResNet and Theia
+
+
+0.27.6 (2024-10-25)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed usage of ``meshes`` property in :class:`omni.isaac.lab.sensors.RayCasterCamera` to use ``self.meshes`` instead of the undefined ``RayCaster.meshes``.
+* Fixed issue in :class:`omni.isaac.lab.envs.ui.BaseEnvWindow` where undefined configs were being accessed when creating debug visualization elements in UI.
+
+
+0.27.5 (2024-10-25)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added utilities for serializing/deserializing Gymnasium spaces.
+
+
+0.27.4 (2024-10-18)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Updated installation path instructions for Windows in the Isaac Lab documentation to remove redundancy in the use of %USERPROFILE% for path definitions.
+
+
+0.27.3 (2024-10-22)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the issue with using list or tuples of ``configclass`` within a ``configclass``. Earlier, the list of
+  configclass objects were not converted to dictionary properly when ``to_dict`` function was called.
+
+
+0.27.2 (2024-10-21)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``--kit_args`` to :class:`~omni.isaac.lab.app.AppLauncher` to allow passing command line arguments directly to Omniverse Kit SDK.
+
+
+0.27.1 (2024-10-20)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~omni.isaac.lab.sim.RenderCfg` and the attribute :attr:`~omni.isaac.lab.sim.SimulationCfg.render` for
+  specifying render related settings.
+
 
 0.27.0 (2024-10-14)
 ~~~~~~~~~~~~~~~~~~~

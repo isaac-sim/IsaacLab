@@ -498,34 +498,40 @@ class TestImu(unittest.TestCase):
                 atol=1e-4,
             )
 
+    def test_env_ids_propogation(self):
+        """Test that env_ids argument propagates through update and reset methods"""
+        self.scene.reset()
 
-def test_env_ids_propogation(self):
-    """Test that env_ids argument propagates through update and reset methods"""
-    self.scene.reset()
-
-    for idx in range(10):
-        # set acceleration
-        self.scene.articulations["robot"].write_root_velocity_to_sim(
-            torch.tensor([[0.5, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=self.scene.device).repeat(
-                self.scene.num_envs, 1
+        for idx in range(10):
+            # set acceleration
+            self.scene.articulations["robot"].write_root_velocity_to_sim(
+                torch.tensor([[0.5, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=self.scene.device).repeat(
+                    self.scene.num_envs, 1
+                )
+                * (idx + 1)
             )
-            * (idx + 1)
-        )
-        # write data to sim
-        self.scene.write_data_to_sim()
+            # write data to sim
+            self.scene.write_data_to_sim()
+            # perform step
+            self.sim.step()
+            # read data from sim
+            self.scene.update(self.sim.get_physics_dt())
+
+        # reset scene for env 1
+        self.scene.reset(env_ids=[1])
+        # read data from sim
+        self.scene.update(self.sim.get_physics_dt())
         # perform step
         self.sim.step()
         # read data from sim
         self.scene.update(self.sim.get_physics_dt())
 
-    # reset scene for env 1
-    self.scene.reset(env_ids=[1])
-    # read data from sim
-    self.scene.update(self.sim.get_physics_dt())
-    # perform step
-    self.sim.step()
-    # read data from sim
-    self.scene.update(self.sim.get_physics_dt())
+    def test_sensor_print(self):
+        """Test sensor print is working correctly."""
+        # Create sensor
+        sensor = self.scene.sensors["imu_ball"]
+        # print info
+        print(sensor)
 
 
 if __name__ == "__main__":
