@@ -178,7 +178,7 @@ class MeshConverter(AssetConverterBase):
 
     @staticmethod
     async def _convert_mesh_to_usd(
-        in_file: str, out_file: str, prim_path: str = "/World", load_materials: bool = True
+        in_file: str, out_file: str, prim_path: str, load_materials: bool = True
     ) -> bool:
         """Convert mesh from supported file types to USD.
 
