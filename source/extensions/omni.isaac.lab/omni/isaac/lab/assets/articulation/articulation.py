@@ -16,13 +16,13 @@ from typing import TYPE_CHECKING
 import omni.isaac.core.utils.stage as stage_utils
 import omni.log
 import omni.physics.tensors.impl.api as physx
-from omni.isaac.core.utils.types import ArticulationActions
 from pxr import PhysxSchema, UsdPhysics
 
 import omni.isaac.lab.sim as sim_utils
 import omni.isaac.lab.utils.math as math_utils
 import omni.isaac.lab.utils.string as string_utils
 from omni.isaac.lab.actuators import ActuatorBase, ActuatorBaseCfg, ImplicitActuator
+from omni.isaac.lab.utils.types import ArticulationActions
 
 from ..asset_base import AssetBase
 from .articulation_data import ArticulationData
@@ -1183,10 +1183,11 @@ class Articulation(AssetBase):
         # parse fixed tendons properties if they exist
         if self.num_fixed_tendons > 0:
             stage = stage_utils.get_current_stage()
+            joint_paths = self.root_physx_view.dof_paths[0]
 
             # iterate over all joints to find tendons attached to them
             for j in range(self.num_joints):
-                usd_joint_path = self.root_physx_view.dof_paths[0][j]
+                usd_joint_path = joint_paths[j]
                 # check whether joint has tendons - tendon name follows the joint name it is attached to
                 joint = UsdPhysics.Joint.Get(stage, usd_joint_path)
                 if joint.GetPrim().HasAPI(PhysxSchema.PhysxTendonAxisRootAPI):
