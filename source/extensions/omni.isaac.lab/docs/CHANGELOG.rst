@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.27.12 (2024-11-04)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* If a USD that contains an articulation root is loaded using a
+  :attr:`omni.isaac_lab.assets.RigidBody` we now fail unless the articulation root is explicitly
+  disabled.
+
+
 0.27.11 (2024-10-31)
 ~~~~~~~~~~~~~~~~~~~~
 
