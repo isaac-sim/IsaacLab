@@ -19,7 +19,8 @@ class RLGamesCameraJobCfg(isaac_ray_tune.JobCfg):
     :class:IsaacLabTuneTrainable , configurations should
     be in a similar format to this class. This class can vary env count/horizon length,
     CNN structure, and MLP structure. Broad possible ranges are set, the specific values
-    that work can be found via tuning. Tuning results can inform better ranges for a second tuning run."""
+    that work can be found via tuning. Tuning results can inform better ranges for a second tuning run.
+    These ranges were selected for demonstration purposes. Best ranges are run/task specific."""
 
     @staticmethod
     def _get_batch_size_divisors(batch_size: int, min_size: int = 128) -> list[int]:
