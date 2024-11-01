@@ -347,7 +347,7 @@ For KubeRay, this can be done through port forwarding the MLFlow dashboard, with
 
 and visiting the following address in a browser.
 
-``localhost:5050``
+``localhost:5000``
 
 If the MLFlow port is forwarded like above, it can be converted into tensorboard logs with
 this following command.
