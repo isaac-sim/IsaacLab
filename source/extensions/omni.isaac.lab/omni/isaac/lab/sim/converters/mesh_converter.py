@@ -68,7 +68,7 @@ class MeshConverter(AssetConverterBase):
         The asset hierarchy is arranged as follows:
 
         .. code-block:: none
-            prim_path (default prim)
+            mesh_file_basename (default prim)
                 |- /geometry/Looks
                 |- /geometry/mesh
 
