@@ -61,7 +61,7 @@ class RLGamesCameraJobCfg(isaac_ray_tune.JobCfg):
 
         if vary_cnn:  # Vary the depth, and size of the layers in the CNN part of the agent
             # Also varies kernel size, and stride.
-            num_layers = tune.randint(2, 5)
+            num_layers = tune.randint(2, 3)
             cfg["hydra_args"]["agent.params.network.cnn.type"] = "conv2d"
             cfg["hydra_args"]["agent.params.network.cnn.activation"] = tune.choice(["relu", "elu"])
             cfg["hydra_args"]["agent.params.network.cnn.initializer"] = "{name:default}"
@@ -99,10 +99,23 @@ class RLGamesCameraJobCfg(isaac_ray_tune.JobCfg):
             cfg["hydra_args"]["agent.params.network.cnn.convs"] = tune.sample_from(get_cnn_layers)
 
         if vary_mlp:  # Vary the MLP structure; neurons (units) per layer, number of layers,
-            num_layers = tune.randint(1, 6)
+
+            max_num_layers = 6
+            max_neurons_per_layer = 128
+            if "env.observations.policy.image.params.model_name" in cfg["hydra_args"]:
+                # By decreasing MLP size when using pretrained helps prevent out of memory on L4
+                max_num_layers = 3
+                max_neurons_per_layer = 32
+            if "agent.params.network.cnn.convs" in cfg["hydra_args"]:
+                # decrease MLP size to prevent running out of memory on L4
+                max_num_layers = 2
+                max_neurons_per_layer = 32
+                
+            num_layers = tune.randint(1, max_num_layers)
 
             def get_mlp_layers(_):
-                return [tune.randint(4, 256).sample() for _ in range(num_layers.sample())]
+                return [tune.randint(4, max_neurons_per_layer).sample() for _ in 
+                        range(num_layers.sample())]
 
             cfg["hydra_args"]["agent.params.network.mlp.units"] = tune.sample_from(get_mlp_layers)
             cfg["hydra_args"]["agent.params.network.mlp.initializer.name"] = tune.choice(["default"]).sample()
