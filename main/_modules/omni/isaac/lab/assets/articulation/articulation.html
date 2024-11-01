@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.2.0" />
-    <meta name="docbuild:last-update" content="Oct 31, 2024"/>
+    <meta name="docbuild:last-update" content="Nov 01, 2024"/>
   </head>
   
   
@@ -515,13 +515,13 @@
 <span class="kn">import</span> <span class="nn">omni.isaac.core.utils.stage</span> <span class="k">as</span> <span class="nn">stage_utils</span>
 <span class="kn">import</span> <span class="nn">omni.log</span>
 <span class="kn">import</span> <span class="nn">omni.physics.tensors.impl.api</span> <span class="k">as</span> <span class="nn">physx</span>
-<span class="kn">from</span> <span class="nn">omni.isaac.core.utils.types</span> <span class="kn">import</span> <span class="n">ArticulationActions</span>
 <span class="kn">from</span> <span class="nn">pxr</span> <span class="kn">import</span> <span class="n">PhysxSchema</span><span class="p">,</span> <span class="n">UsdPhysics</span>
 
 <span class="kn">import</span> <span class="nn">omni.isaac.lab.sim</span> <span class="k">as</span> <span class="nn">sim_utils</span>
 <span class="kn">import</span> <span class="nn">omni.isaac.lab.utils.math</span> <span class="k">as</span> <span class="nn">math_utils</span>
 <span class="kn">import</span> <span class="nn">omni.isaac.lab.utils.string</span> <span class="k">as</span> <span class="nn">string_utils</span>
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.actuators</span> <span class="kn">import</span> <span class="n">ActuatorBase</span><span class="p">,</span> <span class="n">ActuatorBaseCfg</span><span class="p">,</span> <span class="n">ImplicitActuator</span>
+<span class="kn">from</span> <span class="nn">omni.isaac.lab.utils.types</span> <span class="kn">import</span> <span class="n">ArticulationActions</span>
 
 <span class="kn">from</span> <span class="nn">..asset_base</span> <span class="kn">import</span> <span class="n">AssetBase</span>
 <span class="kn">from</span> <span class="nn">.articulation_data</span> <span class="kn">import</span> <span class="n">ArticulationData</span>
@@ -1689,10 +1689,11 @@
         <span class="c1"># parse fixed tendons properties if they exist</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_fixed_tendons</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
             <span class="n">stage</span> <span class="o">=</span> <span class="n">stage_utils</span><span class="o">.</span><span class="n">get_current_stage</span><span class="p">()</span>
+            <span class="n">joint_paths</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">dof_paths</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
 
             <span class="c1"># iterate over all joints to find tendons attached to them</span>
             <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_joints</span><span class="p">):</span>
-                <span class="n">usd_joint_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">dof_paths</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="n">j</span><span class="p">]</span>
+                <span class="n">usd_joint_path</span> <span class="o">=</span> <span class="n">joint_paths</span><span class="p">[</span><span class="n">j</span><span class="p">]</span>
                 <span class="c1"># check whether joint has tendons - tendon name follows the joint name it is attached to</span>
                 <span class="n">joint</span> <span class="o">=</span> <span class="n">UsdPhysics</span><span class="o">.</span><span class="n">Joint</span><span class="o">.</span><span class="n">Get</span><span class="p">(</span><span class="n">stage</span><span class="p">,</span> <span class="n">usd_joint_path</span><span class="p">)</span>
                 <span class="k">if</span> <span class="n">joint</span><span class="o">.</span><span class="n">GetPrim</span><span class="p">()</span><span class="o">.</span><span class="n">HasAPI</span><span class="p">(</span><span class="n">PhysxSchema</span><span class="o">.</span><span class="n">PhysxTendonAxisRootAPI</span><span class="p">):</span>
@@ -1919,7 +1920,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 31, 2024.
+  Last updated on Nov 01, 2024.
   <br/>
 </p>
   </div>

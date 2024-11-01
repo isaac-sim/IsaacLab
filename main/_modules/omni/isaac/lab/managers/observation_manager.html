@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.2.0" />
-    <meta name="docbuild:last-update" content="Oct 31, 2024"/>
+    <meta name="docbuild:last-update" content="Nov 01, 2024"/>
   </head>
   
   
@@ -816,7 +816,7 @@
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">group_cfg_items</span> <span class="o">=</span> <span class="n">group_cfg</span><span class="o">.</span><span class="vm">__dict__</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
             <span class="c1"># iterate over all the terms in each group</span>
-            <span class="k">for</span> <span class="n">term_name</span><span class="p">,</span> <span class="n">term_cfg</span> <span class="ow">in</span> <span class="n">group_cfg</span><span class="o">.</span><span class="vm">__dict__</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">for</span> <span class="n">term_name</span><span class="p">,</span> <span class="n">term_cfg</span> <span class="ow">in</span> <span class="n">group_cfg_items</span><span class="p">:</span>
                 <span class="c1"># skip non-obs settings</span>
                 <span class="k">if</span> <span class="n">term_name</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;enable_corruption&quot;</span><span class="p">,</span> <span class="s2">&quot;concatenate_terms&quot;</span><span class="p">]:</span>
                     <span class="k">continue</span>
@@ -940,7 +940,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 31, 2024.
+  Last updated on Nov 01, 2024.
   <br/>
 </p>
   </div>

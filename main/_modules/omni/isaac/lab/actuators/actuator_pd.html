@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.2.0" />
-    <meta name="docbuild:last-update" content="Oct 31, 2024"/>
+    <meta name="docbuild:last-update" content="Nov 01, 2024"/>
   </head>
   
   
@@ -508,9 +508,8 @@
 <span class="kn">from</span> <span class="nn">collections.abc</span> <span class="kn">import</span> <span class="n">Sequence</span>
 <span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
 
-<span class="kn">from</span> <span class="nn">omni.isaac.core.utils.types</span> <span class="kn">import</span> <span class="n">ArticulationActions</span>
-
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.utils</span> <span class="kn">import</span> <span class="n">DelayBuffer</span><span class="p">,</span> <span class="n">LinearInterpolation</span>
+<span class="kn">from</span> <span class="nn">omni.isaac.lab.utils.types</span> <span class="kn">import</span> <span class="n">ArticulationActions</span>
 
 <span class="kn">from</span> <span class="nn">.actuator_base</span> <span class="kn">import</span> <span class="n">ActuatorBase</span>
 
@@ -562,7 +561,22 @@
 <div class="viewcode-block" id="ImplicitActuator.compute"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.ImplicitActuator.compute">[docs]</a>    <span class="k">def</span> <span class="nf">compute</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span> <span class="n">control_action</span><span class="p">:</span> <span class="n">ArticulationActions</span><span class="p">,</span> <span class="n">joint_pos</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">joint_vel</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ArticulationActions</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Compute the aproximmate torques for the actuated joint (physX does not compute this explicitly).&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Process the actuator group actions and compute the articulation actions.</span>
+
+<span class="sd">        In case of implicit actuator, the control action is directly returned as the computed action.</span>
+<span class="sd">        This function is a no-op and does not perform any computation on the input control action.</span>
+<span class="sd">        However, it computes the approximate torques for the actuated joint since PhysX does not compute</span>
+<span class="sd">        this quantity explicitly.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            control_action: The joint action instance comprising of the desired joint positions, joint velocities</span>
+<span class="sd">                and (feed-forward) joint efforts.</span>
+<span class="sd">            joint_pos: The current joint positions of the joints in the group. Shape is (num_envs, num_joints).</span>
+<span class="sd">            joint_vel: The current joint velocities of the joints in the group. Shape is (num_envs, num_joints).</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The computed desired joint positions, joint velocities and joint efforts.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># store approximate torques for reward computation</span>
         <span class="n">error_pos</span> <span class="o">=</span> <span class="n">control_action</span><span class="o">.</span><span class="n">joint_positions</span> <span class="o">-</span> <span class="n">joint_pos</span>
         <span class="n">error_vel</span> <span class="o">=</span> <span class="n">control_action</span><span class="o">.</span><span class="n">joint_velocities</span> <span class="o">-</span> <span class="n">joint_vel</span>
@@ -893,7 +907,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Oct 31, 2024.
+  Last updated on Nov 01, 2024.
   <br/>
 </p>
   </div>
