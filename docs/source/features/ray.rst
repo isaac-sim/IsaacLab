@@ -342,7 +342,12 @@ Tuning jobs can also be submitted via :file:` ../../../source/standalone/workflo
 
 To view the tuning results, view the MLFlow dashboard of the server that you created.
 For KubeRay, this can be done through port forwarding the MLFlow dashboard, with
-``kubectl port-forward service/isaacray-mlflow 5000:5000`` and visiting``localhost:5050``
+
+``kubectl port-forward service/isaacray-mlflow 5000:5000``
+
+and visiting the following address in a browser.
+
+``localhost:5050``
 
 If the MLFlow port is forwarded like above, it can be converted into tensorboard logs with
 this following command.

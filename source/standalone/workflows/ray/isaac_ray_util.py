@@ -53,11 +53,13 @@ def get_invocation_command_from_cfg(cfg: dict, python_cmd: str = "/workspace/isa
                     target_list.append(f"{value}")
             else:
                 if isinstance(value, list):
-                    # General formatting for any dictionary-like arrays
-                    formatted_items = []
-                    for item in value:
-                        parts = [f"{k}:{v}" for k, v in item.items()]
-                        formatted_items.append(f"{{{','.join(parts)}}}")
+                    # Check the type of the first item to determine formatting
+                    if value and isinstance(value[0], dict):
+                        # Handle list of dictionaries (e.g., CNN convs)
+                        formatted_items = [f"{{{','.join(f'{k}:{v}' for k, v in item.items())}}}" for item in value]
+                    else:
+                        # Handle list of primitives (e.g., MLP units)
+                        formatted_items = [str(x) for x in value]
                     target_list.append(f"'{key}=[{','.join(formatted_items)}]'")
                 elif isinstance(value, str) and ("{" in value or "}" in value):
                     target_list.append(f"'{key}={value}'")

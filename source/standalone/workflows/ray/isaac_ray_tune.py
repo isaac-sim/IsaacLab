@@ -52,10 +52,10 @@ Usage:
 
 """
 
-DOCKER_PREFIX = "/workspace/isaaclab/"
-BASE_DIR = os.path.expanduser("~")
-PYTHON_EXEC = "./isaaclab.sh -p"
-RL_GAMES_WORKFLOW = "source/standalone/workflows/rl_games/train.py"
+docker_prefix = "/workspace/isaaclab/"
+base_dir = os.path.expanduser("~")
+python_exec = "./isaaclab.sh -p"
+rl_games_workflow = "source/standalone/workflows/rl_games/train.py"
 
 
 class IsaacLabTuneTrainable(tune.Trainable):
@@ -69,7 +69,7 @@ class IsaacLabTuneTrainable(tune.Trainable):
     def setup(self, config: dict) -> None:
         """Get the invocation command, return quick for easy scheduling."""
         self.data = None
-        self.invoke_cmd = isaac_ray_util.get_invocation_command_from_cfg(cfg=config, python_cmd=PYTHON_EXEC)
+        self.invoke_cmd = isaac_ray_util.get_invocation_command_from_cfg(cfg=config, python_cmd=python_exec)
         print(f"[INFO]: Recovered invocation with {self.invoke_cmd}")
         self.experiment = None
 
@@ -87,7 +87,7 @@ class IsaacLabTuneTrainable(tune.Trainable):
                 self.invoke_cmd,
                 identifier_string="",
                 extract_experiment=True,
-                persistent_dir=BASE_DIR,
+                persistent_dir=base_dir,
             )
             self.experiment = experiment
             print(f"[INFO]: Tuner recovered experiment info {experiment}")
@@ -103,7 +103,6 @@ class IsaacLabTuneTrainable(tune.Trainable):
         if self.proc.poll() is not None:  # process finished, signal finish
             self.data["done"] = True
             print("[INFO]: Process finished, returning...")
-            return self.data
         else:  # wait until the logs are ready or fresh
             data = isaac_ray_util.load_tensorboard_logs(self.tensorboard_logdir)
 
@@ -118,7 +117,7 @@ class IsaacLabTuneTrainable(tune.Trainable):
 
             self.data = data
             self.data["done"] = False
-            return data
+        return self.data
 
     def default_resource_request(self):
         """How many resources each trainable uses. Assumes homogeneous resources across gpu nodes,
@@ -277,10 +276,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.run_mode == "remote":
-        BASE_DIR = DOCKER_PREFIX  # ensure logs are dumped to persistent location
-        PYTHON_EXEC = DOCKER_PREFIX + PYTHON_EXEC[2:]
-        RL_GAMES_WORKFLOW = DOCKER_PREFIX + RL_GAMES_WORKFLOW
-        print(f"[INFO]: Using remote mode {PYTHON_EXEC = } {RL_GAMES_WORKFLOW = }")
+        base_dir = docker_prefix  # ensure logs are dumped to persistent location
+        python_exec = docker_prefix + python_exec[2:]
+        rl_games_workflow = docker_prefix + rl_games_workflow
+        print(f"[INFO]: Using remote mode {python_exec = } {rl_games_workflow = }")
 
         if args.mlflow_uri is not None:
             import mlflow

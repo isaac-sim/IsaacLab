@@ -7,9 +7,8 @@ import sys
 
 # Allow for import of items from the ray workflow.
 CUR_DIR = pathlib.Path(__file__).parent
-UTIL_DIR = CUR_DIR.parent.parent
+UTIL_DIR = CUR_DIR.parent
 sys.path.extend([str(UTIL_DIR), str(CUR_DIR)])
-
 import isaac_ray_util
 import rl_games_vision_cfg
 from ray import tune

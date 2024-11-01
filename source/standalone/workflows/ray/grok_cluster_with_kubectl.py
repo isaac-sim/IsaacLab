@@ -168,14 +168,14 @@ def main():
     args = parser.parse_args()
 
     # Get namespace from args or detect it
-    CURRENT_NAMESPACE = args.namespace if args.namespace else get_namespace()
-    print(f"Using namespace: {CURRENT_NAMESPACE}")
+    current_namespace = args.namespace if args.namespace else get_namespace()
+    print(f"Using namespace: {current_namespace}")
 
     cluster_name_prefix = args.prefix
     cluster_spec_file = os.path.expanduser(args.output)
 
     # Get all pods
-    pods = get_pods(namespace=CURRENT_NAMESPACE)
+    pods = get_pods(namespace=current_namespace)
 
     # Get clusters
     clusters = get_clusters(pods, cluster_name_prefix)
@@ -185,7 +185,7 @@ def main():
 
     # Wait for clusters to be running
     while True:
-        pods = get_pods(namespace=CURRENT_NAMESPACE)
+        pods = get_pods(namespace=current_namespace)
         if check_clusters_running(pods, clusters):
             break
         print("Waiting for all clusters to spin up...")
@@ -195,7 +195,7 @@ def main():
     # Check MLflow status for each cluster
     for cluster in clusters:
         try:
-            mlflow_address = get_mlflow_info(CURRENT_NAMESPACE, cluster)
+            mlflow_address = get_mlflow_info(current_namespace, cluster)
             print(f"MLflow address for {cluster}: {mlflow_address}")
         except ValueError as e:
             print(f"ML Flow not located: {e}")
@@ -205,7 +205,7 @@ def main():
     cluster_infos = []
     for cluster in clusters:
         cluster_pods = [p for p in pods if p[0].startswith(cluster)]
-        cluster_infos.append((cluster, cluster_pods, CURRENT_NAMESPACE))
+        cluster_infos.append((cluster, cluster_pods, current_namespace))
 
     # Use ThreadPoolExecutor to process clusters in parallel
     results = []
