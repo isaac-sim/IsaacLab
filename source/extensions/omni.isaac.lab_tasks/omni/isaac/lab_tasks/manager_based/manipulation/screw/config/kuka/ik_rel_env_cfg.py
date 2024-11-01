@@ -350,14 +350,14 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         if nut_params.rigid_grasp:
             self.scene.nut.spawn.func = spawn_nut_with_rigid_grasp
         # observations
-        self.observations.policy.wrist_wrench = ObsTerm(
-            func=mdp.body_incoming_wrench,
-            params={"asset_cfg": SceneEntityCfg("robot", body_names=["victor_left_arm_flange"])},
-            scale=1
-        )
-        self.observations.policy.tool_pose = ObsTerm(
-            func=robot_tool_pose,
-        )
+        # self.observations.policy.wrist_wrench = ObsTerm(
+        #     func=mdp.body_incoming_wrench,
+        #     params={"asset_cfg": SceneEntityCfg("robot", body_names=["victor_left_arm_flange"])},
+        #     scale=1
+        # )
+        # self.observations.policy.tool_pose = ObsTerm(
+        #     func=robot_tool_pose,
+        # )
         
         # events
         self.events = EventCfg()

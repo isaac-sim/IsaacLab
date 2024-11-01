@@ -217,7 +217,7 @@ class BaseObservationsCfg:
     @configclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
-        bolt_pose = ObsTerm(func=mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("bolt")})
+        # bolt_pose = ObsTerm(func=mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("bolt")})
         nut_pos = ObsTerm(func=mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("nut")})
         nut_quat = ObsTerm(func=mdp.root_quat_w, params={"asset_cfg": SceneEntityCfg("nut")})
         nut_lin_vel = ObsTerm(func=mdp.root_lin_vel_w, params={"asset_cfg": SceneEntityCfg("nut")})
@@ -411,7 +411,7 @@ class NutThreadRewardsCfg:
 
     # task terms
     xy_nut = RewTerm(func=nut_thread_xy_l2, weight=1e2)
-    coarse_nut = RewTerm(func=nut_thread_reward_forge, params={"a": 200, "b": 2}, weight=0.5)
+    coarse_nut = RewTerm(func=nut_thread_reward_forge, params={"a": 200, "b": 1}, weight=0.5)
     fine_nut = RewTerm(
         func=nut_thread_reward_forge,
         params={

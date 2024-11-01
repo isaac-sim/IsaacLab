@@ -93,7 +93,7 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str, params: dict = 
         # load the configuration
         print(f"[INFO]: Parsing configuration from: {cfg_entry_point}")
         if callable(cfg_cls):
-            cfg = cfg_cls()
+            cfg = cfg_cls(params=params)
         else:
             cfg = cfg_cls
     return cfg
