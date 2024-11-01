@@ -791,6 +791,7 @@ class Articulation(AssetBase):
         if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
         # set targets
+
         self._data.joint_effort_target[env_ids, joint_ids] = target
 
     """

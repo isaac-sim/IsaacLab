@@ -172,6 +172,8 @@ class RslRlOnPolicyRunnerCfg:
         self.algorithm.gamma = self.params.get("agent.algorithm.gamma", self.algorithm.gamma)
         self.algorithm.lam = self.params.get("agent.algorithm.lam", self.algorithm.lam)
         self.algorithm.desired_kl = self.params.get("agent.algorithm.desired_kl", self.algorithm.desired_kl)
+        self.algorithm.num_mini_batches = self.params.get("agent.algorithm.num_mini_batches", self.algorithm.num_mini_batches)
+        self.algorithm.num_learning_epochs = self.params.get("agent.algorithm.num_learning_epochs", self.algorithm.num_learning_epochs)
         self.policy.init_noise_std = self.params.get("agent.policy.init_noise_std", self.policy.init_noise_std)
         self.policy.actor_hidden_dims = self.params.get("agent.policy.actor_hidden_dims", self.policy.actor_hidden_dims)
         self.policy.critic_hidden_dims = self.params.get("agent.policy.critic_hidden_dims", self.policy.critic_hidden_dims)

@@ -125,6 +125,10 @@ class DifferentialInverseKinematicsAction(ActionTerm):
 
     def process_actions(self, actions: torch.Tensor):
         # store the raw actions
+        # actions[:] = 0.0
+        # actions[:, 2]= -1
+        # actions[:, 5] = -1
+        # print(actions)
         self._raw_actions[:] = actions
         self._processed_actions[:] = self.raw_actions * self._scale
         self._processed_actions = torch.clamp(self._processed_actions, self.act_lows, self.act_highs)

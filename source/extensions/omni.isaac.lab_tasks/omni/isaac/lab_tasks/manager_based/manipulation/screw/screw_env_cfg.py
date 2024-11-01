@@ -217,10 +217,6 @@ class BaseObservationsCfg:
     @configclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
-
-        # observation terms (order preserved)
-        # joint_pos = ObsTerm(func=mdp.joint_pos, noise=Unoise(n_min=-0.01, n_max=0.01))
-        # joint_vel = ObsTerm(func=mdp.joint_vel, noise=Unoise(n_min=-0.01, n_max=0.01))
         bolt_pose = ObsTerm(func=mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("bolt")})
         nut_pos = ObsTerm(func=mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("nut")})
         nut_quat = ObsTerm(func=mdp.root_quat_w, params={"asset_cfg": SceneEntityCfg("nut")})
@@ -238,31 +234,6 @@ class BaseObservationsCfg:
 @configclass
 class EventCfg:
     """Configuration for events."""
-
-    # nut_physics_material = EventTerm(
-    #     func=mdp.randomize_rigid_body_material,
-    #     mode="startup",
-    #     params={
-    #         "asset_cfg": SceneEntityCfg("nut"),
-    #         "static_friction_range": (0.8, 0.8),
-    #         "dynamic_friction_range": (0.6, 0.6),
-    #         "restitution_range": (0.0, 0.0),
-    #         "num_buckets": 64,
-    #     },
-    # )
-
-    # bolt_physics_material = EventTerm(
-    #     func=mdp.randomize_rigid_body_material,
-    #     mode="startup",
-    #     params={
-    #         "asset_cfg": SceneEntityCfg("bolt"),
-    #         "static_friction_range": (0.8, 0.8),
-    #         "dynamic_friction_range": (0.6, 0.6),
-    #         "restitution_range": (0.0, 0.0),
-    #         "num_buckets": 64,
-    #     },
-    # )
-
     reset_default = EventTerm(
         func=mdp.reset_scene_to_default,
         mode="reset",
@@ -296,7 +267,7 @@ class BaseScrewEnvCfg(ManagerBasedRLEnvCfg):
             gpu_heap_capacity=2 ** 31,
             gpu_temp_buffer_capacity=2 ** 30,
             gpu_max_rigid_patch_count=2 ** 24,
-            enable_enhanced_determinism=True,
+            enable_enhanced_determinism=False,
         ),
     )
 
@@ -410,25 +381,27 @@ class BaseNutTightenEnvCfg(BaseScrewEnvCfg):
             ],
         )
 
-
 ###################################
 #           Nut Thread           #
 def nut_thread_reward_forge(env: ManagerBasedRLEnv, a: float = 100, b: float = 0, tol: float = 0):
     diff = mdp.rel_nut_bolt_tip_distance(env)
     rewards = mdp.forge_kernel(diff, a, b, tol)
     return rewards
-# initial: 0.23 0.1 0.48
-# initial: 0.248 0.349 0.14
-# work: 0.25 0.5 
+
+def nut_thread_xy_l2(env: ManagerBasedRLEnv):
+    diff = mdp.rel_nut_bolt_tip_distance(env)[..., :2]
+    rewards = mdp.l2_norm(diff)
+    return 0.01 - rewards
+
 def nut_upright_reward_forge(env: ManagerBasedRLEnv, a: float = 300, 
                              b: float = 0, tol: float = 0):
     # penalize if nut is not upright
     # compute the cosine distance between the nut normal and the global up vector
-    nut_quat = env.scene["nut_frame"].data.target_quat_w
+    nut_quat = env.scene["nut_frame"].data.target_quat_w[:, 0]
     up_vec = torch.tensor([[0, 0, 1.]], device=nut_quat.device)
     up_vecs = up_vec.expand(nut_quat.shape[0], 3)
     nut_up_vec = math_utils.quat_apply(nut_quat, up_vecs)
-    cos_sim = torch.sum(nut_up_vec * up_vecs, dim=1, keepdim=True)
+    cos_sim = torch.sum(nut_up_vec * up_vecs, dim=1, keepdim=True) / torch.norm(nut_up_vec, dim=1, keepdim=True)
     rewards = mdp.forge_kernel(1-cos_sim, a, b, tol)
     return rewards
 
@@ -437,7 +410,8 @@ class NutThreadRewardsCfg:
     """Reward terms for the MDP."""
 
     # task terms
-    coarse_nut = RewTerm(func=nut_thread_reward_forge, params={"a": 100, "b": 2}, weight=0.5)
+    xy_nut = RewTerm(func=nut_thread_xy_l2, weight=1e2)
+    coarse_nut = RewTerm(func=nut_thread_reward_forge, params={"a": 200, "b": 2}, weight=0.5)
     fine_nut = RewTerm(
         func=nut_thread_reward_forge,
         params={
@@ -446,7 +420,7 @@ class NutThreadRewardsCfg:
         },
         weight=2.0,
     )
-    upright_reward = RewTerm(func=nut_upright_reward_forge, params={"a": 700, "b": 0}, weight=2)
+    upright_reward = RewTerm(func=nut_upright_reward_forge, params={"a": 700, "b": 0, "tol": 1e-3}, weight=2)
     task_success = RewTerm(func=mdp.nut_successfully_threaded, params={"threshold": 2e-4}, weight=2)
     action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.000001)
 

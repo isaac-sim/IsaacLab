@@ -4,12 +4,12 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import os
-
+from typing import Literal
 from regex import F
 import torch
 import pickle
 from einops import repeat
-from force_tool.utils.data_utils import SmartDict
+from force_tool.utils.data_utils import SmartDict, read_h5_dict
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
 from omni.isaac.lab.envs import ManagerBasedEnv
@@ -32,6 +32,11 @@ from omni.isaac.lab_tasks.manager_based.manipulation.screw.screw_env_cfg import 
     BaseNutTightenEnvCfg,
 )
 from omegaconf import OmegaConf
+from pxr import Usd
+import omni.physx.scripts.utils as physx_utils
+import omni.isaac.core.utils.stage as stage_utils
+from pxr import Usd, UsdGeom
+import omni.isaac.lab.sim as sim_utils
 ##
 # Pre-defined configs
 from omni.isaac.lab_assets.kuka import KUKA_VICTOR_LEFT_HIGH_PD_CFG  # isort: skip
@@ -44,7 +49,6 @@ class IKRelKukaNutTightenEnvCfg(BaseNutTightenEnvCfg):
         super().__post_init__()
         self.act_lows = [-0.001, -0.001, -0.001, -0.1, -0.1, -0.1]
         self.act_highs = [0.001, 0.001, 0.001, 0.1, 0.1, 0.1]
-        # Set Kuka as robot
 
         self.scene.robot = KUKA_VICTOR_LEFT_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.robot.init_state.pos = [-0.25, -0.2, -0.8]
@@ -66,34 +70,110 @@ class IKRelKukaNutTightenEnvCfg(BaseNutTightenEnvCfg):
             highs=self.act_highs,
         )
 
-
+class GraspResetEventTermCfg(EventTermCfg):
+    def __init__(self, 
+                 reset_target: Literal["pre_grasp", "grasp", "mate", "rigid_grasp"] = "grasp",
+                 **kwargs
+                 ):
+        super().__init__(**kwargs)
+        self.reset_target = reset_target
+    
 class reset_scene_to_grasp_state(ManagerTermBase):
-    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv, ):
+    def __init__(self, cfg: GraspResetEventTermCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
-        screw_type = self._env.cfg.scene.screw_type
+        screw_type = env.cfg.scene.screw_type
         col_approx = env.cfg.params.scene.robot.collision_approximation  
-        cached_pre_grasp_state = pickle.load(open(f"cached/{col_approx}/{screw_type}/kuka_pre_grasp.pkl", "rb"))
-        cached_pre_grasp_state = SmartDict(cached_pre_grasp_state).to_tensor(device=env.device)
-        self.cached_pre_grasp_state = cached_pre_grasp_state.apply(lambda x: repeat(x, "1 ... -> n ...", n=env.num_envs).clone())
-        if os.path.exists(f"cached/{col_approx}/{screw_type}/kuka_grasp.pkl"):
-            cached_grasp_state = pickle.load(open(f"cached/{col_approx}/{screw_type}/kuka_grasp.pkl", "rb"))
-            cached_grasp_state = SmartDict(cached_grasp_state).to_tensor(device=env.device)
-            self.cached_grasp_state = cached_grasp_state.apply(lambda x: repeat(x, "1 ... -> n ...", n=env.num_envs).clone())
+        cached_state = pickle.load(open(f"cached/{col_approx}/{screw_type}/kuka_{cfg.reset_target}.pkl", "rb"))
+        cached_state = SmartDict(cached_state).to_tensor(device=env.device)
+        self.cached_state = cached_state.apply(
+            lambda x: repeat(x, "1 ... -> n ...", n=env.num_envs).clone())
+        
+    def __call__(self, env: ManagerBasedEnv, env_ids: torch.Tensor):
+        env.unwrapped.write_state(self.cached_state[env_ids].clone(), env_ids)
 
-    def __call__(self, env: ManagerBasedEnv, env_ids: torch.Tensor, 
-                 static_friction: float, dynamic_friction: float,
-                 reset_target: str):
-        # return
-        # robot = env.unwrapped.scene["robot"]
-        # robot_material = robot.root_physx_view.get_material_properties()
-        # robot_material[..., 0] = static_friction
-        # robot_material[..., 1] = dynamic_friction
-        # robot.root_physx_view.set_material_properties(robot_material, torch.arange(env.scene.num_envs, device="cpu"))
-        if reset_target == "pre_grasp":
-            env.unwrapped.write_state(self.cached_pre_grasp_state[env_ids].clone(), env_ids)
-        elif reset_target == "grasp":
-            env.unwrapped.write_state(self.cached_grasp_state[env_ids].clone(), env_ids)
-        # env.unwrapped.write_state(self.cached_grasp_state[env_ids], env_ids)
+class DTWReferenceTrajRewardCfg(RewTerm):
+    def __init__(self, 
+                 his_traj_len: int = 10,
+                 soft_dtw_gamma: float = 0.01,
+                 **kwargs
+                 ):
+        super().__init__(**kwargs)
+        self.his_traj_len = his_traj_len
+        self.soft_dtw_gamma = soft_dtw_gamma
+        
+        
+class DTWReferenceTrajReward(ManagerTermBase):
+    def __init__(self, cfg: DTWReferenceTrajRewardCfg, env: ManagerBasedEnv):
+        super().__init__(cfg, env)
+        screw_type = env.cfg.scene.screw_type
+        col_approx = env.cfg.params.scene.robot.collision_approximation
+        ref_traj_path = f"cached/{col_approx}/{screw_type}/kuka_disassembly.h5"
+        ref_traj = read_h5_dict(ref_traj_path)
+        self.nut_ref_pos_traj = torch.tensor(ref_traj["pos"], device=env.device).flip(1)
+        self.nut_ref_quat_traj = torch.tensor(ref_traj["quat"], device=env.device).flip(1)
+        self.nut_traj_his = torch.zeros((env.num_envs, cfg.his_traj_len, 3), device=env.device)
+        self.soft_dtw_criterion = mdp.SoftDTW(use_cuda=True, gamma=cfg.soft_dtw_gamma)
+    
+    def reset(self, env_ids: torch.Tensor):
+        scene = self._env.unwrapped.scene
+        nut_frame = scene["nut_frame"]
+        nut_cur_pos = nut_frame.data.target_pos_w - scene.env_origins[:, None]
+        self.nut_traj_his[env_ids] = nut_cur_pos[env_ids]
+        
+    def __call__(self, env: ManagerBasedEnv):
+        nut_frame = env.unwrapped.scene["nut_frame"]
+        cur_nut_pos = nut_frame.data.target_pos_w[:, 0] - env.unwrapped.scene.env_origins
+        
+        imitation_rwd, new_nut_traj_his = mdp.get_imitation_reward_from_dtw(
+            self.nut_ref_pos_traj, cur_nut_pos, 
+            self.nut_traj_his, 
+            self.soft_dtw_criterion, 
+            env.device)
+        # imitation_rwd2,_ = mdp.get_imitation_reward_from_dtw_v2(self.nut_ref_pos_traj, cur_nut_pos, 
+        #                                                 self.nut_traj_his, 
+        #                                                 self.soft_dtw_criterion, 
+        #                                                 env.device)
+        # print(torch.norm(imitation_rwd - imitation_rwd2, dim=-1))
+        self.nut_traj_his = new_nut_traj_his
+        return imitation_rwd
+        
+def spawn_nut_with_rigid_grasp(
+        prim_path: str,
+        cfg: sim_utils.UsdFileCfg,
+        translation: tuple[float, float, float] | None = None,
+        orientation: tuple[float, float, float, float] | None = None,
+) -> Usd.Prim:
+
+    stage = stage_utils.get_current_stage()
+    tool_prim = stage.GetPrimAtPath("/World/envs/env_0/Robot/victor_left_tool0")
+    xfCache = UsdGeom.XformCache()
+    tool_pose = xfCache.GetLocalToWorldTransform(tool_prim)
+    tool_pos = tuple(tool_pose.ExtractTranslation())
+    tool_pos = torch.tensor(tool_pos)[None]
+    tool_quat = tool_pose.ExtractRotationQuat()
+    tool_quat = [tool_quat.real, tool_quat.imaginary[0], tool_quat.imaginary[1], tool_quat.imaginary[2]]
+    tool_quat = torch.tensor(tool_quat)[None]
+    
+    grasp_rel_pos = torch.tensor([[-0.0007,  0.0001,  0.0177]])
+    grasp_rel_quat = torch.tensor([[-0.0020,  0.9663, -0.2569, -0.0170]])
+    
+    grasp_rel_pos = torch.tensor([[0,  0.000,  0.02]])
+    grasp_rel_quat = torch.tensor([[0,  1, 0, 0]])
+    
+    nut_pos, nut_quat = math_utils.combine_frame_transforms(
+        tool_pos, tool_quat,
+        grasp_rel_pos, grasp_rel_quat
+    )
+    
+    nut_prim = sim_utils.spawn_from_usd(prim_path, cfg, nut_pos[0], nut_quat[0])
+    return nut_prim
+
+def create_fixed_joint(env: ManagerBasedEnv, env_ids: torch.Tensor):
+    stage = stage_utils.get_current_stage()
+    for i in range(env.num_envs):
+        child_prim = stage.GetPrimAtPath(f"/World/envs/env_{i}/Robot/victor_left_tool0")
+        parent_prim = stage.GetPrimAtPath(f"/World/envs/env_{i}/Nut/factory_nut")
+        physx_utils.createJoint(stage, "Fixed", child_prim, parent_prim)
 
 @configclass
 class EventCfg:
@@ -108,7 +188,7 @@ def terminate_if_nut_fallen(env):
     # relative pose between gripper and nut
     nut_root_pose = env.unwrapped.scene["nut"].read_root_state_from_sim()
     gripper_state_w = robot_tool_pose(env)
-    relative_pos = nut_root_pose[:, :3] - gripper_state_w[:, :3]
+    # relative_pos = nut_root_pose[:, :3] - gripper_state_w[:, :3]
     relative_pos, relative_quat = math_utils.subtract_frame_transforms(
         nut_root_pose[:, :3], nut_root_pose[:, 3:7],
         gripper_state_w[:, :3], gripper_state_w[:, 3:7]
@@ -173,11 +253,15 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         robot_params.gripper_damping = robot_params.get("gripper_damping", 1e2)
         robot_params.gripper_effort_limit = robot_params.get("gripper_effort_limit", 200.0)
         
+        nut_params = self.params.scene.nut
+        nut_params.rigid_grasp = nut_params.get("rigid_grasp", False)
+        
         action_params = self.params.actions
         action_params.ik_lambda = action_params.get("ik_lambda", 0.1)
         action_params.keep_grasp_state = action_params.get("keep_grasp_state", False)
         
         rewards_params = self.params.rewards
+        rewards_params.dtw_ref_traj_w = rewards_params.get("dtw_ref_traj_w", 0.0)
         rewards_params.coarse_nut_w = rewards_params.get("coarse_nut_w", 0.5)
         rewards_params.fine_nut_w = rewards_params.get("fine_nut_w", 2.0)
         rewards_params.upright_reward_w = rewards_params.get("upright_reward_w", 1)
@@ -191,6 +275,8 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         
         events_params = self.params.events
         events_params.reset_target = events_params.get("reset_target", "grasp")
+        # if nut_params.rigid_grasp:
+        #     events_params.reset_target = "rigid_grasp"
         
         
     def __post_init__(self):
@@ -227,9 +313,15 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         robot.actuators["victor_left_gripper"].damping = robot_params.gripper_damping
         # action
         action_params = self.params.actions
-        arm_lows = [-0.001, -0.001, -0.01, -0.001, -0.001, -0.8]
-        arm_highs = [0.001, 0.001, 0.01, 0.001, 0.001, 0.0]
-        scale = [0.001, 0.001, 0.01, 0.001, 0.001, 0.8]
+        # arm_lows = [-0.002, -0.002, -0.01, -0.0005, -0.0005, -0.5]
+        # arm_highs = [0.002, 0.002, 0.01, 0.0005, 0.0005, 0.0]
+        # scale = [0.002, 0.002, 0.01, 0.0005, 0.0005, 0.5]
+        arm_lows = [-0.001, -0.001, -0.01, -0.005, -0.005, -0.8]
+        arm_highs = [0.001, 0.001, 0.01, 0.005, 0.005, 0.0]
+        scale = [0.001, 0.001, 0.01, 0.005, 0.005, 0.8]
+        # arm_lows = [-0.01, -0.01, -0.01, -0.01, -0.01, -0.5]
+        # arm_highs = [0.01, 0.01, 0.01, 0.01, 0.01, 0.5]
+        # scale = [0.01, 0.01, 0.01, 0.01, 0.01, 0.5]
         self.actions.arm_action = DifferentialInverseKinematicsActionCfg(
             asset_name="robot",
             joint_names=["victor_left_arm_joint.*"],
@@ -254,6 +346,9 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
             keep_grasp_state=action_params.keep_grasp_state
         )
         
+        nut_params = self.params.scene.nut
+        if nut_params.rigid_grasp:
+            self.scene.nut.spawn.func = spawn_nut_with_rigid_grasp
         # observations
         self.observations.policy.wrist_wrench = ObsTerm(
             func=mdp.body_incoming_wrench,
@@ -275,6 +370,11 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
                     "restitution_range": (0.0, 0.0),
                     "num_buckets": 1},
         )
+        if nut_params.rigid_grasp:
+            self.events.set_robot_properties = EventTerm(
+                func=create_fixed_joint,
+                mode="startup",
+            )
         # self.events.set_robot_properties = EventTerm(
         #     func=initialize_contact_properties,
         #     params={
@@ -283,12 +383,10 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         #         "rest_offset": robot_params.rest_offset},
         #     mode="startup",
         # )
-        self.events.reset_default = EventTerm(
+        self.events.reset_default = GraspResetEventTermCfg(
             func=reset_scene_to_grasp_state,
-            params={"reset_target": self.params.events.reset_target,
-                    "static_friction": robot_params.static_friction,
-                    "dynamic_friction": robot_params.dynamic_friction},
             mode="reset",
+            reset_target=self.params.events.reset_target,
         )
         
         # terminations
@@ -318,6 +416,12 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         self.rewards.upright_reward.weight = rewards_params.upright_reward_w
         self.rewards.task_success.weight = rewards_params.task_success_w
         self.rewards.action_rate.weight = rewards_params.action_rate_w
+        if rewards_params.dtw_ref_traj_w > 0:
+            self.rewards.dtw_ref_traj = DTWReferenceTrajRewardCfg(
+                his_traj_len=10,
+                func=DTWReferenceTrajReward,
+                weight=rewards_params.dtw_ref_traj_w,
+                )
         self.rewards.contact_force_penalty = RewTerm(
             func=mdp.contact_forces,
             params={"threshold":1, "sensor_cfg": SceneEntityCfg(name="contact_sensor")},

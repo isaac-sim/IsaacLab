@@ -51,7 +51,7 @@ from pxr import  UsdPhysics
 import omni.isaac.lab_tasks  # noqa: F401
 from omni.isaac.lab_tasks.manager_based.manipulation.lift import mdp
 from omni.isaac.lab_tasks.utils import parse_env_cfg
-
+import omni.isaac.lab.utils.math as math_utils
 
 def pre_process_actions(delta_pose: torch.Tensor, gripper_command: bool) -> torch.Tensor:
     """Pre-process actions for the environment."""
@@ -76,15 +76,19 @@ def main():
     cfg = OmegaConf.create()
     vv = {
         "scene.screw_type":  "m16_loose", 
-        "scene.robot.collision_approximation": "convexHull"
-          }
+        "scene.robot.collision_approximation": "convexHull2",
+        "scene.nut.rigid_grasp": True,
+        "events.reset_target": "rigid_grasp_open",
+        "scene.robot.arm_stiffness": 80.0,
+        "scene.robot.arm_damping": 30.0,
+    }
     cfg = update_config(cfg, vv)
     env_cfg = parse_env_cfg(
         args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs, 
         use_fabric=not args_cli.disable_fabric, params=cfg
     )
     # modify configuration
-    env_cfg.terminations.time_out = None
+    env_cfg.terminations = {}
     if "Lift" in args_cli.task:
         # set the resampling time range to large number to avoid resampling
         env_cfg.commands.object_pose.resampling_time_range = (1.0e9, 1.0e9)
@@ -144,6 +148,12 @@ def main():
             delta_pose = torch.tensor(delta_pose, device=env.unwrapped.device).repeat(env.unwrapped.num_envs, 1)
             gripper_command = torch.tensor(gripper_command, device=env.unwrapped.device).repeat(
                 env.unwrapped.num_envs, 1
+            )
+            nut_root_pose = env.unwrapped.scene["nut"].read_root_state_from_sim()
+            gripper_state_w = env.unwrapped.scene["robot"].read_body_state_w("victor_left_tool0")[:, 0]
+            relative_pos, relative_quat = math_utils.subtract_frame_transforms(
+                nut_root_pose[:, :3], nut_root_pose[:, 3:7],
+                gripper_state_w[:, :3], gripper_state_w[:, 3:7]
             )
             # pre-process actions
             actions = pre_process_actions(delta_pose, gripper_command)

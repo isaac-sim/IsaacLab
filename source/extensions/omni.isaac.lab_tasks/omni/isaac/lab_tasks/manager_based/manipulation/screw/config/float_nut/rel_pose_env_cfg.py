@@ -75,7 +75,7 @@ class RelFloatNutThreadEnv(BaseNutThreadEnvCfg):
         # self.act_lows = [-0.0001, -0.0001, -0.005, -0.0001, -0.0001, -0.5]
         # self.act_highs = [0.0010, 0.0001, 0.005, 0.0001, 0.0001, 0.5]
         self.act_lows = [-0.0001, -0.0001, -0.015, -0.01, -0.01, -0.8]
-        self.act_highs = [0.0001, 0.0001, 0.015, 0.01, 0.01, 0.0]
+        self.act_highs = [0.0001, 0.0001, 0.015, 0.01, 0.01, 1.8]
         scale = [0.001, 0.001, 0.01, 0.01, 0.01, 0.8]
         # override actions
         self.actions.nut_action = mdp.RigidObjectPoseActionTermCfg(

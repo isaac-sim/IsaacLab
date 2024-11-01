@@ -92,7 +92,6 @@ class Robotiq3FingerAction(ActionTerm):
             actions[:] = 0
         if self.cfg.use_relative_mode:
             if self.cfg.is_accumulate_action:
-                # joint_pos_curr = self._asset.read_joint_state_from_sim(joint_ids=self._joint_ids)["position_target"]
                 joint_pos_curr = self._asset._data.joint_pos_target[:, self._joint_ids].clone()
                 openness_curr = inverse_compute_finger_angles_jit(joint_pos_curr)
                 scissor_curr = inverse_compute_scissor_angle_jit(joint_pos_curr[:, -2:])
