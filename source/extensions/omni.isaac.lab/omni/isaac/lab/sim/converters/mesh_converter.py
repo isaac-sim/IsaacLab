@@ -71,7 +71,7 @@ class MeshConverter(AssetConverterBase):
             prim_path (default prim)
                 |- /geometry/Looks
                 |- /geometry/mesh
-    
+
         Args:
             cfg: The configuration for conversion of mesh to USD.
 
@@ -81,7 +81,6 @@ class MeshConverter(AssetConverterBase):
         # resolve mesh name and format
         mesh_file_basename, mesh_file_format = os.path.basename(cfg.asset_path).split(".")
         mesh_file_format = mesh_file_format.lower()
-        print(f"Convert {cfg.asset_path} to {self.usd_path}. mesh_file_basename: {mesh_file_basename}")
         # Convert USD
         asyncio.get_event_loop().run_until_complete(
             self._convert_mesh_to_usd(in_file=cfg.asset_path, out_file=self.usd_path)
@@ -107,8 +106,6 @@ class MeshConverter(AssetConverterBase):
         # Get the default prim (which is the root prim) -- "/{mesh_file_basename}"
         xform_prim = stage.GetDefaultPrim()
         geom_prim = stage.GetPrimAtPath(f"/{mesh_file_basename}/geometry")
-        for prim in stage.Traverse():
-            print(f"Prim: {prim.GetPath()}")
         # Move all meshes to underneath new Xform
         for child_mesh_prim in geom_prim.GetChildren():
             if child_mesh_prim.GetTypeName() == "Mesh":
@@ -233,5 +230,5 @@ class MeshConverter(AssetConverterBase):
         # Start conversion task and wait for it to finish
         success = await task.wait_until_finished()
         if not success:
-            print(task.get_error_message())
+            raise RuntimeError(f"Failed to convert {in_file} to USD. Error: {task.get_error_message()}")
         return success

@@ -176,8 +176,6 @@ class TestMeshConverter(unittest.TestCase):
 
     def test_collider_convex_hull(self):
         """Convert an OBJ file using convex hull approximation"""
-        print("TEST A")
-        
         collision_props = schemas_cfg.CollisionPropertiesCfg(collision_enabled=True)
         mesh_config = MeshConverterCfg(
             asset_path=self.assets["obj"],
@@ -188,7 +186,6 @@ class TestMeshConverter(unittest.TestCase):
 
         # check that mesh conversion is successful
         self._check_mesh_collider_settings(mesh_converter)
-        print("TEST B")
 
     def test_collider_mesh_simplification(self):
         """Convert an OBJ file using mesh simplification approximation"""
