@@ -19,7 +19,7 @@ from omni.isaac.lab.managers import SceneEntityCfg
 from omni.isaac.lab.utils.math import combine_frame_transforms
 
 from .observations import rel_nut_bolt_bottom_distance, rel_nut_bolt_tip_distance
-from .rewards import l2_norm
+from .rewards import l2_norm, nut_upright_reward_forge
 
 if TYPE_CHECKING:
     from omni.isaac.lab.envs import ManagerBasedRLEnv
@@ -59,5 +59,7 @@ def nut_successfully_threaded(
     """
 
     diff = rel_nut_bolt_tip_distance(env)
-    dis = l2_norm(diff)
-    return dis < threshold
+    dis = l2_norm(diff)    
+    # return dis < threshold
+    upright_reward = nut_upright_reward_forge(env)
+    return torch.logical_and(dis < threshold, upright_reward > 0.9)

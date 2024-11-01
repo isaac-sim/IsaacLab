@@ -265,7 +265,7 @@ def contact_forces(env: ManagerBasedRLEnv, threshold: float, sensor_cfg: SceneEn
     # compute the violation
     violation = torch.max(torch.norm(net_contact_forces[:, :, sensor_cfg.body_ids], dim=-1), dim=1)[0] - threshold
     # compute the penalty
-    return torch.sum(violation.clip(min=0.0), dim=1)
+    return torch.sum(violation.clip(min=0.0, max=5), dim=1)
 
 
 """

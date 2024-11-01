@@ -72,7 +72,7 @@ class IKRelKukaNutTightenEnvCfg(BaseNutTightenEnvCfg):
 
 class GraspResetEventTermCfg(EventTermCfg):
     def __init__(self, 
-                 reset_target: Literal["pre_grasp", "grasp", "mate", "rigid_grasp"] = "grasp",
+                 reset_target: Literal["pre_grasp", "grasp", "mate", "rigid_grasp", "rigid_grasp_open_align"] = "grasp",
                  **kwargs
                  ):
         super().__init__(**kwargs)
@@ -313,12 +313,12 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         robot.actuators["victor_left_gripper"].damping = robot_params.gripper_damping
         # action
         action_params = self.params.actions
-        # arm_lows = [-0.002, -0.002, -0.01, -0.0005, -0.0005, -0.5]
-        # arm_highs = [0.002, 0.002, 0.01, 0.0005, 0.0005, 0.0]
-        # scale = [0.002, 0.002, 0.01, 0.0005, 0.0005, 0.5]
-        arm_lows = [-0.001, -0.001, -0.01, -0.005, -0.005, -0.8]
-        arm_highs = [0.001, 0.001, 0.01, 0.005, 0.005, 0.0]
-        scale = [0.001, 0.001, 0.01, 0.005, 0.005, 0.8]
+        arm_lows = [-0.002, -0.002, -0.002, -0.0005, -0.0005, -0.5]
+        arm_highs = [0.002, 0.002, 0.002, 0.0005, 0.0005, 0.5]
+        scale = [0.002, 0.002, 0.002, 0.0005, 0.0005, 0.5]
+        # arm_lows = [-0.005, -0.005, -0.005, -0.005, -0.005, -0.5]
+        # arm_highs = [0.005, 0.005, 0.005, 0.005, 0.005, 0.]
+        # scale = [0.005, 0.005, 0.005, 0.005, 0.005, 0.5]
         # arm_lows = [-0.01, -0.01, -0.01, -0.01, -0.01, -0.5]
         # arm_highs = [0.01, 0.01, 0.01, 0.01, 0.01, 0.5]
         # scale = [0.01, 0.01, 0.01, 0.01, 0.01, 0.5]
@@ -332,29 +332,30 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
             lows=arm_lows,
             highs=arm_highs,
             scale=scale,
+            # scale=1,
         )
 
-        self.gripper_act_lows = [-0.005, -0.005]
-        self.gripper_act_highs = [0.005, 0.005]
-        self.actions.gripper_action = mdp.Robotiq3FingerActionCfg(
-            asset_name="robot",
-            side="left",
-            lows=self.gripper_act_lows,
-            highs=self.gripper_act_highs,
-            use_relative_mode=True,
-            is_accumulate_action=True,
-            keep_grasp_state=action_params.keep_grasp_state
-        )
+        # self.gripper_act_lows = [-0.005, -0.005]
+        # self.gripper_act_highs = [0.005, 0.005]
+        # self.actions.gripper_action = mdp.Robotiq3FingerActionCfg(
+        #     asset_name="robot",
+        #     side="left",
+        #     lows=self.gripper_act_lows,
+        #     highs=self.gripper_act_highs,
+        #     use_relative_mode=True,
+        #     is_accumulate_action=True,
+        #     keep_grasp_state=action_params.keep_grasp_state
+        # )
         
         nut_params = self.params.scene.nut
         if nut_params.rigid_grasp:
             self.scene.nut.spawn.func = spawn_nut_with_rigid_grasp
         # observations
-        # self.observations.policy.wrist_wrench = ObsTerm(
-        #     func=mdp.body_incoming_wrench,
-        #     params={"asset_cfg": SceneEntityCfg("robot", body_names=["victor_left_arm_flange"])},
-        #     scale=1
-        # )
+        self.observations.policy.wrist_wrench = ObsTerm(
+            func=mdp.body_incoming_wrench,
+            params={"asset_cfg": SceneEntityCfg("robot", body_names=["victor_left_arm_flange"])},
+            scale=1
+        )
         # self.observations.policy.tool_pose = ObsTerm(
         #     func=robot_tool_pose,
         # )

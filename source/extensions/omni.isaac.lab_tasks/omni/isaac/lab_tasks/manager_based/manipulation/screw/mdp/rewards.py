@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+import omni.isaac.lab_tasks.manager_based.manipulation.screw.mdp as mdp
+from omni.isaac.lab.envs import ManagerBasedRLEnv
 import torch
 from typing import TYPE_CHECKING
 
@@ -12,7 +14,7 @@ from omni.isaac.lab.assets import RigidObject
 from omni.isaac.lab.managers import SceneEntityCfg
 from omni.isaac.lab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from omni.isaac.lab.utils.math import combine_frame_transforms, quat_error_magnitude, quat_mul
-
+import omni.isaac.lab.utils.math as math_utils
 import numpy as np
 import torch
 import torch.cuda
@@ -528,3 +530,16 @@ class SoftDTW(torch.nn.Module):
         else:
             D_xy = self.dist_func(X, Y)
             return func_dtw(D_xy, self.gamma, self.bandwidth)
+
+
+def nut_upright_reward_forge(env: ManagerBasedRLEnv, a: float = 300,
+                             b: float = 0, tol: float = 0):
+    # penalize if nut is not upright
+    # compute the cosine distance between the nut normal and the global up vector
+    nut_quat = env.scene["nut_frame"].data.target_quat_w[:, 0]
+    up_vec = torch.tensor([[0, 0, 1.]], device=nut_quat.device)
+    up_vecs = up_vec.expand(nut_quat.shape[0], 3)
+    nut_up_vec = math_utils.quat_apply(nut_quat, up_vecs)
+    cos_sim = torch.sum(nut_up_vec * up_vecs, dim=1, keepdim=True) / torch.norm(nut_up_vec, dim=1, keepdim=True)
+    rewards = mdp.forge_kernel(1-cos_sim, a, b, tol)
+    return rewards
