@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.27.10 (2024-11-01)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Cached the PhysX view's joint paths before looping over them when processing fixed joint tendons
+  inside the :class:`Articulation` class. This helps improve the processing time for the tendons.
+
+
 0.27.9 (2024-11-01)
 ~~~~~~~~~~~~~~~~~~~
 
