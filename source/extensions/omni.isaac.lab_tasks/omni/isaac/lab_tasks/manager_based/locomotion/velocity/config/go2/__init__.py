@@ -11,14 +11,13 @@ from . import agents
 # Register Gym environments.
 ##
 
-task_entry = "omni.isaac.lab_tasks.manager_based.locomotion.velocity.config.go2"
 
 gym.register(
     id="Isaac-Velocity-Flat-Unitree-Go2-v0",
     entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{task_entry}.flat_env_cfg:UnitreeGo2FlatEnvCfg",
+        "env_cfg_entry_point": f"{__name__}.flat_env_cfg:UnitreeGo2FlatEnvCfg",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:UnitreeGo2FlatPPORunnerCfg",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_flat_ppo_cfg.yaml",
     },
@@ -29,7 +28,7 @@ gym.register(
     entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{task_entry}.flat_env_cfg:UnitreeGo2FlatEnvCfg_PLAY",
+        "env_cfg_entry_point": f"{__name__}.flat_env_cfg:UnitreeGo2FlatEnvCfg_PLAY",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:UnitreeGo2FlatPPORunnerCfg",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_flat_ppo_cfg.yaml",
     },
@@ -40,7 +39,7 @@ gym.register(
     entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{task_entry}.rough_env_cfg:UnitreeGo2RoughEnvCfg",
+        "env_cfg_entry_point": f"{__name__}.rough_env_cfg:UnitreeGo2RoughEnvCfg",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:UnitreeGo2RoughPPORunnerCfg",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_rough_ppo_cfg.yaml",
     },
@@ -51,7 +50,7 @@ gym.register(
     entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{task_entry}.rough_env_cfg:UnitreeGo2RoughEnvCfg_PLAY",
+        "env_cfg_entry_point": f"{__name__}.rough_env_cfg:UnitreeGo2RoughEnvCfg_PLAY",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:UnitreeGo2RoughPPORunnerCfg",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_rough_ppo_cfg.yaml",
     },
