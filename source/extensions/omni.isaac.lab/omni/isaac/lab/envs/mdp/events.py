@@ -308,45 +308,47 @@ def randomize_actuator_gains(
     if env_ids is None:
         env_ids = torch.arange(env.scene.num_envs, device=asset.device)
 
-    joint_ids_list = list(range(asset.num_joints)) if isinstance(asset_cfg.joint_ids, slice) else asset_cfg.joint_ids
-
     def randomize(data: torch.Tensor, params: tuple[float, float]) -> torch.Tensor:
         return _randomize_prop_by_op(
-            data, params, env_ids, target_joint_indices, operation=operation, distribution=distribution
+            data, params, dim_0_ids=None, dim_1_ids=actuator_indices, operation=operation, distribution=distribution
         )
 
     # Loop through actuators and randomize gains
     for actuator in asset.actuators.values():
-        # Resolve joint indices for each actuator
-        # Only target the joints specified by the asset_cfg.joint_ids (joint_ids_list)
-        if isinstance(actuator.joint_indices, slice):  # All joints of the articulation are this actuator type
-            target_joint_indices = torch.tensor(joint_ids_list, dtype=torch.int, device=asset.device)
+        if isinstance(asset_cfg.joint_ids, slice):
+            # we take all the joints of the actuator
+            actuator_indices = slice(None)
+            if isinstance(actuator.joint_indices, slice):
+                global_indices = slice(None)
+            else:
+                global_indices = torch.tensor(actuator.joint_indices, device=asset.device)
+        elif isinstance(actuator.joint_indices, slice):
+            # we take the joints defined in the asset config
+            global_indices = actuator_indices = torch.tensor(asset_cfg.joint_ids, device=asset.device)
         else:
-            target_joint_indices = torch.tensor(
-                list(set(actuator.joint_indices).intersection(joint_ids_list)), dtype=torch.int, device=asset.device
-            )
-        if not target_joint_indices.nbytes:  # Skip when there are no joints
-            continue
-
-        all_envs = torch.arange(env.scene.num_envs, device=asset.device)
+            # we take the intersection of the actuator joints and the asset config joints
+            actuator_joint_indices = torch.tensor(actuator.joint_indices, device=asset.device)
+            asset_joint_ids = torch.tensor(asset_cfg.joint_ids, device=asset.device)
+            # the indices of the joints in the actuator that have to be randomized
+            actuator_indices = torch.nonzero(torch.isin(actuator_joint_indices, asset_joint_ids)).squeeze(0)
+            # maps actuator indices that have to be randomized to global joint indices
+            global_indices = actuator_joint_indices[actuator_indices]
         # Randomize stiffness
         if stiffness_distribution_params is not None:
-            stiffness = asset.data.default_joint_stiffness.to(asset.device).clone()
+            stiffness = actuator.stiffness[env_ids].clone()
+            stiffness[:, actuator_indices] = asset.data.default_joint_stiffness[env_ids][:, global_indices].clone()
             randomize(stiffness, stiffness_distribution_params)
-            actuator.stiffness = stiffness[all_envs][:, actuator.joint_indices]
+            actuator.stiffness[env_ids] = stiffness
             if isinstance(actuator, ImplicitActuator):
-                asset.write_joint_stiffness_to_sim(
-                    stiffness[env_ids][:, target_joint_indices], joint_ids=target_joint_indices, env_ids=env_ids
-                )
+                asset.write_joint_stiffness_to_sim(stiffness, joint_ids=actuator.joint_indices, env_ids=env_ids)
         # Randomize damping
         if damping_distribution_params is not None:
-            damping = asset.data.default_joint_damping.to(asset.device).clone()
+            damping = actuator.damping[env_ids].clone()
+            damping[:, actuator_indices] = asset.data.default_joint_damping[env_ids][:, global_indices].clone()
             randomize(damping, damping_distribution_params)
-            actuator.damping = damping[all_envs][:, actuator.joint_indices]
+            actuator.damping[env_ids] = damping
             if isinstance(actuator, ImplicitActuator):
-                asset.write_joint_damping_to_sim(
-                    damping[env_ids][:, target_joint_indices], joint_ids=target_joint_indices, env_ids=env_ids
-                )
+                asset.write_joint_damping_to_sim(damping, joint_ids=actuator.joint_indices, env_ids=env_ids)
 
 
 def randomize_joint_parameters(
