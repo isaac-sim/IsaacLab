@@ -62,7 +62,8 @@ class IsaacLabTuneTrainable(tune.Trainable):
     """The Isaac Lab Ray Tune Trainable.
     This class uses the standalone workflows to start jobs, along with the hydra integration.
     This class achieves Ray-based logging through reading the tensorboard logs from
-    the standalone workflows.
+    the standalone workflows. This depends on a config generated in the format of
+    :class:`JobCfg`
     """
 
     def setup(self, config: dict) -> None:
@@ -162,6 +163,7 @@ def invoke_tuning_run(cfg: dict, args: argparse.Namespace) -> None:
 
     if args.run_mode == "local":  # Standard config, to file
         run_config = air.RunConfig(
+            storage_path="/tmp/ray",
             name=f"IsaacRay-{args.cfg_class}-tune",
             verbose=1,
         )
@@ -176,9 +178,12 @@ def invoke_tuning_run(cfg: dict, args: argparse.Namespace) -> None:
 
         run_config = ray.train.RunConfig(
             name="mlflow",
+            storage_path="/tmp/ray",
             callbacks=[mlflow_callback],
             checkpoint_config=ray.train.CheckpointConfig(checkpoint_frequency=0, checkpoint_at_end=False),
         )
+    else:
+        raise ValueError("Unrecognized run mode.")
 
     # Configure the tuning job
     tuner = tune.Tuner(
@@ -193,7 +198,7 @@ def invoke_tuning_run(cfg: dict, args: argparse.Namespace) -> None:
     )
 
     # Execute the tuning
-    results = tuner.fit()
+    tuner.fit()
 
     # Save results to mounted volume
     if args.run_mode == "local":

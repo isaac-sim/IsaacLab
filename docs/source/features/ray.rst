@@ -340,16 +340,23 @@ For example, see the Cartpole Example configurations.
 
 Tuning jobs can also be submitted via :file:` ../../../source/standalone/workflows/ray/submit_isaac_ray_job.py`
 
-To view the tuning results, view the MLFLow dashboard of the server that you created.
+To view the tuning results, view the MLFlow dashboard of the server that you created.
 For KubeRay, this can be done through port forwarding the MLFlow dashboard, with
 ``kubectl port-forward service/isaacray-mlflow 5000:5000`` and visiting``localhost:5050``
+
+If the MLFlow port is forwarded like above, it can be converted into tensorboard logs with
+this following command.
+
+``./isaaclab.sh -p source/standalone/workflows/ray/mlflow_to_local_tensorboard.py \
+--uri http://localhost:5000 --experiment-name IsaacRay-<CLASS_JOB_CFG>-tune --download-dir test``
+
 
 **Cluster Cleanup**
 '''''''''''''''''''
 
 For the sake of conserving resources, and potentially freeing precious GPU resources for other people to use
 on shared compute platforms, please destroy the Ray cluster after use. They can be easily
-recreated! For KubeRay clusters, this can be done via
+recreated! For KubeRay clusters, this can be done as follows.
 
 .. code-block:: bash
 
