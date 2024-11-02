@@ -41,12 +41,12 @@ Usage:
     # Examples
     # Local
     ./isaaclab.sh -p source/standalone/workflows/ray/isaac_ray_tune.py --run_mode local \
-    --cfg_file hyperparameter_tuning/vision_cartpole_cfg.py \
+    --cfg_file source/standalone/workflows/ray/hyperparameter_tuning/vision_cartpole_cfg.py \
     --cfg_class CartpoleRGBNoTuneJobCfg
 
     # Remote (run grok cluster or create config file mentioned in :file:`submit_isaac_ray_job.py`)
     ./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py \
-    --aggregate_jobs isaac_ray_tune.py
+    --aggregate_jobs isaac_ray_tune.py # cfg_file is relative to ray folder
     --cfg_file hyperparameter_tuning/vision_cartpole_cfg.py \
     --cfg_class CartpoleRGBNoTuneJobCfg --mlflow_uri <MFLOW_URI_FROM_GROK_OR_MANUAL>
 
@@ -55,7 +55,7 @@ Usage:
 docker_prefix = "/workspace/isaaclab/"
 base_dir = os.path.expanduser("~")
 python_exec = "./isaaclab.sh -p"
-rl_games_workflow = "source/standalone/workflows/rl_games/train.py"
+workflow = "source/standalone/workflows/rl_games/train.py"
 
 
 class IsaacLabTuneTrainable(tune.Trainable):
@@ -69,7 +69,9 @@ class IsaacLabTuneTrainable(tune.Trainable):
     def setup(self, config: dict) -> None:
         """Get the invocation command, return quick for easy scheduling."""
         self.data = None
-        self.invoke_cmd = isaac_ray_util.get_invocation_command_from_cfg(cfg=config, python_cmd=python_exec)
+        self.invoke_cmd = isaac_ray_util.get_invocation_command_from_cfg(
+            cfg=config, python_cmd=python_exec, workflow=workflow
+        )
         print(f"[INFO]: Recovered invocation with {self.invoke_cmd}")
         self.experiment = None
 
@@ -213,7 +215,6 @@ class JobCfg:
     def __init__(self, cfg):
         assert "runner_args" in cfg, "No runner arguments specified."
         assert "--task" in cfg["runner_args"], "No task specified."
-        assert "workflow" in cfg, "No workflow specified."
         assert "hydra_args" in cfg, "No hypeparameters specified."
         self.cfg = cfg
 
@@ -243,6 +244,11 @@ if __name__ == "__main__":
             "Set to local to use ./isaaclab.sh -p python, set to "
             "remote to use /workspace/isaaclab/isaaclab.sh -p python"
         ),
+    )
+    parser.add_argument(
+        "--workflow",
+        default=None,  # populated with RL Games
+        help="The absolute path of the workflow to use for the experiment. By default, RL Games is used.",
     )
     parser.add_argument(
         "--mlflow_uri",
@@ -278,8 +284,11 @@ if __name__ == "__main__":
     if args.run_mode == "remote":
         base_dir = docker_prefix  # ensure logs are dumped to persistent location
         python_exec = docker_prefix + python_exec[2:]
-        rl_games_workflow = docker_prefix + rl_games_workflow
-        print(f"[INFO]: Using remote mode {python_exec=} {rl_games_workflow=}")
+        if args.workflow is None:
+            workflow = docker_prefix + workflow
+        else:
+            workflow = args.workflow
+        print(f"[INFO]: Using remote mode {python_exec=} {workflow=}")
 
         if args.mlflow_uri is not None:
             import mlflow
@@ -288,7 +297,14 @@ if __name__ == "__main__":
             from ray.air.integrations.mlflow import MLflowLoggerCallback
         else:
             raise ValueError("Please provide a result MFLow URI server.")
-
+    else:  # local
+        python_exec = os.getcwd() + "/" + python_exec[2:]
+        if args.workflow is None:
+            workflow = os.getcwd() + "/" + workflow
+        else:
+            workflow = args.workflow
+        base_dir = os.getcwd()
+        print(f"[INFO]: Using local mode {python_exec=} {workflow=}")
     file_path = args.cfg_file
     class_name = args.cfg_class
     print(f"[INFO]: Attempting to use sweep config from {file_path=} {class_name=}")

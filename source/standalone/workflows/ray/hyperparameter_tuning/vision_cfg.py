@@ -14,7 +14,7 @@ import isaac_ray_util
 from ray import tune
 
 
-class RLGamesCameraJobCfg(isaac_ray_tune.JobCfg):
+class CameraJobCfg(isaac_ray_tune.JobCfg):
     """In order to be compatible with :meth: invoke_tuning_run, and
     :class:IsaacLabTuneTrainable , configurations should
     be in a similar format to this class. This class can vary env count/horizon length,
@@ -34,7 +34,6 @@ class RLGamesCameraJobCfg(isaac_ray_tune.JobCfg):
         # Basic configuration
         cfg["runner_args"]["headless_singleton"] = "--headless"
         cfg["runner_args"]["enable_cameras_singleton"] = "--enable_cameras"
-        cfg["workflow"] = isaac_ray_tune.rl_games_workflow
         cfg["hydra_args"]["agent.params.config.max_epochs"] = 200
 
         if vary_env_count:  # Vary the env count, and horizon length, and select a compatible mini-batch size
@@ -125,7 +124,7 @@ class RLGamesCameraJobCfg(isaac_ray_tune.JobCfg):
         super().__init__(cfg)
 
 
-class RLGamesResNetCameraJob(RLGamesCameraJobCfg):
+class ResNetCameraJob(CameraJobCfg):
     """Try different ResNet sizes."""
 
     def __init__(self, cfg: dict = {}):
@@ -136,7 +135,7 @@ class RLGamesResNetCameraJob(RLGamesCameraJobCfg):
         super().__init__(cfg, vary_env_count=True, vary_cnn=False, vary_mlp=True)
 
 
-class RLGamesTheiaCameraJob(RLGamesCameraJobCfg):
+class TheiaCameraJob(CameraJobCfg):
     """Try different Theia sizes."""
 
     def __init__(self, cfg: dict = {}):
