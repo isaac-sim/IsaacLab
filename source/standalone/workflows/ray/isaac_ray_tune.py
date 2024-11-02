@@ -42,13 +42,13 @@ Usage:
     # Local
     ./isaaclab.sh -p source/standalone/workflows/ray/isaac_ray_tune.py --run_mode local \
     --cfg_file hyperparameter_tuning/vision_cartpole_cfg.py \
-    --cfg_cls CartpoleRGBNoTuneJobCfg
+    --cfg_class CartpoleRGBNoTuneJobCfg
 
     # Remote (run grok cluster or create config file mentioned in :file:`submit_isaac_ray_job.py`)
     ./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py \
     --aggregate_jobs isaac_ray_tune.py
     --cfg_file hyperparameter_tuning/vision_cartpole_cfg.py \
-    --cfg_cls CartpoleRGBNoTuneJobCfg --mlflow_uri <MFLOW_URI_FROM_GROK_OR_MANUAL>
+    --cfg_class CartpoleRGBNoTuneJobCfg --mlflow_uri <MFLOW_URI_FROM_GROK_OR_MANUAL>
 
 """
 
