@@ -56,6 +56,7 @@ docker_prefix = "/workspace/isaaclab/"
 base_dir = os.path.expanduser("~")
 python_exec = "./isaaclab.sh -p"
 workflow = "source/standalone/workflows/rl_games/train.py"
+num_workers_per_node = 1  # needed for local parallelism
 
 
 class IsaacLabTuneTrainable(tune.Trainable):
@@ -125,7 +126,12 @@ class IsaacLabTuneTrainable(tune.Trainable):
         """How many resources each trainable uses. Assumes homogeneous resources across gpu nodes,
         and that each trainable is meant for one node, where it uses all available resources."""
         resources = isaac_ray_util.get_gpu_node_resources(one_node_only=True)
-        return tune.PlacementGroupFactory([{"CPU": resources["CPU"], "GPU": resources["GPU"]}], strategy="STRICT_PACK")
+        if num_workers_per_node != 1:
+            print("[WARNING]: Splitting node into more than one worker")
+        return tune.PlacementGroupFactory(
+            [{"CPU": resources["CPU"] / num_workers_per_node, "GPU": resources["GPU"] / num_workers_per_node}],
+            strategy="STRICT_PACK",
+        )
 
 
 def invoke_tuning_run(cfg: dict, args: argparse.Namespace) -> None:
@@ -261,6 +267,12 @@ if __name__ == "__main__":
         required=False,
         help="The MLFlow Uri.",
     )
+    parser.add_argument(
+        "--num_workers_per_node",
+        type=int,
+        default=1,
+        help="Number of workers to run on each GPU node. Only supply for parallelism on multi-gpu nodes",
+    )
 
     parser.add_argument("--metric", type=str, default="rewards/time", help="What metric to tune for.")
 
@@ -284,7 +296,8 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-
+    num_workers_per_node = args.num_workers_per_node
+    print(f"[INFO]: Using {num_workers_per_node} workers per node.")
     if args.run_mode == "remote":
         base_dir = docker_prefix  # ensure logs are dumped to persistent location
         python_exec = docker_prefix + python_exec[2:]
