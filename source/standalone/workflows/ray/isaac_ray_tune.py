@@ -167,6 +167,10 @@ def invoke_tuning_run(cfg: dict, args: argparse.Namespace) -> None:
             storage_path="/tmp/ray",
             name=f"IsaacRay-{args.cfg_class}-tune",
             verbose=1,
+            checkpoint_config=air.CheckpointConfig(
+                checkpoint_frequency=0,  # Disable periodic checkpointing
+                checkpoint_at_end=False,  # Disable final checkpoint
+            ),
         )
 
     elif args.run_mode == "remote":  # MFlow, to MFlow server ;)
