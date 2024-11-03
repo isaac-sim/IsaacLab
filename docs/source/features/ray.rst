@@ -102,7 +102,7 @@ The pythonic dependencies can be installed with:
 
 .. code-block:: bash
 
-  ./isaaclab.sh -p -m pip install ray[default, tune]==2.31.0
+  ./isaaclab.sh -p -m pip install 'ray[default, tune]==2.31.0'
   ./isaaclab.sh -p -m pip install optuna bayesian-optimization
   # MLFlow is needed for fetching logs on clusters
   ./isaaclab.sh -p -m pip install mlflow

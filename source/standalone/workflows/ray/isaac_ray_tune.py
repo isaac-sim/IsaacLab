@@ -41,21 +41,22 @@ Usage:
     # Examples
     # Local
     ./isaaclab.sh -p source/standalone/workflows/ray/isaac_ray_tune.py --run_mode local \
-    --cfg_file hyperparameter_tuning/vision_cartpole_cfg.py \
-    --cfg_cls CartpoleRGBNoTuneJobCfg
+    --cfg_file source/standalone/workflows/ray/hyperparameter_tuning/vision_cartpole_cfg.py \
+    --cfg_class CartpoleRGBNoTuneJobCfg
 
     # Remote (run grok cluster or create config file mentioned in :file:`submit_isaac_ray_job.py`)
     ./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py \
-    --aggregate_jobs isaac_ray_tune.py
+    --aggregate_jobs isaac_ray_tune.py # cfg_file is relative to ray folder
     --cfg_file hyperparameter_tuning/vision_cartpole_cfg.py \
-    --cfg_cls CartpoleRGBNoTuneJobCfg --mlflow_uri <MFLOW_URI_FROM_GROK_OR_MANUAL>
+    --cfg_class CartpoleRGBNoTuneJobCfg --mlflow_uri <MFLOW_URI_FROM_GROK_OR_MANUAL>
 
 """
 
 docker_prefix = "/workspace/isaaclab/"
 base_dir = os.path.expanduser("~")
 python_exec = "./isaaclab.sh -p"
-rl_games_workflow = "source/standalone/workflows/rl_games/train.py"
+workflow = "source/standalone/workflows/rl_games/train.py"
+num_workers_per_node = 1  # needed for local parallelism
 
 
 class IsaacLabTuneTrainable(tune.Trainable):
@@ -69,7 +70,9 @@ class IsaacLabTuneTrainable(tune.Trainable):
     def setup(self, config: dict) -> None:
         """Get the invocation command, return quick for easy scheduling."""
         self.data = None
-        self.invoke_cmd = isaac_ray_util.get_invocation_command_from_cfg(cfg=config, python_cmd=python_exec)
+        self.invoke_cmd = isaac_ray_util.get_invocation_command_from_cfg(
+            cfg=config, python_cmd=python_exec, workflow=workflow
+        )
         print(f"[INFO]: Recovered invocation with {self.invoke_cmd}")
         self.experiment = None
 
@@ -123,7 +126,12 @@ class IsaacLabTuneTrainable(tune.Trainable):
         """How many resources each trainable uses. Assumes homogeneous resources across gpu nodes,
         and that each trainable is meant for one node, where it uses all available resources."""
         resources = isaac_ray_util.get_gpu_node_resources(one_node_only=True)
-        return tune.PlacementGroupFactory([{"CPU": resources["CPU"], "GPU": resources["GPU"]}], strategy="STRICT_PACK")
+        if num_workers_per_node != 1:
+            print("[WARNING]: Splitting node into more than one worker")
+        return tune.PlacementGroupFactory(
+            [{"CPU": resources["CPU"] / num_workers_per_node, "GPU": resources["GPU"] / num_workers_per_node}],
+            strategy="STRICT_PACK",
+        )
 
 
 def invoke_tuning_run(cfg: dict, args: argparse.Namespace) -> None:
@@ -165,6 +173,10 @@ def invoke_tuning_run(cfg: dict, args: argparse.Namespace) -> None:
             storage_path="/tmp/ray",
             name=f"IsaacRay-{args.cfg_class}-tune",
             verbose=1,
+            checkpoint_config=air.CheckpointConfig(
+                checkpoint_frequency=0,  # Disable periodic checkpointing
+                checkpoint_at_end=False,  # Disable final checkpoint
+            ),
         )
 
     elif args.run_mode == "remote":  # MFlow, to MFlow server ;)
@@ -213,7 +225,6 @@ class JobCfg:
     def __init__(self, cfg):
         assert "runner_args" in cfg, "No runner arguments specified."
         assert "--task" in cfg["runner_args"], "No task specified."
-        assert "workflow" in cfg, "No workflow specified."
         assert "hydra_args" in cfg, "No hypeparameters specified."
         self.cfg = cfg
 
@@ -245,11 +256,22 @@ if __name__ == "__main__":
         ),
     )
     parser.add_argument(
+        "--workflow",
+        default=None,  # populated with RL Games
+        help="The absolute path of the workflow to use for the experiment. By default, RL Games is used.",
+    )
+    parser.add_argument(
         "--mlflow_uri",
         type=str,
         default=None,
         required=False,
         help="The MLFlow Uri.",
+    )
+    parser.add_argument(
+        "--num_workers_per_node",
+        type=int,
+        default=1,
+        help="Number of workers to run on each GPU node. Only supply for parallelism on multi-gpu nodes",
     )
 
     parser.add_argument("--metric", type=str, default="rewards/time", help="What metric to tune for.")
@@ -274,12 +296,16 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-
+    num_workers_per_node = args.num_workers_per_node
+    print(f"[INFO]: Using {num_workers_per_node} workers per node.")
     if args.run_mode == "remote":
         base_dir = docker_prefix  # ensure logs are dumped to persistent location
         python_exec = docker_prefix + python_exec[2:]
-        rl_games_workflow = docker_prefix + rl_games_workflow
-        print(f"[INFO]: Using remote mode {python_exec=} {rl_games_workflow=}")
+        if args.workflow is None:
+            workflow = docker_prefix + workflow
+        else:
+            workflow = args.workflow
+        print(f"[INFO]: Using remote mode {python_exec=} {workflow=}")
 
         if args.mlflow_uri is not None:
             import mlflow
@@ -288,7 +314,14 @@ if __name__ == "__main__":
             from ray.air.integrations.mlflow import MLflowLoggerCallback
         else:
             raise ValueError("Please provide a result MFLow URI server.")
-
+    else:  # local
+        python_exec = os.getcwd() + "/" + python_exec[2:]
+        if args.workflow is None:
+            workflow = os.getcwd() + "/" + workflow
+        else:
+            workflow = args.workflow
+        base_dir = os.getcwd()
+        print(f"[INFO]: Using local mode {python_exec=} {workflow=}")
     file_path = args.cfg_file
     class_name = args.cfg_class
     print(f"[INFO]: Attempting to use sweep config from {file_path=} {class_name=}")

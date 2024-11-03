@@ -37,7 +37,11 @@ def load_tensorboard_logs(directory: str) -> dict:
     return latest_scalars
 
 
-def get_invocation_command_from_cfg(cfg: dict, python_cmd: str = "/workspace/isaaclab/isaaclab.sh -p") -> str:
+def get_invocation_command_from_cfg(
+    cfg: dict,
+    python_cmd: str = "/workspace/isaaclab/isaaclab.sh -p",
+    workflow: str = "source/standalone/workflows/rl_games/train.py",
+) -> str:
     """Generate command with proper Hydra arguments"""
     runner_args = []
     hydra_args = []
@@ -66,13 +70,13 @@ def get_invocation_command_from_cfg(cfg: dict, python_cmd: str = "/workspace/isa
                 else:
                     target_list.append(f"{key}={value}")
 
-    print(f"[INFO]: Starting workflow {cfg['workflow']}")
+    print(f"[INFO]: Starting workflow {workflow}")
     process_args(cfg["runner_args"], runner_args)
     print(f"[INFO]: Retrieved workflow runner args: {runner_args}")
     process_args(cfg["hydra_args"], hydra_args, is_hydra=True)
     print(f"[INFO]: Retrieved hydra args: {hydra_args}")
 
-    invoke_cmd = f"{python_cmd} {cfg['workflow']} "
+    invoke_cmd = f"{python_cmd} {workflow} "
     invoke_cmd += " ".join(runner_args) + " " + " ".join(hydra_args)
     return invoke_cmd
 

@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.27.11 (2024-10-31)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added support to define tuple of floats to scale observation terms by expanding the
+  :attr:`omni.isaac.lab.managers.manager_term_cfg.ObservationManagerCfg.scale` attribute.
+
+
 0.27.10 (2024-11-01)
 ~~~~~~~~~~~~~~~~~~~~
 
