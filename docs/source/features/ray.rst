@@ -188,9 +188,9 @@ that the cluster job submission address is known.
 .. dropdown:: source/standalone/workflows/ray/wrap_isaac_ray_resources.py
 :icon: code
 
-.. literalinclude:: ../../../source/standalone/workflows/ray/wrap_isaac_ray_resources.py
-  :language: python
-  :emphasize-lines: 12-64
+  .. literalinclude:: ../../../source/standalone/workflows/ray/wrap_isaac_ray_resources.py
+    :language: python
+    :emphasize-lines: 12-64
 
 3.) For tuning jobs, specify the hyperparameter sweep similar to the following two files.
 
