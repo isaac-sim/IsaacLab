@@ -109,6 +109,7 @@ The pythonic dependencies can be installed with:
 
 If using KubeRay clusters on Google GKE with the batteries-included cluster launch file,
 the following dependencies are also needed.
+
 .. code-block:: bash
 
   ./isaaclab.sh -p -m pip install kubernetes Jinja2
@@ -218,7 +219,8 @@ Then, see the local examples in the following file to see how to start a tuning 
     :emphasize-lines: 17-35
 
 
-**To view the logs, simply run ``tensorboard --logdir=<LOCAL_STORAGE_PATH>``**
+
+To view the logs, simply run ``tensorboard --logdir=<LOCAL_STORAGE_PATH_READ_FROM_OUTPUT>``
 
 Remote Ray Cluster Setup and Use
 '''''''''''''''''''''''''''''''''
