@@ -186,7 +186,7 @@ that the cluster job submission address is known.
 2.) Submitting resource-wrapped sub-jobs can be done as described in the following file:
 
 .. dropdown:: source/standalone/workflows/ray/wrap_isaac_ray_resources.py
-:icon: code
+  :icon: code
 
   .. literalinclude:: ../../../source/standalone/workflows/ray/wrap_isaac_ray_resources.py
     :language: python
