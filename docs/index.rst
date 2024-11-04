@@ -75,7 +75,6 @@ Table of Contents
    :caption: Getting Started
 
    source/setup/installation/index
-   source/reference_architecture/index
    source/setup/faq
 
 .. toctree::
