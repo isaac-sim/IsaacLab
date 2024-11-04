@@ -511,21 +511,21 @@
 <span class="k">class</span> <span class="nc">MeshConverterCfg</span><span class="p">(</span><span class="n">AssetConverterBaseCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The configuration class for MeshConverter.&quot;&quot;&quot;</span>
 
-    <span class="n">mass_props</span><span class="p">:</span> <span class="n">schemas_cfg</span><span class="o">.</span><span class="n">MassPropertiesCfg</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">mass_props</span><span class="p">:</span> <span class="n">schemas_cfg</span><span class="o">.</span><span class="n">MassPropertiesCfg</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Mass properties to apply to the USD. Defaults to None.</span>
 
 <span class="sd">    Note:</span>
 <span class="sd">        If None, then no mass properties will be added.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">rigid_props</span><span class="p">:</span> <span class="n">schemas_cfg</span><span class="o">.</span><span class="n">RigidBodyPropertiesCfg</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">rigid_props</span><span class="p">:</span> <span class="n">schemas_cfg</span><span class="o">.</span><span class="n">RigidBodyPropertiesCfg</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Rigid body properties to apply to the USD. Defaults to None.</span>
 
 <span class="sd">    Note:</span>
 <span class="sd">        If None, then no rigid body properties will be added.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">collision_props</span><span class="p">:</span> <span class="n">schemas_cfg</span><span class="o">.</span><span class="n">CollisionPropertiesCfg</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">collision_props</span><span class="p">:</span> <span class="n">schemas_cfg</span><span class="o">.</span><span class="n">CollisionPropertiesCfg</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Collision properties to apply to the USD. Defaults to None.</span>
 
 <span class="sd">    Note:</span>
@@ -540,7 +540,16 @@
 <span class="sd">    &quot;boundingSphere&quot;, &quot;meshSimplification&quot;, or &quot;none&quot;</span>
 
 <span class="sd">    &quot;none&quot; causes no collision mesh to be added.</span>
-<span class="sd">    &quot;&quot;&quot;</span></div>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">translation</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The translation of the mesh to the origin. Defaults to (0.0, 0.0, 0.0).&quot;&quot;&quot;</span>
+
+    <span class="n">rotation</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The rotation of the mesh in quaternion format (w, x, y, z). Defaults to (1.0, 0.0, 0.0, 0.0).&quot;&quot;&quot;</span>
+
+    <span class="n">scale</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The scale of the mesh. Defaults to (1.0, 1.0, 1.0).&quot;&quot;&quot;</span></div>
 </pre></div>
 
                 </article>

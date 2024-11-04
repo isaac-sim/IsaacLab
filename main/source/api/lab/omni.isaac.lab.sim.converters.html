@@ -592,13 +592,16 @@
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.converters.MeshConverterCfg"><code class="docutils literal notranslate"><span class="pre">MeshConverterCfg</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.mass_props"><code class="docutils literal notranslate"><span class="pre">MeshConverterCfg.mass_props</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.rigid_props"><code class="docutils literal notranslate"><span class="pre">MeshConverterCfg.rigid_props</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.collision_props"><code class="docutils literal notranslate"><span class="pre">MeshConverterCfg.collision_props</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.asset_path"><code class="docutils literal notranslate"><span class="pre">MeshConverterCfg.asset_path</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.usd_dir"><code class="docutils literal notranslate"><span class="pre">MeshConverterCfg.usd_dir</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.usd_file_name"><code class="docutils literal notranslate"><span class="pre">MeshConverterCfg.usd_file_name</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.force_usd_conversion"><code class="docutils literal notranslate"><span class="pre">MeshConverterCfg.force_usd_conversion</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.make_instanceable"><code class="docutils literal notranslate"><span class="pre">MeshConverterCfg.make_instanceable</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.collision_props"><code class="docutils literal notranslate"><span class="pre">MeshConverterCfg.collision_props</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.collision_approximation"><code class="docutils literal notranslate"><span class="pre">MeshConverterCfg.collision_approximation</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.translation"><code class="docutils literal notranslate"><span class="pre">MeshConverterCfg.translation</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.rotation"><code class="docutils literal notranslate"><span class="pre">MeshConverterCfg.rotation</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.scale"><code class="docutils literal notranslate"><span class="pre">MeshConverterCfg.scale</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -965,33 +968,42 @@ difficult to move the USD asset to a different location.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.rigid_props" title="omni.isaac.lab.sim.converters.MeshConverterCfg.rigid_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rigid_props</span></code></a></p></td>
 <td><p>Rigid body properties to apply to the USD.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.asset_path" title="omni.isaac.lab.sim.converters.MeshConverterCfg.asset_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">asset_path</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.collision_props" title="omni.isaac.lab.sim.converters.MeshConverterCfg.collision_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collision_props</span></code></a></p></td>
+<td><p>Collision properties to apply to the USD.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.asset_path" title="omni.isaac.lab.sim.converters.MeshConverterCfg.asset_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">asset_path</span></code></a></p></td>
 <td><p>The absolute path to the asset file to convert into USD.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.usd_dir" title="omni.isaac.lab.sim.converters.MeshConverterCfg.usd_dir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">usd_dir</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.usd_dir" title="omni.isaac.lab.sim.converters.MeshConverterCfg.usd_dir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">usd_dir</span></code></a></p></td>
 <td><p>The output directory path to store the generated USD file.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.usd_file_name" title="omni.isaac.lab.sim.converters.MeshConverterCfg.usd_file_name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">usd_file_name</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.usd_file_name" title="omni.isaac.lab.sim.converters.MeshConverterCfg.usd_file_name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">usd_file_name</span></code></a></p></td>
 <td><p>The name of the generated usd file.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.force_usd_conversion" title="omni.isaac.lab.sim.converters.MeshConverterCfg.force_usd_conversion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">force_usd_conversion</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.force_usd_conversion" title="omni.isaac.lab.sim.converters.MeshConverterCfg.force_usd_conversion"><code class="xref py py-obj docutils literal notranslate"><span class="pre">force_usd_conversion</span></code></a></p></td>
 <td><p>Force the conversion of the asset file to usd.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.make_instanceable" title="omni.isaac.lab.sim.converters.MeshConverterCfg.make_instanceable"><code class="xref py py-obj docutils literal notranslate"><span class="pre">make_instanceable</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.make_instanceable" title="omni.isaac.lab.sim.converters.MeshConverterCfg.make_instanceable"><code class="xref py py-obj docutils literal notranslate"><span class="pre">make_instanceable</span></code></a></p></td>
 <td><p>Make the generated USD file instanceable.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.collision_props" title="omni.isaac.lab.sim.converters.MeshConverterCfg.collision_props"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collision_props</span></code></a></p></td>
-<td><p>Collision properties to apply to the USD.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.collision_approximation" title="omni.isaac.lab.sim.converters.MeshConverterCfg.collision_approximation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collision_approximation</span></code></a></p></td>
 <td><p>Collision approximation method to use.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.translation" title="omni.isaac.lab.sim.converters.MeshConverterCfg.translation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">translation</span></code></a></p></td>
+<td><p>The translation of the mesh to the origin.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.rotation" title="omni.isaac.lab.sim.converters.MeshConverterCfg.rotation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rotation</span></code></a></p></td>
+<td><p>The rotation of the mesh in quaternion format (w, x, y, z).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.scale" title="omni.isaac.lab.sim.converters.MeshConverterCfg.scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">scale</span></code></a></p></td>
+<td><p>The scale of the mesh.</p></td>
 </tr>
 </tbody>
 </table>
 </div>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.MeshConverterCfg.mass_props">
-<span class="sig-name descname"><span class="pre">mass_props</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.MassPropertiesCfg" title="omni.isaac.lab.sim.schemas.schemas_cfg.MassPropertiesCfg"><span class="pre">MassPropertiesCfg</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.mass_props" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">mass_props</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.MassPropertiesCfg" title="omni.isaac.lab.sim.schemas.schemas_cfg.MassPropertiesCfg"><span class="pre">MassPropertiesCfg</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.mass_props" title="Permalink to this definition">#</a></dt>
 <dd><p>Mass properties to apply to the USD. Defaults to None.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -1001,11 +1013,21 @@ difficult to move the USD asset to a different location.</p>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.MeshConverterCfg.rigid_props">
-<span class="sig-name descname"><span class="pre">rigid_props</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.RigidBodyPropertiesCfg" title="omni.isaac.lab.sim.schemas.schemas_cfg.RigidBodyPropertiesCfg"><span class="pre">RigidBodyPropertiesCfg</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.rigid_props" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">rigid_props</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.RigidBodyPropertiesCfg" title="omni.isaac.lab.sim.schemas.schemas_cfg.RigidBodyPropertiesCfg"><span class="pre">RigidBodyPropertiesCfg</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.rigid_props" title="Permalink to this definition">#</a></dt>
 <dd><p>Rigid body properties to apply to the USD. Defaults to None.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>If None, then no rigid body properties will be added.</p>
+</div>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.MeshConverterCfg.collision_props">
+<span class="sig-name descname"><span class="pre">collision_props</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.CollisionPropertiesCfg" title="omni.isaac.lab.sim.schemas.schemas_cfg.CollisionPropertiesCfg"><span class="pre">CollisionPropertiesCfg</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.collision_props" title="Permalink to this definition">#</a></dt>
+<dd><p>Collision properties to apply to the USD. Defaults to None.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If None, then no collision properties will be added.</p>
 </div>
 </dd></dl>
 
@@ -1053,16 +1075,6 @@ used in the scene. For more information, please check the USD documentation on
 </dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.MeshConverterCfg.collision_props">
-<span class="sig-name descname"><span class="pre">collision_props</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.CollisionPropertiesCfg" title="omni.isaac.lab.sim.schemas.schemas_cfg.CollisionPropertiesCfg"><span class="pre">CollisionPropertiesCfg</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.collision_props" title="Permalink to this definition">#</a></dt>
-<dd><p>Collision properties to apply to the USD. Defaults to None.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>If None, then no collision properties will be added.</p>
-</div>
-</dd></dl>
-
-<dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.MeshConverterCfg.collision_approximation">
 <span class="sig-name descname"><span class="pre">collision_approximation</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.collision_approximation" title="Permalink to this definition">#</a></dt>
 <dd><p>Collision approximation method to use. Defaults to “convexDecomposition”.</p>
@@ -1070,6 +1082,24 @@ used in the scene. For more information, please check the USD documentation on
 “convexDecomposition”, “convexHull”, “boundingCube”,
 “boundingSphere”, “meshSimplification”, or “none”</p>
 <p>“none” causes no collision mesh to be added.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.MeshConverterCfg.translation">
+<span class="sig-name descname"><span class="pre">translation</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.translation" title="Permalink to this definition">#</a></dt>
+<dd><p>The translation of the mesh to the origin. Defaults to (0.0, 0.0, 0.0).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.MeshConverterCfg.rotation">
+<span class="sig-name descname"><span class="pre">rotation</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.rotation" title="Permalink to this definition">#</a></dt>
+<dd><p>The rotation of the mesh in quaternion format (w, x, y, z). Defaults to (1.0, 0.0, 0.0, 0.0).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.MeshConverterCfg.scale">
+<span class="sig-name descname"><span class="pre">scale</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.scale" title="Permalink to this definition">#</a></dt>
+<dd><p>The scale of the mesh. Defaults to (1.0, 1.0, 1.0).</p>
 </dd></dl>
 
 </dd></dl>
@@ -1431,13 +1461,16 @@ Otherwise, it is overridden by the configured value.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.converters.MeshConverterCfg"><code class="docutils literal notranslate"><span class="pre">MeshConverterCfg</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.mass_props"><code class="docutils literal notranslate"><span class="pre">MeshConverterCfg.mass_props</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.rigid_props"><code class="docutils literal notranslate"><span class="pre">MeshConverterCfg.rigid_props</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.collision_props"><code class="docutils literal notranslate"><span class="pre">MeshConverterCfg.collision_props</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.asset_path"><code class="docutils literal notranslate"><span class="pre">MeshConverterCfg.asset_path</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.usd_dir"><code class="docutils literal notranslate"><span class="pre">MeshConverterCfg.usd_dir</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.usd_file_name"><code class="docutils literal notranslate"><span class="pre">MeshConverterCfg.usd_file_name</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.force_usd_conversion"><code class="docutils literal notranslate"><span class="pre">MeshConverterCfg.force_usd_conversion</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.make_instanceable"><code class="docutils literal notranslate"><span class="pre">MeshConverterCfg.make_instanceable</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.collision_props"><code class="docutils literal notranslate"><span class="pre">MeshConverterCfg.collision_props</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.collision_approximation"><code class="docutils literal notranslate"><span class="pre">MeshConverterCfg.collision_approximation</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.translation"><code class="docutils literal notranslate"><span class="pre">MeshConverterCfg.translation</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.rotation"><code class="docutils literal notranslate"><span class="pre">MeshConverterCfg.rotation</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.scale"><code class="docutils literal notranslate"><span class="pre">MeshConverterCfg.scale</span></code></a></li>
 </ul>
 </li>
 </ul>

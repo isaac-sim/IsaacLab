@@ -509,7 +509,7 @@
 <span class="kn">import</span> <span class="nn">omni.kit.commands</span>
 <span class="kn">import</span> <span class="nn">omni.usd</span>
 <span class="kn">from</span> <span class="nn">omni.isaac.core.utils.extensions</span> <span class="kn">import</span> <span class="n">enable_extension</span>
-<span class="kn">from</span> <span class="nn">pxr</span> <span class="kn">import</span> <span class="n">Tf</span><span class="p">,</span> <span class="n">Usd</span><span class="p">,</span> <span class="n">UsdGeom</span><span class="p">,</span> <span class="n">UsdPhysics</span><span class="p">,</span> <span class="n">UsdUtils</span>
+<span class="kn">from</span> <span class="nn">pxr</span> <span class="kn">import</span> <span class="n">Gf</span><span class="p">,</span> <span class="n">Tf</span><span class="p">,</span> <span class="n">Usd</span><span class="p">,</span> <span class="n">UsdGeom</span><span class="p">,</span> <span class="n">UsdPhysics</span><span class="p">,</span> <span class="n">UsdUtils</span>
 
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.sim.converters.asset_converter_base</span> <span class="kn">import</span> <span class="n">AssetConverterBase</span>
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.sim.converters.mesh_converter_cfg</span> <span class="kn">import</span> <span class="n">MeshConverterCfg</span>
@@ -563,12 +563,13 @@
     <span class="k">def</span> <span class="nf">_convert_asset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">MeshConverterCfg</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Generate USD from OBJ, STL or FBX.</span>
 
-<span class="sd">        It stores the asset in the following format:</span>
+<span class="sd">        The USD file has Y-up axis and is scaled to meters.</span>
+<span class="sd">        The asset hierarchy is arranged as follows:</span>
 
-<span class="sd">        /file_name (default prim)</span>
-<span class="sd">          |- /geometry &lt;- Made instanceable if requested</span>
-<span class="sd">            |- /Looks</span>
-<span class="sd">            |- /mesh</span>
+<span class="sd">        .. code-block:: none</span>
+<span class="sd">            mesh_file_basename (default prim)</span>
+<span class="sd">                |- /geometry/Looks</span>
+<span class="sd">                |- /geometry/mesh</span>
 
 <span class="sd">        Args:</span>
 <span class="sd">            cfg: The configuration for conversion of mesh to USD.</span>
@@ -592,15 +593,25 @@
 
         <span class="c1"># Convert USD</span>
         <span class="n">asyncio</span><span class="o">.</span><span class="n">get_event_loop</span><span class="p">()</span><span class="o">.</span><span class="n">run_until_complete</span><span class="p">(</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_convert_mesh_to_usd</span><span class="p">(</span>
-                <span class="n">in_file</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">asset_path</span><span class="p">,</span> <span class="n">out_file</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">usd_path</span><span class="p">,</span> <span class="n">prim_path</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;/</span><span class="si">{</span><span class="n">mesh_file_basename</span><span class="si">}</span><span class="s2">&quot;</span>
-            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_convert_mesh_to_usd</span><span class="p">(</span><span class="n">in_file</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">asset_path</span><span class="p">,</span> <span class="n">out_file</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">usd_path</span><span class="p">)</span>
         <span class="p">)</span>
+        <span class="c1"># Create a new stage, set Z up and meters per unit</span>
+        <span class="n">temp_stage</span> <span class="o">=</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span><span class="o">.</span><span class="n">CreateInMemory</span><span class="p">()</span>
+        <span class="n">UsdGeom</span><span class="o">.</span><span class="n">SetStageUpAxis</span><span class="p">(</span><span class="n">temp_stage</span><span class="p">,</span> <span class="n">UsdGeom</span><span class="o">.</span><span class="n">Tokens</span><span class="o">.</span><span class="n">z</span><span class="p">)</span>
+        <span class="n">UsdGeom</span><span class="o">.</span><span class="n">SetStageMetersPerUnit</span><span class="p">(</span><span class="n">temp_stage</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span>
+        <span class="n">UsdPhysics</span><span class="o">.</span><span class="n">SetStageKilogramsPerUnit</span><span class="p">(</span><span class="n">temp_stage</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span>
+        <span class="c1"># Add mesh to stage</span>
+        <span class="n">base_prim</span> <span class="o">=</span> <span class="n">temp_stage</span><span class="o">.</span><span class="n">DefinePrim</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;/</span><span class="si">{</span><span class="n">mesh_file_basename</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="s2">&quot;Xform&quot;</span><span class="p">)</span>
+        <span class="n">prim</span> <span class="o">=</span> <span class="n">temp_stage</span><span class="o">.</span><span class="n">DefinePrim</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;/</span><span class="si">{</span><span class="n">mesh_file_basename</span><span class="si">}</span><span class="s2">/geometry&quot;</span><span class="p">,</span> <span class="s2">&quot;Xform&quot;</span><span class="p">)</span>
+        <span class="n">prim</span><span class="o">.</span><span class="n">GetReferences</span><span class="p">()</span><span class="o">.</span><span class="n">AddReference</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">usd_path</span><span class="p">)</span>
+        <span class="n">temp_stage</span><span class="o">.</span><span class="n">SetDefaultPrim</span><span class="p">(</span><span class="n">base_prim</span><span class="p">)</span>
+        <span class="n">temp_stage</span><span class="o">.</span><span class="n">Export</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">usd_path</span><span class="p">)</span>
+
         <span class="c1"># Open converted USD stage</span>
-        <span class="c1"># note: This opens a new stage and does not use the stage created earlier by the user</span>
-        <span class="c1"># create a new stage</span>
         <span class="n">stage</span> <span class="o">=</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span><span class="o">.</span><span class="n">Open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">usd_path</span><span class="p">)</span>
-        <span class="c1"># add USD to stage cache</span>
+        <span class="c1"># Need to reload the stage to get the new prim structure, otherwise it can be taken from the cache</span>
+        <span class="n">stage</span><span class="o">.</span><span class="n">Reload</span><span class="p">()</span>
+        <span class="c1"># Add USD to stage cache</span>
         <span class="n">stage_id</span> <span class="o">=</span> <span class="n">UsdUtils</span><span class="o">.</span><span class="n">StageCache</span><span class="o">.</span><span class="n">Get</span><span class="p">()</span><span class="o">.</span><span class="n">Insert</span><span class="p">(</span><span class="n">stage</span><span class="p">)</span>
         <span class="c1"># Get the default prim (which is the root prim) -- &quot;/{mesh_file_basename}&quot;</span>
         <span class="n">xform_prim</span> <span class="o">=</span> <span class="n">stage</span><span class="o">.</span><span class="n">GetDefaultPrim</span><span class="p">()</span>
@@ -620,6 +631,32 @@
                     <span class="p">)</span>
         <span class="c1"># Delete the old Xform and make the new Xform the default prim</span>
         <span class="n">stage</span><span class="o">.</span><span class="n">SetDefaultPrim</span><span class="p">(</span><span class="n">xform_prim</span><span class="p">)</span>
+        <span class="c1"># Apply default Xform rotation to mesh -&gt; enable to set rotation and scale</span>
+        <span class="n">omni</span><span class="o">.</span><span class="n">kit</span><span class="o">.</span><span class="n">commands</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
+            <span class="s2">&quot;CreateDefaultXformOnPrimCommand&quot;</span><span class="p">,</span>
+            <span class="n">prim_path</span><span class="o">=</span><span class="n">xform_prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">(),</span>
+            <span class="o">**</span><span class="p">{</span><span class="s2">&quot;stage&quot;</span><span class="p">:</span> <span class="n">stage</span><span class="p">},</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Apply translation, rotation, and scale to the Xform</span>
+        <span class="n">geom_xform</span> <span class="o">=</span> <span class="n">UsdGeom</span><span class="o">.</span><span class="n">Xform</span><span class="p">(</span><span class="n">geom_prim</span><span class="p">)</span>
+        <span class="n">geom_xform</span><span class="o">.</span><span class="n">ClearXformOpOrder</span><span class="p">()</span>
+
+        <span class="c1"># Remove any existing rotation attributes</span>
+        <span class="n">rotate_attr</span> <span class="o">=</span> <span class="n">geom_prim</span><span class="o">.</span><span class="n">GetAttribute</span><span class="p">(</span><span class="s2">&quot;xformOp:rotateXYZ&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">rotate_attr</span><span class="p">:</span>
+            <span class="n">geom_prim</span><span class="o">.</span><span class="n">RemoveProperty</span><span class="p">(</span><span class="n">rotate_attr</span><span class="o">.</span><span class="n">GetName</span><span class="p">())</span>
+
+        <span class="c1"># translation</span>
+        <span class="n">translate_op</span> <span class="o">=</span> <span class="n">geom_xform</span><span class="o">.</span><span class="n">AddTranslateOp</span><span class="p">(</span><span class="n">UsdGeom</span><span class="o">.</span><span class="n">XformOp</span><span class="o">.</span><span class="n">PrecisionDouble</span><span class="p">)</span>
+        <span class="n">translate_op</span><span class="o">.</span><span class="n">Set</span><span class="p">(</span><span class="n">Gf</span><span class="o">.</span><span class="n">Vec3d</span><span class="p">(</span><span class="o">*</span><span class="n">cfg</span><span class="o">.</span><span class="n">translation</span><span class="p">))</span>
+        <span class="c1"># rotation</span>
+        <span class="n">orient_op</span> <span class="o">=</span> <span class="n">geom_xform</span><span class="o">.</span><span class="n">AddOrientOp</span><span class="p">(</span><span class="n">UsdGeom</span><span class="o">.</span><span class="n">XformOp</span><span class="o">.</span><span class="n">PrecisionDouble</span><span class="p">)</span>
+        <span class="n">orient_op</span><span class="o">.</span><span class="n">Set</span><span class="p">(</span><span class="n">Gf</span><span class="o">.</span><span class="n">Quatd</span><span class="p">(</span><span class="o">*</span><span class="n">cfg</span><span class="o">.</span><span class="n">rotation</span><span class="p">))</span>
+        <span class="c1"># scale</span>
+        <span class="n">scale_op</span> <span class="o">=</span> <span class="n">geom_xform</span><span class="o">.</span><span class="n">AddScaleOp</span><span class="p">(</span><span class="n">UsdGeom</span><span class="o">.</span><span class="n">XformOp</span><span class="o">.</span><span class="n">PrecisionDouble</span><span class="p">)</span>
+        <span class="n">scale_op</span><span class="o">.</span><span class="n">Set</span><span class="p">(</span><span class="n">Gf</span><span class="o">.</span><span class="n">Vec3d</span><span class="p">(</span><span class="o">*</span><span class="n">cfg</span><span class="o">.</span><span class="n">scale</span><span class="p">))</span>
+
         <span class="c1"># Handle instanceable</span>
         <span class="c1"># Create a new Xform prim that will be the prototype prim</span>
         <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">make_instanceable</span><span class="p">:</span>
@@ -657,28 +694,18 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="nd">@staticmethod</span>
-    <span class="k">async</span> <span class="k">def</span> <span class="nf">_convert_mesh_to_usd</span><span class="p">(</span>
-        <span class="n">in_file</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">out_file</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;/World&quot;</span><span class="p">,</span> <span class="n">load_materials</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
-    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+    <span class="k">async</span> <span class="k">def</span> <span class="nf">_convert_mesh_to_usd</span><span class="p">(</span><span class="n">in_file</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">out_file</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">load_materials</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Convert mesh from supported file types to USD.</span>
 
 <span class="sd">        This function uses the Omniverse Asset Converter extension to convert a mesh file to USD.</span>
 <span class="sd">        It is an asynchronous function and should be called using `asyncio.get_event_loop().run_until_complete()`.</span>
 
 <span class="sd">        The converted asset is stored in the USD format in the specified output file.</span>
-<span class="sd">        The USD file has Y-up axis and is scaled to meters.</span>
-
-<span class="sd">        The asset hierarchy is arranged as follows:</span>
-
-<span class="sd">        .. code-block:: none</span>
-<span class="sd">            prim_path (default prim)</span>
-<span class="sd">                |- /geometry/Looks</span>
-<span class="sd">                |- /geometry/mesh</span>
+<span class="sd">        The USD file has Y-up axis and is scaled to cm.</span>
 
 <span class="sd">        Args:</span>
 <span class="sd">            in_file: The file to convert.</span>
 <span class="sd">            out_file: The path to store the output file.</span>
-<span class="sd">            prim_path: The prim path of the mesh.</span>
 <span class="sd">            load_materials: Set to True to enable attaching materials defined in the input file</span>
 <span class="sd">                to the generated USD mesh. Defaults to True.</span>
 
@@ -686,11 +713,9 @@
 <span class="sd">            True if the conversion succeeds.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">enable_extension</span><span class="p">(</span><span class="s2">&quot;omni.kit.asset_converter&quot;</span><span class="p">)</span>
-        <span class="n">enable_extension</span><span class="p">(</span><span class="s2">&quot;omni.usd.metrics.assembler&quot;</span><span class="p">)</span>
 
         <span class="kn">import</span> <span class="nn">omni.kit.asset_converter</span>
         <span class="kn">import</span> <span class="nn">omni.usd</span>
-        <span class="kn">from</span> <span class="nn">omni.metrics.assembler.core</span> <span class="kn">import</span> <span class="n">get_metrics_assembler_interface</span>
 
         <span class="c1"># Create converter context</span>
         <span class="n">converter_context</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">kit</span><span class="o">.</span><span class="n">asset_converter</span><span class="o">.</span><span class="n">AssetConverterContext</span><span class="p">()</span>
@@ -711,31 +736,11 @@
 
         <span class="c1"># Create converter task</span>
         <span class="n">instance</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">kit</span><span class="o">.</span><span class="n">asset_converter</span><span class="o">.</span><span class="n">get_instance</span><span class="p">()</span>
-        <span class="n">out_file_non_metric</span> <span class="o">=</span> <span class="n">out_file</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;.usd&quot;</span><span class="p">,</span> <span class="s2">&quot;_non_metric.usd&quot;</span><span class="p">)</span>
-        <span class="n">task</span> <span class="o">=</span> <span class="n">instance</span><span class="o">.</span><span class="n">create_converter_task</span><span class="p">(</span><span class="n">in_file</span><span class="p">,</span> <span class="n">out_file_non_metric</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">converter_context</span><span class="p">)</span>
+        <span class="n">task</span> <span class="o">=</span> <span class="n">instance</span><span class="o">.</span><span class="n">create_converter_task</span><span class="p">(</span><span class="n">in_file</span><span class="p">,</span> <span class="n">out_file</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">converter_context</span><span class="p">)</span>
         <span class="c1"># Start conversion task and wait for it to finish</span>
-        <span class="n">success</span> <span class="o">=</span> <span class="kc">True</span>
-        <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
-            <span class="n">success</span> <span class="o">=</span> <span class="k">await</span> <span class="n">task</span><span class="o">.</span><span class="n">wait_until_finished</span><span class="p">()</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="n">success</span><span class="p">:</span>
-                <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">0.1</span><span class="p">)</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="k">break</span>
-
-        <span class="n">temp_stage</span> <span class="o">=</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span><span class="o">.</span><span class="n">CreateInMemory</span><span class="p">()</span>
-        <span class="n">UsdGeom</span><span class="o">.</span><span class="n">SetStageUpAxis</span><span class="p">(</span><span class="n">temp_stage</span><span class="p">,</span> <span class="n">UsdGeom</span><span class="o">.</span><span class="n">Tokens</span><span class="o">.</span><span class="n">z</span><span class="p">)</span>
-        <span class="n">UsdGeom</span><span class="o">.</span><span class="n">SetStageMetersPerUnit</span><span class="p">(</span><span class="n">temp_stage</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span>
-        <span class="n">UsdPhysics</span><span class="o">.</span><span class="n">SetStageKilogramsPerUnit</span><span class="p">(</span><span class="n">temp_stage</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span>
-
-        <span class="n">base_prim</span> <span class="o">=</span> <span class="n">temp_stage</span><span class="o">.</span><span class="n">DefinePrim</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="s2">&quot;Xform&quot;</span><span class="p">)</span>
-        <span class="n">prim</span> <span class="o">=</span> <span class="n">temp_stage</span><span class="o">.</span><span class="n">DefinePrim</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">/geometry&quot;</span><span class="p">,</span> <span class="s2">&quot;Xform&quot;</span><span class="p">)</span>
-        <span class="n">prim</span><span class="o">.</span><span class="n">GetReferences</span><span class="p">()</span><span class="o">.</span><span class="n">AddReference</span><span class="p">(</span><span class="n">out_file_non_metric</span><span class="p">)</span>
-        <span class="n">cache</span> <span class="o">=</span> <span class="n">UsdUtils</span><span class="o">.</span><span class="n">StageCache</span><span class="o">.</span><span class="n">Get</span><span class="p">()</span>
-        <span class="n">cache</span><span class="o">.</span><span class="n">Insert</span><span class="p">(</span><span class="n">temp_stage</span><span class="p">)</span>
-        <span class="n">stage_id</span> <span class="o">=</span> <span class="n">cache</span><span class="o">.</span><span class="n">GetId</span><span class="p">(</span><span class="n">temp_stage</span><span class="p">)</span><span class="o">.</span><span class="n">ToLongInt</span><span class="p">()</span>
-        <span class="n">get_metrics_assembler_interface</span><span class="p">()</span><span class="o">.</span><span class="n">resolve_stage</span><span class="p">(</span><span class="n">stage_id</span><span class="p">)</span>
-        <span class="n">temp_stage</span><span class="o">.</span><span class="n">SetDefaultPrim</span><span class="p">(</span><span class="n">base_prim</span><span class="p">)</span>
-        <span class="n">temp_stage</span><span class="o">.</span><span class="n">Export</span><span class="p">(</span><span class="n">out_file</span><span class="p">)</span>
+        <span class="n">success</span> <span class="o">=</span> <span class="k">await</span> <span class="n">task</span><span class="o">.</span><span class="n">wait_until_finished</span><span class="p">()</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">success</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Failed to convert </span><span class="si">{</span><span class="n">in_file</span><span class="si">}</span><span class="s2"> to USD. Error: </span><span class="si">{</span><span class="n">task</span><span class="o">.</span><span class="n">get_error_message</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">success</span></div>
 </pre></div>
 
