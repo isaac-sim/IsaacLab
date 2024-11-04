@@ -7,11 +7,16 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import os
+import json
+
 import omni.isaac.core.utils.prims as prim_utils
 import omni.kit.commands
 import omni.log
 from pxr import Gf, Sdf, Usd
+from omni.isaac.core.utils.extensions import get_extension_path_from_name
 
+from omni.isaac.lab import ISAACLAB_EXT_DIR
 from omni.isaac.lab.sim.utils import clone
 from omni.isaac.lab.utils import to_camel_case
 
@@ -149,18 +154,45 @@ def spawn_lidar(
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0),
 ) -> Usd.Prim:
-    print("spawn", orientation)
     # spawn camera if it doesn't exist.
+    if cfg.lidar_type == "Custom":
+        if cfg.sensor_profile is None:
+            raise ValueError("LidarCfg sensor_profile cannot be none for lidar_type: Custom")
+
+        # make directories
+        if not os.path.isdir(cfg.sensor_profile_temp_dir):
+            os.makedirs(cfg.sensor_profile_temp_dir)
+        
+        # create file path
+        file_name = cfg.sensor_profile_temp_prefix + ".json"
+        file_path = os.path.join(cfg.sensor_profile_temp_dir,file_name)
+
+        # Check for tempfiles and remove
+        while os.path.isfile(file_path):
+            os.remove(file_path)
+
+        # Write to file
+        with open(file_path, "w") as outfile:
+            json.dump(cfg.sensor_profile, outfile)
+
+        print("Custom")
+        config = file_path.split("/")[-1].split(".")[0]
+    else: 
+        config = cfg.lidar_type
+
     if not prim_utils.is_prim_path_valid(prim_path):
         # prim_utils.create_prim(prim_path, "Camera", translation=translation, orientation=orientation)
         _, sensor = omni.kit.commands.execute(
             "IsaacSensorCreateRtxLidar",
             path=prim_path,
             parent=None,
-            config=cfg.lidar_type,
+            config=config,
             translation=translation,
             orientation=Gf.Quatd(orientation[0], orientation[1], orientation[2], orientation[3]),
         )
+        if not sensor.IsValid():
+            raise RuntimeError("IsaacSensorCreateRtxLidar failed to create a USD.Prim")
+
     else:
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
 

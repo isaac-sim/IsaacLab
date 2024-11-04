@@ -5,9 +5,12 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Callable
-from typing import Literal
+from typing import Literal, Any
+from dataclasses import MISSING
 
+from omni.isaac.lab import ISAACLAB_EXT_DIR
 from omni.isaac.lab.sim.spawners.spawner_cfg import SpawnerCfg
 from omni.isaac.lab.utils import configclass
 
@@ -293,3 +296,17 @@ class LidarCfg(SpawnerCfg):
         EXAMPLE_ROTARY = "Example_Rotary"
         EXAMPLE_SOLID_STATE = "Example_Solid_State"
         SIMPLE_EXAMPLE_SOLID_STATE = "Simple_Example_Solid_State"
+    
+    sensor_profile: dict[str, Any] | None = None
+    """Custom lidar parameters to use if lidar_type is set to "Custom"
+
+     see https://docs.omniverse.nvidia.com/kit/docs/omni.sensors.nv.lidar/latest/lidar_extension.html"""
+
+    sensor_profile_temp_dir: str = os.path.abspath(
+            os.path.join(
+                ISAACLAB_EXT_DIR, "../../exts/omni.isaac.sensor",
+                "data/lidar_configs/",
+            )
+        )
+    
+    sensor_profile_temp_prefix: str = "Temp_Config_"

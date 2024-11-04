@@ -33,4 +33,4 @@ class RtxLidarCfg(SensorBaseCfg):
         Literal["azimuth", "beamId", "elevation", "emitterId", "index", "materialId", "normal", "objectId", "velocity"]
     ] = []
     data_frame: Literal["world", "sensor"] = "world"
-    spawn: LidarCfg | None = MISSING
+    spawn: LidarCfg = MISSING

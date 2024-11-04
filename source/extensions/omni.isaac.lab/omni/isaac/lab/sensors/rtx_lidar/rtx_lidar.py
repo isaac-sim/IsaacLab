@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 import torch
 from collections.abc import Sequence
@@ -16,6 +17,7 @@ import omni.kit.commands
 import omni.usd
 from omni.isaac.core.prims import XFormPrimView
 from pxr import UsdGeom
+from omni.isaac.core.utils.extensions import get_extension_path_from_name
 
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.utils.array import convert_to_torch
@@ -46,23 +48,19 @@ class RtxLidar(SensorBase):
                 f"Invalid prim path for the ray-caster sensor: {self.cfg.prim_path}."
                 "\n\tHint: Please ensure that the prim path does not contain any regex patterns in the leaf."
             )
-        print("regex")
 
         # Initialize base class
         super().__init__(cfg)
-        print("super")
 
         # toggle rendering of rtx sensors as True
         # this flag is read by SimulationContext to determine if rtx sensors should be rendered
         carb_settings_iface = carb.settings.get_settings()
         carb_settings_iface.set_bool("/isaaclab/render/rtx_sensors", True)
-        print("carb_settings")
         # spawn the asset
         if self.cfg.spawn is not None:
             self.cfg.spawn.func(
                 self.cfg.prim_path, self.cfg.spawn, translation=self.cfg.offset.pos, orientation=self.cfg.offset.rot
             )
-        print("spawned")
         # check that spawn was successful
         matching_prims = sim_utils.find_matching_prims(self.cfg.prim_path)
         if len(matching_prims) == 0:
@@ -72,6 +70,14 @@ class RtxLidar(SensorBase):
         # Create empty variables for storing output data
         self._data = RtxLidarData()
 
+    def __del__(self):
+        if self.cfg.spawn.lidar_type == "Custom":
+            file_dir = self.cfg.spawn.sensor_profile_temp_dir
+            if os.path.isdir(file_dir):
+                for file in os.listdir(file_dir):
+                    if self.cfg.spawn.sensor_profile_temp_prefix in file and os.path.isfile(file):
+                        os.remove(os.path.join(file_dir,file))
+                        
     """
     Properties
     """
@@ -105,7 +111,6 @@ class RtxLidar(SensorBase):
     """
 
     def reset(self, env_ids: Sequence[int] | None = None):
-        print("reset")
         if not self._is_initialized:
             raise RuntimeError(
                 "Camera could not be initialized. Please ensure --enable_cameras is used to enable rendering."
@@ -127,7 +132,6 @@ class RtxLidar(SensorBase):
     """
 
     def _initialize_impl(self):
-        print("_init_impl")
         carb_settings_iface = carb.settings.get_settings()
         if not carb_settings_iface.get("/isaaclab/cameras_enabled"):
             raise RuntimeError(
@@ -138,7 +142,6 @@ class RtxLidar(SensorBase):
         import omni.replicator.core as rep
 
         super()._initialize_impl()
-        print("super_init_impl")
         # Create a view for the sensor
         self._view = XFormPrimView(self.cfg.prim_path, reset_xform_properties=False)
         self._view.initialize()
@@ -249,7 +252,6 @@ class RtxLidar(SensorBase):
         data_all_lidar = list()
         info_data_all_lidar: dict[str, list] = {}
 
-        print("update")
         # iterate over all the annotators
         for index in env_ids:
             # get the output
