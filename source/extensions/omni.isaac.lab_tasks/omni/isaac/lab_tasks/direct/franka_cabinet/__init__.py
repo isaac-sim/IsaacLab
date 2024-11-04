@@ -14,7 +14,6 @@ from . import agents
 # Register Gym environments.
 ##
 
-
 gym.register(
     id="Isaac-Franka-Cabinet-Direct-v0",
     entry_point=f"{__name__}.franka_cabinet_env:FrankaCabinetEnv",

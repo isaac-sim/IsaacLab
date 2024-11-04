@@ -10,9 +10,8 @@ from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-from omni.isaac.core.utils.types import ArticulationActions
-
 import omni.isaac.lab.utils.string as string_utils
+from omni.isaac.lab.utils.types import ArticulationActions
 
 if TYPE_CHECKING:
     from .actuator_cfg import ActuatorBaseCfg
@@ -207,6 +206,7 @@ class ActuatorBase(ABC):
             TypeError: If the parameter value is not of the expected type.
             TypeError: If the default value is not of the expected type.
             ValueError: If the parameter value is None and no default value is provided.
+            ValueError: If the default value tensor is the wrong shape.
         """
         # create parameter buffer
         param = torch.zeros(self._num_envs, self.num_joints, device=self._device)
@@ -231,7 +231,14 @@ class ActuatorBase(ABC):
                 param[:] = float(default_value)
             elif isinstance(default_value, torch.Tensor):
                 # if tensor, then use the same tensor for all joints
-                param[:] = default_value.float()
+                if default_value.shape == (self._num_envs, self.num_joints):
+                    param = default_value.float()
+                else:
+                    raise ValueError(
+                        "Invalid default value tensor shape.\n"
+                        f"Got: {default_value.shape}\n"
+                        f"Expected: {(self._num_envs, self.num_joints)}"
+                    )
             else:
                 raise TypeError(
                     f"Invalid type for default value: {type(default_value)} for "

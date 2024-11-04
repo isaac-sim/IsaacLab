@@ -11,7 +11,6 @@ from . import agents
 # Register Gym environments.
 ##
 
-
 gym.register(
     id="Isaac-Velocity-Rough-G1-v0",
     entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
