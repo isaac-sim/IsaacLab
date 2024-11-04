@@ -186,6 +186,7 @@ class TestTiledCamera(unittest.TestCase):
 
         camera.update(self.dt)
 
+        self.assertTrue(len(camera.data.output["depth"][torch.isinf(camera.data.output["depth"])]) > 0)
         self.assertTrue(camera.data.output["depth"].min() >= camera_cfg.spawn.clipping_range[0])
         self.assertTrue(
             camera.data.output["depth"][~torch.isinf(camera.data.output["depth"])].max()
