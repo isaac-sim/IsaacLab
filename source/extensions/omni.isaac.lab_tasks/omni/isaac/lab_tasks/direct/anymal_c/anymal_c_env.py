@@ -7,15 +7,13 @@ from __future__ import annotations
 
 import gymnasium as gym
 import torch
-from typing import TYPE_CHECKING
 
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.assets import Articulation
 from omni.isaac.lab.envs import DirectRLEnv
 from omni.isaac.lab.sensors import ContactSensor, RayCaster
 
-if TYPE_CHECKING:
-    from .anymal_c_env_cfg import AnymalCFlatEnvCfg, AnymalCRoughEnvCfg
+from .anymal_c_env_cfg import AnymalCFlatEnvCfg, AnymalCRoughEnvCfg
 
 
 class AnymalCEnv(DirectRLEnv):
