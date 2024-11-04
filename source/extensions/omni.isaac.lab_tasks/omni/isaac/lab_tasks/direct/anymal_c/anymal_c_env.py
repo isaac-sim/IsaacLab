@@ -10,6 +10,7 @@ import torch
 from typing import TYPE_CHECKING
 
 import omni.isaac.lab.sim as sim_utils
+from omni.isaac.lab.assets import Articulation
 from omni.isaac.lab.envs import DirectRLEnv
 from omni.isaac.lab.sensors import ContactSensor, RayCaster
 
