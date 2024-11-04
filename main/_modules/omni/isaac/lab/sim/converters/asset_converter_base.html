@@ -553,6 +553,8 @@
 <span class="sd">        Raises:</span>
 <span class="sd">            ValueError: When provided asset file does not exist.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># check that the config is valid</span>
+        <span class="n">cfg</span><span class="o">.</span><span class="n">validate</span><span class="p">()</span>
         <span class="c1"># check if the asset file exists</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">check_file_path</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">asset_path</span><span class="p">):</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;The asset path does not exist: </span><span class="si">{</span><span class="n">cfg</span><span class="o">.</span><span class="n">asset_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
