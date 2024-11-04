@@ -36,16 +36,22 @@ or when implementing complex logic that is difficult to decompose into separate 
 Manager-Based Environments
 --------------------------
 
-.. image:: ./Manager-basedTaskWorkflow.jpg
-      :width: 100%
-      :alt: Manager-based Task Workflow
-
 A majority of environment implementations follow a similar structure. The environment processes the input actions,
 steps through the simulation, computes observations and reward signals, applies randomization, and resets the terminated
 environments. Motivated by this, the environment can be decomposed into individual components that handle each of these tasks.
 For example, the observation manager is responsible for computing the observations, the reward manager is responsible for
 computing the rewards, and the termination manager is responsible for computing the termination signal. This approach
 is known as the manager-based environment design in the framework.
+
+.. image:: ../../_static/task-workflows/manager-based-light.svg
+    :class: only-light
+    :align: center
+    :alt: Manager-based Task Workflow
+
+.. image:: ../../_static/task-workflows/manager-based-dark.svg
+    :class: only-dark
+    :align: center
+    :alt: Manager-based Task Workflow
 
 Manager-based environments promote modular implementations of tasks by decomposing the task into individual
 components that are managed by separate classes. Each component of the task, such as rewards, observations,
@@ -92,15 +98,21 @@ specifications.
 Direct Environments
 -------------------
 
-.. image:: ./Direct-basedTaskWorkflow.jpg
-      :width: 100%
-      :alt: Direct-based Task Workflow
-
 The direct-style environment aligns more closely with traditional implementations of environments,
 where a single script directly implements the reward function, observation function, resets, and all the other components
 of the environment. This approach does not require the manager classes. Instead, users are provided the complete freedom
 to implement their task through the APIs from the base classes :class:`envs.DirectRLEnv` or :class:`envs.DirectMARLEnv`.
 For users migrating from the `IsaacGymEnvs`_ and `OmniIsaacGymEnvs`_ framework, this workflow may be more familiar.
+
+.. image:: ../../_static/task-workflows/direct-based-light.svg
+    :class: only-light
+    :align: center
+    :alt: Direct-based Task Workflow
+
+.. image:: ../../_static/task-workflows/direct-based-dark.svg
+    :class: only-dark
+    :align: center
+    :alt: Direct-based Task Workflow
 
 When defining an environment with the direct-style implementation, we expect the user define a single class that
 implements the entire environment. The task class should inherit from the base classes :class:`envs.DirectRLEnv` or
