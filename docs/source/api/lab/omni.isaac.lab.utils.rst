@@ -18,6 +18,7 @@
       noise
       string
       timer
+      types
       warp
 
    .. Rubric:: Functions
@@ -120,6 +121,13 @@ Timer operations
 ~~~~~~~~~~~~~~~~
 
 .. automodule:: omni.isaac.lab.utils.timer
+   :members:
+   :show-inheritance:
+
+Type operations
+~~~~~~~~~~~~~~~
+
+.. automodule:: omni.isaac.lab.utils.types
    :members:
    :show-inheritance:
 

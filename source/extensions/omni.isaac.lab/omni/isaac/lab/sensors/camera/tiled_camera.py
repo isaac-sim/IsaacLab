@@ -9,7 +9,6 @@ import math
 import numpy as np
 import torch
 from collections.abc import Sequence
-from tensordict import TensorDict
 from typing import TYPE_CHECKING, Any
 
 import carb
@@ -106,7 +105,7 @@ class TiledCamera(Camera):
         # message for class
         return (
             f"Tiled Camera @ '{self.cfg.prim_path}': \n"
-            f"\tdata types   : {self.data.output.sorted_keys} \n"
+            f"\tdata types   : {list(self.data.output.keys())} \n"
             f"\tsemantic filter : {self.cfg.semantic_filter}\n"
             f"\tcolorize semantic segm.   : {self.cfg.colorize_semantic_segmentation}\n"
             f"\tcolorize instance segm.   : {self.cfg.colorize_instance_segmentation}\n"
@@ -372,7 +371,7 @@ class TiledCamera(Camera):
                     (self._view.count, self.cfg.height, self.cfg.width, 1), device=self.device, dtype=torch.int32
                 ).contiguous()
 
-        self._data.output = TensorDict(data_dict, batch_size=self._view.count, device=self.device)
+        self._data.output = data_dict
         self._data.info = dict()
 
     def _tiled_image_shape(self) -> tuple[int, int]:

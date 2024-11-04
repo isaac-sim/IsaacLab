@@ -5,18 +5,20 @@
 
 import gymnasium as gym
 
-from . import agents, flat_env_cfg
+from . import agents
 
 ##
 # Register Gym environments.
 ##
+
+task_entry = "omni.isaac.lab_tasks.manager_based.locomotion.velocity.config.spot"
 
 gym.register(
     id="Isaac-Velocity-Flat-Spot-v0",
     entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": flat_env_cfg.SpotFlatEnvCfg,
+        "env_cfg_entry_point": f"{task_entry}.flat_env_cfg:SpotFlatEnvCfg",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:SpotFlatPPORunnerCfg",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_flat_ppo_cfg.yaml",
     },
@@ -27,7 +29,7 @@ gym.register(
     entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": flat_env_cfg.SpotFlatEnvCfg_PLAY,
+        "env_cfg_entry_point": f"{task_entry}.flat_env_cfg:SpotFlatEnvCfg_PLAY",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:SpotFlatPPORunnerCfg",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_flat_ppo_cfg.yaml",
     },

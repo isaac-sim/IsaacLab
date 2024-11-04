@@ -129,14 +129,9 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
             # Extract camera data
             camera_index = 0
             # note: BasicWriter only supports saving data in numpy format, so we need to convert the data to numpy.
-            if sim.backend == "torch":
-                # tensordict allows easy indexing of tensors in the dictionary
-                single_cam_data = convert_dict_to_backend(camera.data.output[camera_index], backend="numpy")
-            else:
-                # for numpy, we need to manually index the data
-                single_cam_data = dict()
-                for key, value in camera.data.output.items():
-                    single_cam_data[key] = value[camera_index]
+            single_cam_data = convert_dict_to_backend(
+                {k: v[camera_index] for k, v in camera.data.output.items()}, backend="numpy"
+            )
             # Extract the other information
             single_cam_info = camera.data.info[camera_index]
 
