@@ -196,7 +196,7 @@ adding any other optional objects into the scene, such as lights.
 |     self.sim = super().create_sim(self.device_id, self.graphics_device_id,   |     # clone, filter, and replicate                                     |
 |                                     self.physics_engine, self.sim_params)    |     self.scene.clone_environments(copy_from_source=False)              |
 |     self._create_ground_plane()                                              |     self.scene.filter_collisions(global_prim_paths=[])                 |
-|     self._create_envs(self.num_envs, self.cfg["env"]['envSpacing'],          |     # add articultion to scene                                         |
+|     self._create_envs(self.num_envs, self.cfg["env"]['envSpacing'],          |     # add articulation to scene                                        |
 |                         int(np.sqrt(self.num_envs)))                         |     self.scene.articulations["cartpole"] = self.cartpole               |
 |                                                                              |     # add lights                                                       |
 |                                                                              |     light_cfg = sim_utils.DomeLightCfg(intensity=2000.0)               |
@@ -660,7 +660,7 @@ the need to set simulation parameters for actors in the task implementation.
 |     self._create_ground_plane()                                        |         copy_from_source=False)                                     |
 |     self._create_envs(self.num_envs,                                   |     self.scene.filter_collisions(                                   |
 |         self.cfg["env"]['envSpacing'],                                 |         global_prim_paths=[])                                       |
-|         int(np.sqrt(self.num_envs)))                                   |     # add articultion to scene                                      |
+|         int(np.sqrt(self.num_envs)))                                   |     # add articulation to scene                                     |
 |                                                                        |     self.scene.articulations["cartpole"] = self.cartpole            |
 | def _create_ground_plane(self):                                        |     # add lights                                                    |
 |     plane_params = gymapi.PlaneParams()                                |     light_cfg = sim_utils.DomeLightCfg(                             |
