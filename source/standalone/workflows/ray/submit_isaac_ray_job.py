@@ -40,9 +40,9 @@ Usage:
 .. code-block:: bash
 
     # Example; submitting a tuning job
-    ./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py --aggregate_jobs
-    /workspace/isaaclab/isaaclab.sh -p /workspace/isaaclab/source/standalone/workflors/ray/isaac_ray_tune.py \\
-        --cfg_file hyperparameter_tuning/vision_cartpole_cfg.py \\
+    ./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py \
+    --aggregate_jobs /workspace/isaaclab/source/standalone/workflows/ray/isaac_ray_tune.py \
+        --cfg_file hyperparameter_tuning/vision_cartpole_cfg.py \
         --cfg_class CartpoleRGBNoTuneJobCfg --mlflow_uri <ML_FLOW_URI>
 
     # Example: Submitting resource wrapped job
