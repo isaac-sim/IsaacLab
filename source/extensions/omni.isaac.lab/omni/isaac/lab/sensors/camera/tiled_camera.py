@@ -64,10 +64,6 @@ class TiledCamera(Camera):
     .. _replicator extension: https://docs.omniverse.nvidia.com/extensions/latest/ext_replicator/annotators_details.html#annotator-output
     .. _USDGeom Camera: https://graphics.pixar.com/usd/docs/api/class_usd_geom_camera.html
 
-    .. note::
-        Compared to other cameras, the depth clipping behavior cannot be altered as the backend implementation
-        automatically clips the values exceeding the maximum range to zero.
-
     .. versionadded:: v1.0.0
 
         This feature is available starting from Isaac Sim 4.2. Before this version, the tiled rendering APIs
@@ -283,6 +279,22 @@ class TiledCamera(Camera):
             # alias rgb as first 3 channels of rgba
             if data_type == "rgba" and "rgb" in self.cfg.data_types:
                 self._data.output["rgb"] = self._data.output["rgba"][..., :3]
+
+            # NOTE: The `distance_to_camera` annotator returns the distance to the camera optical center. However,
+            #       the replicator depth clipping is applied w.r.t. to the image plane which may result in values
+            #       larger than the clipping range in the output. We apply an additional clipping to ensure values
+            #       are within the clipping range for all the annotators.
+            if data_type == "distance_to_camera":
+                self._data.output[data_type][
+                    self._data.output[data_type] > self.cfg.spawn.clipping_range[1]
+                ] = torch.inf
+            # apply defined clipping behavior
+            if (
+                data_type == "distance_to_camera" or data_type == "distance_to_image_plane" or data_type == "depth"
+            ) and self.cfg.depth_clipping_behavior != "none":
+                self._data.output[data_type][torch.isinf(self._data.output[data_type])] = (
+                    0.0 if self.cfg.depth_clipping_behavior == "zero" else self.cfg.spawn.clipping_range[1]
+                )
 
     """
     Private Helpers
