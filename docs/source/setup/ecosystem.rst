@@ -17,10 +17,16 @@ Isaac Lab not only inherits the capabilities of Isaac Sim, but also adds a numbe
 of new features that pertain to robot learning research. For example, including actuator dynamics in the
 simulation, procedural terrain generation, and support to collect data from human demonstrations.
 
-.. figure:: ../_static/setup/ecosystem.jpg
+.. image:: ../_static/setup/ecosystem-light.jpg
+    :class: only-light
     :align: center
-    :figwidth: 100%
-    :alt: The Isaac Lab, Isaac Sim, and Nvidia Omniverse ecosystem.
+    :alt: The Isaac Lab, Isaac Sim, and Nvidia Omniverse ecosystem
+
+.. image:: ../_static/setup/ecosystem-dark.jpg
+    :class: only-dark
+    :align: center
+    :alt: The Isaac Lab, Isaac Sim, and Nvidia Omniverse ecosystem
+
 
 For a detailed explanation of Nvidia's development journey of robot learning frameworks, please visit
 the `FAQ page <faq.html>`_.
