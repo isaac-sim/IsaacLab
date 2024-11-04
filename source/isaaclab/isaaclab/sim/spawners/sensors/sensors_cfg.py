@@ -12,6 +12,7 @@ from typing import Any, Literal
 from isaaclab import ISAACLAB_EXT_DIR
 from isaaclab.sim.spawners.spawner_cfg import SpawnerCfg
 from isaaclab.utils import configclass
+from isaaclab import ISAACLAB_EXT_DIR
 
 from . import sensors
 

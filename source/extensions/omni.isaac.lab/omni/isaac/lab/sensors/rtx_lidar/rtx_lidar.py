@@ -16,6 +16,7 @@ import omni.kit.commands
 import omni.usd
 from omni.isaac.core.prims import XFormPrimView
 from pxr import UsdGeom
+from omni.isaac.core.utils.extensions import get_extension_path_from_name
 
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.utils.array import convert_to_torch
@@ -78,10 +79,6 @@ class RtxLidar(SensorBase):
         matching_prims = sim_utils.find_matching_prims(self.cfg.prim_path)
         if len(matching_prims) == 0:
             raise RuntimeError(f"Could not find prim with path {self.cfg.prim_path}.")
-<<<<<<< HEAD
-=======
-
->>>>>>> 0bf707121 (add transform offset test, formatting)
         self._sensor_prims: list[UsdGeom.Camera] = list()
         # Create empty variables for storing output data
         self._data = RtxLidarData()
@@ -122,10 +119,6 @@ class RtxLidar(SensorBase):
     def frame(self) -> torch.tensor:
         """Frame number when the measurement took place."""
         return self._frame
-<<<<<<< HEAD
-=======
-
->>>>>>> 0bf707121 (add transform offset test, formatting)
     @property
     def render_product_paths(self) -> list[str]:
         """The path of the render products for the cameras.
@@ -133,10 +126,6 @@ class RtxLidar(SensorBase):
         This can be used via replicator interfaces to attach to writes or external annotator registry.
         """
         return self._render_product_paths
-<<<<<<< HEAD
-=======
-
->>>>>>> 0bf707121 (add transform offset test, formatting)
     """
     Operations
     """
@@ -189,10 +178,6 @@ class RtxLidar(SensorBase):
                 f"Number of camera prims in the view ({self._view.count}) does not match"
                 f" the number of environments ({self._num_envs})."
             )
-<<<<<<< HEAD
-=======
-
->>>>>>> 0bf707121 (add transform offset test, formatting)
         # Create all env_ids buffer
         self._ALL_INDICES = torch.arange(self._view.count, device=self._device, dtype=torch.long)
         # Create frame count buffer

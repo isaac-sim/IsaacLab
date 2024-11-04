@@ -10,12 +10,17 @@ import os
 from typing import TYPE_CHECKING
 
 import isaacsim.core.utils.prims as prim_utils
+import os
+import json
+
 import omni.kit.commands
 import omni.log
 from pxr import Gf, Sdf, Usd
+from omni.isaac.core.utils.extensions import get_extension_path_from_name
 
 from isaaclab.sim.utils import clone
 from isaaclab.utils import to_camel_case
+from isaaclab import ISAACLAB_EXT_DIR
 
 if TYPE_CHECKING:
     from . import sensors_cfg
@@ -151,6 +156,7 @@ def spawn_lidar(
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0),
 ) -> Usd.Prim:
+<<<<<<< HEAD
     """Create a USD Camera prim used for RTX Lidar models.
 
     This function creates an RTX lidar model attached to a USD Camera prim. The RTX lidar model is configured from json
@@ -178,6 +184,9 @@ def spawn_lidar(
         ValueError: If a prim already exists at the given path.
     """
 
+=======
+    # spawn camera if it doesn't exist.
+>>>>>>> 2a25177a8 (custom lidar configs enabled and tested)
     if cfg.lidar_type == "Custom":
         if cfg.sensor_profile is None:
             raise ValueError("LidarCfg sensor_profile cannot be none for lidar_type: Custom")
@@ -185,10 +194,17 @@ def spawn_lidar(
         # make directories
         if not os.path.isdir(cfg.sensor_profile_temp_dir):
             os.makedirs(cfg.sensor_profile_temp_dir)
+<<<<<<< HEAD
 
         # create file path
         file_name = cfg.sensor_profile_temp_prefix + ".json"
         file_path = os.path.join(cfg.sensor_profile_temp_dir, file_name)
+=======
+        
+        # create file path
+        file_name = cfg.sensor_profile_temp_prefix + ".json"
+        file_path = os.path.join(cfg.sensor_profile_temp_dir,file_name)
+>>>>>>> 2a25177a8 (custom lidar configs enabled and tested)
 
         # Check for tempfiles and remove
         while os.path.isfile(file_path):
@@ -200,8 +216,12 @@ def spawn_lidar(
 
         print("Custom")
         config = file_path.split("/")[-1].split(".")[0]
+<<<<<<< HEAD
         print(file_path)
     else:
+=======
+    else: 
+>>>>>>> 2a25177a8 (custom lidar configs enabled and tested)
         config = cfg.lidar_type
 
     if not prim_utils.is_prim_path_valid(prim_path):
