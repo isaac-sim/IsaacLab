@@ -1,4 +1,4 @@
-Isaac Lab Reference Architecture
+Reference Architecture
 ====================================
 
 This document presents an overview of the end-to-end robot learning process with 
@@ -15,15 +15,16 @@ in the robot learning field, including those at research labs, Original Equipmen
 Solutions Providers, Solutions Integrators (SI),  and independent software vendors (ISV). It offers 
 guidance on utilizing Isaac Lab’s robot training framework and workflows as a foundational starting 
 point for environment configuration, task design, and policy training and testing. 
+
 |
 
 
-.. image:: ../_static/reference-architecture/isaac-lab-ra-light.svg
+.. image:: ../../_static/reference-architecture/isaac-lab-ra-light.svg
     :class: only-light
     :align: center
     :alt: Isaac Lab Reference Architecture
 
-.. image:: ../_static/reference-architecture/isaac-lab-ra-dark.svg
+.. image:: ../../_static/reference-architecture/isaac-lab-ra-dark.svg
     :class: only-dark
     :align: center
     :alt: Isaac Lab Reference Architecture
@@ -75,9 +76,7 @@ the following ways:
 
 **Asset Configuration**
 
-Given that you have the asset file for your robot and other assets such as environment objects based 
-on the task, the next step is to import them into Isaac Lab. Isaac Lab uses asset configuration classes
-to spawn various objects (or prims) into the scene using Python. The first step is to write a 
+Given that you have the asset file for your robot and other assets such as environment objects based on the task, the next step is to import them into Isaac Lab. Isaac Lab uses asset configuration classes to spawn various objects (or prims) into the scene using Python. The first step is to write a 
 configuration class to define the properties for the assets needed to complete the task. For example, 
 a simple go-to-goal task for a mobile robot will include the robot asset, an object like cubes to 
 signify the goal pose visually, lights, ground plane, etc. Isaac Lab understands these assets using 
@@ -118,12 +117,12 @@ In Isaac Lab, we provide two different workflows for designing environments.
 
 **Manager-based**
 
-.. image:: ../_static/task-workflows/manager-based-light.svg
+.. image:: ../../_static/task-workflows/manager-based-light.svg
     :class: only-light
     :align: center
     :alt: Manager-based Task Workflow
 
-.. image:: ../_static/task-workflows/manager-based-dark.svg
+.. image:: ../../_static/task-workflows/manager-based-dark.svg
     :class: only-dark
     :align: center
     :alt: Manager-based Task Workflow
@@ -153,12 +152,12 @@ for each component.
 
 **Direct**
 
-.. image:: ../_static/task-workflows/direct-based-light.svg
+.. image:: ../../_static/task-workflows/direct-based-light.svg
     :class: only-light
     :align: center
     :alt: Direct-based Task Workflow
 
-.. image:: ../_static/task-workflows/direct-based-dark.svg
+.. image:: ../../_static/task-workflows/direct-based-dark.svg
     :class: only-dark
     :align: center
     :alt: Direct-based Task Workflow
@@ -239,21 +238,15 @@ If you want to integrate a different version of the provided algorithms or your 
 
 
 **Single GPU Training**
-
-|
-
-.. image:: ../_static/reference-architecture/single-gpu-training-light.svg
+.. image:: ../../_static/reference-architecture/single-gpu-training-light.svg
     :class: only-light
     :align: center
     :alt: Single GPU Training Data Flow
 
-.. image:: ../_static/reference-architecture/single-gpu-training-dark.svg
+.. image:: ../../_static/reference-architecture/single-gpu-training-dark.svg
     :class: only-dark
     :align: center
     :alt: Single GPU Training Data Flow
-
-
-|
 
 Isaac Lab supports training massively parallel environments to speed up RL training and provides rich data for the model to train. 
 For single GPU training, the following steps show how training works in Isaac Sim and Isaac Lab:
@@ -290,12 +283,12 @@ The next state is then passed in the flow till the training reaches the specifie
 
 |
 
-.. image:: ../_static/reference-architecture/multi-gpu-training-light.svg
+.. image:: ../../_static/reference-architecture/multi-gpu-training-light.svg
     :class: only-light
     :align: center
     :alt: Multi GPU Training Data Flow
 
-.. image:: ../_static/reference-architecture/multi-gpu-training-dark.svg
+.. image:: ../../_static/reference-architecture/multi-gpu-training-dark.svg
     :class: only-dark
     :align: center
     :alt: Multi GPU Training Data Flow
@@ -338,12 +331,12 @@ Isaac Lab provides scripts for `testing/playing the trained policy <https://isaa
 **Deployment**
 -----------------
 
-.. image:: ../_static/reference-architecture/deployment-light.svg
+.. image:: ../../_static/reference-architecture/deployment-light.svg
     :class: only-light
     :align: center
     :alt: Isaac Lab Trained Policy Deployment
 
-.. image:: ../_static/reference-architecture/deployment-dark.svg
+.. image:: ../../_static/reference-architecture/deployment-dark.svg
     :class: only-dark
     :align: center
     :alt: Isaac Lab Trained Policy Deployment

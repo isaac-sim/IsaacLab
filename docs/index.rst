@@ -75,7 +75,6 @@ Table of Contents
    :caption: Getting Started
 
    source/setup/installation/index
-   source/reference_architecture/index
    source/setup/faq
 
 .. toctree::
@@ -128,6 +127,7 @@ Table of Contents
    :maxdepth: 1
    :caption: References
 
+   source/refs/reference_architecture/index
    source/refs/additional_resources
    source/refs/contributing
    source/refs/troubleshooting
