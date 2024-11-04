@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from dataclasses import MISSING
 from typing import Literal
 
 from omni.isaac.lab.sim.converters.asset_converter_base_cfg import AssetConverterBaseCfg
@@ -28,8 +29,8 @@ class UrdfConverterCfg(AssetConverterBaseCfg):
     convex_decompose_mesh = False
     """Decompose a convex mesh into smaller pieces for a closer fit. Defaults to False."""
 
-    fix_base: bool = True
-    """Create a fix joint to the root/base link. Defaults to True."""
+    fix_base: bool = MISSING
+    """Create a fix joint to the root/base link."""
 
     merge_fixed_joints: bool = False
     """Consolidate links that are connected by fixed joints. Defaults to False."""
