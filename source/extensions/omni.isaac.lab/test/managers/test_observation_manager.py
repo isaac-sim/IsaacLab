@@ -244,6 +244,8 @@ class TestObservationManager(unittest.TestCase):
     def test_compute(self):
         """Test the observation computation."""
 
+        pos_scale_tuple = (2.0, 3.0, 1.0)
+
         @configclass
         class MyObservationManagerCfg:
             """Test config class for observation manager."""
@@ -254,14 +256,14 @@ class TestObservationManager(unittest.TestCase):
 
                 term_1 = ObservationTermCfg(func=grilled_chicken, scale=10)
                 term_2 = ObservationTermCfg(func=grilled_chicken_with_curry, scale=0.0, params={"hot": False})
-                term_3 = ObservationTermCfg(func=pos_w_data, scale=2.0)
+                term_3 = ObservationTermCfg(func=pos_w_data, scale=pos_scale_tuple)
                 term_4 = ObservationTermCfg(func=lin_vel_w_data, scale=1.5)
 
             @configclass
             class CriticCfg(ObservationGroupCfg):
-                term_1 = ObservationTermCfg(func=pos_w_data, scale=2.0)
+                term_1 = ObservationTermCfg(func=pos_w_data, scale=pos_scale_tuple)
                 term_2 = ObservationTermCfg(func=lin_vel_w_data, scale=1.5)
-                term_3 = ObservationTermCfg(func=pos_w_data, scale=2.0)
+                term_3 = ObservationTermCfg(func=pos_w_data, scale=pos_scale_tuple)
                 term_4 = ObservationTermCfg(func=lin_vel_w_data, scale=1.5)
 
             @configclass
@@ -289,6 +291,11 @@ class TestObservationManager(unittest.TestCase):
         self.assertEqual((self.env.num_envs, 11), obs_policy.shape)
         self.assertEqual((self.env.num_envs, 12), obs_critic.shape)
         self.assertEqual((self.env.num_envs, 128, 256, 4), obs_image.shape)
+        # check that the scales are applied correctly
+        torch.testing.assert_close(
+            self.env.data.pos_w * torch.tensor(pos_scale_tuple, device=self.env.device), obs_critic[:, :3]
+        )
+        torch.testing.assert_close(self.env.data.lin_vel_w * 1.5, obs_critic[:, 3:6])
         # make sure that the data are the same for same terms
         # -- within group
         torch.testing.assert_close(obs_critic[:, 0:3], obs_critic[:, 6:9])
