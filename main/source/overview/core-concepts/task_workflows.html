@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.2.0" />
-    <meta name="docbuild:last-update" content="Nov 01, 2024"/>
+    <meta name="docbuild:last-update" content="Nov 04, 2024"/>
   </head>
   
   
@@ -600,14 +600,13 @@ for more fine-grained control over the environment logic. This is useful when op
 or when implementing complex logic that is difficult to decompose into separate components.</p>
 <section id="manager-based-environments">
 <h2>Manager-Based Environments<a class="headerlink" href="#manager-based-environments" title="Permalink to this heading">#</a></h2>
-<a class="reference internal image-reference" href="../../../_images/Manager-basedTaskWorkflow.jpg"><img alt="Manager-based Task Workflow" src="../../../_images/Manager-basedTaskWorkflow.jpg" style="width: 100%;" /></a>
 <p>A majority of environment implementations follow a similar structure. The environment processes the input actions,
 steps through the simulation, computes observations and reward signals, applies randomization, and resets the terminated
 environments. Motivated by this, the environment can be decomposed into individual components that handle each of these tasks.
 For example, the observation manager is responsible for computing the observations, the reward manager is responsible for
 computing the rewards, and the termination manager is responsible for computing the termination signal. This approach
 is known as the manager-based environment design in the framework.</p>
-<p>Manager-based environments promote modular implementations of tasks by decomposing the task into individual
+<img alt="Manager-based Task Workflow" class="only-light align-center" src="../../../_images/manager-based-light.svg" /><img alt="Manager-based Task Workflow" class="only-dark align-center" src="../../../_images/manager-based-dark.svg" /><p>Manager-based environments promote modular implementations of tasks by decomposing the task into individual
 components that are managed by separate classes. Each component of the task, such as rewards, observations,
 termination can all be specified as individual configuration classes that are then passed to the corresponding
 manager classes. The manager is then responsible for parsing the configurations and processing the contents specified
@@ -670,13 +669,12 @@ specifications.</p>
 </section>
 <section id="direct-environments">
 <h2>Direct Environments<a class="headerlink" href="#direct-environments" title="Permalink to this heading">#</a></h2>
-<a class="reference internal image-reference" href="../../../_images/Direct-basedTaskWorkflow.jpg"><img alt="Direct-based Task Workflow" src="../../../_images/Direct-basedTaskWorkflow.jpg" style="width: 100%;" /></a>
 <p>The direct-style environment aligns more closely with traditional implementations of environments,
 where a single script directly implements the reward function, observation function, resets, and all the other components
 of the environment. This approach does not require the manager classes. Instead, users are provided the complete freedom
 to implement their task through the APIs from the base classes <a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnv" title="omni.isaac.lab.envs.DirectRLEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.DirectRLEnv</span></code></a> or <a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectMARLEnv" title="omni.isaac.lab.envs.DirectMARLEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.DirectMARLEnv</span></code></a>.
 For users migrating from the <a class="reference external" href="https://github.com/isaac-sim/IsaacGymEnvs">IsaacGymEnvs</a> and <a class="reference external" href="https://github.com/isaac-sim/OmniIsaacGymEnvs">OmniIsaacGymEnvs</a> framework, this workflow may be more familiar.</p>
-<p>When defining an environment with the direct-style implementation, we expect the user define a single class that
+<img alt="Direct-based Task Workflow" class="only-light align-center" src="../../../_images/direct-based-light.svg" /><img alt="Direct-based Task Workflow" class="only-dark align-center" src="../../../_images/direct-based-dark.svg" /><p>When defining an environment with the direct-style implementation, we expect the user define a single class that
 implements the entire environment. The task class should inherit from the base classes <a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnv" title="omni.isaac.lab.envs.DirectRLEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.DirectRLEnv</span></code></a> or
 <a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectMARLEnv" title="omni.isaac.lab.envs.DirectMARLEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.DirectMARLEnv</span></code></a> and should have its corresponding configuration class that inherits from
 <a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnvCfg" title="omni.isaac.lab.envs.DirectRLEnvCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.DirectRLEnvCfg</span></code></a> or <a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectMARLEnvCfg" title="omni.isaac.lab.envs.DirectMARLEnvCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.DirectMARLEnvCfg</span></code></a> respectively. The task class is responsible
@@ -820,7 +818,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Nov 01, 2024.
+  Last updated on Nov 04, 2024.
   <br/>
 </p>
   </div>
