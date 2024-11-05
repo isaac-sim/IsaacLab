@@ -1,5 +1,5 @@
 Reference Architecture
-====================================
+======================
 
 This document presents an overview of the end-to-end robot learning process with
 Isaac Lab and Isaac Sim. This is demonstrated using a reference architecture that highlights
@@ -8,7 +8,7 @@ user-friendly guide on the entire process of developing applications from traini
 the trained model in the real world, including links to demos, working examples, and documentation.
 
 Who is this document for?
----------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 This document is designed to assist robotics developers and researchers working with NVIDIA Isaac Lab
 in the robot learning field, including those at research labs, Original Equipment Manufacturers (OEM),
@@ -33,27 +33,32 @@ point for environment configuration, task design, and policy training and testin
 
 The reference architecture for Isaac Lab comprises the following components:
 
-1. **Asset Input**
-2. **Configuration - Assets & Scene**
-3. **Robot Learning Task Design**
-4. **Register with Gymnasium**
-5. **Environment Wrapping**
-6. **Run Training**
+1. :ref:`Asset Input<ra-asset-input>`
+2. :ref:`Configuration - Assets & Scene<ra-configuration>`
+3. :ref:`Robot Learning Task Design<ra-robot-learning-task-design>`
+4. :ref:`Register with Gymnasium<ra-register-gym>`
+5. :ref:`Environment Wrapping<ra-env-wrap>`
+6. :ref:`Run Training<ra-run-training>`
 
-- Single GPU Training
-- Multi-GPU and Multi-Node Training
-- Cloud-based Training
+* Single GPU Training
+* Multi-GPU and Multi-Node Training
+* Cloud-based Training
 
-7. **Run Testing**
+7. :ref:`Run Testing<ra-run-testing>`
 
 
-**Components**
------------------
+
+
+Components
+~~~~~~~~~~~
 In this section, we will briefly discuss the individual blocks for creating a
 sample reference application in Isaac Lab.
 
-**Component 1 - Asset Input**
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. _ra-asset-input:
+
+Component 1 - Asset Input
+---------------------------
 Isaac Lab accepts URDF, MJCF XML or USD files for the assets. The first step to training using Isaac Lab is to
 have the USD file of your asset and the USD or URDF file of your robot. This can be achieved in
 the following ways:
@@ -69,10 +74,13 @@ the following ways:
 3. If you already have the URDF or MJCF file of your robot, you do not need to convert to USD as Isaac Lab takes URDF and MJCF XML.
 
 
-**Component 2 -  Configuration (Assets and Scene)**
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. _ra-configuration:
 
-**Asset Configuration**
+Component 2 -  Configuration (Assets and Scene)
+------------------------------------------------------
+
+Asset Configuration
+^^^^^^^^^^^^^^^^^^^^^^^^
 
 Given that you have the asset file for your robot and other assets such as environment objects based on the task, the next step is to import them into Isaac Lab. Isaac Lab uses asset configuration classes to spawn various objects (or prims) into the scene using Python. The first step is to write a configuration class to define the properties for the assets needed to complete the task. For example, a simple go-to-goal task for a mobile robot will include the robot asset, an object like cubes to signify the goal pose visually, lights, ground plane, etc. Isaac Lab understands these assets using the configuration classes. Isaac Lab provides various sim-ready assets such as physically accurate
 3D objects that encompass accurate physical properties and behavior. It also provides connected data streams to represent the real world in simulated digital worlds such as `robots <https://github.com/isaac-sim/IsaacLab/tree/main/source/extensions/omni.isaac.lab_assets/omni/isaac/lab_assets>`__
@@ -80,7 +88,8 @@ like ANYbotics Anymal, Unitree H1 Humanoid, etc. as well as `sensors <https://gi
 
 Follow the tutorial on `how to write an Articulation and ArticulationCfg class <https://isaac-sim.github.io/IsaacLab/main/source/how-to/write_articulation_cfg.html>`__.
 
-**Scene Configuration**
+Scene Configuration
+^^^^^^^^^^^^^^^^^^^^^^^^
 
 Given the individual asset configurations, the next step is to put all the assets together into a
 scene. The scene configuration is a simple config class that initializes all the assets in the
@@ -88,8 +97,11 @@ scene that are needed for the task and for visualization. This is an example for
 `Cartpole example scene configuration <https://isaac-sim.github.io/IsaacLab/main/source/tutorials/02_scene/create_scene.html#scene-configuration>`__,
 which includes the cartpole, ground plane, and dome light.
 
-**Component 3 - Robot Learning Task Design**
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. _ra-robot-learning-task-design:
+
+Component 3 - Robot Learning Task Design
+------------------------------------------------------
 Now, we have the scene for the task, but we need to define the robot learning task. We will focus on
 `reinforcement learning (RL) <https://www.andrew.cmu.edu/course/10-703/textbook/BartoSutton.pdf>`__ algorithm here. We define the RL task
 that the agent is going to do. RL tasks are defined as a Markov Decision Process (MDP),
@@ -103,8 +115,8 @@ be defined by the user for the agent to perform the given task.
 
 In Isaac Lab, we provide two different workflows for designing environments.
 
-**Manager-based**
-
+Manager-based
+^^^^^^^^^^^^^^^^^
 .. image:: ../../_static/task-workflows/manager-based-light.svg
     :class: only-light
     :align: center
@@ -137,8 +149,8 @@ for each component.
 
 
 
-**Direct**
-
+Direct
+^^^^^^^^
 .. image:: ../../_static/task-workflows/direct-based-light.svg
     :class: only-light
     :align: center
@@ -167,16 +179,20 @@ to the RL library you want to use. Examples are created under the agent's folder
 See an example of `RSL-RL <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/locomotion/velocity/config/anymal_b/agents/rsl_rl_ppo_cfg.py>`__ for Anymal-B.
 
 
-**Component 4 - Register with Gymnasium**
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. _ra-register-gym:
+
+Component 4 - Register with Gymnasium
+------------------------------------------------------
 
 The next step is to register the environments with the gymnasium registry to allow you to create the environment using the unique environment name.
 Registration is a way to make the environment accessible and reusable across different
 RL algorithms and experiments. This is common in the RL community. Follow the tutorial on
 `Registering an Environment <https://isaac-sim.github.io/IsaacLab/main/source/tutorials/03_envs/register_rl_env_gym.html>`__ to learn more about how to register in your own environment.
 
-**Component 5 - Environment Wrapping**
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. _ra-env-wrap:
+
+Component 5 - Environment Wrapping
+------------------------------------------------------
 In running your RL task, you might want to change the behavior of your environment without
 changing the environment itself. For example, you might want to create functions to modify
 observations or rewards, record videos, or enforce time limits. Isaac Lab utilizes the API
@@ -195,12 +211,15 @@ specified in the `Isaac Lab utils wrapper module <https://isaac-sim.github.io/Is
 See the `full list <https://gymnasium.farama.org/api/wrappers/#gymnasium.Wrapper>`__ of other wrappers APIs. For more information on how these wrappers work,
 please refer to the `Wrapping environments <https://isaac-sim.github.io/IsaacLab/main/source/how-to/wrap_rl_env.html#how-to-env-wrappers>`__ documentation.
 
-**Adding your own wrappers**
+Adding your own wrappers
+^^^^^^^^^^^^^^^^^^^^^^^^
 
 You can define your own wrappers by adding them to the Isaac Lab utils wrapper module. More information is available `on the GitHub page for wrapping environments <https://isaac-sim.github.io/IsaacLab/main/source/how-to/wrap_rl_env.html#adding-new-wrappers>`__.
 
-**Component 6 - Run Training**
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. _ra-run-training:
+
+Component 6 - Run Training
+---------------------------
 
 Finally, the last step is to run the training of the RL agent. Isaac Lab provides scripts which utilizes four popular RL libraries for training the models (GPU-based training):
 
@@ -221,8 +240,8 @@ If you want to integrate a different version of the provided algorithms or your 
 
 
 
-**Single GPU Training**
-
+Single GPU Training
+^^^^^^^^^^^^^^^^^^^^^^^^
 .. image:: ../../_static/reference-architecture/single-gpu-training-light.svg
     :class: only-light
     :align: center
@@ -236,14 +255,16 @@ If you want to integrate a different version of the provided algorithms or your 
 Isaac Lab supports training massively parallel environments to speed up RL training and provides rich data for the model to train.
 For single GPU training, the following steps show how training works in Isaac Sim and Isaac Lab:
 
-1. Isaac Sim provides the asset states such as robot and sensor states, including the observations defined in the task observation config class.
+1. **In Isaac Sim**
 
-2. In Isaac Lab
+* Isaac Sim provides the asset states such as robot and sensor states, including the observations defined in the task observation config class.
 
-* We add randomization to the states defined in the event configuration class to obtain the observation for the task.
-* The observations are computed as PyTorch tensors, and it can optionally include the action provided by the trained model.
+2. **In Isaac Lab**
 
-3. In the RL library
+* Randomizations are added to the states defined in the event configuration class to obtain the observation for the task. Randomizations are however optional. If not defined, the states are the observations.
+* The observations are computed as PyTorch tensors, and it can optionally include the action provided by the trained model based on the task.
+
+3. **In the RL library**
 
 * The observation is passed to the policy.
 * The policy is trained to output the right actions for the robot using RL library algorithms such as PPO, TRPO, etc.
@@ -251,11 +272,11 @@ For single GPU training, the following steps show how training works in Isaac Si
 * Action types such as joint position for a quadruped is an input to a joint controller, velocity of 1 or 0 is used to control the cart directly in the cartpole task, etc.
 * In addition, based on how the task is defined, the previous action can be part of the next set of observations that is sent.
 
-4. In Isaac Sim
+4. **In Isaac Sim**
 
 * The actions from the policy are sent back to Isaac Sim to control the agent that is learning i.e. the robot. This is the physics simulation (sim) step. This generates the next states in Isaac Sim and the rewards are calculated in Isaac Lab.
 
-5. Rendering
+5. **Rendering**
 
 * The scene can be rendered to produce the cameras' images.
 
@@ -264,8 +285,8 @@ The next state is then passed in the flow till the training reaches the specifie
 
 
 
-**Multi-GPU and Multi-Node Training**
-
+Multi-GPU and Multi-Node Training
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 .. image:: ../../_static/reference-architecture/multi-gpu-training-light.svg
     :class: only-light
     :align: center
@@ -280,23 +301,24 @@ The next state is then passed in the flow till the training reaches the specifie
 Isaac Lab supports scaling up training by taking advantage of multi-GPU and multi-node training on Linux. Follow the tutorial on `Multi-GPU training <https://isaac-sim.github.io/IsaacLab/main/source/features/multi_gpu.html#multi-gpu-training>`__ and `Multi-Node training <https://isaac-sim.github.io/IsaacLab/main/source/features/multi_gpu.html#multi-node-training>`__ to get started.
 
 
-**Cloud-Based Training**
-
+Cloud-Based Training
+^^^^^^^^^^^^^^^^^^^^^^^^
 Isaac Lab can be deployed alongside Isaac Sim onto the public clouds with `Isaac Automator <https://github.com/isaac-sim/IsaacAutomator>`__. AWS, GCP, Azure, and Alibaba Cloud are currently supported. Follow the tutorial on `how to run Isaac Lab in the cloud <https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/cloud_installation.html>`__.
 
 .. note::
 
   Both multi-GPU and multi-node jobs can be easily scaled across heterogeneous environments with `OSMO <https://developer.nvidia.com/osmo>`__, a cloud-native, orchestration platform for scheduling complex multi-stage and multi-container heterogeneous computing workflows. Isaac Lab also provides the tools to run your RL task in Docker. See more details on `container deployment <https://isaac-sim.github.io/IsaacLab/main/source/deployment/index.html>`__.
 
+.. _ra-run-testing:
 
-**Component 7: Run Testing**
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Component 7: Run Testing
+-----------------------------
 Isaac Lab provides scripts for `testing/playing the trained policy <https://isaac-sim.github.io/IsaacLab/main/source/tutorials/03_envs/run_rl_training.html#playing-the-trained-agent>`__ on the environment and functions for converting the trained model from .pt to
 .jit and .onnx for deployment.
 
 
-**Deployment on Physical Robots**
-----------------------------------
+Deployment on Physical Robots
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. image:: ../../_static/reference-architecture/deployment-light.svg
     :class: only-light
@@ -319,17 +341,17 @@ NVIDIA Isaac platform provides some tools for state estimation, including visual
 
 
 
-**Summary**
------------------
+Summary
+~~~~~~~~~~~
 
 This document presents a reference architecture for Isaac Lab that has undergone SQA testing. We have provided a user-friendly guide to end-to-end robot learning with Isaac Lab and Isaac Sim from training to real-world deployment, including demos, examples, and documentation links.
 
 
-**How to Get Started**
------------------------
+How to Get Started
+~~~~~~~~~~~~~~~~~~~~~~
 Check out our resources on using Isaac Lab with your robots.
 
-**Review Our Documentation & Samples Resources**
+Review Our Documentation & Samples Resources
 
 * `Isaac Lab Tutorials`_
 * `Fast-Track Robot Learning in Simulation Using NVIDIA Isaac Lab`_
@@ -337,7 +359,7 @@ Check out our resources on using Isaac Lab with your robots.
 * `Closing the Sim-to-Real Gap: Training Spot Quadruped Locomotion with NVIDIA Isaac Lab <https://developer.nvidia.com/blog/closing-the-sim-to-real-gap-training-spot-quadruped-locomotion-with-nvidia-isaac-lab/>`__
 * `Additional Resources`_
 
-**Learn More About Featured NVIDIA Solutions**
+Learn More About Featured NVIDIA Solutions
 
 * `Scale AI-Enabled Robotics Development Workloads with NVIDIA OSMO`_
 * `Parkour and More: How Simulation-Based RL Helps to Push the Boundaries in Legged Locomotion (GTC session) <https://www.nvidia.com/en-us/on-demand/session/gtc24-s63140/>`__
