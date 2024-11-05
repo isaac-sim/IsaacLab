@@ -179,7 +179,7 @@ def invoke_tuning_run(cfg: dict, args: argparse.Namespace) -> None:
             ),
         )
 
-    elif args.run_mode == "remote":  # MFlow, to MFlow server ;)
+    elif args.run_mode == "remote":  # MLFlow, to MLFlow server ;)
         mlflow_callback = MLflowLoggerCallback(
             tracking_uri=args.mlflow_uri,
             experiment_name=f"IsaacRay-{args.cfg_class}-tune",
