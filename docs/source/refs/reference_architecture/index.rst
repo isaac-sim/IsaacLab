@@ -127,7 +127,7 @@ for each component.
     the robot's control inputs.
   - Rewards Config: Defines the reward function for the task
   - Terminations Config: Defines the conditions for termination of an episode or when the task
-    is completed. 
+    is completed.
 
 - You can add other optional configuration classes such as Event Config which defines the set of randomizations and noisification for the agent and environment, Curriculum Config for tasks that require `curriculum learning`_ and Commands Config for tasks where the input is from a controller/setpoint controls e.g. a gamepad controller.
 
@@ -170,7 +170,7 @@ See an example of `RSL-RL <https://github.com/isaac-sim/IsaacLab/blob/main/sourc
 **Component 4 - Register with Gymnasium (Optional)**
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-This step is optional because the user can manually create an instance of the environment by importing the environment class and its configuration class. However, you can also register the environments with the gymnasium registry. 
+This step is optional because the user can manually create an instance of the environment by importing the environment class and its configuration class. However, you can also register the environments with the gymnasium registry.
 Registration is a way to make the environment accessible and reusable across different
 RL algorithms and experiments. This is common in the RL community. Follow the tutorial on
 `Registering an Environment <https://isaac-sim.github.io/IsaacLab/main/source/tutorials/03_envs/register_rl_env_gym.html>`__ to learn more about how to register in your own environment.
@@ -291,7 +291,7 @@ Isaac Lab can be deployed alongside Isaac Sim onto the public clouds with `Isaac
 
 **Component 7: Run Testing**
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Isaac Lab provides scripts for `testing/playing the trained policy <https://isaac-sim.github.io/IsaacLab/main/source/tutorials/03_envs/run_rl_training.html#playing-the-trained-agent>`__ on the environment and functions for converting the trained model from .pt to 
+Isaac Lab provides scripts for `testing/playing the trained policy <https://isaac-sim.github.io/IsaacLab/main/source/tutorials/03_envs/run_rl_training.html#playing-the-trained-agent>`__ on the environment and functions for converting the trained model from .pt to
 .jit and .onnx for deployment.
 
 
