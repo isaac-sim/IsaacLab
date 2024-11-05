@@ -48,7 +48,7 @@ Usage:
     ./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py \
     --aggregate_jobs isaac_ray_tune.py # cfg_file is relative to ray folder
     --cfg_file hyperparameter_tuning/vision_cartpole_cfg.py \
-    --cfg_class CartpoleRGBNoTuneJobCfg --mlflow_uri <MFLOW_URI_FROM_GROK_OR_MANUAL>
+    --cfg_class CartpoleRGBNoTuneJobCfg --mlflow_uri <MLFLOW_URI_FROM_GROK_OR_MANUAL>
 
 """
 
