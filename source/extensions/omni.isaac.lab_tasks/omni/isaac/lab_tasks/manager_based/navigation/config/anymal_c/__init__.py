@@ -11,14 +11,12 @@ from . import agents
 # Register Gym environments.
 ##
 
-task_entry = "omni.isaac.lab_tasks.manager_based.navigation.config.anymal_c"
-
 gym.register(
     id="Isaac-Navigation-Flat-Anymal-C-v0",
     entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{task_entry}.navigation_env_cfg:NavigationEnvCfg",
+        "env_cfg_entry_point": f"{__name__}.navigation_env_cfg:NavigationEnvCfg",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:NavigationEnvPPORunnerCfg",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_flat_ppo_cfg.yaml",
     },
@@ -29,7 +27,7 @@ gym.register(
     entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{task_entry}.navigation_env_cfg:NavigationEnvCfg_PLAY",
+        "env_cfg_entry_point": f"{__name__}.navigation_env_cfg:NavigationEnvCfg_PLAY",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:NavigationEnvPPORunnerCfg",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_flat_ppo_cfg.yaml",
     },
