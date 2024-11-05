@@ -66,7 +66,7 @@ agent:
   time_limit_bootstrap: False
   # logging and checkpoint
   experiment:
-    directory: "unitree_go1_flat"
+    directory: "unitree_go1_flat_debug"
     experiment_name: ""
     write_interval: 100
     checkpoint_interval: 5000

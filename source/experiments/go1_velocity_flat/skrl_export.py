@@ -18,11 +18,6 @@ from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Play a checkpoint of an RL agent from skrl.")
-parser.add_argument("--video", action="store_true", default=False, help="Record videos during training.")
-parser.add_argument("--video_length", type=int, default=200, help="Length of the recorded video (in steps).")
-parser.add_argument(
-    "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
-)
 parser.add_argument("--num_envs", type=int, default=1, help="Number of environments to simulate.")
 parser.add_argument("--checkpoint", type=str, default=None, help="Path to model checkpoint.")
 parser.add_argument(
@@ -36,16 +31,13 @@ parser.add_argument(
     "--algorithm",
     type=str,
     default="PPO",
-    choices=["PPO", "IPPO", "MAPPO"],
+    choices=["PPO"],
     help="The RL algorithm used for training the skrl agent.",
 )
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
-# always enable cameras to record video
-if args_cli.video:
-    args_cli.enable_cameras = True
 
 # launch omniverse app
 app_launcher = AppLauncher(args_cli)
@@ -57,6 +49,7 @@ import os
 import torch
 
 import skrl
+from skrl.agents.torch.ppo import PPO
 from packaging import version
 
 # check for minimum supported skrl version
@@ -87,6 +80,7 @@ algorithm = args_cli.algorithm.lower()
 
 import agents
 import go1_velocity_flat
+import rl_games.algos_torch.flatten as flatten
 
 gym.register(
     id="Go1-Velocity-Flat-Unitree-Go1-v0",
@@ -108,8 +102,9 @@ def main():
 
     # parse configuration
     env_cfg = parse_env_cfg(
-        "Go1-Velocity-Flat-Unitree-Go1-v0", device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric
+        "Go1-Velocity-Flat-Unitree-Go1-v0", device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=True
     )
+    
     try:
         experiment_cfg = load_cfg_from_registry("Go1-Velocity-Flat-Unitree-Go1-v0", f"skrl_{algorithm}_cfg_entry_point")
     except ValueError:
@@ -126,21 +121,10 @@ def main():
         resume_path = get_checkpoint_path(
             log_root_path, run_dir=f".*_{algorithm}_{args_cli.ml_framework}", other_dirs=["checkpoints"]
         )
-    log_dir = os.path.dirname(os.path.dirname(resume_path))
 
     # create isaac environment
-    env = gym.make("Go1-Velocity-Flat-Unitree-Go1-v0", cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
-    # wrap for video recording
-    if args_cli.video:
-        video_kwargs = {
-            "video_folder": os.path.join(log_dir, "videos", "play"),
-            "step_trigger": lambda step: step == 0,
-            "video_length": args_cli.video_length,
-            "disable_logger": True,
-        }
-        print("[INFO] Recording videos during training.")
-        print_dict(video_kwargs, nesting=4)
-        env = gym.wrappers.RecordVideo(env, **video_kwargs)
+    env = gym.make("Go1-Velocity-Flat-Unitree-Go1-v0", cfg=env_cfg, render_mode=None)
+
 
     # convert to single-agent instance if required by the RL algorithm
     if isinstance(env.unwrapped, DirectMARLEnv) and algorithm in ["ppo"]:
@@ -161,17 +145,28 @@ def main():
     # set agent to evaluation mode
     runner.agent.set_running_mode("eval")
 
+
+    class ModelWrapper(torch.nn.Module):
+        def __init__(self, model):
+            torch.nn.Module.__init__(self)
+            self._model = model
+        def forward(self, inputs):
+            actions, log_prob, outputs = self._model.act({"states": inputs}, 'policy')
+            return outputs["mean_actions"][0]
+
     # reset environment
     obs, _ = env.reset()
     timestep = 0
-    # simulate environment
-    while simulation_app.is_running():
-        # run everything in inference mode
-        with torch.inference_mode():
-            # agent stepping
-            actions = runner.agent.act(obs, timestep=0, timesteps=0)
-            # env stepping
-            obs, _, _, _, _ = env.step(actions[0])
+    
+    assert type(runner.agent) is PPO 
+    
+    agent: PPO = runner.agent
+    model = agent.policy
+    adapter = ModelWrapper(model)
+    traced = torch.jit.trace(adapter, obs, check_trace=False)
+    traced.eval()
+    output = traced.forward(obs)
+    traced.save('policy_jit.pt')
 
     # close the simulator
     env.close()

@@ -22,6 +22,9 @@ To run it:
 
 Results: the skrl works faster
 
+I also included the scripts `source/experiments/go1_velocity_flat/skrl_export.py` and `source/experiments/go1_velocity_flat/skrl_test_export.py` for exporting the policy and testing it.
+
+Many changes were many for making deploying the policy easier.
 ---
 
 

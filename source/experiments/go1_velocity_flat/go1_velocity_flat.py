@@ -5,9 +5,14 @@
 
 import math
 
+from omni.isaac.lab.assets.articulation.articulation import Articulation
+from omni.isaac.lab.envs.manager_based_env import ManagerBasedEnv
+import torch
+from omni.isaac.lab.envs.manager_based_rl_env import ManagerBasedRLEnv
+from omni.isaac.lab.sensors.contact_sensor.contact_sensor import ContactSensor
 import omni.isaac.lab.sim as sim_utils
 import omni.isaac.lab_tasks.manager_based.locomotion.velocity.mdp as mdp
-from omni.isaac.lab.actuators import DelayedActuatorNetMLPCfg
+from omni.isaac.lab.actuators import DelayedActuatorNetMLPCfg, ActuatorNetMLPCfg
 from omni.isaac.lab.assets import ArticulationCfg, AssetBaseCfg
 from omni.isaac.lab.envs import ManagerBasedRLEnvCfg
 from omni.isaac.lab.managers import EventTermCfg as EventTerm
@@ -27,13 +32,25 @@ import omni.isaac.lab.terrains as terrain_gen
 ##
 # Configuration - Actuators.
 ##
+JOINT_NAMES = [
+    "FL_hip_joint",
+    "FR_hip_joint",
+    "RL_hip_joint",
+    "RR_hip_joint",
+    "FL_thigh_joint",
+    "FR_thigh_joint",
+    "RL_thigh_joint",
+    "RR_thigh_joint",
+    "FL_calf_joint",
+    "FR_calf_joint",
+    "RL_calf_joint",
+    "RR_calf_joint",
+]
 
+print(f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/Go1/go1.usd")
 
-GO1_ACTUATOR_CFG = DelayedActuatorNetMLPCfg(
-    joint_names_expr=[
-        ".*_hip_joint",
-        ".*_thigh_joint",
-    ],
+GO1_ACTUATOR_CFG = ActuatorNetMLPCfg(
+    joint_names_expr=JOINT_NAMES,
     network_file=f"{ISAACLAB_NUCLEUS_DIR}/ActuatorNets/Unitree/unitree_go1.pt",
     pos_scale=-1.0,
     vel_scale=1.0,
@@ -43,24 +60,8 @@ GO1_ACTUATOR_CFG = DelayedActuatorNetMLPCfg(
     effort_limit=23.7,  # taken from spec sheet
     velocity_limit=30.0,  # taken from spec sheet
     saturation_effort=23.7,  # same as effort limit
-    min_delay=4,
-    max_delay=5,
 )
 
-GO1_ACTUATOR_CFG_KNEE = DelayedActuatorNetMLPCfg(
-    joint_names_expr=[".*_calf_joint"],
-    network_file=f"{ISAACLAB_NUCLEUS_DIR}/ActuatorNets/Unitree/unitree_go1.pt",
-    pos_scale=-1.0,
-    vel_scale=1.0,
-    torque_scale=1.0,
-    input_order="pos_vel",
-    input_idx=[0, 1, 2],
-    effort_limit=35.55,
-    velocity_limit=30.0,  # taken from spec sheet
-    saturation_effort=35.55,  # same as effort limit
-    min_delay=4,
-    max_delay=5,  # number of dT (~20ms)
-)
 
 """Configuration of Go1 actuators using MLP model.
 
@@ -91,27 +92,33 @@ UNITREE_GO1_CFG = ArticulationCfg(
         ),
     ),
     init_state=ArticulationCfg.InitialStateCfg(
-        pos=(0.0, 0.0, 0.4),
+        pos=(0.0, 0.0, 0.3),
         joint_pos={
-            ".*L_hip_joint": 0.1,
-            ".*R_hip_joint": -0.1,
-            "F[L,R]_thigh_joint": 0.8,
-            "R[L,R]_thigh_joint": 1.0,
-            ".*_calf_joint": -1.5,
+            "FL_hip_joint": 0.1,
+            "FR_hip_joint": -0.1,
+            "RL_hip_joint": 0.1,
+            "RR_hip_joint": -0.1,
+            "FL_thigh_joint": 0.8,
+            "FR_thigh_joint": 0.8,
+            "RL_thigh_joint": 1.0,
+            "RR_thigh_joint": 1.0,
+            "FL_calf_joint": -1.5,
+            "FR_calf_joint": -1.5,
+            "RL_calf_joint": -1.5,
+            "RR_calf_joint": -1.5,
         },
         joint_vel={".*": 0.0},
     ),
     soft_joint_pos_limit_factor=0.9,
     actuators={
         "base_legs": GO1_ACTUATOR_CFG,
-        "knee": GO1_ACTUATOR_CFG_KNEE,
     },
 )
 """Configuration of Unitree Go1 using MLP-based actuator model."""
 
 COBBLESTONE_ROAD_CFG = terrain_gen.TerrainGeneratorCfg(
     size=(10.0, 10.0),
-    border_width=20.0,
+    border_width=100.0,
     num_rows=50,
     num_cols=50,
     horizontal_scale=0.25,
@@ -120,14 +127,13 @@ COBBLESTONE_ROAD_CFG = terrain_gen.TerrainGeneratorCfg(
     difficulty_range=(0.0, 1.0),
     use_cache=False,
     sub_terrains={
-        "random_rough": terrain_gen.HfSteppingStonesTerrainCfg(
-            #proportion=0.2,
-            stone_height_max=0.1,
-            stone_width_range=(0.25, 2),
-            stone_distance_range=(0.25, 2),
-            holes_depth=-.05,
-            platform_width=3,
+        "random_rough": terrain_gen.HfRandomUniformTerrainCfg(
+            proportion=0.5,
+            noise_range=(0.01, 0.03),
+            noise_step=0.01,
+            downsampled_scale=None,
         ),
+        "plane": terrain_gen.MeshPlaneTerrainCfg(proportion=0.5),
     },
 )
 
@@ -157,10 +163,12 @@ class MySceneCfg(InteractiveSceneCfg):
     )
     # robots
     robot: ArticulationCfg = UNITREE_GO1_CFG
+
     # sensors
     contact_forces = ContactSensorCfg(
         prim_path="{ENV_REGEX_NS}/Robot/.*", history_length=3, track_air_time=True
     )
+
     # lights
     sky_light = AssetBaseCfg(
         prim_path="/World/skyLight",
@@ -168,7 +176,8 @@ class MySceneCfg(InteractiveSceneCfg):
             intensity=750.0,
             texture_file=f"{ISAAC_NUCLEUS_DIR}/Materials/Textures/Skies/PolyHaven/kloofendal_43d_clear_puresky_4k.hdr",
         ),
-    ) 
+    )
+
 
 ##
 # MDP settings
@@ -186,8 +195,8 @@ class CommandsCfg:
         heading_control_stiffness=0.5,
         debug_vis=True,
         ranges=mdp.UniformVelocityCommandCfg.Ranges(
-            lin_vel_x=(-.50, 1.5),
-            lin_vel_y=(-.10, .10),
+            lin_vel_x=(-0.50, 1.),
+            lin_vel_y=(-0.10, 0.10),
             ang_vel_z=(-1.0, 1.0),
             heading=(-math.pi, math.pi),
         ),
@@ -199,8 +208,56 @@ class ActionsCfg:
     """Action specifications for the MDP."""
 
     joint_pos = mdp.JointPositionActionCfg(
-        asset_name="robot", joint_names=[".*"], scale=0.25, use_default_offset=True
+        asset_name="robot",
+        joint_names=JOINT_NAMES,
+        scale=0.25,
+        use_default_offset=True,
+        preserve_order=True,
     )
+
+
+def contact_observer(
+    env: ManagerBasedRLEnv, threshold: float, sensor_cfg: SceneEntityCfg
+) -> torch.Tensor:
+    """Penalize undesired contacts as the number of violations that are above a threshold."""
+    # extract the used quantities (to enable type-hinting)
+    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    # check if contact force is above threshold
+    net_contact_forces = contact_sensor.data.net_forces_w_history
+    is_contact = (
+        torch.sum(torch.abs(net_contact_forces[:, 0, sensor_cfg.body_ids, :]), dim=2)
+        > threshold
+    )
+    # sum over contacts for each environment
+    return is_contact
+
+
+def joint_vel(
+    env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+):
+    """The joint velocities of the asset
+    Note: Only the joints configured in :attr:`asset_cfg.joint_ids` will have their velocities returned.
+    """
+    # extract the used quantities (to enable type-hinting)
+    asset: Articulation = env.scene[asset_cfg.name]
+    return asset.data.joint_vel[:, asset_cfg.joint_ids]
+
+
+def joint_pos(
+    env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+) -> torch.Tensor:
+    """The joint positions of the asset w.r.t. the default joint positions.
+
+    Note: Only the joints configured in :attr:`asset_cfg.joint_ids` will have their positions returned.
+    """
+    # extract the used quantities (to enable type-hinting)
+    asset: Articulation = env.scene[asset_cfg.name]
+    # print("Default offset")
+    # asset.data.default_joint_pos[:, asset_cfg.joint_ids]
+    
+    return asset.data.joint_pos[
+        :, asset_cfg.joint_ids
+    ]#  - asset.data.default_joint_pos[:, asset_cfg.joint_ids]
 
 
 @configclass
@@ -211,13 +268,13 @@ class ObservationsCfg:
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
 
-        # observation terms (order preserved)
-        base_lin_vel = ObsTerm(
-            func=mdp.base_lin_vel, noise=Unoise(n_min=-0.1, n_max=0.1)
-        )
-        base_ang_vel = ObsTerm(
-            func=mdp.base_ang_vel, noise=Unoise(n_min=-0.2, n_max=0.2)
-        )
+        # observation terms - I couldn't replicate those terms in the real robot
+        # base_lin_vel = ObsTerm(
+        #     func=mdp.base_lin_vel, noise=Unoise(n_min=-0.1, n_max=0.1)
+        # )
+        # base_ang_vel = ObsTerm(
+        #     func=mdp.base_ang_vel, noise=Unoise(n_min=-0.2, n_max=0.2)
+        # )
         projected_gravity = ObsTerm(
             func=mdp.projected_gravity,
             noise=Unoise(n_min=-0.05, n_max=0.05),
@@ -225,14 +282,25 @@ class ObservationsCfg:
         velocity_commands = ObsTerm(
             func=mdp.generated_commands, params={"command_name": "base_velocity"}
         )
-        joint_pos = ObsTerm(
-            func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01)
-        )
-        joint_vel = ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-1.5, n_max=1.5))
+        joint_pos = ObsTerm(func=mdp.joint_pos, noise=Unoise(n_min=-0.01, n_max=0.01))
+        joint_vel = ObsTerm(func=mdp.joint_vel, noise=Unoise(n_min=-1.5, n_max=1.5))
+
         actions = ObsTerm(func=mdp.last_action)
 
+        feet_air_time = ObsTerm(
+            func=contact_observer,
+            params={
+                "sensor_cfg": SceneEntityCfg(
+                    "contact_forces",
+                    body_names=["FL_foot", "FR_foot", "RL_foot", "RR_foot"],
+                    preserve_order=True,
+                ),
+                "threshold": 0.5,
+            },
+        )
+
         def __post_init__(self):
-            self.enable_corruption = False
+            self.enable_corruption = True
             self.concatenate_terms = True
 
     # observation groups
@@ -249,8 +317,8 @@ class EventCfg:
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
-            "static_friction_range": (0.8, 0.8),
-            "dynamic_friction_range": (0.6, 0.6),
+            "static_friction_range": (0.6, 1),
+            "dynamic_friction_range": (0.4, 0.7),
             "restitution_range": (0.0, 0.0),
             "num_buckets": 64,
         },
@@ -270,10 +338,12 @@ class EventCfg:
     base_external_force_torque = EventTerm(
         func=mdp.apply_external_force_torque,
         mode="reset",
+        is_global_time=False,
+        interval_range_s=(5.0, 40.0),
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names="trunk"),
-            "force_range": (0.0, 0.0),
-            "torque_range": (-0.0, 0.0),
+            "force_range": (-5.0, 5.0),
+            "torque_range": (-0.10, 0.10),
         },
     )
 
@@ -302,6 +372,7 @@ class EventCfg:
         },
     )
 
+
 @configclass
 class RewardsCfg:
     """Reward terms for the MDP."""
@@ -318,9 +389,9 @@ class RewardsCfg:
         params={"command_name": "base_velocity", "std": math.sqrt(0.25)},
     )
     # -- penalties
-    lin_vel_z_l2 = RewTerm(func=mdp.lin_vel_z_l2, weight=-2.0)
+    lin_vel_z_l2 = RewTerm(func=mdp.lin_vel_z_l2, weight=-0.5)
     ang_vel_xy_l2 = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.05)
-    dof_torques_l2 = RewTerm(func=mdp.joint_torques_l2, weight=-2.0e-4)
+    dof_torques_l2 = RewTerm(func=mdp.joint_torques_l2, weight=-2.0e-5)
     dof_acc_l2 = RewTerm(func=mdp.joint_acc_l2, weight=-2.5e-7)
     action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.01)
     feet_air_time = RewTerm(
@@ -340,10 +411,11 @@ class RewardsCfg:
             "threshold": 1.0,
         },
     )
-    
+
     # -- optional penalties
     flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-2.5)
-    dof_pos_limits = RewTerm(func=mdp.joint_pos_limits, weight=0.0)
+    dof_pos_limits = RewTerm(func=mdp.joint_pos_limits, weight=-0.1)
+    termination = RewTerm(func=mdp.is_terminated, weight=-10)
 
 
 @configclass
@@ -354,7 +426,9 @@ class TerminationsCfg:
     base_contact = DoneTerm(
         func=mdp.illegal_contact,
         params={
-            "sensor_cfg": SceneEntityCfg("contact_forces", body_names="trunk"),
+            "sensor_cfg": SceneEntityCfg(
+                "contact_forces", body_names=["trunk", ".*_calf", ".*_thigh", ".*_hip"]
+            ),
             "threshold": 1.0,
         },
     )
@@ -385,7 +459,7 @@ class UnitreeGo1FlatEnvCfg(ManagerBasedRLEnvCfg):
         """Post initialization."""
         # general settings
         self.decimation = 4
-        self.episode_length_s = 20.0
+        self.episode_length_s = 40.0
 
         # simulation settings
         self.sim.dt = 0.005
@@ -409,7 +483,7 @@ class UnitreeGo1FlatEnvCfg_PLAY(UnitreeGo1FlatEnvCfg):
         self.scene.terrain.terrain_generator.num_cols = 8
         self.scene.terrain.terrain_generator.num_rows = 8
         self.scene.terrain.terrain_generator.size = (2, 2)
-        
+
         # disable randomization for play
         self.observations.policy.enable_corruption = False
         # remove random pushing event

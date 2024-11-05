@@ -110,6 +110,7 @@ def main():
     env_cfg = parse_env_cfg(
         "Go1-Velocity-Flat-Unitree-Go1-v0", device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric
     )
+
     try:
         experiment_cfg = load_cfg_from_registry("Go1-Velocity-Flat-Unitree-Go1-v0", f"skrl_{algorithm}_cfg_entry_point")
     except ValueError:
@@ -130,17 +131,7 @@ def main():
 
     # create isaac environment
     env = gym.make("Go1-Velocity-Flat-Unitree-Go1-v0", cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
-    # wrap for video recording
-    if args_cli.video:
-        video_kwargs = {
-            "video_folder": os.path.join(log_dir, "videos", "play"),
-            "step_trigger": lambda step: step == 0,
-            "video_length": args_cli.video_length,
-            "disable_logger": True,
-        }
-        print("[INFO] Recording videos during training.")
-        print_dict(video_kwargs, nesting=4)
-        env = gym.wrappers.RecordVideo(env, **video_kwargs)
+
 
     # convert to single-agent instance if required by the RL algorithm
     if isinstance(env.unwrapped, DirectMARLEnv) and algorithm in ["ppo"]:
@@ -154,24 +145,25 @@ def main():
     experiment_cfg["trainer"]["close_environment_at_exit"] = False
     experiment_cfg["agent"]["experiment"]["write_interval"] = 0  # don't log to TensorBoard
     experiment_cfg["agent"]["experiment"]["checkpoint_interval"] = 0  # don't generate checkpoints
-    runner = Runner(env, experiment_cfg)
 
     print(f"[INFO] Loading model checkpoint from: {resume_path}")
-    runner.agent.load(resume_path)
-    # set agent to evaluation mode
-    runner.agent.set_running_mode("eval")
 
     # reset environment
     obs, _ = env.reset()
     timestep = 0
     # simulate environment
+    from torch import jit
+    net = jit.load('/home/nexus/Documents/repos/IsaacLab/policy_jit.pt')
     while simulation_app.is_running():
         # run everything in inference mode
         with torch.inference_mode():
             # agent stepping
-            actions = runner.agent.act(obs, timestep=0, timesteps=0)
+            actions = net(obs).unsqueeze(0)
             # env stepping
-            obs, _, _, _, _ = env.step(actions[0])
+            obs, _, _, _, _ = env.step(actions)
+
+        # if i >= 2:
+        #     break
 
     # close the simulator
     env.close()
@@ -182,3 +174,4 @@ if __name__ == "__main__":
     main()
     # close sim app
     simulation_app.close()
+        
