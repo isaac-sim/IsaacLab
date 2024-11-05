@@ -372,6 +372,19 @@ class RigidObjectCollection(AssetBase):
                     " Please ensure that there is only one rigid body in the prim path tree."
                 )
 
+            # check that no rigid object has an articulation root API, which decreases simulation performance
+            articulation_prims = sim_utils.get_all_matching_child_prims(
+                template_prim_path, predicate=lambda prim: prim.HasAPI(UsdPhysics.ArticulationRootAPI)
+            )
+            if len(articulation_prims) != 0:
+                if articulation_prims[0].GetAttribute("physxArticulation:articulationEnabled").Get():
+                    raise RuntimeError(
+                        f"Found an articulation root when resolving '{rigid_object_cfg.prim_path}' in the rigid object"
+                        f" collection. These are located at: '{articulation_prims}' under '{template_prim_path}'."
+                        " Please disable the articulation root in the USD or from code by setting the parameter"
+                        " 'ArticulationRootPropertiesCfg.articulation_enabled' to False in the spawn configuration."
+                    )
+
             # resolve root prim back into regex expression
             root_prim_path = root_prims[0].GetPath().pathString
             root_prim_path_expr = rigid_object_cfg.prim_path + root_prim_path[len(template_prim_path) :]
