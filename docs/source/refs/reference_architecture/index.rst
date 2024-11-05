@@ -36,13 +36,13 @@ The reference architecture for Isaac Lab comprises the following components:
 1. **Asset Input**
 2. **Configuration - Assets & Scene**
 3. **Robot Learning Task Design**
-4. **Register with Gymnasium (Optional)**
+4. **Register with Gymnasium**
 5. **Environment Wrapping**
 6. **Run Training**
 
-  * Single GPU Training
-  * Multi-GPU and Multi-Node Training
-  * Cloud-based Training
+- Single GPU Training
+- Multi-GPU and Multi-Node Training
+- Cloud-based Training
 
 7. **Run Testing**
 
@@ -167,10 +167,10 @@ to the RL library you want to use. Examples are created under the agent's folder
 See an example of `RSL-RL <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/locomotion/velocity/config/anymal_b/agents/rsl_rl_ppo_cfg.py>`__ for Anymal-B.
 
 
-**Component 4 - Register with Gymnasium (Optional)**
+**Component 4 - Register with Gymnasium**
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-This step is optional because the user can manually create an instance of the environment by importing the environment class and its configuration class. However, you can also register the environments with the gymnasium registry.
+The next step is to register the environments with the gymnasium registry to allow you to create the environment using the unique environment name.
 Registration is a way to make the environment accessible and reusable across different
 RL algorithms and experiments. This is common in the RL community. Follow the tutorial on
 `Registering an Environment <https://isaac-sim.github.io/IsaacLab/main/source/tutorials/03_envs/register_rl_env_gym.html>`__ to learn more about how to register in your own environment.
@@ -240,24 +240,24 @@ For single GPU training, the following steps show how training works in Isaac Si
 
 2. In Isaac Lab
 
-  * We add randomization to the states defined in the event configuration class to obtain the observation for the task.
-  * The observations are computed as PyTorch tensors, and it can optionally include the action provided by the trained model.
+* We add randomization to the states defined in the event configuration class to obtain the observation for the task.
+* The observations are computed as PyTorch tensors, and it can optionally include the action provided by the trained model.
 
 3. In the RL library
 
-  * The observation is passed to the policy.
-  * The policy is trained to output the right actions for the robot using RL library algorithms such as PPO, TRPO, etc.
-  * The actions can serve either as a setpoint for a controller that generates the action to the robot or used directly as the action to the robot based on the task.
-  * Action types such as joint position for a quadruped is an input to a joint controller, velocity of 1 or 0 is used to control the cart directly in the cartpole task, etc.
-  * In addition, based on how the task is defined, the previous action can be part of the next set of observations that is sent.
+* The observation is passed to the policy.
+* The policy is trained to output the right actions for the robot using RL library algorithms such as PPO, TRPO, etc.
+* The actions can serve either as a setpoint for a controller that generates the action to the robot or used directly as the action to the robot based on the task.
+* Action types such as joint position for a quadruped is an input to a joint controller, velocity of 1 or 0 is used to control the cart directly in the cartpole task, etc.
+* In addition, based on how the task is defined, the previous action can be part of the next set of observations that is sent.
 
 4. In Isaac Sim
 
-  * The actions from the policy are sent back to Isaac Sim to control the agent that is learning i.e. the robot. This is the physics simulation (sim) step. This generates the next states in Isaac Sim and the rewards are calculated in Isaac Lab.
+* The actions from the policy are sent back to Isaac Sim to control the agent that is learning i.e. the robot. This is the physics simulation (sim) step. This generates the next states in Isaac Sim and the rewards are calculated in Isaac Lab.
 
 5. Rendering
 
-  * The scene can be rendered to produce the cameras' images.
+* The scene can be rendered to produce the cameras' images.
 
 
 The next state is then passed in the flow till the training reaches the specified training steps or epochs. The final product is the trained model/agent.
