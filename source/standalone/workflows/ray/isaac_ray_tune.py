@@ -313,7 +313,7 @@ if __name__ == "__main__":
             mlflow.set_tracking_uri(args.mlflow_uri)
             from ray.air.integrations.mlflow import MLflowLoggerCallback
         else:
-            raise ValueError("Please provide a result MFLow URI server.")
+            raise ValueError("Please provide a result MLFLow URI server.")
     else:  # local
         python_exec = os.getcwd() + "/" + python_exec[2:]
         if args.workflow is None:
