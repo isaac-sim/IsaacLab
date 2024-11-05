@@ -17,7 +17,6 @@ import omni.kit.commands
 import omni.usd
 from omni.isaac.core.prims import XFormPrimView
 from pxr import UsdGeom
-from omni.isaac.core.utils.extensions import get_extension_path_from_name
 
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.utils.array import convert_to_torch
@@ -75,9 +74,11 @@ class RtxLidar(SensorBase):
             file_dir = self.cfg.spawn.sensor_profile_temp_dir
             if os.path.isdir(file_dir):
                 for file in os.listdir(file_dir):
-                    if self.cfg.spawn.sensor_profile_temp_prefix in file and os.path.isfile(os.path.join(file_dir,file)):
-                        os.remove(os.path.join(file_dir,file))              
-                
+                    if self.cfg.spawn.sensor_profile_temp_prefix in file and os.path.isfile(
+                        os.path.join(file_dir, file)
+                    ):
+                        os.remove(os.path.join(file_dir, file))
+
     """
     Properties
     """

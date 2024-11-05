@@ -5,18 +5,15 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-import os
 import json
+import os
+from typing import TYPE_CHECKING
 
 import omni.isaac.core.utils.prims as prim_utils
 import omni.kit.commands
 import omni.log
 from pxr import Gf, Sdf, Usd
-from omni.isaac.core.utils.extensions import get_extension_path_from_name
 
-from omni.isaac.lab import ISAACLAB_EXT_DIR
 from omni.isaac.lab.sim.utils import clone
 from omni.isaac.lab.utils import to_camel_case
 
@@ -155,13 +152,13 @@ def spawn_lidar(
     orientation: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0),
 ) -> Usd.Prim:
     """Create a USD Camera prim used for RTX Lidar models.
-     
+
     This function creates an RTX lidar model attached to a USD Camera prim. The RTX lidar model is configured from json
-    files located withing ``omni.isaac.core``. 
+    files located within ``omni.isaac.core``.
 
     Custom configurations for the RTX lidar are passed in via the :class:`LidarCfg`. By setting the `lidar_type` to
     custom and providing a `sensor_profile` dictionary a json configuration file will be created and passed to the
-    kit commands responsible for the RTX lidar creation. 
+    kit commands responsible for the RTX lidar creation.
 
     Args:
         prim_path: The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
@@ -188,10 +185,10 @@ def spawn_lidar(
         # make directories
         if not os.path.isdir(cfg.sensor_profile_temp_dir):
             os.makedirs(cfg.sensor_profile_temp_dir)
-        
+
         # create file path
         file_name = cfg.sensor_profile_temp_prefix + ".json"
-        file_path = os.path.join(cfg.sensor_profile_temp_dir,file_name)
+        file_path = os.path.join(cfg.sensor_profile_temp_dir, file_name)
 
         # Check for tempfiles and remove
         while os.path.isfile(file_path):
@@ -204,7 +201,7 @@ def spawn_lidar(
         print("Custom")
         config = file_path.split("/")[-1].split(".")[0]
         print(file_path)
-    else: 
+    else:
         config = cfg.lidar_type
 
     if not prim_utils.is_prim_path_valid(prim_path):
