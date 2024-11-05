@@ -302,10 +302,16 @@ class LidarCfg(SpawnerCfg):
 
      see https://docs.omniverse.nvidia.com/kit/docs/omni.sensors.nv.lidar/latest/lidar_extension.html"""
 
+    # sensor_profile_temp_dir: str = os.path.abspath(
+    #         os.path.join(
+    #             ISAACLAB_EXT_DIR, "../../exts/omni.isaac.sensor",
+    #             "data/lidar_configs/",
+    #         )
+    #     )
+
     sensor_profile_temp_dir: str = os.path.abspath(
             os.path.join(
-                ISAACLAB_EXT_DIR, "../../exts/omni.isaac.sensor",
-                "data/lidar_configs/",
+                ISAACLAB_EXT_DIR, "omni/isaac/lab/sensors/rtx_lidar"
             )
         )
     

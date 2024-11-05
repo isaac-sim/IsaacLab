@@ -180,7 +180,7 @@ def spawn_lidar(
         RuntimeError: If the creation of the RTXLidar fails
         ValueError: If a prim already exists at the given path.
     """
-    
+
     if cfg.lidar_type == "Custom":
         if cfg.sensor_profile is None:
             raise ValueError("LidarCfg sensor_profile cannot be none for lidar_type: Custom")
@@ -203,6 +203,7 @@ def spawn_lidar(
 
         print("Custom")
         config = file_path.split("/")[-1].split(".")[0]
+        print(file_path)
     else: 
         config = cfg.lidar_type
 

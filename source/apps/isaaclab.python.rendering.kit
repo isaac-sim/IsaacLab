@@ -77,6 +77,10 @@ app.audio.enabled = false
 # disable replicator orchestrator for better runtime perf
 exts."omni.replicator.core".Orchestrator.enabled = false
 
+# move the default lidar config file paths
+app.sensors.nv.lidar.profileBaseFolder.'++' = [
+    "${app}/../extensions/omni.isaac.lab/omni/isaac/lab/sensors/rtx_lidar/"]
+    
 [settings.physics]
 updateToUsd = false
 updateParticlesToUsd = false
