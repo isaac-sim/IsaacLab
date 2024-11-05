@@ -7,8 +7,8 @@ Ray Job Dispatch and Tuning
 Isaac Lab supports `Ray <https://docs.ray.io/en/latest/index.html>`_ for streamlining dispatching multiple training jobs (in parallel and in series),
 and hyperparameter tuning, both on local and remote configurations.
 
-This `independent community contributed walkthrough video <https://www.youtube.com/watch?v=z7MDgSga2Ho&t=694s>`_
-demonstrates the core functionality of the Ray integration also covered in this overview. Although there may be some
+This `independent community contributed walkthrough video <https://youtu.be/z7MDgSga2Ho?feature=shared>`_
+demonstrates some of the core functionality of the Ray integration covered in this overview. Although there may be some
 differences in the codebase (such as file names being shortened) since the creation of the video,
 the general workflow is the same.
 
@@ -48,14 +48,14 @@ resource requirements are defined manually, enabling resource isolation.
 For tuning aggregate jobs, individual jobs are generated automatically based on a hyperparameter
 sweep configuration. This assumes homogeneous node resource composition for nodes with GPUs.
 
-.. dropdown:: source/standalone/workflows/ray/wrap_resources.py.py (resource-wrapped jobs)
+.. dropdown:: source/standalone/workflows/ray/wrap_resources.py
   :icon: code
 
-  .. literalinclude:: ../../../source/standalone/workflows/ray/wrap_resources.py.py
+  .. literalinclude:: ../../../source/standalone/workflows/ray/wrap_resources.py
     :language: python
     :emphasize-lines: 10-40
 
-.. dropdown:: source/standalone/workflows/ray/saac_ray_tune.py (tuning jobs)
+.. dropdown:: source/standalone/workflows/ray/tuner.py
   :icon: code
 
   .. literalinclude:: ../../../source/standalone/workflows/ray/tuner.py
@@ -68,10 +68,10 @@ jobs to one or more Ray cluster(s), which can be used for
 running jobs on a remote cluster or simultaneous jobs with heterogeneous
 resource requirements:
 
-.. dropdown:: source/standalone/workflows/ray/submit_isaac_ray_job.py (submitting aggregate jobs)
+.. dropdown:: source/standalone/workflows/ray/submit_job.py (submitting aggregate jobs)
   :icon: code
 
-  .. literalinclude:: ../../../source/standalone/workflows/ray/submit_isaac_ray_job.py
+  .. literalinclude:: ../../../source/standalone/workflows/ray/submit_job.py
     :language: python
     :emphasize-lines: 12-42
 
@@ -187,14 +187,14 @@ that the cluster job submission address is known.
 
 .. code-block:: bash
 
-  ./isaaclab.sh -p source/standalone/workflows/ray/wrap_resources.py.py --test
+  ./isaaclab.sh -p source/standalone/workflows/ray/wrap_resources.py --test
 
 2.) Submitting resource-wrapped sub-jobs can be done as described in the following file:
 
-.. dropdown:: source/standalone/workflows/ray/wrap_resources.py.py
+.. dropdown:: source/standalone/workflows/ray/wrap_resources.py
   :icon: code
 
-  .. literalinclude:: ../../../source/standalone/workflows/ray/wrap_resources.py.py
+  .. literalinclude:: ../../../source/standalone/workflows/ray/wrap_resources.py
     :language: python
     :emphasize-lines: 12-64
 
@@ -270,13 +270,13 @@ easily be installed with ``snap install k9s --devmode``.
   kubectl get crds | grep nvidia
 
 2.) Create the KubeRay cluster and an MLFlow server for receiving logs
-  that your cluster has access to.
-  This can be done automatically for Google GKE,
-    where instructions are included in the following creation file. More than once cluster
-    can be created at once. Each cluster can have heterogeneous resources if so desired,
-    although only
-    For other cloud services, the ``kuberay.yaml.ninja`` will be similar to that of
-    Google's.
+that your cluster has access to.
+This can be done automatically for Google GKE,
+where instructions are included in the following creation file. More than once cluster
+can be created at once. Each cluster can have heterogeneous resources if so desired,
+although only
+For other cloud services, the ``kuberay.yaml.ninja`` will be similar to that of
+Google's.
 
 .. dropdown:: source/standalone/workflows/ray/launch.py
   :icon: code
@@ -286,10 +286,10 @@ easily be installed with ``snap install k9s --devmode``.
     :emphasize-lines: 14-44
 
 3.) Fetch the KubeRay cluster IP addresses, and the MLFLow Server IP.
-    This can be done automatically for KubeRay clusters,
-    where instructions are included in the following fetching file.
-    The KubeRay clusters are saved to a file, but the MLFLow Server IP is
-    printed.
+This can be done automatically for KubeRay clusters,
+where instructions are included in the following fetching file.
+The KubeRay clusters are saved to a file, but the MLFLow Server IP is
+printed.
 
 .. dropdown:: source/standalone/workflows/ray/grok_cluster_with_kubectl.py
   :icon: code
@@ -301,13 +301,14 @@ easily be installed with ``snap install k9s --devmode``.
 Ray Specific
 ~~~~~~~~~~~~
 
+
 1.) Verify cluster access.
 
 2.) Create a ``~/.cluster_config`` file, where ``name: <NAME> address: http://<IP>:<PORT>`` is on
-  a new line for each unique cluster. For one cluster, there should only be one line in this file.
+a new line for each unique cluster. For one cluster, there should only be one line in this file.
 
 3.) Start an MLFLow Server to receive the logs that the ray cluster has access to,
-  and determine the server URI.
+and determine the server URI.
 
 Shared Steps Between KubeRay and Pure Ray Part II
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -316,15 +317,15 @@ Shared Steps Between KubeRay and Pure Ray Part II
 .. code-block:: bash
 
   # Test that NVIDIA GPUs are visible and that Ray is operation with the following command:
-  ./isaaclab.sh -p source/standalone/workflows/ray/wrap_resources.py.py
-	--jobs wrap_resources.py.py --test
+  ./isaaclab.sh -p source/standalone/workflows/ray/wrap_resources.py
+	--jobs wrap_resources.py --test
 
 2.) Submitting Jobs can be done in the following manner, with the following script.
 
-.. dropdown:: source/standalone/workflows/ray/submit_isaac_ray_job.py (submitting aggregate jobs)
+.. dropdown:: source/standalone/workflows/ray/submit_job.py
   :icon: code
 
-  .. literalinclude:: ../../../source/standalone/workflows/ray/submit_isaac_ray_job.py
+  .. literalinclude:: ../../../source/standalone/workflows/ray/submit_job.py
     :language: python
     :emphasize-lines: 12-42
 
@@ -339,14 +340,14 @@ Shared Steps Between KubeRay and Pure Ray Part II
 
 For example, see the Cartpole Example configurations.
 
-.. dropdown:: source/standalone/workflows/ray/hyperparameter_tuning/vision_cartpole_cfg.py (submitting aggregate jobs)
+.. dropdown:: source/standalone/workflows/ray/hyperparameter_tuning/vision_cartpole_cfg.py
   :icon: code
 
   .. literalinclude:: ../../../source/standalone/workflows/ray/hyperparameter_tuning/vision_cartpole_cfg.py
     :language: python
     :emphasize-lines: 17-35
 
-Tuning jobs can also be submitted via :file:` ../../../source/standalone/workflows/ray/submit_isaac_ray_job.py`
+Tuning jobs can also be submitted via ``submit_job.py``
 
 To view the tuning results, view the MLFlow dashboard of the server that you created.
 For KubeRay, this can be done through port forwarding the MLFlow dashboard, with
