@@ -265,7 +265,8 @@ easily be installed with ``snap install k9s --devmode``.
   kubectl get crds | grep nvidia
 
 2.) Create the KubeRay cluster and an MLFlow server for receiving logs
-  that your cluster has access to. This can be done automatically for Google GKE,
+  that your cluster has access to. 
+  This can be done automatically for Google GKE,
     where instructions are included in the following creation file. More than once cluster
     can be created at once. Each cluster can have heterogeneous resources if so desired,
     although only
