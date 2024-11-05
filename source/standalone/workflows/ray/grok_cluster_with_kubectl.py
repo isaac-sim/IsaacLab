@@ -20,6 +20,7 @@ a new line for each cluster, and also fetches the MLFlow URI.
 Usage:
 
 .. code-block:: bash
+
     ./isaaclab.sh -p source/standalone/workflows/ray/grok_cluster_with_kubectl.py
     # For options, supply -h arg
 """
@@ -130,7 +131,20 @@ def check_clusters_running(pods: list, clusters: set) -> bool:
 
 
 def get_ray_address(head_pod: str, namespace: str = "default", ray_head_name: str = "head") -> str:
-    """Given a cluster head pod, check it's logs, which should include the ray address which can accept job requests."""
+    """
+    Given a cluster head pod, check its logs, which should include the ray address which can accept job requests.
+
+    Args:
+        head_pod (str): The name of the head pod.
+        namespace (str, optional): The Kubernetes namespace. Defaults to "default".
+        ray_head_name (str, optional): The name of the ray head container. Defaults to "head".
+
+    Returns:
+        str: The ray address if found, None otherwise.
+
+    Raises:
+        ValueError: If the logs cannot be retrieved or the ray address is not found.
+    """
     cmd = ["kubectl", "logs", head_pod, "-c", ray_head_name, "-n", namespace]
     try:
         output = subprocess.check_output(cmd).decode()
@@ -146,7 +160,16 @@ def get_ray_address(head_pod: str, namespace: str = "default", ray_head_name: st
 
 
 def process_cluster(cluster_info: dict, ray_head_name: str = "head") -> str:
-    """For each cluster, check that it is running, and get the Ray head address that will accept jobs."""
+    """
+    For each cluster, check that it is running, and get the Ray head address that will accept jobs.
+
+    Args:
+        cluster_info (dict): A dictionary containing cluster information with keys 'cluster', 'pods', and 'namespace'.
+        ray_head_name (str, optional): The name of the ray head container. Defaults to "head".
+
+    Returns:
+        str: A string containing the cluster name and its Ray head address, or an error message if the head pod or Ray address is not found.
+    """
     cluster, pods, namespace = cluster_info
     head_pod = None
     for pod_name, status in pods:

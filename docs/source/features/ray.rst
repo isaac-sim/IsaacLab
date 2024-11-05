@@ -7,6 +7,11 @@ Ray Job Dispatch and Tuning
 Isaac Lab supports `Ray <https://docs.ray.io/en/latest/index.html>`_ for streamlining dispatching multiple training jobs (in parallel and in series),
 and hyperparameter tuning, both on local and remote configurations.
 
+This `independent community contributed walkthrough video <https://www.youtube.com/watch?v=z7MDgSga2Ho&t=694s>`_
+demonstrates the core functionality of the Ray integration also covered in this overview. Although there may be some
+differences in the codebase (such as file names being shortened) since the creation of the video,
+the general workflow is the same.
+
 .. attention::
 
   This functionality is experimental.
@@ -25,7 +30,7 @@ The Ray integration is useful for the following:
 - Using the same training setup everywhere (on cloud and local) with minimal overhead
 - Resource Isolation for training jobs
 
-The core functionality shared by Isaac-Ray consists of two main scripts that enable the orchestration
+The core functionality of the Ray workflow consists of two main scripts that enable the orchestration
 of resource-wrapped and tuning aggregate jobs. These scripts facilitate the decomposition of
 aggregate jobs (overarching experiments) into individual jobs, which are discrete commands
 executed on the cluster. An aggregate job can include multiple individual jobs.
@@ -43,17 +48,17 @@ resource requirements are defined manually, enabling resource isolation.
 For tuning aggregate jobs, individual jobs are generated automatically based on a hyperparameter
 sweep configuration. This assumes homogeneous node resource composition for nodes with GPUs.
 
-.. dropdown:: source/standalone/workflows/ray/wrap_isaac_ray_resources.py (resource-wrapped jobs)
+.. dropdown:: source/standalone/workflows/ray/wrap_resources.py.py (resource-wrapped jobs)
   :icon: code
 
-  .. literalinclude:: ../../../source/standalone/workflows/ray/wrap_isaac_ray_resources.py
+  .. literalinclude:: ../../../source/standalone/workflows/ray/wrap_resources.py.py
     :language: python
     :emphasize-lines: 10-40
 
 .. dropdown:: source/standalone/workflows/ray/saac_ray_tune.py (tuning jobs)
   :icon: code
 
-  .. literalinclude:: ../../../source/standalone/workflows/ray/isaac_ray_tune.py
+  .. literalinclude:: ../../../source/standalone/workflows/ray/tuner.py
     :language: python
     :emphasize-lines: 17-34
 
@@ -182,14 +187,14 @@ that the cluster job submission address is known.
 
 .. code-block:: bash
 
-  ./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py --test
+  ./isaaclab.sh -p source/standalone/workflows/ray/wrap_resources.py.py --test
 
 2.) Submitting resource-wrapped sub-jobs can be done as described in the following file:
 
-.. dropdown:: source/standalone/workflows/ray/wrap_isaac_ray_resources.py
+.. dropdown:: source/standalone/workflows/ray/wrap_resources.py.py
   :icon: code
 
-  .. literalinclude:: ../../../source/standalone/workflows/ray/wrap_isaac_ray_resources.py
+  .. literalinclude:: ../../../source/standalone/workflows/ray/wrap_resources.py.py
     :language: python
     :emphasize-lines: 12-64
 
@@ -211,10 +216,10 @@ that the cluster job submission address is known.
 
 Then, see the local examples in the following file to see how to start a tuning run.
 
-.. dropdown:: source/standalone/workflows/ray/isaac_ray_tune.py
+.. dropdown:: source/standalone/workflows/ray/tuner.py
   :icon: code
 
-  .. literalinclude:: ../../../source/standalone/workflows/ray/isaac_ray_tune.py
+  .. literalinclude:: ../../../source/standalone/workflows/ray/tuner.py
     :language: python
     :emphasize-lines: 17-35
 
@@ -311,8 +316,8 @@ Shared Steps Between KubeRay and Pure Ray Part II
 .. code-block:: bash
 
   # Test that NVIDIA GPUs are visible and that Ray is operation with the following command:
-  ./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py
-	--jobs wrap_isaac_ray_resources.py --test
+  ./isaaclab.sh -p source/standalone/workflows/ray/wrap_resources.py.py
+	--jobs wrap_resources.py.py --test
 
 2.) Submitting Jobs can be done in the following manner, with the following script.
 
@@ -325,10 +330,10 @@ Shared Steps Between KubeRay and Pure Ray Part II
 
 3.) For tuning jobs, specify the hyperparameter sweep similar to :class:`RLGamesCameraJobCfg` in the following file:
 
-.. dropdown:: source/standalone/workflows/ray/isaac_ray_tune.py (submitting aggregate jobs)
+.. dropdown:: source/standalone/workflows/ray/tuner.py (submitting aggregate jobs)
   :icon: code
 
-  .. literalinclude:: ../../../source/standalone/workflows/ray/isaac_ray_tune.py
+  .. literalinclude:: ../../../source/standalone/workflows/ray/tuner.py
     :language: python
     :emphasize-lines: 17-35
 

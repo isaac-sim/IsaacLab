@@ -22,7 +22,7 @@ cluster_line_index_submitted_to = job_index % total_cluster_count
 Aggregate jobs are separated by the * delimiter. The ``--aggregate_jobs`` argument must be
 the last argument supplied to the script.
 
-An aggregate job could be a :file:`../isaac_ray_tune.py` tuning job, which automatically
+An aggregate job could be a :file:`../tuner.py` tuning job, which automatically
 creates several individual jobs when started on a cluster. Alternatively, an aggregate job
 could be a :file:'../wrap_resources.py` resource-wrapped job,
 which may contain several individual sub-jobs separated by

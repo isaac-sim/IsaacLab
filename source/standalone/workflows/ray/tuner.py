@@ -46,7 +46,7 @@ Usage:
 
     # Remote (run grok cluster or create config file mentioned in :file:`submit_job.py`)
     ./isaaclab.sh -p source/standalone/workflows/ray/submit_job.py \
-    --aggregate_jobs tuner.py # cfg_file is relative to ray folder
+    --aggregate_jobs tuner.py # cfg_file is relative to ray folder \
     --cfg_file hyperparameter_tuning/vision_cartpole_cfg.py \
     --cfg_class CartpoleRGBNoTuneJobCfg --mlflow_uri <MLFLOW_URI_FROM_GROK_OR_MANUAL>
 
@@ -55,7 +55,7 @@ Usage:
 DOCKER_PREFIX = "/workspace/isaaclab/"
 BASE_DIR = os.path.expanduser("~")
 PYTHON_EXEC = "./isaaclab.sh -p"
-WORKFLOW = "source/standalone/WORKFLOWs/rl_games/train.py"
+WORKFLOW = "source/standalone/workflows/rl_games/train.py"
 NUM_WORKERS_PER_NODE = 1  # needed for local parallelism
 
 
