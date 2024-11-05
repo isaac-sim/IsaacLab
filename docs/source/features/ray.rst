@@ -4,7 +4,7 @@ Ray Job Dispatch and Tuning
 
 .. currentmodule:: omni.isaac.lab
 
-Isaac Lab supports Ray for streamlining dispatching multiple training jobs (in parallel and in series),
+Isaac Lab supports `Ray <https://docs.ray.io/en/latest/index.html>`_ for streamlining dispatching multiple training jobs (in parallel and in series),
 and hyperparameter tuning, both on local and remote configurations.
 
 .. attention::
