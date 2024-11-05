@@ -52,11 +52,11 @@ Usage:
 
 """
 
-docker_prefix = "/workspace/isaaclab/"
-base_dir = os.path.expanduser("~")
-python_exec = "./isaaclab.sh -p"
-workflow = "source/standalone/workflows/rl_games/train.py"
-num_workers_per_node = 1  # needed for local parallelism
+DOCKER_PREFIX = "/workspace/isaaclab/"
+BASE_DIR = os.path.expanduser("~")
+PYTHON_EXEC = "./isaaclab.sh -p"
+WORKFLOW = "source/standalone/WORKFLOWs/rl_games/train.py"
+NUM_WORKERS_PER_NODE = 1  # needed for local parallelism
 
 
 class IsaacLabTuneTrainable(tune.Trainable):
@@ -70,7 +70,7 @@ class IsaacLabTuneTrainable(tune.Trainable):
     def setup(self, config: dict) -> None:
         """Get the invocation command, return quick for easy scheduling."""
         self.data = None
-        self.invoke_cmd = util.get_invocation_command_from_cfg(cfg=config, python_cmd=python_exec, workflow=workflow)
+        self.invoke_cmd = util.get_invocation_command_from_cfg(cfg=config, python_cmd=PYTHON_EXEC, workflow=WORKFLOW)
         print(f"[INFO]: Recovered invocation with {self.invoke_cmd}")
         self.experiment = None
 
@@ -88,7 +88,7 @@ class IsaacLabTuneTrainable(tune.Trainable):
                 self.invoke_cmd,
                 identifier_string="",
                 extract_experiment=True,
-                persistent_dir=base_dir,
+                persistent_dir=BASE_DIR,
             )
             self.experiment = experiment
             print(f"[INFO]: Tuner recovered experiment info {experiment}")
@@ -124,10 +124,10 @@ class IsaacLabTuneTrainable(tune.Trainable):
         """How many resources each trainable uses. Assumes homogeneous resources across gpu nodes,
         and that each trainable is meant for one node, where it uses all available resources."""
         resources = util.get_gpu_node_resources(one_node_only=True)
-        if num_workers_per_node != 1:
+        if NUM_WORKERS_PER_NODE != 1:
             print("[WARNING]: Splitting node into more than one worker")
         return tune.PlacementGroupFactory(
-            [{"CPU": resources["CPU"] / num_workers_per_node, "GPU": resources["GPU"] / num_workers_per_node}],
+            [{"CPU": resources["CPU"] / NUM_WORKERS_PER_NODE, "GPU": resources["GPU"] / NUM_WORKERS_PER_NODE}],
             strategy="STRICT_PACK",
         )
 
@@ -294,16 +294,16 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-    num_workers_per_node = args.num_workers_per_node
-    print(f"[INFO]: Using {num_workers_per_node} workers per node.")
+    NUM_WORKERS_PER_NODE = args.num_workers_per_node
+    print(f"[INFO]: Using {NUM_WORKERS_PER_NODE} workers per node.")
     if args.run_mode == "remote":
-        base_dir = docker_prefix  # ensure logs are dumped to persistent location
-        python_exec = docker_prefix + python_exec[2:]
+        BASE_DIR = DOCKER_PREFIX  # ensure logs are dumped to persistent location
+        PYTHON_EXEC = DOCKER_PREFIX + PYTHON_EXEC[2:]
         if args.workflow is None:
-            workflow = docker_prefix + workflow
+            WORKFLOW = DOCKER_PREFIX + WORKFLOW
         else:
-            workflow = args.workflow
-        print(f"[INFO]: Using remote mode {python_exec=} {workflow=}")
+            WORKFLOW = args.workflow
+        print(f"[INFO]: Using remote mode {PYTHON_EXEC=} {WORKFLOW=}")
 
         if args.mlflow_uri is not None:
             import mlflow
@@ -313,13 +313,13 @@ if __name__ == "__main__":
         else:
             raise ValueError("Please provide a result MLFLow URI server.")
     else:  # local
-        python_exec = os.getcwd() + "/" + python_exec[2:]
+        PYTHON_EXEC = os.getcwd() + "/" + PYTHON_EXEC[2:]
         if args.workflow is None:
-            workflow = os.getcwd() + "/" + workflow
+            WORKFLOW = os.getcwd() + "/" + WORKFLOW
         else:
-            workflow = args.workflow
-        base_dir = os.getcwd()
-        print(f"[INFO]: Using local mode {python_exec=} {workflow=}")
+            WORKFLOW = args.workflow
+        BASE_DIR = os.getcwd()
+        print(f"[INFO]: Using local mode {PYTHON_EXEC=} {WORKFLOW=}")
     file_path = args.cfg_file
     class_name = args.cfg_class
     print(f"[INFO]: Attempting to use sweep config from {file_path=} {class_name=}")
