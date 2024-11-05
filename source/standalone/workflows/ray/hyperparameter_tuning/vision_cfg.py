@@ -9,12 +9,12 @@ import sys
 # Allow for import of items from the ray workflow.
 UTIL_DIR = pathlib.Path(__file__).parent.parent.parent
 sys.path.append(str(UTIL_DIR))
-import source.standalone.workflows.ray.tune as tune
-import source.standalone.workflows.ray.util as util
+import tuner
+import util
 from ray import tune
 
 
-class CameraJobCfg(tune.JobCfg):
+class CameraJobCfg(tuner.JobCfg):
     """In order to be compatible with :meth: invoke_tuning_run, and
     :class:IsaacLabTuneTrainable , configurations should
     be in a similar format to this class. This class can vary env count/horizon length,
