@@ -31,13 +31,21 @@ if TYPE_CHECKING:
 class RigidObjectCollection(AssetBase):
     """A rigid object collection class.
 
-    This class represents a collection of rigid objects in the simulation. The state of the rigid objects can be
-    accessed and modified using a batched (env_ids, object_ids) API.
+    This class represents a collection of rigid objects in the simulation, where the state of the rigid objects can be
+    accessed and modified using a batched ``(env_ids, object_ids)`` API.
 
     For each rigid body in the collection, the root prim of the asset must have the `USD RigidBodyAPI`_
-    applied to it. This API is used to define the simulation properties of the rigid body. On playing the
-    simulation, the physics engine will automatically register the rigid body and create a corresponding
+    applied to it. This API is used to define the simulation properties of the rigid bodies. On playing the
+    simulation, the physics engine will automatically register the rigid bodies and create a corresponding
     rigid body handle. This handle can be accessed using the :attr:`root_physx_view` attribute.
+
+    .. note::
+        Rigid objects in the collection are uniquely identified via the key of the dictionary
+        :attr:`~omni.isaac.lab.assets.RigidObjectCollectionCfg.rigid_objects` in :class:`~omni.isaac.lab.assets.RigidObjectCollectionCfg`.
+        This differs from the class :class:`~omni.isaac.lab.assets.RigidObject`, where a rigid object is identified by
+        the name of the Xform where the `USD RigidBodyAPI`_ is applied. This would not be possible for the rigid object
+        collection since the :attr:`~omni.isaac.lab.assets.RigidObjectCollectionCfg.rigid_objects` dictionary could
+        contain the same rigid object multiple times, leading to ambiguity.
 
     .. _`USD RigidBodyAPI`: https://openusd.org/dev/api/class_usd_physics_rigid_body_a_p_i.html
     """
@@ -46,11 +54,13 @@ class RigidObjectCollection(AssetBase):
     """Configuration instance for the rigid object collection."""
 
     def __init__(self, cfg: RigidObjectCollectionCfg):
-        """Initialize the rigid object.
+        """Initialize the rigid object collection.
 
         Args:
             cfg: A configuration instance.
         """
+        # check that the config is valid
+        cfg.validate()
         # store inputs
         self.cfg = cfg
         # flag for whether the asset is initialized
@@ -105,19 +115,20 @@ class RigidObjectCollection(AssetBase):
 
     @property
     def num_instances(self) -> int:
+        """Number of instances of the collection."""
         return self.root_physx_view.count // self.num_objects
 
     @property
     def num_objects(self) -> int:
-        """Number of objects in the asset.
+        """Number of objects in the collection.
 
-        This corresponds to the distinct number of rigid bodies in the asset.
+        This corresponds to the distinct number of rigid bodies in the collection.
         """
         return len(self.object_names)
 
     @property
     def object_names(self) -> list[str]:
-        """Ordered names of bodies in the rigid object collection."""
+        """Ordered names of objects in the rigid object collection."""
         return self._object_names_list
 
     @property
@@ -288,7 +299,7 @@ class RigidObjectCollection(AssetBase):
         object_ids: slice | torch.Tensor | None = None,
         env_ids: torch.Tensor | None = None,
     ):
-        """Set external force and torque to apply on the object's bodies in their local frame.
+        """Set external force and torque to apply on the objects' bodies in their local frame.
 
         For many applications, we want to keep the applied external force on rigid bodies constant over a period of
         time (for instance, during the policy control). This function allows us to store the external force and torque
@@ -429,10 +440,10 @@ class RigidObjectCollection(AssetBase):
         self._data.default_object_state = default_object_states
 
     def reshape_view_to_data(self, data: torch.Tensor) -> torch.Tensor:
-        """Reshapes and arranges the physics view's data to (num_instances, num_objects, data_size).
+        """Reshapes and arranges the data coming from the :attr:`root_physx_view` to (num_instances, num_objects, data_size).
 
         Args:
-            data: The data from the physics view. Shape is (num_instances*num_objects, data_size).
+            data: The data coming from the :attr:`root_physx_view`. Shape is (num_instances*num_objects, data_size).
 
         Returns:
             The reshaped data. Shape is (num_instances, num_objects, data_size).
@@ -440,7 +451,7 @@ class RigidObjectCollection(AssetBase):
         return torch.einsum("ijk -> jik", data.reshape(self.num_objects, self.num_instances, -1))
 
     def reshape_data_to_view(self, data: torch.Tensor) -> torch.Tensor:
-        """Reshapes and arranges the data to the physics view's order (num_instances*num_objects, data_size).
+        """Reshapes and arranges the data to the be consistent with data from the :attr:`root_physx_view`.
 
         Args:
             data: The data to be reshaped. Shape is (num_instances, num_objects, data_size).
@@ -453,7 +464,7 @@ class RigidObjectCollection(AssetBase):
     def _env_obj_ids_to_view_ids(
         self, env_ids: torch.Tensor, object_ids: Sequence[int] | slice | torch.Tensor
     ) -> torch.Tensor:
-        """Converts environment and object indices to physics view indices.
+        """Converts environment and object indices to indices consistent with data from :attr:`root_physx_view`.
 
         Args:
             env_ids: Environment indices.

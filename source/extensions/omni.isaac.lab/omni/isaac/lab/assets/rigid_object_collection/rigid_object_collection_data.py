@@ -131,7 +131,7 @@ class RigidObjectCollectionData:
 
     @property
     def object_acc_w(self):
-        """Acceleration of all bodies. Shape is (num_instances, num_objects, 6).
+        """Acceleration of all objects. Shape is (num_instances, num_objects, 6).
 
         This quantity is the acceleration of the rigid bodies' center of mass frame.
         """
@@ -240,7 +240,7 @@ class RigidObjectCollectionData:
     ##
 
     def _reshape_view_to_data(self, data: torch.Tensor) -> torch.Tensor:
-        """Reshapes and arranges the physics view's data to (num_instances, num_objects, data_size).
+        """Reshapes and arranges the data from the physics view to (num_instances, num_objects, data_size).
 
         Args:
             data: The data from the physics view. Shape is (num_instances*num_objects, data_size).
