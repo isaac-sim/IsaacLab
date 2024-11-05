@@ -34,7 +34,6 @@ class RigidObjectCollection(AssetBase):
     This class represents a collection of rigid objects in the simulation. The state of the rigid objects can be
     accessed and modified using a batched (env_ids, object_ids) API.
 
-
     For each rigid body in the collection, the root prim of the asset must have the `USD RigidBodyAPI`_
     applied to it. This API is used to define the simulation properties of the rigid body. On playing the
     simulation, the physics engine will automatically register the rigid body and create a corresponding
@@ -57,6 +56,10 @@ class RigidObjectCollection(AssetBase):
         # flag for whether the asset is initialized
         self._is_initialized = False
         for rigid_object_cfg in self.cfg.rigid_objects.values():
+            # check if the rigid object path is valid
+            # note: currently the spawner does not work if there is a regex pattern in the leaf
+            #   For example, if the prim path is "/World/Object_[1,2]" since the spawner will not
+            #   know which prim to spawn. This is a limitation of the spawner and not the asset.
             asset_path = rigid_object_cfg.prim_path.split("/")[-1]
             asset_path_is_regex = re.match(r"^[a-zA-Z0-9/_]+$", asset_path) is None
             # spawn the asset
