@@ -1,15 +1,32 @@
 Changelog
 ---------
 
-0.27.12 (2024-11-04)
+0.27.14 (2024-11-04)
+~~~~~~~~~~~~~~~~~~~~
+
+* If a USD that contains an articulation root is loaded using a
+  :attr:`omni.isaac_lab.assets.RigidBody` we now fail unless the articulation root is explicitly
+  disabled.
+
+
+0.27.13 (2024-10-30)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
 
-* If a USD that contains an articulation root is loaded using a
-  :attr:`omni.isaac_lab.assets.RigidBody` we now fail unless the articulation root is explicitly
-  disabled.
+* Added the attributes :attr:`~omni.isaac.lab.sim.converters.MeshConverterCfg.translation`, :attr:`~omni.isaac.lab.sim.converters.MeshConverterCfg.rotation`,
+  :attr:`~omni.isaac.lab.sim.converters.MeshConverterCfg.scale` to translate, rotate, and scale meshes
+  when importing them with :class:`~omni.isaac.lab.sim.converters.MeshConverter`.
+
+
+0.27.12 (2024-01-04)
+~~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed TensorDict usage in favor of Python dictionary in sensors
 
 
 0.27.11 (2024-10-31)
