@@ -12,7 +12,9 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
+import math
 import os
+import random
 import tempfile
 import unittest
 
@@ -25,6 +27,16 @@ from pxr import UsdGeom, UsdPhysics
 from omni.isaac.lab.sim.converters import MeshConverter, MeshConverterCfg
 from omni.isaac.lab.sim.schemas import schemas_cfg
 from omni.isaac.lab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
+
+
+def random_quaternion():
+    # Generate four random numbers for the quaternion
+    u1, u2, u3 = random.random(), random.random(), random.random()
+    w = math.sqrt(1 - u1) * math.sin(2 * math.pi * u2)
+    x = math.sqrt(1 - u1) * math.cos(2 * math.pi * u2)
+    y = math.sqrt(u1) * math.sin(2 * math.pi * u3)
+    z = math.sqrt(u1) * math.cos(2 * math.pi * u3)
+    return (w, x, y, z)
 
 
 class TestMeshConverter(unittest.TestCase):
@@ -105,7 +117,12 @@ class TestMeshConverter(unittest.TestCase):
 
     def test_convert_obj(self):
         """Convert an OBJ file"""
-        mesh_config = MeshConverterCfg(asset_path=self.assets["obj"])
+        mesh_config = MeshConverterCfg(
+            asset_path=self.assets["obj"],
+            scale=(random.uniform(0.1, 2.0), random.uniform(0.1, 2.0), random.uniform(0.1, 2.0)),
+            translation=(random.uniform(-10.0, 10.0), random.uniform(-10.0, 10.0), random.uniform(-10.0, 10.0)),
+            rotation=random_quaternion(),
+        )
         mesh_converter = MeshConverter(mesh_config)
 
         # check that mesh conversion is successful
@@ -113,7 +130,12 @@ class TestMeshConverter(unittest.TestCase):
 
     def test_convert_stl(self):
         """Convert an STL file"""
-        mesh_config = MeshConverterCfg(asset_path=self.assets["stl"])
+        mesh_config = MeshConverterCfg(
+            asset_path=self.assets["stl"],
+            scale=(random.uniform(0.1, 2.0), random.uniform(0.1, 2.0), random.uniform(0.1, 2.0)),
+            translation=(random.uniform(-10.0, 10.0), random.uniform(-10.0, 10.0), random.uniform(-10.0, 10.0)),
+            rotation=random_quaternion(),
+        )
         mesh_converter = MeshConverter(mesh_config)
 
         # check that mesh conversion is successful
@@ -121,9 +143,21 @@ class TestMeshConverter(unittest.TestCase):
 
     def test_convert_fbx(self):
         """Convert an FBX file"""
-        mesh_config = MeshConverterCfg(asset_path=self.assets["fbx"])
+        mesh_config = MeshConverterCfg(
+            asset_path=self.assets["fbx"],
+            scale=(random.uniform(0.1, 2.0), random.uniform(0.1, 2.0), random.uniform(0.1, 2.0)),
+            translation=(random.uniform(-10.0, 10.0), random.uniform(-10.0, 10.0), random.uniform(-10.0, 10.0)),
+            rotation=random_quaternion(),
+        )
         mesh_converter = MeshConverter(mesh_config)
 
+        # check that mesh conversion is successful
+        self._check_mesh_conversion(mesh_converter)
+
+    def test_convert_default_xform_transforms(self):
+        """Convert an OBJ file and check that default xform transforms are applied correctly"""
+        mesh_config = MeshConverterCfg(asset_path=self.assets["obj"])
+        mesh_converter = MeshConverter(mesh_config)
         # check that mesh conversion is successful
         self._check_mesh_conversion(mesh_converter)
 
@@ -228,6 +262,15 @@ class TestMeshConverter(unittest.TestCase):
         # Check units is meters
         units = UsdGeom.GetStageMetersPerUnit(stage)
         self.assertEqual(units, 1.0)
+
+        # Check mesh settings
+        pos = tuple(prim_utils.get_prim_at_path("/World/Object/geometry").GetAttribute("xformOp:translate").Get())
+        self.assertEqual(pos, mesh_converter.cfg.translation)
+        quat = prim_utils.get_prim_at_path("/World/Object/geometry").GetAttribute("xformOp:orient").Get()
+        quat = (quat.GetReal(), quat.GetImaginary()[0], quat.GetImaginary()[1], quat.GetImaginary()[2])
+        self.assertEqual(quat, mesh_converter.cfg.rotation)
+        scale = tuple(prim_utils.get_prim_at_path("/World/Object/geometry").GetAttribute("xformOp:scale").Get())
+        self.assertEqual(scale, mesh_converter.cfg.scale)
 
     def _check_mesh_collider_settings(self, mesh_converter: MeshConverter):
         # Check prim can be properly spawned

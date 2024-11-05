@@ -6,7 +6,7 @@ To see the full list of contributors, please check the revision history in the s
 
 Guidelines for modifications:
 
-* Please keep the lists sorted alphabetically.
+* Please keep the **lists sorted alphabetically**.
 * Names should be added to this file as: *individual names* or *organizations*.
 * E-mail addresses are tracked elsewhere to avoid spam.
 
@@ -19,6 +19,7 @@ Guidelines for modifications:
 
 ---
 
+* Antonio Serrano-Muñoz
 * David Hoeller
 * Farbod Farshidian
 * Hunter Hansen
@@ -36,7 +37,6 @@ Guidelines for modifications:
 * Amr Mousa
 * Andrej Orsula
 * Anton Bjørndahl Mortensen
-* Antonio Serrano-Muñoz
 * Arjun Bhardwaj
 * Brayden Zhang
 * Calvin Yu
@@ -62,6 +62,7 @@ Guidelines for modifications:
 * Michael Gussert
 * Muhong Guo
 * Nuralem Abizov
+* Oyindamola Omotuyi
 * Özhan Özen
 * Qian Wan
 * Qinxi Yu
