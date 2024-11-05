@@ -57,19 +57,15 @@ class TestRtxLidar(unittest.TestCase):
 
     def setUp(self):
         """Create a blank new stage for each test."""
-        
-        print("setup")
 
         # Create a new stage
         stage_utils.create_new_stage()
-        print("stage")
 
         # Simulation time-step
         self.dt = 0.01
         # Load kit helper
         sim_cfg = sim_utils.SimulationCfg(dt=self.dt,device="cuda")
         self.sim: sim_utils.SimulationContext = sim_utils.SimulationContext(sim_cfg)
-        print("sim")
 
         # configure lidar
         self.lidar_cfg = RtxLidarCfg(
@@ -87,8 +83,6 @@ class TestRtxLidar(unittest.TestCase):
             ],
             spawn=sim_utils.LidarCfg(lidar_type=sim_utils.LidarCfg.LidarType.EXAMPLE_ROTARY),
         )
-        print("cfg")
-
 
         # Ground-plane
         mesh = make_plane(size=(10, 10), height=0.0, center_zero=True)
@@ -99,7 +93,6 @@ class TestRtxLidar(unittest.TestCase):
             create_prim_from_mesh(f"/World/defaultBoarder{i}", box)
         # load stage
         stage_utils.update_stage()
-        print("update_stage")
 
     def tearDown(self):
         """Stops simulator after each test."""
@@ -114,10 +107,8 @@ class TestRtxLidar(unittest.TestCase):
 
     def test_lidar_init(self):
         """Test lidar initialization and data population."""
-        print("enter")
         # Create lidar
         lidar = RtxLidar(cfg=self.lidar_cfg)
-        print("init")
         # Check simulation parameter is set correctly
         self.assertTrue(self.sim.has_rtx_sensors())
         # Play sim
@@ -257,12 +248,14 @@ class TestRtxLidar(unittest.TestCase):
                 if data_key in self.lidar_cfg.optional_data_types:
                     self.assertTrue(data_value.shape[1]>0)    
 
-            # check proper file cleanup
-            custom_profile_name = self.lidar_cfg.spawn.sensor_profile_temp_prefix
-            custom_profile_dir = self.lidar_cfg.spawn.sensor_profile_temp_dir
-            files = os.listdir(custom_profile_dir)
-            for file in files:
-                self.assertTrue( custom_profile_name not in file)
+        del(lidar)
+
+        # check proper file cleanup
+        custom_profile_name = self.lidar_cfg.spawn.sensor_profile_temp_prefix
+        custom_profile_dir = self.lidar_cfg.spawn.sensor_profile_temp_dir
+        files = os.listdir(custom_profile_dir)
+        for file in files:
+            self.assertTrue( custom_profile_name not in file,msg = f"{custom_profile_name} found in {custom_profile_dir}/{file}")
 
 
 

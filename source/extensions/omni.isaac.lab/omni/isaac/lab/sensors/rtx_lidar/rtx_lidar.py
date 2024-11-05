@@ -75,9 +75,9 @@ class RtxLidar(SensorBase):
             file_dir = self.cfg.spawn.sensor_profile_temp_dir
             if os.path.isdir(file_dir):
                 for file in os.listdir(file_dir):
-                    if self.cfg.spawn.sensor_profile_temp_prefix in file and os.path.isfile(file):
-                        os.remove(os.path.join(file_dir,file))
-                        
+                    if self.cfg.spawn.sensor_profile_temp_prefix in file and os.path.isfile(os.path.join(file_dir,file)):
+                        os.remove(os.path.join(file_dir,file))              
+                
     """
     Properties
     """
