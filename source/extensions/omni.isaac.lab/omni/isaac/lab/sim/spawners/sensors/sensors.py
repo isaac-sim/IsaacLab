@@ -154,7 +154,33 @@ def spawn_lidar(
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0),
 ) -> Usd.Prim:
-    # spawn camera if it doesn't exist.
+    """Create a USD Camera prim used for RTX Lidar models.
+     
+    This function creates an RTX lidar model attached to a USD Camera prim. The RTX lidar model is configured from json
+    files located withing ``omni.isaac.core``. 
+
+    Custom configurations for the RTX lidar are passed in via the :class:`LidarCfg`. By setting the `lidar_type` to
+    custom and providing a `sensor_profile` dictionary a json configuration file will be created and passed to the
+    kit commands responsible for the RTX lidar creation. 
+
+    Args:
+        prim_path: The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
+            then the asset is spawned at all the matching prim paths.
+        cfg: The configuration instance.
+        translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None, in which case
+            this is set to the origin.
+        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
+            in which case this is set to identity.
+
+    Returns:
+        The created prim.
+
+    Raises:
+        ValueError: If the LidarCfg.sensor_profile is None when LidarCfg.lidar_type == "Custom"
+        RuntimeError: If the creation of the RTXLidar fails
+        ValueError: If a prim already exists at the given path.
+    """
+    
     if cfg.lidar_type == "Custom":
         if cfg.sensor_profile is None:
             raise ValueError("LidarCfg sensor_profile cannot be none for lidar_type: Custom")
