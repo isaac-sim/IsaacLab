@@ -168,7 +168,7 @@ See an example of `RSL-RL <https://github.com/isaac-sim/IsaacLab/blob/main/sourc
 
 
 **Component 4 - Register with Gymnasium (Optional)**
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This step is optional because the user can manually create an instance of the environment by importing the environment class and its configuration class. However, you can also register the environments with the gymnasium registry. 
 Registration is a way to make the environment accessible and reusable across different
