@@ -11,12 +11,10 @@ from typing import TYPE_CHECKING
 
 import isaacsim.core.utils.prims as prim_utils
 import os
-import json
 
 import omni.kit.commands
 import omni.log
 from pxr import Gf, Sdf, Usd
-from omni.isaac.core.utils.extensions import get_extension_path_from_name
 
 from isaaclab.sim.utils import clone
 from isaaclab.utils import to_camel_case

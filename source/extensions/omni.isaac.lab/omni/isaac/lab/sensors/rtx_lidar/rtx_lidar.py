@@ -16,7 +16,6 @@ import omni.kit.commands
 import omni.usd
 from omni.isaac.core.prims import XFormPrimView
 from pxr import UsdGeom
-from omni.isaac.core.utils.extensions import get_extension_path_from_name
 
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.utils.array import convert_to_torch
