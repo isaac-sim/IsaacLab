@@ -8,9 +8,10 @@ import pathlib
 import subprocess
 import yaml
 
-import source.standalone.workflows.ray.util as util
 from jinja2 import Environment, FileSystemLoader
 from kubernetes import config
+
+import source.standalone.workflows.ray.util as util
 
 """This script helps create one or more KubeRay clusters.
 

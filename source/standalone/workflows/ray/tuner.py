@@ -8,8 +8,8 @@ import os
 import sys
 from time import sleep
 
-import util
 import ray
+import util
 from ray import air, tune
 from ray.tune.search.optuna import OptunaSearch
 from ray.tune.search.repeater import Repeater
@@ -70,9 +70,7 @@ class IsaacLabTuneTrainable(tune.Trainable):
     def setup(self, config: dict) -> None:
         """Get the invocation command, return quick for easy scheduling."""
         self.data = None
-        self.invoke_cmd = util.get_invocation_command_from_cfg(
-            cfg=config, python_cmd=python_exec, workflow=workflow
-        )
+        self.invoke_cmd = util.get_invocation_command_from_cfg(cfg=config, python_cmd=python_exec, workflow=workflow)
         print(f"[INFO]: Recovered invocation with {self.invoke_cmd}")
         self.experiment = None
 

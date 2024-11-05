@@ -5,9 +5,10 @@
 
 import argparse
 
-import source.standalone.workflows.ray.util as util
 import ray
 from ray.util.scheduling_strategies import NodeAffinitySchedulingStrategy
+
+import source.standalone.workflows.ray.util as util
 
 """
 This script dispatches sub-job(s) (either individual jobs or tuning aggregate jobs)
@@ -125,9 +126,15 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Submit multiple jobs with optional GPU testing.")
     parser = util.add_resource_arguments(arg_parser=parser)
     parser.add_argument("--ray_address", type=str, default="auto", help="the Ray address.")
-    parser.add_argument("--test", action="store_true", help=("Run nvidia-smi test instead of the arbitrary job,"
-                                                             "can use as a sanity check prior to any jobs to check "
-                                                             "that GPU resources are correctly isolated."))
+    parser.add_argument(
+        "--test",
+        action="store_true",
+        help=(
+            "Run nvidia-smi test instead of the arbitrary job,"
+            "can use as a sanity check prior to any jobs to check "
+            "that GPU resources are correctly isolated."
+        ),
+    )
     parser.add_argument(
         "--sub_jobs",
         type=str,
