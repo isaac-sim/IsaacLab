@@ -72,7 +72,7 @@ class RigidObjectCollectionData:
         self._object_acc_w = TimestampedBuffer()
 
     def update(self, dt: float):
-        """Updates the data for the rigid object.
+        """Updates the data for the rigid object collection.
 
         Args:
             dt: The time step for the update. This must be a positive value.
