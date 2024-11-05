@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import torch
 from collections.abc import Sequence
-from tensordict import TensorDict
 from typing import TYPE_CHECKING, ClassVar, Literal
 
 import omni.isaac.core.utils.stage as stage_utils
@@ -87,7 +86,7 @@ class RayCasterCamera(RayCaster):
             f"Ray-Caster-Camera @ '{self.cfg.prim_path}': \n"
             f"\tview type            : {self._view.__class__}\n"
             f"\tupdate period (s)    : {self.cfg.update_period}\n"
-            f"\tnumber of meshes     : {len(RayCaster.meshes)}\n"
+            f"\tnumber of meshes     : {len(self.meshes)}\n"
             f"\tnumber of sensors    : {self._view.count}\n"
             f"\tnumber of rays/sensor: {self.num_rays}\n"
             f"\ttotal number of rays : {self.num_rays * self._view.count}\n"
@@ -347,7 +346,7 @@ class RayCasterCamera(RayCaster):
         self._data.image_shape = self.image_shape
         # -- output data
         # create the buffers to store the annotator data.
-        self._data.output = TensorDict({}, batch_size=self._view.count, device=self.device)
+        self._data.output = {}
         self._data.info = [{name: None for name in self.cfg.data_types}] * self._view.count
         for name in self.cfg.data_types:
             if name in ["distance_to_image_plane", "distance_to_camera"]:

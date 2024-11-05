@@ -579,6 +579,25 @@ class TestFrameTransformer(unittest.TestCase):
                 torch.testing.assert_close(bodies_pos_source_tf[:, index], body_pos_b)
                 torch.testing.assert_close(bodies_quat_source_tf[:, index], body_quat_b)
 
+    def test_sensor_print(self):
+        """Test sensor print is working correctly."""
+        # Spawn things into stage
+        scene_cfg = MySceneCfg(num_envs=2, env_spacing=5.0, lazy_sensor_update=False)
+        scene_cfg.frame_transformer = FrameTransformerCfg(
+            prim_path="{ENV_REGEX_NS}/Robot/base",
+            target_frames=[
+                FrameTransformerCfg.FrameCfg(
+                    prim_path="{ENV_REGEX_NS}/Robot/.*",
+                ),
+            ],
+        )
+        scene = InteractiveScene(scene_cfg)
+
+        # Play the simulator
+        self.sim.reset()
+        # print info
+        print(scene.sensors["frame_transformer"])
+
 
 if __name__ == "__main__":
     run_tests()

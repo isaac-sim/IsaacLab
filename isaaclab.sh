@@ -350,7 +350,7 @@ while [[ $# -gt 0 ]]; do
             python_exe=$(extract_python_exe)
             echo "[INFO] Using python from: ${python_exe}"
             shift # past argument
-            ${python_exe} $@
+            ${python_exe} "$@"
             # exit neatly
             break
             ;;

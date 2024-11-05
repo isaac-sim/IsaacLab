@@ -185,6 +185,10 @@ class AppLauncher:
           * If headless and enable_cameras are False, the experience file is set to ``isaaclab.python.kit``.
           * If headless is True and enable_cameras is False, the experience file is set to ``isaaclab.python.headless.kit``.
 
+        * ``kit_args`` (str): Optional command line arguments to be passed to Omniverse Kit directly.
+          Arguments should be combined into a single string separated by space.
+          Example usage: --kit_args "--ext-folder=/path/to/ext1 --ext-folder=/path/to/ext2"
+
         Args:
             parser: An argument parser instance to be extended with the AppLauncher specific options.
         """
@@ -269,6 +273,15 @@ class AppLauncher:
                 "The experience file to load when launching the SimulationApp. If an empty string is provided,"
                 " the experience file is determined based on the headless flag. If a relative path is provided,"
                 " it is resolved relative to the `apps` folder in Isaac Sim and Isaac Lab (in that order)."
+            ),
+        )
+        arg_group.add_argument(
+            "--kit_args",
+            type=str,
+            default="",
+            help=(
+                "Command line arguments for Omniverse Kit as a string separated by a space delimiter."
+                ' Example usage: --kit_args "--ext-folder=/path/to/ext1 --ext-folder=/path/to/ext2"'
             ),
         )
 
@@ -557,6 +570,12 @@ class AppLauncher:
                 " The file does not exist."
             )
 
+        # Resolve additional arguments passed to Kit
+        self._kit_args = []
+        if "kit_args" in launcher_args:
+            self._kit_args = [arg for arg in launcher_args["kit_args"].split()]
+            sys.argv += self._kit_args
+
         # Resolve the absolute path of the experience file
         self._sim_experience_file = os.path.abspath(self._sim_experience_file)
         print(f"[INFO][AppLauncher]: Loading experience file: {self._sim_experience_file}")
@@ -595,6 +614,9 @@ class AppLauncher:
         # remove the threadCount argument from sys.argv if it was added for distributed training
         pattern = r"--/plugins/carb\.tasking\.plugin/threadCount=\d+"
         sys.argv = [arg for arg in sys.argv if not re.match(pattern, arg)]
+        # remove additional OV args from sys.argv
+        if len(self._kit_args) > 0:
+            sys.argv = [arg for arg in sys.argv if arg not in self._kit_args]
 
     def _rendering_enabled(self) -> bool:
         """Check if rendering is required by the app."""

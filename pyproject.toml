@@ -36,6 +36,9 @@ extra_standard_library = [
     "toml",
     "trimesh",
     "tqdm",
+    "torchvision",
+    "transformers",
+    "einops" # Needed for transformers, doesn't always auto-install
 ]
 # Imports from Isaac Sim and Omniverse
 known_third_party = [

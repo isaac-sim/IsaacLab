@@ -9,7 +9,6 @@ import numpy as np
 import re
 import torch
 from collections.abc import Sequence
-from tensordict import TensorDict
 from typing import TYPE_CHECKING, Any, Literal
 
 import carb
@@ -156,7 +155,7 @@ class Camera(SensorBase):
         # message for class
         return (
             f"Camera @ '{self.cfg.prim_path}': \n"
-            f"\tdata types   : {self.data.output.sorted_keys} \n"
+            f"\tdata types   : {list(self.data.output.keys())} \n"
             f"\tsemantic filter : {self.cfg.semantic_filter}\n"
             f"\tcolorize semantic segm.   : {self.cfg.colorize_semantic_segmentation}\n"
             f"\tcolorize instance segm.   : {self.cfg.colorize_instance_segmentation}\n"
@@ -497,7 +496,7 @@ class Camera(SensorBase):
         self._update_poses(env_ids)
         # -- read the data from annotator registry
         # check if buffer is called for the first time. If so then, allocate the memory
-        if len(self._data.output.sorted_keys) == 0:
+        if len(self._data.output) == 0:
             # this is the first time buffer is called
             # it allocates memory for all the sensors
             self._create_annotator_data()
@@ -552,7 +551,7 @@ class Camera(SensorBase):
         # lazy allocation of data dictionary
         # since the size of the output data is not known in advance, we leave it as None
         # the memory will be allocated when the buffer() function is called for the first time.
-        self._data.output = TensorDict({}, batch_size=self._view.count, device=self.device)
+        self._data.output = {}
         self._data.info = [{name: None for name in self.cfg.data_types} for _ in range(self._view.count)]
 
     def _update_intrinsic_matrices(self, env_ids: Sequence[int]):

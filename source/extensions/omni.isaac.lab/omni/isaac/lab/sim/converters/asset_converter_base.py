@@ -54,6 +54,8 @@ class AssetConverterBase(abc.ABC):
         Raises:
             ValueError: When provided asset file does not exist.
         """
+        # check that the config is valid
+        cfg.validate()
         # check if the asset file exists
         if not check_file_path(cfg.asset_path):
             raise ValueError(f"The asset path does not exist: {cfg.asset_path}")
