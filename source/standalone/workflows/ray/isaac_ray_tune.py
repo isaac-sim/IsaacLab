@@ -64,7 +64,7 @@ class IsaacLabTuneTrainable(tune.Trainable):
     This class uses the standalone workflows to start jobs, along with the hydra integration.
     This class achieves Ray-based logging through reading the tensorboard logs from
     the standalone workflows. This depends on a config generated in the format of
-    :class:`JobCfg`
+    :class:`JobCfg`.
     """
 
     def setup(self, config: dict) -> None:
