@@ -53,14 +53,14 @@ sweep configuration. This assumes homogeneous node resource composition for node
 
   .. literalinclude:: ../../../source/standalone/workflows/ray/wrap_resources.py
     :language: python
-    :emphasize-lines: 10-40
+    :emphasize-lines: 14-66
 
 .. dropdown:: source/standalone/workflows/ray/tuner.py
   :icon: code
 
   .. literalinclude:: ../../../source/standalone/workflows/ray/tuner.py
     :language: python
-    :emphasize-lines: 17-34
+    :emphasize-lines: 18-53
 
 
 The following script can be used to submit aggregate
@@ -68,12 +68,12 @@ jobs to one or more Ray cluster(s), which can be used for
 running jobs on a remote cluster or simultaneous jobs with heterogeneous
 resource requirements:
 
-.. dropdown:: source/standalone/workflows/ray/submit_job.py (submitting aggregate jobs)
+.. dropdown:: source/standalone/workflows/ray/submit_job.py
   :icon: code
 
   .. literalinclude:: ../../../source/standalone/workflows/ray/submit_job.py
     :language: python
-    :emphasize-lines: 12-42
+    :emphasize-lines: 12-53
 
 The following script can be used to extract KubeRay Cluster information for aggregate job submission.
 
@@ -82,7 +82,7 @@ The following script can be used to extract KubeRay Cluster information for aggr
 
   .. literalinclude:: ../../../source/standalone/workflows/ray/grok_cluster_with_kubectl.py
     :language: python
-    :emphasize-lines: 14-23
+    :emphasize-lines: 14-26
 
 The following script can be used to easily create clusters on Google GKE.
 
@@ -91,7 +91,7 @@ The following script can be used to easily create clusters on Google GKE.
 
   .. literalinclude:: ../../../source/standalone/workflows/ray/launch.py
     :language: python
-    :emphasize-lines: 14-44
+    :emphasize-lines: 16-37
 
 **Installation**
 ----------------
@@ -196,23 +196,21 @@ that the cluster job submission address is known.
 
   .. literalinclude:: ../../../source/standalone/workflows/ray/wrap_resources.py
     :language: python
-    :emphasize-lines: 12-64
+    :emphasize-lines: 14-66
 
 3.) For tuning jobs, specify the hyperparameter sweep similar to the following two files.
 
-.. dropdown:: source/standalone/workflows/ray/hyperparameter_tuning/rl_games_vision_cfg.py
+.. dropdown:: source/standalone/workflows/ray/hyperparameter_tuning/vision_cfg.py
   :icon: code
 
-  .. literalinclude:: ../../../source/standalone/workflows/ray/hyperparameter_tuning/vision_cartpole_cfg.py
+  .. literalinclude:: ../../../source/standalone/workflows/ray/hyperparameter_tuning/vision_cfg.py
     :language: python
-    :emphasize-lines: 17-35
 
 .. dropdown:: source/standalone/workflows/ray/hyperparameter_tuning/vision_cartpole_cfg.py
   :icon: code
 
   .. literalinclude:: ../../../source/standalone/workflows/ray/hyperparameter_tuning/vision_cartpole_cfg.py
     :language: python
-    :emphasize-lines: 17-35
 
 Then, see the local examples in the following file to see how to start a tuning run.
 
@@ -221,7 +219,7 @@ Then, see the local examples in the following file to see how to start a tuning 
 
   .. literalinclude:: ../../../source/standalone/workflows/ray/tuner.py
     :language: python
-    :emphasize-lines: 17-35
+    :emphasize-lines: 18-53
 
 
 
@@ -283,7 +281,7 @@ Google's.
 
   .. literalinclude:: ../../../source/standalone/workflows/ray/launch.py
     :language: python
-    :emphasize-lines: 14-44
+    :emphasize-lines: 15-37
 
 3.) Fetch the KubeRay cluster IP addresses, and the MLFLow Server IP.
 This can be done automatically for KubeRay clusters,
@@ -296,7 +294,7 @@ printed.
 
   .. literalinclude:: ../../../source/standalone/workflows/ray/grok_cluster_with_kubectl.py
     :language: python
-    :emphasize-lines: 14-23
+    :emphasize-lines: 14-26
 
 Ray Specific
 ~~~~~~~~~~~~
@@ -327,16 +325,16 @@ Shared Steps Between KubeRay and Pure Ray Part II
 
   .. literalinclude:: ../../../source/standalone/workflows/ray/submit_job.py
     :language: python
-    :emphasize-lines: 12-42
+    :emphasize-lines: 12-53
 
 3.) For tuning jobs, specify the hyperparameter sweep similar to :class:`RLGamesCameraJobCfg` in the following file:
 
-.. dropdown:: source/standalone/workflows/ray/tuner.py (submitting aggregate jobs)
+.. dropdown:: source/standalone/workflows/ray/tuner.py
   :icon: code
 
   .. literalinclude:: ../../../source/standalone/workflows/ray/tuner.py
     :language: python
-    :emphasize-lines: 17-35
+    :emphasize-lines: 18-53
 
 For example, see the Cartpole Example configurations.
 
@@ -345,7 +343,7 @@ For example, see the Cartpole Example configurations.
 
   .. literalinclude:: ../../../source/standalone/workflows/ray/hyperparameter_tuning/vision_cartpole_cfg.py
     :language: python
-    :emphasize-lines: 17-35
+
 
 Tuning jobs can also be submitted via ``submit_job.py``
 
