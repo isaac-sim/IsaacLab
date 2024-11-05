@@ -139,7 +139,7 @@ def invoke_tuning_run(cfg: dict, args: argparse.Namespace) -> None:
 
     Log either to a local directory or to MLFlow.
     Args:
-        cfg: Configuration dictionary extracted from job setup
+        cfg: Configuration dictionary extracted from job setup.
         args: Command-line arguments related to tuning.
     """
     # Allow for early exit
