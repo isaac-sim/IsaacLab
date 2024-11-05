@@ -5,7 +5,7 @@
 
 import argparse
 
-import isaac_ray_util
+import source.standalone.workflows.ray.util as util
 import ray
 from ray.util.scheduling_strategies import NodeAffinitySchedulingStrategy
 
@@ -46,21 +46,22 @@ Usage:
 .. code-block:: bash
     # **Ensure that sub-jobs are separated by the ``+`` delimiter.**
     # Generic Templates-----------------------------------
-    ./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py -h
+    ./isaaclab.sh -p source/standalone/workflows/ray/wrap_resources.py -h
     # No resource isolation; no parallelization:
-    ./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py
+    ./isaaclab.sh -p source/standalone/workflows/ray/wrap_resources.py
     --sub_jobs <JOB0>+<JOB1>+<JOB2>
     # Automatic Resource Isolation; Example A: needed for parallelization
-    ./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py \
+    ./isaaclab.sh -p source/standalone/workflows/ray/wrap_resources.py \
     --num_workers <NUM_TO_DIVIDE_TOTAL_RESOURCES_BY> \
     --sub_jobs <JOB0>+<JOB1>
     # Manual Resource Isolation; Example B:  needed for parallelization
-    ./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py --num_cpu_per_worker <CPU> \
+    ./isaaclab.sh -p source/standalone/workflows/ray/wrap_resources.py --num_cpu_per_worker <CPU> \
     --gpu_per_worker <GPU> --ram_gb_per_worker <RAM> --sub_jobs <JOB0>+<JOB1>
     # Manual Resource Isolation; Example C: Needed for parallelization, for heterogeneous workloads
-    ./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py --num_cpu_per_worker <CPU> \
+    ./isaaclab.sh -p source/standalone/workflows/ray/wrap_resources.py --num_cpu_per_worker <CPU> \
     --gpu_per_worker <GPU1> <GPU2> --ram_gb_per_worker <RAM> --sub_jobs <JOB0>+<JOB1>
-    ./isaaclab.sh -p source/standalone/workflows/ray/wrap_isaac_ray_resources.py -h
+    # to see all arguments
+    ./isaaclab.sh -p source/standalone/workflows/ray/wrap_resources.py -h
 """
 
 
@@ -77,7 +78,7 @@ def wrap_resources_to_jobs(jobs: list[str], args: argparse.Namespace) -> None:
     if not ray.is_initialized():
         ray.init(address=args.ray_address, log_to_driver=True)
     job_results = []
-    gpu_node_resources = isaac_ray_util.get_gpu_node_resources(include_id=True, include_gb_ram=True)
+    gpu_node_resources = util.get_gpu_node_resources(include_id=True, include_gb_ram=True)
 
     if any([args.gpu_per_worker, args.cpu_per_worker, args.ram_gb_per_worker]) and args.num_workers:
         raise ValueError("Either specify only num_workers or only granular resources(GPU,CPU,RAM_GB).")
@@ -90,7 +91,7 @@ def wrap_resources_to_jobs(jobs: list[str], args: argparse.Namespace) -> None:
         "ram_gb_per_worker": [gpu_node_resources[i]["ram_gb"] for i in range(num_nodes)],
         "num_workers": args.num_workers,  # By default, 1 worker por node
     }
-    args = isaac_ray_util.fill_in_missing_resources(args, resources=formatted_node_resources, policy=min)
+    args = util.fill_in_missing_resources(args, resources=formatted_node_resources, policy=min)
     print(f"[INFO]: Number of GPU nodes found: {num_nodes}")
     if args.test:
         jobs = ["nvidia-smi"] * num_nodes
@@ -106,7 +107,7 @@ def wrap_resources_to_jobs(jobs: list[str], args: argparse.Namespace) -> None:
         num_cpus = args.cpu_per_worker[i] / args.num_workers[i]
         memory = (args.ram_gb_per_worker[i] * 1024**3) / args.num_workers[i]
         print(f"[INFO]: Requesting {num_gpus=} {num_cpus=} {memory=} id={gpu_node['id']}")
-        job = isaac_ray_util.remote_execute_job.options(
+        job = util.remote_execute_job.options(
             num_gpus=num_gpus,
             num_cpus=num_cpus,
             memory=memory,
@@ -122,9 +123,11 @@ def wrap_resources_to_jobs(jobs: list[str], args: argparse.Namespace) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Submit multiple jobs with optional GPU testing.")
-    parser = isaac_ray_util.add_resource_arguments(arg_parser=parser)
+    parser = util.add_resource_arguments(arg_parser=parser)
     parser.add_argument("--ray_address", type=str, default="auto", help="the Ray address.")
-    parser.add_argument("--test", action="store_true", help="Run nvidia-smi test instead of the arbitrary job")
+    parser.add_argument("--test", action="store_true", help=("Run nvidia-smi test instead of the arbitrary job,"
+                                                             "can use as a sanity check prior to any jobs to check "
+                                                             "that GPU resources are correctly isolated."))
     parser.add_argument(
         "--sub_jobs",
         type=str,

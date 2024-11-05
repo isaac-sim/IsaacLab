@@ -109,7 +109,7 @@ def execute_job(
         extract_experiment: When true, search for experiment details from a training run. Defaults to False.
         persistent_dir: When supplied, change to run the directory in a persistent
             directory. Can be used to avoid losing logs in the /tmp directory. Defaults to None.
-
+        log_all_output: When true, print all output to the console. Defaults to False.
     Raises:
         ValueError: If the job is unable to start, or throws an error. Most likely to happen
             due to running out of memory.

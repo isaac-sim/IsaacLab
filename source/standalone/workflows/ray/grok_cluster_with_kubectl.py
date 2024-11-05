@@ -108,7 +108,16 @@ def get_mlflow_info(namespace: str = None, cluster_prefix: str = "isaacray") -> 
 
 
 def check_clusters_running(pods: list, clusters: set) -> bool:
-    """Check that all of the pods in all provided clusters are running"""
+    """
+    Check that all of the pods in all provided clusters are running.
+
+    Args:
+        pods (list): A list of tuples where each tuple contains the pod name and its status.
+        clusters (set): A set of cluster names to check.
+
+    Returns:
+        bool: True if all pods in any of the clusters are running, False otherwise.
+    """
     clusters_running = False
     for cluster in clusters:
         cluster_pods = [p for p in pods if p[0].startswith(cluster)]

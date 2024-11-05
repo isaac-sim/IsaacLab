@@ -9,12 +9,12 @@ import sys
 # Allow for import of items from the ray workflow.
 UTIL_DIR = pathlib.Path(__file__).parent.parent.parent
 sys.path.append(str(UTIL_DIR))
-import isaac_ray_tune
-import isaac_ray_util
+import source.standalone.workflows.ray.tune as tune
+import source.standalone.workflows.ray.util as util
 from ray import tune
 
 
-class CameraJobCfg(isaac_ray_tune.JobCfg):
+class CameraJobCfg(tune.JobCfg):
     """In order to be compatible with :meth: invoke_tuning_run, and
     :class:IsaacLabTuneTrainable , configurations should
     be in a similar format to this class. This class can vary env count/horizon length,
@@ -29,7 +29,7 @@ class CameraJobCfg(isaac_ray_tune.JobCfg):
         return divisors if divisors else [min_size]
 
     def __init__(self, cfg={}, vary_env_count: bool = False, vary_cnn: bool = False, vary_mlp: bool = False):
-        cfg = isaac_ray_util.populate_isaac_ray_cfg_args(cfg)
+        cfg = util.populate_isaac_ray_cfg_args(cfg)
 
         # Basic configuration
         cfg["runner_args"]["headless_singleton"] = "--headless"
@@ -128,7 +128,7 @@ class ResNetCameraJob(CameraJobCfg):
     """Try different ResNet sizes."""
 
     def __init__(self, cfg: dict = {}):
-        cfg = isaac_ray_util.populate_isaac_ray_cfg_args(cfg)
+        cfg = util.populate_isaac_ray_cfg_args(cfg)
         cfg["hydra_args"]["env.observations.policy.image.params.model_name"] = tune.choice(
             ["resnet18", "resnet34", "resnet50", "resnet101"]
         )
@@ -139,7 +139,7 @@ class TheiaCameraJob(CameraJobCfg):
     """Try different Theia sizes."""
 
     def __init__(self, cfg: dict = {}):
-        cfg = isaac_ray_util.populate_isaac_ray_cfg_args(cfg)
+        cfg = util.populate_isaac_ray_cfg_args(cfg)
         cfg["hydra_args"]["env.observations.policy.image.params.model_name"] = tune.choice([
             "theia-tiny-patch16-224-cddsv",
             "theia-tiny-patch16-224-cdiv",

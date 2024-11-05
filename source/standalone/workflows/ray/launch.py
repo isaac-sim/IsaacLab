@@ -8,7 +8,7 @@ import pathlib
 import subprocess
 import yaml
 
-import isaac_ray_util
+import source.standalone.workflows.ray.util as util
 from jinja2 import Environment, FileSystemLoader
 from kubernetes import config
 
@@ -141,7 +141,7 @@ def parse_args() -> argparse.Namespace:
         help="GPU accelerator name. Supply more than one for heterogeneous resources.",
     )
 
-    arg_parser = isaac_ray_util.add_resource_arguments(arg_parser, cluster_create_defaults=True)
+    arg_parser = util.add_resource_arguments(arg_parser, cluster_create_defaults=True)
 
     arg_parser.add_argument(
         "--num_clusters",
@@ -158,7 +158,7 @@ def parse_args() -> argparse.Namespace:
 
     arg_parser.add_argument("--head_ram_gb", type=int, default=8, help="How many gigs of ram to give the Ray head")
     args = arg_parser.parse_args()
-    return isaac_ray_util.fill_in_missing_resources(args, cluster_creation_flag=True)
+    return util.fill_in_missing_resources(args, cluster_creation_flag=True)
 
 
 def main():

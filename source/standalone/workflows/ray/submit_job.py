@@ -24,7 +24,7 @@ the last argument supplied to the script.
 
 An aggregate job could be a :file:`../isaac_ray_tune.py` tuning job, which automatically
 creates several individual jobs when started on a cluster. Alternatively, an aggregate job
-could be a :file:'../wrap_isaac_ray_resources.py` resource-wrapped job,
+could be a :file:'../wrap_resources.py` resource-wrapped job,
 which may contain several individual sub-jobs separated by
 the + delimiter.
 
@@ -40,16 +40,16 @@ Usage:
 .. code-block:: bash
 
     # Example; submitting a tuning job
-    ./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py \
-    --aggregate_jobs /workspace/isaaclab/source/standalone/workflows/ray/isaac_ray_tune.py \
+    ./isaaclab.sh -p source/standalone/workflows/ray/submit_job.py \
+    --aggregate_jobs /workspace/isaaclab/source/standalone/workflows/ray/tuner.py \
         --cfg_file hyperparameter_tuning/vision_cartpole_cfg.py \
         --cfg_class CartpoleRGBNoTuneJobCfg --mlflow_uri <ML_FLOW_URI>
 
     # Example: Submitting resource wrapped job
-    ./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py --aggregate_jobs wrap_isaac_ray_resources.py --sub_jobs ./isaaclab.sh -p source/standalone/workflows/rl_games/train.py --task Isaac-Cartpole-v0 --headless+./isaaclab.sh -p source/standalone/workflows/rl_games/train.py --task Isaac-Cartpole-RGB-Camera-Direct-v0 --headless --enable_cameras agent.params.config.max_epochs=150
+    ./isaaclab.sh -p source/standalone/workflows/ray/submit_job.py --aggregate_jobs wrap_resources.py --sub_jobs ./isaaclab.sh -p source/standalone/workflows/rl_games/train.py --task Isaac-Cartpole-v0 --headless+./isaaclab.sh -p source/standalone/workflows/rl_games/train.py --task Isaac-Cartpole-RGB-Camera-Direct-v0 --headless --enable_cameras agent.params.config.max_epochs=150
 
     # For all command line arguments
-    ./isaaclab.sh -p source/standalone/workflows/ray/submit_isaac_ray_job.py -h
+    ./isaaclab.sh -p source/standalone/workflows/ray/submit_job.py -h
 """
 script_directory = os.path.dirname(os.path.abspath(__file__))
 CONFIG = {"working_dir": script_directory, "executable": "/workspace/isaaclab/isaaclab.sh -p"}
