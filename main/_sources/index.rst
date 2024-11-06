@@ -127,6 +127,7 @@ Table of Contents
    :maxdepth: 1
    :caption: References
 
+   source/refs/reference_architecture/index
    source/refs/additional_resources
    source/refs/contributing
    source/refs/troubleshooting
