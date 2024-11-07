@@ -255,8 +255,13 @@ class ObservationManager(ManagerBase):
                 obs = obs.clip_(min=term_cfg.clip[0], max=term_cfg.clip[1])
             if term_cfg.scale:
                 obs = obs.mul_(term_cfg.scale)
+            cur_hist = self._group_obs_term_hist[name]
+            cur_hist = torch.roll(cur_hist, shifts=-1, dims=1)
+            cur_hist[:, -1] = obs[:]
+            
+            flat_obs_hist = cur_hist.flatten(start_dim=1)
             # add value to list
-            group_obs[name] = obs
+            group_obs[name] = flat_obs_hist
 
         # concatenate all observations in the group together
         if self._group_obs_concatenate[group_name]:
@@ -277,6 +282,8 @@ class ObservationManager(ManagerBase):
         self._group_obs_term_cfgs: dict[str, list[ObservationTermCfg]] = dict()
         self._group_obs_class_term_cfgs: dict[str, list[ObservationTermCfg]] = dict()
         self._group_obs_concatenate: dict[str, bool] = dict()
+        
+        self._group_obs_term_hist = dict()
 
         # create a list to store modifiers that are classes
         # we store it as a separate list to only call reset on them and prevent unnecessary calls
@@ -313,7 +320,7 @@ class ObservationManager(ManagerBase):
             # iterate over all the terms in each group
             for term_name, term_cfg in group_cfg.__dict__.items():
                 # skip non-obs settings
-                if term_name in ["enable_corruption", "concatenate_terms"]:
+                if term_name in ["enable_corruption", "concatenate_terms", "hist_len"]:
                     continue
                 # check for non config
                 if term_cfg is None:
@@ -335,7 +342,11 @@ class ObservationManager(ManagerBase):
 
                 # call function the first time to fill up dimensions
                 obs_dims = tuple(term_cfg.func(self._env, **term_cfg.params).shape)
-                self._group_obs_term_dim[group_name].append(obs_dims[1:])
+                single_obs_dims = list(obs_dims[1:])
+                single_obs_dims[0] *= term_cfg.hist_len
+                self._group_obs_term_dim[group_name].append(tuple(single_obs_dims))
+                self._group_obs_term_hist[term_name] = torch.zeros((obs_dims[0], term_cfg.hist_len, *obs_dims[1:]),
+                                                                   device=self._env.device)
 
                 # prepare modifiers for each observation
                 if term_cfg.modifiers is not None:

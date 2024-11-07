@@ -19,7 +19,7 @@ from omni.isaac.lab.managers import ObservationTermCfg as ObsTerm
 from omni.isaac.lab.managers import TerminationTermCfg as DoneTerm
 from omni.isaac.lab.managers import RewardTermCfg as RewTerm
 from omni.isaac.lab.managers import EventTermCfg, ManagerTermBase
-
+from omni.isaac.lab.managers import CurriculumTermCfg as CurrTerm
 from omni.isaac.lab.assets import Articulation, RigidObject
 from omni.isaac.lab.managers import SceneEntityCfg
 from omni.isaac.lab.sensors import ContactSensorCfg
@@ -154,8 +154,8 @@ def spawn_nut_with_rigid_grasp(
     tool_quat = [tool_quat.real, tool_quat.imaginary[0], tool_quat.imaginary[1], tool_quat.imaginary[2]]
     tool_quat = torch.tensor(tool_quat)[None]
     
-    grasp_rel_pos = torch.tensor([[-0.0007,  0.0001,  0.0177]])
-    grasp_rel_quat = torch.tensor([[-0.0020,  0.9663, -0.2569, -0.0170]])
+    # grasp_rel_pos = torch.tensor([[-0.0007,  0.0001,  0.0177]])
+    # grasp_rel_quat = torch.tensor([[-0.0020,  0.9663, -0.2569, -0.0170]])
     
     grasp_rel_pos = torch.tensor([[0,  0.000,  0.02]])
     grasp_rel_quat = torch.tensor([[0,  1, 0, 0]])
@@ -260,6 +260,10 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         action_params.ik_lambda = action_params.get("ik_lambda", 0.1)
         action_params.keep_grasp_state = action_params.get("keep_grasp_state", False)
         
+        obs_params = self.params.observations
+        obs_params.hist_len = obs_params.get("hist_len", 1)
+        obs_params.include_action = obs_params.get("include_action", False)
+        
         rewards_params = self.params.rewards
         rewards_params.dtw_ref_traj_w = rewards_params.get("dtw_ref_traj_w", 0.0)
         rewards_params.coarse_nut_w = rewards_params.get("coarse_nut_w", 0.5)
@@ -275,9 +279,7 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         
         events_params = self.params.events
         events_params.reset_target = events_params.get("reset_target", "grasp")
-        # if nut_params.rigid_grasp:
-        #     events_params.reset_target = "rigid_grasp"
-        
+
         
     def __post_init__(self):
         super().__post_init__()
@@ -311,10 +313,11 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         robot.actuators["victor_left_gripper"].effort_limit = robot_params.gripper_effort_limit
         robot.actuators["victor_left_gripper"].stiffness = robot_params.gripper_stiffness
         robot.actuators["victor_left_gripper"].damping = robot_params.gripper_damping
+        
         # action
         action_params = self.params.actions
         arm_lows = [-0.002, -0.002, -0.002, -0.0005, -0.0005, -0.5]
-        arm_highs = [0.002, 0.002, 0.002, 0.0005, 0.0005, 0.5]
+        arm_highs = [0.002, 0.002, 0.002, 0.0005, 0.0005, 0.0]
         scale = [0.002, 0.002, 0.002, 0.0005, 0.0005, 0.5]
         # arm_lows = [-0.005, -0.005, -0.005, -0.005, -0.005, -0.5]
         # arm_highs = [0.005, 0.005, 0.005, 0.005, 0.005, 0.]
@@ -350,15 +353,26 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         nut_params = self.params.scene.nut
         if nut_params.rigid_grasp:
             self.scene.nut.spawn.func = spawn_nut_with_rigid_grasp
+            
         # observations
+        obs_params = self.params.observations
         self.observations.policy.wrist_wrench = ObsTerm(
             func=mdp.body_incoming_wrench,
             params={"asset_cfg": SceneEntityCfg("robot", body_names=["victor_left_arm_flange"])},
             scale=1
         )
-        # self.observations.policy.tool_pose = ObsTerm(
-        #     func=robot_tool_pose,
-        # )
+        self.observations.policy.tool_pose = ObsTerm(
+            func=robot_tool_pose,
+        )
+        if obs_params.include_action:
+            self.observations.policy.last_action = ObsTerm(
+                func=mdp.last_action,
+                params={"action_name": "arm_action"},
+                scale=1,
+            )
+        for term in self.observations.policy.__dict__.values():
+            if isinstance(term, ObsTerm):
+                term.hist_len = obs_params.hist_len
         
         # events
         self.events = EventCfg()
@@ -398,6 +412,11 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
             self.terminations.far_from_bolt = DoneTerm(func=terminate_if_far_from_bolt)
         self.scene.nut.spawn.activate_contact_sensors = True
 
+        # self.curriculum.force_penalty = CurrTerm(
+        #     func=mdp.modify_reward_weight,
+        #     params={"term_name": "contact_force_penalty", 
+        #             "weight": -1, "num_steps": 1000},
+        # )
         # self.scene.contact_sensor = ContactSensorCfg(
         #     prim_path="{ENV_REGEX_NS}/Nut/factory_nut",
         #     filter_prim_paths_expr=["{ENV_REGEX_NS}/Robot/.*finger.*_link_3"],

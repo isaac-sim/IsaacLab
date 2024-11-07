@@ -226,6 +226,7 @@ class BaseObservationsCfg:
         def __post_init__(self):
             self.enable_corruption = False
             self.concatenate_terms = True
+            self.hist_len = 1
 
     # observation groups
     policy: PolicyCfg = PolicyCfg()
@@ -238,6 +239,11 @@ class EventCfg:
         func=mdp.reset_scene_to_default,
         mode="reset",
     )
+
+
+@configclass
+class CurriculumCfg:
+    """Curriculum terms for the MDP."""
 
 
 ##
