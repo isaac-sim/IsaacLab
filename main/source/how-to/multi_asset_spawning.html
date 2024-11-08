@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.2.0" />
-    <meta name="docbuild:last-update" content="Nov 06, 2024"/>
+    <meta name="docbuild:last-update" content="Nov 08, 2024"/>
   </head>
   
   
@@ -561,8 +561,9 @@
             </div>
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#using-multi-asset-spawning-functions">Using Multi-Asset Spawning Functions</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#things-to-note">Things to Note</a><ul class="nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#rigid-object-collections">Rigid Object Collections</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#spawning-different-assets-under-the-same-prim-path">Spawning different assets under the same prim path</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#things-to-note">Things to Note</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#similar-asset-structuring">Similar asset structuring</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#disabling-physics-replication-in-interactive-scene">Disabling physics replication in interactive scene</a></li>
 </ul>
@@ -581,13 +582,18 @@
                   
   <section id="spawning-multiple-assets">
 <h1>Spawning Multiple Assets<a class="headerlink" href="#spawning-multiple-assets" title="Permalink to this heading">#</a></h1>
-<p>Typical, spawning configurations (introduced in the <a class="reference internal" href="../tutorials/00_sim/spawn_prims.html#tutorial-spawn-prims"><span class="std std-ref">Spawning prims into the scene</span></a> tutorial) copy the same
+<p>Typical spawning configurations (introduced in the <a class="reference internal" href="../tutorials/00_sim/spawn_prims.html#tutorial-spawn-prims"><span class="std std-ref">Spawning prims into the scene</span></a> tutorial) copy the same
 asset (or USD primitive) across the different resolved prim paths from the expressions.
 For instance, if the user specifies to spawn the asset at “/World/Table_.*/Object”, the same
 asset is created at the paths “/World/Table_0/Object”, “/World/Table_1/Object” and so on.</p>
-<p>However, at times, it might be desirable to spawn different assets under the prim paths to
-ensure a diversity in the simulation. This guide describes how to create different assets under
-each prim path using the spawning functionality.</p>
+<p>However, we also support multi-asset spawning with two mechanisms:</p>
+<ol class="arabic simple">
+<li><p>Rigid object collections. This allows the user to spawn multiple rigid objects in each environment and access/modify
+them with a unified API, improving performance.</p></li>
+<li><p>Spawning different assets under the same prim path. This allows the user to create diverse simulations, where each
+environment has a different asset.</p></li>
+</ol>
+<p>This guide describes how to use these two mechanisms.</p>
 <p>The sample script <code class="docutils literal notranslate"><span class="pre">multi_asset.py</span></code> is used as a reference, located in the
 <code class="docutils literal notranslate"><span class="pre">IsaacLab/source/standalone/demos</span></code> directory.</p>
 <details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
@@ -618,7 +624,7 @@ each prim path using the spawning functionality.</p>
 <span class="linenos"> 23</span>
 <span class="linenos"> 24</span><span class="c1"># add argparse arguments</span>
 <span class="linenos"> 25</span><span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;Demo on spawning different objects in multiple environments.&quot;</span><span class="p">)</span>
-<span class="linenos"> 26</span><span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--num_envs&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">1024</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Number of environments to spawn.&quot;</span><span class="p">)</span>
+<span class="linenos"> 26</span><span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--num_envs&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">512</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Number of environments to spawn.&quot;</span><span class="p">)</span>
 <span class="linenos"> 27</span><span class="c1"># append AppLauncher cli args</span>
 <span class="linenos"> 28</span><span class="n">AppLauncher</span><span class="o">.</span><span class="n">add_app_launcher_args</span><span class="p">(</span><span class="n">parser</span><span class="p">)</span>
 <span class="linenos"> 29</span><span class="c1"># parse the arguments</span>
@@ -636,216 +642,335 @@ each prim path using the spawning functionality.</p>
 <span class="linenos"> 41</span><span class="kn">from</span> <span class="nn">pxr</span> <span class="kn">import</span> <span class="n">Gf</span><span class="p">,</span> <span class="n">Sdf</span>
 <span class="linenos"> 42</span>
 <span class="linenos"> 43</span><span class="kn">import</span> <span class="nn">omni.isaac.lab.sim</span> <span class="k">as</span> <span class="nn">sim_utils</span>
-<span class="linenos"> 44</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.assets</span> <span class="kn">import</span> <span class="n">ArticulationCfg</span><span class="p">,</span> <span class="n">AssetBaseCfg</span><span class="p">,</span> <span class="n">RigidObjectCfg</span>
-<span class="linenos"> 45</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.scene</span> <span class="kn">import</span> <span class="n">InteractiveScene</span><span class="p">,</span> <span class="n">InteractiveSceneCfg</span>
-<span class="linenos"> 46</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.sim</span> <span class="kn">import</span> <span class="n">SimulationContext</span>
-<span class="linenos"> 47</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.utils</span> <span class="kn">import</span> <span class="n">Timer</span><span class="p">,</span> <span class="n">configclass</span>
-<span class="linenos"> 48</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.utils.assets</span> <span class="kn">import</span> <span class="n">ISAACLAB_NUCLEUS_DIR</span>
-<span class="linenos"> 49</span>
-<span class="linenos"> 50</span><span class="c1">##</span>
-<span class="linenos"> 51</span><span class="c1"># Pre-defined Configuration</span>
-<span class="linenos"> 52</span><span class="c1">##</span>
-<span class="linenos"> 53</span>
-<span class="linenos"> 54</span><span class="kn">from</span> <span class="nn">omni.isaac.lab_assets.anymal</span> <span class="kn">import</span> <span class="n">ANYDRIVE_3_LSTM_ACTUATOR_CFG</span>  <span class="c1"># isort: skip</span>
-<span class="linenos"> 55</span>
-<span class="linenos"> 56</span>
-<span class="linenos"> 57</span><span class="c1">##</span>
-<span class="linenos"> 58</span><span class="c1"># Randomization events.</span>
-<span class="linenos"> 59</span><span class="c1">##</span>
-<span class="linenos"> 60</span>
+<span class="linenos"> 44</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.assets</span> <span class="kn">import</span> <span class="p">(</span>
+<span class="linenos"> 45</span>    <span class="n">Articulation</span><span class="p">,</span>
+<span class="linenos"> 46</span>    <span class="n">ArticulationCfg</span><span class="p">,</span>
+<span class="linenos"> 47</span>    <span class="n">AssetBaseCfg</span><span class="p">,</span>
+<span class="linenos"> 48</span>    <span class="n">RigidObject</span><span class="p">,</span>
+<span class="linenos"> 49</span>    <span class="n">RigidObjectCfg</span><span class="p">,</span>
+<span class="linenos"> 50</span>    <span class="n">RigidObjectCollection</span><span class="p">,</span>
+<span class="linenos"> 51</span>    <span class="n">RigidObjectCollectionCfg</span><span class="p">,</span>
+<span class="linenos"> 52</span><span class="p">)</span>
+<span class="linenos"> 53</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.scene</span> <span class="kn">import</span> <span class="n">InteractiveScene</span><span class="p">,</span> <span class="n">InteractiveSceneCfg</span>
+<span class="linenos"> 54</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.sim</span> <span class="kn">import</span> <span class="n">SimulationContext</span>
+<span class="linenos"> 55</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.utils</span> <span class="kn">import</span> <span class="n">Timer</span><span class="p">,</span> <span class="n">configclass</span>
+<span class="linenos"> 56</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.utils.assets</span> <span class="kn">import</span> <span class="n">ISAACLAB_NUCLEUS_DIR</span>
+<span class="linenos"> 57</span>
+<span class="linenos"> 58</span><span class="c1">##</span>
+<span class="linenos"> 59</span><span class="c1"># Pre-defined Configuration</span>
+<span class="linenos"> 60</span><span class="c1">##</span>
 <span class="linenos"> 61</span>
-<span class="linenos"> 62</span><span class="k">def</span> <span class="nf">randomize_shape_color</span><span class="p">(</span><span class="n">prim_path_expr</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
-<span class="linenos"> 63</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Randomize the color of the geometry.&quot;&quot;&quot;</span>
-<span class="linenos"> 64</span>    <span class="c1"># acquire stage</span>
-<span class="linenos"> 65</span>    <span class="n">stage</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">usd</span><span class="o">.</span><span class="n">get_context</span><span class="p">()</span><span class="o">.</span><span class="n">get_stage</span><span class="p">()</span>
-<span class="linenos"> 66</span>    <span class="c1"># resolve prim paths for spawning and cloning</span>
-<span class="linenos"> 67</span>    <span class="n">prim_paths</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">find_matching_prim_paths</span><span class="p">(</span><span class="n">prim_path_expr</span><span class="p">)</span>
-<span class="linenos"> 68</span>    <span class="c1"># manually clone prims if the source prim path is a regex expression</span>
-<span class="linenos"> 69</span>    <span class="k">with</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">ChangeBlock</span><span class="p">():</span>
-<span class="linenos"> 70</span>        <span class="k">for</span> <span class="n">prim_path</span> <span class="ow">in</span> <span class="n">prim_paths</span><span class="p">:</span>
-<span class="linenos"> 71</span>            <span class="c1"># spawn single instance</span>
-<span class="linenos"> 72</span>            <span class="n">prim_spec</span> <span class="o">=</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">CreatePrimInLayer</span><span class="p">(</span><span class="n">stage</span><span class="o">.</span><span class="n">GetRootLayer</span><span class="p">(),</span> <span class="n">prim_path</span><span class="p">)</span>
-<span class="linenos"> 73</span>
-<span class="linenos"> 74</span>            <span class="c1"># DO YOUR OWN OTHER KIND OF RANDOMIZATION HERE!</span>
-<span class="linenos"> 75</span>            <span class="c1"># Note: Just need to acquire the right attribute about the property you want to set</span>
-<span class="linenos"> 76</span>            <span class="c1"># Here is an example on setting color randomly</span>
-<span class="linenos"> 77</span>            <span class="n">color_spec</span> <span class="o">=</span> <span class="n">prim_spec</span><span class="o">.</span><span class="n">GetAttributeAtPath</span><span class="p">(</span><span class="n">prim_path</span> <span class="o">+</span> <span class="s2">&quot;/geometry/material/Shader.inputs:diffuseColor&quot;</span><span class="p">)</span>
-<span class="linenos"> 78</span>            <span class="n">color_spec</span><span class="o">.</span><span class="n">default</span> <span class="o">=</span> <span class="n">Gf</span><span class="o">.</span><span class="n">Vec3f</span><span class="p">(</span><span class="n">random</span><span class="o">.</span><span class="n">random</span><span class="p">(),</span> <span class="n">random</span><span class="o">.</span><span class="n">random</span><span class="p">(),</span> <span class="n">random</span><span class="o">.</span><span class="n">random</span><span class="p">())</span>
-<span class="linenos"> 79</span>
-<span class="linenos"> 80</span>
-<span class="linenos"> 81</span><span class="c1">##</span>
-<span class="linenos"> 82</span><span class="c1"># Scene Configuration</span>
-<span class="linenos"> 83</span><span class="c1">##</span>
-<span class="linenos"> 84</span>
-<span class="linenos"> 85</span>
-<span class="linenos"> 86</span><span class="nd">@configclass</span>
-<span class="linenos"> 87</span><span class="k">class</span> <span class="nc">MultiObjectSceneCfg</span><span class="p">(</span><span class="n">InteractiveSceneCfg</span><span class="p">):</span>
-<span class="linenos"> 88</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a multi-object scene.&quot;&quot;&quot;</span>
-<span class="linenos"> 89</span>
-<span class="linenos"> 90</span>    <span class="c1"># ground plane</span>
-<span class="linenos"> 91</span>    <span class="n">ground</span> <span class="o">=</span> <span class="n">AssetBaseCfg</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/defaultGroundPlane&quot;</span><span class="p">,</span> <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">GroundPlaneCfg</span><span class="p">())</span>
+<span class="linenos"> 62</span><span class="kn">from</span> <span class="nn">omni.isaac.lab_assets.anymal</span> <span class="kn">import</span> <span class="n">ANYDRIVE_3_LSTM_ACTUATOR_CFG</span>  <span class="c1"># isort: skip</span>
+<span class="linenos"> 63</span>
+<span class="linenos"> 64</span>
+<span class="linenos"> 65</span><span class="c1">##</span>
+<span class="linenos"> 66</span><span class="c1"># Randomization events.</span>
+<span class="linenos"> 67</span><span class="c1">##</span>
+<span class="linenos"> 68</span>
+<span class="linenos"> 69</span>
+<span class="linenos"> 70</span><span class="k">def</span> <span class="nf">randomize_shape_color</span><span class="p">(</span><span class="n">prim_path_expr</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<span class="linenos"> 71</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Randomize the color of the geometry.&quot;&quot;&quot;</span>
+<span class="linenos"> 72</span>    <span class="c1"># acquire stage</span>
+<span class="linenos"> 73</span>    <span class="n">stage</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">usd</span><span class="o">.</span><span class="n">get_context</span><span class="p">()</span><span class="o">.</span><span class="n">get_stage</span><span class="p">()</span>
+<span class="linenos"> 74</span>    <span class="c1"># resolve prim paths for spawning and cloning</span>
+<span class="linenos"> 75</span>    <span class="n">prim_paths</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">find_matching_prim_paths</span><span class="p">(</span><span class="n">prim_path_expr</span><span class="p">)</span>
+<span class="linenos"> 76</span>    <span class="c1"># manually clone prims if the source prim path is a regex expression</span>
+<span class="linenos"> 77</span>    <span class="k">with</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">ChangeBlock</span><span class="p">():</span>
+<span class="linenos"> 78</span>        <span class="k">for</span> <span class="n">prim_path</span> <span class="ow">in</span> <span class="n">prim_paths</span><span class="p">:</span>
+<span class="linenos"> 79</span>            <span class="c1"># spawn single instance</span>
+<span class="linenos"> 80</span>            <span class="n">prim_spec</span> <span class="o">=</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">CreatePrimInLayer</span><span class="p">(</span><span class="n">stage</span><span class="o">.</span><span class="n">GetRootLayer</span><span class="p">(),</span> <span class="n">prim_path</span><span class="p">)</span>
+<span class="linenos"> 81</span>
+<span class="linenos"> 82</span>            <span class="c1"># DO YOUR OWN OTHER KIND OF RANDOMIZATION HERE!</span>
+<span class="linenos"> 83</span>            <span class="c1"># Note: Just need to acquire the right attribute about the property you want to set</span>
+<span class="linenos"> 84</span>            <span class="c1"># Here is an example on setting color randomly</span>
+<span class="linenos"> 85</span>            <span class="n">color_spec</span> <span class="o">=</span> <span class="n">prim_spec</span><span class="o">.</span><span class="n">GetAttributeAtPath</span><span class="p">(</span><span class="n">prim_path</span> <span class="o">+</span> <span class="s2">&quot;/geometry/material/Shader.inputs:diffuseColor&quot;</span><span class="p">)</span>
+<span class="linenos"> 86</span>            <span class="n">color_spec</span><span class="o">.</span><span class="n">default</span> <span class="o">=</span> <span class="n">Gf</span><span class="o">.</span><span class="n">Vec3f</span><span class="p">(</span><span class="n">random</span><span class="o">.</span><span class="n">random</span><span class="p">(),</span> <span class="n">random</span><span class="o">.</span><span class="n">random</span><span class="p">(),</span> <span class="n">random</span><span class="o">.</span><span class="n">random</span><span class="p">())</span>
+<span class="linenos"> 87</span>
+<span class="linenos"> 88</span>
+<span class="linenos"> 89</span><span class="c1">##</span>
+<span class="linenos"> 90</span><span class="c1"># Scene Configuration</span>
+<span class="linenos"> 91</span><span class="c1">##</span>
 <span class="linenos"> 92</span>
-<span class="linenos"> 93</span>    <span class="c1"># lights</span>
-<span class="linenos"> 94</span>    <span class="n">dome_light</span> <span class="o">=</span> <span class="n">AssetBaseCfg</span><span class="p">(</span>
-<span class="linenos"> 95</span>        <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/Light&quot;</span><span class="p">,</span> <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">DomeLightCfg</span><span class="p">(</span><span class="n">intensity</span><span class="o">=</span><span class="mf">3000.0</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">))</span>
-<span class="linenos"> 96</span>    <span class="p">)</span>
+<span class="linenos"> 93</span>
+<span class="linenos"> 94</span><span class="nd">@configclass</span>
+<span class="linenos"> 95</span><span class="k">class</span> <span class="nc">MultiObjectSceneCfg</span><span class="p">(</span><span class="n">InteractiveSceneCfg</span><span class="p">):</span>
+<span class="linenos"> 96</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a multi-object scene.&quot;&quot;&quot;</span>
 <span class="linenos"> 97</span>
-<span class="linenos"> 98</span>    <span class="c1"># rigid object</span>
-<span class="linenos"> 99</span>    <span class="nb">object</span><span class="p">:</span> <span class="n">RigidObjectCfg</span> <span class="o">=</span> <span class="n">RigidObjectCfg</span><span class="p">(</span>
-<span class="linenos">100</span>        <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/envs/env_.*/Object&quot;</span><span class="p">,</span>
-<span class="hll"><span class="linenos">101</span>        <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">MultiAssetSpawnerCfg</span><span class="p">(</span>
-</span><span class="hll"><span class="linenos">102</span>            <span class="n">assets_cfg</span><span class="o">=</span><span class="p">[</span>
-</span><span class="hll"><span class="linenos">103</span>                <span class="n">sim_utils</span><span class="o">.</span><span class="n">ConeCfg</span><span class="p">(</span>
-</span><span class="hll"><span class="linenos">104</span>                    <span class="n">radius</span><span class="o">=</span><span class="mf">0.3</span><span class="p">,</span>
-</span><span class="hll"><span class="linenos">105</span>                    <span class="n">height</span><span class="o">=</span><span class="mf">0.6</span><span class="p">,</span>
-</span><span class="hll"><span class="linenos">106</span>                    <span class="n">visual_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PreviewSurfaceCfg</span><span class="p">(</span><span class="n">diffuse_color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span> <span class="n">metallic</span><span class="o">=</span><span class="mf">0.2</span><span class="p">),</span>
-</span><span class="hll"><span class="linenos">107</span>                <span class="p">),</span>
-</span><span class="hll"><span class="linenos">108</span>                <span class="n">sim_utils</span><span class="o">.</span><span class="n">CuboidCfg</span><span class="p">(</span>
-</span><span class="hll"><span class="linenos">109</span>                    <span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="mf">0.3</span><span class="p">,</span> <span class="mf">0.3</span><span class="p">,</span> <span class="mf">0.3</span><span class="p">),</span>
-</span><span class="hll"><span class="linenos">110</span>                    <span class="n">visual_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PreviewSurfaceCfg</span><span class="p">(</span><span class="n">diffuse_color</span><span class="o">=</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span> <span class="n">metallic</span><span class="o">=</span><span class="mf">0.2</span><span class="p">),</span>
-</span><span class="hll"><span class="linenos">111</span>                <span class="p">),</span>
-</span><span class="hll"><span class="linenos">112</span>                <span class="n">sim_utils</span><span class="o">.</span><span class="n">SphereCfg</span><span class="p">(</span>
-</span><span class="hll"><span class="linenos">113</span>                    <span class="n">radius</span><span class="o">=</span><span class="mf">0.3</span><span class="p">,</span>
-</span><span class="hll"><span class="linenos">114</span>                    <span class="n">visual_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PreviewSurfaceCfg</span><span class="p">(</span><span class="n">diffuse_color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">),</span> <span class="n">metallic</span><span class="o">=</span><span class="mf">0.2</span><span class="p">),</span>
+<span class="linenos"> 98</span>    <span class="c1"># ground plane</span>
+<span class="linenos"> 99</span>    <span class="n">ground</span> <span class="o">=</span> <span class="n">AssetBaseCfg</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/defaultGroundPlane&quot;</span><span class="p">,</span> <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">GroundPlaneCfg</span><span class="p">())</span>
+<span class="linenos">100</span>
+<span class="linenos">101</span>    <span class="c1"># lights</span>
+<span class="linenos">102</span>    <span class="n">dome_light</span> <span class="o">=</span> <span class="n">AssetBaseCfg</span><span class="p">(</span>
+<span class="linenos">103</span>        <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/Light&quot;</span><span class="p">,</span> <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">DomeLightCfg</span><span class="p">(</span><span class="n">intensity</span><span class="o">=</span><span class="mf">3000.0</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">))</span>
+<span class="linenos">104</span>    <span class="p">)</span>
+<span class="linenos">105</span>
+<span class="linenos">106</span>    <span class="c1"># rigid object</span>
+<span class="linenos">107</span>    <span class="nb">object</span><span class="p">:</span> <span class="n">RigidObjectCfg</span> <span class="o">=</span> <span class="n">RigidObjectCfg</span><span class="p">(</span>
+<span class="linenos">108</span>        <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/envs/env_.*/Object&quot;</span><span class="p">,</span>
+<span class="hll"><span class="linenos">109</span>        <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">MultiAssetSpawnerCfg</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos">110</span>            <span class="n">assets_cfg</span><span class="o">=</span><span class="p">[</span>
+</span><span class="hll"><span class="linenos">111</span>                <span class="n">sim_utils</span><span class="o">.</span><span class="n">ConeCfg</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos">112</span>                    <span class="n">radius</span><span class="o">=</span><span class="mf">0.3</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">113</span>                    <span class="n">height</span><span class="o">=</span><span class="mf">0.6</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">114</span>                    <span class="n">visual_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PreviewSurfaceCfg</span><span class="p">(</span><span class="n">diffuse_color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span> <span class="n">metallic</span><span class="o">=</span><span class="mf">0.2</span><span class="p">),</span>
 </span><span class="hll"><span class="linenos">115</span>                <span class="p">),</span>
-</span><span class="hll"><span class="linenos">116</span>            <span class="p">],</span>
-</span><span class="hll"><span class="linenos">117</span>            <span class="n">random_choice</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-</span><span class="hll"><span class="linenos">118</span>            <span class="n">rigid_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">RigidBodyPropertiesCfg</span><span class="p">(</span>
-</span><span class="hll"><span class="linenos">119</span>                <span class="n">solver_position_iteration_count</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">solver_velocity_iteration_count</span><span class="o">=</span><span class="mi">0</span>
-</span><span class="hll"><span class="linenos">120</span>            <span class="p">),</span>
-</span><span class="hll"><span class="linenos">121</span>            <span class="n">mass_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">MassPropertiesCfg</span><span class="p">(</span><span class="n">mass</span><span class="o">=</span><span class="mf">1.0</span><span class="p">),</span>
-</span><span class="hll"><span class="linenos">122</span>            <span class="n">collision_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">CollisionPropertiesCfg</span><span class="p">(),</span>
-</span><span class="hll"><span class="linenos">123</span>        <span class="p">),</span>
-</span><span class="linenos">124</span>        <span class="n">init_state</span><span class="o">=</span><span class="n">RigidObjectCfg</span><span class="o">.</span><span class="n">InitialStateCfg</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">)),</span>
-<span class="linenos">125</span>    <span class="p">)</span>
-<span class="linenos">126</span>
-<span class="linenos">127</span>    <span class="c1"># articulation</span>
-<span class="linenos">128</span>    <span class="n">robot</span><span class="p">:</span> <span class="n">ArticulationCfg</span> <span class="o">=</span> <span class="n">ArticulationCfg</span><span class="p">(</span>
-<span class="linenos">129</span>        <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/envs/env_.*/Robot&quot;</span><span class="p">,</span>
-<span class="hll"><span class="linenos">130</span>        <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">MultiUsdFileCfg</span><span class="p">(</span>
-</span><span class="hll"><span class="linenos">131</span>            <span class="n">usd_path</span><span class="o">=</span><span class="p">[</span>
-</span><span class="hll"><span class="linenos">132</span>                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">ISAACLAB_NUCLEUS_DIR</span><span class="si">}</span><span class="s2">/Robots/ANYbotics/ANYmal-C/anymal_c.usd&quot;</span><span class="p">,</span>
-</span><span class="hll"><span class="linenos">133</span>                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">ISAACLAB_NUCLEUS_DIR</span><span class="si">}</span><span class="s2">/Robots/ANYbotics/ANYmal-D/anymal_d.usd&quot;</span><span class="p">,</span>
-</span><span class="hll"><span class="linenos">134</span>            <span class="p">],</span>
-</span><span class="hll"><span class="linenos">135</span>            <span class="n">random_choice</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-</span><span class="hll"><span class="linenos">136</span>            <span class="n">rigid_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">RigidBodyPropertiesCfg</span><span class="p">(</span>
-</span><span class="hll"><span class="linenos">137</span>                <span class="n">disable_gravity</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
-</span><span class="hll"><span class="linenos">138</span>                <span class="n">retain_accelerations</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
-</span><span class="hll"><span class="linenos">139</span>                <span class="n">linear_damping</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
-</span><span class="hll"><span class="linenos">140</span>                <span class="n">angular_damping</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
-</span><span class="hll"><span class="linenos">141</span>                <span class="n">max_linear_velocity</span><span class="o">=</span><span class="mf">1000.0</span><span class="p">,</span>
-</span><span class="hll"><span class="linenos">142</span>                <span class="n">max_angular_velocity</span><span class="o">=</span><span class="mf">1000.0</span><span class="p">,</span>
-</span><span class="hll"><span class="linenos">143</span>                <span class="n">max_depenetration_velocity</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
-</span><span class="hll"><span class="linenos">144</span>            <span class="p">),</span>
-</span><span class="hll"><span class="linenos">145</span>            <span class="n">articulation_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">ArticulationRootPropertiesCfg</span><span class="p">(</span>
-</span><span class="hll"><span class="linenos">146</span>                <span class="n">enabled_self_collisions</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">solver_position_iteration_count</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">solver_velocity_iteration_count</span><span class="o">=</span><span class="mi">0</span>
-</span><span class="hll"><span class="linenos">147</span>            <span class="p">),</span>
-</span><span class="hll"><span class="linenos">148</span>            <span class="n">activate_contact_sensors</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-</span><span class="hll"><span class="linenos">149</span>        <span class="p">),</span>
-</span><span class="linenos">150</span>        <span class="n">init_state</span><span class="o">=</span><span class="n">ArticulationCfg</span><span class="o">.</span><span class="n">InitialStateCfg</span><span class="p">(</span>
-<span class="linenos">151</span>            <span class="n">pos</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.6</span><span class="p">),</span>
-<span class="linenos">152</span>            <span class="n">joint_pos</span><span class="o">=</span><span class="p">{</span>
-<span class="linenos">153</span>                <span class="s2">&quot;.*HAA&quot;</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span>  <span class="c1"># all HAA</span>
-<span class="linenos">154</span>                <span class="s2">&quot;.*F_HFE&quot;</span><span class="p">:</span> <span class="mf">0.4</span><span class="p">,</span>  <span class="c1"># both front HFE</span>
-<span class="linenos">155</span>                <span class="s2">&quot;.*H_HFE&quot;</span><span class="p">:</span> <span class="o">-</span><span class="mf">0.4</span><span class="p">,</span>  <span class="c1"># both hind HFE</span>
-<span class="linenos">156</span>                <span class="s2">&quot;.*F_KFE&quot;</span><span class="p">:</span> <span class="o">-</span><span class="mf">0.8</span><span class="p">,</span>  <span class="c1"># both front KFE</span>
-<span class="linenos">157</span>                <span class="s2">&quot;.*H_KFE&quot;</span><span class="p">:</span> <span class="mf">0.8</span><span class="p">,</span>  <span class="c1"># both hind KFE</span>
-<span class="linenos">158</span>            <span class="p">},</span>
-<span class="linenos">159</span>        <span class="p">),</span>
-<span class="linenos">160</span>        <span class="n">actuators</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;legs&quot;</span><span class="p">:</span> <span class="n">ANYDRIVE_3_LSTM_ACTUATOR_CFG</span><span class="p">},</span>
-<span class="linenos">161</span>    <span class="p">)</span>
-<span class="linenos">162</span>
-<span class="linenos">163</span>
-<span class="linenos">164</span><span class="c1">##</span>
-<span class="linenos">165</span><span class="c1"># Simulation Loop</span>
-<span class="linenos">166</span><span class="c1">##</span>
-<span class="linenos">167</span>
-<span class="linenos">168</span>
-<span class="linenos">169</span><span class="k">def</span> <span class="nf">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">:</span> <span class="n">SimulationContext</span><span class="p">,</span> <span class="n">scene</span><span class="p">:</span> <span class="n">InteractiveScene</span><span class="p">):</span>
-<span class="linenos">170</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Runs the simulation loop.&quot;&quot;&quot;</span>
-<span class="linenos">171</span>    <span class="c1"># Extract scene entities</span>
-<span class="linenos">172</span>    <span class="c1"># note: we only do this here for readability.</span>
-<span class="linenos">173</span>    <span class="n">rigid_object</span> <span class="o">=</span> <span class="n">scene</span><span class="p">[</span><span class="s2">&quot;object&quot;</span><span class="p">]</span>
-<span class="linenos">174</span>    <span class="n">robot</span> <span class="o">=</span> <span class="n">scene</span><span class="p">[</span><span class="s2">&quot;robot&quot;</span><span class="p">]</span>
-<span class="linenos">175</span>    <span class="c1"># Define simulation stepping</span>
-<span class="linenos">176</span>    <span class="n">sim_dt</span> <span class="o">=</span> <span class="n">sim</span><span class="o">.</span><span class="n">get_physics_dt</span><span class="p">()</span>
-<span class="linenos">177</span>    <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
-<span class="linenos">178</span>    <span class="c1"># Simulation loop</span>
-<span class="linenos">179</span>    <span class="k">while</span> <span class="n">simulation_app</span><span class="o">.</span><span class="n">is_running</span><span class="p">():</span>
-<span class="linenos">180</span>        <span class="c1"># Reset</span>
-<span class="linenos">181</span>        <span class="k">if</span> <span class="n">count</span> <span class="o">%</span> <span class="mi">500</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-<span class="linenos">182</span>            <span class="c1"># reset counter</span>
-<span class="linenos">183</span>            <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
-<span class="linenos">184</span>            <span class="c1"># reset the scene entities</span>
-<span class="linenos">185</span>            <span class="c1"># object</span>
-<span class="linenos">186</span>            <span class="n">root_state</span> <span class="o">=</span> <span class="n">rigid_object</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_root_state</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
-<span class="linenos">187</span>            <span class="n">root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="n">scene</span><span class="o">.</span><span class="n">env_origins</span>
-<span class="linenos">188</span>            <span class="n">rigid_object</span><span class="o">.</span><span class="n">write_root_state_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">)</span>
-<span class="linenos">189</span>            <span class="c1"># robot</span>
-<span class="linenos">190</span>            <span class="c1"># -- root state</span>
-<span class="linenos">191</span>            <span class="n">root_state</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_root_state</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
-<span class="linenos">192</span>            <span class="n">root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="n">scene</span><span class="o">.</span><span class="n">env_origins</span>
-<span class="linenos">193</span>            <span class="n">robot</span><span class="o">.</span><span class="n">write_root_state_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">)</span>
-<span class="linenos">194</span>            <span class="c1"># -- joint state</span>
-<span class="linenos">195</span>            <span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_pos</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_vel</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
-<span class="linenos">196</span>            <span class="n">robot</span><span class="o">.</span><span class="n">write_joint_state_to_sim</span><span class="p">(</span><span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span><span class="p">)</span>
-<span class="linenos">197</span>            <span class="c1"># clear internal buffers</span>
-<span class="linenos">198</span>            <span class="n">scene</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
-<span class="linenos">199</span>            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Resetting scene state...&quot;</span><span class="p">)</span>
-<span class="linenos">200</span>
-<span class="linenos">201</span>        <span class="c1"># Apply action to robot</span>
-<span class="linenos">202</span>        <span class="n">robot</span><span class="o">.</span><span class="n">set_joint_position_target</span><span class="p">(</span><span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_pos</span><span class="p">)</span>
-<span class="linenos">203</span>        <span class="c1"># Write data to sim</span>
-<span class="linenos">204</span>        <span class="n">scene</span><span class="o">.</span><span class="n">write_data_to_sim</span><span class="p">()</span>
-<span class="linenos">205</span>        <span class="c1"># Perform step</span>
-<span class="linenos">206</span>        <span class="n">sim</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
-<span class="linenos">207</span>        <span class="c1"># Increment counter</span>
-<span class="linenos">208</span>        <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
-<span class="linenos">209</span>        <span class="c1"># Update buffers</span>
-<span class="linenos">210</span>        <span class="n">scene</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">sim_dt</span><span class="p">)</span>
-<span class="linenos">211</span>
-<span class="linenos">212</span>
-<span class="linenos">213</span><span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
-<span class="linenos">214</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Main function.&quot;&quot;&quot;</span>
-<span class="linenos">215</span>    <span class="c1"># Load kit helper</span>
-<span class="linenos">216</span>    <span class="n">sim_cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationCfg</span><span class="p">(</span><span class="n">dt</span><span class="o">=</span><span class="mf">0.005</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
-<span class="linenos">217</span>    <span class="n">sim</span> <span class="o">=</span> <span class="n">SimulationContext</span><span class="p">(</span><span class="n">sim_cfg</span><span class="p">)</span>
-<span class="linenos">218</span>    <span class="c1"># Set main camera</span>
-<span class="linenos">219</span>    <span class="n">sim</span><span class="o">.</span><span class="n">set_camera_view</span><span class="p">([</span><span class="mf">2.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">4.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">])</span>
-<span class="linenos">220</span>
-<span class="linenos">221</span>    <span class="c1"># Design scene</span>
-<span class="linenos">222</span>    <span class="n">scene_cfg</span> <span class="o">=</span> <span class="n">MultiObjectSceneCfg</span><span class="p">(</span><span class="n">num_envs</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">env_spacing</span><span class="o">=</span><span class="mf">2.0</span><span class="p">,</span> <span class="n">replicate_physics</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-<span class="linenos">223</span>    <span class="k">with</span> <span class="n">Timer</span><span class="p">(</span><span class="s2">&quot;[INFO] Time to create scene: &quot;</span><span class="p">):</span>
-<span class="linenos">224</span>        <span class="n">scene</span> <span class="o">=</span> <span class="n">InteractiveScene</span><span class="p">(</span><span class="n">scene_cfg</span><span class="p">)</span>
-<span class="linenos">225</span>
-<span class="linenos">226</span>    <span class="k">with</span> <span class="n">Timer</span><span class="p">(</span><span class="s2">&quot;[INFO] Time to randomize scene: &quot;</span><span class="p">):</span>
-<span class="linenos">227</span>        <span class="c1"># DO YOUR OWN OTHER KIND OF RANDOMIZATION HERE!</span>
-<span class="linenos">228</span>        <span class="c1"># Note: Just need to acquire the right attribute about the property you want to set</span>
-<span class="linenos">229</span>        <span class="c1"># Here is an example on setting color randomly</span>
-<span class="linenos">230</span>        <span class="n">randomize_shape_color</span><span class="p">(</span><span class="n">scene_cfg</span><span class="o">.</span><span class="n">object</span><span class="o">.</span><span class="n">prim_path</span><span class="p">)</span>
-<span class="linenos">231</span>
-<span class="linenos">232</span>    <span class="c1"># Play the simulator</span>
-<span class="linenos">233</span>    <span class="n">sim</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
-<span class="linenos">234</span>    <span class="c1"># Now we are ready!</span>
-<span class="linenos">235</span>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Setup complete...&quot;</span><span class="p">)</span>
-<span class="linenos">236</span>    <span class="c1"># Run the simulator</span>
-<span class="linenos">237</span>    <span class="n">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">,</span> <span class="n">scene</span><span class="p">)</span>
-<span class="linenos">238</span>
-<span class="linenos">239</span>
-<span class="linenos">240</span><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
-<span class="linenos">241</span>    <span class="c1"># run the main execution</span>
-<span class="linenos">242</span>    <span class="n">main</span><span class="p">()</span>
-<span class="linenos">243</span>    <span class="c1"># close sim app</span>
-<span class="linenos">244</span>    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+</span><span class="hll"><span class="linenos">116</span>                <span class="n">sim_utils</span><span class="o">.</span><span class="n">CuboidCfg</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos">117</span>                    <span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="mf">0.3</span><span class="p">,</span> <span class="mf">0.3</span><span class="p">,</span> <span class="mf">0.3</span><span class="p">),</span>
+</span><span class="hll"><span class="linenos">118</span>                    <span class="n">visual_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PreviewSurfaceCfg</span><span class="p">(</span><span class="n">diffuse_color</span><span class="o">=</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span> <span class="n">metallic</span><span class="o">=</span><span class="mf">0.2</span><span class="p">),</span>
+</span><span class="hll"><span class="linenos">119</span>                <span class="p">),</span>
+</span><span class="hll"><span class="linenos">120</span>                <span class="n">sim_utils</span><span class="o">.</span><span class="n">SphereCfg</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos">121</span>                    <span class="n">radius</span><span class="o">=</span><span class="mf">0.3</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">122</span>                    <span class="n">visual_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PreviewSurfaceCfg</span><span class="p">(</span><span class="n">diffuse_color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">),</span> <span class="n">metallic</span><span class="o">=</span><span class="mf">0.2</span><span class="p">),</span>
+</span><span class="hll"><span class="linenos">123</span>                <span class="p">),</span>
+</span><span class="hll"><span class="linenos">124</span>            <span class="p">],</span>
+</span><span class="hll"><span class="linenos">125</span>            <span class="n">random_choice</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">126</span>            <span class="n">rigid_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">RigidBodyPropertiesCfg</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos">127</span>                <span class="n">solver_position_iteration_count</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">solver_velocity_iteration_count</span><span class="o">=</span><span class="mi">0</span>
+</span><span class="hll"><span class="linenos">128</span>            <span class="p">),</span>
+</span><span class="hll"><span class="linenos">129</span>            <span class="n">mass_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">MassPropertiesCfg</span><span class="p">(</span><span class="n">mass</span><span class="o">=</span><span class="mf">1.0</span><span class="p">),</span>
+</span><span class="hll"><span class="linenos">130</span>            <span class="n">collision_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">CollisionPropertiesCfg</span><span class="p">(),</span>
+</span><span class="hll"><span class="linenos">131</span>        <span class="p">),</span>
+</span><span class="linenos">132</span>        <span class="n">init_state</span><span class="o">=</span><span class="n">RigidObjectCfg</span><span class="o">.</span><span class="n">InitialStateCfg</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">)),</span>
+<span class="linenos">133</span>    <span class="p">)</span>
+<span class="linenos">134</span>
+<span class="hll"><span class="linenos">135</span>    <span class="c1"># object collection</span>
+</span><span class="hll"><span class="linenos">136</span>    <span class="n">object_collection</span><span class="p">:</span> <span class="n">RigidObjectCollectionCfg</span> <span class="o">=</span> <span class="n">RigidObjectCollectionCfg</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos">137</span>        <span class="n">rigid_objects</span><span class="o">=</span><span class="p">{</span>
+</span><span class="hll"><span class="linenos">138</span>            <span class="s2">&quot;object_A&quot;</span><span class="p">:</span> <span class="n">RigidObjectCfg</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos">139</span>                <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/envs/env_.*/Object_A&quot;</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">140</span>                <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">SphereCfg</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos">141</span>                    <span class="n">radius</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">142</span>                    <span class="n">visual_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PreviewSurfaceCfg</span><span class="p">(</span><span class="n">diffuse_color</span><span class="o">=</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span> <span class="n">metallic</span><span class="o">=</span><span class="mf">0.2</span><span class="p">),</span>
+</span><span class="hll"><span class="linenos">143</span>                    <span class="n">rigid_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">RigidBodyPropertiesCfg</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos">144</span>                        <span class="n">solver_position_iteration_count</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">solver_velocity_iteration_count</span><span class="o">=</span><span class="mi">0</span>
+</span><span class="hll"><span class="linenos">145</span>                    <span class="p">),</span>
+</span><span class="hll"><span class="linenos">146</span>                    <span class="n">mass_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">MassPropertiesCfg</span><span class="p">(</span><span class="n">mass</span><span class="o">=</span><span class="mf">1.0</span><span class="p">),</span>
+</span><span class="hll"><span class="linenos">147</span>                    <span class="n">collision_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">CollisionPropertiesCfg</span><span class="p">(),</span>
+</span><span class="hll"><span class="linenos">148</span>                <span class="p">),</span>
+</span><span class="hll"><span class="linenos">149</span>                <span class="n">init_state</span><span class="o">=</span><span class="n">RigidObjectCfg</span><span class="o">.</span><span class="n">InitialStateCfg</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">)),</span>
+</span><span class="hll"><span class="linenos">150</span>            <span class="p">),</span>
+</span><span class="hll"><span class="linenos">151</span>            <span class="s2">&quot;object_B&quot;</span><span class="p">:</span> <span class="n">RigidObjectCfg</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos">152</span>                <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/envs/env_.*/Object_B&quot;</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">153</span>                <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">CuboidCfg</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos">154</span>                    <span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">),</span>
+</span><span class="hll"><span class="linenos">155</span>                    <span class="n">visual_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PreviewSurfaceCfg</span><span class="p">(</span><span class="n">diffuse_color</span><span class="o">=</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span> <span class="n">metallic</span><span class="o">=</span><span class="mf">0.2</span><span class="p">),</span>
+</span><span class="hll"><span class="linenos">156</span>                    <span class="n">rigid_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">RigidBodyPropertiesCfg</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos">157</span>                        <span class="n">solver_position_iteration_count</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">solver_velocity_iteration_count</span><span class="o">=</span><span class="mi">0</span>
+</span><span class="hll"><span class="linenos">158</span>                    <span class="p">),</span>
+</span><span class="hll"><span class="linenos">159</span>                    <span class="n">mass_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">MassPropertiesCfg</span><span class="p">(</span><span class="n">mass</span><span class="o">=</span><span class="mf">1.0</span><span class="p">),</span>
+</span><span class="hll"><span class="linenos">160</span>                    <span class="n">collision_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">CollisionPropertiesCfg</span><span class="p">(),</span>
+</span><span class="hll"><span class="linenos">161</span>                <span class="p">),</span>
+</span><span class="hll"><span class="linenos">162</span>                <span class="n">init_state</span><span class="o">=</span><span class="n">RigidObjectCfg</span><span class="o">.</span><span class="n">InitialStateCfg</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">)),</span>
+</span><span class="hll"><span class="linenos">163</span>            <span class="p">),</span>
+</span><span class="hll"><span class="linenos">164</span>            <span class="s2">&quot;object_C&quot;</span><span class="p">:</span> <span class="n">RigidObjectCfg</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos">165</span>                <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/envs/env_.*/Object_C&quot;</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">166</span>                <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">ConeCfg</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos">167</span>                    <span class="n">radius</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">168</span>                    <span class="n">height</span><span class="o">=</span><span class="mf">0.3</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">169</span>                    <span class="n">visual_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PreviewSurfaceCfg</span><span class="p">(</span><span class="n">diffuse_color</span><span class="o">=</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span> <span class="n">metallic</span><span class="o">=</span><span class="mf">0.2</span><span class="p">),</span>
+</span><span class="hll"><span class="linenos">170</span>                    <span class="n">rigid_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">RigidBodyPropertiesCfg</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos">171</span>                        <span class="n">solver_position_iteration_count</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">solver_velocity_iteration_count</span><span class="o">=</span><span class="mi">0</span>
+</span><span class="hll"><span class="linenos">172</span>                    <span class="p">),</span>
+</span><span class="hll"><span class="linenos">173</span>                    <span class="n">mass_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">MassPropertiesCfg</span><span class="p">(</span><span class="n">mass</span><span class="o">=</span><span class="mf">1.0</span><span class="p">),</span>
+</span><span class="hll"><span class="linenos">174</span>                    <span class="n">collision_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">CollisionPropertiesCfg</span><span class="p">(),</span>
+</span><span class="hll"><span class="linenos">175</span>                <span class="p">),</span>
+</span><span class="hll"><span class="linenos">176</span>                <span class="n">init_state</span><span class="o">=</span><span class="n">RigidObjectCfg</span><span class="o">.</span><span class="n">InitialStateCfg</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">)),</span>
+</span><span class="hll"><span class="linenos">177</span>            <span class="p">),</span>
+</span><span class="hll"><span class="linenos">178</span>        <span class="p">}</span>
+</span><span class="hll"><span class="linenos">179</span>    <span class="p">)</span>
+</span><span class="linenos">180</span>
+<span class="linenos">181</span>    <span class="c1"># articulation</span>
+<span class="linenos">182</span>    <span class="n">robot</span><span class="p">:</span> <span class="n">ArticulationCfg</span> <span class="o">=</span> <span class="n">ArticulationCfg</span><span class="p">(</span>
+<span class="linenos">183</span>        <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/envs/env_.*/Robot&quot;</span><span class="p">,</span>
+<span class="hll"><span class="linenos">184</span>        <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">MultiUsdFileCfg</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos">185</span>            <span class="n">usd_path</span><span class="o">=</span><span class="p">[</span>
+</span><span class="hll"><span class="linenos">186</span>                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">ISAACLAB_NUCLEUS_DIR</span><span class="si">}</span><span class="s2">/Robots/ANYbotics/ANYmal-C/anymal_c.usd&quot;</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">187</span>                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">ISAACLAB_NUCLEUS_DIR</span><span class="si">}</span><span class="s2">/Robots/ANYbotics/ANYmal-D/anymal_d.usd&quot;</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">188</span>            <span class="p">],</span>
+</span><span class="hll"><span class="linenos">189</span>            <span class="n">random_choice</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">190</span>            <span class="n">rigid_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">RigidBodyPropertiesCfg</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos">191</span>                <span class="n">disable_gravity</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">192</span>                <span class="n">retain_accelerations</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">193</span>                <span class="n">linear_damping</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">194</span>                <span class="n">angular_damping</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">195</span>                <span class="n">max_linear_velocity</span><span class="o">=</span><span class="mf">1000.0</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">196</span>                <span class="n">max_angular_velocity</span><span class="o">=</span><span class="mf">1000.0</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">197</span>                <span class="n">max_depenetration_velocity</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">198</span>            <span class="p">),</span>
+</span><span class="hll"><span class="linenos">199</span>            <span class="n">articulation_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">ArticulationRootPropertiesCfg</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos">200</span>                <span class="n">enabled_self_collisions</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">solver_position_iteration_count</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">solver_velocity_iteration_count</span><span class="o">=</span><span class="mi">0</span>
+</span><span class="hll"><span class="linenos">201</span>            <span class="p">),</span>
+</span><span class="hll"><span class="linenos">202</span>            <span class="n">activate_contact_sensors</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">203</span>        <span class="p">),</span>
+</span><span class="linenos">204</span>        <span class="n">init_state</span><span class="o">=</span><span class="n">ArticulationCfg</span><span class="o">.</span><span class="n">InitialStateCfg</span><span class="p">(</span>
+<span class="linenos">205</span>            <span class="n">pos</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.6</span><span class="p">),</span>
+<span class="linenos">206</span>            <span class="n">joint_pos</span><span class="o">=</span><span class="p">{</span>
+<span class="linenos">207</span>                <span class="s2">&quot;.*HAA&quot;</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span>  <span class="c1"># all HAA</span>
+<span class="linenos">208</span>                <span class="s2">&quot;.*F_HFE&quot;</span><span class="p">:</span> <span class="mf">0.4</span><span class="p">,</span>  <span class="c1"># both front HFE</span>
+<span class="linenos">209</span>                <span class="s2">&quot;.*H_HFE&quot;</span><span class="p">:</span> <span class="o">-</span><span class="mf">0.4</span><span class="p">,</span>  <span class="c1"># both hind HFE</span>
+<span class="linenos">210</span>                <span class="s2">&quot;.*F_KFE&quot;</span><span class="p">:</span> <span class="o">-</span><span class="mf">0.8</span><span class="p">,</span>  <span class="c1"># both front KFE</span>
+<span class="linenos">211</span>                <span class="s2">&quot;.*H_KFE&quot;</span><span class="p">:</span> <span class="mf">0.8</span><span class="p">,</span>  <span class="c1"># both hind KFE</span>
+<span class="linenos">212</span>            <span class="p">},</span>
+<span class="linenos">213</span>        <span class="p">),</span>
+<span class="linenos">214</span>        <span class="n">actuators</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;legs&quot;</span><span class="p">:</span> <span class="n">ANYDRIVE_3_LSTM_ACTUATOR_CFG</span><span class="p">},</span>
+<span class="linenos">215</span>    <span class="p">)</span>
+<span class="linenos">216</span>
+<span class="linenos">217</span>
+<span class="linenos">218</span><span class="c1">##</span>
+<span class="linenos">219</span><span class="c1"># Simulation Loop</span>
+<span class="linenos">220</span><span class="c1">##</span>
+<span class="linenos">221</span>
+<span class="linenos">222</span>
+<span class="linenos">223</span><span class="k">def</span> <span class="nf">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">:</span> <span class="n">SimulationContext</span><span class="p">,</span> <span class="n">scene</span><span class="p">:</span> <span class="n">InteractiveScene</span><span class="p">):</span>
+<span class="linenos">224</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Runs the simulation loop.&quot;&quot;&quot;</span>
+<span class="linenos">225</span>    <span class="c1"># Extract scene entities</span>
+<span class="linenos">226</span>    <span class="c1"># note: we only do this here for readability.</span>
+<span class="linenos">227</span>    <span class="n">rigid_object</span><span class="p">:</span> <span class="n">RigidObject</span> <span class="o">=</span> <span class="n">scene</span><span class="p">[</span><span class="s2">&quot;object&quot;</span><span class="p">]</span>
+<span class="linenos">228</span>    <span class="n">rigid_object_collection</span><span class="p">:</span> <span class="n">RigidObjectCollection</span> <span class="o">=</span> <span class="n">scene</span><span class="p">[</span><span class="s2">&quot;object_collection&quot;</span><span class="p">]</span>
+<span class="linenos">229</span>    <span class="n">robot</span><span class="p">:</span> <span class="n">Articulation</span> <span class="o">=</span> <span class="n">scene</span><span class="p">[</span><span class="s2">&quot;robot&quot;</span><span class="p">]</span>
+<span class="linenos">230</span>    <span class="c1"># Define simulation stepping</span>
+<span class="linenos">231</span>    <span class="n">sim_dt</span> <span class="o">=</span> <span class="n">sim</span><span class="o">.</span><span class="n">get_physics_dt</span><span class="p">()</span>
+<span class="linenos">232</span>    <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="linenos">233</span>    <span class="c1"># Simulation loop</span>
+<span class="linenos">234</span>    <span class="k">while</span> <span class="n">simulation_app</span><span class="o">.</span><span class="n">is_running</span><span class="p">():</span>
+<span class="linenos">235</span>        <span class="c1"># Reset</span>
+<span class="linenos">236</span>        <span class="k">if</span> <span class="n">count</span> <span class="o">%</span> <span class="mi">250</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+<span class="linenos">237</span>            <span class="c1"># reset counter</span>
+<span class="linenos">238</span>            <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="linenos">239</span>            <span class="c1"># reset the scene entities</span>
+<span class="linenos">240</span>            <span class="c1"># object</span>
+<span class="linenos">241</span>            <span class="n">root_state</span> <span class="o">=</span> <span class="n">rigid_object</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_root_state</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+<span class="linenos">242</span>            <span class="n">root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="n">scene</span><span class="o">.</span><span class="n">env_origins</span>
+<span class="linenos">243</span>            <span class="n">rigid_object</span><span class="o">.</span><span class="n">write_root_state_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">)</span>
+<span class="linenos">244</span>            <span class="c1"># object collection</span>
+<span class="linenos">245</span>            <span class="n">object_state</span> <span class="o">=</span> <span class="n">rigid_object_collection</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_object_state</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+<span class="linenos">246</span>            <span class="n">object_state</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="n">scene</span><span class="o">.</span><span class="n">env_origins</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<span class="linenos">247</span>            <span class="n">rigid_object_collection</span><span class="o">.</span><span class="n">write_object_state_to_sim</span><span class="p">(</span><span class="n">object_state</span><span class="p">)</span>
+<span class="linenos">248</span>            <span class="c1"># robot</span>
+<span class="linenos">249</span>            <span class="c1"># -- root state</span>
+<span class="linenos">250</span>            <span class="n">root_state</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_root_state</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+<span class="linenos">251</span>            <span class="n">root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="n">scene</span><span class="o">.</span><span class="n">env_origins</span>
+<span class="linenos">252</span>            <span class="n">robot</span><span class="o">.</span><span class="n">write_root_state_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">)</span>
+<span class="linenos">253</span>            <span class="c1"># -- joint state</span>
+<span class="linenos">254</span>            <span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_pos</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_vel</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+<span class="linenos">255</span>            <span class="n">robot</span><span class="o">.</span><span class="n">write_joint_state_to_sim</span><span class="p">(</span><span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span><span class="p">)</span>
+<span class="linenos">256</span>            <span class="c1"># clear internal buffers</span>
+<span class="linenos">257</span>            <span class="n">scene</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+<span class="linenos">258</span>            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Resetting scene state...&quot;</span><span class="p">)</span>
+<span class="linenos">259</span>
+<span class="linenos">260</span>        <span class="c1"># Apply action to robot</span>
+<span class="linenos">261</span>        <span class="n">robot</span><span class="o">.</span><span class="n">set_joint_position_target</span><span class="p">(</span><span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_pos</span><span class="p">)</span>
+<span class="linenos">262</span>        <span class="c1"># Write data to sim</span>
+<span class="linenos">263</span>        <span class="n">scene</span><span class="o">.</span><span class="n">write_data_to_sim</span><span class="p">()</span>
+<span class="linenos">264</span>        <span class="c1"># Perform step</span>
+<span class="linenos">265</span>        <span class="n">sim</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+<span class="linenos">266</span>        <span class="c1"># Increment counter</span>
+<span class="linenos">267</span>        <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
+<span class="linenos">268</span>        <span class="c1"># Update buffers</span>
+<span class="linenos">269</span>        <span class="n">scene</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">sim_dt</span><span class="p">)</span>
+<span class="linenos">270</span>
+<span class="linenos">271</span>
+<span class="linenos">272</span><span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+<span class="linenos">273</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Main function.&quot;&quot;&quot;</span>
+<span class="linenos">274</span>    <span class="c1"># Load kit helper</span>
+<span class="linenos">275</span>    <span class="n">sim_cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationCfg</span><span class="p">(</span><span class="n">dt</span><span class="o">=</span><span class="mf">0.005</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+<span class="linenos">276</span>    <span class="n">sim</span> <span class="o">=</span> <span class="n">SimulationContext</span><span class="p">(</span><span class="n">sim_cfg</span><span class="p">)</span>
+<span class="linenos">277</span>    <span class="c1"># Set main camera</span>
+<span class="linenos">278</span>    <span class="n">sim</span><span class="o">.</span><span class="n">set_camera_view</span><span class="p">([</span><span class="mf">2.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">4.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">])</span>
+<span class="linenos">279</span>
+<span class="linenos">280</span>    <span class="c1"># Design scene</span>
+<span class="linenos">281</span>    <span class="n">scene_cfg</span> <span class="o">=</span> <span class="n">MultiObjectSceneCfg</span><span class="p">(</span><span class="n">num_envs</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">env_spacing</span><span class="o">=</span><span class="mf">2.0</span><span class="p">,</span> <span class="n">replicate_physics</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="linenos">282</span>    <span class="k">with</span> <span class="n">Timer</span><span class="p">(</span><span class="s2">&quot;[INFO] Time to create scene: &quot;</span><span class="p">):</span>
+<span class="linenos">283</span>        <span class="n">scene</span> <span class="o">=</span> <span class="n">InteractiveScene</span><span class="p">(</span><span class="n">scene_cfg</span><span class="p">)</span>
+<span class="linenos">284</span>
+<span class="linenos">285</span>    <span class="k">with</span> <span class="n">Timer</span><span class="p">(</span><span class="s2">&quot;[INFO] Time to randomize scene: &quot;</span><span class="p">):</span>
+<span class="linenos">286</span>        <span class="c1"># DO YOUR OWN OTHER KIND OF RANDOMIZATION HERE!</span>
+<span class="linenos">287</span>        <span class="c1"># Note: Just need to acquire the right attribute about the property you want to set</span>
+<span class="linenos">288</span>        <span class="c1"># Here is an example on setting color randomly</span>
+<span class="linenos">289</span>        <span class="n">randomize_shape_color</span><span class="p">(</span><span class="n">scene_cfg</span><span class="o">.</span><span class="n">object</span><span class="o">.</span><span class="n">prim_path</span><span class="p">)</span>
+<span class="linenos">290</span>
+<span class="linenos">291</span>    <span class="c1"># Play the simulator</span>
+<span class="linenos">292</span>    <span class="n">sim</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+<span class="linenos">293</span>    <span class="c1"># Now we are ready!</span>
+<span class="linenos">294</span>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Setup complete...&quot;</span><span class="p">)</span>
+<span class="linenos">295</span>    <span class="c1"># Run the simulator</span>
+<span class="linenos">296</span>    <span class="n">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">,</span> <span class="n">scene</span><span class="p">)</span>
+<span class="linenos">297</span>
+<span class="linenos">298</span>
+<span class="linenos">299</span><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+<span class="linenos">300</span>    <span class="c1"># run the main execution</span>
+<span class="linenos">301</span>    <span class="n">main</span><span class="p">()</span>
+<span class="linenos">302</span>    <span class="c1"># close sim app</span>
+<span class="linenos">303</span>    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
 </pre></div>
 </div>
 </div>
-</details><p>This script creates multiple environments, where each environment has a rigid object that is either a cone,
-a cube, or a sphere, and an articulation that is either the ANYmal-C or ANYmal-D robot.</p>
+</details><p>This script creates multiple environments, where each environment has:</p>
+<ul class="simple">
+<li><p>a rigid object collection containing a cone, a cube, and a sphere</p></li>
+<li><p>a rigid object that is either a cone, a cube, or a sphere, chosen at random</p></li>
+<li><p>an articulation that is either the ANYmal-C or ANYmal-D robot, chosen at random</p></li>
+</ul>
 <a class="reference internal image-reference" href="../../_images/multi_asset.jpg"><img alt="result of multi_asset.py" src="../../_images/multi_asset.jpg" style="width: 100%;" /></a>
-<section id="using-multi-asset-spawning-functions">
-<h2>Using Multi-Asset Spawning Functions<a class="headerlink" href="#using-multi-asset-spawning-functions" title="Permalink to this heading">#</a></h2>
-<p>It is possible to spawn different assets and USDs in each environment using the spawners
+<section id="rigid-object-collections">
+<h2>Rigid Object Collections<a class="headerlink" href="#rigid-object-collections" title="Permalink to this heading">#</a></h2>
+<p>Multiple rigid objects can be spawned in each environment and accessed/modified with a unified <code class="docutils literal notranslate"><span class="pre">(env_ids,</span> <span class="pre">obj_ids)</span></code> API.
+While the user could also create multiple rigid objects by spawning them individually, the API is more user-friendly and
+more efficient since it uses a single physics view under the hood to handle all the objects.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># object collection</span>
+<span class="n">object_collection</span><span class="p">:</span> <span class="n">RigidObjectCollectionCfg</span> <span class="o">=</span> <span class="n">RigidObjectCollectionCfg</span><span class="p">(</span>
+    <span class="n">rigid_objects</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">&quot;object_A&quot;</span><span class="p">:</span> <span class="n">RigidObjectCfg</span><span class="p">(</span>
+            <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/envs/env_.*/Object_A&quot;</span><span class="p">,</span>
+            <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">SphereCfg</span><span class="p">(</span>
+                <span class="n">radius</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+                <span class="n">visual_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PreviewSurfaceCfg</span><span class="p">(</span><span class="n">diffuse_color</span><span class="o">=</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span> <span class="n">metallic</span><span class="o">=</span><span class="mf">0.2</span><span class="p">),</span>
+                <span class="n">rigid_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">RigidBodyPropertiesCfg</span><span class="p">(</span>
+                    <span class="n">solver_position_iteration_count</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">solver_velocity_iteration_count</span><span class="o">=</span><span class="mi">0</span>
+                <span class="p">),</span>
+                <span class="n">mass_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">MassPropertiesCfg</span><span class="p">(</span><span class="n">mass</span><span class="o">=</span><span class="mf">1.0</span><span class="p">),</span>
+                <span class="n">collision_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">CollisionPropertiesCfg</span><span class="p">(),</span>
+            <span class="p">),</span>
+            <span class="n">init_state</span><span class="o">=</span><span class="n">RigidObjectCfg</span><span class="o">.</span><span class="n">InitialStateCfg</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">)),</span>
+        <span class="p">),</span>
+        <span class="s2">&quot;object_B&quot;</span><span class="p">:</span> <span class="n">RigidObjectCfg</span><span class="p">(</span>
+            <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/envs/env_.*/Object_B&quot;</span><span class="p">,</span>
+            <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">CuboidCfg</span><span class="p">(</span>
+                <span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">),</span>
+                <span class="n">visual_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PreviewSurfaceCfg</span><span class="p">(</span><span class="n">diffuse_color</span><span class="o">=</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span> <span class="n">metallic</span><span class="o">=</span><span class="mf">0.2</span><span class="p">),</span>
+                <span class="n">rigid_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">RigidBodyPropertiesCfg</span><span class="p">(</span>
+                    <span class="n">solver_position_iteration_count</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">solver_velocity_iteration_count</span><span class="o">=</span><span class="mi">0</span>
+                <span class="p">),</span>
+                <span class="n">mass_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">MassPropertiesCfg</span><span class="p">(</span><span class="n">mass</span><span class="o">=</span><span class="mf">1.0</span><span class="p">),</span>
+                <span class="n">collision_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">CollisionPropertiesCfg</span><span class="p">(),</span>
+            <span class="p">),</span>
+            <span class="n">init_state</span><span class="o">=</span><span class="n">RigidObjectCfg</span><span class="o">.</span><span class="n">InitialStateCfg</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">)),</span>
+        <span class="p">),</span>
+        <span class="s2">&quot;object_C&quot;</span><span class="p">:</span> <span class="n">RigidObjectCfg</span><span class="p">(</span>
+            <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/envs/env_.*/Object_C&quot;</span><span class="p">,</span>
+            <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">ConeCfg</span><span class="p">(</span>
+                <span class="n">radius</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+                <span class="n">height</span><span class="o">=</span><span class="mf">0.3</span><span class="p">,</span>
+                <span class="n">visual_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PreviewSurfaceCfg</span><span class="p">(</span><span class="n">diffuse_color</span><span class="o">=</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span> <span class="n">metallic</span><span class="o">=</span><span class="mf">0.2</span><span class="p">),</span>
+                <span class="n">rigid_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">RigidBodyPropertiesCfg</span><span class="p">(</span>
+                    <span class="n">solver_position_iteration_count</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">solver_velocity_iteration_count</span><span class="o">=</span><span class="mi">0</span>
+                <span class="p">),</span>
+                <span class="n">mass_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">MassPropertiesCfg</span><span class="p">(</span><span class="n">mass</span><span class="o">=</span><span class="mf">1.0</span><span class="p">),</span>
+                <span class="n">collision_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">CollisionPropertiesCfg</span><span class="p">(),</span>
+            <span class="p">),</span>
+            <span class="n">init_state</span><span class="o">=</span><span class="n">RigidObjectCfg</span><span class="o">.</span><span class="n">InitialStateCfg</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">)),</span>
+        <span class="p">),</span>
+    <span class="p">}</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>The configuration <a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObjectCollectionCfg" title="omni.isaac.lab.assets.RigidObjectCollectionCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">RigidObjectCollectionCfg</span></code></a> is used to create the collection. It’s attribute <a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObjectCollectionCfg.rigid_objects" title="omni.isaac.lab.assets.RigidObjectCollectionCfg.rigid_objects"><code class="xref py py-attr docutils literal notranslate"><span class="pre">rigid_objects</span></code></a>
+is a dictionary containing <a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObjectCfg" title="omni.isaac.lab.assets.RigidObjectCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">RigidObjectCfg</span></code></a> objects. The keys serve as unique identifiers for each
+rigid object in the collection.</p>
+</section>
+<section id="spawning-different-assets-under-the-same-prim-path">
+<h2>Spawning different assets under the same prim path<a class="headerlink" href="#spawning-different-assets-under-the-same-prim-path" title="Permalink to this heading">#</a></h2>
+<p>It is possible to spawn different assets and USDs under the same prim path in each environment using the spawners
 <a class="reference internal" href="../api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg" title="omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">MultiAssetSpawnerCfg</span></code></a> and <a class="reference internal" href="../api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg" title="omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">MultiUsdFileCfg</span></code></a>:</p>
 <ul>
 <li><p>We set the spawn configuration in <a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObjectCfg" title="omni.isaac.lab.assets.RigidObjectCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">RigidObjectCfg</span></code></a> to be
@@ -924,9 +1049,9 @@ is randomly selected and spawned at the specified prim path.</p>
 <p>Similar to before, this configuration allows the selection of different USD files representing articulated assets.</p>
 </li>
 </ul>
-</section>
 <section id="things-to-note">
-<h2>Things to Note<a class="headerlink" href="#things-to-note" title="Permalink to this heading">#</a></h2>
+<h3>Things to Note<a class="headerlink" href="#things-to-note" title="Permalink to this heading">#</a></h3>
+</section>
 <section id="similar-asset-structuring">
 <h3>Similar asset structuring<a class="headerlink" href="#similar-asset-structuring" title="Permalink to this heading">#</a></h3>
 <p>While spawning and handling multiple assets using the same physics interface (the rigid object or articulation classes),
@@ -1008,8 +1133,9 @@ To stop the simulation, you can close the window, or press <code class="docutils
   </div>
   <nav class="bd-toc-nav page-toc">
     <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#using-multi-asset-spawning-functions">Using Multi-Asset Spawning Functions</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#things-to-note">Things to Note</a><ul class="nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#rigid-object-collections">Rigid Object Collections</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#spawning-different-assets-under-the-same-prim-path">Spawning different assets under the same prim path</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#things-to-note">Things to Note</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#similar-asset-structuring">Similar asset structuring</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#disabling-physics-replication-in-interactive-scene">Disabling physics replication in interactive scene</a></li>
 </ul>
@@ -1048,7 +1174,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Nov 06, 2024.
+  Last updated on Nov 08, 2024.
   <br/>
 </p>
   </div>

@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.2.0" />
-    <meta name="docbuild:last-update" content="Nov 06, 2024"/>
+    <meta name="docbuild:last-update" content="Nov 08, 2024"/>
   </head>
   
   
@@ -570,6 +570,8 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.SceneEntityCfg.fixed_tendon_ids"><code class="docutils literal notranslate"><span class="pre">SceneEntityCfg.fixed_tendon_ids</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.SceneEntityCfg.body_names"><code class="docutils literal notranslate"><span class="pre">SceneEntityCfg.body_names</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.SceneEntityCfg.body_ids"><code class="docutils literal notranslate"><span class="pre">SceneEntityCfg.body_ids</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.SceneEntityCfg.object_collection_names"><code class="docutils literal notranslate"><span class="pre">SceneEntityCfg.object_collection_names</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.SceneEntityCfg.object_collection_ids"><code class="docutils literal notranslate"><span class="pre">SceneEntityCfg.object_collection_ids</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.SceneEntityCfg.preserve_order"><code class="docutils literal notranslate"><span class="pre">SceneEntityCfg.preserve_order</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.SceneEntityCfg.resolve"><code class="docutils literal notranslate"><span class="pre">SceneEntityCfg.resolve()</span></code></a></li>
 </ul>
@@ -904,8 +906,14 @@ designed to be modular and can be easily extended to support new functionality.<
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.SceneEntityCfg.body_ids" title="omni.isaac.lab.managers.SceneEntityCfg.body_ids"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_ids</span></code></a></p></td>
 <td><p>The indices of the bodies from the asset required by the term.</p></td>
 </tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.SceneEntityCfg.object_collection_names" title="omni.isaac.lab.managers.SceneEntityCfg.object_collection_names"><code class="xref py py-obj docutils literal notranslate"><span class="pre">object_collection_names</span></code></a></p></td>
+<td><p>The names of the objects in the rigid object collection required by the term.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.SceneEntityCfg.object_collection_ids" title="omni.isaac.lab.managers.SceneEntityCfg.object_collection_ids"><code class="xref py py-obj docutils literal notranslate"><span class="pre">object_collection_ids</span></code></a></p></td>
+<td><p>The indices of the objects from the rigid object collection required by the term.</p></td>
+</tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.SceneEntityCfg.preserve_order" title="omni.isaac.lab.managers.SceneEntityCfg.preserve_order"><code class="xref py py-obj docutils literal notranslate"><span class="pre">preserve_order</span></code></a></p></td>
-<td><p>Whether to preserve indices ordering to match with that in the specified joint or body names.</p></td>
+<td><p>Whether to preserve indices ordering to match with that in the specified joint, body, or object collection names.</p></td>
 </tr>
 </tbody>
 </table>
@@ -982,15 +990,34 @@ manager.</p>
 </dd></dl>
 
 <dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.managers.SceneEntityCfg.object_collection_names">
+<span class="sig-name descname"><span class="pre">object_collection_names</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.managers.SceneEntityCfg.object_collection_names" title="Permalink to this definition">#</a></dt>
+<dd><p>The names of the objects in the rigid object collection required by the term. Defaults to None.</p>
+<p>The names can be either names or a regular expression matching the object names in the collection.</p>
+<p>These are converted to object indices on initialization of the manager and passed to the term
+function as a list of object indices under <a class="reference internal" href="#omni.isaac.lab.managers.SceneEntityCfg.object_collection_ids" title="omni.isaac.lab.managers.SceneEntityCfg.object_collection_ids"><code class="xref py py-attr docutils literal notranslate"><span class="pre">object_collection_ids</span></code></a>.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.managers.SceneEntityCfg.object_collection_ids">
+<span class="sig-name descname"><span class="pre">object_collection_ids</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#slice" title="(in Python v3.13)"><span class="pre">slice</span></a></em><a class="headerlink" href="#omni.isaac.lab.managers.SceneEntityCfg.object_collection_ids" title="Permalink to this definition">#</a></dt>
+<dd><p>The indices of the objects from the rigid object collection required by the term. Defaults to slice(None),
+which means all the objects in the collection.</p>
+<p>If <a class="reference internal" href="#omni.isaac.lab.managers.SceneEntityCfg.object_collection_names" title="omni.isaac.lab.managers.SceneEntityCfg.object_collection_names"><code class="xref py py-attr docutils literal notranslate"><span class="pre">object_collection_names</span></code></a> is specified, this is filled in automatically on initialization of the manager.</p>
+</dd></dl>
+
+<dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.managers.SceneEntityCfg.preserve_order">
 <span class="sig-name descname"><span class="pre">preserve_order</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.managers.SceneEntityCfg.preserve_order" title="Permalink to this definition">#</a></dt>
-<dd><p>Whether to preserve indices ordering to match with that in the specified joint or body names. Defaults to False.</p>
-<p>If False, the ordering of the indices are sorted in ascending order (i.e. the ordering in the entity’s joints
-or bodies). Otherwise, the indices are preserved in the order of the specified joint and body names.</p>
+<dd><p>Whether to preserve indices ordering to match with that in the specified joint, body, or object collection names.
+Defaults to False.</p>
+<p>If False, the ordering of the indices are sorted in ascending order (i.e. the ordering in the entity’s joints,
+bodies, or object in the object collection). Otherwise, the indices are preserved in the order of the specified
+joint, body, or object collection names.</p>
 <p>For more details, see the <a class="reference internal" href="omni.isaac.lab.utils.html#omni.isaac.lab.utils.string.resolve_matching_names" title="omni.isaac.lab.utils.string.resolve_matching_names"><code class="xref py py-meth docutils literal notranslate"><span class="pre">omni.isaac.lab.utils.string.resolve_matching_names()</span></code></a> function.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>This attribute is only used when <a class="reference internal" href="#omni.isaac.lab.managers.SceneEntityCfg.joint_names" title="omni.isaac.lab.managers.SceneEntityCfg.joint_names"><code class="xref py py-attr docutils literal notranslate"><span class="pre">joint_names</span></code></a> or <a class="reference internal" href="#omni.isaac.lab.managers.SceneEntityCfg.body_names" title="omni.isaac.lab.managers.SceneEntityCfg.body_names"><code class="xref py py-attr docutils literal notranslate"><span class="pre">body_names</span></code></a> are specified.</p>
+<p>This attribute is only used when <a class="reference internal" href="#omni.isaac.lab.managers.SceneEntityCfg.joint_names" title="omni.isaac.lab.managers.SceneEntityCfg.joint_names"><code class="xref py py-attr docutils literal notranslate"><span class="pre">joint_names</span></code></a>, <a class="reference internal" href="#omni.isaac.lab.managers.SceneEntityCfg.body_names" title="omni.isaac.lab.managers.SceneEntityCfg.body_names"><code class="xref py py-attr docutils literal notranslate"><span class="pre">body_names</span></code></a>, or <a class="reference internal" href="#omni.isaac.lab.managers.SceneEntityCfg.object_collection_names" title="omni.isaac.lab.managers.SceneEntityCfg.object_collection_names"><code class="xref py py-attr docutils literal notranslate"><span class="pre">object_collection_names</span></code></a> are specified.</p>
 </div>
 </dd></dl>
 
@@ -1011,6 +1038,7 @@ and should be called only once.</p>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.13)"><strong>ValueError</strong></a> – If both <code class="docutils literal notranslate"><span class="pre">joint_names</span></code> and <code class="docutils literal notranslate"><span class="pre">joint_ids</span></code> are specified and are not consistent.</p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.13)"><strong>ValueError</strong></a> – If both <code class="docutils literal notranslate"><span class="pre">fixed_tendon_names</span></code> and <code class="docutils literal notranslate"><span class="pre">fixed_tendon_ids</span></code> are specified and are not consistent.</p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.13)"><strong>ValueError</strong></a> – If both <code class="docutils literal notranslate"><span class="pre">body_names</span></code> and <code class="docutils literal notranslate"><span class="pre">body_ids</span></code> are specified and are not consistent.</p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.13)"><strong>ValueError</strong></a> – If both <code class="docutils literal notranslate"><span class="pre">object_collection_names</span></code> and <code class="docutils literal notranslate"><span class="pre">object_collection_ids</span></code> are specified and are not consistent.</p></li>
 </ul>
 </dd>
 </dl>
@@ -3340,6 +3368,8 @@ in the <a class="reference internal" href="#omni.isaac.lab.managers.SceneEntityC
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.SceneEntityCfg.fixed_tendon_ids"><code class="docutils literal notranslate"><span class="pre">SceneEntityCfg.fixed_tendon_ids</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.SceneEntityCfg.body_names"><code class="docutils literal notranslate"><span class="pre">SceneEntityCfg.body_names</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.SceneEntityCfg.body_ids"><code class="docutils literal notranslate"><span class="pre">SceneEntityCfg.body_ids</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.SceneEntityCfg.object_collection_names"><code class="docutils literal notranslate"><span class="pre">SceneEntityCfg.object_collection_names</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.SceneEntityCfg.object_collection_ids"><code class="docutils literal notranslate"><span class="pre">SceneEntityCfg.object_collection_ids</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.SceneEntityCfg.preserve_order"><code class="docutils literal notranslate"><span class="pre">SceneEntityCfg.preserve_order</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.SceneEntityCfg.resolve"><code class="docutils literal notranslate"><span class="pre">SceneEntityCfg.resolve()</span></code></a></li>
 </ul>
@@ -3589,7 +3619,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Nov 06, 2024.
+  Last updated on Nov 08, 2024.
   <br/>
 </p>
   </div>

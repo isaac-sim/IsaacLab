@@ -63,7 +63,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.2.0" />
-    <meta name="docbuild:last-update" content="Nov 06, 2024"/>
+    <meta name="docbuild:last-update" content="Nov 08, 2024"/>
   </head>
   
   
@@ -659,6 +659,58 @@
 </li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#rigid-object-collection">Rigid Object Collection</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollection"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollection.__init__"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.__init__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollection.cfg"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.cfg</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollection.data"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.data</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollection.num_instances"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.num_instances</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollection.num_objects"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.num_objects</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollection.object_names"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.object_names</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollection.root_physx_view"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.root_physx_view</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollection.reset"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.reset()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollection.write_data_to_sim"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.write_data_to_sim()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollection.update"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.update()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollection.find_objects"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.find_objects()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollection.write_object_state_to_sim"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.write_object_state_to_sim()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollection.write_object_pose_to_sim"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.write_object_pose_to_sim()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollection.write_object_velocity_to_sim"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.write_object_velocity_to_sim()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollection.set_external_force_and_torque"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.set_external_force_and_torque()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollection.reshape_view_to_data"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.reshape_view_to_data()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollection.reshape_data_to_view"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.reshape_data_to_view()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollection.device"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.device</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollection.has_debug_vis_implementation"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.has_debug_vis_implementation</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollection.is_initialized"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.is_initialized</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollection.set_debug_vis"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.set_debug_vis()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollectionData"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollectionData</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollectionData.update"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollectionData.update()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollectionData.object_names"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollectionData.object_names</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollectionData.default_object_state"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollectionData.default_object_state</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollectionData.default_mass"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollectionData.default_mass</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollectionData.default_inertia"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollectionData.default_inertia</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollectionData.object_state_w"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollectionData.object_state_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollectionData.object_acc_w"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollectionData.object_acc_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollectionData.projected_gravity_b"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollectionData.projected_gravity_b</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollectionData.heading_w"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollectionData.heading_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollectionData.object_pos_w"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollectionData.object_pos_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollectionData.object_quat_w"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollectionData.object_quat_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollectionData.object_vel_w"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollectionData.object_vel_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollectionData.object_lin_vel_w"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollectionData.object_lin_vel_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollectionData.object_ang_vel_w"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollectionData.object_ang_vel_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollectionData.object_lin_vel_b"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollectionData.object_lin_vel_b</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollectionData.object_ang_vel_b"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollectionData.object_ang_vel_b</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollectionData.object_lin_acc_w"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollectionData.object_lin_acc_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollectionData.object_ang_acc_w"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollectionData.object_ang_acc_w</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollectionCfg"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollectionCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollectionCfg.rigid_objects"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollectionCfg.rigid_objects</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#articulation">Articulation</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation"><code class="docutils literal notranslate"><span class="pre">Articulation</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.cfg"><code class="docutils literal notranslate"><span class="pre">Articulation.cfg</span></code></a></li>
@@ -911,22 +963,31 @@ the corresponding actuator torques.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCfg" title="omni.isaac.lab.assets.RigidObjectCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RigidObjectCfg</span></code></a></p></td>
 <td><p>Configuration parameters for a rigid object.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation" title="omni.isaac.lab.assets.Articulation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Articulation</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollection" title="omni.isaac.lab.assets.RigidObjectCollection"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RigidObjectCollection</span></code></a></p></td>
+<td><p>A rigid object collection class.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollectionData" title="omni.isaac.lab.assets.RigidObjectCollectionData"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RigidObjectCollectionData</span></code></a></p></td>
+<td><p>Data container for a rigid object collection.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollectionCfg" title="omni.isaac.lab.assets.RigidObjectCollectionCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RigidObjectCollectionCfg</span></code></a></p></td>
+<td><p>Configuration parameters for a rigid object collection.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation" title="omni.isaac.lab.assets.Articulation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Articulation</span></code></a></p></td>
 <td><p>An articulation asset class.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData" title="omni.isaac.lab.assets.ArticulationData"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ArticulationData</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData" title="omni.isaac.lab.assets.ArticulationData"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ArticulationData</span></code></a></p></td>
 <td><p>Data container for an articulation.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationCfg" title="omni.isaac.lab.assets.ArticulationCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ArticulationCfg</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationCfg" title="omni.isaac.lab.assets.ArticulationCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ArticulationCfg</span></code></a></p></td>
 <td><p>Configuration parameters for an articulation.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObject" title="omni.isaac.lab.assets.DeformableObject"><code class="xref py py-obj docutils literal notranslate"><span class="pre">DeformableObject</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObject" title="omni.isaac.lab.assets.DeformableObject"><code class="xref py py-obj docutils literal notranslate"><span class="pre">DeformableObject</span></code></a></p></td>
 <td><p>A deformable object asset class.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObjectData" title="omni.isaac.lab.assets.DeformableObjectData"><code class="xref py py-obj docutils literal notranslate"><span class="pre">DeformableObjectData</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObjectData" title="omni.isaac.lab.assets.DeformableObjectData"><code class="xref py py-obj docutils literal notranslate"><span class="pre">DeformableObjectData</span></code></a></p></td>
 <td><p>Data container for a deformable object.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObjectCfg" title="omni.isaac.lab.assets.DeformableObjectCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">DeformableObjectCfg</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.DeformableObjectCfg" title="omni.isaac.lab.assets.DeformableObjectCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">DeformableObjectCfg</span></code></a></p></td>
 <td><p>Configuration parameters for a deformable object.</p></td>
 </tr>
 </tbody>
@@ -1930,6 +1991,605 @@ asset is already present in the scene.</p>
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectCfg.init_state">
 <span class="sig-name descname"><span class="pre">init_state</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCfg.InitialStateCfg" title="omni.isaac.lab.assets.rigid_object.rigid_object_cfg.RigidObjectCfg.InitialStateCfg"><span class="pre">InitialStateCfg</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectCfg.init_state" title="Permalink to this definition">#</a></dt>
 <dd><p>Initial state of the rigid object. Defaults to identity pose with zero velocity.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="rigid-object-collection">
+<h2>Rigid Object Collection<a class="headerlink" href="#rigid-object-collection" title="Permalink to this heading">#</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectCollection">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.assets.</span></span><span class="sig-name descname"><span class="pre">RigidObjectCollection</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/assets/rigid_object_collection/rigid_object_collection.html#RigidObjectCollection"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectCollection" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#omni.isaac.lab.assets.AssetBase" title="omni.isaac.lab.assets.asset_base.AssetBase"><code class="xref py py-class docutils literal notranslate"><span class="pre">AssetBase</span></code></a></p>
+<p>A rigid object collection class.</p>
+<p>This class represents a collection of rigid objects in the simulation, where the state of the rigid objects can be
+accessed and modified using a batched <code class="docutils literal notranslate"><span class="pre">(env_ids,</span> <span class="pre">object_ids)</span></code> API.</p>
+<p>For each rigid body in the collection, the root prim of the asset must have the <a class="reference external" href="https://openusd.org/dev/api/class_usd_physics_rigid_body_a_p_i.html">USD RigidBodyAPI</a>
+applied to it. This API is used to define the simulation properties of the rigid bodies. On playing the
+simulation, the physics engine will automatically register the rigid bodies and create a corresponding
+rigid body handle. This handle can be accessed using the <a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollection.root_physx_view" title="omni.isaac.lab.assets.RigidObjectCollection.root_physx_view"><code class="xref py py-attr docutils literal notranslate"><span class="pre">root_physx_view</span></code></a> attribute.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Rigid objects in the collection are uniquely identified via the key of the dictionary
+<a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollectionCfg.rigid_objects" title="omni.isaac.lab.assets.RigidObjectCollectionCfg.rigid_objects"><code class="xref py py-attr docutils literal notranslate"><span class="pre">rigid_objects</span></code></a> in <a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollectionCfg" title="omni.isaac.lab.assets.RigidObjectCollectionCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">RigidObjectCollectionCfg</span></code></a>.
+This differs from the class <a class="reference internal" href="#omni.isaac.lab.assets.RigidObject" title="omni.isaac.lab.assets.RigidObject"><code class="xref py py-class docutils literal notranslate"><span class="pre">RigidObject</span></code></a>, where a rigid object is identified by
+the name of the Xform where the <a class="reference external" href="https://openusd.org/dev/api/class_usd_physics_rigid_body_a_p_i.html">USD RigidBodyAPI</a> is applied. This would not be possible for the rigid object
+collection since the <a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollectionCfg.rigid_objects" title="omni.isaac.lab.assets.RigidObjectCollectionCfg.rigid_objects"><code class="xref py py-attr docutils literal notranslate"><span class="pre">rigid_objects</span></code></a> dictionary could
+contain the same rigid object multiple times, leading to ambiguity.</p>
+</div>
+<p><strong>Methods:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollection.__init__" title="omni.isaac.lab.assets.RigidObjectCollection.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>(cfg)</p></td>
+<td><p>Initialize the rigid object collection.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollection.reset" title="omni.isaac.lab.assets.RigidObjectCollection.reset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset</span></code></a>([env_ids, object_ids])</p></td>
+<td><p>Resets all internal buffers of selected environments and objects.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollection.write_data_to_sim" title="omni.isaac.lab.assets.RigidObjectCollection.write_data_to_sim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">write_data_to_sim</span></code></a>()</p></td>
+<td><p>Write external wrench to the simulation.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollection.update" title="omni.isaac.lab.assets.RigidObjectCollection.update"><code class="xref py py-obj docutils literal notranslate"><span class="pre">update</span></code></a>(dt)</p></td>
+<td><p>Update the internal buffers.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollection.find_objects" title="omni.isaac.lab.assets.RigidObjectCollection.find_objects"><code class="xref py py-obj docutils literal notranslate"><span class="pre">find_objects</span></code></a>(name_keys[, preserve_order])</p></td>
+<td><p>Find objects in the collection based on the name keys.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollection.write_object_state_to_sim" title="omni.isaac.lab.assets.RigidObjectCollection.write_object_state_to_sim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">write_object_state_to_sim</span></code></a>(object_state[, ...])</p></td>
+<td><p>Set the object state over selected environment and object indices into the simulation.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollection.write_object_pose_to_sim" title="omni.isaac.lab.assets.RigidObjectCollection.write_object_pose_to_sim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">write_object_pose_to_sim</span></code></a>(object_pose[, ...])</p></td>
+<td><p>Set the object pose over selected environment and object indices into the simulation.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollection.write_object_velocity_to_sim" title="omni.isaac.lab.assets.RigidObjectCollection.write_object_velocity_to_sim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">write_object_velocity_to_sim</span></code></a>(object_velocity)</p></td>
+<td><p>Set the object velocity over selected environment and object indices into the simulation.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollection.set_external_force_and_torque" title="omni.isaac.lab.assets.RigidObjectCollection.set_external_force_and_torque"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_external_force_and_torque</span></code></a>(forces, torques)</p></td>
+<td><p>Set external force and torque to apply on the objects' bodies in their local frame.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollection.reshape_view_to_data" title="omni.isaac.lab.assets.RigidObjectCollection.reshape_view_to_data"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reshape_view_to_data</span></code></a>(data)</p></td>
+<td><p>Reshapes and arranges the data coming from the <a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollection.root_physx_view" title="omni.isaac.lab.assets.RigidObjectCollection.root_physx_view"><code class="xref py py-attr docutils literal notranslate"><span class="pre">root_physx_view</span></code></a> to (num_instances, num_objects, data_size).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollection.reshape_data_to_view" title="omni.isaac.lab.assets.RigidObjectCollection.reshape_data_to_view"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reshape_data_to_view</span></code></a>(data)</p></td>
+<td><p>Reshapes and arranges the data to the be consistent with data from the <a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollection.root_physx_view" title="omni.isaac.lab.assets.RigidObjectCollection.root_physx_view"><code class="xref py py-attr docutils literal notranslate"><span class="pre">root_physx_view</span></code></a>.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollection.set_debug_vis" title="omni.isaac.lab.assets.RigidObjectCollection.set_debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_debug_vis</span></code></a>(debug_vis)</p></td>
+<td><p>Sets whether to visualize the asset data.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollection.cfg" title="omni.isaac.lab.assets.RigidObjectCollection.cfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">cfg</span></code></a></p></td>
+<td><p>Configuration instance for the rigid object collection.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollection.data" title="omni.isaac.lab.assets.RigidObjectCollection.data"><code class="xref py py-obj docutils literal notranslate"><span class="pre">data</span></code></a></p></td>
+<td><p>Data related to the asset.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollection.num_instances" title="omni.isaac.lab.assets.RigidObjectCollection.num_instances"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_instances</span></code></a></p></td>
+<td><p>Number of instances of the collection.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollection.num_objects" title="omni.isaac.lab.assets.RigidObjectCollection.num_objects"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_objects</span></code></a></p></td>
+<td><p>Number of objects in the collection.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollection.object_names" title="omni.isaac.lab.assets.RigidObjectCollection.object_names"><code class="xref py py-obj docutils literal notranslate"><span class="pre">object_names</span></code></a></p></td>
+<td><p>Ordered names of objects in the rigid object collection.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollection.root_physx_view" title="omni.isaac.lab.assets.RigidObjectCollection.root_physx_view"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_physx_view</span></code></a></p></td>
+<td><p>Rigid body view for the rigid body collection (PhysX).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollection.device" title="omni.isaac.lab.assets.RigidObjectCollection.device"><code class="xref py py-obj docutils literal notranslate"><span class="pre">device</span></code></a></p></td>
+<td><p>Memory device for computation.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollection.has_debug_vis_implementation" title="omni.isaac.lab.assets.RigidObjectCollection.has_debug_vis_implementation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">has_debug_vis_implementation</span></code></a></p></td>
+<td><p>Whether the asset has a debug visualization implemented.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollection.is_initialized" title="omni.isaac.lab.assets.RigidObjectCollection.is_initialized"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_initialized</span></code></a></p></td>
+<td><p>Whether the asset is initialized.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectCollection.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollectionCfg" title="omni.isaac.lab.assets.RigidObjectCollectionCfg"><span class="pre">RigidObjectCollectionCfg</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/assets/rigid_object_collection/rigid_object_collection.html#RigidObjectCollection.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectCollection.__init__" title="Permalink to this definition">#</a></dt>
+<dd><p>Initialize the rigid object collection.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>cfg</strong> – A configuration instance.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectCollection.cfg">
+<span class="sig-name descname"><span class="pre">cfg</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollectionCfg" title="omni.isaac.lab.assets.RigidObjectCollectionCfg"><span class="pre">RigidObjectCollectionCfg</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectCollection.cfg" title="Permalink to this definition">#</a></dt>
+<dd><p>Configuration instance for the rigid object collection.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectCollection.data">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">data</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollectionData" title="omni.isaac.lab.assets.rigid_object_collection.rigid_object_collection_data.RigidObjectCollectionData"><span class="pre">RigidObjectCollectionData</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectCollection.data" title="Permalink to this definition">#</a></dt>
+<dd><p>Data related to the asset.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectCollection.num_instances">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">num_instances</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectCollection.num_instances" title="Permalink to this definition">#</a></dt>
+<dd><p>Number of instances of the collection.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectCollection.num_objects">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">num_objects</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectCollection.num_objects" title="Permalink to this definition">#</a></dt>
+<dd><p>Number of objects in the collection.</p>
+<p>This corresponds to the distinct number of rigid bodies in the collection.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectCollection.object_names">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">object_names</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectCollection.object_names" title="Permalink to this definition">#</a></dt>
+<dd><p>Ordered names of objects in the rigid object collection.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectCollection.root_physx_view">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">root_physx_view</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">omni.physics.tensors.impl.api.RigidBodyView</span></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectCollection.root_physx_view" title="Permalink to this definition">#</a></dt>
+<dd><p>Rigid body view for the rigid body collection (PhysX).</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Use this view with caution. It requires handling of tensors in a specific way.</p>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectCollection.reset">
+<span class="sig-name descname"><span class="pre">reset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">object_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#slice" title="(in Python v3.13)"><span class="pre">slice</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/assets/rigid_object_collection/rigid_object_collection.html#RigidObjectCollection.reset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectCollection.reset" title="Permalink to this definition">#</a></dt>
+<dd><p>Resets all internal buffers of selected environments and objects.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>env_ids</strong> – The indices of the object to reset. Defaults to None (all instances).</p></li>
+<li><p><strong>object_ids</strong> – The indices of the object to reset. Defaults to None (all objects).</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectCollection.write_data_to_sim">
+<span class="sig-name descname"><span class="pre">write_data_to_sim</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/assets/rigid_object_collection/rigid_object_collection.html#RigidObjectCollection.write_data_to_sim"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectCollection.write_data_to_sim" title="Permalink to this definition">#</a></dt>
+<dd><p>Write external wrench to the simulation.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>We write external wrench to the simulation here since this function is called before the simulation step.
+This ensures that the external wrench is applied at every simulation step.</p>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectCollection.update">
+<span class="sig-name descname"><span class="pre">update</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dt</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/assets/rigid_object_collection/rigid_object_collection.html#RigidObjectCollection.update"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectCollection.update" title="Permalink to this definition">#</a></dt>
+<dd><p>Update the internal buffers.</p>
+<p>The time step <code class="docutils literal notranslate"><span class="pre">dt</span></code> is used to compute numerical derivatives of quantities such as joint
+accelerations which are not provided by the simulator.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>dt</strong> – The amount of time passed from last <code class="docutils literal notranslate"><span class="pre">update</span></code> call.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectCollection.find_objects">
+<span class="sig-name descname"><span class="pre">find_objects</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name_keys</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence" title="(in Python v3.13)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">preserve_order</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/assets/rigid_object_collection/rigid_object_collection.html#RigidObjectCollection.find_objects"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectCollection.find_objects" title="Permalink to this definition">#</a></dt>
+<dd><p>Find objects in the collection based on the name keys.</p>
+<p>Please check the <code class="xref py py-meth docutils literal notranslate"><span class="pre">omni.isaac.lab.utils.string_utils.resolve_matching_names()</span></code> function for more
+information on the name matching.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>name_keys</strong> – A regular expression or a list of regular expressions to match the object names.</p></li>
+<li><p><strong>preserve_order</strong> – Whether to preserve the order of the name keys in the output. Defaults to False.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A tuple containing the object indices and names.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectCollection.write_object_state_to_sim">
+<span class="sig-name descname"><span class="pre">write_object_state_to_sim</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">object_state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">object_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#slice" title="(in Python v3.13)"><span class="pre">slice</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/assets/rigid_object_collection/rigid_object_collection.html#RigidObjectCollection.write_object_state_to_sim"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectCollection.write_object_state_to_sim" title="Permalink to this definition">#</a></dt>
+<dd><p>Set the object state over selected environment and object indices into the simulation.</p>
+<p>The object state comprises of the cartesian position, quaternion orientation in (w, x, y, z), and linear
+and angular velocity. All the quantities are in the simulation frame.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>object_state</strong> – Object state in simulation frame. Shape is (len(env_ids), len(object_ids), 13).</p></li>
+<li><p><strong>env_ids</strong> – Environment indices. If None, then all indices are used.</p></li>
+<li><p><strong>object_ids</strong> – Object indices. If None, then all indices are used.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectCollection.write_object_pose_to_sim">
+<span class="sig-name descname"><span class="pre">write_object_pose_to_sim</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">object_pose</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">object_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#slice" title="(in Python v3.13)"><span class="pre">slice</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/assets/rigid_object_collection/rigid_object_collection.html#RigidObjectCollection.write_object_pose_to_sim"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectCollection.write_object_pose_to_sim" title="Permalink to this definition">#</a></dt>
+<dd><p>Set the object pose over selected environment and object indices into the simulation.</p>
+<p>The object pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>object_pose</strong> – Object poses in simulation frame. Shape is (len(env_ids), len(object_ids), 7).</p></li>
+<li><p><strong>env_ids</strong> – Environment indices. If None, then all indices are used.</p></li>
+<li><p><strong>object_ids</strong> – Object indices. If None, then all indices are used.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectCollection.write_object_velocity_to_sim">
+<span class="sig-name descname"><span class="pre">write_object_velocity_to_sim</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">object_velocity</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">object_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#slice" title="(in Python v3.13)"><span class="pre">slice</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/assets/rigid_object_collection/rigid_object_collection.html#RigidObjectCollection.write_object_velocity_to_sim"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectCollection.write_object_velocity_to_sim" title="Permalink to this definition">#</a></dt>
+<dd><p>Set the object velocity over selected environment and object indices into the simulation.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>object_velocity</strong> – Object velocities in simulation frame. Shape is (len(env_ids), len(object_ids), 6).</p></li>
+<li><p><strong>env_ids</strong> – Environment indices. If None, then all indices are used.</p></li>
+<li><p><strong>object_ids</strong> – Object indices. If None, then all indices are used.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectCollection.set_external_force_and_torque">
+<span class="sig-name descname"><span class="pre">set_external_force_and_torque</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">forces</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">torques</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">object_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#slice" title="(in Python v3.13)"><span class="pre">slice</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/assets/rigid_object_collection/rigid_object_collection.html#RigidObjectCollection.set_external_force_and_torque"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectCollection.set_external_force_and_torque" title="Permalink to this definition">#</a></dt>
+<dd><p>Set external force and torque to apply on the objects’ bodies in their local frame.</p>
+<p>For many applications, we want to keep the applied external force on rigid bodies constant over a period of
+time (for instance, during the policy control). This function allows us to store the external force and torque
+into buffers which are then applied to the simulation at every step.</p>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p>If the function is called with empty forces and torques, then this function disables the application
+of external wrench to the simulation.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># example of disabling external wrench</span>
+<span class="n">asset</span><span class="o">.</span><span class="n">set_external_force_and_torque</span><span class="p">(</span><span class="n">forces</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">torques</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+</pre></div>
+</div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This function does not apply the external wrench to the simulation. It only fills the buffers with
+the desired values. To apply the external wrench, call the <a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollection.write_data_to_sim" title="omni.isaac.lab.assets.RigidObjectCollection.write_data_to_sim"><code class="xref py py-meth docutils literal notranslate"><span class="pre">write_data_to_sim()</span></code></a> function
+right before the simulation step.</p>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>forces</strong> – External forces in bodies’ local frame. Shape is (len(env_ids), len(object_ids), 3).</p></li>
+<li><p><strong>torques</strong> – External torques in bodies’ local frame. Shape is (len(env_ids), len(object_ids), 3).</p></li>
+<li><p><strong>object_ids</strong> – Object indices to apply external wrench to. Defaults to None (all objects).</p></li>
+<li><p><strong>env_ids</strong> – Environment indices to apply external wrench to. Defaults to None (all instances).</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectCollection.reshape_view_to_data">
+<span class="sig-name descname"><span class="pre">reshape_view_to_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a></span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/assets/rigid_object_collection/rigid_object_collection.html#RigidObjectCollection.reshape_view_to_data"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectCollection.reshape_view_to_data" title="Permalink to this definition">#</a></dt>
+<dd><p>Reshapes and arranges the data coming from the <a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollection.root_physx_view" title="omni.isaac.lab.assets.RigidObjectCollection.root_physx_view"><code class="xref py py-attr docutils literal notranslate"><span class="pre">root_physx_view</span></code></a> to (num_instances, num_objects, data_size).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>data</strong> – The data coming from the <a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollection.root_physx_view" title="omni.isaac.lab.assets.RigidObjectCollection.root_physx_view"><code class="xref py py-attr docutils literal notranslate"><span class="pre">root_physx_view</span></code></a>. Shape is (num_instances*num_objects, data_size).</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The reshaped data. Shape is (num_instances, num_objects, data_size).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectCollection.reshape_data_to_view">
+<span class="sig-name descname"><span class="pre">reshape_data_to_view</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a></span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/assets/rigid_object_collection/rigid_object_collection.html#RigidObjectCollection.reshape_data_to_view"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectCollection.reshape_data_to_view" title="Permalink to this definition">#</a></dt>
+<dd><p>Reshapes and arranges the data to the be consistent with data from the <a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollection.root_physx_view" title="omni.isaac.lab.assets.RigidObjectCollection.root_physx_view"><code class="xref py py-attr docutils literal notranslate"><span class="pre">root_physx_view</span></code></a>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>data</strong> – The data to be reshaped. Shape is (num_instances, num_objects, data_size).</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The reshaped data. Shape is (num_instances*num_objects, data_size).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectCollection.device">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">device</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectCollection.device" title="Permalink to this definition">#</a></dt>
+<dd><p>Memory device for computation.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectCollection.has_debug_vis_implementation">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">has_debug_vis_implementation</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectCollection.has_debug_vis_implementation" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether the asset has a debug visualization implemented.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectCollection.is_initialized">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">is_initialized</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectCollection.is_initialized" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether the asset is initialized.</p>
+<p>Returns True if the asset is initialized, False otherwise.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectCollection.set_debug_vis">
+<span class="sig-name descname"><span class="pre">set_debug_vis</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">debug_vis</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></span></span><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectCollection.set_debug_vis" title="Permalink to this definition">#</a></dt>
+<dd><p>Sets whether to visualize the asset data.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>debug_vis</strong> – Whether to visualize the asset data.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Whether the debug visualization was successfully set. False if the asset
+does not support debug visualization.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectCollectionData">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.assets.</span></span><span class="sig-name descname"><span class="pre">RigidObjectCollectionData</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/assets/rigid_object_collection/rigid_object_collection_data.html#RigidObjectCollectionData"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectCollectionData" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Data container for a rigid object collection.</p>
+<p>This class contains the data for a rigid object collection in the simulation. The data includes the state of
+all the bodies in the collection. The data is stored in the simulation world frame unless otherwise specified.
+The data is in the order <code class="docutils literal notranslate"><span class="pre">(num_instances,</span> <span class="pre">num_objects,</span> <span class="pre">data_size)</span></code>, where data_size is the size of the data.</p>
+<p>For a rigid body, there are two frames of reference that are used:</p>
+<ul class="simple">
+<li><p>Actor frame: The frame of reference of the rigid body prim. This typically corresponds to the Xform prim
+with the rigid body schema.</p></li>
+<li><p>Center of mass frame: The frame of reference of the center of mass of the rigid body.</p></li>
+</ul>
+<p>Depending on the settings of the simulation, the actor frame and the center of mass frame may be the same.
+This needs to be taken into account when interpreting the data.</p>
+<p>The data is lazily updated, meaning that the data is only updated when it is accessed. This is useful
+when the data is expensive to compute or retrieve. The data is updated when the timestamp of the buffer
+is older than the current simulation timestamp. The timestamp is updated whenever the data is updated.</p>
+<p><strong>Methods:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollectionData.update" title="omni.isaac.lab.assets.RigidObjectCollectionData.update"><code class="xref py py-obj docutils literal notranslate"><span class="pre">update</span></code></a>(dt)</p></td>
+<td><p>Updates the data for the rigid object collection.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollectionData.object_names" title="omni.isaac.lab.assets.RigidObjectCollectionData.object_names"><code class="xref py py-obj docutils literal notranslate"><span class="pre">object_names</span></code></a></p></td>
+<td><p>Object names in the order parsed by the simulation view.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollectionData.default_object_state" title="omni.isaac.lab.assets.RigidObjectCollectionData.default_object_state"><code class="xref py py-obj docutils literal notranslate"><span class="pre">default_object_state</span></code></a></p></td>
+<td><p>Default object state <code class="docutils literal notranslate"><span class="pre">[pos,</span> <span class="pre">quat,</span> <span class="pre">lin_vel,</span> <span class="pre">ang_vel]</span></code> in local environment frame.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollectionData.default_mass" title="omni.isaac.lab.assets.RigidObjectCollectionData.default_mass"><code class="xref py py-obj docutils literal notranslate"><span class="pre">default_mass</span></code></a></p></td>
+<td><p>Default object mass read from the simulation.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollectionData.default_inertia" title="omni.isaac.lab.assets.RigidObjectCollectionData.default_inertia"><code class="xref py py-obj docutils literal notranslate"><span class="pre">default_inertia</span></code></a></p></td>
+<td><p>Default object inertia tensor read from the simulation.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollectionData.object_state_w" title="omni.isaac.lab.assets.RigidObjectCollectionData.object_state_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">object_state_w</span></code></a></p></td>
+<td><p>Object state <code class="docutils literal notranslate"><span class="pre">[pos,</span> <span class="pre">quat,</span> <span class="pre">lin_vel,</span> <span class="pre">ang_vel]</span></code> in simulation world frame.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollectionData.object_acc_w" title="omni.isaac.lab.assets.RigidObjectCollectionData.object_acc_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">object_acc_w</span></code></a></p></td>
+<td><p>Acceleration of all objects.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollectionData.projected_gravity_b" title="omni.isaac.lab.assets.RigidObjectCollectionData.projected_gravity_b"><code class="xref py py-obj docutils literal notranslate"><span class="pre">projected_gravity_b</span></code></a></p></td>
+<td><p>Projection of the gravity direction on base frame.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollectionData.heading_w" title="omni.isaac.lab.assets.RigidObjectCollectionData.heading_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">heading_w</span></code></a></p></td>
+<td><p>Yaw heading of the base frame (in radians).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollectionData.object_pos_w" title="omni.isaac.lab.assets.RigidObjectCollectionData.object_pos_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">object_pos_w</span></code></a></p></td>
+<td><p>Object position in simulation world frame.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollectionData.object_quat_w" title="omni.isaac.lab.assets.RigidObjectCollectionData.object_quat_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">object_quat_w</span></code></a></p></td>
+<td><p>Object orientation (w, x, y, z) in simulation world frame.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollectionData.object_vel_w" title="omni.isaac.lab.assets.RigidObjectCollectionData.object_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">object_vel_w</span></code></a></p></td>
+<td><p>Object velocity in simulation world frame.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollectionData.object_lin_vel_w" title="omni.isaac.lab.assets.RigidObjectCollectionData.object_lin_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">object_lin_vel_w</span></code></a></p></td>
+<td><p>Object linear velocity in simulation world frame.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollectionData.object_ang_vel_w" title="omni.isaac.lab.assets.RigidObjectCollectionData.object_ang_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">object_ang_vel_w</span></code></a></p></td>
+<td><p>Object angular velocity in simulation world frame.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollectionData.object_lin_vel_b" title="omni.isaac.lab.assets.RigidObjectCollectionData.object_lin_vel_b"><code class="xref py py-obj docutils literal notranslate"><span class="pre">object_lin_vel_b</span></code></a></p></td>
+<td><p>Object linear velocity in base frame.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollectionData.object_ang_vel_b" title="omni.isaac.lab.assets.RigidObjectCollectionData.object_ang_vel_b"><code class="xref py py-obj docutils literal notranslate"><span class="pre">object_ang_vel_b</span></code></a></p></td>
+<td><p>Object angular velocity in base world frame.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollectionData.object_lin_acc_w" title="omni.isaac.lab.assets.RigidObjectCollectionData.object_lin_acc_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">object_lin_acc_w</span></code></a></p></td>
+<td><p>Linear acceleration of all bodies in simulation world frame.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollectionData.object_ang_acc_w" title="omni.isaac.lab.assets.RigidObjectCollectionData.object_ang_acc_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">object_ang_acc_w</span></code></a></p></td>
+<td><p>Angular acceleration of all bodies in simulation world frame.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectCollectionData.update">
+<span class="sig-name descname"><span class="pre">update</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dt</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/assets/rigid_object_collection/rigid_object_collection_data.html#RigidObjectCollectionData.update"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectCollectionData.update" title="Permalink to this definition">#</a></dt>
+<dd><p>Updates the data for the rigid object collection.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>dt</strong> – The time step for the update. This must be a positive value.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectCollectionData.object_names">
+<span class="sig-name descname"><span class="pre">object_names</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectCollectionData.object_names" title="Permalink to this definition">#</a></dt>
+<dd><p>Object names in the order parsed by the simulation view.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectCollectionData.default_object_state">
+<span class="sig-name descname"><span class="pre">default_object_state</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectCollectionData.default_object_state" title="Permalink to this definition">#</a></dt>
+<dd><p>Default object state <code class="docutils literal notranslate"><span class="pre">[pos,</span> <span class="pre">quat,</span> <span class="pre">lin_vel,</span> <span class="pre">ang_vel]</span></code> in local environment frame. Shape is (num_instances, num_objects, 13).</p>
+<p>The position and quaternion are of each object’s rigid body’s actor frame. Meanwhile, the linear and angular velocities are
+of the center of mass frame.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectCollectionData.default_mass">
+<span class="sig-name descname"><span class="pre">default_mass</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectCollectionData.default_mass" title="Permalink to this definition">#</a></dt>
+<dd><p>Default object mass read from the simulation. Shape is (num_instances, num_objects, 1).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectCollectionData.default_inertia">
+<span class="sig-name descname"><span class="pre">default_inertia</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectCollectionData.default_inertia" title="Permalink to this definition">#</a></dt>
+<dd><p>Default object inertia tensor read from the simulation. Shape is (num_instances, num_objects, 9).</p>
+<p>The inertia is the inertia tensor relative to the center of mass frame. The values are stored in
+the order <span class="math notranslate nohighlight">\([I_{xx}, I_{xy}, I_{xz}, I_{yx}, I_{yy}, I_{yz}, I_{zx}, I_{zy}, I_{zz}]\)</span>.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectCollectionData.object_state_w">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">object_state_w</span></span><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectCollectionData.object_state_w" title="Permalink to this definition">#</a></dt>
+<dd><p>Object state <code class="docutils literal notranslate"><span class="pre">[pos,</span> <span class="pre">quat,</span> <span class="pre">lin_vel,</span> <span class="pre">ang_vel]</span></code> in simulation world frame. Shape is (num_instances, num_objects, 13).</p>
+<p>The position and orientation are of the rigid body’s actor frame. Meanwhile, the linear and angular
+velocities are of the rigid body’s center of mass frame.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectCollectionData.object_acc_w">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">object_acc_w</span></span><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectCollectionData.object_acc_w" title="Permalink to this definition">#</a></dt>
+<dd><p>Acceleration of all objects. Shape is (num_instances, num_objects, 6).</p>
+<p>This quantity is the acceleration of the rigid bodies’ center of mass frame.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectCollectionData.projected_gravity_b">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">projected_gravity_b</span></span><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectCollectionData.projected_gravity_b" title="Permalink to this definition">#</a></dt>
+<dd><p>Projection of the gravity direction on base frame. Shape is (num_instances, num_objects, 3).</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectCollectionData.heading_w">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">heading_w</span></span><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectCollectionData.heading_w" title="Permalink to this definition">#</a></dt>
+<dd><p>Yaw heading of the base frame (in radians). Shape is (num_instances, num_objects,).</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This quantity is computed by assuming that the forward-direction of the base
+frame is along x-direction, i.e. <span class="math notranslate nohighlight">\((1, 0, 0)\)</span>.</p>
+</div>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectCollectionData.object_pos_w">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">object_pos_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectCollectionData.object_pos_w" title="Permalink to this definition">#</a></dt>
+<dd><p>Object position in simulation world frame. Shape is (num_instances, num_objects, 3).</p>
+<p>This quantity is the position of the actor frame of the rigid bodies.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectCollectionData.object_quat_w">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">object_quat_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectCollectionData.object_quat_w" title="Permalink to this definition">#</a></dt>
+<dd><p>Object orientation (w, x, y, z) in simulation world frame. Shape is (num_instances, num_objects, 4).</p>
+<p>This quantity is the orientation of the actor frame of the rigid bodies.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectCollectionData.object_vel_w">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">object_vel_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectCollectionData.object_vel_w" title="Permalink to this definition">#</a></dt>
+<dd><p>Object velocity in simulation world frame. Shape is (num_instances, num_objects, 6).</p>
+<p>This quantity contains the linear and angular velocities of the rigid bodies’ center of mass frame.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectCollectionData.object_lin_vel_w">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">object_lin_vel_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectCollectionData.object_lin_vel_w" title="Permalink to this definition">#</a></dt>
+<dd><p>Object linear velocity in simulation world frame. Shape is (num_instances, num_objects, 3).</p>
+<p>This quantity is the linear velocity of the rigid bodies’ center of mass frame.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectCollectionData.object_ang_vel_w">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">object_ang_vel_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectCollectionData.object_ang_vel_w" title="Permalink to this definition">#</a></dt>
+<dd><p>Object angular velocity in simulation world frame. Shape is (num_instances, num_objects, 3).</p>
+<p>This quantity is the angular velocity of the rigid bodies’ center of mass frame.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectCollectionData.object_lin_vel_b">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">object_lin_vel_b</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectCollectionData.object_lin_vel_b" title="Permalink to this definition">#</a></dt>
+<dd><p>Object linear velocity in base frame. Shape is (num_instances, num_objects, 3).</p>
+<p>This quantity is the linear velocity of the rigid bodies’ center of mass frame with respect to the
+rigid body’s actor frame.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectCollectionData.object_ang_vel_b">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">object_ang_vel_b</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectCollectionData.object_ang_vel_b" title="Permalink to this definition">#</a></dt>
+<dd><p>Object angular velocity in base world frame. Shape is (num_instances, num_objects, 3).</p>
+<p>This quantity is the angular velocity of the rigid bodies’ center of mass frame with respect to the
+rigid body’s actor frame.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectCollectionData.object_lin_acc_w">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">object_lin_acc_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectCollectionData.object_lin_acc_w" title="Permalink to this definition">#</a></dt>
+<dd><p>Linear acceleration of all bodies in simulation world frame. Shape is (num_instances, num_objects, 3).</p>
+<p>This quantity is the linear acceleration of the rigid bodies’ center of mass frame.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectCollectionData.object_ang_acc_w">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">object_ang_acc_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectCollectionData.object_ang_acc_w" title="Permalink to this definition">#</a></dt>
+<dd><p>Angular acceleration of all bodies in simulation world frame. Shape is (num_instances, num_objects, 3).</p>
+<p>This quantity is the angular acceleration of the rigid bodies’ center of mass frame.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectCollectionCfg">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.assets.</span></span><span class="sig-name descname"><span class="pre">RigidObjectCollectionCfg</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/assets/rigid_object_collection/rigid_object_collection_cfg.html#RigidObjectCollectionCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectCollectionCfg" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Configuration parameters for a rigid object collection.</p>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCollectionCfg.rigid_objects" title="omni.isaac.lab.assets.RigidObjectCollectionCfg.rigid_objects"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rigid_objects</span></code></a></p></td>
+<td><p>Dictionary of rigid object configurations to spawn.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectCollectionCfg.rigid_objects">
+<span class="sig-name descname"><span class="pre">rigid_objects</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectCfg" title="omni.isaac.lab.assets.rigid_object.rigid_object_cfg.RigidObjectCfg"><span class="pre">omni.isaac.lab.assets.rigid_object.rigid_object_cfg.RigidObjectCfg</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectCollectionCfg.rigid_objects" title="Permalink to this definition">#</a></dt>
+<dd><p>Dictionary of rigid object configurations to spawn.</p>
+<p>The keys are the names for the objects, which are used as unique identifiers throughout the code.</p>
 </dd></dl>
 
 </dd></dl>
@@ -4317,6 +4977,58 @@ asset is already present in the scene.</p>
 </li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#rigid-object-collection">Rigid Object Collection</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollection"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollection.__init__"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.__init__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollection.cfg"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.cfg</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollection.data"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.data</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollection.num_instances"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.num_instances</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollection.num_objects"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.num_objects</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollection.object_names"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.object_names</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollection.root_physx_view"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.root_physx_view</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollection.reset"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.reset()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollection.write_data_to_sim"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.write_data_to_sim()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollection.update"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.update()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollection.find_objects"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.find_objects()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollection.write_object_state_to_sim"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.write_object_state_to_sim()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollection.write_object_pose_to_sim"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.write_object_pose_to_sim()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollection.write_object_velocity_to_sim"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.write_object_velocity_to_sim()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollection.set_external_force_and_torque"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.set_external_force_and_torque()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollection.reshape_view_to_data"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.reshape_view_to_data()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollection.reshape_data_to_view"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.reshape_data_to_view()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollection.device"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.device</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollection.has_debug_vis_implementation"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.has_debug_vis_implementation</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollection.is_initialized"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.is_initialized</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollection.set_debug_vis"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollection.set_debug_vis()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollectionData"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollectionData</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollectionData.update"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollectionData.update()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollectionData.object_names"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollectionData.object_names</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollectionData.default_object_state"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollectionData.default_object_state</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollectionData.default_mass"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollectionData.default_mass</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollectionData.default_inertia"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollectionData.default_inertia</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollectionData.object_state_w"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollectionData.object_state_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollectionData.object_acc_w"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollectionData.object_acc_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollectionData.projected_gravity_b"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollectionData.projected_gravity_b</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollectionData.heading_w"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollectionData.heading_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollectionData.object_pos_w"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollectionData.object_pos_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollectionData.object_quat_w"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollectionData.object_quat_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollectionData.object_vel_w"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollectionData.object_vel_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollectionData.object_lin_vel_w"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollectionData.object_lin_vel_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollectionData.object_ang_vel_w"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollectionData.object_ang_vel_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollectionData.object_lin_vel_b"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollectionData.object_lin_vel_b</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollectionData.object_ang_vel_b"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollectionData.object_ang_vel_b</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollectionData.object_lin_acc_w"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollectionData.object_lin_acc_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollectionData.object_ang_acc_w"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollectionData.object_ang_acc_w</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollectionCfg"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollectionCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectCollectionCfg.rigid_objects"><code class="docutils literal notranslate"><span class="pre">RigidObjectCollectionCfg.rigid_objects</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#articulation">Articulation</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation"><code class="docutils literal notranslate"><span class="pre">Articulation</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.cfg"><code class="docutils literal notranslate"><span class="pre">Articulation.cfg</span></code></a></li>
@@ -4542,7 +5254,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Nov 06, 2024.
+  Last updated on Nov 08, 2024.
   <br/>
 </p>
   </div>

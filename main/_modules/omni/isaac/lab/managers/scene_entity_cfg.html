@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.2.0" />
-    <meta name="docbuild:last-update" content="Nov 06, 2024"/>
+    <meta name="docbuild:last-update" content="Nov 08, 2024"/>
   </head>
   
   
@@ -507,7 +507,7 @@
 
 <span class="kn">from</span> <span class="nn">dataclasses</span> <span class="kn">import</span> <span class="n">MISSING</span>
 
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.assets</span> <span class="kn">import</span> <span class="n">Articulation</span><span class="p">,</span> <span class="n">RigidObject</span>
+<span class="kn">from</span> <span class="nn">omni.isaac.lab.assets</span> <span class="kn">import</span> <span class="n">Articulation</span><span class="p">,</span> <span class="n">RigidObject</span><span class="p">,</span> <span class="n">RigidObjectCollection</span>
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.scene</span> <span class="kn">import</span> <span class="n">InteractiveScene</span>
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.utils</span> <span class="kn">import</span> <span class="n">configclass</span>
 
@@ -578,16 +578,34 @@
 <span class="sd">    manager.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">preserve_order</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to preserve indices ordering to match with that in the specified joint or body names. Defaults to False.</span>
+    <span class="n">object_collection_names</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The names of the objects in the rigid object collection required by the term. Defaults to None.</span>
 
-<span class="sd">    If False, the ordering of the indices are sorted in ascending order (i.e. the ordering in the entity&#39;s joints</span>
-<span class="sd">    or bodies). Otherwise, the indices are preserved in the order of the specified joint and body names.</span>
+<span class="sd">    The names can be either names or a regular expression matching the object names in the collection.</span>
+
+<span class="sd">    These are converted to object indices on initialization of the manager and passed to the term</span>
+<span class="sd">    function as a list of object indices under :attr:`object_collection_ids`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">object_collection_ids</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="nb">slice</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The indices of the objects from the rigid object collection required by the term. Defaults to slice(None),</span>
+<span class="sd">    which means all the objects in the collection.</span>
+
+<span class="sd">    If :attr:`object_collection_names` is specified, this is filled in automatically on initialization of the manager.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">preserve_order</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to preserve indices ordering to match with that in the specified joint, body, or object collection names.</span>
+<span class="sd">    Defaults to False.</span>
+
+<span class="sd">    If False, the ordering of the indices are sorted in ascending order (i.e. the ordering in the entity&#39;s joints,</span>
+<span class="sd">    bodies, or object in the object collection). Otherwise, the indices are preserved in the order of the specified</span>
+<span class="sd">    joint, body, or object collection names.</span>
 
 <span class="sd">    For more details, see the :meth:`omni.isaac.lab.utils.string.resolve_matching_names` function.</span>
 
 <span class="sd">    .. note::</span>
-<span class="sd">        This attribute is only used when :attr:`joint_names` or :attr:`body_names` are specified.</span>
+<span class="sd">        This attribute is only used when :attr:`joint_names`, :attr:`body_names`, or :attr:`object_collection_names` are specified.</span>
 
 <span class="sd">    &quot;&quot;&quot;</span>
 
@@ -606,6 +624,7 @@
 <span class="sd">            ValueError: If both ``joint_names`` and ``joint_ids`` are specified and are not consistent.</span>
 <span class="sd">            ValueError: If both ``fixed_tendon_names`` and ``fixed_tendon_ids`` are specified and are not consistent.</span>
 <span class="sd">            ValueError: If both ``body_names`` and ``body_ids`` are specified and are not consistent.</span>
+<span class="sd">            ValueError: If both ``object_collection_names`` and ``object_collection_ids`` are specified and are not consistent.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># check if the entity is valid</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">scene</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
@@ -618,7 +637,10 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_fixed_tendon_names</span><span class="p">(</span><span class="n">scene</span><span class="p">)</span>
 
         <span class="c1"># convert body names to indices based on regex</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_body_names</span><span class="p">(</span><span class="n">scene</span><span class="p">)</span></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_body_names</span><span class="p">(</span><span class="n">scene</span><span class="p">)</span>
+
+        <span class="c1"># convert object collection names to indices based on regex</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_object_collection_names</span><span class="p">(</span><span class="n">scene</span><span class="p">)</span></div>
 
     <span class="k">def</span> <span class="nf">_resolve_joint_names</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">scene</span><span class="p">:</span> <span class="n">InteractiveScene</span><span class="p">):</span>
         <span class="c1"># convert joint names to indices based on regex</span>
@@ -727,7 +749,40 @@
             <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">body_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
                 <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">body_ids</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">body_ids</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">body_ids</span><span class="p">]</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">body_names</span> <span class="o">=</span> <span class="p">[</span><span class="n">entity</span><span class="o">.</span><span class="n">body_names</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">body_ids</span><span class="p">]</span></div>
+                <span class="bp">self</span><span class="o">.</span><span class="n">body_names</span> <span class="o">=</span> <span class="p">[</span><span class="n">entity</span><span class="o">.</span><span class="n">body_names</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">body_ids</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">_resolve_object_collection_names</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">scene</span><span class="p">:</span> <span class="n">InteractiveScene</span><span class="p">):</span>
+        <span class="c1"># convert object names to indices based on regex</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_collection_names</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_collection_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
+            <span class="n">entity</span><span class="p">:</span> <span class="n">RigidObjectCollection</span> <span class="o">=</span> <span class="n">scene</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
+            <span class="c1"># -- if both are not their default values, check if they are valid</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_collection_names</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_collection_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">object_collection_names</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">object_collection_names</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">object_collection_names</span><span class="p">]</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">object_collection_ids</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">object_collection_ids</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">object_collection_ids</span><span class="p">]</span>
+                <span class="n">object_ids</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">entity</span><span class="o">.</span><span class="n">find_objects</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">object_collection_names</span><span class="p">,</span> <span class="n">preserve_order</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">preserve_order</span><span class="p">)</span>
+                <span class="n">object_names</span> <span class="o">=</span> <span class="p">[</span><span class="n">entity</span><span class="o">.</span><span class="n">object_names</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_collection_ids</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">object_ids</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_collection_ids</span> <span class="ow">or</span> <span class="n">object_names</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_collection_names</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="s2">&quot;Both &#39;object_collection_names&#39; and &#39;object_collection_ids&#39; are specified, and are not&quot;</span>
+                        <span class="s2">&quot; consistent.</span><span class="se">\n\t</span><span class="s2">from object collection names:&quot;</span>
+                        <span class="sa">f</span><span class="s2">&quot; </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">object_collection_names</span><span class="si">}</span><span class="s2"> [</span><span class="si">{</span><span class="n">object_ids</span><span class="si">}</span><span class="s2">]</span><span class="se">\n\t</span><span class="s2">from object collection ids:&quot;</span>
+                        <span class="sa">f</span><span class="s2">&quot; </span><span class="si">{</span><span class="n">object_names</span><span class="si">}</span><span class="s2"> [</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">object_collection_ids</span><span class="si">}</span><span class="s2">]</span><span class="se">\n</span><span class="s2">Hint: Use either &#39;object_collection_names&#39; or&quot;</span>
+                        <span class="s2">&quot; &#39;object_collection_ids&#39; to avoid confusion.&quot;</span>
+                    <span class="p">)</span>
+            <span class="c1"># -- from object names to object indices</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_collection_names</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">object_collection_names</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">object_collection_names</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">object_collection_names</span><span class="p">]</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">object_collection_ids</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">entity</span><span class="o">.</span><span class="n">find_objects</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">object_collection_names</span><span class="p">,</span> <span class="n">preserve_order</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">preserve_order</span>
+                <span class="p">)</span>
+            <span class="c1"># -- from object indices to object names</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_collection_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">object_collection_ids</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">object_collection_ids</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">object_collection_ids</span><span class="p">]</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">object_collection_names</span> <span class="o">=</span> <span class="p">[</span><span class="n">entity</span><span class="o">.</span><span class="n">object_names</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">object_collection_ids</span><span class="p">]</span></div>
 </pre></div>
 
                 </article>
@@ -775,7 +830,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Nov 06, 2024.
+  Last updated on Nov 08, 2024.
   <br/>
 </p>
   </div>
