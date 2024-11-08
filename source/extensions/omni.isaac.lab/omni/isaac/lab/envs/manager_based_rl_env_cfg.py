@@ -5,12 +5,13 @@
 
 from dataclasses import MISSING
 
+from omegaconf import DictConfig, OmegaConf
+
 from omni.isaac.lab.utils import configclass
 
 from .manager_based_env_cfg import ManagerBasedEnvCfg
 from .ui import ManagerBasedRLEnvWindow
 
-from omegaconf import OmegaConf, DictConfig
 
 @configclass
 class ManagerBasedRLEnvCfg(ManagerBasedEnvCfg):

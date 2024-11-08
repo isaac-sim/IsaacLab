@@ -13,8 +13,10 @@ from collections.abc import Sequence
 from prettytable import PrettyTable
 from typing import TYPE_CHECKING
 
-from omni.isaac.lab.utils import modifiers
 from einops import repeat
+
+from omni.isaac.lab.utils import modifiers
+
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
 
@@ -181,12 +183,11 @@ class ObservationManager(ManagerBase):
             for name, term_cfg in obs_terms:
                 term_hist = group_term_hist[name]
                 obs: torch.Tensor = term_cfg.func(self._env, **term_cfg.params)[env_ids]
-                repeat_obs = repeat(obs, 'b ... -> b t ...', t=term_cfg.hist_len).clone()
+                repeat_obs = repeat(obs, "b ... -> b t ...", t=term_cfg.hist_len).clone()
                 term_hist[env_ids] = repeat_obs
-            
-        
+
         # nothing to log here
-        
+
         return {}
 
     def compute(self) -> dict[str, torch.Tensor | dict[str, torch.Tensor]]:
@@ -272,7 +273,7 @@ class ObservationManager(ManagerBase):
             cur_hist[:, :-1] = cur_hist[:, 1:]
             # cur_hist = torch.roll(cur_hist, shifts=-1, dims=1)
             cur_hist[:, -1] = obs[:]
-            
+
             flat_obs_hist = cur_hist.flatten(start_dim=1)
             # add value to list
             group_obs[name] = flat_obs_hist
@@ -297,7 +298,7 @@ class ObservationManager(ManagerBase):
         self._group_obs_term_cfgs: dict[str, list[ObservationTermCfg]] = dict()
         self._group_obs_class_term_cfgs: dict[str, list[ObservationTermCfg]] = dict()
         self._group_obs_concatenate: dict[str, bool] = dict()
-        
+
         self._group_obs_term_hist = dict()
 
         # create a list to store modifiers that are classes
@@ -328,7 +329,7 @@ class ObservationManager(ManagerBase):
             # read common config for the group
             self._group_obs_concatenate[group_name] = group_cfg.concatenate_terms
             self._group_obs_term_hist[group_name] = dict()
-            
+
             # check if config is dict already
             if isinstance(group_cfg, dict):
                 group_cfg_items = group_cfg.items()
@@ -362,8 +363,9 @@ class ObservationManager(ManagerBase):
                 single_obs_dims = list(obs_dims[1:])
                 single_obs_dims[0] *= term_cfg.hist_len
                 self._group_obs_term_dim[group_name].append(tuple(single_obs_dims))
-                self._group_obs_term_hist[group_name][term_name] = torch.zeros((obs_dims[0], term_cfg.hist_len, *obs_dims[1:]),
-                                                                   device=self._env.device)
+                self._group_obs_term_hist[group_name][term_name] = torch.zeros(
+                    (obs_dims[0], term_cfg.hist_len, *obs_dims[1:]), device=self._env.device
+                )
 
                 # prepare modifiers for each observation
                 if term_cfg.modifiers is not None:

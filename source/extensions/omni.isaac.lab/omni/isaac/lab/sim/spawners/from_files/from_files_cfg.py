@@ -58,8 +58,6 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     Note:
         If None, then no visual material will be added.
     """
-    
-    
 
 
 @configclass

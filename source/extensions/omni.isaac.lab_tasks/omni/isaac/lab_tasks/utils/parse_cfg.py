@@ -13,8 +13,10 @@ import os
 import re
 import yaml
 
+from omegaconf import DictConfig, OmegaConf
+
 from omni.isaac.lab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
-from omegaconf import OmegaConf, DictConfig
+
 
 def load_cfg_from_registry(task_name: str, entry_point_key: str, params: dict = None) -> dict | object:
     """Load default configuration given its entry point from the gym registry.
@@ -101,8 +103,11 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str, params: dict = 
 
 
 def parse_env_cfg(
-    task_name: str, device: str = "cuda:0", num_envs: int | None = None, use_fabric: bool | None = None,
-    params: DictConfig = None
+    task_name: str,
+    device: str = "cuda:0",
+    num_envs: int | None = None,
+    use_fabric: bool | None = None,
+    params: DictConfig = None,
 ) -> ManagerBasedRLEnvCfg | DirectRLEnvCfg:
     """Parse configuration for an environment and override based on inputs.
 

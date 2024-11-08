@@ -148,12 +148,14 @@ class NoiseModelWithAdditiveBias(NoiseModel):
     The bias term is sampled from a the specified distribution on reset.
     """
 
-    def __init__(self, noise_model_cfg: noise_cfg.NoiseModelWithAdditiveBiasCfg, num_envs: int, device: str):
+    def __init__(self, noise_model_cfg: noise_cfg.NoiseModelWithAdditiveBiasCfg, 
+                 data_dim: torch.shape, device: str,
+                 ):
         # initialize parent class
-        super().__init__(noise_model_cfg, num_envs, device)
+        super().__init__(noise_model_cfg, data_dim.shape[0], device)
         # store the bias noise configuration
         self._bias_noise_cfg = noise_model_cfg.bias_noise_cfg
-        self._bias = torch.zeros((num_envs, 1), device=self._device)
+        self._bias = torch.zeros(data_dim, device=self._device)
 
     def reset(self, env_ids: Sequence[int] | None = None):
         """Reset the noise model.
@@ -180,3 +182,6 @@ class NoiseModelWithAdditiveBias(NoiseModel):
             The data with the noise applied. Shape is the same as the input data.
         """
         return super().apply(data) + self._bias
+    
+    def __call__(self, data: torch.Tensor) -> torch.Tensor:
+        return self.apply(data)

@@ -300,7 +300,7 @@ class RigidObjectActionTerm(ActionTerm):
         return obj_pose_w, obj_quat_w
 
     def set_command(
-            self, command: torch.Tensor, obj_pos: torch.Tensor | None = None, obj_quat: torch.Tensor | None = None
+        self, command: torch.Tensor, obj_pos: torch.Tensor | None = None, obj_quat: torch.Tensor | None = None
     ):
         """Set target object pose command.
 

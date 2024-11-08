@@ -34,7 +34,7 @@ check_docker_version() {
     #     echo "[ERROR]: Docker version ${docker_version} is not compatible with Apptainer version ${apptainer_version}. Exiting."
     #     exit 1
     # else
-        
+
     # fi
 }
 

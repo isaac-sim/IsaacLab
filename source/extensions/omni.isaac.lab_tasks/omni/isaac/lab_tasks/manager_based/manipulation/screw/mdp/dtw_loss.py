@@ -1,9 +1,15 @@
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+import math
 import torch
 import torch.cuda
-from numba import jit, prange
 from torch.autograd import Function
-from numba import cuda
-import math
+
+from numba import cuda, jit, prange
+
 
 def get_closest_state_idx(ref_traj, curr_ee_pos):
     """Find the index of the closest state in reference trajectory."""
@@ -14,7 +20,7 @@ def get_closest_state_idx(ref_traj, curr_ee_pos):
 
     # dist_from_all_state.shape = (num_envs, num_trajs, traj_len, 1)
     dist_from_all_state = torch.cdist(ref_traj.unsqueeze(0), curr_ee_pos.reshape(-1, 1, 1, 3), p=2)
-    
+
     # dist_from_all_state_flatten.shape = (num_envs, num_trajs * traj_len)
     dist_from_all_state_flatten = dist_from_all_state.reshape(num_envs, -1)
 
@@ -31,15 +37,18 @@ def get_closest_state_idx(ref_traj, curr_ee_pos):
 
     return min_dist_traj_idx, min_dist_step_idx, min_dist_per_env
 
+
 def get_reward_mask(ref_traj, curr_ee_pos, tolerance):
-    
+
     _, min_dist_step_idx, _ = get_closest_state_idx(ref_traj, curr_ee_pos)
-    selected_steps = torch.index_select(ref_traj, dim=1, index=min_dist_step_idx) # selected_steps.shape = (num_trajs, num_envs, 3)
-    
-    x_min = torch.amin(selected_steps[:,:,0], dim=0)-tolerance
-    x_max = torch.amax(selected_steps[:,:,0], dim=0)+tolerance
-    y_min = torch.amin(selected_steps[:,:,1], dim=0)-tolerance
-    y_max = torch.amax(selected_steps[:,:,1], dim=0)+tolerance
+    selected_steps = torch.index_select(
+        ref_traj, dim=1, index=min_dist_step_idx
+    )  # selected_steps.shape = (num_trajs, num_envs, 3)
+
+    x_min = torch.amin(selected_steps[:, :, 0], dim=0) - tolerance
+    x_max = torch.amax(selected_steps[:, :, 0], dim=0) + tolerance
+    y_min = torch.amin(selected_steps[:, :, 1], dim=0) - tolerance
+    y_max = torch.amax(selected_steps[:, :, 1], dim=0) + tolerance
 
     x_in_range = torch.logical_and(torch.lt(curr_ee_pos[:, 0], x_max), torch.gt(curr_ee_pos[:, 0], x_min))
     y_in_range = torch.logical_and(torch.lt(curr_ee_pos[:, 1], y_max), torch.gt(curr_ee_pos[:, 1], y_min))
@@ -48,11 +57,9 @@ def get_reward_mask(ref_traj, curr_ee_pos, tolerance):
     return pos_in_range
 
 
-
-
 def get_imitation_reward_from_dtw_v2(ref_traj, curr_ee_pos, prev_ee_traj, criterion, device):
     """Get imitation reward based on dynamic time warping (vectorized version using vmap)."""
-    
+
     # ... existing code ...
     prev_ee_pos = prev_ee_traj[:, 0, :].squeeze()
     min_dist_traj_idx, min_dist_step_idx, min_dist_per_env = get_closest_state_idx(ref_traj, prev_ee_pos)
@@ -64,35 +71,30 @@ def get_imitation_reward_from_dtw_v2(ref_traj, curr_ee_pos, prev_ee_traj, criter
     def process_single_env(inputs):
         traj_idx, step_idx, curr_pos, prev_pos, ee_traj = inputs
         curr_pos = curr_pos.reshape(1, 3)
-        
+
         traj = ref_traj[traj_idx, step_idx:, :].reshape((1, -1, 3))
         _, curr_step_idx, _ = get_closest_state_idx(traj, curr_pos)
-        
+
         if curr_step_idx == 0:
             selected_pos = ref_traj[traj_idx, step_idx, :].reshape((1, 1, 3))
             selected_traj = torch.cat([selected_pos, selected_pos], dim=1)
         else:
-            selected_traj = ref_traj[traj_idx, step_idx:(curr_step_idx+step_idx), :].reshape((1, -1, 3))
-            
+            selected_traj = ref_traj[traj_idx, step_idx : (curr_step_idx + step_idx), :].reshape((1, -1, 3))
+
         return criterion(ee_traj.unsqueeze(0), selected_traj)
 
     # Prepare inputs for vmap
-    batch_inputs = (
-        min_dist_traj_idx,
-        min_dist_step_idx,
-        curr_ee_pos,
-        prev_ee_pos,
-        cur_ee_traj
-    )
-    
+    batch_inputs = (min_dist_traj_idx, min_dist_step_idx, curr_ee_pos, prev_ee_pos, cur_ee_traj)
+
     # Apply vmap
     soft_dtw = torch.vmap(process_single_env)(batch_inputs)
-    
+
     # Calculate rewards
-    w_task_progress = (min_dist_step_idx / ref_traj.shape[1])
-    imitation_rwd = 1-torch.tanh(soft_dtw)
-    
+    w_task_progress = min_dist_step_idx / ref_traj.shape[1]
+    imitation_rwd = 1 - torch.tanh(soft_dtw)
+
     return imitation_rwd * w_task_progress, cur_ee_traj
+
 
 @cuda.jit
 def compute_softdtw_cuda(D, gamma, bandwidth, max_i, max_j, n_passes, R):
@@ -138,6 +140,7 @@ def compute_softdtw_cuda(D, gamma, bandwidth, max_i, max_j, n_passes, R):
         # Wait for other threads in this block
         cuda.syncthreads()
 
+
 # ----------------------------------------------------------------------------------------------------------------------
 @cuda.jit
 def compute_softdtw_backward_cuda(D, R, inv_gamma, bandwidth, max_i, max_j, n_passes, E):
@@ -174,6 +177,7 @@ def compute_softdtw_backward_cuda(D, R, inv_gamma, bandwidth, max_i, max_j, n_pa
         # Wait for other threads in this block
         cuda.syncthreads()
 
+
 # ----------------------------------------------------------------------------------------------------------------------
 class _SoftDTWCUDA(Function):
     """
@@ -201,9 +205,9 @@ class _SoftDTWCUDA(Function):
         # Run the CUDA kernel.
         # Set CUDA's grid size to be equal to the batch size (every CUDA block processes one sample pair)
         # Set the CUDA block size to be equal to the length of the longer sequence (equal to the size of the largest diagonal)
-        compute_softdtw_cuda[B, threads_per_block](cuda.as_cuda_array(D.detach()),
-                                                   gamma.item(), bandwidth.item(), N, M, n_passes,
-                                                   cuda.as_cuda_array(R))
+        compute_softdtw_cuda[B, threads_per_block](
+            cuda.as_cuda_array(D.detach()), gamma.item(), bandwidth.item(), N, M, n_passes, cuda.as_cuda_array(R)
+        )
         ctx.save_for_backward(D, R.clone(), gamma, bandwidth)
         return R[:, -2, -2]
 
@@ -220,7 +224,7 @@ class _SoftDTWCUDA(Function):
         n_passes = 2 * threads_per_block - 1
 
         D_ = torch.zeros((B, N + 2, M + 2), dtype=dtype, device=dev)
-        D_[:, 1:N + 1, 1:M + 1] = D
+        D_[:, 1 : N + 1, 1 : M + 1] = D
 
         R[:, :, -1] = -math.inf
         R[:, -1, :] = -math.inf
@@ -230,11 +234,17 @@ class _SoftDTWCUDA(Function):
         E[:, -1, -1] = 1
 
         # Grid and block sizes are set same as done above for the forward() call
-        compute_softdtw_backward_cuda[B, threads_per_block](cuda.as_cuda_array(D_),
-                                                            cuda.as_cuda_array(R),
-                                                            1.0 / gamma.item(), bandwidth.item(), N, M, n_passes,
-                                                            cuda.as_cuda_array(E))
-        E = E[:, 1:N + 1, 1:M + 1]
+        compute_softdtw_backward_cuda[B, threads_per_block](
+            cuda.as_cuda_array(D_),
+            cuda.as_cuda_array(R),
+            1.0 / gamma.item(),
+            bandwidth.item(),
+            N,
+            M,
+            n_passes,
+            cuda.as_cuda_array(E),
+        )
+        E = E[:, 1 : N + 1, 1 : M + 1]
         return grad_output.view(-1, 1, 1).expand_as(E) * E, None, None
 
 
@@ -265,9 +275,10 @@ def compute_softdtw(D, gamma, bandwidth):
                 r2 = -R[b, i, j - 1] / gamma
                 rmax = max(max(r0, r1), r2)
                 rsum = np.exp(r0 - rmax) + np.exp(r1 - rmax) + np.exp(r2 - rmax)
-                softmin = - gamma * (np.log(rsum) + rmax)
+                softmin = -gamma * (np.log(rsum) + rmax)
                 R[b, i, j] = D[b, i - 1, j - 1] + softmin
     return R
+
 
 # ----------------------------------------------------------------------------------------------------------------------
 @jit(nopython=True, parallel=True)
@@ -277,7 +288,7 @@ def compute_softdtw_backward(D_, R, gamma, bandwidth):
     M = D_.shape[2]
     D = np.zeros((B, N + 2, M + 2))
     E = np.zeros((B, N + 2, M + 2))
-    D[:, 1:N + 1, 1:M + 1] = D_
+    D[:, 1 : N + 1, 1 : M + 1] = D_
     E[:, -1, -1] = 1
     R[:, :, -1] = -np.inf
     R[:, -1, :] = -np.inf
@@ -300,7 +311,8 @@ def compute_softdtw_backward(D_, R, gamma, bandwidth):
                 b = np.exp(b0)
                 c = np.exp(c0)
                 E[k, i, j] = E[k, i + 1, j] * a + E[k, i, j + 1] * b + E[k, i + 1, j + 1] * c
-    return E[:, 1:N + 1, 1:M + 1]
+    return E[:, 1 : N + 1, 1 : M + 1]
+
 
 # ----------------------------------------------------------------------------------------------------------------------
 class _SoftDTW(Function):
@@ -333,6 +345,7 @@ class _SoftDTW(Function):
         E = torch.Tensor(compute_softdtw_backward(D_, R_, g_, b_)).to(dev).type(dtype)
         return grad_output.view(-1, 1, 1).expand_as(E) * E, None, None
 
+
 # ----------------------------------------------------------------------------------------------------------------------
 class SoftDTW(torch.nn.Module):
     """
@@ -349,7 +362,7 @@ class SoftDTW(torch.nn.Module):
         :param bandwidth: Sakoe-Chiba bandwidth for pruning. Passing 'None' will disable pruning.
         :param dist_func: Optional point-wise distance function to use. If 'None', then a default Euclidean distance function will be used.
         """
-        super(SoftDTW, self).__init__()
+        super().__init__()
         self.normalize = normalize
         self.gamma = gamma
         self.bandwidth = 0 if bandwidth is None else float(bandwidth)
@@ -374,8 +387,10 @@ class SoftDTW(torch.nn.Module):
         use_cuda = self.use_cuda
 
         if use_cuda and (lx > 1024 or ly > 1024):  # We should be able to spawn enough threads in CUDA
-                print("SoftDTW: Cannot use CUDA because the sequence length > 1024 (the maximum block size supported by CUDA)")
-                use_cuda = False
+            print(
+                "SoftDTW: Cannot use CUDA because the sequence length > 1024 (the maximum block size supported by CUDA)"
+            )
+            use_cuda = False
 
         # Finally, return the correct function
         return _SoftDTWCUDA.apply if use_cuda else _SoftDTW.apply

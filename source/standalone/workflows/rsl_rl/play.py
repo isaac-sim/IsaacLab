@@ -8,12 +8,13 @@
 """Launch Isaac Sim Simulator first."""
 
 import argparse
-
-from matplotlib import pyplot as plt
-from omegaconf import OmegaConf
-from tqdm import tqdm
-from force_tool.utils.data_utils import update_config
 import numpy as np
+from matplotlib import pyplot as plt
+from tqdm import tqdm
+
+from force_tool.utils.data_utils import update_config
+from omegaconf import OmegaConf
+
 from omni.isaac.lab.app import AppLauncher
 
 # local imports
@@ -47,6 +48,7 @@ import gymnasium as gym
 import os
 import torch
 
+from force_tool.visualization.plot_utils import get_img_from_fig, save_numpy_as_mp4
 from rsl_rl.runners import OnPolicyRunner
 
 from omni.isaac.lab.envs import DirectMARLEnv, multi_agent_to_single_agent
@@ -60,20 +62,20 @@ from omni.isaac.lab_tasks.utils.wrappers.rsl_rl import (
     export_policy_as_jit,
     export_policy_as_onnx,
 )
-from force_tool.visualization.plot_utils import get_img_from_fig, save_numpy_as_mp4
+
 
 def main():
     """Play with RSL-RL agent."""
     cfg = OmegaConf.create()
-    vv = {
-        "scene.screw_type":  "m8_loose", 
-        "scene.robot.collision_approximation": "convexHull"
-          }
+    vv = {"scene.screw_type": "m8_loose", "scene.robot.collision_approximation": "convexHull"}
     cfg = update_config(cfg, vv)
     # parse configuration
     env_cfg = parse_env_cfg(
-        args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs,
-        use_fabric=not args_cli.disable_fabric, params=cfg
+        args_cli.task,
+        device=args_cli.device,
+        num_envs=args_cli.num_envs,
+        use_fabric=not args_cli.disable_fabric,
+        params=cfg,
     )
     agent_cfg: RslRlOnPolicyRunnerCfg = cli_args.parse_rsl_rl_cfg(args_cli.task, args_cli)
 

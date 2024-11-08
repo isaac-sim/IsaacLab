@@ -152,7 +152,7 @@ class RslRlOnPolicyRunnerCfg:
 
     params: DictConfig = OmegaConf.create()
     """Additional agent parameters."""
-    
+
     def __post_init__(self):
         # update the configuration with the additional parameters
         # if self.params is None:
@@ -168,12 +168,14 @@ class RslRlOnPolicyRunnerCfg:
         self.resume = agent_params.get("resume", self.resume)
         self.load_run = agent_params.get("load_run", self.load_run)
         self.load_checkpoint = agent_params.get("load_checkpoint", self.load_checkpoint)
-        
+
         self.empirical_normalization = agent_params.get("empirical_normalization", self.empirical_normalization)
-        
+
         algorithm_params = agent_params.get("algorithm", OmegaConf.create())
         self.algorithm.value_loss_coef = algorithm_params.get("value_loss_coef", self.algorithm.value_loss_coef)
-        self.algorithm.use_clipped_value_loss = algorithm_params.get("use_clipped_value_loss", self.algorithm.use_clipped_value_loss)
+        self.algorithm.use_clipped_value_loss = algorithm_params.get(
+            "use_clipped_value_loss", self.algorithm.use_clipped_value_loss
+        )
         self.algorithm.clip_param = algorithm_params.get("clip_param", self.algorithm.clip_param)
         self.algorithm.entropy_coef = algorithm_params.get("entropy_coef", self.algorithm.entropy_coef)
         self.algorithm.learning_rate = algorithm_params.get("learning_rate", self.algorithm.learning_rate)
@@ -181,8 +183,10 @@ class RslRlOnPolicyRunnerCfg:
         self.algorithm.lam = algorithm_params.get("lam", self.algorithm.lam)
         self.algorithm.desired_kl = algorithm_params.get("desired_kl", self.algorithm.desired_kl)
         self.algorithm.num_mini_batches = algorithm_params.get("num_mini_batches", self.algorithm.num_mini_batches)
-        self.algorithm.num_learning_epochs = algorithm_params.get("num_learning_epochs", self.algorithm.num_learning_epochs)
-        
+        self.algorithm.num_learning_epochs = algorithm_params.get(
+            "num_learning_epochs", self.algorithm.num_learning_epochs
+        )
+
         policy_params = agent_params.get("policy", OmegaConf.create())
         self.policy.init_noise_std = policy_params.get("init_noise_std", self.policy.init_noise_std)
         self.policy.actor_hidden_dims = policy_params.get("actor_hidden_dims", self.policy.actor_hidden_dims)

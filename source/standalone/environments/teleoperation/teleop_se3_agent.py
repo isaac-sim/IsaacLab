@@ -37,24 +37,27 @@ simulation_app = app_launcher.app
 import gymnasium as gym
 import matplotlib.pyplot as plt
 import numpy as np
+import pickle
 import torch
 import tqdm
-import pickle
 
+import omni.isaac.core.utils.prims as prim_utils
 from force_tool.utils.data_utils import SmartDict, update_config
 from force_tool.visualization.plot_utils import get_img_from_fig, save_numpy_as_mp4
+from pxr import UsdPhysics
 
+import omni.isaac.lab.utils.math as math_utils
 from omni.isaac.lab.devices import Se3Gamepad, Se3Keyboard, Se3RobotiqKeyboard, Se3SpaceMouse
 from omni.isaac.lab.managers import TerminationTermCfg as DoneTerm
-import omni.isaac.core.utils.prims as prim_utils
-from pxr import  UsdPhysics
+
 import omni.isaac.lab_tasks  # noqa: F401
 from omni.isaac.lab_tasks.manager_based.manipulation.lift import mdp
 from omni.isaac.lab_tasks.utils import parse_env_cfg
-import omni.isaac.lab.utils.math as math_utils
+
 
 def pre_process_actions(delta_pose: torch.Tensor, gripper_command: bool) -> torch.Tensor:
     """Pre-process actions for the environment."""
+    return delta_pose
     # compute actions based on environment
     if "Reach" in args_cli.task or "Float" in args_cli.task:
         # note: reach is the only one that uses a different action space
@@ -75,7 +78,7 @@ def main():
     # parse configuration
     cfg = OmegaConf.create()
     vv = {
-        "scene.screw_type":  "m16_loose", 
+        "scene.screw_type": "m16_loose",
         "scene.robot.collision_approximation": "convexHull2",
         "scene.nut.rigid_grasp": True,
         "events.reset_target": "rigid_grasp_open_align",
@@ -84,12 +87,15 @@ def main():
         "scene.robot.arm_stiffness": 300.0,
         "scene.robot.arm_damping": 20.0,
         "decimation": 2,
-        "sim.dt": 1/60,
+        "sim.dt": 1 / 60,
     }
     cfg = update_config(cfg, vv)
     env_cfg = parse_env_cfg(
-        args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs, 
-        use_fabric=not args_cli.disable_fabric, params=cfg
+        args_cli.task,
+        device=args_cli.device,
+        num_envs=args_cli.num_envs,
+        use_fabric=not args_cli.disable_fabric,
+        params=cfg,
     )
     # modify configuration
     env_cfg.terminations = {}
@@ -156,8 +162,7 @@ def main():
             nut_root_pose = env.unwrapped.scene["nut"].read_root_state_from_sim()
             gripper_state_w = env.unwrapped.scene["robot"].read_body_state_w("victor_left_tool0")[:, 0]
             relative_pos, relative_quat = math_utils.subtract_frame_transforms(
-                nut_root_pose[:, :3], nut_root_pose[:, 3:7],
-                gripper_state_w[:, :3], gripper_state_w[:, 3:7]
+                nut_root_pose[:, :3], nut_root_pose[:, 3:7], gripper_state_w[:, :3], gripper_state_w[:, 3:7]
             )
             # pre-process actions
             actions = pre_process_actions(delta_pose, gripper_command)
@@ -167,7 +172,7 @@ def main():
             counter += 1
             obs, reward, termin, timeout, _ = env.step(actions)
             # print(env.unwrapped.scene["robot"].read_body_pos_w("victor_left_tool0"))
-       
+
             if record_forces:
                 frame = env.unwrapped.render()
                 frames.append(frame)

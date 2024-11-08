@@ -257,3 +257,39 @@ class Integrator(ModifierBase):
         self.y_prev[:] = data
 
         return self.integral
+
+
+    
+class NoiseModifier(ModifierBase):
+    """Noise model with an additive bias.
+
+    The bias term is sampled from a the specified distribution on reset.
+    """
+
+    def __init__(self, cfg: modifier_cfg.NoiseModifierCfg, 
+                 data_dim: torch.shape, device: str,
+                 ):
+        # initialize parent class
+        super().__init__(cfg, data_dim, device)
+        # store the bias noise configuration
+        self._noise_cfg = cfg.noise_cfg
+        self._bias_noise_cfg = cfg.bias_noise_cfg
+        self._bias = torch.zeros(data_dim, device=self._device)
+
+    def reset(self, env_ids: Sequence[int] | None = None):
+        """Reset the noise model.
+
+        This method resets the bias term for the specified environments.
+
+        Args:
+            env_ids: The environment ids to reset the noise model for. Defaults to None,
+                in which case all environments are considered.
+        """
+        # resolve the environment ids
+        if env_ids is None:
+            env_ids = slice(None)
+        # reset the bias term
+        self._bias[env_ids] = self._bias_noise_cfg.func(self._bias[env_ids], self._bias_noise_cfg)
+    
+    def __call__(self, data: torch.Tensor) -> torch.Tensor:
+        return self._noise_cfg.func(data, self._noise_cfg) + self._bias

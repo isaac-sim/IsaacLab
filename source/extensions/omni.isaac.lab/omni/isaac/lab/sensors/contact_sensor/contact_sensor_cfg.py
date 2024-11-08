@@ -57,7 +57,6 @@ class ContactSensorCfg(SensorBaseCfg):
     .. note::
         This attribute is only used when debug visualization is enabled.
     """
-    
+
     max_contact_data_count: int = 0
     """maximum number of contact data to report when detailed contact information is needed"""
-    

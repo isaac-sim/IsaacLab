@@ -3,8 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from re import T
 import torch
+from re import T
 
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
@@ -94,14 +94,15 @@ class RelFloatNutThreadEnv(BaseNutThreadEnvCfg):
         self.scene.nut.spawn.activate_contact_sensors = True
         self.scene.contact_sensor = ContactSensorCfg(
             prim_path="{ENV_REGEX_NS}/Nut/factory_nut",
-            filter_prim_paths_expr= ["{ENV_REGEX_NS}/Bolt/factory_bolt"],
+            filter_prim_paths_expr=["{ENV_REGEX_NS}/Bolt/factory_bolt"],
             update_period=0.0,
             max_contact_data_count=1000,
         )
         self.rewards.contact_force_penalty = RewTerm(
             func=mdp.contact_forces,
-            params={"threshold":0.0004, "sensor_cfg": SceneEntityCfg(name="contact_sensor")},
-            weight=0.00001)
+            params={"threshold": 0.0004, "sensor_cfg": SceneEntityCfg(name="contact_sensor")},
+            weight=0.00001,
+        )
 
 
 @configclass

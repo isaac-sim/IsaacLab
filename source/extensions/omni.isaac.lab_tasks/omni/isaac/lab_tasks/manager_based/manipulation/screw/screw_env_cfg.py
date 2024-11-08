@@ -3,9 +3,15 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import copy
+import torch
 from dataclasses import MISSING
+from typing import Literal
+
+from omegaconf import OmegaConf
 
 import omni.isaac.lab.sim as sim_utils
+import omni.isaac.lab.utils.math as math_utils
 from omni.isaac.lab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from omni.isaac.lab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg
 from omni.isaac.lab.managers import ActionTermCfg as ActionTerm
@@ -16,11 +22,6 @@ from omni.isaac.lab.managers import ObservationTermCfg as ObsTerm
 from omni.isaac.lab.managers import RewardTermCfg as RewTerm
 from omni.isaac.lab.managers import SceneEntityCfg
 from omni.isaac.lab.managers import TerminationTermCfg as DoneTerm
-from omni.isaac.lab.markers.config import (  # isort: skip
-    DEFORMABLE_TARGET_MARKER_CFG,
-    FRAME_MARKER_CFG,
-    RED_ARROW_X_MARKER_CFG,
-)
 from omni.isaac.lab.markers.visualization_markers import VisualizationMarkersCfg
 from omni.isaac.lab.scene import InteractiveSceneCfg
 from omni.isaac.lab.sensors import FrameTransformerCfg
@@ -32,11 +33,13 @@ from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
 from omni.isaac.lab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 
 import omni.isaac.lab_tasks.manager_based.manipulation.screw.mdp as mdp
-from omegaconf import OmegaConf
-import copy
-from typing import Literal
-import omni.isaac.lab.utils.math as math_utils
-import torch
+
+from omni.isaac.lab.markers.config import (  # isort: skip
+    DEFORMABLE_TARGET_MARKER_CFG,
+    FRAME_MARKER_CFG,
+    RED_ARROW_X_MARKER_CFG,
+)
+
 
 # Scene definition
 FRAME_MARKER_SMALL_CFG = copy.deepcopy(FRAME_MARKER_CFG)
@@ -64,60 +67,68 @@ PLATE_ARROW_CFG = VisualizationMarkersCfg(
 )
 
 asset_factory = {
-    "m8_loose" : {
-        "nut_path"          : f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_nut_m8_loose/factory_nut_m8_loose.usd",
-        "bolt_path"         : f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_bolt_m8_loose/factory_bolt_m8_loose.usd",
+    "m8_loose": {
+        "nut_path": f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_nut_m8_loose/factory_nut_m8_loose.usd",
+        "bolt_path": f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_bolt_m8_loose/factory_bolt_m8_loose.usd",
         "nut_init_state_tighten": RigidObjectCfg.InitialStateCfg(
-            pos=(6.3000e-01, 2.0661e-06, 3.0895e-03), rot=(-2.1609e-01, 6.6671e-05, -6.6467e-05, 9.7637e-01)),
+            pos=(6.3000e-01, 2.0661e-06, 3.0895e-03), rot=(-2.1609e-01, 6.6671e-05, -6.6467e-05, 9.7637e-01)
+        ),
         "nut_init_state_thread": RigidObjectCfg.InitialStateCfg(
-            pos=(6.3000e-01, 4.0586e-06, 0.02), rot=(9.9833e-01, 1.2417e-04, -1.2629e-05, 5.7803e-02)),
-        "bolt_init_state"   : RigidObjectCfg.InitialStateCfg(pos=(0.63, 0.0, 0.0)),
-        "nut_frame_offset"  : OffsetCfg(pos=(0.0, 0.0, 0.011)),
+            pos=(6.3000e-01, 4.0586e-06, 0.02), rot=(9.9833e-01, 1.2417e-04, -1.2629e-05, 5.7803e-02)
+        ),
+        "bolt_init_state": RigidObjectCfg.InitialStateCfg(pos=(0.63, 0.0, 0.0)),
+        "nut_frame_offset": OffsetCfg(pos=(0.0, 0.0, 0.011)),
         "bolt_bottom_offset": OffsetCfg(pos=(0.0, 0.0, 0.012)),
-        "bolt_tip_offset"   : OffsetCfg(pos=(0.0, 0.0, 0.0261)),
+        "bolt_tip_offset": OffsetCfg(pos=(0.0, 0.0, 0.0261)),
         "float_gain": 10.0,
         "float_damp": 0.01,
     },
-    "m8_tight" : {
-        "nut_path"          : f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_nut_m8_tight/factory_nut_m8_tight.usd",
-        "bolt_path"         : f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_bolt_m8_tight/factory_bolt_m8_tight.usd",
+    "m8_tight": {
+        "nut_path": f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_nut_m8_tight/factory_nut_m8_tight.usd",
+        "bolt_path": f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_bolt_m8_tight/factory_bolt_m8_tight.usd",
         "nut_init_state_tighten": RigidObjectCfg.InitialStateCfg(
-            pos=(6.3000e-01, 2.0661e-06, 3.0895e-03), rot=(-2.1609e-01, 6.6671e-05, -6.6467e-05, 9.7637e-01)),
+            pos=(6.3000e-01, 2.0661e-06, 3.0895e-03), rot=(-2.1609e-01, 6.6671e-05, -6.6467e-05, 9.7637e-01)
+        ),
         "nut_init_state_thread": RigidObjectCfg.InitialStateCfg(
-            pos=(6.3000e-01, 4.0586e-06, 0.02), rot=(9.9833e-01, 1.2417e-04, -1.2629e-05, 5.7803e-02)),
-        "bolt_init_state"   : RigidObjectCfg.InitialStateCfg(pos=(0.63, 0.0, 0.0)),
-        "nut_frame_offset"  : OffsetCfg(pos=(0.0, 0.0, 0.011)),
+            pos=(6.3000e-01, 4.0586e-06, 0.02), rot=(9.9833e-01, 1.2417e-04, -1.2629e-05, 5.7803e-02)
+        ),
+        "bolt_init_state": RigidObjectCfg.InitialStateCfg(pos=(0.63, 0.0, 0.0)),
+        "nut_frame_offset": OffsetCfg(pos=(0.0, 0.0, 0.011)),
         "bolt_bottom_offset": OffsetCfg(pos=(0.0, 0.0, 0.0)),
-        "bolt_tip_offset"   : OffsetCfg(pos=(0.0, 0.0, 0.0261)),
+        "bolt_tip_offset": OffsetCfg(pos=(0.0, 0.0, 0.0261)),
         "float_gain": 10.0,
         "float_damp": 0.01,
     },
     "m16_tight": {
-        "nut_path"          : f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_nut_m16_tight/factory_nut_m16_tight.usd",
-        "bolt_path"         : f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_bolt_m16_tight/factory_bolt_m16_tight.usd",
-            "nut_init_state_tighten": RigidObjectCfg.InitialStateCfg(
-            pos=(6.3000e-01, 2.0661e-06, 3.0895e-03), rot=(-2.1609e-01, 6.6671e-05, -6.6467e-05, 9.7637e-01)),
+        "nut_path": f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_nut_m16_tight/factory_nut_m16_tight.usd",
+        "bolt_path": f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_bolt_m16_tight/factory_bolt_m16_tight.usd",
+        "nut_init_state_tighten": RigidObjectCfg.InitialStateCfg(
+            pos=(6.3000e-01, 2.0661e-06, 3.0895e-03), rot=(-2.1609e-01, 6.6671e-05, -6.6467e-05, 9.7637e-01)
+        ),
         "nut_init_state_thread": RigidObjectCfg.InitialStateCfg(
-            pos=(6.3000e-01, 4.0586e-06, 0.03), rot=(9.9833e-01, 1.2417e-04, -1.2629e-05, 5.7803e-02)),
-        "bolt_init_state"   : RigidObjectCfg.InitialStateCfg(pos=(0.63, 0.0, 0.0)),
-        "bolt_init_state"   : RigidObjectCfg.InitialStateCfg(pos=(0.63, 0.0, 0.0)),
-        "nut_frame_offset"  : OffsetCfg(pos=(0.0, 0.0, 0.0225)),
+            pos=(6.3000e-01, 4.0586e-06, 0.03), rot=(9.9833e-01, 1.2417e-04, -1.2629e-05, 5.7803e-02)
+        ),
+        "bolt_init_state": RigidObjectCfg.InitialStateCfg(pos=(0.63, 0.0, 0.0)),
+        "bolt_init_state": RigidObjectCfg.InitialStateCfg(pos=(0.63, 0.0, 0.0)),
+        "nut_frame_offset": OffsetCfg(pos=(0.0, 0.0, 0.0225)),
         "bolt_bottom_offset": OffsetCfg(pos=(0.0, 0.0, 0.0)),
-        "bolt_tip_offset"   : OffsetCfg(pos=(0.0, 0.0, 0.041)),
+        "bolt_tip_offset": OffsetCfg(pos=(0.0, 0.0, 0.041)),
         "float_gain": 10.0,
         "float_damp": 0.01,
     },
     "m16_loose": {
-        "nut_path"          : f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_nut_m16_loose/factory_nut_m16_loose.usd",
-        "bolt_path"         : f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_bolt_m16_loose/factory_bolt_m16_loose.usd",
+        "nut_path": f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_nut_m16_loose/factory_nut_m16_loose.usd",
+        "bolt_path": f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_bolt_m16_loose/factory_bolt_m16_loose.usd",
         "nut_init_state_tighten": RigidObjectCfg.InitialStateCfg(
-            pos=(6.3000e-01, 2.0661e-06, 3.0895e-03), rot=(-2.1609e-01, 6.6671e-05, -6.6467e-05, 9.7637e-01)),
+            pos=(6.3000e-01, 2.0661e-06, 3.0895e-03), rot=(-2.1609e-01, 6.6671e-05, -6.6467e-05, 9.7637e-01)
+        ),
         "nut_init_state_thread": RigidObjectCfg.InitialStateCfg(
-            pos=(6.3000e-01, 4.0586e-06, 0.03), rot=(9.9833e-01, 1.2417e-04, -1.2629e-05, 5.7803e-02)),
-        "bolt_init_state"   : RigidObjectCfg.InitialStateCfg(pos=(0.63, 0.0, 0.0)),
-        "nut_frame_offset"  : OffsetCfg(pos=(0.0, 0.0, 0.0225)),
+            pos=(6.3000e-01, 4.0586e-06, 0.03), rot=(9.9833e-01, 1.2417e-04, -1.2629e-05, 5.7803e-02)
+        ),
+        "bolt_init_state": RigidObjectCfg.InitialStateCfg(pos=(0.63, 0.0, 0.0)),
+        "nut_frame_offset": OffsetCfg(pos=(0.0, 0.0, 0.0225)),
         "bolt_bottom_offset": OffsetCfg(pos=(0.0, 0.0, 0.0)),
-        "bolt_tip_offset"   : OffsetCfg(pos=(0.0, 0.0, 0.041)),
+        "bolt_tip_offset": OffsetCfg(pos=(0.0, 0.0, 0.041)),
         "float_gain": 10.0,
         "float_damp": 0.01,
     },
@@ -127,6 +138,7 @@ asset_factory = {
 @configclass
 class ScrewSceneCfg(InteractiveSceneCfg):
     """Configuration for the scene with a robotic arm."""
+
     screw_type: Literal["m8_loose", "m8_tight", "m16_loose", "m16_tight"] = "m8_tight"
 
     def __post_init__(self):
@@ -217,6 +229,7 @@ class BaseObservationsCfg:
     @configclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
+
         # bolt_pose = ObsTerm(func=mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("bolt")})
         nut_pos = ObsTerm(func=mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("nut")})
         nut_quat = ObsTerm(func=mdp.root_quat_w, params={"asset_cfg": SceneEntityCfg("nut")})
@@ -235,6 +248,7 @@ class BaseObservationsCfg:
 @configclass
 class EventCfg:
     """Configuration for events."""
+
     reset_default = EventTerm(
         func=mdp.reset_scene_to_default,
         mode="reset",
@@ -269,10 +283,10 @@ class BaseScrewEnvCfg(ManagerBasedRLEnvCfg):
         dt=1.0 / 60.0,
         physx=PhysxCfg(
             bounce_threshold_velocity=0.2,
-            gpu_collision_stack_size=2 ** 31,
-            gpu_heap_capacity=2 ** 31,
-            gpu_temp_buffer_capacity=2 ** 30,
-            gpu_max_rigid_patch_count=2 ** 24,
+            gpu_collision_stack_size=2**31,
+            gpu_heap_capacity=2**31,
+            gpu_temp_buffer_capacity=2**30,
+            gpu_max_rigid_patch_count=2**24,
             enable_enhanced_determinism=False,
         ),
     )
@@ -290,13 +304,13 @@ class BaseScrewEnvCfg(ManagerBasedRLEnvCfg):
         params.events = params.get("events", OmegaConf.create())
         params.sim.physx = params.sim.get("physx", OmegaConf.create())
         params.scene.nut = params.scene.get("nut", OmegaConf.create())
-        
-        params.scene.screw_type = params.scene.get("screw_type", "m16_loose") # m8_tight m16_tight
+
+        params.scene.screw_type = params.scene.get("screw_type", "m16_loose")  # m8_tight m16_tight
         params.sim.dt = params.sim.get("dt", 1.0 / 120.0)
         params.sim.physx.friction_offset_threshold = params.sim.physx.get("friction_offset_threshold", 0.04)
         params.sim.physx.enable_ccd = params.sim.physx.get("enable_ccd", False)
         params.decimation = params.get("decimation", 1)
-        
+
         # By default use the default params in USD
         nut_params = params.scene.nut
         nut_params.max_depenetration_velocity = nut_params.get("max_depenetration_velocity", None)
@@ -316,7 +330,7 @@ class BaseScrewEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.dt = self.params.sim.dt
         self.sim.physx.friction_offset_threshold = self.params.sim.physx.friction_offset_threshold
         self.sim.physx.enable_ccd = self.params.sim.physx.enable_ccd
-        
+
         nut = self.scene.nut
         nut_params = self.params.scene.nut
         nut.spawn.rigid_props.max_depenetration_velocity = nut_params.max_depenetration_velocity
@@ -324,7 +338,7 @@ class BaseScrewEnvCfg(ManagerBasedRLEnvCfg):
         nut.spawn.rigid_props.stabilization_threshold = nut_params.stabilization_threshold
         nut.spawn.rigid_props.linear_damping = nut_params.linear_damping
         nut.spawn.rigid_props.angular_damping = nut_params.angular_damping
-        
+
         self.episode_length_s = 24
         self.viewer.origin_type = "asset_root"
         self.viewer.asset_name = "bolt"
@@ -387,6 +401,7 @@ class BaseNutTightenEnvCfg(BaseScrewEnvCfg):
             ],
         )
 
+
 ###################################
 #           Nut Thread           #
 def nut_thread_reward_forge(env: ManagerBasedRLEnv, a: float = 100, b: float = 0, tol: float = 0):
@@ -394,22 +409,24 @@ def nut_thread_reward_forge(env: ManagerBasedRLEnv, a: float = 100, b: float = 0
     rewards = mdp.forge_kernel(diff, a, b, tol)
     return rewards
 
+
 def nut_thread_xy_l2(env: ManagerBasedRLEnv):
     diff = mdp.rel_nut_bolt_tip_distance(env)[..., :2]
     rewards = mdp.l2_norm(diff)
     return 0.01 - rewards
 
-def nut_upright_reward_forge(env: ManagerBasedRLEnv, a: float = 300, 
-                             b: float = 0, tol: float = 0):
+
+def nut_upright_reward_forge(env: ManagerBasedRLEnv, a: float = 300, b: float = 0, tol: float = 0):
     # penalize if nut is not upright
     # compute the cosine distance between the nut normal and the global up vector
     nut_quat = env.scene["nut_frame"].data.target_quat_w[:, 0]
-    up_vec = torch.tensor([[0, 0, 1.]], device=nut_quat.device)
+    up_vec = torch.tensor([[0, 0, 1.0]], device=nut_quat.device)
     up_vecs = up_vec.expand(nut_quat.shape[0], 3)
     nut_up_vec = math_utils.quat_apply(nut_quat, up_vecs)
     cos_sim = torch.sum(nut_up_vec * up_vecs, dim=1, keepdim=True) / torch.norm(nut_up_vec, dim=1, keepdim=True)
-    rewards = mdp.forge_kernel(1-cos_sim, a, b, tol)
+    rewards = mdp.forge_kernel(1 - cos_sim, a, b, tol)
     return rewards
+
 
 @configclass
 class NutThreadRewardsCfg:
@@ -446,7 +463,7 @@ class BaseNutThreadEnvCfg(BaseScrewEnvCfg):
 
     def __init__(self):
         super().__init__()  # Call the parent class's __init__ method
-    
+
     def __post_init__(self):
         super().__post_init__()
         screw_dict = asset_factory[self.params.scene.screw_type]
@@ -477,5 +494,3 @@ class BaseNutThreadEnvCfg(BaseScrewEnvCfg):
                 )
             ],
         )
-
-

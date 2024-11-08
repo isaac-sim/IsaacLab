@@ -60,6 +60,7 @@ from .modifier import DigitalFilter
 from .modifier_cfg import DigitalFilterCfg
 from .modifier import Integrator
 from .modifier_cfg import IntegratorCfg
+from .modifier_cfg import NoiseModifierCfg
 
 # isort: on
 from .modifier import bias, clip, scale

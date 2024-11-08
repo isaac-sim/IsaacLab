@@ -37,7 +37,7 @@ class KukaScrewPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         clip_param=0.2,
         entropy_coef=0.001,
         num_learning_epochs=5,
-        num_mini_batches=4, # default
+        num_mini_batches=4,  # default
         learning_rate=1.0e-3,
         schedule="adaptive",
         gamma=0.99,
@@ -52,7 +52,7 @@ class KukaScrewPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     #     clip_param=0.2,
     #     entropy_coef=0.0,
     #     num_learning_epochs=6,
-    #     num_mini_batches=16, 
+    #     num_mini_batches=16,
     #     learning_rate=1.0e-3,
     #     schedule="fixed",
     #     gamma=0.99,

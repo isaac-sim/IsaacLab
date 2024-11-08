@@ -222,7 +222,7 @@ class Articulation(AssetBase):
         return string_utils.resolve_matching_names(name_keys, self.body_names, preserve_order)
 
     def find_joints(
-            self, name_keys: str | Sequence[str], joint_subset: list[str] | None = None, preserve_order: bool = False
+        self, name_keys: str | Sequence[str], joint_subset: list[str] | None = None, preserve_order: bool = False
     ) -> tuple[list[int], list[str]]:
         """Find joints in the articulation based on the name keys.
 
@@ -244,7 +244,7 @@ class Articulation(AssetBase):
         return string_utils.resolve_matching_names(name_keys, joint_subset, preserve_order)
 
     def find_fixed_tendons(
-            self, name_keys: str | Sequence[str], tendon_subsets: list[str] | None = None, preserve_order: bool = False
+        self, name_keys: str | Sequence[str], tendon_subsets: list[str] | None = None, preserve_order: bool = False
     ) -> tuple[list[int], list[str]]:
         """Find fixed tendons in the articulation based on the name keys.
 
@@ -278,7 +278,7 @@ class Articulation(AssetBase):
         return root_state
 
     def read_joint_state_from_sim(
-            self, env_ids: Sequence[int] | None = None, joint_ids: Sequence[int] | slice | None = None
+        self, env_ids: Sequence[int] | None = None, joint_ids: Sequence[int] | slice | None = None
     ) -> dict[str, torch.Tensor]:
         if env_ids is None:
             env_ids = slice(None)
@@ -293,11 +293,11 @@ class Articulation(AssetBase):
         velocity_target = self._data.joint_vel_target[env_ids, joint_ids].clone()
         effort_target = self._data.joint_effort_target[env_ids, joint_ids].clone()
         return {
-            "position"       : position,
-            "velocity"       : velocity,
+            "position": position,
+            "velocity": velocity,
             "position_target": position_target,
             "velocity_target": velocity_target,
-            "effort_target"  : effort_target,
+            "effort_target": effort_target,
         }
 
     def read_state_from_sim(self, env_ids: Sequence[int] | None = None):
@@ -311,40 +311,36 @@ class Articulation(AssetBase):
         joint_state = self.read_joint_state_from_sim(env_ids)
         return {"root_state": root_state, "joint_state": joint_state}
 
-    def read_body_pos_w(self,
-                        name_keys: str | Sequence[str],
-                        env_ids: Sequence[int] | None = None,
-                        preserve_order: bool = False):
+    def read_body_pos_w(
+        self, name_keys: str | Sequence[str], env_ids: Sequence[int] | None = None, preserve_order: bool = False
+    ):
         """Read the position of the bodies in the articulation from the simulation."""
         if env_ids is None:
             env_ids = slice(None)
         body_ids, _ = self.find_bodies(name_keys, preserve_order)
         return self._data.body_pos_w[env_ids, body_ids]
 
-    def read_body_quat_w(self,
-                         name_keys: str | Sequence[str],
-                         env_ids: Sequence[int] | None = None,
-                         preserve_order: bool = False):
+    def read_body_quat_w(
+        self, name_keys: str | Sequence[str], env_ids: Sequence[int] | None = None, preserve_order: bool = False
+    ):
         """Read the orientation of the bodies in the articulation from the simulation."""
         if env_ids is None:
             env_ids = slice(None)
         body_ids, _ = self.find_bodies(name_keys, preserve_order)
         return self._data.body_quat_w[env_ids, body_ids]
 
-    def read_body_state_w(self,
-                          name_keys: str | Sequence[str],
-                          env_ids: Sequence[int] | None = None,
-                          preserve_order: bool = False):
+    def read_body_state_w(
+        self, name_keys: str | Sequence[str], env_ids: Sequence[int] | None = None, preserve_order: bool = False
+    ):
         """Read the state of the bodies in the articulation from the simulation."""
         if env_ids is None:
             env_ids = slice(None)
         body_ids, _ = self.find_bodies(name_keys, preserve_order)
         return self._data.body_state_w[env_ids, body_ids]
 
-    def read_body_vel_w(self,
-                        name_keys: str | Sequence[str],
-                        env_ids: Sequence[int] | None = None,
-                        preserve_order: bool = False):
+    def read_body_vel_w(
+        self, name_keys: str | Sequence[str], env_ids: Sequence[int] | None = None, preserve_order: bool = False
+    ):
         """Read the velocity of the bodies in the articulation from the simulation."""
         if env_ids is None:
             env_ids = slice(None)
@@ -414,11 +410,11 @@ class Articulation(AssetBase):
         self.root_physx_view.set_root_velocities(self._data.root_state_w[:, 7:], indices=physx_env_ids)
 
     def write_joint_state_to_sim(
-            self,
-            position: torch.Tensor,
-            velocity: torch.Tensor,
-            joint_ids: Sequence[int] | slice | None = None,
-            env_ids: Sequence[int] | slice | None = None,
+        self,
+        position: torch.Tensor,
+        velocity: torch.Tensor,
+        joint_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | slice | None = None,
     ):
         """Write joint positions and velocities to the simulation.
 
@@ -466,10 +462,10 @@ class Articulation(AssetBase):
         self.write_data_to_sim()
 
     def write_joint_stiffness_to_sim(
-            self,
-            stiffness: torch.Tensor | float,
-            joint_ids: Sequence[int] | slice | None = None,
-            env_ids: Sequence[int] | None = None,
+        self,
+        stiffness: torch.Tensor | float,
+        joint_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | None = None,
     ):
         """Write joint stiffness into the simulation.
 
@@ -495,10 +491,10 @@ class Articulation(AssetBase):
         self.root_physx_view.set_dof_stiffnesses(self._data.joint_stiffness.cpu(), indices=physx_env_ids.cpu())
 
     def write_joint_damping_to_sim(
-            self,
-            damping: torch.Tensor | float,
-            joint_ids: Sequence[int] | slice | None = None,
-            env_ids: Sequence[int] | None = None,
+        self,
+        damping: torch.Tensor | float,
+        joint_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | None = None,
     ):
         """Write joint damping into the simulation.
 
@@ -526,10 +522,10 @@ class Articulation(AssetBase):
         self.root_physx_view.set_dof_dampings(self._data.joint_damping.cpu(), indices=physx_env_ids.cpu())
 
     def write_joint_effort_limit_to_sim(
-            self,
-            limits: torch.Tensor | float,
-            joint_ids: Sequence[int] | slice | None = None,
-            env_ids: Sequence[int] | None = None,
+        self,
+        limits: torch.Tensor | float,
+        joint_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | None = None,
     ):
         """Write joint effort limits into the simulation.
 
@@ -559,10 +555,10 @@ class Articulation(AssetBase):
         self.root_physx_view.set_dof_max_forces(torque_limit_all.cpu(), indices=physx_env_ids.cpu())
 
     def write_joint_armature_to_sim(
-            self,
-            armature: torch.Tensor | float,
-            joint_ids: Sequence[int] | slice | None = None,
-            env_ids: Sequence[int] | None = None,
+        self,
+        armature: torch.Tensor | float,
+        joint_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | None = None,
     ):
         """Write joint armature into the simulation.
 
@@ -587,10 +583,10 @@ class Articulation(AssetBase):
         self.root_physx_view.set_dof_armatures(self._data.joint_armature.cpu(), indices=physx_env_ids.cpu())
 
     def write_joint_friction_to_sim(
-            self,
-            joint_friction: torch.Tensor | float,
-            joint_ids: Sequence[int] | slice | None = None,
-            env_ids: Sequence[int] | None = None,
+        self,
+        joint_friction: torch.Tensor | float,
+        joint_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | None = None,
     ):
         """Write joint friction into the simulation.
 
@@ -615,10 +611,10 @@ class Articulation(AssetBase):
         self.root_physx_view.set_dof_friction_coefficients(self._data.joint_friction.cpu(), indices=physx_env_ids.cpu())
 
     def write_joint_limits_to_sim(
-            self,
-            limits: torch.Tensor | float,
-            joint_ids: Sequence[int] | slice | None = None,
-            env_ids: Sequence[int] | None = None,
+        self,
+        limits: torch.Tensor | float,
+        joint_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | None = None,
     ):
         """Write joint limits into the simulation.
 
@@ -655,11 +651,11 @@ class Articulation(AssetBase):
     """
 
     def set_external_force_and_torque(
-            self,
-            forces: torch.Tensor,
-            torques: torch.Tensor,
-            body_ids: Sequence[int] | slice | None = None,
-            env_ids: Sequence[int] | None = None,
+        self,
+        forces: torch.Tensor,
+        torques: torch.Tensor,
+        body_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | None = None,
     ):
         """Set external force and torque to apply on the asset's bodies in their local frame.
 
@@ -716,8 +712,7 @@ class Articulation(AssetBase):
             self.has_external_wrench = False
 
     def set_joint_position_target(
-            self, target: torch.Tensor, joint_ids: Sequence[int] | slice | None = None,
-            env_ids: Sequence[int] | None = None
+        self, target: torch.Tensor, joint_ids: Sequence[int] | slice | None = None, env_ids: Sequence[int] | None = None
     ):
         """Set joint position targets into internal buffers.
 
@@ -742,8 +737,7 @@ class Articulation(AssetBase):
         self._data.joint_pos_target[env_ids, joint_ids] = target
 
     def set_joint_velocity_target(
-            self, target: torch.Tensor, joint_ids: Sequence[int] | slice | None = None,
-            env_ids: Sequence[int] | None = None
+        self, target: torch.Tensor, joint_ids: Sequence[int] | slice | None = None, env_ids: Sequence[int] | None = None
     ):
         """Set joint velocity targets into internal buffers.
 
@@ -768,8 +762,7 @@ class Articulation(AssetBase):
         self._data.joint_vel_target[env_ids, joint_ids] = target
 
     def set_joint_effort_target(
-            self, target: torch.Tensor, joint_ids: Sequence[int] | slice | None = None,
-            env_ids: Sequence[int] | None = None
+        self, target: torch.Tensor, joint_ids: Sequence[int] | slice | None = None, env_ids: Sequence[int] | None = None
     ):
         """Set joint efforts into internal buffers.
 
@@ -799,10 +792,10 @@ class Articulation(AssetBase):
     """
 
     def set_fixed_tendon_stiffness(
-            self,
-            stiffness: torch.Tensor,
-            fixed_tendon_ids: Sequence[int] | slice | None = None,
-            env_ids: Sequence[int] | None = None,
+        self,
+        stiffness: torch.Tensor,
+        fixed_tendon_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | None = None,
     ):
         """Set fixed tendon stiffness into internal buffers.
 
@@ -826,10 +819,10 @@ class Articulation(AssetBase):
         self._data.fixed_tendon_stiffness[env_ids, fixed_tendon_ids] = stiffness
 
     def set_fixed_tendon_damping(
-            self,
-            damping: torch.Tensor,
-            fixed_tendon_ids: Sequence[int] | slice | None = None,
-            env_ids: Sequence[int] | None = None,
+        self,
+        damping: torch.Tensor,
+        fixed_tendon_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | None = None,
     ):
         """Set fixed tendon damping into internal buffers.
 
@@ -853,10 +846,10 @@ class Articulation(AssetBase):
         self._data.fixed_tendon_damping[env_ids, fixed_tendon_ids] = damping
 
     def set_fixed_tendon_limit_stiffness(
-            self,
-            limit_stiffness: torch.Tensor,
-            fixed_tendon_ids: Sequence[int] | slice | None = None,
-            env_ids: Sequence[int] | None = None,
+        self,
+        limit_stiffness: torch.Tensor,
+        fixed_tendon_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | None = None,
     ):
         """Set fixed tendon limit stiffness efforts into internal buffers.
 
@@ -880,10 +873,10 @@ class Articulation(AssetBase):
         self._data.fixed_tendon_limit_stiffness[env_ids, fixed_tendon_ids] = limit_stiffness
 
     def set_fixed_tendon_limit(
-            self,
-            limit: torch.Tensor,
-            fixed_tendon_ids: Sequence[int] | slice | None = None,
-            env_ids: Sequence[int] | None = None,
+        self,
+        limit: torch.Tensor,
+        fixed_tendon_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | None = None,
     ):
         """Set fixed tendon limit efforts into internal buffers.
 
@@ -907,10 +900,10 @@ class Articulation(AssetBase):
         self._data.fixed_tendon_limit[env_ids, fixed_tendon_ids] = limit
 
     def set_fixed_tendon_rest_length(
-            self,
-            rest_length: torch.Tensor,
-            fixed_tendon_ids: Sequence[int] | slice | None = None,
-            env_ids: Sequence[int] | None = None,
+        self,
+        rest_length: torch.Tensor,
+        fixed_tendon_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | None = None,
     ):
         """Set fixed tendon rest length efforts into internal buffers.
 
@@ -934,10 +927,10 @@ class Articulation(AssetBase):
         self._data.fixed_tendon_rest_length[env_ids, fixed_tendon_ids] = rest_length
 
     def set_fixed_tendon_offset(
-            self,
-            offset: torch.Tensor,
-            fixed_tendon_ids: Sequence[int] | slice | None = None,
-            env_ids: Sequence[int] | None = None,
+        self,
+        offset: torch.Tensor,
+        fixed_tendon_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | None = None,
     ):
         """Set fixed tendon offset efforts into internal buffers.
 
@@ -961,9 +954,9 @@ class Articulation(AssetBase):
         self._data.fixed_tendon_offset[env_ids, fixed_tendon_ids] = offset
 
     def write_fixed_tendon_properties_to_sim(
-            self,
-            fixed_tendon_ids: Sequence[int] | slice | None = None,
-            env_ids: Sequence[int] | None = None,
+        self,
+        fixed_tendon_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | None = None,
     ):
         """Write fixed tendon properties into the simulation.
 
@@ -1021,7 +1014,7 @@ class Articulation(AssetBase):
 
         # resolve articulation root prim back into regex expression
         root_prim_path = root_prims[0].GetPath().pathString
-        root_prim_path_expr = self.cfg.prim_path + root_prim_path[len(template_prim_path):]
+        root_prim_path_expr = self.cfg.prim_path + root_prim_path[len(template_prim_path) :]
         # -- articulation
         self._root_physx_view = self._physics_sim_view.create_articulation_view(root_prim_path_expr.replace(".*", "*"))
 
@@ -1162,10 +1155,10 @@ class Articulation(AssetBase):
         # -- root state
         # note: we cast to tuple to avoid torch/numpy type mismatch.
         default_root_state = (
-                tuple(self.cfg.init_state.pos)
-                + tuple(self.cfg.init_state.rot)
-                + tuple(self.cfg.init_state.lin_vel)
-                + tuple(self.cfg.init_state.ang_vel)
+            tuple(self.cfg.init_state.pos)
+            + tuple(self.cfg.init_state.rot)
+            + tuple(self.cfg.init_state.lin_vel)
+            + tuple(self.cfg.init_state.ang_vel)
         )
         default_root_state = torch.tensor(default_root_state, dtype=torch.float, device=self.device)
         self._data.default_root_state = default_root_state.repeat(self.num_instances, 1)

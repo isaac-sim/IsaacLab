@@ -268,7 +268,7 @@ def _spawn_from_usd_file(
         cfg.visual_material.func(material_path, cfg.visual_material)
         # apply material
         bind_visual_material(prim_path, material_path)
-        
+
     if cfg.physics_material is not None:
         cfg.physics_material.func(f"{prim_path}/physicsMaterial", cfg.physics_material)
         bind_physics_material(prim_path, f"{prim_path}/physicsMaterial")

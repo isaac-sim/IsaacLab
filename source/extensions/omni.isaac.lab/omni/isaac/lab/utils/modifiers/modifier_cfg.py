@@ -9,6 +9,7 @@ from dataclasses import MISSING
 from typing import Any
 
 from omni.isaac.lab.utils import configclass
+from omni.isaac.lab.utils.noise import NoiseCfg
 
 from . import modifier
 
@@ -76,3 +77,17 @@ class IntegratorCfg(ModifierCfg):
 
     dt: float = MISSING
     """The time step of the integrator."""
+
+
+@configclass
+class NoiseModifierCfg(ModifierCfg):
+    """Configuration for an additive gaussian noise with bias model."""
+
+    func = modifier.NoiseModifier
+
+    noise_cfg: NoiseCfg= MISSING
+    bias_noise_cfg : NoiseCfg= MISSING
+    """The noise configuration for the bias.
+
+    Based on this configuration, the bias is sampled at every reset of the noise model.
+    """

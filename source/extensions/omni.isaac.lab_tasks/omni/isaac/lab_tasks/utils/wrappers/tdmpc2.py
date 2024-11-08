@@ -33,10 +33,10 @@ for RL-Games :class:`Runner` class:
 
 # needed to import for allowing type-hinting:gym.spaces.Box | None
 from __future__ import annotations
-import re
 
 import gym.spaces  # needed for rl-games incompatibility: https://github.com/Denys88/rl_games/issues/261
 import gymnasium
+import re
 import torch
 
 from rl_games.common import env_configurations
@@ -134,8 +134,6 @@ class TDMPC2EnvWrapper(IVecEnv):
     def render_mode(self) -> str | None:
         """Returns the :attr:`Env` :attr:`render_mode`."""
         return self.env.render_mode
-    
-    
 
     @property
     def observation_space(self) -> gym.spaces.Box:
@@ -196,7 +194,7 @@ class TDMPC2EnvWrapper(IVecEnv):
     def device(self) -> str:
         """Returns the base environment simulation device."""
         return self.unwrapped.device
-    
+
     @property
     def max_episode_steps(self) -> int:
         """Returns the maximum number of steps per episode."""
@@ -237,9 +235,10 @@ class TDMPC2EnvWrapper(IVecEnv):
     """
     Operations - MDP
     """
+
     def render(self):
         return self.env.render()
-    
+
     def seed(self, seed: int = -1) -> int:  # noqa: D102
         return self.unwrapped.seed(seed)
 
@@ -252,8 +251,7 @@ class TDMPC2EnvWrapper(IVecEnv):
         act = self.unwrapped.action_space.sample()
         act = torch.tensor(act, device=self._rl_device)
         return act
-    
-    
+
     def step(self, actions):  # noqa: D102
         # move actions to sim-device
         # actions = actions.detach().clone().to(device=self._sim_device)
@@ -292,6 +290,7 @@ class TDMPC2EnvWrapper(IVecEnv):
         else:
             obs_dict = self.unwrapped._get_observations()
         return obs_dict["policy"], {"observations": obs_dict}
+
     """
     Helper functions
     """
@@ -332,5 +331,3 @@ class TDMPC2EnvWrapper(IVecEnv):
         #     return {"obs": obs, "states": states}
         # else:
         return obs
-
-
