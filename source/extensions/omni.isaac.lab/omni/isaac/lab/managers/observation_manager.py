@@ -14,7 +14,7 @@ from prettytable import PrettyTable
 from typing import TYPE_CHECKING
 
 from omni.isaac.lab.utils import modifiers
-
+from einops import repeat
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
 
@@ -174,7 +174,20 @@ class ObservationManager(ManagerBase):
         # call all modifiers that are classes
         for mod in self._group_obs_class_modifiers:
             mod.reset(env_ids=env_ids)
+        # reset history
+        for group_name, group_term_hist in self._group_obs_term_hist.items():
+            term_cfgs = self._group_obs_term_cfgs[group_name]
+            group_term_names = self._group_obs_term_names[group_name]
+            obs_terms = zip(group_term_names, self._group_obs_term_cfgs[group_name])
+            for name, term_cfg in obs_terms:
+                term_hist = group_term_hist[name]
+                obs: torch.Tensor = term_cfg.func(self._env, **term_cfg.params)[env_ids]
+                repeat_obs = repeat(obs, 'b ... -> b t ...', t=term_cfg.hist_len).clone()
+                term_hist[env_ids] = repeat_obs
+            
+        
         # nothing to log here
+        
         return {}
 
     def compute(self) -> dict[str, torch.Tensor | dict[str, torch.Tensor]]:
@@ -236,6 +249,7 @@ class ObservationManager(ManagerBase):
             )
         # iterate over all the terms in each group
         group_term_names = self._group_obs_term_names[group_name]
+        group_term_hist = self._group_obs_term_hist[group_name]
         # buffer to store obs per group
         group_obs = dict.fromkeys(group_term_names, None)
         # read attributes for each term
@@ -255,13 +269,15 @@ class ObservationManager(ManagerBase):
                 obs = obs.clip_(min=term_cfg.clip[0], max=term_cfg.clip[1])
             if term_cfg.scale:
                 obs = obs.mul_(term_cfg.scale)
-            cur_hist = self._group_obs_term_hist[name]
-            cur_hist = torch.roll(cur_hist, shifts=-1, dims=1)
+            cur_hist = group_term_hist[name]
+            cur_hist[:, :-1] = cur_hist[:, 1:]
+            # cur_hist = torch.roll(cur_hist, shifts=-1, dims=1)
             cur_hist[:, -1] = obs[:]
             
             flat_obs_hist = cur_hist.flatten(start_dim=1)
             # add value to list
             group_obs[name] = flat_obs_hist
+            # group_term_hist[name] = cur_hist
 
         # concatenate all observations in the group together
         if self._group_obs_concatenate[group_name]:
@@ -312,6 +328,8 @@ class ObservationManager(ManagerBase):
             self._group_obs_class_term_cfgs[group_name] = list()
             # read common config for the group
             self._group_obs_concatenate[group_name] = group_cfg.concatenate_terms
+            self._group_obs_term_hist[group_name] = dict()
+            
             # check if config is dict already
             if isinstance(group_cfg, dict):
                 group_cfg_items = group_cfg.items()
@@ -345,7 +363,7 @@ class ObservationManager(ManagerBase):
                 single_obs_dims = list(obs_dims[1:])
                 single_obs_dims[0] *= term_cfg.hist_len
                 self._group_obs_term_dim[group_name].append(tuple(single_obs_dims))
-                self._group_obs_term_hist[term_name] = torch.zeros((obs_dims[0], term_cfg.hist_len, *obs_dims[1:]),
+                self._group_obs_term_hist[group_name][term_name] = torch.zeros((obs_dims[0], term_cfg.hist_len, *obs_dims[1:]),
                                                                    device=self._env.device)
 
                 # prepare modifiers for each observation

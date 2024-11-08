@@ -251,7 +251,7 @@ class TDMPC2EnvWrapper(IVecEnv):
     def rand_act(self):
         act = self.unwrapped.action_space.sample()
         act = torch.tensor(act, device=self._rl_device)
-        return act.squeeze()
+        return act
     
     
     def step(self, actions):  # noqa: D102
@@ -260,7 +260,7 @@ class TDMPC2EnvWrapper(IVecEnv):
         # clip the actions
         # actions = torch.clamp(actions, -self._clip_actions, self._clip_actions)
         # perform environment step
-        obs_dict, rew, terminated, truncated, extras = self.env.step(actions[None])
+        obs_dict, rew, terminated, truncated, extras = self.env.step(actions)
 
         # move time out information to the extras dict
         # this is only needed for infinite horizon tasks
@@ -285,6 +285,13 @@ class TDMPC2EnvWrapper(IVecEnv):
     def close(self):  # noqa: D102
         return self.env.close()
 
+    def get_observations(self) -> tuple[torch.Tensor, dict]:
+        """Returns the current observations of the environment."""
+        if hasattr(self.unwrapped, "observation_manager"):
+            obs_dict = self.unwrapped.observation_manager.compute()
+        else:
+            obs_dict = self.unwrapped._get_observations()
+        return obs_dict["policy"], {"observations": obs_dict}
     """
     Helper functions
     """
@@ -324,6 +331,6 @@ class TDMPC2EnvWrapper(IVecEnv):
         #     # convert to dictionary
         #     return {"obs": obs, "states": states}
         # else:
-        return obs.squeeze()
+        return obs
 
 

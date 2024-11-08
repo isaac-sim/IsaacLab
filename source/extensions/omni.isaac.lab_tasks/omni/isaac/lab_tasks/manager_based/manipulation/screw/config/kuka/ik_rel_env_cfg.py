@@ -259,6 +259,7 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         action_params = self.params.actions
         action_params.ik_lambda = action_params.get("ik_lambda", 0.1)
         action_params.keep_grasp_state = action_params.get("keep_grasp_state", False)
+        action_params.uni_rotate = action_params.get("uni_rotate", False)
         
         obs_params = self.params.observations
         obs_params.hist_len = obs_params.get("hist_len", 1)
@@ -317,8 +318,10 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         # action
         action_params = self.params.actions
         arm_lows = [-0.002, -0.002, -0.002, -0.0005, -0.0005, -0.5]
-        arm_highs = [0.002, 0.002, 0.002, 0.0005, 0.0005, 0.0]
+        arm_highs = [0.002, 0.002, 0.002, 0.0005, 0.0005, 0.5]
         scale = [0.002, 0.002, 0.002, 0.0005, 0.0005, 0.5]
+        if action_params.uni_rotate:
+            arm_highs[5] = 0.
         # arm_lows = [-0.005, -0.005, -0.005, -0.005, -0.005, -0.5]
         # arm_highs = [0.005, 0.005, 0.005, 0.005, 0.005, 0.]
         # scale = [0.005, 0.005, 0.005, 0.005, 0.005, 0.5]
