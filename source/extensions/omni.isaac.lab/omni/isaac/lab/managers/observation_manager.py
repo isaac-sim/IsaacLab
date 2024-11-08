@@ -176,7 +176,6 @@ class ObservationManager(ManagerBase):
             mod.reset(env_ids=env_ids)
         # reset history
         for group_name, group_term_hist in self._group_obs_term_hist.items():
-            term_cfgs = self._group_obs_term_cfgs[group_name]
             group_term_names = self._group_obs_term_names[group_name]
             obs_terms = zip(group_term_names, self._group_obs_term_cfgs[group_name])
             for name, term_cfg in obs_terms:

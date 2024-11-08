@@ -90,6 +90,8 @@ class reset_scene_to_grasp_state(ManagerTermBase):
         
     def __call__(self, env: ManagerBasedEnv, env_ids: torch.Tensor):
         env.unwrapped.write_state(self.cached_state[env_ids].clone(), env_ids)
+        pass
+        pass
 
 class DTWReferenceTrajRewardCfg(RewTerm):
     def __init__(self, 
@@ -181,7 +183,9 @@ class EventCfg:
 
     
 def robot_tool_pose(env: ManagerBasedEnv):
-    return env.unwrapped.scene["robot"].read_body_state_w("victor_left_tool0")[:, 0]
+    tool_w =  env.unwrapped.scene["robot"].read_body_state_w("victor_left_tool0")[:, 0, :7]
+    tool_w[:, :3] = tool_w[:, :3] - env.unwrapped.scene.env_origins
+    return tool_w
 
 
 def terminate_if_nut_fallen(env):
