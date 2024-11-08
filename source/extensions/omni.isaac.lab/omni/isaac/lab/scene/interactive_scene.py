@@ -22,6 +22,8 @@ from omni.isaac.lab.assets import (
     DeformableObjectCfg,
     RigidObject,
     RigidObjectCfg,
+    RigidObjectCollection,
+    RigidObjectCollectionCfg,
 )
 from omni.isaac.lab.sensors import ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg
 from omni.isaac.lab.terrains import TerrainImporter, TerrainImporterCfg
@@ -113,6 +115,7 @@ class InteractiveScene:
         self._articulations = dict()
         self._deformable_objects = dict()
         self._rigid_objects = dict()
+        self._rigid_object_collections = dict()
         self._sensors = dict()
         self._extras = dict()
         # obtain the current stage
@@ -310,6 +313,11 @@ class InteractiveScene:
         return self._rigid_objects
 
     @property
+    def rigid_object_collections(self) -> dict[str, RigidObjectCollection]:
+        """A dictionary of rigid object collections in the scene."""
+        return self._rigid_object_collections
+
+    @property
     def sensors(self) -> dict[str, SensorBase]:
         """A dictionary of the sensors in the scene, such as cameras and contact reporters."""
         return self._sensors
@@ -351,6 +359,8 @@ class InteractiveScene:
             deformable_object.reset(env_ids)
         for rigid_object in self._rigid_objects.values():
             rigid_object.reset(env_ids)
+        for rigid_object_collection in self._rigid_object_collections.values():
+            rigid_object_collection.reset(env_ids)
         # -- sensors
         for sensor in self._sensors.values():
             sensor.reset(env_ids)
@@ -364,6 +374,8 @@ class InteractiveScene:
             deformable_object.write_data_to_sim()
         for rigid_object in self._rigid_objects.values():
             rigid_object.write_data_to_sim()
+        for rigid_object_collection in self._rigid_object_collections.values():
+            rigid_object_collection.write_data_to_sim()
 
     def update(self, dt: float) -> None:
         """Update the scene entities.
@@ -378,6 +390,8 @@ class InteractiveScene:
             deformable_object.update(dt)
         for rigid_object in self._rigid_objects.values():
             rigid_object.update(dt)
+        for rigid_object_collection in self._rigid_object_collections.values():
+            rigid_object_collection.update(dt)
         # -- sensors
         for sensor in self._sensors.values():
             sensor.update(dt, force_recompute=not self.cfg.lazy_sensor_update)
@@ -397,6 +411,7 @@ class InteractiveScene:
             self._articulations,
             self._deformable_objects,
             self._rigid_objects,
+            self._rigid_object_collections,
             self._sensors,
             self._extras,
         ]:
@@ -422,6 +437,7 @@ class InteractiveScene:
             self._articulations,
             self._deformable_objects,
             self._rigid_objects,
+            self._rigid_object_collections,
             self._sensors,
             self._extras,
         ]:
@@ -454,7 +470,8 @@ class InteractiveScene:
             if asset_name in InteractiveSceneCfg.__dataclass_fields__ or asset_cfg is None:
                 continue
             # resolve regex
-            asset_cfg.prim_path = asset_cfg.prim_path.format(ENV_REGEX_NS=self.env_regex_ns)
+            if hasattr(asset_cfg, "prim_path"):
+                asset_cfg.prim_path = asset_cfg.prim_path.format(ENV_REGEX_NS=self.env_regex_ns)
             # create asset
             if isinstance(asset_cfg, TerrainImporterCfg):
                 # terrains are special entities since they define environment origins
@@ -467,6 +484,14 @@ class InteractiveScene:
                 self._deformable_objects[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, RigidObjectCfg):
                 self._rigid_objects[asset_name] = asset_cfg.class_type(asset_cfg)
+            elif isinstance(asset_cfg, RigidObjectCollectionCfg):
+                for rigid_object_cfg in asset_cfg.rigid_objects.values():
+                    rigid_object_cfg.prim_path = rigid_object_cfg.prim_path.format(ENV_REGEX_NS=self.env_regex_ns)
+                self._rigid_object_collections[asset_name] = asset_cfg.class_type(asset_cfg)
+                for rigid_object_cfg in asset_cfg.rigid_objects.values():
+                    if hasattr(rigid_object_cfg, "collision_group") and rigid_object_cfg.collision_group == -1:
+                        asset_paths = sim_utils.find_matching_prim_paths(rigid_object_cfg.prim_path)
+                        self._global_prim_paths += asset_paths
             elif isinstance(asset_cfg, SensorBaseCfg):
                 # Update target frame path(s)' regex name space for FrameTransformer
                 if isinstance(asset_cfg, FrameTransformerCfg):
