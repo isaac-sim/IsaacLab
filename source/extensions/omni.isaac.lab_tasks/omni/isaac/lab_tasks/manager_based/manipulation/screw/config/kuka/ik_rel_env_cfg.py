@@ -80,26 +80,33 @@ class GraspResetEventTermCfg(EventTermCfg):
     def __init__(
         self,
         reset_target: Literal["pre_grasp", "grasp", "mate", "rigid_grasp", "rigid_grasp_open_align"] = "grasp",
+        reset_joint_std: float = 0.0,
         **kwargs,
     ):
         super().__init__(**kwargs)
         self.reset_target = reset_target
+        self.reset_joint_std = reset_joint_std
 
 
 class reset_scene_to_grasp_state(ManagerTermBase):
-    def __init__(self, cfg: GraspResetEventTermCfg, env: ManagerBasedEnv):
+    def __init__(self, cfg: GraspResetEventTermCfg, env: ManagerBasedEnv,
+                 ):
         super().__init__(cfg, env)
         screw_type = env.cfg.scene.screw_type
         col_approx = env.cfg.params.scene.robot.collision_approximation
+        self.reset_joint_std = cfg.reset_joint_std
         cached_state = pickle.load(open(f"cached/{col_approx}/{screw_type}/kuka_{cfg.reset_target}.pkl", "rb"))
         cached_state = SmartDict(cached_state).to_tensor(device=env.device)
         self.cached_state = cached_state.apply(lambda x: repeat(x, "1 ... -> n ...", n=env.num_envs).clone())
 
     def __call__(self, env: ManagerBasedEnv, env_ids: torch.Tensor):
-        env.unwrapped.write_state(self.cached_state[env_ids].clone(), env_ids)
-        pass
-        pass
-
+        cached_state = self.cached_state[env_ids].clone()
+        # arm_state = cached_state["robot"]["joint_state"]["position"][:, :7]
+        # perturbed_arm_state = torch.randn_like(arm_state) * self.reset_joint_std + arm_state
+        # cached_state["robot"]["joint_state"]["position"][:, :7] = perturbed_arm_state
+        # cached_state["robot"]["joint_state"]["position_target"][:, :7] = perturbed_arm_state
+        
+        env.unwrapped.write_state(cached_state, env_ids)
 
 class DTWReferenceTrajRewardCfg(RewTerm):
     def __init__(self, his_traj_len: int = 10, soft_dtw_gamma: float = 0.01, **kwargs):
@@ -237,26 +244,6 @@ def initialize_contact_properties(
     cur_rest_offset[env_ids] = rest_offset
     asset.root_physx_view.set_rest_offset(cur_rest_offset, env_ids)
 
-# class ObsWithNoiseModel(ManagerTermBase):
-#     def __init__(self, cfg: ObsTerm, env: ManagerBasedEnv):
-#         super().__init__(cfg, env)
-#         noise_model_cfg : NoiseModelWithAdditiveBiasCfg = NoiseModelWithAdditiveBiasCfg(
-#             noise_cfg=GaussianNoiseCfg(mean=0.0, std=0.002, operation="add"),
-#             bias_noise_cfg=GaussianNoiseCfg(mean=0.0, std=0.0001, operation="abs"),
-#         )
-#         self.noise_model = noise_model_cfg.class_type(noise_model_cfg, env.num_envs, env.device,
-#                                                       data_shape=(3,))
-    
-#     def __call__(self, env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")):
-#         asset: RigidObject = env.scene[asset_cfg.name]
-#         data =  asset.data.root_pos_w - env.scene.env_origins
-#         noisy_data = self.noise_model.apply(data)
-#         return noisy_data
-
-
-
-
-
 @configclass
 class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
     """Configuration for the IK-based relative Kuka nut threading environment."""
@@ -293,8 +280,9 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
 
         obs_params = self.params.observations
         obs_params.hist_len = obs_params.get("hist_len", 1)
-        obs_params.include_action = obs_params.get("include_action", False)
+        obs_params.include_action = obs_params.get("include_action", True)
         obs_params.include_wrench = obs_params.get("include_wrench", True)
+        obs_params.include_tool = obs_params.get("include_tool", False)
         obs_params.nut_pos = obs_params.get("nut_pos", OmegaConf.create())
         obs_params.nut_pos.noise_std = obs_params.nut_pos.get("noise_std", 0.0)
         obs_params.nut_pos.bias_std = obs_params.nut_pos.get("bias_std", 0.0)
@@ -304,7 +292,7 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         rewards_params.coarse_nut_w = rewards_params.get("coarse_nut_w", 0.5)
         rewards_params.fine_nut_w = rewards_params.get("fine_nut_w", 2.0)
         rewards_params.upright_reward_w = rewards_params.get("upright_reward_w", 1)
-        rewards_params.task_success_w = rewards_params.get("task_success_w", 2.0)
+        rewards_params.success_w = rewards_params.get("success_w", 2.0)
         rewards_params.action_rate_w = rewards_params.get("action_rate_w", -0.000001)
         rewards_params.contact_force_penalty_w = rewards_params.get("contact_force_penalty_w", -0.0000001)
 
@@ -314,7 +302,8 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
 
         events_params = self.params.events
         events_params.reset_target = events_params.get("reset_target", "grasp")
-
+        events_params.reset_joint_std = events_params.get("reset_joint_std", 0.0)
+        
     def __post_init__(self):
         super().__post_init__()
 
@@ -353,22 +342,16 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         arm_lows = [-0.002, -0.002, -0.002, -0.0005, -0.0005, -0.5]
         arm_highs = [0.002, 0.002, 0.002, 0.0005, 0.0005, 0.5]
         scale = [0.002, 0.002, 0.002, 0.0005, 0.0005, 0.5]
+        
+        if self.params.events.reset_target == "rigid_grasp_open_tilt" or \
+                self.params.events.reset_joint_std > 0:
+            arm_lows = [-0.002, -0.002, -0.002, -0.01, -0.01, -0.3]
+            arm_highs = [0.002, 0.002, 0.002, 0.01, 0.01, 0.3]
+            scale = [0.002, 0.002, 0.002, 0.01, 0.01, 0.3]
+
         if action_params.uni_rotate:
             arm_highs[5] = 0.0
-        if self.params.events.reset_target == "rigid_grasp_open_tilt":
-            arm_lows = [-0.002, -0.002, -0.002, -0.01, -0.01, -0.3]
-            arm_highs = [0.002, 0.002, 0.002, 0.01, 0.01, 0.3]
-            scale = [0.002, 0.002, 0.002, 0.01, 0.01, 0.3]
-        elif self.params.events.reset_target == "rigid_grasp_open_tilt":
-            arm_lows = [-0.002, -0.002, -0.002, -0.01, -0.01, -0.3]
-            arm_highs = [0.002, 0.002, 0.002, 0.01, 0.01, 0.3]
-            scale = [0.002, 0.002, 0.002, 0.01, 0.01, 0.3]
-        # arm_lows = [-0.005, -0.005, -0.005, -0.005, -0.005, -0.5]
-        # arm_highs = [0.005, 0.005, 0.005, 0.005, 0.005, 0.]
-        # scale = [0.005, 0.005, 0.005, 0.005, 0.005, 0.5]
-        # arm_lows = [-0.01, -0.01, -0.01, -0.01, -0.01, -0.5]
-        # arm_highs = [0.01, 0.01, 0.01, 0.01, 0.01, 0.5]
-        # scale = [0.01, 0.01, 0.01, 0.01, 0.01, 0.5]
+
         self.actions.arm_action = DifferentialInverseKinematicsActionCfg(
             asset_name="robot",
             joint_names=["victor_left_arm_joint.*"],
@@ -409,9 +392,9 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
                 params={"asset_cfg": SceneEntityCfg("robot", body_names=["victor_left_arm_flange"])},
                 scale=1,
             )
-        self.observations.policy.tool_pose = ObsTerm(
-            func=robot_tool_pose,
-        )
+        if obs_params.include_tool:
+            self.observations.policy.tool_pose = ObsTerm(
+                func=robot_tool_pose)
         if obs_params.include_action:
             self.observations.policy.last_action = ObsTerm(
                 func=mdp.last_action,
@@ -462,6 +445,7 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
             func=reset_scene_to_grasp_state,
             mode="reset",
             reset_target=self.params.events.reset_target,
+            reset_joint_std=self.params.events.reset_joint_std,
         )
 
         # terminations
@@ -494,7 +478,7 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         self.rewards.coarse_nut.weight = rewards_params.coarse_nut_w
         self.rewards.fine_nut.weight = rewards_params.fine_nut_w
         self.rewards.upright_reward.weight = rewards_params.upright_reward_w
-        self.rewards.task_success.weight = rewards_params.task_success_w
+        self.rewards.success.weight = rewards_params.success_w
         self.rewards.action_rate.weight = rewards_params.action_rate_w
         if rewards_params.dtw_ref_traj_w > 0:
             self.rewards.dtw_ref_traj = DTWReferenceTrajRewardCfg(

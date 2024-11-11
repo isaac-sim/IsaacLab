@@ -434,7 +434,7 @@ class NutThreadRewardsCfg:
 
     # task terms
     xy_nut = RewTerm(func=nut_thread_xy_l2, weight=10)
-    coarse_nut = RewTerm(func=nut_thread_reward_forge, params={"a": 200, "b": 1}, weight=0.5)
+    coarse_nut = RewTerm(func=nut_thread_reward_forge, params={"a": 50, "b": 1}, weight=0.5)
     fine_nut = RewTerm(
         func=nut_thread_reward_forge,
         params={
@@ -444,7 +444,7 @@ class NutThreadRewardsCfg:
         weight=2.0,
     )
     upright_reward = RewTerm(func=nut_upright_reward_forge, params={"a": 700, "b": 0, "tol": 1e-3}, weight=2)
-    task_success = RewTerm(func=mdp.nut_successfully_threaded, params={"threshold": 2e-4}, weight=2)
+    success = RewTerm(func=mdp.nut_successfully_threaded, params={"threshold": 2e-4}, weight=1)
     action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.000001)
 
 

@@ -62,4 +62,4 @@ def nut_successfully_threaded(
     dis = l2_norm(diff)
     # return dis < threshold
     upright_reward = nut_upright_reward_forge(env)
-    return torch.logical_and(dis < threshold, upright_reward > 0.9)
+    return torch.logical_and(dis < threshold, upright_reward > 0.45)
