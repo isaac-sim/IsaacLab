@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.10.13 (2024-10-30)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Defined the Gymnasium task entry points with configuration strings instead of class types.
+  This avoids unnecessary imports and improves the load types.
+* Blacklisted ``mdp`` directories during the recursive module search.
+
+
 0.10.12 (2024-10-28)
 ~~~~~~~~~~~~~~~~~~~~
 
@@ -9,6 +20,7 @@ Changed
 
 * Changed manager-based vision cartpole environment names from Isaac-Cartpole-RGB-Camera-v0
   and Isaac-Cartpole-Depth-Camera-v0 to Isaac-Cartpole-RGB-v0 and Isaac-Cartpole-Depth-v0
+
 
 0.10.11 (2024-10-28)
 ~~~~~~~~~~~~~~~~~~~~
