@@ -22,7 +22,6 @@ INSTALL_REQUIRES = [
     "torch==2.4.0",
     "onnx==1.16.1",  # 1.16.2 throws access violation on Windows
     "prettytable==3.3.0",
-    "tensordict",
     "toml",
     # devices
     "hidapi",

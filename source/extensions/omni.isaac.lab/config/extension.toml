@@ -19,7 +19,6 @@ keywords = ["kit", "robotics", "learning", "ai"]
 requirements = [
     "numpy",
     "prettytable==3.3.0",
-    "tensordict",
     "toml",
     "hidapi",
     "gymnasium==0.29.0",
@@ -29,7 +28,6 @@ requirements = [
 modules = [
     "numpy",
     "prettytable",
-    "tensordict",
     "toml",
     "hid",
     "gymnasium",
