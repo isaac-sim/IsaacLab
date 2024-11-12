@@ -81,11 +81,11 @@ def main():
         "scene.screw_type": "m16_loose",
         "scene.robot.collision_approximation": "convexHull2",
         "scene.nut.rigid_grasp": True,
-        "events.reset_target": "rigid_grasp_open_align",
+        "events.reset_target": "rigid_grasp_open_tilt",
         # "scene.robot.arm_stiffness": 80.0,
         # "scene.robot.arm_damping": 30.0,
         "scene.robot.arm_stiffness": 300.0,
-        "scene.robot.arm_damping": 20.0,
+        "scene.robot.arm_damping": 40.0,
         "decimation": 2,
         "sim.dt": 1 / 60,
     }

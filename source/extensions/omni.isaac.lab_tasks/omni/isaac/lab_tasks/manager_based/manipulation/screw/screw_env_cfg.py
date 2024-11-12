@@ -327,6 +327,7 @@ class BaseScrewEnvCfg(ManagerBasedRLEnvCfg):
         # general settings
         self.decimation = self.params.decimation
         self.sim.render_interval = self.decimation
+        # self.rerender_on_reset = True
         self.sim.dt = self.params.sim.dt
         self.sim.physx.friction_offset_threshold = self.params.sim.physx.friction_offset_threshold
         self.sim.physx.enable_ccd = self.params.sim.physx.enable_ccd

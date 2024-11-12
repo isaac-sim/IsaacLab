@@ -277,7 +277,7 @@ class TDMPC2EnvWrapper(IVecEnv):
         # remap extras from "log" to "episode"
         if "log" in extras:
             extras["episode"] = extras.pop("log")
-        extras["success"] = False
+        extras["success"] = self.env.unwrapped.reward_manager._episode_sums["success"] > 0
         return obs_and_states, rew, dones, extras
 
     def close(self):  # noqa: D102

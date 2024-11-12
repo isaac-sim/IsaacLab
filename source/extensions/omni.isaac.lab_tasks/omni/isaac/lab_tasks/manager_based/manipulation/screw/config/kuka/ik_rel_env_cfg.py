@@ -254,7 +254,7 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         self.params.scene.robot = self.params.scene.get("robot", OmegaConf.create())
         # self.pre_grasp_path
         robot_params = self.params.scene.robot
-        robot_params.collision_approximation = robot_params.get("collision_approximation", "convexHull")
+        robot_params.collision_approximation = robot_params.get("collision_approximation", "convexHull2")
         robot_params.contact_offset = robot_params.get("contact_offset", 0.002)
         robot_params.rest_offset = robot_params.get("rest_offset", 0.001)
         robot_params.max_depenetration_velocity = robot_params.get("max_depenetration_velocity", 0.5)
@@ -266,7 +266,7 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         robot_params.compliant_contact_damping = robot_params.get("compliant_contact_damping", 0.0)
         robot_params.arm_stiffness = robot_params.get("arm_stiffness", 300.0)
         robot_params.arm_damping = robot_params.get("arm_damping", 100.0)
-        robot_params.gripper_stiffness = robot_params.get("gripper_stiffness", 2e2)
+        robot_params.gripper_stiffness = robot_params.get("gripper_stiffness", 100)
         robot_params.gripper_damping = robot_params.get("gripper_damping", 1e2)
         robot_params.gripper_effort_limit = robot_params.get("gripper_effort_limit", 200.0)
 
@@ -342,12 +342,15 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         arm_lows = [-0.002, -0.002, -0.002, -0.0005, -0.0005, -0.5]
         arm_highs = [0.002, 0.002, 0.002, 0.0005, 0.0005, 0.5]
         scale = [0.002, 0.002, 0.002, 0.0005, 0.0005, 0.5]
-        
+        # arm_lows = [-0.002, -0.002, -0.002, -0.005, -0.005, -0.5]
+        # arm_highs = [0.002, 0.002, 0.002, 0.005, 0.005, 0.5]
+        # scale = [0.002, 0.002, 0.002, 0.005, 0.005, 0.5]
+
         if self.params.events.reset_target == "rigid_grasp_open_tilt" or \
                 self.params.events.reset_joint_std > 0:
-            arm_lows = [-0.002, -0.002, -0.002, -0.01, -0.01, -0.3]
-            arm_highs = [0.002, 0.002, 0.002, 0.01, 0.01, 0.3]
-            scale = [0.002, 0.002, 0.002, 0.01, 0.01, 0.3]
+            arm_lows = [-0.002, -0.002, -0.002, -0.01, -0.01, -0.5]
+            arm_highs = [0.002, 0.002, 0.002, 0.01, 0.01, 0.5]
+            scale = [0.002, 0.002, 0.002, 0.01, 0.01, 0.5]
 
         if action_params.uni_rotate:
             arm_highs[5] = 0.0
@@ -456,17 +459,7 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
             self.terminations.far_from_bolt = DoneTerm(func=terminate_if_far_from_bolt)
         self.scene.nut.spawn.activate_contact_sensors = True
 
-        # self.curriculum.force_penalty = CurrTerm(
-        #     func=mdp.modify_reward_weight,
-        #     params={"term_name": "contact_force_penalty",
-        #             "weight": -1, "num_steps": 1000},
-        # )
-        # self.scene.contact_sensor = ContactSensorCfg(
-        #     prim_path="{ENV_REGEX_NS}/Nut/factory_nut",
-        #     filter_prim_paths_expr=["{ENV_REGEX_NS}/Robot/.*finger.*_link_3"],
-        #     update_period=0.0,
-        #     max_contact_data_count=512,
-        # )
+
         self.scene.contact_sensor = ContactSensorCfg(
             prim_path="{ENV_REGEX_NS}/Nut/factory_nut",
             filter_prim_paths_expr=["{ENV_REGEX_NS}/Bolt/factory_bolt"],
