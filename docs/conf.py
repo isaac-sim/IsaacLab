@@ -157,6 +157,7 @@ autodoc_mock_imports = [
     "hid",
     "prettytable",
     "tqdm",
+    "tensordict",
     "trimesh",
     "toml",
 ]
