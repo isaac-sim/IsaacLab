@@ -29,6 +29,8 @@ class RslRlPpoActorCriticCfg:
 
     activation: str = MISSING
     """The activation function for the actor and critic networks."""
+    
+    rnn_type: str = "lstm"
 
 
 @configclass
@@ -189,6 +191,7 @@ class RslRlOnPolicyRunnerCfg:
 
         policy_params = agent_params.get("policy", OmegaConf.create())
         self.policy.class_name = policy_params.get("class_name", self.policy.class_name)
+        self.policy.rnn_type = policy_params.get("rnn_type", self.policy.rnn_type)
         self.policy.init_noise_std = policy_params.get("init_noise_std", self.policy.init_noise_std)
         self.policy.actor_hidden_dims = policy_params.get("actor_hidden_dims", self.policy.actor_hidden_dims)
         self.policy.critic_hidden_dims = policy_params.get("critic_hidden_dims", self.policy.critic_hidden_dims)
