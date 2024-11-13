@@ -815,17 +815,17 @@ def reset_joints_to_default(
     asset.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
 
 
-def reset_joints_by_offset(
+def reset_joints_by_scale(
     env: ManagerBasedEnv,
     env_ids: torch.Tensor,
     position_range: tuple[float, float],
     velocity_range: tuple[float, float],
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ):
-    """Reset the robot joints with offsets around the default position and velocity by the given ranges.
-
-    This function samples random values from the given ranges and biases the default joint positions and velocities
-    by these values. The biased values are then set into the physics simulation.
+    """Reset the robot joints by scaling the default position and velocity by the given ranges.
+    
+    This function samples random values from the given ranges and scales the default joint positions and velocities
+    by these values. The scaled values are then set into the physics simulation.
     """
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
