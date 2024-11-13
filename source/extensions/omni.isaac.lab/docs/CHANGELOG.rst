@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+0.27.15 (2024-11-13)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the tutorial script mentionned in the installation doc to make a black ground plane appear.
+
 0.27.14 (2024-10-23)
 ~~~~~~~~~~~~~~~~~~~~
 
