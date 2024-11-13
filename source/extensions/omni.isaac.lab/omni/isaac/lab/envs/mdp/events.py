@@ -802,8 +802,7 @@ def reset_joints_to_default(
     env_ids: torch.Tensor,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ):
-    """Reset the robot joints to their default positions and velocities.
-    """
+    """Reset the robot joints to their default positions and velocities."""
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
 

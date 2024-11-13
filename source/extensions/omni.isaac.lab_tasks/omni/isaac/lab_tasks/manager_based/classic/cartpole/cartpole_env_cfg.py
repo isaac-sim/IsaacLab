@@ -90,9 +90,7 @@ class EventCfg:
     reset_to_default = EventTerm(
         func=mdp.reset_joints_to_default,
         mode="reset",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=["slider_to_cart"])
-        },
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=["slider_to_cart"])},
     )
 
     reset_cart_position = EventTerm(

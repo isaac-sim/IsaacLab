@@ -1,6 +1,19 @@
 Changelog
 ---------
 
+0.27.15 (2024-11-13)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the function :func:`~omni.isaac.lab.envs.mdp.events.reset_joints_to_default` which allows to reset all
+  joints to their default states.
+
+* Added the possibility for :func:`~omni.isaac.lab.envs.mdp.events.reset_joints_by_scale` and 
+  :func:`~omni.isaac.lab.envs.mdp.events.reset_joints_by_offset` to target specific joints in robots.
+
+
 0.27.14 (2024-10-23)
 ~~~~~~~~~~~~~~~~~~~~
 
