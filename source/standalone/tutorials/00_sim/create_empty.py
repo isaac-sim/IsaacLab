@@ -32,6 +32,7 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 from omni.isaac.lab.sim import SimulationCfg, SimulationContext
+import omni.isaac.lab.sim as sim_utils
 
 
 def main():
@@ -42,6 +43,10 @@ def main():
     sim = SimulationContext(sim_cfg)
     # Set main camera
     sim.set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
+
+    # Ground-plane
+    cfg_ground = sim_utils.GroundPlaneCfg()
+    cfg_ground.func("/World/defaultGroundPlane", cfg_ground)
 
     # Play the simulator
     sim.reset()
