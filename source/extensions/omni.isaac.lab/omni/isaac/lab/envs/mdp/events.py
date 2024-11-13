@@ -834,10 +834,11 @@ def reset_joints_by_scale(
     joint_pos_all = asset.data.joint_pos[env_ids].clone()
     joint_vel_all = asset.data.joint_vel[env_ids].clone()
 
+    # isolate relevant joints
     joint_pos = joint_pos_all[:, asset_cfg.joint_ids]
     joint_vel = joint_vel_all[:, asset_cfg.joint_ids]
 
-    # bias these values randomly
+    # scale these values randomly
     joint_pos *= math_utils.sample_uniform(*position_range, joint_pos.shape, joint_pos.device)
     joint_vel *= math_utils.sample_uniform(*velocity_range, joint_vel.shape, joint_vel.device)
 
@@ -874,6 +875,7 @@ def reset_joints_by_offset(
     joint_pos_all = asset.data.joint_pos[env_ids].clone()
     joint_vel_all = asset.data.joint_vel[env_ids].clone()
 
+    # isolate relevant joints
     joint_pos = joint_pos_all[:, asset_cfg.joint_ids]
     joint_vel = joint_vel_all[:, asset_cfg.joint_ids]
 
