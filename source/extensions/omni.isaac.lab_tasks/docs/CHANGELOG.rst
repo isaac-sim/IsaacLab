@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.10.14 (2024-11-13)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Patched the :class:`~omni.isaac.lab_tasks.manager_based.manager_based.classic.cartpole.cartpole_env_cfg.CartpoleEnvCfg`
+  to use the `reset_joints_to_default` function.
+
+
 0.10.13 (2024-10-30)
 ~~~~~~~~~~~~~~~~~~~~
 
