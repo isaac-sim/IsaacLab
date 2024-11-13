@@ -129,9 +129,9 @@ class TestWarpCamera(unittest.TestCase):
             # update camera
             camera.update(self.dt)
             # check image data
-            for im_data in camera.data.output.to_dict().values():
+            for im_data in camera.data.output.values():
                 self.assertEqual(
-                    im_data.shape, (1, self.camera_cfg.pattern_cfg.height, self.camera_cfg.pattern_cfg.width)
+                    im_data.shape, (1, self.camera_cfg.pattern_cfg.height, self.camera_cfg.pattern_cfg.width, 1)
                 )
 
     def test_camera_resolution(self):
@@ -147,8 +147,10 @@ class TestWarpCamera(unittest.TestCase):
             self.sim.step()
         camera.update(self.dt)
         # access image data and compare shapes
-        for im_data in camera.data.output.to_dict().values():
-            self.assertTrue(im_data.shape == (1, self.camera_cfg.pattern_cfg.height, self.camera_cfg.pattern_cfg.width))
+        for im_data in camera.data.output.values():
+            self.assertTrue(
+                im_data.shape == (1, self.camera_cfg.pattern_cfg.height, self.camera_cfg.pattern_cfg.width, 1)
+            )
 
     def test_camera_init_offset(self):
         """Test camera initialization with offset using different conventions."""
@@ -287,9 +289,9 @@ class TestWarpCamera(unittest.TestCase):
             cam_2.update(self.dt)
             # check image data
             for cam in [cam_1, cam_2]:
-                for im_data in cam.data.output.to_dict().values():
+                for im_data in cam.data.output.values():
                     self.assertEqual(
-                        im_data.shape, (1, self.camera_cfg.pattern_cfg.height, self.camera_cfg.pattern_cfg.width)
+                        im_data.shape, (1, self.camera_cfg.pattern_cfg.height, self.camera_cfg.pattern_cfg.width, 1)
                     )
 
     def test_camera_set_world_poses(self):
@@ -390,7 +392,7 @@ class TestWarpCamera(unittest.TestCase):
             with Timer(f"Time taken for writing data with shape {camera.image_shape}   "):
                 # Pack data back into replicator format to save them using its writer
                 rep_output = {"annotators": {}}
-                camera_data = convert_dict_to_backend(camera.data.output[0].to_dict(), backend="numpy")
+                camera_data = convert_dict_to_backend({k: v[0] for k, v in camera.data.output.items()}, backend="numpy")
                 for key, data, info in zip(camera_data.keys(), camera_data.values(), camera.data.info[0].values()):
                     if info is not None:
                         rep_output["annotators"][key] = {"render_product": {"data": data, **info}}
@@ -402,7 +404,7 @@ class TestWarpCamera(unittest.TestCase):
             print("----------------------------------------")
             # Check image data
             for im_data in camera.data.output.values():
-                self.assertEqual(im_data.shape, (1, camera_cfg.pattern_cfg.height, camera_cfg.pattern_cfg.width))
+                self.assertEqual(im_data.shape, (1, camera_cfg.pattern_cfg.height, camera_cfg.pattern_cfg.width, 1))
 
     def test_output_equal_to_usdcamera(self):
         camera_pattern_cfg = patterns.PinholeCameraPatternCfg(
@@ -814,6 +816,15 @@ class TestWarpCamera(unittest.TestCase):
             rtol=5e-3,
             atol=1e-4,
         )
+
+    def test_sensor_print(self):
+        """Test sensor print is working correctly."""
+        # Create sensor
+        sensor = RayCasterCamera(cfg=self.camera_cfg)
+        # Play sim
+        self.sim.reset()
+        # print info
+        print(sensor)
 
 
 if __name__ == "__main__":

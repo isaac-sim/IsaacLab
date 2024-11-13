@@ -1,6 +1,136 @@
 Changelog
 ---------
 
+0.10.13 (2024-10-30)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Defined the Gymnasium task entry points with configuration strings instead of class types.
+  This avoids unnecessary imports and improves the load types.
+* Blacklisted ``mdp`` directories during the recursive module search.
+
+
+0.10.12 (2024-10-28)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed manager-based vision cartpole environment names from Isaac-Cartpole-RGB-Camera-v0
+  and Isaac-Cartpole-Depth-Camera-v0 to Isaac-Cartpole-RGB-v0 and Isaac-Cartpole-Depth-v0
+
+
+0.10.11 (2024-10-28)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added feature extracted observation cartpole examples.
+
+0.10.10 (2024-10-25)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed issues with defining Gymnasium spaces in Direct workflows due to Hydra/OmegaConf limitations with non-primitive types.
+
+
+0.10.9 (2024-10-22)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Sets curriculum and commands to None in manager-based environment configurations when not needed.
+  Earlier, this was done by making an empty configuration object, which is now unnecessary.
+
+
+0.10.8 (2024-10-22)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the wrong selection of body id's in the :meth:`omni.isaac.lab_tasks.manager_based.locomotion.velocity.mdp.rewards.feet_slide`
+  reward function. This makes sure the right IDs are selected for the bodies.
+
+
+0.10.7 (2024-10-02)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Replace deprecated :attr:`num_observations`, :attr:`num_actions` and :attr:`num_states` in single-agent direct tasks
+  by :attr:`observation_space`, :attr:`action_space` and :attr:`state_space` respectively.
+* Replace deprecated :attr:`num_observations`, :attr:`num_actions` and :attr:`num_states` in multi-agent direct tasks
+  by :attr:`observation_spaces`, :attr:`action_spaces` and :attr:`state_space` respectively.
+
+
+0.10.6 (2024-09-25)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Cartpole-RGB-Camera-v0`` and ``Isaac-Cartpole-Depth-Camera-v0``
+  manager based camera cartpole environments.
+
+
+0.10.5 (2024-09-11)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated the skrl RL library integration to the latest release (skrl-v1.3.0)
+
+
+0.10.4 (2024-09-10)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Repose-Cube-Shadow-Vision-Direct-v0`` environment with heterogeneous proprioception and vision observations.
+
+
+0.10.3 (2024-09-05)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added environment config flag ``rerender_on_reset`` to allow updating sensor data after a reset.
+
+
+0.10.2 (2024-08-23)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Shadow-Hand-Over-Direct-v0`` multi-agent environment
+
+
+0.10.1 (2024-08-21)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Cart-Double-Pendulum-Direct-v0`` multi-agent environment
+
+Changed
+^^^^^^^
+
+* Update skrl wrapper to support multi-agent environments.
+
+
 0.10.0 (2024-08-14)
 ~~~~~~~~~~~~~~~~~~~
 

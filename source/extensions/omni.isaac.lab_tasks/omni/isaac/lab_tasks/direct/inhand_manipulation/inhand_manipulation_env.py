@@ -9,6 +9,7 @@ from __future__ import annotations
 import numpy as np
 import torch
 from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.assets import Articulation, RigidObject
@@ -17,8 +18,9 @@ from omni.isaac.lab.markers import VisualizationMarkers
 from omni.isaac.lab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from omni.isaac.lab.utils.math import quat_conjugate, quat_from_angle_axis, quat_mul, sample_uniform, saturate
 
-from omni.isaac.lab_tasks.direct.allegro_hand import AllegroHandEnvCfg
-from omni.isaac.lab_tasks.direct.shadow_hand import ShadowHandEnvCfg
+if TYPE_CHECKING:
+    from omni.isaac.lab_tasks.direct.allegro_hand.allegro_hand_env_cfg import AllegroHandEnvCfg
+    from omni.isaac.lab_tasks.direct.shadow_hand.shadow_hand_env_cfg import ShadowHandEnvCfg
 
 
 class InHandManipulationEnv(DirectRLEnv):
@@ -82,7 +84,7 @@ class InHandManipulationEnv(DirectRLEnv):
         spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
         # clone and replicate (no need to filter for this environment)
         self.scene.clone_environments(copy_from_source=False)
-        # add articultion to scene - we must register to scene to randomize with EventManager
+        # add articulation to scene - we must register to scene to randomize with EventManager
         self.scene.articulations["robot"] = self.hand
         self.scene.rigid_objects["object"] = self.object
         # add lights

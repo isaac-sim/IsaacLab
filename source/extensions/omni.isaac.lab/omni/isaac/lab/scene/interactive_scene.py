@@ -22,6 +22,8 @@ from omni.isaac.lab.assets import (
     DeformableObjectCfg,
     RigidObject,
     RigidObjectCfg,
+    RigidObjectCollection,
+    RigidObjectCollectionCfg,
 )
 from omni.isaac.lab.sensors import ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg
 from omni.isaac.lab.terrains import TerrainImporter, TerrainImporterCfg
@@ -104,6 +106,8 @@ class InteractiveScene:
         Args:
             cfg: The configuration class for the scene.
         """
+        # check that the config is valid
+        cfg.validate()
         # store inputs
         self.cfg = cfg
         # initialize scene elements
@@ -111,6 +115,7 @@ class InteractiveScene:
         self._articulations = dict()
         self._deformable_objects = dict()
         self._rigid_objects = dict()
+        self._rigid_object_collections = dict()
         self._sensors = dict()
         self._extras = dict()
         # obtain the current stage
@@ -166,6 +171,18 @@ class InteractiveScene:
             If True, clones are independent copies of the source prim and won't reflect its changes (start-up time
             may increase). Defaults to False.
         """
+        # check if user spawned different assets in individual environments
+        # this flag will be None if no multi asset is spawned
+        carb_settings_iface = carb.settings.get_settings()
+        has_multi_assets = carb_settings_iface.get("/isaaclab/spawn/multi_assets")
+        if has_multi_assets and self.cfg.replicate_physics:
+            omni.log.warn(
+                "Varying assets might have been spawned under different environments."
+                " However, the replicate physics flag is enabled in the 'InteractiveScene' configuration."
+                " This may adversely affect PhysX parsing. We recommend disabling this property."
+            )
+
+        # clone the environment
         env_origins = self.cloner.clone(
             source_prim_path=self.env_prim_paths[0],
             prim_paths=self.env_prim_paths,
@@ -187,9 +204,6 @@ class InteractiveScene:
             global_prim_paths: A list of global prim paths to enable collisions with.
                 Defaults to None, in which case no global prim paths are considered.
         """
-        # obtain the current physics scene
-        physics_scene_prim_path = self.physics_scene_path
-
         # validate paths in global prim paths
         if global_prim_paths is None:
             global_prim_paths = []
@@ -203,7 +217,7 @@ class InteractiveScene:
 
         # filter collisions within each environment instance
         self.cloner.filter_collisions(
-            physics_scene_prim_path,
+            self.physics_scene_path,
             "/World/collisions",
             self.env_prim_paths,
             global_paths=self._global_prim_paths,
@@ -224,14 +238,16 @@ class InteractiveScene:
     """
 
     @property
-    def physics_scene_path(self):
-        """Search the stage for the physics scene"""
+    def physics_scene_path(self) -> str:
+        """The path to the USD Physics Scene."""
         if self._physics_scene_path is None:
             for prim in self.stage.Traverse():
                 if prim.HasAPI(PhysxSchema.PhysxSceneAPI):
-                    self._physics_scene_path = prim.GetPrimPath()
-                    carb.log_info(f"Physics scene prim path: {self._physics_scene_path}")
+                    self._physics_scene_path = prim.GetPrimPath().pathString
+                    omni.log.info(f"Physics scene prim path: {self._physics_scene_path}")
                     break
+            if self._physics_scene_path is None:
+                raise RuntimeError("No physics scene found! Please make sure one exists.")
         return self._physics_scene_path
 
     @property
@@ -297,6 +313,11 @@ class InteractiveScene:
         return self._rigid_objects
 
     @property
+    def rigid_object_collections(self) -> dict[str, RigidObjectCollection]:
+        """A dictionary of rigid object collections in the scene."""
+        return self._rigid_object_collections
+
+    @property
     def sensors(self) -> dict[str, SensorBase]:
         """A dictionary of the sensors in the scene, such as cameras and contact reporters."""
         return self._sensors
@@ -338,6 +359,8 @@ class InteractiveScene:
             deformable_object.reset(env_ids)
         for rigid_object in self._rigid_objects.values():
             rigid_object.reset(env_ids)
+        for rigid_object_collection in self._rigid_object_collections.values():
+            rigid_object_collection.reset(env_ids)
         # -- sensors
         for sensor in self._sensors.values():
             sensor.reset(env_ids)
@@ -351,6 +374,8 @@ class InteractiveScene:
             deformable_object.write_data_to_sim()
         for rigid_object in self._rigid_objects.values():
             rigid_object.write_data_to_sim()
+        for rigid_object_collection in self._rigid_object_collections.values():
+            rigid_object_collection.write_data_to_sim()
 
     def update(self, dt: float) -> None:
         """Update the scene entities.
@@ -365,6 +390,8 @@ class InteractiveScene:
             deformable_object.update(dt)
         for rigid_object in self._rigid_objects.values():
             rigid_object.update(dt)
+        for rigid_object_collection in self._rigid_object_collections.values():
+            rigid_object_collection.update(dt)
         # -- sensors
         for sensor in self._sensors.values():
             sensor.update(dt, force_recompute=not self.cfg.lazy_sensor_update)
@@ -384,6 +411,7 @@ class InteractiveScene:
             self._articulations,
             self._deformable_objects,
             self._rigid_objects,
+            self._rigid_object_collections,
             self._sensors,
             self._extras,
         ]:
@@ -409,6 +437,7 @@ class InteractiveScene:
             self._articulations,
             self._deformable_objects,
             self._rigid_objects,
+            self._rigid_object_collections,
             self._sensors,
             self._extras,
         ]:
@@ -441,7 +470,8 @@ class InteractiveScene:
             if asset_name in InteractiveSceneCfg.__dataclass_fields__ or asset_cfg is None:
                 continue
             # resolve regex
-            asset_cfg.prim_path = asset_cfg.prim_path.format(ENV_REGEX_NS=self.env_regex_ns)
+            if hasattr(asset_cfg, "prim_path"):
+                asset_cfg.prim_path = asset_cfg.prim_path.format(ENV_REGEX_NS=self.env_regex_ns)
             # create asset
             if isinstance(asset_cfg, TerrainImporterCfg):
                 # terrains are special entities since they define environment origins
@@ -454,6 +484,14 @@ class InteractiveScene:
                 self._deformable_objects[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, RigidObjectCfg):
                 self._rigid_objects[asset_name] = asset_cfg.class_type(asset_cfg)
+            elif isinstance(asset_cfg, RigidObjectCollectionCfg):
+                for rigid_object_cfg in asset_cfg.rigid_objects.values():
+                    rigid_object_cfg.prim_path = rigid_object_cfg.prim_path.format(ENV_REGEX_NS=self.env_regex_ns)
+                self._rigid_object_collections[asset_name] = asset_cfg.class_type(asset_cfg)
+                for rigid_object_cfg in asset_cfg.rigid_objects.values():
+                    if hasattr(rigid_object_cfg, "collision_group") and rigid_object_cfg.collision_group == -1:
+                        asset_paths = sim_utils.find_matching_prim_paths(rigid_object_cfg.prim_path)
+                        self._global_prim_paths += asset_paths
             elif isinstance(asset_cfg, SensorBaseCfg):
                 # Update target frame path(s)' regex name space for FrameTransformer
                 if isinstance(asset_cfg, FrameTransformerCfg):

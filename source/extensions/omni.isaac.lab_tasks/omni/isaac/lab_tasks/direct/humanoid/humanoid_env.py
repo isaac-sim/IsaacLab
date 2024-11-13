@@ -24,9 +24,9 @@ class HumanoidEnvCfg(DirectRLEnvCfg):
     episode_length_s = 15.0
     decimation = 2
     action_scale = 1.0
-    num_actions = 21
-    num_observations = 75
-    num_states = 0
+    action_space = 21
+    observation_space = 75
+    state_space = 0
 
     # simulation
     sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation)

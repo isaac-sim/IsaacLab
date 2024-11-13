@@ -152,9 +152,13 @@ class ObservationTermCfg(ManagerTermBaseCfg):
     """The clipping range for the observation after adding noise. Defaults to None,
     in which case no clipping is applied."""
 
-    scale: float | None = None
+    scale: tuple[float, ...] | float | None = None
     """The scale to apply to the observation after clipping. Defaults to None,
-    in which case no scaling is applied (same as setting scale to :obj:`1`)."""
+    in which case no scaling is applied (same as setting scale to :obj:`1`).
+
+    We leverage PyTorch broadcasting to scale the observation tensor with the provided value. If a tuple is provided,
+    please make sure the length of the tuple matches the dimensions of the tensor outputted from the term.
+    """
 
 
 @configclass

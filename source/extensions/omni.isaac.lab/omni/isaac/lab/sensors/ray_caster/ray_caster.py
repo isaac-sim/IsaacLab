@@ -9,9 +9,9 @@ import numpy as np
 import re
 import torch
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING
 
-import carb
+import omni.log
 import omni.physics.tensors.impl.api as physx
 import warp as wp
 from omni.isaac.core.prims import XFormPrimView
@@ -48,14 +48,6 @@ class RayCaster(SensorBase):
 
     cfg: RayCasterCfg
     """The configuration parameters."""
-    meshes: ClassVar[dict[str, wp.Mesh]] = {}
-    """The warp meshes available for raycasting.
-
-    The keys correspond to the prim path for the meshes, and values are the corresponding warp Mesh objects.
-
-    Note:
-           We store a global dictionary of all warp meshes to prevent re-loading the mesh for different ray-cast sensor instances.
-    """
 
     def __init__(self, cfg: RayCasterCfg):
         """Initializes the ray-caster object.
@@ -77,6 +69,8 @@ class RayCaster(SensorBase):
         super().__init__(cfg)
         # Create empty variables for storing output data
         self._data = RayCasterData()
+        # the warp meshes used for raycasting.
+        self.meshes: dict[str, wp.Mesh] = {}
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
@@ -84,7 +78,7 @@ class RayCaster(SensorBase):
             f"Ray-caster @ '{self.cfg.prim_path}': \n"
             f"\tview type            : {self._view.__class__}\n"
             f"\tupdate period (s)    : {self.cfg.update_period}\n"
-            f"\tnumber of meshes     : {len(RayCaster.meshes)}\n"
+            f"\tnumber of meshes     : {len(self.meshes)}\n"
             f"\tnumber of sensors    : {self._view.count}\n"
             f"\tnumber of rays/sensor: {self.num_rays}\n"
             f"\ttotal number of rays : {self.num_rays * self._view.count}"
@@ -144,7 +138,7 @@ class RayCaster(SensorBase):
         else:
             self._view = XFormPrimView(self.cfg.prim_path, reset_xform_properties=False)
             found_supported_prim_class = True
-            carb.log_warn(f"The prim at path {prim.GetPath().pathString} is not a physics prim! Using XFormPrimView.")
+            omni.log.warn(f"The prim at path {prim.GetPath().pathString} is not a physics prim! Using XFormPrimView.")
         # check if prim view class is found
         if not found_supported_prim_class:
             raise RuntimeError(f"Failed to find a valid prim view class for the prim paths: {self.cfg.prim_path}")
@@ -163,10 +157,6 @@ class RayCaster(SensorBase):
 
         # read prims to ray-cast
         for mesh_prim_path in self.cfg.mesh_prim_paths:
-            # check if mesh already casted into warp mesh
-            if mesh_prim_path in RayCaster.meshes:
-                continue
-
             # check if the prim is a plane - handle PhysX plane as a special case
             # if a plane exists then we need to create an infinite mesh that is a plane
             mesh_prim = sim_utils.get_first_matching_child_prim(
@@ -188,19 +178,19 @@ class RayCaster(SensorBase):
                 indices = np.asarray(mesh_prim.GetFaceVertexIndicesAttr().Get())
                 wp_mesh = convert_to_warp_mesh(points, indices, device=self.device)
                 # print info
-                carb.log_info(
+                omni.log.info(
                     f"Read mesh prim: {mesh_prim.GetPath()} with {len(points)} vertices and {len(indices)} faces."
                 )
             else:
                 mesh = make_plane(size=(2e6, 2e6), height=0.0, center_zero=True)
                 wp_mesh = convert_to_warp_mesh(mesh.vertices, mesh.faces, device=self.device)
                 # print info
-                carb.log_info(f"Created infinite plane mesh prim: {mesh_prim.GetPath()}.")
+                omni.log.info(f"Created infinite plane mesh prim: {mesh_prim.GetPath()}.")
             # add the warp mesh to the list
-            RayCaster.meshes[mesh_prim_path] = wp_mesh
+            self.meshes[mesh_prim_path] = wp_mesh
 
         # throw an error if no meshes are found
-        if all([mesh_prim_path not in RayCaster.meshes for mesh_prim_path in self.cfg.mesh_prim_paths]):
+        if all([mesh_prim_path not in self.meshes for mesh_prim_path in self.cfg.mesh_prim_paths]):
             raise RuntimeError(
                 f"No meshes found for ray-casting! Please check the mesh prim paths: {self.cfg.mesh_prim_paths}"
             )
@@ -263,7 +253,7 @@ class RayCaster(SensorBase):
             ray_starts_w,
             ray_directions_w,
             max_dist=self.cfg.max_distance,
-            mesh=RayCaster.meshes[self.cfg.mesh_prim_paths[0]],
+            mesh=self.meshes[self.cfg.mesh_prim_paths[0]],
         )[0]
 
     def _set_debug_vis_impl(self, debug_vis: bool):

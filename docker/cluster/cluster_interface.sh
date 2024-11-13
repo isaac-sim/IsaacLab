@@ -16,8 +16,18 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 #==
 # Functions
 #==
+# Function to display warnings in red
+display_warning() {
+    echo -e "\033[31mWARNING: $1\033[0m"
+}
+
+# Helper function to compare version numbers
+version_gte() {
+    # Returns 0 if the first version is greater than or equal to the second, otherwise 1
+    [ "$(printf '%s\n' "$1" "$2" | sort -V | head -n 1)" == "$2" ]
+}
+
 # Function to check docker versions
-# If docker version is more than 25, the script errors out.
 check_docker_version() {
     # check if docker is installed
     if ! command -v docker &> /dev/null; then
@@ -28,12 +38,17 @@ check_docker_version() {
     docker_version=$(docker --version | awk '{ print $3 }')
     apptainer_version=$(apptainer --version | awk '{ print $3 }')
 
-    # Check if version is above 25.xx
-    if [ "$(echo "${docker_version}" | cut -d '.' -f 1)" -ge 25 ]; then
-        echo "[ERROR]: Docker version ${docker_version} is not compatible with Apptainer version ${apptainer_version}. Exiting."
-        exit 1
+    # Check if Docker version is exactly 24.0.7 or Apptainer version is exactly 1.2.5
+    if [ "$docker_version" = "24.0.7" ] && [ "$apptainer_version" = "1.2.5" ]; then
+        echo "[INFO]: Docker version ${docker_version} and Apptainer version ${apptainer_version} are tested and compatible."
+
+    # Check if Docker version is >= 27.0.0 and Apptainer version is >= 1.3.4
+    elif version_gte "$docker_version" "27.0.0" && version_gte "$apptainer_version" "1.3.4"; then
+        echo "[INFO]: Docker version ${docker_version} and Apptainer version ${apptainer_version} are tested and compatible."
+
+    # Else, display a warning for non-tested versions
     else
-        echo "[INFO]: Building singularity with docker version: ${docker_version} and Apptainer version: ${apptainer_version}."
+        display_warning "Docker version ${docker_version} and Apptainer version ${apptainer_version} are non-tested versions. There could be issues, please try to update them. More info: https://isaac-sim.github.io/IsaacLab/source/deployment/cluster.html"
     fi
 }
 
@@ -62,11 +77,9 @@ submit_job() {
 
     case $CLUSTER_JOB_SCHEDULER in
         "SLURM")
-            CMD=sbatch
             job_script_file=submit_job_slurm.sh
             ;;
         "PBS")
-            CMD=bash
             job_script_file=submit_job_pbs.sh
             ;;
         *)
@@ -75,7 +88,7 @@ submit_job() {
             ;;
     esac
 
-    ssh $CLUSTER_LOGIN "cd $CLUSTER_ISAACLAB_DIR && $CMD $CLUSTER_ISAACLAB_DIR/docker/cluster/$job_script_file \"$CLUSTER_ISAACLAB_DIR\" \"isaac-lab-$profile\" ${@}"
+    ssh $CLUSTER_LOGIN "cd $CLUSTER_ISAACLAB_DIR && bash $CLUSTER_ISAACLAB_DIR/docker/cluster/$job_script_file \"$CLUSTER_ISAACLAB_DIR\" \"isaac-lab-$profile\" ${@}"
 }
 
 #==
@@ -141,7 +154,7 @@ case $command in
         fi
         # Check if Docker image exists
         check_image_exists isaac-lab-$profile:latest
-        # Check if Docker version is greater than 25
+        # Check docker and apptainer version
         check_docker_version
         # source env file to get cluster login and path information
         source $SCRIPT_DIR/.env.cluster
@@ -162,11 +175,17 @@ case $command in
         scp $SCRIPT_DIR/exports/isaac-lab-$profile.tar $CLUSTER_LOGIN:$CLUSTER_SIF_PATH/isaac-lab-$profile.tar
         ;;
     job)
-        [ $# -ge 1 ] && profile=$1 && shift
+        if [ $# -ge 1 ]; then
+            passed_profile=$1
+            if [ -f "$SCRIPT_DIR/../.env.$passed_profile" ]; then
+                profile=$passed_profile
+                shift
+            fi
+        fi
         job_args="$@"
-        echo "Executing job command"
-        [ -n "$profile" ] && echo "Using profile: $profile"
-        [ -n "$job_args" ] && echo "Job arguments: $job_args"
+        echo "[INFO] Executing job command"
+        [ -n "$profile" ] && echo -e "\tUsing profile: $profile"
+        [ -n "$job_args" ] && echo -e "\tJob arguments: $job_args"
         source $SCRIPT_DIR/.env.cluster
         # Get current date and time
         current_datetime=$(date +"%Y%m%d_%H%M%S")

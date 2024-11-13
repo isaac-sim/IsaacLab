@@ -90,8 +90,14 @@ extract_isaacsim_exe() {
     local isaacsim_exe=${isaac_path}/isaac-sim.sh
     # check if there is a python path available
     if [ ! -f "${isaacsim_exe}" ]; then
-        echo "[ERROR] No Isaac Sim executable found at path: ${isaacsim_exe}" >&2
-        exit 1
+        # check for installation using Isaac Sim pip
+        if [ $(python -m pip list | grep -c 'isaacsim-rl') -gt 0 ]; then
+            # Isaac Sim - Python packages entry point
+            local isaacsim_exe="isaacsim omni.isaac.sim"
+        else
+            echo "[ERROR] No Isaac Sim executable found at path: ${isaac_path}" >&2
+            exit 1
+        fi
     fi
     # return the result
     echo ${isaacsim_exe}
@@ -344,7 +350,7 @@ while [[ $# -gt 0 ]]; do
             python_exe=$(extract_python_exe)
             echo "[INFO] Using python from: ${python_exe}"
             shift # past argument
-            ${python_exe} $@
+            ${python_exe} "$@"
             # exit neatly
             break
             ;;
@@ -390,10 +396,10 @@ while [[ $# -gt 0 ]]; do
             cd ${ISAACLAB_PATH}/docs
             ${python_exe} -m pip install -r requirements.txt > /dev/null
             # build the documentation
-            ${python_exe} -m sphinx -b html -d _build/doctrees . _build/html
+            ${python_exe} -m sphinx -b html -d _build/doctrees . _build/current
             # open the documentation
             echo -e "[INFO] To open documentation on default browser, run:"
-            echo -e "\n\t\txdg-open $(pwd)/_build/html/index.html\n"
+            echo -e "\n\t\txdg-open $(pwd)/_build/current/index.html\n"
             # exit neatly
             cd - > /dev/null
             shift # past argument

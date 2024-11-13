@@ -16,6 +16,7 @@ from typing import Any
 
 import carb
 import omni.isaac.core.utils.stage as stage_utils
+import omni.log
 import omni.physx
 from omni.isaac.core.simulation_context import SimulationContext as _SimulationContext
 from omni.isaac.core.utils.viewports import set_camera_view
@@ -113,6 +114,8 @@ class SimulationContext(_SimulationContext):
         # store input
         if cfg is None:
             cfg = SimulationCfg()
+        # check that the config is valid
+        cfg.validate()
         self.cfg = cfg
         # check that simulation is running
         if stage_utils.get_current_stage() is None:
@@ -133,7 +136,7 @@ class SimulationContext(_SimulationContext):
             carb_settings_iface.set_bool("/physics/disableContactProcessing", True)
         # enable custom geometry for cylinder and cone collision shapes to allow contact reporting for them
         # reason: cylinders and cones aren't natively supported by PhysX so we need to use custom geometry flags
-        # reference: https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/docs/Geometry.html?highlight=capsule#geometry
+        # reference: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/docs/Geometry.html?highlight=capsule#geometry
         carb_settings_iface.set_bool("/physics/collisionConeCustomGeometry", False)
         carb_settings_iface.set_bool("/physics/collisionCylinderCustomGeometry", False)
         # note: we read this once since it is not expected to change during runtime
@@ -150,6 +153,26 @@ class SimulationContext(_SimulationContext):
         self._render_viewport = bool(carb_settings_iface.get("/isaaclab/render/active_viewport"))
         # flag for whether any GUI will be rendered (local, livestreamed or viewport)
         self._has_gui = self._local_gui or self._livestream_gui
+
+        # apply render settings from render config
+        carb_settings_iface.set_bool("/rtx/translucency/enabled", self.cfg.render.enable_translucency)
+        carb_settings_iface.set_bool("/rtx/reflections/enabled", self.cfg.render.enable_reflections)
+        carb_settings_iface.set_bool("/rtx/indirectDiffuse/enabled", self.cfg.render.enable_global_illumination)
+        carb_settings_iface.set_bool("/rtx/transient/dlssg/enabled", self.cfg.render.enable_dlssg)
+        carb_settings_iface.set_int("/rtx/post/dlss/execMode", self.cfg.render.dlss_mode)
+        carb_settings_iface.set_bool("/rtx/directLighting/enabled", self.cfg.render.enable_direct_lighting)
+        carb_settings_iface.set_int(
+            "/rtx/directLighting/sampledLighting/samplesPerPixel", self.cfg.render.samples_per_pixel
+        )
+        carb_settings_iface.set_bool("/rtx/shadows/enabled", self.cfg.render.enable_shadows)
+        carb_settings_iface.set_bool("/rtx/ambientOcclusion/enabled", self.cfg.render.enable_ambient_occlusion)
+        # set denoiser mode
+        try:
+            import omni.replicator.core as rep
+
+            rep.settings.set_render_rtx_realtime(antialiasing=self.cfg.render.antialiasing_mode)
+        except Exception:
+            pass
 
         # store the default render mode
         if not self._has_gui and not self._offscreen_render:
@@ -297,8 +320,8 @@ class SimulationContext(_SimulationContext):
     Operations - New utilities.
     """
 
-    @staticmethod
     def set_camera_view(
+        self,
         eye: tuple[float, float, float],
         target: tuple[float, float, float],
         camera_prim_path: str = "/OmniverseKit_Persp",
@@ -315,7 +338,9 @@ class SimulationContext(_SimulationContext):
             camera_prim_path: The path to the camera primitive in the stage. Defaults to
                 "/OmniverseKit_Persp".
         """
-        set_camera_view(eye, target, camera_prim_path)
+        # safe call only if we have a GUI or viewport rendering enabled
+        if self._has_gui or self._offscreen_render or self._render_viewport:
+            set_camera_view(eye, target, camera_prim_path)
 
     def set_render_mode(self, mode: RenderMode):
         """Change the current render mode of the simulation.
@@ -336,7 +361,7 @@ class SimulationContext(_SimulationContext):
         """
         # check if mode change is possible -- not possible when no GUI is available
         if not self._has_gui:
-            carb.log_warn(
+            omni.log.warn(
                 f"Cannot change render mode when GUI is disabled. Using the default render mode: {self.render_mode}."
             )
             return
@@ -462,7 +487,10 @@ class SimulationContext(_SimulationContext):
         else:
             # manually flush the fabric data to update Hydra textures
             if self._fabric_iface is not None:
-                self._fabric_iface.update(0.0, 0.0)
+                if self.physics_sim_view is not None and self.is_playing():
+                    # Update the articulations' link's poses before rendering
+                    self.physics_sim_view.update_articulations_kinematic()
+                self._update_fabric(0.0, 0.0)
             # render the simulation
             # note: we don't call super().render() anymore because they do above operation inside
             #  and we don't want to do it twice. We may remove it once we drop support for Isaac Sim 2022.2.
@@ -532,7 +560,7 @@ class SimulationContext(_SimulationContext):
             raise RuntimeError("Physics scene API is None! Please create the scene first.")
         # set parameters not directly supported by the constructor
         # -- Continuous Collision Detection (CCD)
-        # ref: https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/docs/AdvancedCollisionDetection.html?highlight=ccd#continuous-collision-detection
+        # ref: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/docs/AdvancedCollisionDetection.html?highlight=ccd#continuous-collision-detection
         self._physics_context.enable_ccd(self.cfg.physx.enable_ccd)
         # -- GPU collision stack size
         physx_scene_api.CreateGpuCollisionStackSizeAttr(self.cfg.physx.gpu_collision_stack_size)
@@ -576,6 +604,15 @@ class SimulationContext(_SimulationContext):
 
             # acquire fabric interface
             self._fabric_iface = get_physx_fabric_interface()
+            if hasattr(self._fabric_iface, "force_update"):
+                # The update method in the fabric interface only performs an update if a physics step has occurred.
+                # However, for rendering, we need to force an update since any element of the scene might have been
+                # modified in a reset (which occurs after the physics step) and we want the renderer to be aware of
+                # these changes.
+                self._update_fabric = self._fabric_iface.force_update
+            else:
+                # Needed for backward compatibility with older Isaac Sim versions
+                self._update_fabric = self._fabric_iface.update
 
     """
     Callbacks.
@@ -602,7 +639,7 @@ class SimulationContext(_SimulationContext):
         if event.type == int(omni.timeline.TimelineEventType.STOP):
             # keep running the simulator when configured to not shutdown the app
             if self._has_gui and sys.exc_info()[0] is None:
-                self.app.print_and_log(
+                omni.log.warn(
                     "Simulation is stopped. The app will keep running with physics disabled."
                     " Press Ctrl+C or close the window to exit the app."
                 )
@@ -637,7 +674,7 @@ class SimulationContext(_SimulationContext):
             omni.usd.get_context().close_stage()
 
         # print logging information
-        self.app.print_and_log("Simulation is stopped. Shutting down the app...")
+        print("[INFO]: Simulation is stopped. Shutting down the app.")
 
         # Cleanup any running tracy instances so data is not lost
         try:
@@ -746,7 +783,7 @@ def build_simulation_context(
         yield sim
 
     except Exception:
-        carb.log_error(traceback.format_exc())
+        omni.log.error(traceback.format_exc())
         raise
     finally:
         if not sim.has_gui():

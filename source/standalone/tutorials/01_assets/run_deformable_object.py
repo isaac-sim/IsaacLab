@@ -109,7 +109,7 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Deformab
             # write nodal state to simulation
             cube_object.write_nodal_state_to_sim(nodal_state)
 
-            # write kinematic target to nodal state and free all vertices
+            # Write the nodal state to the kinematic target and free all vertices
             nodal_kinematic_target[..., :3] = nodal_state[..., :3]
             nodal_kinematic_target[..., 3] = 1.0
             cube_object.write_nodal_kinematic_target_to_sim(nodal_kinematic_target)
@@ -146,7 +146,7 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Deformab
 def main():
     """Main function."""
     # Load kit helper
-    sim_cfg = sim_utils.SimulationCfg()
+    sim_cfg = sim_utils.SimulationCfg(device=args_cli.device)
     sim = SimulationContext(sim_cfg)
     # Set main camera
     sim.set_camera_view(eye=[3.0, 0.0, 1.0], target=[0.0, 0.0, 0.5])
