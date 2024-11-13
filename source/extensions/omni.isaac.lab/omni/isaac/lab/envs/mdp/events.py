@@ -823,7 +823,7 @@ def reset_joints_by_scale(
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ):
     """Reset the robot joints by scaling the default position and velocity by the given ranges.
-    
+
     This function samples random values from the given ranges and scales the default joint positions and velocities
     by these values. The scaled values are then set into the physics simulation.
     """
