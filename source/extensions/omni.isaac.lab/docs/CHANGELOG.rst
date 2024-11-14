@@ -7,7 +7,7 @@ Changelog
 Fixed
 ^^^^^
 
-* Fixed the tutorial script mentionned in the installation doc to make a black ground plane appear.
+* Created a new script based on the previous tutorial script, implementing the changes to add a black ground plane. Updated the installation documentation to reference the path to this new script.
 
 0.27.14 (2024-10-23)
 ~~~~~~~~~~~~~~~~~~~~
