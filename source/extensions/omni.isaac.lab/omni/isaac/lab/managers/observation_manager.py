@@ -294,7 +294,7 @@ class ObservationManager(ManagerBase):
             flat_obs_hist = cur_hist.flatten(start_dim=1)
             # add value to list
             group_obs[name] = flat_obs_hist
-            # group_term_hist[name] = cur_hist
+            group_term_hist[name] = cur_hist
 
         # concatenate all observations in the group together
         if self._group_obs_concatenate[group_name]:

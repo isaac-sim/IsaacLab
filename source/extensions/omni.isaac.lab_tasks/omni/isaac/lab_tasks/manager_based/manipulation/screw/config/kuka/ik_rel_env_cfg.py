@@ -498,7 +498,7 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         if curri_params.use_obs_noise_curri:
             self.curriculum.modify_nut_pos_noise = CurrTerm(
                 func=modify_noise_scale,
-                params={"begin_steps": 500*32, "end_steps": 1500*32},
+                params={"begin_steps": 500*32, "end_steps": 2000*32},
             )
 
         # events

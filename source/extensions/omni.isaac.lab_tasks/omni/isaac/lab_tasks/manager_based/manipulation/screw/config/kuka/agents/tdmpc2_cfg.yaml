@@ -29,7 +29,7 @@ exp_name: default
 data_dir: ???
 
 # planning
-mpc: true
+mpc: false
 iterations: 6
 num_samples: 512
 num_elites: 64
@@ -50,7 +50,7 @@ vmin: -10
 vmax: +10
 
 # architecture
-model_size: ???
+model_size: 1
 num_enc_layers: 2
 enc_dim: 256
 num_channels: 32
