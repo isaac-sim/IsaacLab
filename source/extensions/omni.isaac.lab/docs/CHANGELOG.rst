@@ -1,4 +1,12 @@
 Changelog
+
+0.27.15 (2024-11-14)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the condition in `isaaclab.sh` that checks whether `pre-commit` is installed before attempting installation.
 ---------
 
 0.27.14 (2024-10-23)
