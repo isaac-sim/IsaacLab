@@ -302,6 +302,7 @@ class BaseScrewEnvCfg(ManagerBasedRLEnvCfg):
         params.rewards = params.get("rewards", OmegaConf.create())
         params.terminations = params.get("terminations", OmegaConf.create())
         params.events = params.get("events", OmegaConf.create())
+        params.curriculum = params.get("curriculum", OmegaConf.create())
         params.sim.physx = params.sim.get("physx", OmegaConf.create())
         params.scene.nut = params.scene.get("nut", OmegaConf.create())
 

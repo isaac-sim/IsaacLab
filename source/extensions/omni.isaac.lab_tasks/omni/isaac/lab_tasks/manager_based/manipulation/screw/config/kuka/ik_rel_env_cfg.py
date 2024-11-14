@@ -5,6 +5,7 @@
 
 import os
 import pickle
+from tracemalloc import start
 import torch
 from typing import Literal, Sequence
 
@@ -86,12 +87,14 @@ class GraspResetEventTermCfg(EventTerm):
         reset_target: Literal["pre_grasp", "grasp", "mate", "rigid_grasp", "rigid_grasp_open_align"] = "grasp",
         reset_joint_std: float = 0.0,
         reset_randomize_mode: Literal["task", "joint", None] = "task",
+        reset_use_adr: bool = False,
         **kwargs,
     ):
         super().__init__(**kwargs)
         self.reset_target = reset_target
         self.reset_joint_std = reset_joint_std
         self.reset_randomize_mode = reset_randomize_mode
+        self.reset_use_adr = reset_use_adr
 
 
 class reset_scene_to_grasp_state(ManagerTermBase):
@@ -114,9 +117,10 @@ class reset_scene_to_grasp_state(ManagerTermBase):
         self.curobo_arm.update_world()
         self.reset_randomize_mode = cfg.reset_randomize_mode
         self.reset_trans_low = torch.tensor([-0.03, -0.03, -0.0], device=env.device)
-        self.reset_trans_high = torch.tensor([0.03, 0.03, 0.04], device=env.device)
+        self.reset_trans_high = torch.tensor([0.03, 0.03, 0.04], device=env.device) 
         self.reset_rot_std = 0.5
         self.reset_joint_std = cfg.reset_joint_std
+        self.reset_use_adr = cfg.reset_use_adr
         self.rand_init_configurations = None
         self.num_buckets = int(5e3)
         self.bucket_update_freq = 4
@@ -125,11 +129,18 @@ class reset_scene_to_grasp_state(ManagerTermBase):
     def update_random_initializations(self, env:ManagerBasedEnv):
         cached_state = self.cached_state[0:1].clone()
         B = self.num_buckets
+        noise_scale = 1.
+        if self.reset_use_adr:
+            # step a: activate noise
+            # step b: maximize noise
+            raise NotImplementedError
+        
         if self.reset_randomize_mode == "task":
             arm_state = cached_state["robot"]["joint_state"]["position"][:, :7]
             default_tool_pose = self.curobo_arm.forward_kinematics(arm_state).ee_pose
             default_tool_pose = default_tool_pose.repeat(B)
             delta_trans = torch.rand((B, 3), device=env.device) * (self.reset_trans_high - self.reset_trans_low) + self.reset_trans_low
+            delta_trans *= noise_scale
             delta_quat = torch.zeros((B, 4), device=env.device)
             delta_quat[:, 0] = 1
             delta_pose = Pose(position=delta_trans, quaternion=delta_quat)
@@ -296,6 +307,18 @@ def initialize_contact_properties(
     cur_rest_offset[env_ids] = rest_offset
     asset.root_physx_view.set_rest_offset(cur_rest_offset, env_ids)
 
+# curriculum
+def modify_noise_scale(
+    env: ManagerBasedEnv, 
+    env_ids: torch.Tensor,
+    begin_steps: int, end_steps: int
+):
+    modifier = env.observation_manager.get_term_cfg("policy", "nut_pos").modifiers[0].func
+    # linear
+    scale = max(0., env.common_step_counter-begin_steps)/(begin_steps-end_steps)
+    scale = min(1., scale)
+    modifier.noise_scale = scale
+
 @configclass
 class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
     """Configuration for the IK-based relative Kuka nut threading environment."""
@@ -356,6 +379,10 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         events_params.reset_target = events_params.get("reset_target", "grasp")
         events_params.reset_randomize_mode = events_params.get("reset_randomize_mode", None)
         events_params.reset_joint_std = events_params.get("reset_joint_std", 0.0)
+        events_params.reset_use_adr = events_params.get("reset_use_adr", False)
+        
+        curri_params = self.params.curriculum
+        curri_params.use_obs_noise_curri = curri_params.get("use_obs_noise_curri", False)
         
     def __post_init__(self):
         super().__post_init__()
@@ -392,12 +419,12 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
 
         # action
         action_params = self.params.actions
-        arm_lows = [-0.002, -0.002, -0.002, -0.0005, -0.0005, -0.5]
-        arm_highs = [0.002, 0.002, 0.002, 0.0005, 0.0005, 0.5]
-        scale = [0.002, 0.002, 0.002, 0.0005, 0.0005, 0.5]
-        # arm_lows = [-0.002, -0.002, -0.002, -0.005, -0.005, -0.5]
-        # arm_highs = [0.002, 0.002, 0.002, 0.005, 0.005, 0.5]
-        # scale = [0.002, 0.002, 0.002, 0.005, 0.005, 0.5]
+        # arm_lows = [-0.002, -0.002, -0.002, -0.0005, -0.0005, -0.5]
+        # arm_highs = [0.002, 0.002, 0.002, 0.0005, 0.0005, 0.5]
+        # scale = [0.002, 0.002, 0.002, 0.0005, 0.0005, 0.5]
+        arm_lows = [-0.002, -0.002, -0.002, -0.01, -0.01, -0.5]
+        arm_highs = [0.002, 0.002, 0.002, 0.01, 0.01, 0.5]
+        scale = [0.002, 0.002, 0.002, 0.01, 0.01, 0.5]
 
         if self.params.events.reset_target == "rigid_grasp_open_tilt" or \
                 self.params.events.reset_joint_std > 0:
@@ -421,7 +448,6 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
             lows=arm_lows,
             highs=arm_highs,
             scale=scale,
-            # scale=1,
         )
 
         # self.gripper_act_lows = [-0.005, -0.005]
@@ -467,6 +493,13 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
             if isinstance(term, ObsTerm):
                 term.hist_len = obs_params.hist_len
         
+        # curriculum
+        curri_params = self.params.curriculum
+        if curri_params.use_obs_noise_curri:
+            self.curriculum.modify_nut_pos_noise = CurrTerm(
+                func=modify_noise_scale,
+                params={"begin_steps": 500*32, "end_steps": 1500*32},
+            )
 
         # events
         event_params = self.params.events
@@ -501,7 +534,7 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
             reset_target=event_params.reset_target,
             reset_randomize_mode=event_params.reset_randomize_mode,
             reset_joint_std=event_params.reset_joint_std,
-            
+            reset_use_adr=event_params.reset_use_adr,
         )
 
         # terminations

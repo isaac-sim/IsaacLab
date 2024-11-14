@@ -275,6 +275,7 @@ class NoiseModifier(ModifierBase):
         self._noise_cfg = cfg.noise_cfg
         self._bias_noise_cfg = cfg.bias_noise_cfg
         self._bias = torch.zeros(data_dim, device=self._device)
+        self.noise_scale = 1
 
     def reset(self, env_ids: Sequence[int] | None = None):
         """Reset the noise model.
@@ -292,4 +293,7 @@ class NoiseModifier(ModifierBase):
         self._bias[env_ids] = self._bias_noise_cfg.func(self._bias[env_ids], self._bias_noise_cfg)
     
     def __call__(self, data: torch.Tensor) -> torch.Tensor:
-        return self._noise_cfg.func(data, self._noise_cfg) + self._bias
+        noisy_data = self._noise_cfg.func(data, self._noise_cfg) + self._bias
+        noise = noisy_data - data
+        noisy_data = data + noise * self.noise_scale
+        return noisy_data
