@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+0.27.15 (2024-11-13)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Created a new script based on the previous tutorial script, implementing the changes to add a black ground plane. Updated the installation documentation to reference the path to this new script.
+
 0.27.14 (2024-10-23)
 ~~~~~~~~~~~~~~~~~~~~
 

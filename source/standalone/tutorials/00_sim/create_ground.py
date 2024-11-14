@@ -3,12 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""This script demonstrates how to create a simple stage in Isaac Sim.
+"""This script demonstrates how to create a black ground plane in Isaac Sim.
 
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p source/standalone/tutorials/00_sim/create_empty.py
+    ./isaaclab.sh -p source/standalone/tutorials/00_sim/create_ground.py
 
 """
 
@@ -20,7 +20,7 @@ import argparse
 from omni.isaac.lab.app import AppLauncher
 
 # create argparser
-parser = argparse.ArgumentParser(description="Tutorial on creating an empty stage.")
+parser = argparse.ArgumentParser(description="Tutorial on creating a black ground plane.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -43,6 +43,10 @@ def main():
     sim = SimulationContext(sim_cfg)
     # Set main camera
     sim.set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
+
+    # Ground-plane
+    cfg_ground = sim_utils.GroundPlaneCfg()
+    cfg_ground.func("/World/defaultGroundPlane", cfg_ground)
 
     # Play the simulator
     sim.reset()
