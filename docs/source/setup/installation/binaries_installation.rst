@@ -388,10 +388,10 @@ top of the repository:
 
          # Option 1: Using the isaaclab.sh executable
          # note: this works for both the bundled python and the virtual environment
-         ./isaaclab.sh -p source/standalone/tutorials/00_sim/create_empty.py
+         ./isaaclab.sh -p source/standalone/tutorials/00_sim/create_ground.py
 
          # Option 2: Using python in your virtual environment
-         python source/standalone/tutorials/00_sim/create_empty.py
+         python source/standalone/tutorials/00_sim/create_ground.py
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -400,10 +400,10 @@ top of the repository:
 
          :: Option 1: Using the isaaclab.bat executable
          :: note: this works for both the bundled python and the virtual environment
-         isaaclab.bat -p source\standalone\tutorials\00_sim\create_empty.py
+         isaaclab.bat -p source\standalone\tutorials\00_sim\create_ground.py
 
          :: Option 2: Using python in your virtual environment
-         python source\standalone\tutorials\00_sim\create_empty.py
+         python source\standalone\tutorials\00_sim\create_ground.py
 
 
 The above command should launch the simulator and display a window with a black
