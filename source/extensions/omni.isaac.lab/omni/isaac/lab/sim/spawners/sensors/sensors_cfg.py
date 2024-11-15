@@ -274,9 +274,9 @@ class LidarCfg(SpawnerCfg):
 
     lidar_type: str = "Example_Rotary"
     """The name of the lidar sensor profile. Defaults to Example_Rotatry.
-    
-    There are many built in configuration files specified by LidarType below. 
-    
+
+    There are many built in configuration files specified by LidarType below.
+
     If a user want to create a custom configuration file set lidar_type="Custom" and create a sensor_profile dictionary."""
 
     class LidarType:

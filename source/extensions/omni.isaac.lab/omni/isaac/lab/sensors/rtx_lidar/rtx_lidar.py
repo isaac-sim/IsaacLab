@@ -29,27 +29,28 @@ if TYPE_CHECKING:
 
 
 class RtxLidar(SensorBase):
-    r"""The RTX Lidar sensor to aquire render based lidar data.
-    
+    """The RTX Lidar sensor to acquire render based lidar data.
+
     This class wraps over the `UsdGeom Camera`_ for providing a consistent API for acquiring LiDAR data.
-     
+
     This implementation utilizes the "RtxSensorCpuIsaacCreateRTXLidarScanBuffer" annotator.
 
     RTX lidar: https://docs.omniverse.nvidia.com/isaacsim/latest/features/sensors_simulation/isaac_sim_sensors_rtx_based_lidar.html
     LiDAR config files: https://docs.omniverse.nvidia.com/kit/docs/omni.sensors.nv.lidar/latest/lidar_extension.html
     RTX lidar Annotators: https://docs.omniverse.nvidia.com/isaacsim/latest/features/sensors_simulation/isaac_sim_sensors_rtx_based_lidar/annotator_descriptions.html
     """
+
     cfg: RtxLidarCfg
 
     def __init__(self, cfg: RtxLidarCfg):
         """Initializes the RTX lidar object.
-        
+
         Args:
             cfg: The configuration parameters.
-            
+
         Raises:
             RuntimeError: If provided path is a regex.
-            RuntimeError: If no camera prim is found at the given path. 
+            RuntimeError: If no camera prim is found at the given path.
         """
         # check if sensor path is valid
         # note: currently we do not handle environment indices if there is a regex pattern in the leaf
@@ -85,13 +86,13 @@ class RtxLidar(SensorBase):
 
     def __del__(self):
         """Unsubscribes from callbacks and detach from the replicator registry and clean up any custom lidar configs."""
-        
+
         # delete from replicator registry
         for _, annotators in self._rep_registry.items():
             for annotator, render_product_path in zip(annotators, self._render_product_paths):
                 annotator.detach([render_product_path])
                 annotator = None
-        # delete custom lidar config temp files       
+        # delete custom lidar config temp files
         if self.cfg.spawn.lidar_type == "Custom":
             file_dir = self.cfg.spawn.sensor_profile_temp_dir
             if os.path.isdir(file_dir):
@@ -156,10 +157,10 @@ class RtxLidar(SensorBase):
 
     def _initialize_impl(self):
         """Initializes the sensor handles and internal buffers.
-        
-        This function creates handles and registers the optional output data fields with the replicator registry to 
+
+        This function creates handles and registers the optional output data fields with the replicator registry to
         be able to access the data from the sensor. It also initializes the internal buffers to store the data.
-        
+
         Raises:
             RuntimeError: If the enable_camera flag is not set.
             RuntimeError: If the number of camera prims in the view does not match the number of environments.
@@ -217,7 +218,7 @@ class RtxLidar(SensorBase):
                 "outputEmitterId": False,
                 "outputMaterialId": False,
                 "outputObjectId": False,
-                "outputTimestamp": True, # always turn on timestamp field
+                "outputTimestamp": True,  # always turn on timestamp field
             }
 
             # create annotator node
