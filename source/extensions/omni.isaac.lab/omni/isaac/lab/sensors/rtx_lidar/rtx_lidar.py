@@ -88,10 +88,9 @@ class RtxLidar(SensorBase):
         """Unsubscribes from callbacks and detach from the replicator registry and clean up any custom lidar configs."""
 
         # delete from replicator registry
-        for _, annotators in self._rep_registry.items():
-            for annotator, render_product_path in zip(annotators, self._render_product_paths):
-                annotator.detach([render_product_path])
-                annotator = None
+        for annotator, render_product_path in zip(self._rep_registry, self._render_product_paths):
+            annotator.detach([render_product_path])
+            annotator = None
         # delete custom lidar config temp files
         if self.cfg.spawn.lidar_type == "Custom":
             file_dir = self.cfg.spawn.sensor_profile_temp_dir
