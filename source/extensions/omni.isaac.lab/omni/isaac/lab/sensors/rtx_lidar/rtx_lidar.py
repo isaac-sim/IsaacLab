@@ -29,7 +29,16 @@ if TYPE_CHECKING:
 
 
 class RtxLidar(SensorBase):
+    r"""The RTX Lidar sensor to aquire render based lidar data.
+    
+    This class wraps over the `UsdGeom Camera`_ for providing a consistent API for acquiring LiDAR data.
+     
+    This implementation utilizes the "RtxSensorCpuIsaacCreateRTXLidarScanBuffer" annotator.
 
+    RTX lidar: https://docs.omniverse.nvidia.com/isaacsim/latest/features/sensors_simulation/isaac_sim_sensors_rtx_based_lidar.html
+    LiDAR config files: https://docs.omniverse.nvidia.com/kit/docs/omni.sensors.nv.lidar/latest/lidar_extension.html
+    RTX lidar Annotators: https://docs.omniverse.nvidia.com/isaacsim/latest/features/sensors_simulation/isaac_sim_sensors_rtx_based_lidar/annotator_descriptions.html
+    """
     cfg: RtxLidarCfg
 
     def __init__(self, cfg: RtxLidarCfg):

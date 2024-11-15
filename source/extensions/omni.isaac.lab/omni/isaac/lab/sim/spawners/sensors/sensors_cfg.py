@@ -270,8 +270,14 @@ class LidarCfg(SpawnerCfg):
     """
 
     func = sensors.spawn_lidar
+    """The RTX lidar spawn function."""
 
     lidar_type: str = "Example_Rotary"
+    """The name of the lidar sensor profile. Defaults to Example_Rotatry.
+    
+    There are many built in configuration files specified by LidarType below. 
+    
+    If a user want to create a custom configuration file set lidar_type="Custom" and create a sensor_profile dictionary."""
 
     class LidarType:
         """Class variables for autocompletion"""
@@ -297,10 +303,12 @@ class LidarCfg(SpawnerCfg):
         SIMPLE_EXAMPLE_SOLID_STATE = "Simple_Example_Solid_State"
 
     sensor_profile: dict[str, Any] | None = None
-    """Custom lidar parameters to use if lidar_type is set to "Custom"
+    """Custom lidar parameters to use if lidar_type="Custom"
 
      see https://docs.omniverse.nvidia.com/kit/docs/omni.sensors.nv.lidar/latest/lidar_extension.html"""
 
     sensor_profile_temp_dir: str = os.path.abspath(os.path.join(ISAACLAB_EXT_DIR, "omni/isaac/lab/sensors/rtx_lidar"))
+    """The location of the generated custom sensor profile json file."""
 
     sensor_profile_temp_prefix: str = "Temp_Config_"
+    """The custom sensor profile json file prefix. This is used for cleanup of the custom sensor profile."""
