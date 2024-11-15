@@ -43,8 +43,13 @@ class RtxLidar(SensorBase):
 
     def __init__(self, cfg: RtxLidarCfg):
         """Initializes the RTX lidar object.
+        
         Args:
             cfg: The configuration parameters.
+            
+        Raises:
+            RuntimeError: If provided path is a regex.
+            RuntimeError: If no camera prim is found at the given path. 
         """
         # check if sensor path is valid
         # note: currently we do not handle environment indices if there is a regex pattern in the leaf
@@ -53,7 +58,7 @@ class RtxLidar(SensorBase):
         sensor_path_is_regex = re.match(r"^[a-zA-Z0-9/_]+$", sensor_path) is None
         if sensor_path_is_regex:
             raise RuntimeError(
-                f"Invalid prim path for the ray-caster sensor: {self.cfg.prim_path}."
+                f"Invalid prim path for the rtx lidar sensor: {self.cfg.prim_path}."
                 "\n\tHint: Please ensure that the prim path does not contain any regex patterns in the leaf."
             )
 
@@ -79,6 +84,14 @@ class RtxLidar(SensorBase):
         self._data = RtxLidarData()
 
     def __del__(self):
+        """Unsubscribes from callbacks and detach from the replicator registry and clean up any custom lidar configs."""
+        
+        # delete from replicator registry
+        for _, annotators in self._rep_registry.items():
+            for annotator, render_product_path in zip(annotators, self._render_product_paths):
+                annotator.detach([render_product_path])
+                annotator = None
+        # delete custom lidar config temp files       
         if self.cfg.spawn.lidar_type == "Custom":
             file_dir = self.cfg.spawn.sensor_profile_temp_dir
             if os.path.isdir(file_dir):
@@ -142,6 +155,16 @@ class RtxLidar(SensorBase):
     """
 
     def _initialize_impl(self):
+        """Initializes the sensor handles and internal buffers.
+        
+        This function creates handles and registers the optional output data fields with the replicator registry to 
+        be able to access the data from the sensor. It also initializes the internal buffers to store the data.
+        
+        Raises:
+            RuntimeError: If the enable_camera flag is not set.
+            RuntimeError: If the number of camera prims in the view does not match the number of environments.
+            RuntimeError: If the provided USD prim is not a Camera.
+        """
         carb_settings_iface = carb.settings.get_settings()
         if not carb_settings_iface.get("/isaaclab/cameras_enabled"):
             raise RuntimeError(
@@ -194,7 +217,7 @@ class RtxLidar(SensorBase):
                 "outputEmitterId": False,
                 "outputMaterialId": False,
                 "outputObjectId": False,
-                "outputTimestamp": True,
+                "outputTimestamp": True, # always turn on timestamp field
             }
 
             # create annotator node
@@ -253,10 +276,9 @@ class RtxLidar(SensorBase):
         # the memory will be allocated when the buffer() function is called for the first time.
         self._data.output = TensorDict({}, batch_size=self._view.count, device=self.device)
         self._data.info = [{name: None for name in RTX_LIDAR_INFO_FIELDS.keys()} for _ in range(self._view.count)]
-        # self._data.info = [None for _ in range(self._view.count)]
 
     def _update_buffers_impl(self, env_ids: Sequence[int]):
-
+        """Compute and fill sensor data buffers."""
         # Increment frame count
         self._frame[env_ids] += 1
         data_all_lidar = list()
