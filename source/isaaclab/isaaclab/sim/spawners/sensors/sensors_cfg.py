@@ -282,7 +282,8 @@ class LidarCfg(SpawnerCfg):
 
     There are many built in configuration files specified by LidarType below.
 
-    If a user want to create a custom configuration file set lidar_type="Custom" and create a sensor_profile dictionary."""
+    If a user want to create a custom configuration file set lidar_type="Custom" and create a sensor_profile dictionary.
+    """
 
     class LidarType:
         """Class variables for autocompletion"""
