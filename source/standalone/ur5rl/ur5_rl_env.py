@@ -20,12 +20,15 @@ from omni.isaac.lab.utils.math import sample_uniform
 @configclass
 class HawUr5EnvCfg(DirectRLEnvCfg):
     # env
-    num_actions = 12
-    num_observations = 4
+    num_actions = 7
+    f_update = 60
+    num_observations = 7
     num_states = 5
     reward_scale_example = 1.0
     decimation = 2
     action_scale = 1.0
+    v_cm = 25  # cm/s
+    stepsize = v_cm * (1 / f_update) / 44  # Max angle delta per update
 
     # simulation
     sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation)
@@ -72,7 +75,7 @@ class HawUr5EnvCfg(DirectRLEnvCfg):
 
     # scene
     scene: InteractiveSceneCfg = InteractiveSceneCfg(
-        num_envs=10, env_spacing=2.0, replicate_physics=True
+        env_spacing=2.0, replicate_physics=True
     )
 
     # reset conditions
@@ -98,6 +101,9 @@ class HawUr5Env(DirectRLEnv):
 
         self.action_dim = len(self._arm_dof_idx) + len(self._gripper_dof_idx)
 
+    def get_joint_pos(self):
+        return self.joint_pos
+
     def _setup_scene(self):
         # add Articulation
         self.robot = Articulation(self.cfg.robot_cfg)
@@ -117,13 +123,30 @@ class HawUr5Env(DirectRLEnv):
         light_cfg.func("/World/Light", light_cfg)
 
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
+        # Get actions
         # Separate the main joint actions (first 6) and the gripper action (last one)
-        main_joint_actions = actions[:, :6]  # Shape: (num_envs, 6)
+        main_joint_deltas = actions[:, :6]
         gripper_actions = actions[:, 6]  # Shape: (num_envs)
-        main_joint_actions = self.cfg.action_scale * main_joint_actions.clone()
 
-        # Convert each gripper action to the corresponding 6 gripper joint positions (min max 36 joint limit)
-        gripper_joint_positions = torch.stack(
+        # Get current joint positions in the correct shape
+        current_main_joint_positions = self.joint_pos[:, : len(self._arm_dof_idx)]
+
+        # Apply actions
+        # Scale the main joint actions
+        main_joint_deltas = self.cfg.action_scale * main_joint_deltas.clone()
+        # Convert normalized joint action to radian deltas
+        main_joint_deltas = self.cfg.stepsize * main_joint_deltas
+        # Print all shapes for debugging
+        print("main_joint_deltas shape:", main_joint_deltas.shape)
+        print("current_main_joint_positions shape:", current_main_joint_positions.shape)
+        print("gripper_actions shape:", gripper_actions.shape)
+        print("self.joint_pos shape:", self.joint_pos.shape)
+
+        # Add radian deltas to current joint positions
+        main_joint_targets = torch.add(current_main_joint_positions, main_joint_deltas)
+
+        # Convert each gripper action to the corresponding 6 gripper joint positions (min max 36 = joint limit)
+        gripper_joint_targets = torch.stack(
             [
                 36 * gripper_actions,  # "left_outer_knuckle_joint"
                 -36 * gripper_actions,  # "left_inner_finger_joint"
@@ -135,13 +158,16 @@ class HawUr5Env(DirectRLEnv):
             dim=1,
         )  # Shape: (num_envs, 6)
 
+        print("main_joint_targets shape:", main_joint_targets.shape)
+        print("gripper_joint_targets shape:", gripper_joint_targets.shape)
         # Concatenate the main joint actions with the gripper joint positions
-        full_joint_actions = torch.cat(
-            (main_joint_actions, gripper_joint_positions), dim=1
-        )  # Shape: (num_envs, 12)
+        full_joint_targets = torch.cat(
+            (main_joint_targets, gripper_joint_targets), dim=1
+        )
+        print("full_joint_targets shape:", full_joint_targets.shape)
 
-        # Apply action scaling and assign to self.actions
-        self.actions = full_joint_actions
+        # Assign calculated joint target to self.actions
+        self.actions = full_joint_targets
 
     def _apply_action(self) -> None:
         self.robot.set_joint_position_target(
@@ -151,10 +177,10 @@ class HawUr5Env(DirectRLEnv):
     def _get_observations(self) -> dict:
         obs = torch.cat(
             (
-                self.joint_pos[self._arm_dof_idx].unsqueeze(dim=1),
-                self.joint_vel[self._arm_dof_idx].unsqueeze(dim=1),
-                self.joint_pos[self._gripper_dof_idx].unsqueeze(dim=1),
-                self.joint_vel[self._gripper_dof_idx].unsqueeze(dim=1),
+                self.joint_pos[:, : len(self._arm_dof_idx)].unsqueeze(dim=1),
+                self.joint_vel[:, : len(self._arm_dof_idx)].unsqueeze(dim=1),
+                self.joint_pos[:, : len(self._gripper_dof_idx)].unsqueeze(dim=1),
+                self.joint_vel[:, : len(self._gripper_dof_idx)].unsqueeze(dim=1),
             ),
             dim=-1,
         )
@@ -189,3 +215,35 @@ class HawUr5Env(DirectRLEnv):
         # self.robot.write_root_pose_to_sim(default_root_state[:, :7], env_ids)
         self.robot.write_root_velocity_to_sim(default_root_state[:, 7:], env_ids)
         self.robot.write_joint_state_to_sim(joint_pos, joint_vel, None, env_ids)
+
+
+"""
+Gripper steering function info
+
+        def gripper_steer(
+    action: float, stepsize: float, current_joints: list[float]
+) -> torch.Tensor:
+    Steer the individual gripper joints.
+       This function translates a single action
+       between -1 and 1 to the gripper joint position targets.
+       value to the gripper joint position targets.
+
+    Args:
+        action (float): Action to steer the gripper.
+
+    Returns:
+        torch.Tensor: Gripper joint position targets.
+
+    # create joint position targets
+    gripper_joint_pos = torch.tensor(
+        [
+            36 * action,  # "left_outer_knuckle_joint",
+            -36 * action,  # "left_inner_finger_joint",
+            -36 * action,  # "left_inner_knuckle_joint",
+            -36 * action,  # "right_inner_knuckle_joint",
+            36 * action,  # "right_outer_knuckle_joint",
+            36 * action,  # "right_inner_finger_joint",
+        ]
+    )
+    return gripper_joint_pos
+        """
