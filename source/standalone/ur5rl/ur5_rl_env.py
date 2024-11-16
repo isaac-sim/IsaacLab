@@ -122,11 +122,28 @@ class HawUr5Env(DirectRLEnv):
         light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
         light_cfg.func("/World/Light", light_cfg)
 
+    def _gripper_action_to_joint_targets(
+        self, gripper_action: torch.Tensor
+    ) -> torch.Tensor:
+        # Convert each gripper action to the corresponding 6 gripper joint positions (min max 36 = joint limit)
+        gripper_joint_targets = torch.stack(
+            [
+                36 * gripper_action,  # "left_outer_knuckle_joint"
+                -36 * gripper_action,  # "left_inner_finger_joint"
+                -36 * gripper_action,  # "left_inner_knuckle_joint"
+                -36 * gripper_action,  # "right_inner_knuckle_joint"
+                36 * gripper_action,  # "right_outer_knuckle_joint"
+                36 * gripper_action,  # "right_inner_finger_joint"
+            ],
+            dim=1,
+        )  # Shape: (num_envs, 6)
+        return gripper_joint_targets
+
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
         # Get actions
         # Separate the main joint actions (first 6) and the gripper action (last one)
         main_joint_deltas = actions[:, :6]
-        gripper_actions = actions[:, 6]  # Shape: (num_envs)
+        gripper_action = actions[:, 6]  # Shape: (num_envs)
 
         # Get current joint positions in the correct shape
         current_main_joint_positions = self.joint_pos[:, : len(self._arm_dof_idx)]
@@ -136,35 +153,16 @@ class HawUr5Env(DirectRLEnv):
         main_joint_deltas = self.cfg.action_scale * main_joint_deltas.clone()
         # Convert normalized joint action to radian deltas
         main_joint_deltas = self.cfg.stepsize * main_joint_deltas
-        # Print all shapes for debugging
-        print("main_joint_deltas shape:", main_joint_deltas.shape)
-        print("current_main_joint_positions shape:", current_main_joint_positions.shape)
-        print("gripper_actions shape:", gripper_actions.shape)
-        print("self.joint_pos shape:", self.joint_pos.shape)
 
         # Add radian deltas to current joint positions
         main_joint_targets = torch.add(current_main_joint_positions, main_joint_deltas)
 
-        # Convert each gripper action to the corresponding 6 gripper joint positions (min max 36 = joint limit)
-        gripper_joint_targets = torch.stack(
-            [
-                36 * gripper_actions,  # "left_outer_knuckle_joint"
-                -36 * gripper_actions,  # "left_inner_finger_joint"
-                -36 * gripper_actions,  # "left_inner_knuckle_joint"
-                -36 * gripper_actions,  # "right_inner_knuckle_joint"
-                36 * gripper_actions,  # "right_outer_knuckle_joint"
-                36 * gripper_actions,  # "right_inner_finger_joint"
-            ],
-            dim=1,
-        )  # Shape: (num_envs, 6)
+        gripper_joint_targets = self._gripper_action_to_joint_targets(gripper_action)
 
-        print("main_joint_targets shape:", main_joint_targets.shape)
-        print("gripper_joint_targets shape:", gripper_joint_targets.shape)
         # Concatenate the main joint actions with the gripper joint positions
         full_joint_targets = torch.cat(
             (main_joint_targets, gripper_joint_targets), dim=1
         )
-        print("full_joint_targets shape:", full_joint_targets.shape)
 
         # Assign calculated joint target to self.actions
         self.actions = full_joint_targets
@@ -215,6 +213,23 @@ class HawUr5Env(DirectRLEnv):
         # self.robot.write_root_pose_to_sim(default_root_state[:, :7], env_ids)
         self.robot.write_root_velocity_to_sim(default_root_state[:, 7:], env_ids)
         self.robot.write_joint_state_to_sim(joint_pos, joint_vel, None, env_ids)
+
+    def set_joint_angles_absolute(
+        self, joint_angles: list[float]
+    ) -> bool:  # TODO not yet working
+        try:
+            # Set arm joint angles from list # TODO: Add Gripper control
+            T_arm_angles = torch.tensor(joint_angles[:6], device=self.device)
+            T_gripper_angle = torch.tensor(joint_angles[6], device=self.device)
+            T_gripper_angles = self._gripper_action_to_joint_targets(T_gripper_angle)
+            T_angles = torch.cat((T_arm_angles, T_gripper_angles), dim=1)
+
+            env_ids = self.robot._ALL_INDICES  # type: ignore
+            self.robot.write_joint_state_to_sim(T_angles, torch.zeros_like(T_angles), None, env_ids=env_ids)  # type: ignore
+            return True
+        except Exception as e:
+            print(f"Error setting joint angles: {e}")
+            return False
 
 
 """

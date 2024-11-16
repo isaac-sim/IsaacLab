@@ -20,6 +20,7 @@ from ros2_humble_ws.src.ur5_parallel_control.ur5_parallel_control.ur5_basic_cont
 import threading
 
 
+# Separate thread to run the ROS 2 node in parallel to the simulation
 def ros_node_thread(node: Ur5JointController):
     """
     Function to spin the ROS 2 node in a separate thread.
@@ -33,7 +34,6 @@ def ros_node_thread(node: Ur5JointController):
         rclpy.shutdown()
 
 
-PUBLISH_2_ROS = True
 # ---------------------------------------
 
 # add argparse arguments
@@ -42,6 +42,13 @@ parser = argparse.ArgumentParser(
 )
 parser.add_argument(
     "--num_envs", type=int, default=1, help="Number of environments to spawn."
+)
+
+parser.add_argument(
+    "--pub2ros",
+    type=bool,
+    default=True,
+    help="Publish the action commands via a ros node to a forward position position controller. This will enable real robot parallel control.",
 )
 
 # append AppLauncher cli args
@@ -64,8 +71,36 @@ import torch
 from ur5_rl_env import HawUr5EnvCfg, HawUr5Env
 
 
+def sync_sim_joints_with_real_robot(env: HawUr5Env, ur5_controller: Ur5JointController):
+    """Sync the simulated robot joints with the real robot."""
+    # Sync sim joints with real robot
+    print("[INFO]: Waiting for joint positions from the real robot...")
+    while ur5_controller.get_joint_positions() == None:
+        pass
+    real_joint_positions = ur5_controller.get_joint_positions()
+
+    # TODO FIX GRIPPER JANK
+    real_joint_positions.append(0)
+
+    env.set_joint_angles_absolute(
+        joint_angles=real_joint_positions
+    )  # TODO Add Gripper control
+
+
 def main():
     """Main function."""
+    # Check if the user wants to publish the actions to ROS2
+    PUBLISH_2_ROS = args_cli.pub2ros
+
+    # create environment configuration
+    env_cfg = HawUr5EnvCfg()
+    env_cfg.scene.num_envs = args_cli.num_envs
+    # setup RL environment
+    env = HawUr5Env(cfg=env_cfg)
+
+    # simulate physics
+    count = 0
+
     if PUBLISH_2_ROS:
         # ROS 2 initialization
         rclpy.init()
@@ -76,52 +111,45 @@ def main():
         )
         ros_thread.start()
 
-    # create environment configuration
-    env_cfg = HawUr5EnvCfg()
-    env_cfg.scene.num_envs = args_cli.num_envs
-    # setup RL environment
-    env = HawUr5Env(cfg=env_cfg)
-
-    # simulate physics
-    count = 0
     while simulation_app.is_running():
         with torch.inference_mode():
             # reset
             if count % 300 == 0:
                 count = 0
-                env.reset()
+                # env.reset()
                 print("-" * 80)
                 print("[INFO]: Env reset.")
+                if PUBLISH_2_ROS:
+                    sync_sim_joints_with_real_robot(env, ur5_controller)
 
             # Sample test action for the gripper
             gripper_action = -1 + count % 2
-            # 2Pi/360 helper var
-            deg2rad = 0.017453292519943295
             # create a tensor for joint position targets with 7 values (6 for joints, 1 for gripper)
             actions = torch.tensor(
                 [
                     [
-                        -0.5,
-                        -0.5,
-                        -0.5,
-                        -0.5,
-                        -0.5,
-                        -0.5,
+                        -0.0,
+                        -0.0,
+                        -0.1,
+                        -0.0,
+                        -0.0,
+                        -0.0,
                         gripper_action,
                     ]
                 ]
                 * env_cfg.scene.num_envs
             )
-            print(f"[INFO]: Shape of actions: {actions.shape}")
 
             if PUBLISH_2_ROS:
-                # Send ros actions to the real robot # TODO (implement GRIPPER CONTROL)
+                # Send ros actions to the real robot # TODO implement GRIPPER CONTROL
                 ur5_controller.set_joint_delta(actions[0, :6].numpy())
+                real_joint_positions = ur5_controller.get_joint_positions()
+
             # Step the environment
             obs, rew, terminated, truncated, info = env.step(actions)
 
             # update counter
-            count += 0.01
+            count += 1
 
     # close the environment
     env.close()
