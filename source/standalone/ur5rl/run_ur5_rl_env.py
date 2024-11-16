@@ -3,12 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""This script demonstrates how to run the RL environment for the cartpole balancing task with ROS 2 integration."""
-# ----------------- CUDA_LAUNCH_BLOCKING -----------------
-import os
-
-os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
-# --------------------------------------------------------
+"""This script demonstrates how to run the RL environment for the xxx with ROS 2 integration."""
 
 import argparse
 
@@ -18,6 +13,27 @@ from omni.isaac.lab.app import AppLauncher
 import rclpy
 import sys
 
+# Get the Ur5JointController class from the ur5_basic_control_fpc module
+from ros2_humble_ws.src.ur5_parallel_control.ur5_parallel_control.ur5_basic_control_fpc import (
+    Ur5JointController,
+)
+import threading
+
+
+def ros_node_thread(node: Ur5JointController):
+    """
+    Function to spin the ROS 2 node in a separate thread.
+    """
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+PUBLISH_2_ROS = True
 # ---------------------------------------
 
 # add argparse arguments
@@ -39,10 +55,10 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-from omni.isaac.core.utils.extensions import enable_extension
+# from omni.isaac.core.utils.extensions import enable_extension
 
 # Enable the ROS 2 Bridge
-enable_extension("omni.isaac.ros2_bridge")
+# enable_extension("omni.isaac.ros2_bridge")
 
 import torch
 from ur5_rl_env import HawUr5EnvCfg, HawUr5Env
@@ -50,11 +66,15 @@ from ur5_rl_env import HawUr5EnvCfg, HawUr5Env
 
 def main():
     """Main function."""
-    # ROS 2 initialization
-    rclpy.init()
-
-    # ROS 2 Node example (optional, if needed)
-    # node = rclpy.create_node("isaac_sim_ros_bridge")
+    if PUBLISH_2_ROS:
+        # ROS 2 initialization
+        rclpy.init()
+        ur5_controller = Ur5JointController()
+        # Start the ROS node in a separate thread
+        ros_thread = threading.Thread(
+            target=ros_node_thread, args=(ur5_controller,), daemon=True
+        )
+        ros_thread.start()
 
     # create environment configuration
     env_cfg = HawUr5EnvCfg()
@@ -81,18 +101,22 @@ def main():
             actions = torch.tensor(
                 [
                     [
-                        -1.0,
-                        -1.0,
-                        -1.0,
-                        -1.0,
-                        -1.0,
-                        -1.0,
+                        -0.5,
+                        -0.5,
+                        -0.5,
+                        -0.5,
+                        -0.5,
+                        -0.5,
                         gripper_action,
                     ]
                 ]
                 * env_cfg.scene.num_envs
             )
             print(f"[INFO]: Shape of actions: {actions.shape}")
+
+            if PUBLISH_2_ROS:
+                # Send ros actions to the real robot # TODO (implement GRIPPER CONTROL)
+                ur5_controller.set_joint_delta(actions[0, :6].numpy())
             # Step the environment
             obs, rew, terminated, truncated, info = env.step(actions)
 
