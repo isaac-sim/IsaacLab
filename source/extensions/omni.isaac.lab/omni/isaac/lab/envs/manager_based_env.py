@@ -253,6 +253,9 @@ class ManagerBasedEnv:
         indices = torch.arange(self.num_envs, dtype=torch.int64, device=self.device)
         self._reset_idx(indices)
 
+        # update articulation kinematics
+        self.scene.write_data_to_sim()
+        self.sim.forward()
         # if sensors are added to the scene, make sure we render to reflect changes in reset
         if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
             self.sim.render()
