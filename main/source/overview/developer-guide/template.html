@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.2.0" />
-    <meta name="docbuild:last-update" content="Nov 08, 2024"/>
+    <meta name="docbuild:last-update" content="Nov 17, 2024"/>
   </head>
   
   
@@ -223,12 +223,13 @@
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1 has-children"><a class="reference internal" href="../../setup/installation/index.html">Installation Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/pip_installation.html">Option 1: Installation using Isaac Sim pip</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/binaries_installation.html">Option 2: Installation using Isaac Sim binaries</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../setup/ecosystem.html">Isaac Lab Ecosystem</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/pip_installation.html">Pip installation (recommended for Ubuntu 22.04 and Windows)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/binaries_installation.html">Binary installation (recommended for Ubuntu 20.04)</a></li>
 </ul>
 </details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../setup/faq.html">Frequently Asked Questions</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Overview</span></p>
@@ -538,7 +539,9 @@
 <button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
     <i class="fa-solid fa-magnifying-glass fa-lg"></i>
 </button>
-
+<label class="sidebar-toggle secondary-toggle btn btn-sm" for="__secondary"title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</label>
 </div></div>
       
     </div>
@@ -554,6 +557,14 @@
     <div id="print-main-content">
         <div id="jb-print-toc">
             
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#installation">Installation</a></li>
+</ul>
+            </nav>
         </div>
     </div>
 </div>
@@ -584,7 +595,31 @@ the creation of Python packages that can be shared and reused across multiple pr
 efficient workflow. Additionally it ensures that your project remains up-to-date with the latest
 features and improvements in Isaac Lab.</p>
 </div>
-<p>To get started, please follow the instructions in the <a class="reference external" href="https://github.com/isaac-sim/IsaacLabExtensionTemplate">extension template repository</a>.</p>
+<section id="installation">
+<h2>Installation<a class="headerlink" href="#installation" title="Permalink to this heading">#</a></h2>
+<p>Install Isaac Lab by following the <a class="reference external" href="../../setup/installation/index.html">installation guide</a>. We recommend using the conda installation as it simplifies calling Python scripts from the terminal.</p>
+<p>Clone the extension template repository separately from the Isaac Lab installation (i.e. outside the IsaacLab directory):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Option 1: HTTPS</span>
+git<span class="w"> </span>clone<span class="w"> </span>https://github.com/isaac-sim/IsaacLabExtensionTemplate.git
+
+<span class="c1"># Option 2: SSH</span>
+git<span class="w"> </span>clone<span class="w"> </span>git@github.com:isaac-sim/IsaacLabExtensionTemplate.git
+</pre></div>
+</div>
+<p>Throughout the repository, the name <code class="docutils literal notranslate"><span class="pre">ext_template</span></code> only serves as an example and we provide a script to rename all the references to it automatically:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Enter the repository</span>
+<span class="nb">cd</span><span class="w"> </span>IsaacLabExtensionTemplate
+
+<span class="c1"># Rename all occurrences of ext_template (in files/directories) to your_fancy_extension_name</span>
+python<span class="w"> </span>scripts/rename_template.py<span class="w"> </span>your_fancy_extension_name
+</pre></div>
+</div>
+<p>Using a python interpreter that has Isaac Lab installed, install the library:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>exts/ext_template
+</pre></div>
+</div>
+<p>For more details, please follow the instructions in the <a class="reference external" href="https://github.com/isaac-sim/IsaacLabExtensionTemplate">extension template repository</a>.</p>
+</section>
 </section>
 
 
@@ -623,6 +658,22 @@ features and improvements in Isaac Lab.</p>
             
             
               
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#installation">Installation</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
             
           </div>
           <footer class="bd-footer-content">
@@ -651,7 +702,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Nov 08, 2024.
+  Last updated on Nov 17, 2024.
   <br/>
 </p>
   </div>
