@@ -407,8 +407,14 @@ top of the repository:
 
 
 The above command should launch the simulator and display a window with a black
-ground plane. You can exit the script by pressing ``Ctrl+C`` on your terminal.
+viewport. You can exit the script by pressing ``Ctrl+C`` on your terminal.
 On Windows machines, please terminate the process from Command Prompt using
 ``Ctrl+Break`` or ``Ctrl+fn+B``.
+
+.. figure:: ../../_static/setup/verify_install.jpg
+    :align: center
+    :figwidth: 100%
+    :alt: Simulator with a black window.
+
 
 If you see this, then the installation was successful! |:tada:|
