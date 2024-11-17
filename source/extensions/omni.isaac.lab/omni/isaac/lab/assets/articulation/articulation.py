@@ -540,8 +540,13 @@ class Articulation(AssetBase):
         # set into internal buffers
         self._data.joint_limits[env_ids, joint_ids] = limits
         # update default joint pos to stay within the new limits
-        if torch.any((self._data.default_joint_pos < limits[..., 0]) | (self._data.default_joint_pos > limits[..., 1])):
-            self._data.default_joint_pos = torch.clamp(self._data.default_joint_pos, limits[..., 0], limits[..., 1])
+        if torch.any(
+            (self._data.default_joint_pos[env_ids, joint_ids] < limits[..., 0])
+            | (self._data.default_joint_pos[env_ids, joint_ids] > limits[..., 1])
+        ):
+            self._data.default_joint_pos[env_ids, joint_ids] = torch.clamp(
+                self._data.default_joint_pos[env_ids, joint_ids], limits[..., 0], limits[..., 1]
+            )
             omni.log.warn(
                 "Some default joint positions are outside of the range of the new joint limits. Default joint positions"
                 " will be clamped to be within the new joint limits."
