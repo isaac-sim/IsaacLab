@@ -114,6 +114,8 @@ class SimulationContext(_SimulationContext):
         # store input
         if cfg is None:
             cfg = SimulationCfg()
+        # check that the config is valid
+        cfg.validate()
         self.cfg = cfg
         # check that simulation is running
         if stage_utils.get_current_stage() is None:
@@ -151,6 +153,26 @@ class SimulationContext(_SimulationContext):
         self._render_viewport = bool(carb_settings_iface.get("/isaaclab/render/active_viewport"))
         # flag for whether any GUI will be rendered (local, livestreamed or viewport)
         self._has_gui = self._local_gui or self._livestream_gui
+
+        # apply render settings from render config
+        carb_settings_iface.set_bool("/rtx/translucency/enabled", self.cfg.render.enable_translucency)
+        carb_settings_iface.set_bool("/rtx/reflections/enabled", self.cfg.render.enable_reflections)
+        carb_settings_iface.set_bool("/rtx/indirectDiffuse/enabled", self.cfg.render.enable_global_illumination)
+        carb_settings_iface.set_bool("/rtx/transient/dlssg/enabled", self.cfg.render.enable_dlssg)
+        carb_settings_iface.set_int("/rtx/post/dlss/execMode", self.cfg.render.dlss_mode)
+        carb_settings_iface.set_bool("/rtx/directLighting/enabled", self.cfg.render.enable_direct_lighting)
+        carb_settings_iface.set_int(
+            "/rtx/directLighting/sampledLighting/samplesPerPixel", self.cfg.render.samples_per_pixel
+        )
+        carb_settings_iface.set_bool("/rtx/shadows/enabled", self.cfg.render.enable_shadows)
+        carb_settings_iface.set_bool("/rtx/ambientOcclusion/enabled", self.cfg.render.enable_ambient_occlusion)
+        # set denoiser mode
+        try:
+            import omni.replicator.core as rep
+
+            rep.settings.set_render_rtx_realtime(antialiasing=self.cfg.render.antialiasing_mode)
+        except Exception:
+            pass
 
         # store the default render mode
         if not self._has_gui and not self._offscreen_render:

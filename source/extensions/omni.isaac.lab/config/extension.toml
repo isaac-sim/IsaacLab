@@ -1,7 +1,11 @@
 [package]
 
 # Note: Semantic Versioning is used: https://semver.org/
+<<<<<<< HEAD
 version = "0.26.1"
+=======
+version = "0.27.14"
+>>>>>>> 9d6594b4b360d5c48e460d5886440affd2810563
 
 # Description
 title = "Isaac Lab framework for Robot Learning"
@@ -13,7 +17,6 @@ keywords = ["kit", "robotics", "learning", "ai"]
 
 [dependencies]
 "omni.isaac.core" = {}
-"omni.isaac.ml_archive" = {}
 "omni.replicator.core" = {}
 
 [python.pipapi]

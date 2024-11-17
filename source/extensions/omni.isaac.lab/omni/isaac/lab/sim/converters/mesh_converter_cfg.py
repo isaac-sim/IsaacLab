@@ -12,21 +12,21 @@ from omni.isaac.lab.utils import configclass
 class MeshConverterCfg(AssetConverterBaseCfg):
     """The configuration class for MeshConverter."""
 
-    mass_props: schemas_cfg.MassPropertiesCfg = None
+    mass_props: schemas_cfg.MassPropertiesCfg | None = None
     """Mass properties to apply to the USD. Defaults to None.
 
     Note:
         If None, then no mass properties will be added.
     """
 
-    rigid_props: schemas_cfg.RigidBodyPropertiesCfg = None
+    rigid_props: schemas_cfg.RigidBodyPropertiesCfg | None = None
     """Rigid body properties to apply to the USD. Defaults to None.
 
     Note:
         If None, then no rigid body properties will be added.
     """
 
-    collision_props: schemas_cfg.CollisionPropertiesCfg = None
+    collision_props: schemas_cfg.CollisionPropertiesCfg | None = None
     """Collision properties to apply to the USD. Defaults to None.
 
     Note:
@@ -42,3 +42,12 @@ class MeshConverterCfg(AssetConverterBaseCfg):
 
     "none" causes no collision mesh to be added.
     """
+
+    translation: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    """The translation of the mesh to the origin. Defaults to (0.0, 0.0, 0.0)."""
+
+    rotation: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
+    """The rotation of the mesh in quaternion format (w, x, y, z). Defaults to (1.0, 0.0, 0.0, 0.0)."""
+
+    scale: tuple[float, float, float] = (1.0, 1.0, 1.0)
+    """The scale of the mesh. Defaults to (1.0, 1.0, 1.0)."""
