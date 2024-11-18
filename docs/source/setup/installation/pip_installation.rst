@@ -88,7 +88,14 @@ compatibility issues with some Linux distributions. If you encounter any issues,
       pip install --upgrade pip
 
 
--  Then, install the Isaac Sim packages necessary for running Isaac Lab:
+-  Then, install the Isaac Sim package
+
+   .. code-block:: bash
+
+      pip install isaacsim==4.2.0.2 --extra-index-url https://pypi.nvidia.com
+
+
+- To install a minimal set of packages for running Isaac Lab only, the following command can be used. Note that you cannot run ``isaacsim`` with this.
 
    .. code-block:: bash
 
@@ -310,8 +317,15 @@ top of the repository:
 
 
 The above command should launch the simulator and display a window with a black
-ground plane. You can exit the script by pressing ``Ctrl+C`` on your terminal.
+viewport as shown below. You can exit the script by pressing ``Ctrl+C`` on your terminal.
 On Windows machines, please terminate the process from Command Prompt using
 ``Ctrl+Break`` or ``Ctrl+fn+B``.
+
+
+.. figure:: ../../_static/setup/verify_install.jpg
+    :align: center
+    :figwidth: 100%
+    :alt: Simulator with a black window.
+
 
 If you see this, then the installation was successful! |:tada:|

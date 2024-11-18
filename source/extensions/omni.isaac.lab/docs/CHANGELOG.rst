@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.27.15 (2024-11-09)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed indexing in :meth:`omni.isaac.lab.assets.Articulation.write_joint_limits_to_sim` to correctly process non-None ``env_ids`` and ``joint_ids``.
+
+
 0.27.14 (2024-10-23)
 ~~~~~~~~~~~~~~~~~~~~
 
