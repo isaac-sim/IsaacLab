@@ -123,10 +123,7 @@ class RecorderManager(ManagerBase):
         for env_id in range(env.num_envs):
             self._episodes[env_id] = EpisodeData()
 
-        if hasattr(env.cfg, "env_name"):
-            env_name = env.cfg.env_name
-        else:
-            env_name = None
+        env_name = getattr(env.cfg, "env_name", None)
 
         self._dataset_file_handler = cfg.dataset_file_handler_class_type()
         self._dataset_file_handler.create(
