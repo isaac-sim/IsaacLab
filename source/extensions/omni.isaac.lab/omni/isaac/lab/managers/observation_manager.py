@@ -178,13 +178,14 @@ class ObservationManager(ManagerBase):
         for group_name, group_cfg in self._group_obs_class_term_cfgs.items():
             for term_cfg in group_cfg:
                 term_cfg.func.reset(env_ids=env_ids)
+            # reset terms with history
+            for term_name in self._group_obs_term_names[group_name]:
+                if term_name in self._group_obs_term_history_buffer[group_name]:
+                    self._group_obs_term_history_buffer[group_name][term_name].reset(batch_ids=env_ids)
         # call all modifiers that are classes
         for mod in self._group_obs_class_modifiers:
             mod.reset(env_ids=env_ids)
-        # reset terms with history
-        for term_name in self._group_obs_term_names[group_name]:
-            if term_name in self._group_obs_term_history_buffer[group_name]:
-                self._group_obs_term_history_buffer[group_name][term_name].reset(batch_ids=env_ids)
+
         # nothing to log here
         return {}
 
