@@ -28,9 +28,9 @@ parser.add_argument("--max_iterations", type=int, default=10, help="RL Policy tr
 parser.add_argument(
     "--benchmark_backend",
     type=str,
-    default="OsmoKPIFile",
-    choices=["LocalLogMetrics", "JSONFileMetrics", "OsmoKPIFile"],
-    help="Benchmarking backend options, defaults OsmoKPIFile",
+    default="OmniPerfKPIFile",
+    choices=["LocalLogMetrics", "JSONFileMetrics", "OsmoKPIFile", "OmniPerfKPIFile"],
+    help="Benchmarking backend options, defaults OmniPerfKPIFile",
 )
 
 # append AppLauncher cli args
