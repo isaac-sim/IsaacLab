@@ -57,7 +57,7 @@ class RecorderTerm(ManagerTermBase):
     * Pre-reset recording: This callback is invoked at the beginning of `env.reset()` before the reset is effective.
     * Post-reset recording: This callback is invoked at the end of `env.reset()`.
     * Pre-step recording: This callback is invoked at the beginning of `env.step()`, after the step action is processed
-          and before the action is applied the action manager.
+          and before the action is applied by the action manager.
     * Post-step recording: This callback is invoked at the end of `env.step()` when all the managers are processed.
     """
 
@@ -75,20 +75,49 @@ class RecorderTerm(ManagerTermBase):
     User-defined callbacks.
     """
 
-    def record_pre_reset(self, env_ids: Sequence[int] | None) -> tuple[str | None, torch.Tensor | None]:
-        """Record data at the beginning of env.reset() before reset is effective."""
+    def record_pre_reset(self, env_ids: Sequence[int] | None) -> tuple[str | None, torch.Tensor | dict | None]:
+        """Record data at the beginning of env.reset() before reset is effective.
+
+        Args:
+            env_ids: The environment ids. All environments should be considered when set to None.
+
+        Returns:
+            A tuple of key and value to be recorded.
+            The key can contain nested keys separated by '/'. For example, "obs/joint_pos" would add the given
+            value under ['obs']['policy'] in the underlying dictionary in the recorded episode data.
+            The value can be a tensor or a nested dictionary of tensors. The shape of a tensor in the value
+            is (env_ids, ...).
+        """
         return None, None
 
-    def record_post_reset(self, env_ids: Sequence[int] | None) -> tuple[str | None, torch.Tensor | None]:
-        """Record data at the end of env.reset()."""
+    def record_post_reset(self, env_ids: Sequence[int] | None) -> tuple[str | None, torch.Tensor | dict | None]:
+        """Record data at the end of env.reset().
+
+        Args:
+            env_ids: The environment ids. All environments should be considered when set to None.
+
+        Returns:
+            A tuple of key and value to be recorded.
+            Please refer to the `record_pre_reset` function for more details.
+        """
         return None, None
 
-    def record_pre_step(self) -> tuple[str | None, torch.Tensor | None]:
-        """Record data in the beginning of env.step() after action is cached/processed in the ActionManager."""
+    def record_pre_step(self) -> tuple[str | None, torch.Tensor | dict | None]:
+        """Record data in the beginning of env.step() after action is cached/processed in the ActionManager.
+
+        Returns:
+            A tuple of key and value to be recorded.
+            Please refer to the `record_pre_reset` function for more details.
+        """
         return None, None
 
-    def record_post_step(self) -> tuple[str | None, torch.Tensor | None]:
-        """Record data at the end of env.step() when all the managers are processed."""
+    def record_post_step(self) -> tuple[str | None, torch.Tensor | dict | None]:
+        """Record data at the end of env.step() when all the managers are processed.
+
+        Returns:
+            A tuple of key and value to be recorded.
+            Please refer to the `record_pre_reset` function for more details.
+        """
         return None, None
 
 
@@ -275,7 +304,11 @@ class RecorderManager(ManagerBase):
             self.add_to_episodes(key, value)
 
     def record_pre_reset(self, env_ids: Sequence[int] | None) -> None:
-        """Trigger recorder terms for pre-reset functions."""
+        """Trigger recorder terms for pre-reset functions.
+
+        Args:
+            env_ids: The environment ids in which a reset is triggered.
+        """
         # Do nothing if no active recorder terms are provided
         if len(self.active_terms) == 0:
             return
@@ -299,7 +332,11 @@ class RecorderManager(ManagerBase):
         self.export_episodes(env_ids)
 
     def record_post_reset(self, env_ids: Sequence[int] | None) -> None:
-        """Trigger recorder terms for post-reset functions."""
+        """Trigger recorder terms for post-reset functions.
+
+        Args:
+            env_ids: The environment ids in which a reset is triggered.
+        """
         # Do nothing if no active recorder terms are provided
         if len(self.active_terms) == 0:
             return
