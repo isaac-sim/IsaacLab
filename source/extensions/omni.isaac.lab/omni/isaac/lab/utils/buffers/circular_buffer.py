@@ -75,6 +75,16 @@ class CircularBuffer:
         """
         return torch.minimum(self._num_pushes, self._max_len)
 
+    @property
+    def buffer(self) -> torch.Tensor:
+        """Complete circular buffer with most recent entry at the end and oldest entry at the beginning.
+        Returns:
+            Complete circular buffer with most recent entry at the end and oldest entry at the beginning of dimension 1. The shape is [batch_size, max_length, data.shape[1:]].
+        """
+        buf = self._buffer.clone()
+        buf = torch.roll(buf, shifts=self.max_length - self._pointer - 1, dims=0)
+        return torch.transpose(buf, dim0=0, dim1=1)
+    
     """
     Operations.
     """
