@@ -154,4 +154,3 @@ Instance Segmentation
 - If ``colorize_instance_segmentation=True`` in the camera config, a 4-channel RGBA image will be returned with dimension (B, H, W, 4) and type ``torch.uint8``. The info ``idToLabels`` dictionary will be the mapping from color to USD prim path of that semantic entity. The info ``idToSemantics`` dictionary will be the mapping from color to semantic labels of that semantic entity.
 
 - If ``colorize_instance_segmentation=False``, a buffer of dimension (B, H, W, 1) of type ``torch.int32`` will be returned, containing the instance ID of each pixel. The info ``idToLabels`` dictionary will be the mapping from instance ID to USD prim path of that semantic entity. The info ``idToSemantics`` dictionary will be the mapping from instance ID to semantic labels of that semantic entity.
-
