@@ -304,6 +304,101 @@ class TestObservationManager(unittest.TestCase):
         torch.testing.assert_close(obs_policy[:, 5:8], obs_critic[:, 0:3])
         torch.testing.assert_close(obs_policy[:, 8:11], obs_critic[:, 3:6])
 
+    def test_compute_with_history(self):
+        """Test the observation computation with history buffers."""
+        HISTORY_LENGTH = 5
+
+        @configclass
+        class MyObservationManagerCfg:
+            """Test config class for observation manager."""
+
+            @configclass
+            class PolicyCfg(ObservationGroupCfg):
+                """Test config class for policy observation group."""
+
+                term_1 = ObservationTermCfg(func=grilled_chicken, history_length=HISTORY_LENGTH)
+                # total observation size: term_dim (4) * history_len (5) = 20
+                term_2 = ObservationTermCfg(func=lin_vel_w_data)
+                # total observation size: term_dim (3) = 3
+
+            policy: ObservationGroupCfg = PolicyCfg()
+
+        # create observation manager
+        cfg = MyObservationManagerCfg()
+        self.obs_man = ObservationManager(cfg, self.env)
+        # compute observation using manager
+        observations = self.obs_man.compute()
+        # obtain the group observations
+        obs_policy: torch.Tensor = observations["policy"]
+        # check the observation shape
+        self.assertEqual((self.env.num_envs, 23), obs_policy.shape)
+        # check the observation data
+        expected_obs_term_1_data = torch.zeros(self.env.num_envs, 4 * HISTORY_LENGTH, device=self.env.device)
+        expected_obs_term_1_data[:, -4:] = torch.ones(4, device=self.env.device)
+        expected_obs_term_2_data = lin_vel_w_data(self.env)
+        expected_obs_data_t0 = torch.concat((expected_obs_term_1_data, expected_obs_term_2_data), dim=-1)
+        self.assertTrue(torch.equal(expected_obs_data_t0, obs_policy))
+        # test that the history buffer holds previous data
+        for _ in range(HISTORY_LENGTH):
+            observations = self.obs_man.compute()
+            obs_policy = observations["policy"]
+        expected_obs_term_1_data = torch.ones(self.env.num_envs, 4 * HISTORY_LENGTH, device=self.env.device)
+        expected_obs_data_t5 = torch.concat((expected_obs_term_1_data, expected_obs_term_2_data), dim=-1)
+        self.assertTrue(torch.equal(expected_obs_data_t5, obs_policy))
+        # test reset
+        self.obs_man.reset()
+        observations = self.obs_man.compute()
+        obs_policy = observations["policy"]
+        self.assertTrue(torch.equal(expected_obs_data_t0, obs_policy))
+        # test reset of specific env ids
+        reset_env_ids = [2, 4, 16]
+        self.obs_man.reset(reset_env_ids)
+        self.assertTrue(torch.equal(expected_obs_data_t0[reset_env_ids], obs_policy[reset_env_ids]))
+
+    def test_compute_with_2d_history(self):
+        """Test the observation computation with history buffers for 2D observations."""
+        HISTORY_LENGTH = 5
+
+        @configclass
+        class MyObservationManagerCfg:
+            """Test config class for observation manager."""
+
+            @configclass
+            class FlattenedPolicyCfg(ObservationGroupCfg):
+                """Test config class for policy observation group."""
+
+                term_1 = ObservationTermCfg(
+                    func=grilled_chicken_image, params={"bland": 1.0, "channel": 1}, history_length=HISTORY_LENGTH
+                )
+                # total observation size: term_dim (128, 256) * history_len (5) = 163840
+
+            @configclass
+            class PolicyCfg(ObservationGroupCfg):
+                """Test config class for policy observation group."""
+
+                term_1 = ObservationTermCfg(
+                    func=grilled_chicken_image,
+                    params={"bland": 1.0, "channel": 1},
+                    history_length=HISTORY_LENGTH,
+                    flatten_history_dim=False,
+                )
+                # total observation size: (5, 128, 256, 1)
+
+            flat_obs_policy: ObservationGroupCfg = FlattenedPolicyCfg()
+            policy: ObservationGroupCfg = PolicyCfg()
+
+        # create observation manager
+        cfg = MyObservationManagerCfg()
+        self.obs_man = ObservationManager(cfg, self.env)
+        # compute observation using manager
+        observations = self.obs_man.compute()
+        # obtain the group observations
+        obs_policy_flat: torch.Tensor = observations["flat_obs_policy"]
+        obs_policy: torch.Tensor = observations["policy"]
+        # check the observation shapes
+        self.assertEqual((self.env.num_envs, 163840), obs_policy_flat.shape)
+        self.assertEqual((self.env.num_envs, HISTORY_LENGTH, 128, 256, 1), obs_policy.shape)
+
     def test_invalid_observation_config(self):
         """Test the invalid observation config."""
 

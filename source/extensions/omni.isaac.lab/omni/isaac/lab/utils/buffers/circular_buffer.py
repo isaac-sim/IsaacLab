@@ -89,8 +89,9 @@ class CircularBuffer:
         if batch_ids is None:
             batch_ids = slice(None)
         # reset the number of pushes for the specified batch indices
-        # note: we don't need to reset the buffer since it will be overwritten. The pointer handles this.
         self._num_pushes[batch_ids] = 0
+        # set buffer at batch_id reset indices to 0.0 so that the buffer() getter returns the cleared circular buffer after reset.
+        self._buffer[:, batch_ids, :] = 0.0
 
     def append(self, data: torch.Tensor):
         """Append the data to the circular buffer.
@@ -109,7 +110,7 @@ class CircularBuffer:
         # at the fist call, initialize the buffer
         if self._buffer is None:
             self._pointer = -1
-            self._buffer = torch.empty((self.max_length, *data.shape), dtype=data.dtype, device=self._device)
+            self._buffer = torch.zeros((self.max_length, *data.shape), dtype=data.dtype, device=self._device)
         # move the head to the next slot
         self._pointer = (self._pointer + 1) % self.max_length
         # add the new data to the last layer

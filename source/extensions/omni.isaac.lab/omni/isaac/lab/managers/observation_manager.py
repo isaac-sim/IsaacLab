@@ -14,6 +14,7 @@ from prettytable import PrettyTable
 from typing import TYPE_CHECKING
 
 from omni.isaac.lab.utils import modifiers
+from omni.isaac.lab.utils.buffers import CircularBuffer
 
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
@@ -174,12 +175,16 @@ class ObservationManager(ManagerBase):
 
     def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
         # call all terms that are classes
-        for group_cfg in self._group_obs_class_term_cfgs.values():
+        for group_name, group_cfg in self._group_obs_class_term_cfgs.items():
             for term_cfg in group_cfg:
                 term_cfg.func.reset(env_ids=env_ids)
         # call all modifiers that are classes
         for mod in self._group_obs_class_modifiers:
             mod.reset(env_ids=env_ids)
+        # reset terms with history
+        for term_name in self._group_obs_term_names[group_name]:
+            if term_name in self._group_obs_term_history_buffer[group_name]:
+                self._group_obs_term_history_buffer[group_name][term_name].reset(batch_ids=env_ids)
         # nothing to log here
         return {}
 
@@ -248,7 +253,7 @@ class ObservationManager(ManagerBase):
         obs_terms = zip(group_term_names, self._group_obs_term_cfgs[group_name])
 
         # evaluate terms: compute, add noise, clip, scale, custom modifiers
-        for name, term_cfg in obs_terms:
+        for term_name, term_cfg in obs_terms:
             # compute term's value
             obs: torch.Tensor = term_cfg.func(self._env, **term_cfg.params).clone()
             # apply post-processing
@@ -261,8 +266,17 @@ class ObservationManager(ManagerBase):
                 obs = obs.clip_(min=term_cfg.clip[0], max=term_cfg.clip[1])
             if term_cfg.scale is not None:
                 obs = obs.mul_(term_cfg.scale)
-            # add value to list
-            group_obs[name] = obs
+            # Update the history buffer if observation term has history enabled
+            if term_cfg.history_length > 0:
+                self._group_obs_term_history_buffer[group_name][term_name].append(obs)
+                if term_cfg.flatten_history_dim:
+                    group_obs[term_name] = self._group_obs_term_history_buffer[group_name][term_name].buffer.reshape(
+                        self._env.num_envs, -1
+                    )
+                else:
+                    group_obs[term_name] = self._group_obs_term_history_buffer[group_name][term_name].buffer
+            else:
+                group_obs[term_name] = obs
 
         # concatenate all observations in the group together
         if self._group_obs_concatenate[group_name]:
@@ -283,6 +297,7 @@ class ObservationManager(ManagerBase):
         self._group_obs_term_cfgs: dict[str, list[ObservationTermCfg]] = dict()
         self._group_obs_class_term_cfgs: dict[str, list[ObservationTermCfg]] = dict()
         self._group_obs_concatenate: dict[str, bool] = dict()
+        self._group_obs_term_history_buffer: dict[str, dict] = dict()
 
         # create a list to store modifiers that are classes
         # we store it as a separate list to only call reset on them and prevent unnecessary calls
@@ -309,6 +324,7 @@ class ObservationManager(ManagerBase):
             self._group_obs_term_dim[group_name] = list()
             self._group_obs_term_cfgs[group_name] = list()
             self._group_obs_class_term_cfgs[group_name] = list()
+            group_entry_history_buffer: dict[str, CircularBuffer] = dict()
             # read common config for the group
             self._group_obs_concatenate[group_name] = group_cfg.concatenate_terms
             # check if config is dict already
@@ -338,7 +354,10 @@ class ObservationManager(ManagerBase):
                 # add term config to list to list
                 self._group_obs_term_names[group_name].append(term_name)
                 self._group_obs_term_cfgs[group_name].append(term_cfg)
-
+                if term_cfg.history_length > 0:
+                    group_entry_history_buffer[term_name] = CircularBuffer(
+                        max_len=term_cfg.history_length, batch_size=self._env.num_envs, device=self._env.device
+                    )
                 # call function the first time to fill up dimensions
                 obs_dims = tuple(term_cfg.func(self._env, **term_cfg.params).shape)
                 self._group_obs_term_dim[group_name].append(obs_dims[1:])
@@ -411,3 +430,5 @@ class ObservationManager(ManagerBase):
                     self._group_obs_class_term_cfgs[group_name].append(term_cfg)
                     # call reset (in-case above call to get obs dims changed the state)
                     term_cfg.func.reset()
+            # add history buffers for each group
+            self._group_obs_term_history_buffer[group_name] = group_entry_history_buffer

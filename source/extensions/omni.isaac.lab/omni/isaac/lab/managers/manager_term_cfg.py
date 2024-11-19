@@ -160,6 +160,16 @@ class ObservationTermCfg(ManagerTermBaseCfg):
     please make sure the length of the tuple matches the dimensions of the tensor outputted from the term.
     """
 
+    history_length: int = 0
+    """Number of past observations to store in the zero-initialized observation buffers.
+    Defaults to 0, which means that only the current data is stored (no history).
+    If flatten_history_dim is set to True, the source data of shape (N, H, D, ...) where N is the batch dimension and
+    H is the history length will be reshaped to a 2D tensor of shape (N, H*D*...). Otherwise, the data will be returned as is.
+    """
+
+    flatten_history_dim: bool = True
+    """Whether or not the observation manager should flatten history-based observation terms to a 2D (N, D) tensor. Defaults to True."""
+
 
 @configclass
 class ObservationGroupCfg:
