@@ -378,7 +378,6 @@ class ManagerBasedEnv:
             self.event_manager.apply(mode="interval", dt=self.step_dt)
 
         # -- compute observations
-        self.prev_obs_buf = self.obs_buf
         self.obs_buf = self.observation_manager.compute()
         self.recorder_manager.record_post_step()
 
