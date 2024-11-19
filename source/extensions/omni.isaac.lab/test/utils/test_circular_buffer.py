@@ -148,5 +148,6 @@ class TestCircularBuffer(unittest.TestCase):
         for idx in range(self.buffer.max_length - 1):
             self.assertTrue(torch.all(torch.le(retrieved_buffer[:, idx], retrieved_buffer[:, idx + 1])))
 
+
 if __name__ == "__main__":
     run_tests()

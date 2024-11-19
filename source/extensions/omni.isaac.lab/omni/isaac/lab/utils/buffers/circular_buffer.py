@@ -84,7 +84,7 @@ class CircularBuffer:
         buf = self._buffer.clone()
         buf = torch.roll(buf, shifts=self.max_length - self._pointer - 1, dims=0)
         return torch.transpose(buf, dim0=0, dim1=1)
-    
+
     """
     Operations.
     """
