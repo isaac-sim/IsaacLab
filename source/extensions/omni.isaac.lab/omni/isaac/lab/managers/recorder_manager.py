@@ -240,21 +240,8 @@ class RecorderManager(ManagerBase):
         for value_index, env_id in enumerate(env_ids):
             if env_id not in self._episodes:
                 self._episodes[env_id] = EpisodeData()
-            current_episode_layer_pointer = self._episodes[env_id].data
-            for sub_key_index in range(len(sub_keys)):
-                if sub_key_index == len(sub_keys) - 1:
-                    # Add value to the final dict layer
-                    if sub_keys[sub_key_index] not in current_episode_layer_pointer:
-                        current_episode_layer_pointer[sub_keys[sub_key_index]] = value[value_index].unsqueeze(0)
-                    else:
-                        current_episode_layer_pointer[sub_keys[sub_key_index]] = torch.cat(
-                            (current_episode_layer_pointer[sub_keys[sub_key_index]], value[value_index].unsqueeze(0))
-                        )
-                    break
-                # Create this sub_key layer in dict and move to the next layer
-                if sub_keys[sub_key_index] not in current_episode_layer_pointer:
-                    current_episode_layer_pointer[sub_keys[sub_key_index]] = dict()
-                current_episode_layer_pointer = current_episode_layer_pointer[sub_keys[sub_key_index]]
+                self._episodes[env_id].env_id = env_id
+            self._episodes[env_id].add(key, value[value_index])
 
     def set_success_to_episodes(self, env_ids: Sequence[int] | None, success_values: torch.Tensor):
         # Do nothing if no active recorder terms are provided

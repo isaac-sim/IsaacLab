@@ -106,7 +106,7 @@ class EpisodeData:
             if sub_key_index == len(sub_keys) - 1:
                 # Add value to the final dict layer
                 if sub_keys[sub_key_index] not in current_dataset_pointer:
-                    current_dataset_pointer[sub_keys[sub_key_index]] = value.unsqueeze(0)
+                    current_dataset_pointer[sub_keys[sub_key_index]] = value.unsqueeze(0).clone()
                 else:
                     current_dataset_pointer[sub_keys[sub_key_index]] = torch.cat(
                         (current_dataset_pointer[sub_keys[sub_key_index]], value.unsqueeze(0))
@@ -134,7 +134,8 @@ class EpisodeData:
     def get_next_action(self) -> torch.Tensor | None:
         """Get the next action from the dataset."""
         action = self.get_action(self._next_action_index)
-        self._next_action_index += 1
+        if action is not None:
+            self._next_action_index += 1
         return action
 
     def get_state(self, state_index) -> dict | None:
@@ -165,5 +166,6 @@ class EpisodeData:
     def get_next_state(self) -> dict | None:
         """Get the next state from the dataset."""
         state = self.get_state(self._next_state_index)
-        self._next_state_index += 1
+        if state is not None:
+            self._next_state_index += 1
         return state
