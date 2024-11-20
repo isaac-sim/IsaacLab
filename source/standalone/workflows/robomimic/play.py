@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Script to run a trained policy from robomimic."""
+"""Script to play and evaluate a trained policy from robomimic."""
 
 """Launch Isaac Sim Simulator first."""
 
@@ -12,12 +12,16 @@ import argparse
 from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
-parser = argparse.ArgumentParser(description="Play policy trained using robomimic for Isaac Lab environments.")
+parser = argparse.ArgumentParser(description="Evaluate robomimic policy for Isaac Lab environment.")
 parser.add_argument(
     "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
 )
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("--checkpoint", type=str, default=None, help="Pytorch model checkpoint to load.")
+parser.add_argument("--horizon", type=int, default=800, help="Step horizon of each rollout.")
+parser.add_argument("--num_rollouts", type=int, default=1, help="Number of rollouts.")
+parser.add_argument("--seed", type=int, default=101, help="Random seed.")
+
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -32,47 +36,83 @@ simulation_app = app_launcher.app
 import gymnasium as gym
 import torch
 
-import robomimic  # noqa: F401
 import robomimic.utils.file_utils as FileUtils
 import robomimic.utils.torch_utils as TorchUtils
 
-import omni.isaac.lab_tasks  # noqa: F401
 from omni.isaac.lab_tasks.utils import parse_env_cfg
+
+
+def rollout(policy, env, horizon, device):
+    policy.start_episode
+    obs_dict, _ = env.reset()
+    traj = dict(actions=[], obs=[], next_obs=[])
+
+    for i in range(horizon):
+        # Prepare observations
+        obs = obs_dict["policy"]
+        for ob in obs:
+            obs[ob] = torch.squeeze(obs[ob])
+        traj["obs"].append(obs)
+
+        # Compute actions
+        actions = policy(obs)
+        actions = torch.from_numpy(actions).to(device=device).view(1, env.action_space.shape[1])
+
+        # Apply actions
+        obs_dict, _, terminated, truncated, _ = env.step(actions)
+        obs = obs_dict["policy"]
+
+        # Record trajectory
+        traj["actions"].append(actions.tolist())
+        traj["next_obs"].append(obs)
+
+        if terminated:
+            return True, traj
+        elif truncated:
+            return False, traj
+
+    return False, traj
 
 
 def main():
     """Run a trained policy from robomimic with Isaac Lab environment."""
     # parse configuration
     env_cfg = parse_env_cfg(args_cli.task, device=args_cli.device, num_envs=1, use_fabric=not args_cli.disable_fabric)
-    # we want to have the terms in the observations returned as a dictionary
-    # rather than a concatenated tensor
+
+    # Set observations to dictionary mode for Robomimic
     env_cfg.observations.policy.concatenate_terms = False
 
-    # create environment
+    # Set termination conditions
+    env_cfg.terminations.time_out = None
+
+    # Disable recorder
+    env_cfg.recorders = None
+
+    # Create environment
     env = gym.make(args_cli.task, cfg=env_cfg)
 
-    # acquire device
+    # Set seed
+    torch.manual_seed(args_cli.seed)
+    env.seed(args_cli.seed)
+
+    # Acquire device
     device = TorchUtils.get_torch_device(try_to_use_cuda=True)
-    # restore policy
+
+    # Load policy
     policy, _ = FileUtils.policy_from_checkpoint(ckpt_path=args_cli.checkpoint, device=device, verbose=True)
 
-    # reset environment
-    obs_dict, _ = env.reset()
-    # robomimic only cares about policy observations
-    obs = obs_dict["policy"]
-    # simulate environment
-    while simulation_app.is_running():
-        # run everything in inference mode
-        with torch.inference_mode():
-            # compute actions
-            actions = policy(obs)
-            actions = torch.from_numpy(actions).to(device=device).view(1, env.action_space.shape[1])
-            # apply actions
-            obs_dict = env.step(actions)[0]
-            # robomimic only cares about policy observations
-            obs = obs_dict["policy"]
+    # Run policy
+    results = []
+    for trial in range(args_cli.num_rollouts):
+        print(f"[INFO] Starting trial {trial}")
+        terminated, traj = rollout(policy, env, args_cli.horizon, device)
+        results.append(terminated)
+        print(f"[INFO] Trial {trial}: {terminated}\n")
 
-    # close the simulator
+    print(f"\nSuccessful trials: {results.count(True)}, out of {len(results)} trials")
+    print(f"Success rate: {results.count(True) / len(results)}")
+    print(f"Trial Results: {results}\n")
+
     env.close()
 
 

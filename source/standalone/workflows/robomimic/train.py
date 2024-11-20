@@ -36,7 +36,6 @@ Args:
 
 This file has been modified from the original version in the following ways:
 
-* Added import of AppLauncher from omni.isaac.lab.app to resolve the configuration to load for training.
 """
 
 """Launch Isaac Sim Simulator first."""
@@ -67,7 +66,7 @@ import robomimic.utils.file_utils as FileUtils
 import robomimic.utils.obs_utils as ObsUtils
 import robomimic.utils.torch_utils as TorchUtils
 import robomimic.utils.train_utils as TrainUtils
-from robomimic.algo import RolloutPolicy, algo_factory
+from robomimic.algo import algo_factory
 from robomimic.config import config_factory
 from robomimic.utils.log_utils import DataLogger, PrintLogger
 
@@ -85,6 +84,7 @@ def train(config, device):
     print(config)
     print("")
     log_dir, ckpt_dir, video_dir = TrainUtils.get_exp_dir(config)
+
     print(f">>> Saving logs into directory: {log_dir}")
     print(f">>> Saving checkpoints into directory: {ckpt_dir}")
     print(f">>> Saving videos into directory: {video_dir}")
@@ -194,8 +194,6 @@ def train(config, device):
 
     # main training loop
     best_valid_loss = None
-    best_return = {k: -np.inf for k in envs} if config.experiment.rollout.enabled else None
-    best_success_rate = {k: -1.0 for k in envs} if config.experiment.rollout.enabled else None
     last_ckpt_time = time.time()
 
     # number of learning steps per epoch (defaults to a full dataset pass)
@@ -259,66 +257,6 @@ def train(config, device):
                     should_save_ckpt = True
                     ckpt_reason = "valid" if ckpt_reason is None else ckpt_reason
 
-        # Evaluate the model by by running rollouts
-
-        # do rollouts at fixed rate or if it's time to save a new ckpt
-        video_paths = None
-        rollout_check = (epoch % config.experiment.rollout.rate == 0) or (should_save_ckpt and ckpt_reason == "time")
-        if config.experiment.rollout.enabled and (epoch > config.experiment.rollout.warmstart) and rollout_check:
-            # wrap model as a RolloutPolicy to prepare for rollouts
-            rollout_model = RolloutPolicy(model, obs_normalization_stats=obs_normalization_stats)
-
-            num_episodes = config.experiment.rollout.n
-            all_rollout_logs, video_paths = TrainUtils.rollout_with_stats(
-                policy=rollout_model,
-                envs=envs,
-                horizon=config.experiment.rollout.horizon,
-                use_goals=config.use_goals,
-                num_episodes=num_episodes,
-                render=False,
-                video_dir=video_dir if config.experiment.render_video else None,
-                epoch=epoch,
-                video_skip=config.experiment.get("video_skip", 5),
-                terminate_on_success=config.experiment.rollout.terminate_on_success,
-            )
-
-            # summarize results from rollouts to tensorboard and terminal
-            for env_name in all_rollout_logs:
-                rollout_logs = all_rollout_logs[env_name]
-                for k, v in rollout_logs.items():
-                    if k.startswith("Time_"):
-                        data_logger.record(f"Timing_Stats/Rollout_{env_name}_{k[5:]}", v, epoch)
-                    else:
-                        data_logger.record(f"Rollout/{k}/{env_name}", v, epoch, log_stats=True)
-
-                print("\nEpoch {} Rollouts took {}s (avg) with results:".format(epoch, rollout_logs["time"]))
-                print(f"Env: {env_name}")
-                print(json.dumps(rollout_logs, sort_keys=True, indent=4))
-
-            # checkpoint and video saving logic
-            updated_stats = TrainUtils.should_save_from_rollout_logs(
-                all_rollout_logs=all_rollout_logs,
-                best_return=best_return,
-                best_success_rate=best_success_rate,
-                epoch_ckpt_name=epoch_ckpt_name,
-                save_on_best_rollout_return=config.experiment.save.on_best_rollout_return,
-                save_on_best_rollout_success_rate=config.experiment.save.on_best_rollout_success_rate,
-            )
-            best_return = updated_stats["best_return"]
-            best_success_rate = updated_stats["best_success_rate"]
-            epoch_ckpt_name = updated_stats["epoch_ckpt_name"]
-            should_save_ckpt = (
-                config.experiment.save.enabled and updated_stats["should_save_ckpt"]
-            ) or should_save_ckpt
-            if updated_stats["ckpt_reason"] is not None:
-                ckpt_reason = updated_stats["ckpt_reason"]
-
-        # Only keep saved videos if the ckpt should be saved (but not because of validation score)
-        should_save_video = (should_save_ckpt and (ckpt_reason != "valid")) or config.experiment.keep_all_videos
-        if video_paths is not None and not should_save_video:
-            for env_name in video_paths:
-                os.remove(video_paths[env_name])
-
         # Save model checkpoints based on conditions (success rate, validation loss, etc)
         if should_save_ckpt:
             TrainUtils.save_model(
@@ -348,6 +286,8 @@ def main(args):
         cfg_entry_point_key = f"robomimic_{args.algo}_cfg_entry_point"
 
         print(f"Loading configuration for task: {args.task}")
+        print(gym.envs.registry.keys())
+        print(" ")
         cfg_entry_point_file = gym.spec(args.task).kwargs.pop(cfg_entry_point_key)
         # check if entry point exists
         if cfg_entry_point_file is None:
@@ -355,7 +295,7 @@ def main(args):
                 f"Could not find configuration for the environment: '{args.task}'."
                 f" Please check that the gym registry has the entry point: '{cfg_entry_point_key}'."
             )
-        # load config from json file
+
         with open(cfg_entry_point_file) as f:
             ext_cfg = json.load(f)
             config = config_factory(ext_cfg["algo_name"])
@@ -373,7 +313,8 @@ def main(args):
         config.experiment.name = args.name
 
     # change location of experiment directory
-    config.train.output_dir = os.path.abspath(os.path.join("./logs/robomimic", args.task))
+    config.train.output_dir = os.path.abspath(os.path.join("./logs", args.log_dir, args.task))
+
     # get torch device
     device = TorchUtils.get_torch_device(try_to_use_cuda=config.train.cuda)
 
@@ -409,6 +350,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--task", type=str, default=None, help="Name of the task.")
     parser.add_argument("--algo", type=str, default=None, help="Name of the algorithm.")
+    parser.add_argument("--log_dir", type=str, default="robomimic", help="Path to log directory")
 
     args = parser.parse_args()
 
