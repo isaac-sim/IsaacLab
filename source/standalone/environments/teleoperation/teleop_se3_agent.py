@@ -80,8 +80,6 @@ def main():
     vv = {
         "scene.screw_type": "m16_loose",
         "events.reset_target": "rigid_grasp_open_align",
-        # "scene.robot.arm_stiffness": 80.0,
-        # "scene.robot.arm_damping": 30.0,
         "scene.robot.arm_stiffness": 300.0,
         "scene.robot.arm_damping": 40.0,
         "decimation": 2,
@@ -141,7 +139,7 @@ def main():
     env.reset()
     teleop_interface.reset()
     counter = 0
-    record_forces = False
+    record_forces = True
     forces, frames = [], []
     for i in range(10):
         frame = env.unwrapped.render()
@@ -174,51 +172,48 @@ def main():
             if record_forces:
                 frame = env.unwrapped.render()
                 frames.append(frame)
-                contact_sensor = env.unwrapped.scene["contact_sensor"]
-                dt = contact_sensor._sim_physics_dt
-                friction_data = contact_sensor.contact_physx_view.get_friction_data(dt)
-                contact_data = contact_sensor.contact_physx_view.get_contact_data(dt)
-                nforce_mag, npoint, nnormal, ndist, ncount, nstarts = contact_data
-                tforce, tpoint, tcount, tstarts = friction_data
-                nforce = nnormal * nforce_mag
-                nforce = torch.sum(nforce, dim=0)
-                tforce = torch.sum(tforce, dim=0)
-                total_force = torch.tensor([nforce.norm(), tforce.norm(), torch.norm(nforce + tforce)])
-                print(nforce, tforce, total_force)
-                print("Total force: ", total_force)
-                forces.append(total_force.cpu().numpy())
+                wrench = obs["policy"][0, 13:19]
+                # contact_sensor = env.unwrapped.scene["contact_sensor"]
+                # dt = contact_sensor._sim_physics_dt
+                # friction_data = contact_sensor.contact_physx_view.get_friction_data(dt)
+                # contact_data = contact_sensor.contact_physx_view.get_contact_data(dt)
+                # nforce_mag, npoint, nnormal, ndist, ncount, nstarts = contact_data
+                # tforce, tpoint, tcount, tstarts = friction_data
+                # nforce = nnormal * nforce_mag
+                # nforce = torch.sum(nforce, dim=0)
+                # tforce = torch.sum(tforce, dim=0)
+                # total_force = torch.tensor([nforce.norm(), tforce.norm(), torch.norm(nforce + tforce)])
+                # print(nforce, tforce, total_force)
+                # print("Total force: ", total_force)
+                forces.append(wrench.detach().cpu().numpy())
+            # if termin or len(forces) > 250:
             if termin:
                 print("Episode terminated.")
                 env.reset()
                 teleop_interface.reset()
+                
                 counter = 0
                 if record_forces:
                     wrench_frames = []
                     plot_target = np.array(forces)
-                    labels = ["Normal Force", "Tangential Force", "Total Force"]
-                    max_val = np.max(plot_target)
-                    min_val = np.min(plot_target)
+                    labels = ["Fx", "Fy", "Fz", "Tx", "Ty", "Tz"]
+
                     indices = np.arange(len(plot_target)) + 1
                     num_plots = plot_target.shape[-1]
-                    plt.plot(indices, plot_target, label=labels)
+                    fig, ax = plt.subplots(1, 1, figsize=(6, 4))
+                    ax.plot(indices, plot_target, label=labels)
+                    vline = ax.axvline(x=0, color='r', linestyle='-')
                     plt.legend()
-                    plt.show()
-                    plt.close()
                     for t in tqdm.tqdm(indices):
-                        fig, axs = plt.subplots(1, 1, figsize=(6, 6))
-                        plt.ylim((min_val, max_val))
-                        plt.xlim((0, len(plot_target)))
-                        plt.plot(indices[:t], plot_target[:t], label=labels)
-                        plt.legend()
-                        wrench_frame = get_img_from_fig(fig, width=frame.shape[1] // 2, height=frame.shape[0])
+                        vline.set_xdata([t, t])
+                        wrench_frame = get_img_from_fig(fig, height=frame.shape[0], dpi=100)
                         wrench_frames.append(wrench_frame)
-                        plt.close()
-                        # combine frames
                     frames = np.array(frames)
                     wrench_frames = np.array(wrench_frames)
                     combined_frames = np.concatenate([frames, wrench_frames], axis=2)
                     save_numpy_as_mp4(np.array(combined_frames), "nut.mp4")
                     frames = []
+                    break
 
             # print("Step: ", counter)
             # print("Reward: ", reward, termin)

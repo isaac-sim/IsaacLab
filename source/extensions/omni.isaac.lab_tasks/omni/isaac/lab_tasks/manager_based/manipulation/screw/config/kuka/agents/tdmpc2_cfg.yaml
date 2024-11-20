@@ -31,7 +31,7 @@ data_dir: ???
 # planning
 mpc: false
 iterations: 6
-num_samples: 512
+num_samples: 256
 num_elites: 64
 num_pi_trajs: 24
 horizon: 3

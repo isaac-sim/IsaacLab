@@ -419,12 +419,12 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
 
         # action
         action_params = self.params.actions
-        # arm_lows = [-0.002, -0.002, -0.002, -0.0005, -0.0005, -0.5]
-        # arm_highs = [0.002, 0.002, 0.002, 0.0005, 0.0005, 0.5]
-        # scale = [0.002, 0.002, 0.002, 0.0005, 0.0005, 0.5]
-        arm_lows = [-0.002, -0.002, -0.002, -0.01, -0.01, -0.5]
-        arm_highs = [0.002, 0.002, 0.002, 0.01, 0.01, 0.5]
-        scale = [0.002, 0.002, 0.002, 0.01, 0.01, 0.5]
+        arm_lows = [-0.002, -0.002, -0.002, -0.0005, -0.0005, -0.5]
+        arm_highs = [0.002, 0.002, 0.002, 0.0005, 0.0005, 0.5]
+        scale = [0.002, 0.002, 0.002, 0.0005, 0.0005, 0.5]
+        # arm_lows = [-0.002, -0.002, -0.002, -0.01, -0.01, -0.5]
+        # arm_highs = [0.002, 0.002, 0.002, 0.01, 0.01, 0.5]
+        # scale = [0.002, 0.002, 0.002, 0.01, 0.01, 0.5]
 
         if self.params.events.reset_target == "rigid_grasp_open_tilt" or \
                 self.params.events.reset_joint_std > 0:
