@@ -8,6 +8,7 @@
 """Launch Isaac Sim Simulator first."""
 
 import argparse
+import os
 
 from omni.isaac.lab.app import AppLauncher
 
@@ -25,8 +26,14 @@ AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
 args_cli = parser.parse_args()
 
+app_launcher_args = {}
+if args_cli.teleop_device.lower() == "handtracking":
+    app_launcher_args = {
+        "experience": f'{os.environ["ISAACLAB_PATH"]}/source/apps/isaaclab.python.xr.openxr.kit',
+    }
+
 # launch omniverse app
-app_launcher = AppLauncher(headless=args_cli.headless)
+app_launcher = AppLauncher(app_launcher_args, headless=args_cli.headless)
 simulation_app = app_launcher.app
 
 """Rest everything follows."""
@@ -37,7 +44,7 @@ import torch
 
 import omni.log
 
-from omni.isaac.lab.devices import Se3Gamepad, Se3Keyboard, Se3SpaceMouse
+from omni.isaac.lab.devices import Se3Gamepad, Se3HandTracking, Se3Keyboard, Se3SpaceMouse
 from omni.isaac.lab.managers import TerminationTermCfg as DoneTerm
 
 import omni.isaac.lab_tasks  # noqa: F401
@@ -94,6 +101,11 @@ def main():
         teleop_interface = Se3Gamepad(
             pos_sensitivity=0.1 * args_cli.sensitivity, rot_sensitivity=0.1 * args_cli.sensitivity
         )
+    elif args_cli.teleop_device.lower() == "handtracking":
+        from isaacsim.xr.openxr import OpenXRSpec
+
+        teleop_interface = Se3HandTracking(OpenXRSpec.XrHandEXT.XR_HAND_RIGHT_EXT, False)
+        teleop_interface.add_callback("RESET", env.reset)
     else:
         raise ValueError(f"Invalid device interface '{args_cli.teleop_device}'. Supported: 'keyboard', 'spacemouse'.")
     # add teleoperation key for env reset
