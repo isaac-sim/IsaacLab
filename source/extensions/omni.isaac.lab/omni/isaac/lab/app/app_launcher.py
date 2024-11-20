@@ -493,6 +493,9 @@ class AppLauncher:
         if self._headless and not self._livestream:
             launcher_args["hide_ui"] = True
 
+        # avoid creating new stage at startup by default for performance reasons
+        launcher_args["create_new_stage"] = False
+
         # --simulation GPU device logic --
         self.device_id = 0
         device = launcher_args.get("device", AppLauncher._APPLAUNCHER_CFG_INFO["device"][1])

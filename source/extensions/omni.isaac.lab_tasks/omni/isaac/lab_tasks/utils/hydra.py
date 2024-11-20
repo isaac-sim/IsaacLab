@@ -43,9 +43,9 @@ def register_task_to_hydra(
     agent_cfg = None
     if agent_cfg_entry_point:
         agent_cfg = load_cfg_from_registry(task_name, agent_cfg_entry_point)
-        # replace gymnasium spaces with strings because OmegaConf does not support them.
-        # this must be done before converting the env configs to dictionary to avoid internal reinterpretations
-        replace_env_cfg_spaces_with_strings(env_cfg)
+    # replace gymnasium spaces with strings because OmegaConf does not support them.
+    # this must be done before converting the env configs to dictionary to avoid internal reinterpretations
+    replace_env_cfg_spaces_with_strings(env_cfg)
     # convert the configs to dictionary
     env_cfg_dict = env_cfg.to_dict()
     if isinstance(agent_cfg, dict) or agent_cfg is None:
