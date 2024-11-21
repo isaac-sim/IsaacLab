@@ -7,7 +7,7 @@ Changelog
 Changed
 ^^^^^^^
 
-* Changed :class:`DirectMARLEnvCfg` to inherit from ``Gymnasium.Env`` due to requirement from Gymnasium v1.0.0 requiring all environments to be a subclass of ``Gymnasium.Env`` when using the ``make`` interface.
+* Changed :class:`omni.isaac.lab.envs.DirectMARLEnv` to inherit from ``Gymnasium.Env`` due to requirement from Gymnasium v1.0.0 requiring all environments to be a subclass of ``Gymnasium.Env`` when using the ``make`` interface.
 
 
 0.27.15 (2024-11-09)
