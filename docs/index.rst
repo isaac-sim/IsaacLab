@@ -97,7 +97,7 @@ Table of Contents
 
    source/features/hydra
    source/features/multi_gpu
-   source/features/tiled_rendering
+   Tiled Rendering</source/overview/sensors/camera>
    source/features/reproducibility
    .. source/features/motion_generators
 

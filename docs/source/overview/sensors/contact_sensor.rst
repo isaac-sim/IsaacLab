@@ -8,9 +8,9 @@ Contact Sensor
     :figwidth: 100%
     :alt: A contact sensor with filtering
 
-The contact sensor is designed to return the net contact force acting on a given ridged body. The sensor is written to behave as a physical object, and so the "scope" of the contact sensor is limited to the body (or bodies) that defines it. There are multiple ways to define this scope, depending on your need to filter the forces coming from the contact.
+The contact sensor is designed to return the net contact force acting on a given ridgid body. The sensor is written to behave as a physical object, and so the "scope" of the contact sensor is limited to the body (or bodies) that defines it. There are multiple ways to define this scope, depending on your need to filter the forces coming from the contact.
 
-By default, the reported force is the total contact force, but your application may only care about contact forces due to specific objects. Retrieving contact forces from specific objects requires filtering, and this can only been done in a "many-to-one" way. A multi-leged robot that needs filterable contact information for its feet would require one sensor per foot to be defined in the environment, but a robotic hand with contact sensors on the tips of each finger can be defined with a single sensor.
+By default, the reported force is the total contact force, but your application may only care about contact forces due to specific objects. Retrieving contact forces from specific objects requires filtering, and this can only be done in a "many-to-one" way. A multi-legged robot that needs filterable contact information for its feet would require one sensor per foot to be defined in the environment, but a robotic hand with contact sensors on the tips of each finger can be defined with a single sensor.
 
 Consider a simple environment with an Anymal Quadruped and a block
 

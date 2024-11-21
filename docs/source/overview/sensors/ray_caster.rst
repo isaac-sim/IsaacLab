@@ -51,7 +51,7 @@ Using a ray caster sensor requires a **pattern** and a parent xform to be attach
       )
 
 
-Notice that the units on the pattern config is in degrees! Also, we enable visualization here to explicitly show the pattern in the rendering, but this is not required and should be disabled for performance tuning. Querying the sensor for data can be done at simulation run time like any other sensor.
+Notice that the units on the pattern config is in degrees! Also, we enable visualization here to explicitly show the pattern in the rendering, but this is not required and should be disabled for performance tuning.
 
 .. figure:: ../../_static/overview/overview_sensors_rc_visualizer.png
     :align: center
