@@ -99,3 +99,7 @@ Querying the sensor for data can be done at simulation run time like any other s
 Here we can see the data returned by the sensor itself.  Notice first that there are 3 closed brackets at the beginning and the end: this is because the data returned is batched by the number of sensors. The ray cast pattern itself has also been flattened, and so the dimensions of the array are ``[N, B, 3]`` where ``N`` is the number of sensors, ``B`` is the number of cast rays in the pattern, and 3 is the dimension of the casting space. Finally, notice that the first several values in this casting pattern are the same: this is because the lidar pattern is spherical and we have specified our FOV  to be hemispherical, which includes the poles. In this configuration, the "flattening pattern" becomes apparent: the first 180 entries will be the same because it's the bottom pole of this hemisphere, and there will be 180 of them because our horizontal FOV is 180 degrees with a resolution of 1 degree.
 
  You can use this script to experiment with pattern configurations and build an intuition about how the data is stored by altering the ``triggered`` variable on line 99.
+
+   .. literalinclude:: ../../../source/standalone/demos/sensors/raycaster_sensor_demo.py
+      :language: python
+      :linenos:

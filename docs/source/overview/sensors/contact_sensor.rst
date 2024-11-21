@@ -136,3 +136,7 @@ Notice that even with filtering, both sensors report the net contact force actin
           [2.4322e-05, 0.0000e+00, 1.8102e+02]]], device='cuda:0')
 
 In this case, the contact sensor has two bodies: the left and right hind feet.  When the force matrix is queried, the result is ``None`` because this is a many body sensor, and presently Isaac Lab only supports "many to one" contact force filtering. Unlike the single body contact sensor, the reported force tensor has multiple entries, with each "row" corresponding to the contact force on a single body of the sensor (matching the ordering at construction).
+
+   .. literalinclude:: ../../../source/standalone/demos/sensors/contact_sensor_demo.py
+      :language: python
+      :linenos:
