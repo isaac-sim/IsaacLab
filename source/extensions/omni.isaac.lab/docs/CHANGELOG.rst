@@ -2,6 +2,17 @@ Changelog
 ---------
 
 
+0.28.0 (2024-10-28)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`omni.isaac.lab.sensors.RTXLidar` sensor integration
+* Added :class:`omni.isaac.lab.sensors.RTXLidarCfg` and :class:`omni.isaac.lab.sensors.RTXLidarData` configuration and data classes
+* Added :meth:`sim/spawn/sensors/sensors/spawn_lidar` and :class:`sim/spawn/sensors/sensors_cfg/LidarCfg` functionality for spawning both builtin and custom lidar models
+
+
 0.27.7 (2024-10-28)
 ~~~~~~~~~~~~~~~~~~~
 
