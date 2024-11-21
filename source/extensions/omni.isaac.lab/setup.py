@@ -27,7 +27,7 @@ INSTALL_REQUIRES = [
     # devices
     "hidapi",
     # reinforcement learning
-    "gymnasium==0.29.0",
+    "gymnasium",
     # procedural-generation
     "trimesh",
     "pyglet<2",
