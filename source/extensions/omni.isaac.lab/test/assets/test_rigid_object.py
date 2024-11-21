@@ -426,175 +426,177 @@ class TestRigidObject(unittest.TestCase):
                                 cube_object.data.root_lin_vel_w, initial_velocity[:, :3], rtol=1e-5, atol=tolerance
                             )
 
-    # def test_rigid_body_with_static_friction(self):
-    #     """Test that static friction applied to rigid object works as expected.
+    def test_rigid_body_with_static_friction(self):
+        """Test that static friction applied to rigid object works as expected.
 
-    #     This test works by applying a force to the object and checking if the object moves or not based on the
-    #     mu (coefficient of static friction) value set for the object. We set the static friction to be non-zero and
-    #     apply a force to the object. When the force applied is below mu, the object should not move. When the force
-    #     applied is above mu, the object should move.
-    #     """
-    #     for num_cubes in (1, 2):
-    #         for device in ("cuda:0", "cpu"):
-    #             with self.subTest(num_cubes=num_cubes, device=device):
-    #                 with build_simulation_context(device=device, add_ground_plane=True, auto_add_lighting=True) as sim:
-    #                     cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, height=0.03125, device=device)
+        This test works by applying a force to the object and checking if the object moves or not based on the
+        mu (coefficient of static friction) value set for the object. We set the static friction to be non-zero and
+        apply a force to the object. When the force applied is below mu, the object should not move. When the force
+        applied is above mu, the object should move.
+        """
+        for num_cubes in (1, 2):
+            for device in ("cuda", "cpu"):
+                with self.subTest(num_cubes=num_cubes, device=device):
+                    with build_simulation_context(
+                        device=device, dt=0.01, add_ground_plane=False, auto_add_lighting=True
+                    ) as sim:
+                        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, height=0.03125, device=device)
 
-    #                     # Create ground plane with no friction
-    #                     cfg = sim_utils.GroundPlaneCfg(
-    #                         physics_material=materials.RigidBodyMaterialCfg(
-    #                             static_friction=0.0,
-    #                             dynamic_friction=0.0,
-    #                         )
-    #                     )
-    #                     cfg.func("/World/GroundPlane", cfg)
+                        # Create ground plane
+                        static_friction_coefficient = 0.5
+                        cfg = sim_utils.GroundPlaneCfg(
+                            physics_material=materials.RigidBodyMaterialCfg(
+                                static_friction=static_friction_coefficient,
+                                dynamic_friction=static_friction_coefficient,  # This shouldn't be required but is due to a bug in PhysX
+                            )
+                        )
+                        cfg.func("/World/GroundPlane", cfg)
 
-    #                     # Play sim
-    #                     sim.reset()
+                        # Play sim
+                        sim.reset()
 
-    #                     # Set static friction to be non-zero
-    #                     static_friction_coefficient = 0.5
-    #                     static_friction = torch.Tensor([[static_friction_coefficient]] * num_cubes)
-    #                     dynamic_friction = torch.zeros(num_cubes, 1)
-    #                     restitution = torch.FloatTensor(num_cubes, 1).uniform_(0.0, 0.2)
+                        # Set static friction to be non-zero
+                        # Dynamic friction also needs to be zero due to a bug in PhysX
+                        static_friction = torch.Tensor([[static_friction_coefficient]] * num_cubes)
+                        dynamic_friction = torch.Tensor([[static_friction_coefficient]] * num_cubes)
+                        restitution = torch.zeros(num_cubes, 1)
 
-    #                     cube_object_materials = torch.cat([static_friction, dynamic_friction, restitution], dim=-1)
+                        cube_object_materials = torch.cat([static_friction, dynamic_friction, restitution], dim=-1)
 
-    #                     indices = torch.tensor(range(num_cubes), dtype=torch.int)
+                        indices = torch.tensor(range(num_cubes), dtype=torch.int)
 
-    #                     # Add friction to cube
-    #                     cube_object.root_physx_view.set_material_properties(cube_object_materials, indices)
+                        # Add friction to cube
+                        cube_object.root_physx_view.set_material_properties(cube_object_materials, indices)
 
-    #                     # 2 cases: force applied is below and above mu
-    #                     # below mu: block should not move as the force applied is <= mu
-    #                     # above mu: block should move as the force applied is > mu
-    #                     for force in "below_mu", "above_mu":
-    #                         with self.subTest(force=force):
-    #                             external_wrench_b = torch.zeros((num_cubes, 1, 6), device=sim.device)
+                        # let everything settle
+                        for _ in range(100):
+                            sim.step()
+                            cube_object.update(sim.cfg.dt)
+                        cube_object.write_root_velocity_to_sim(torch.zeros((num_cubes, 6), device=sim.device))
+                        cube_mass = cube_object.root_physx_view.get_masses()
+                        gravity_magnitude = abs(sim.cfg.gravity[2])
+                        # 2 cases: force applied is below and above mu
+                        # below mu: block should not move as the force applied is <= mu
+                        # above mu: block should move as the force applied is > mu
+                        for force in "below_mu", "above_mu":
+                            with self.subTest(force=force):
+                                # set initial velocity to zero
+                                cube_object.write_root_velocity_to_sim(torch.zeros((num_cubes, 6), device=sim.device))
 
-    #                             if force == "below_mu":
-    #                                 external_wrench_b[:, 0, 0] = static_friction_coefficient * 0.999
-    #                             else:
-    #                                 external_wrench_b[:, 0, 0] = static_friction_coefficient * 1.001
+                                external_wrench_b = torch.zeros((num_cubes, 1, 6), device=sim.device)
+                                if force == "below_mu":
+                                    external_wrench_b[..., 0] = (
+                                        static_friction_coefficient * cube_mass * gravity_magnitude * 0.99
+                                    )
+                                else:
+                                    external_wrench_b[..., 0] = (
+                                        static_friction_coefficient * cube_mass * gravity_magnitude * 1.01
+                                    )
 
-    #                             cube_object.set_external_force_and_torque(
-    #                                 external_wrench_b[..., :3],
-    #                                 external_wrench_b[..., 3:],
-    #                             )
+                                cube_object.set_external_force_and_torque(
+                                    external_wrench_b[..., :3],
+                                    external_wrench_b[..., 3:],
+                                )
 
-    #                             # Get root state
-    #                             initial_root_state = cube_object.data.root_state_w
+                                # Get root state
+                                initial_root_pos = cube_object.data.root_pos_w.clone()
+                                # Simulate physics
+                                for _ in range(200):
+                                    # apply the wrench
+                                    cube_object.write_data_to_sim()
+                                    sim.step()
+                                    # update object
+                                    cube_object.update(sim.cfg.dt)
+                                    if force == "below_mu":
+                                        # Assert that the block has not moved
+                                        torch.testing.assert_close(
+                                            cube_object.data.root_pos_w, initial_root_pos, rtol=1e-3, atol=1e-3
+                                        )
+                                if force == "above_mu":
+                                    self.assertTrue(
+                                        (cube_object.data.root_state_w[..., 0] - initial_root_pos[..., 0] > 0.02).all()
+                                    )
 
-    #                             # Simulate physics
-    #                             for _ in range(10):
-    #                                 # perform rendering
-    #                                 sim.step()
-    #                                 # update object
-    #                                 cube_object.update(sim.cfg.dt)
+    def test_rigid_body_with_restitution(self):
+        """Test that restitution when applied to rigid object works as expected.
 
-    #                                 if force == "below_mu":
-    #                                     # Assert that the block has not moved
-    #                                     torch.testing.assert_close(
-    #                                         cube_object.data.root_state_w, initial_root_state, rtol=1e-5, atol=1e-5
-    #                                     )
-    #                                 else:
-    #                                     torch.testing.assert_close(
-    #                                         cube_object.data.root_state_w, initial_root_state, rtol=1e-5, atol=1e-5
-    #                                     )
+        This test works by dropping a block from a height and checking if the block bounces or not based on the
+        restitution value set for the object. We set the restitution to be non-zero and drop the block from a height.
+        When the restitution is 0, the block should not bounce. When the restitution is between 0 and 1, the block
+        should bounce with less energy.
+        """
+        for num_cubes in (1, 2):
+            for device in ("cuda:0", "cpu"):
+                for expected_collision_type in "partially_elastic", "inelastic":
+                    with self.subTest(
+                        expected_collision_type=expected_collision_type, num_cubes=num_cubes, device=device
+                    ):
+                        with build_simulation_context(
+                            device=device, add_ground_plane=False, auto_add_lighting=True
+                        ) as sim:
+                            cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, height=1.0, device=device)
 
-    # def test_rigid_body_with_restitution(self):
-    #     """Test that restitution when applied to rigid object works as expected.
+                            # Set static friction to be non-zero
+                            if expected_collision_type == "inelastic":
+                                restitution_coefficient = 0.0
+                            elif expected_collision_type == "partially_elastic":
+                                restitution_coefficient = 0.5
 
-    #     This test works by dropping a block from a height and checking if the block bounces or not based on the
-    #     restitution value set for the object. We set the restitution to be non-zero and drop the block from a height.
-    #     When the restitution is 0, the block should not bounce. When the restitution is 1, the block should bounce
-    #     with the same energy. When the restitution is between 0 and 1, the block should bounce with less energy.
+                            # Create ground plane such that has a restitution of 1.0 (perfectly elastic collision)
+                            cfg = sim_utils.GroundPlaneCfg(
+                                physics_material=materials.RigidBodyMaterialCfg(
+                                    restitution=restitution_coefficient,
+                                )
+                            )
+                            cfg.func("/World/GroundPlane", cfg)
 
-    #     """
-    #     for num_cubes in (1, 2):
-    #         for device in ("cuda:0", "cpu"):
-    #             with self.subTest(num_cubes=num_cubes, device=device):
-    #                 with build_simulation_context(device=device, add_ground_plane=True, auto_add_lighting=True) as sim:
-    #                     cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, height=1.0, device=device)
+                            indices = torch.tensor(range(num_cubes), dtype=torch.int)
 
-    #                     # Create ground plane such that has a restitution of 1.0 (perfectly elastic collision)
-    #                     cfg = sim_utils.GroundPlaneCfg(
-    #                         physics_material=materials.RigidBodyMaterialCfg(
-    #                             restitution=1.0,
-    #                         )
-    #                     )
-    #                     cfg.func("/World/GroundPlane", cfg)
+                            # Play sim
+                            sim.reset()
 
-    #                     indices = torch.tensor(range(num_cubes), dtype=torch.int)
+                            root_state = torch.zeros(num_cubes, 13, device=sim.device)
+                            root_state[:, 3] = 1.0  # To make orientation a quaternion
+                            for i in range(num_cubes):
+                                root_state[i, 1] = 1.0 * i
+                            root_state[:, 2] = 1.0  # Set an initial drop height
+                            root_state[:, 9] = -1.0  # Set an initial downward velocity
 
-    #                     # Play sim
-    #                     sim.reset()
+                            cube_object.write_root_state_to_sim(root_state=root_state)
 
-    #                     # 3 cases: inelastic, partially elastic, elastic
-    #                     # inelastic: resitution = 0, block should not bounce
-    #                     # partially elastic: 0 <= restitution <= 1, block should bounce with less energy
-    #                     # elastic: restitution = 1, block should bounce with same energy
-    #                     for expected_collision_type in "inelastic", "partially_elastic", "elastic":
-    #                         root_state = torch.zeros(1, 13, device=sim.device)
-    #                         root_state[0, 3] = 1.0  # To make orientation a quaternion
-    #                         root_state[0, 2] = 0.1  # Set an initial drop height
-    #                         root_state[0, 9] = -1.0  # Set an initial downward velocity
+                            static_friction = torch.zeros(num_cubes, 1)
+                            dynamic_friction = torch.zeros(num_cubes, 1)
+                            restitution = torch.Tensor([[restitution_coefficient]] * num_cubes)
 
-    #                         cube_object.write_root_state_to_sim(root_state=root_state)
+                            cube_object_materials = torch.cat([static_friction, dynamic_friction, restitution], dim=-1)
 
-    #                         prev_z_velocity = 0.0
-    #                         curr_z_velocity = 0.0
+                            # Add restitution to cube
+                            cube_object.root_physx_view.set_material_properties(cube_object_materials, indices)
 
-    #                         with self.subTest(expected_collision_type=expected_collision_type):
-    #                             # cube_object.reset()
-    #                             # Set static friction to be non-zero
-    #                             if expected_collision_type == "inelastic":
-    #                                 restitution_coefficient = 0.0
-    #                             elif expected_collision_type == "partially_elastic":
-    #                                 restitution_coefficient = 0.5
-    #                             else:
-    #                                 restitution_coefficient = 1.0
+                            curr_z_velocity = cube_object.data.root_lin_vel_w[:, 2].clone()
 
-    #                             restitution = 0.5
-    #                             static_friction = torch.zeros(num_cubes, 1)
-    #                             dynamic_friction = torch.zeros(num_cubes, 1)
-    #                             restitution = torch.Tensor([[restitution_coefficient]] * num_cubes)
+                            for _ in range(100):
+                                sim.step()
 
-    #                             cube_object_materials = torch.cat(
-    #                                 [static_friction, dynamic_friction, restitution], dim=-1
-    #                             )
+                                # update object
+                                cube_object.update(sim.cfg.dt)
+                                curr_z_velocity = cube_object.data.root_lin_vel_w[:, 2].clone()
 
-    #                             # Add friction to cube
-    #                             cube_object.root_physx_view.set_material_properties(cube_object_materials, indices)
+                                if expected_collision_type == "inelastic":
+                                    # assert that the block has not bounced by checking that the z velocity is less than or equal to 0
+                                    self.assertTrue((curr_z_velocity <= 0.0).all())
 
-    #                             curr_z_velocity = cube_object.data.root_lin_vel_w[:, 2]
+                                if torch.all(curr_z_velocity <= 0.0):
+                                    # Still in the air
+                                    prev_z_velocity = curr_z_velocity
+                                else:
+                                    # collision has happened, exit the for loop
+                                    break
 
-    #                             while torch.all(curr_z_velocity <= 0.0):
-    #                                 # Simulate physics
-    #                                 curr_z_velocity = cube_object.data.root_lin_vel_w[:, 2]
-
-    #                                 # perform rendering
-    #                                 sim.step()
-
-    #                                 # update object
-    #                                 cube_object.update(sim.cfg.dt)
-    #                                 if torch.all(curr_z_velocity <= 0.0):
-    #                                     # Still in the air
-    #                                     prev_z_velocity = curr_z_velocity
-
-    #                             # We have made contact with the ground and can verify expected collision type
-    #                             # based on how velocity has changed after the collision
-    #                             if expected_collision_type == "inelastic":
-    #                                 # Assert that the block has lost most energy by checking that the z velocity is < 1/2 previous
-    #                                 # velocity. This is because the floor's resitution means it will bounce back an object that itself
-    #                                 # has restitution set to 0.0
-    #                                 self.assertTrue(torch.all(torch.le(curr_z_velocity / 2, abs(prev_z_velocity))))
-    #                             elif expected_collision_type == "partially_elastic":
-    #                                 # Assert that the block has lost some energy by checking that the z velocity is less
-    #                                 self.assertTrue(torch.all(torch.le(abs(curr_z_velocity), abs(prev_z_velocity))))
-    #                             elif expected_collision_type == "elastic":
-    #                                 # Assert that the block has not lost any energy by checking that the z velocity is the same
-    #                                 torch.testing.assert_close(abs(curr_z_velocity), abs(prev_z_velocity))
+                            if expected_collision_type == "partially_elastic":
+                                # Assert that the block has lost some energy by checking that the z velocity is less
+                                self.assertTrue(torch.all(torch.le(abs(curr_z_velocity), abs(prev_z_velocity))))
+                                self.assertTrue((curr_z_velocity > 0.0).all())
 
     def test_rigid_body_set_mass(self):
         """Test getting and setting mass of rigid object."""

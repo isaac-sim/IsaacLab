@@ -37,29 +37,46 @@ class UniformVelocityCommandCfg(CommandTermCfg):
 
     asset_name: str = MISSING
     """Name of the asset in the environment for which the commands are generated."""
-    heading_command: bool = MISSING
-    """Whether to use heading command or angular velocity command.
+
+    heading_command: bool = False
+    """Whether to use heading command or angular velocity command. Defaults to False.
 
     If True, the angular velocity command is computed from the heading error, where the
     target heading is sampled uniformly from provided range. Otherwise, the angular velocity
     command is sampled uniformly from provided range.
     """
-    heading_control_stiffness: float = MISSING
-    """Scale factor to convert the heading error to angular velocity command."""
-    rel_standing_envs: float = MISSING
-    """Probability threshold for environments where the robots that are standing still."""
-    rel_heading_envs: float = MISSING
-    """Probability threshold for environments where the robots follow the heading-based angular velocity command
-    (the others follow the sampled angular velocity command)."""
+
+    heading_control_stiffness: float = 1.0
+    """Scale factor to convert the heading error to angular velocity command. Defaults to 1.0."""
+
+    rel_standing_envs: float = 0.0
+    """The sampled probability of environments that should be standing still. Defaults to 0.0."""
+
+    rel_heading_envs: float = 1.0
+    """The sampled probability of environments where the robots follow the heading-based angular velocity command
+    (the others follow the sampled angular velocity command). Defaults to 1.0.
+
+    This parameter is only used if :attr:`heading_command` is True.
+    """
 
     @configclass
     class Ranges:
         """Uniform distribution ranges for the velocity commands."""
 
-        lin_vel_x: tuple[float, float] = MISSING  # min max [m/s]
-        lin_vel_y: tuple[float, float] = MISSING  # min max [m/s]
-        ang_vel_z: tuple[float, float] = MISSING  # min max [rad/s]
-        heading: tuple[float, float] = MISSING  # min max [rad]
+        lin_vel_x: tuple[float, float] = MISSING
+        """Range for the linear-x velocity command (in m/s)."""
+
+        lin_vel_y: tuple[float, float] = MISSING
+        """Range for the linear-y velocity command (in m/s)."""
+
+        ang_vel_z: tuple[float, float] = MISSING
+        """Range for the angular-z velocity command (in rad/s)."""
+
+        heading: tuple[float, float] | None = None
+        """Range for the heading command (in rad). Defaults to None.
+
+        This parameter is only used if :attr:`~UniformVelocityCommandCfg.heading_command` is True.
+        """
 
     ranges: Ranges = MISSING
     """Distribution ranges for the velocity commands."""
@@ -91,15 +108,17 @@ class NormalVelocityCommandCfg(UniformVelocityCommandCfg):
         """Normal distribution ranges for the velocity commands."""
 
         mean_vel: tuple[float, float, float] = MISSING
-        """Mean velocity for the normal distribution.
+        """Mean velocity for the normal distribution (in m/s).
 
         The tuple contains the mean linear-x, linear-y, and angular-z velocity.
         """
+
         std_vel: tuple[float, float, float] = MISSING
-        """Standard deviation for the normal distribution.
+        """Standard deviation for the normal distribution (in m/s).
 
         The tuple contains the standard deviation linear-x, linear-y, and angular-z velocity.
         """
+
         zero_prob: tuple[float, float, float] = MISSING
         """Probability of zero velocity for the normal distribution.
 
@@ -118,6 +137,7 @@ class UniformPoseCommandCfg(CommandTermCfg):
 
     asset_name: str = MISSING
     """Name of the asset in the environment for which the commands are generated."""
+
     body_name: str = MISSING
     """Name of the body in the asset for which the commands are generated."""
 
@@ -131,12 +151,23 @@ class UniformPoseCommandCfg(CommandTermCfg):
     class Ranges:
         """Uniform distribution ranges for the pose commands."""
 
-        pos_x: tuple[float, float] = MISSING  # min max [m]
-        pos_y: tuple[float, float] = MISSING  # min max [m]
-        pos_z: tuple[float, float] = MISSING  # min max [m]
-        roll: tuple[float, float] = MISSING  # min max [rad]
-        pitch: tuple[float, float] = MISSING  # min max [rad]
-        yaw: tuple[float, float] = MISSING  # min max [rad]
+        pos_x: tuple[float, float] = MISSING
+        """Range for the x position (in m)."""
+
+        pos_y: tuple[float, float] = MISSING
+        """Range for the y position (in m)."""
+
+        pos_z: tuple[float, float] = MISSING
+        """Range for the z position (in m)."""
+
+        roll: tuple[float, float] = MISSING
+        """Range for the roll angle (in rad)."""
+
+        pitch: tuple[float, float] = MISSING
+        """Range for the pitch angle (in rad)."""
+
+        yaw: tuple[float, float] = MISSING
+        """Range for the yaw angle (in rad)."""
 
     ranges: Ranges = MISSING
     """Ranges for the commands."""
@@ -175,8 +206,10 @@ class UniformPose2dCommandCfg(CommandTermCfg):
 
         pos_x: tuple[float, float] = MISSING
         """Range for the x position (in m)."""
+
         pos_y: tuple[float, float] = MISSING
         """Range for the y position (in m)."""
+
         heading: tuple[float, float] = MISSING
         """Heading range for the position commands (in rad).
 

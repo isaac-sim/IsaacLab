@@ -79,6 +79,8 @@ class DirectRLEnv(gym.Env):
             RuntimeError: If a simulation context already exists. The environment must always create one
                 since it configures the simulation context and controls the simulation.
         """
+        # check that the config is valid
+        cfg.validate()
         # store inputs to class
         self.cfg = cfg
         # store the render mode
@@ -535,7 +537,7 @@ class DirectRLEnv(gym.Env):
 
         # optional state space for asymmetric actor-critic architectures
         self.state_space = None
-        if self.cfg.state_space > 0:
+        if self.cfg.state_space:
             self.single_observation_space["critic"] = spec_to_gym_space(self.cfg.state_space)
             self.state_space = gym.vector.utils.batch_space(self.single_observation_space["critic"], self.num_envs)
 
