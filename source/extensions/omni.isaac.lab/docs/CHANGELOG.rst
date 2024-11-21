@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.27.16 (2024-11-21)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed :class:`DirectMARLEnvCfg` to inherit from ``Gymnasium.Env`` due to requirement from Gymnasium v1.0.0 requiring all environments to be a subclass of ``Gymnasium.Env`` when using the ``make`` interface.
+
+
 0.27.15 (2024-11-09)
 ~~~~~~~~~~~~~~~~~~~~
 
