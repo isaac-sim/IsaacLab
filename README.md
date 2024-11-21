@@ -23,7 +23,7 @@ Isaac Lab offers a comprehensive set of tools and environments designed to facil
 - **Robots**: A diverse collection of robots, from manipulators, quadrupeds, to humanoids, with 16 commonly available models.
 - **Environments**: Ready-to-train implementations of more than 30 environments, which can be trained with popular reinforcement learning frameworks such as RSL RL, SKRL, RL Games, or Stable Baselines. We also support multi-agent reinforcement learning.
 - **Physics**: Rigid bodies, articulated systems, deformable objects
-- **Sensors**: RGB/depth/segmentation cameras, camera annotations such as 2D/3D bounding boxes, LIDAR, IMU, contact sensors, ray casters.
+- **Sensors**: RGB/depth/segmentation cameras, camera annotations, IMU, contact sensors, ray casters.
 
 
 ## Getting Started
