@@ -1,4 +1,0 @@
-Tiled-Camera Rendering
-======================
-
-WIP
