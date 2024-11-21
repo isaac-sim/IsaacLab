@@ -150,6 +150,9 @@ By activating the visualizer, we can see that the frames of the feet are rotated
 
 Here, the sensor is tracking all rigid body children of ``Robot/base``, but this expression is **inclusive**, meaning that the source body itself is also a target. This can be seen both by examining the source and target list, where ``base`` appears twice, and also in the returned data, where the sensor returns the relative transform to itself, (0, 0, 0).
 
-   .. literalinclude:: ../../../source/standalone/demos/sensors/frame_transformer_sensor_demo.py
+.. dropdown:: Code for frame_transformer_sensor_demo.py
+   :icon: code
+
+   .. literalinclude:: ../../../../source/standalone/demos/sensors/frame_transformer_sensor_demo.py
       :language: python
       :linenos:

@@ -100,6 +100,9 @@ Here we can see the data returned by the sensor itself.  Notice first that there
 
  You can use this script to experiment with pattern configurations and build an intuition about how the data is stored by altering the ``triggered`` variable on line 99.
 
-   .. literalinclude:: ../../../source/standalone/demos/sensors/raycaster_sensor_demo.py
+.. dropdown:: Code for raycaster_sensor_demo.py
+   :icon: code
+
+   .. literalinclude:: ../../../../source/standalone/demos/sensors/raycaster_sensor_demo.py
       :language: python
       :linenos:
