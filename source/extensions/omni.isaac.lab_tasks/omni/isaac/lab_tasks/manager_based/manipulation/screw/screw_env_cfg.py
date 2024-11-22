@@ -345,7 +345,8 @@ class BaseScrewEnvCfg(ManagerBasedRLEnvCfg):
         self.viewer.origin_type = "asset_root"
         self.viewer.asset_name = "bolt"
         self.viewer.eye = (0.1, 0, 0.04)
-        self.viewer.lookat = (0, 0, 0.02)
+        self.viewer.lookat = (0, 0, 0.04)
+        self.viewer.resolution = (720, 720)
 
 
 ###################################

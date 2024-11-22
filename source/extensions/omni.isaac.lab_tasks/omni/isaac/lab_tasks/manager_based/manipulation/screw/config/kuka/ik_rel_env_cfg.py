@@ -364,15 +364,15 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
 
         rewards_params = self.params.rewards
         rewards_params.dtw_ref_traj_w = rewards_params.get("dtw_ref_traj_w", 0.0)
-        rewards_params.coarse_nut_w = rewards_params.get("coarse_nut_w", 0.5)
+        rewards_params.coarse_nut_w = rewards_params.get("coarse_nut_w", 1)
         rewards_params.fine_nut_w = rewards_params.get("fine_nut_w", 2.0)
-        rewards_params.upright_reward_w = rewards_params.get("upright_reward_w", 1)
-        rewards_params.success_w = rewards_params.get("success_w", 2.0)
-        rewards_params.action_rate_w = rewards_params.get("action_rate_w", -0.000001)
-        rewards_params.contact_force_penalty_w = rewards_params.get("contact_force_penalty_w", -0.0000001)
+        rewards_params.upright_reward_w = rewards_params.get("upright_reward_w", 0.3)
+        rewards_params.success_w = rewards_params.get("success_w", 1.0)
+        rewards_params.action_rate_w = rewards_params.get("action_rate_w", -0.0)
+        rewards_params.contact_force_penalty_w = rewards_params.get("contact_force_penalty_w", -0.01)
 
         termination_params = self.params.terminations
-        termination_params.far_from_bolt = termination_params.get("far_from_bolt", True)
+        termination_params.far_from_bolt = termination_params.get("far_from_bolt", False)
         termination_params.nut_fallen = termination_params.get("nut_fallen", False)
 
         events_params = self.params.events
@@ -419,12 +419,16 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
 
         # action
         action_params = self.params.actions
-        arm_lows = [-0.002, -0.002, -0.002, -0.0005, -0.0005, -0.5]
-        arm_highs = [0.002, 0.002, 0.002, 0.0005, 0.0005, 0.5]
-        scale = [0.002, 0.002, 0.002, 0.0005, 0.0005, 0.5]
+        # arm_lows = [-0.002, -0.002, -0.002, -0.0005, -0.0005, -0.5]
+        # arm_highs = [0.002, 0.002, 0.002, 0.0005, 0.0005, 0.5]
+        # scale = [0.002, 0.002, 0.002, 0.0005, 0.0005, 0.5]
+        arm_lows = [-0.002, -0.002, -0.002, -0.5, -0.5, -0.5]
+        arm_highs = [0.002, 0.002, 0.002, 0.5, 0.5, 0.5]
+        scale = [0.002, 0.002, 0.002, 0.5, 0.5, 0.5]
         # arm_lows = [-0.002, -0.002, -0.002, -0.01, -0.01, -0.5]
         # arm_highs = [0.002, 0.002, 0.002, 0.01, 0.01, 0.5]
         # scale = [0.002, 0.002, 0.002, 0.01, 0.01, 0.5]
+
 
         if self.params.events.reset_target == "rigid_grasp_open_tilt" or \
                 self.params.events.reset_joint_std > 0:

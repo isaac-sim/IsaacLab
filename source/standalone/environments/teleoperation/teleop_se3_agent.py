@@ -11,6 +11,7 @@ import argparse
 
 from omegaconf import OmegaConf
 
+from force_tool.visualization.plot import draw_wrench_video
 from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
@@ -35,15 +36,13 @@ simulation_app = app_launcher.app
 
 
 import gymnasium as gym
-import matplotlib.pyplot as plt
 import numpy as np
 import pickle
 import torch
-import tqdm
 
 import omni.isaac.core.utils.prims as prim_utils
 from force_tool.utils.data_utils import SmartDict, update_config
-from force_tool.visualization.plot_utils import get_img_from_fig, save_numpy_as_mp4
+from force_tool.visualization.plot_utils import save_numpy_as_mp4
 from pxr import UsdPhysics
 
 import omni.isaac.lab.utils.math as math_utils
@@ -84,6 +83,7 @@ def main():
         "scene.robot.arm_damping": 40.0,
         "decimation": 2,
         "sim.dt": 1 / 60,
+        "actions.ik_lambda": 1e-3,
     }
     cfg = update_config(cfg, vv)
     env_cfg = parse_env_cfg(
@@ -94,7 +94,7 @@ def main():
         params=cfg,
     )
     # modify configuration
-    env_cfg.terminations = {}
+    # env_cfg.terminations = {}
     if "Lift" in args_cli.task:
         # set the resampling time range to large number to avoid resampling
         env_cfg.commands.object_pose.resampling_time_range = (1.0e9, 1.0e9)
@@ -168,7 +168,8 @@ def main():
             counter += 1
             obs, reward, termin, timeout, _ = env.step(actions)
             # print(env.unwrapped.scene["robot"].read_body_pos_w("victor_left_tool0"))
-
+            # grasped_state = env.unwrapped.read_state()
+            # pickle.dump(grasped_state, open(f"cached/convexHull2/m16_loose/kuka_rigid_grasp_close_align.pkl", "wb"))
             if record_forces:
                 frame = env.unwrapped.render()
                 frames.append(frame)
@@ -186,7 +187,7 @@ def main():
                 # print(nforce, tforce, total_force)
                 # print("Total force: ", total_force)
                 forces.append(wrench.detach().cpu().numpy())
-            # if termin or len(forces) > 250:
+            # if termin or len(forces) > 50:
             if termin:
                 print("Episode terminated.")
                 env.reset()
@@ -194,20 +195,7 @@ def main():
                 
                 counter = 0
                 if record_forces:
-                    wrench_frames = []
-                    plot_target = np.array(forces)
-                    labels = ["Fx", "Fy", "Fz", "Tx", "Ty", "Tz"]
-
-                    indices = np.arange(len(plot_target)) + 1
-                    num_plots = plot_target.shape[-1]
-                    fig, ax = plt.subplots(1, 1, figsize=(6, 4))
-                    ax.plot(indices, plot_target, label=labels)
-                    vline = ax.axvline(x=0, color='r', linestyle='-')
-                    plt.legend()
-                    for t in tqdm.tqdm(indices):
-                        vline.set_xdata([t, t])
-                        wrench_frame = get_img_from_fig(fig, height=frame.shape[0], dpi=100)
-                        wrench_frames.append(wrench_frame)
+                    wrench_frames = draw_wrench_video(forces, frame)
                     frames = np.array(frames)
                     wrench_frames = np.array(wrench_frames)
                     combined_frames = np.concatenate([frames, wrench_frames], axis=2)
@@ -220,7 +208,6 @@ def main():
 
     # close the simulator
     env.close()
-
 
 if __name__ == "__main__":
     # run the main function

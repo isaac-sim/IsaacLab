@@ -62,4 +62,10 @@ def nut_successfully_threaded(
     dis = l2_norm(diff)
     # return dis < threshold
     upright_reward = nut_upright_reward_forge(env)
-    return torch.logical_and(dis < threshold, upright_reward > 0.45)
+    contact_sensor = env.scene.sensors["contact_sensor"]
+    net_contact_forces = contact_sensor.data.net_forces_w_history
+    force_norm = torch.norm(net_contact_forces, dim=-1).squeeze(-1).squeeze(-1)
+    goal_reached = dis < threshold
+    force_satisfied = force_norm < 5
+    upright_satisfied = upright_reward > 0.45
+    return torch.logical_and(goal_reached, torch.logical_and(force_satisfied, upright_satisfied))
