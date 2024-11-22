@@ -411,6 +411,7 @@ class TestObservationManager(unittest.TestCase):
             @configclass
             class PolicyCfg(ObservationGroupCfg):
                 """Test config class for policy observation group."""
+
                 history_length = GROUP_HISTORY_LENGTH
                 # group level history length will override all terms
                 term_1 = ObservationTermCfg(func=grilled_chicken, history_length=TERM_HISTORY_LENGTH)
@@ -443,7 +444,7 @@ class TestObservationManager(unittest.TestCase):
             observations = self.obs_man.compute()
             obs_policy = observations["policy"]
         expected_obs_term_1_data = torch.ones(self.env.num_envs, 4 * GROUP_HISTORY_LENGTH, device=self.env.device)
-        expected_obs_term_2_data = lin_vel_w_data(self.env).repeat(1,GROUP_HISTORY_LENGTH)
+        expected_obs_term_2_data = lin_vel_w_data(self.env).repeat(1, GROUP_HISTORY_LENGTH)
         expected_obs_data_t10 = torch.concat((expected_obs_term_1_data, expected_obs_term_2_data), dim=-1)
         self.assertTrue(torch.equal(expected_obs_data_t10, obs_policy))
         # test reset

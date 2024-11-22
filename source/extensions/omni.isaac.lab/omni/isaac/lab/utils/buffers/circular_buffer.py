@@ -103,7 +103,7 @@ class CircularBuffer:
         if self._buffer is not None:
             # set buffer at batch_id reset indices to 0.0 so that the buffer() getter returns the cleared circular buffer after reset.
             self._buffer[:, batch_ids, :] = 0.0
-            
+
     def append(self, data: torch.Tensor):
         """Append the data to the circular buffer.
 
