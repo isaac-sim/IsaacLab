@@ -143,5 +143,3 @@ In this case, the contact sensor has two bodies: the left and right hind feet.  
    .. literalinclude:: ../../../../source/standalone/demos/sensors/contact_sensor_demo.py
       :language: python
       :linenos:
-
-      
