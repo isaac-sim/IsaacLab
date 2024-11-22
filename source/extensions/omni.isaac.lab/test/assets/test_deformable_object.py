@@ -109,6 +109,7 @@ class TestDeformableObject(unittest.TestCase):
             for num_cubes in (1, 2):
                 with self.subTest(num_cubes=num_cubes, material_path=material_path):
                     with build_simulation_context(auto_add_lighting=True) as sim:
+                        sim._app_control_on_stop_handle = None
                         # Generate cubes scene
                         cube_object = generate_cubes_scene(num_cubes=num_cubes, material_path=material_path)
 
@@ -185,6 +186,7 @@ class TestDeformableObject(unittest.TestCase):
     def test_initialization_on_device_cpu(self):
         """Test that initialization fails with deformable body API on the CPU."""
         with build_simulation_context(device="cpu", auto_add_lighting=True) as sim:
+            sim._app_control_on_stop_handle = None
             # Generate cubes scene
             cube_object = generate_cubes_scene(num_cubes=5, device="cpu")
 
@@ -202,6 +204,7 @@ class TestDeformableObject(unittest.TestCase):
         for num_cubes in (1, 2):
             with self.subTest(num_cubes=num_cubes):
                 with build_simulation_context(auto_add_lighting=True) as sim:
+                    sim._app_control_on_stop_handle = None
                     # Generate cubes scene
                     cube_object = generate_cubes_scene(num_cubes=num_cubes, kinematic_enabled=True)
 
@@ -233,6 +236,7 @@ class TestDeformableObject(unittest.TestCase):
         for num_cubes in (1, 2):
             with self.subTest(num_cubes=num_cubes):
                 with build_simulation_context(auto_add_lighting=True) as sim:
+                    sim._app_control_on_stop_handle = None
                     # Generate cubes scene
                     cube_object = generate_cubes_scene(num_cubes=num_cubes, has_api=False)
 
@@ -257,6 +261,7 @@ class TestDeformableObject(unittest.TestCase):
                 # Turn off gravity for this test as we don't want any external forces acting on the object
                 # to ensure state remains static
                 with build_simulation_context(gravity_enabled=False, auto_add_lighting=True) as sim:
+                    sim._app_control_on_stop_handle = None
                     # Generate cubes scene
                     cube_object = generate_cubes_scene(num_cubes=num_cubes)
 
@@ -314,6 +319,7 @@ class TestDeformableObject(unittest.TestCase):
                 # Turn off gravity for this test as we don't want any external forces acting on the object
                 # to ensure state remains static
                 with build_simulation_context(gravity_enabled=False, auto_add_lighting=True) as sim:
+                    sim._app_control_on_stop_handle = None
                     # Generate cubes scene
                     cube_object = generate_cubes_scene(num_cubes=num_cubes)
 
@@ -382,6 +388,7 @@ class TestDeformableObject(unittest.TestCase):
                 # Turn off gravity for this test as we don't want any external forces acting on the object
                 # to ensure state remains static
                 with build_simulation_context(auto_add_lighting=True) as sim:
+                    sim._app_control_on_stop_handle = None
                     # Generate cubes scene
                     cube_object = generate_cubes_scene(num_cubes=num_cubes, height=1.0)
 

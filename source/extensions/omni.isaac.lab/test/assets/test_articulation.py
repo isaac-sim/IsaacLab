@@ -134,6 +134,7 @@ class TestArticulation(unittest.TestCase):
             for device in ("cuda:0", "cpu"):
                 with self.subTest(num_articulations=num_articulations, device=device):
                     with build_simulation_context(device=device, add_ground_plane=True, auto_add_lighting=True) as sim:
+                        sim._app_control_on_stop_handle = None
                         articulation_cfg = generate_articulation_cfg(
                             articulation_type="humanoid", stiffness=0.0, damping=0.0
                         )
@@ -184,6 +185,7 @@ class TestArticulation(unittest.TestCase):
             for device in ("cuda:0", "cpu"):
                 with self.subTest(num_articulations=num_articulations, device=device):
                     with build_simulation_context(device=device, add_ground_plane=True, auto_add_lighting=True) as sim:
+                        sim._app_control_on_stop_handle = None
                         articulation_cfg = generate_articulation_cfg(
                             articulation_type="anymal", stiffness=0.0, damping=0.0
                         )
@@ -239,6 +241,7 @@ class TestArticulation(unittest.TestCase):
             for device in ("cuda:0", "cpu"):
                 with self.subTest(num_articulations=num_articulations, device=device):
                     with build_simulation_context(device=device, add_ground_plane=False, auto_add_lighting=True) as sim:
+                        sim._app_control_on_stop_handle = None
                         articulation_cfg = generate_articulation_cfg(articulation_type="panda")
                         articulation, translations = generate_articulation(articulation_cfg, num_articulations, device)
 
@@ -298,6 +301,7 @@ class TestArticulation(unittest.TestCase):
             for device in ("cuda:0", "cpu"):
                 with self.subTest(num_articulations=num_articulations, device=device):
                     with build_simulation_context(device=device, add_ground_plane=True, auto_add_lighting=True) as sim:
+                        sim._app_control_on_stop_handle = None
                         articulation_cfg = generate_articulation_cfg(articulation_type="single_joint")
                         articulation, translations = generate_articulation(articulation_cfg, num_articulations, device)
 
@@ -357,6 +361,7 @@ class TestArticulation(unittest.TestCase):
             for device in ("cuda:0", "cpu"):
                 with self.subTest(num_articulations=num_articulations, device=device):
                     with build_simulation_context(device=device, add_ground_plane=False, auto_add_lighting=True) as sim:
+                        sim._app_control_on_stop_handle = None
                         articulation_cfg = generate_articulation_cfg(articulation_type="shadow_hand")
                         articulation, _ = generate_articulation(articulation_cfg, num_articulations, device)
 
@@ -405,6 +410,7 @@ class TestArticulation(unittest.TestCase):
             for device in ("cuda:0", "cpu"):
                 with self.subTest(num_articulations=num_articulations, device=device):
                     with build_simulation_context(device=device, add_ground_plane=True, auto_add_lighting=True) as sim:
+                        sim._app_control_on_stop_handle = None
                         articulation_cfg = generate_articulation_cfg(articulation_type="anymal")
                         # Fix root link
                         articulation_cfg.spawn.articulation_props.fix_root_link = True
@@ -460,6 +466,7 @@ class TestArticulation(unittest.TestCase):
             for device in ("cuda:0", "cpu"):
                 with self.subTest(num_articulations=num_articulations, device=device):
                     with build_simulation_context(device=device, add_ground_plane=True, auto_add_lighting=True) as sim:
+                        sim._app_control_on_stop_handle = None
                         articulation_cfg = generate_articulation_cfg(articulation_type="panda")
                         # Unfix root link
                         articulation_cfg.spawn.articulation_props.fix_root_link = False
@@ -509,6 +516,7 @@ class TestArticulation(unittest.TestCase):
             for device in ("cuda:0", "cpu"):
                 with self.subTest(num_articulations=num_articulations, device=device):
                     with build_simulation_context(device=device, add_ground_plane=True, auto_add_lighting=True) as sim:
+                        sim._app_control_on_stop_handle = None
                         # Create articulation
                         articulation_cfg = generate_articulation_cfg(articulation_type="panda")
                         articulation_cfg.init_state.joint_pos = {
@@ -529,6 +537,7 @@ class TestArticulation(unittest.TestCase):
     def test_out_of_range_default_joint_vel(self):
         """Test that the default joint velocity from configuration is out of range."""
         with build_simulation_context(device="cuda:0", add_ground_plane=False, auto_add_lighting=True) as sim:
+            sim._app_control_on_stop_handle = None
             # Create articulation
             articulation_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/Robot")
             articulation_cfg.init_state.joint_vel = {
@@ -551,6 +560,7 @@ class TestArticulation(unittest.TestCase):
             for device in ("cuda:0", "cpu"):
                 with self.subTest(num_articulations=num_articulations, device=device):
                     with build_simulation_context(device=device, add_ground_plane=True, auto_add_lighting=True) as sim:
+                        sim._app_control_on_stop_handle = None
                         # Create articulation
                         articulation_cfg = generate_articulation_cfg(articulation_type="panda")
                         articulation, _ = generate_articulation(articulation_cfg, num_articulations, device)
@@ -617,6 +627,7 @@ class TestArticulation(unittest.TestCase):
             for device in ("cuda:0", "cpu"):
                 with self.subTest(num_articulations=num_articulations, device=device):
                     with build_simulation_context(device=device, add_ground_plane=False, auto_add_lighting=True) as sim:
+                        sim._app_control_on_stop_handle = None
                         articulation_cfg = generate_articulation_cfg(articulation_type="anymal")
                         articulation, _ = generate_articulation(articulation_cfg, num_articulations, device)
                         # Play the simulator
@@ -666,6 +677,7 @@ class TestArticulation(unittest.TestCase):
             for device in ("cuda:0", "cpu"):
                 with self.subTest(num_articulations=num_articulations, device=device):
                     with build_simulation_context(device=device, add_ground_plane=False, auto_add_lighting=True) as sim:
+                        sim._app_control_on_stop_handle = None
                         articulation_cfg = generate_articulation_cfg(articulation_type="anymal")
                         articulation, _ = generate_articulation(articulation_cfg, num_articulations, device)
 
@@ -715,6 +727,7 @@ class TestArticulation(unittest.TestCase):
             for device in ("cuda:0", "cpu"):
                 with self.subTest(num_articulations=num_articulations, device=device):
                     with build_simulation_context(device=device, add_ground_plane=False, auto_add_lighting=True) as sim:
+                        sim._app_control_on_stop_handle = None
                         articulation_cfg = generate_articulation_cfg(
                             articulation_type="humanoid", stiffness=None, damping=None
                         )
@@ -774,6 +787,7 @@ class TestArticulation(unittest.TestCase):
             for device in ("cuda:0", "cpu"):
                 with self.subTest(num_articulations=num_articulations, device=device):
                     with build_simulation_context(device=device, add_ground_plane=True, auto_add_lighting=True) as sim:
+                        sim._app_control_on_stop_handle = None
                         articulation_cfg = generate_articulation_cfg(articulation_type="humanoid")
                         articulation, _ = generate_articulation(
                             articulation_cfg=articulation_cfg, num_articulations=num_articulations, device=device
@@ -801,6 +815,7 @@ class TestArticulation(unittest.TestCase):
             for device in ("cuda:0", "cpu"):
                 with self.subTest(num_articulations=num_articulations, device=device):
                     with build_simulation_context(device=device, add_ground_plane=False, auto_add_lighting=True) as sim:
+                        sim._app_control_on_stop_handle = None
                         articulation_cfg = generate_articulation_cfg(articulation_type="humanoid")
                         articulation, _ = generate_articulation(
                             articulation_cfg=articulation_cfg, num_articulations=num_articulations, device=device
@@ -868,6 +883,7 @@ class TestArticulation(unittest.TestCase):
             for device in ("cuda:0", "cpu"):
                 with self.subTest(num_articulations=num_articulations, device=device):
                     with build_simulation_context(device=device, add_ground_plane=False, auto_add_lighting=True) as sim:
+                        sim._app_control_on_stop_handle = None
                         articulation_cfg = generate_articulation_cfg(articulation_type="humanoid")
                         articulation, _ = generate_articulation(
                             articulation_cfg=articulation_cfg, num_articulations=num_articulations, device=device
@@ -892,6 +908,7 @@ class TestArticulation(unittest.TestCase):
                     with build_simulation_context(
                         gravity_enabled=True, device=device, add_ground_plane=True, auto_add_lighting=True
                     ) as sim:
+                        sim._app_control_on_stop_handle = None
                         articulation_cfg = generate_articulation_cfg(articulation_type="panda")
                         articulation, _ = generate_articulation(
                             articulation_cfg=articulation_cfg, num_articulations=num_articulations, device=device

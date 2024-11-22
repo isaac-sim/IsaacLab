@@ -105,6 +105,7 @@ class TestRigidObject(unittest.TestCase):
             for device in ("cuda:0", "cpu"):
                 with self.subTest(num_cubes=num_cubes, device=device):
                     with build_simulation_context(device=device, auto_add_lighting=True) as sim:
+                        sim._app_control_on_stop_handle = None
                         # Generate cubes scene
                         cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, device=device)
 
@@ -137,6 +138,7 @@ class TestRigidObject(unittest.TestCase):
             for device in ("cuda:0", "cpu"):
                 with self.subTest(num_cubes=num_cubes, device=device):
                     with build_simulation_context(device=device, auto_add_lighting=True) as sim:
+                        sim._app_control_on_stop_handle = None
                         # Generate cubes scene
                         cube_object, origins = generate_cubes_scene(
                             num_cubes=num_cubes, kinematic_enabled=True, device=device
@@ -173,6 +175,7 @@ class TestRigidObject(unittest.TestCase):
             for device in ("cuda:0", "cpu"):
                 with self.subTest(num_cubes=num_cubes, device=device):
                     with build_simulation_context(device=device, auto_add_lighting=True) as sim:
+                        sim._app_control_on_stop_handle = None
                         # Generate cubes scene
                         cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, api="none", device=device)
 
@@ -217,6 +220,7 @@ class TestRigidObject(unittest.TestCase):
                 with self.subTest(num_cubes=num_cubes, device=device):
                     # Generate cubes scene
                     with build_simulation_context(device=device, add_ground_plane=True, auto_add_lighting=True) as sim:
+                        sim._app_control_on_stop_handle = None
                         cube_object, origins = generate_cubes_scene(num_cubes=num_cubes, device=device)
 
                         # Play the simulator
@@ -278,6 +282,7 @@ class TestRigidObject(unittest.TestCase):
                     # Turn off gravity for this test as we don't want any external forces acting on the object
                     # to ensure state remains static
                     with build_simulation_context(device=device, gravity_enabled=False, auto_add_lighting=True) as sim:
+                        sim._app_control_on_stop_handle = None
                         # Generate cubes scene
                         cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, device=device)
 
@@ -338,6 +343,7 @@ class TestRigidObject(unittest.TestCase):
             for device in ("cuda:0", "cpu"):
                 with self.subTest(num_cubes=num_cubes, device=device):
                     with build_simulation_context(device=device, gravity_enabled=True, auto_add_lighting=True) as sim:
+                        sim._app_control_on_stop_handle = None
                         # Generate cubes scene
                         cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, device=device)
 
@@ -377,6 +383,7 @@ class TestRigidObject(unittest.TestCase):
                     with build_simulation_context(
                         device=device, gravity_enabled=True, add_ground_plane=True, auto_add_lighting=True
                     ) as sim:
+                        sim._app_control_on_stop_handle = None
                         # Generate cubes scene
                         cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, device=device)
 
@@ -412,6 +419,7 @@ class TestRigidObject(unittest.TestCase):
             for device in ("cuda:0", "cpu"):
                 with self.subTest(num_cubes=num_cubes, device=device):
                     with build_simulation_context(device=device, auto_add_lighting=True) as sim:
+                        sim._app_control_on_stop_handle = None
                         # Generate cubes scene
                         cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, height=0.0, device=device)
 
@@ -476,6 +484,7 @@ class TestRigidObject(unittest.TestCase):
                     with build_simulation_context(
                         device=device, dt=0.01, add_ground_plane=False, auto_add_lighting=True
                     ) as sim:
+                        sim._app_control_on_stop_handle = None
                         cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, height=0.03125, device=device)
 
                         # Create ground plane
@@ -570,6 +579,7 @@ class TestRigidObject(unittest.TestCase):
                         with build_simulation_context(
                             device=device, add_ground_plane=False, auto_add_lighting=True
                         ) as sim:
+                            sim._app_control_on_stop_handle = None
                             cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, height=1.0, device=device)
 
                             # Set static friction to be non-zero
@@ -643,6 +653,7 @@ class TestRigidObject(unittest.TestCase):
                     with build_simulation_context(
                         device=device, gravity_enabled=False, add_ground_plane=True, auto_add_lighting=True
                     ) as sim:
+                        sim._app_control_on_stop_handle = None
                         # Create a scene with random cubes
                         cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, height=1.0, device=device)
 
@@ -682,6 +693,7 @@ class TestRigidObject(unittest.TestCase):
                 for gravity_enabled in [True, False]:
                     with self.subTest(num_cubes=num_cubes, device=device, gravity_enabled=gravity_enabled):
                         with build_simulation_context(device=device, gravity_enabled=gravity_enabled) as sim:
+                            sim._app_control_on_stop_handle = None
                             # Create a scene with random cubes
                             cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, device=device)
 

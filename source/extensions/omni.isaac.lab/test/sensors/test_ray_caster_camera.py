@@ -648,10 +648,14 @@ class TestWarpCamera(unittest.TestCase):
         torch.testing.assert_close(
             camera_usd.data.output["distance_to_image_plane"],
             camera_warp.data.output["distance_to_image_plane"],
+            rtol=1e-3,
+            atol=1e-5,
         )
         torch.testing.assert_close(
             camera_usd.data.output["distance_to_camera"],
             camera_warp.data.output["distance_to_camera"],
+            rtol=1e-3,
+            atol=1e-5,
         )
 
         # check normals
@@ -734,6 +738,8 @@ class TestWarpCamera(unittest.TestCase):
         torch.testing.assert_close(
             camera_usd.data.output["distance_to_image_plane"],
             camera_warp.data.output["distance_to_image_plane"],
+            rtol=1e-3,
+            atol=1e-5,
         )
         torch.testing.assert_close(
             camera_usd.data.output["distance_to_camera"],

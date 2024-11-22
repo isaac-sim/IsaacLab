@@ -19,8 +19,8 @@ import unittest
 import omni.isaac.core.utils.prims as prim_utils
 import omni.kit
 import omni.kit.commands
+from isaacsim.core.api.materials import PhysicsMaterial, PreviewSurface
 from omni.isaac.cloner import GridCloner
-from omni.isaac.core.materials import PhysicsMaterial, PreviewSurface
 from omni.isaac.core.objects import DynamicSphere
 from omni.isaac.core.prims import GeometryPrim, RigidPrim, RigidPrimView
 from omni.isaac.core.utils.extensions import enable_extension
@@ -43,6 +43,7 @@ class TestTerrainImporter(unittest.TestCase):
                 for num_envs in [1, 4, 125, 379, 1024]:
                     with self.subTest(num_envs=num_envs, env_spacing=env_spacing):
                         with build_simulation_context(device=device, auto_add_lighting=True) as sim:
+                            sim._app_control_on_stop_handle = None
                             # create terrain importer
                             terrain_importer_cfg = TerrainImporterCfg(
                                 num_envs=num_envs,
@@ -68,7 +69,8 @@ class TestTerrainImporter(unittest.TestCase):
     def test_terrain_generation(self) -> None:
         """Generates assorted terrains and tests that the resulting mesh has the correct size."""
         for device in ("cuda:0", "cpu"):
-            with build_simulation_context(device=device, auto_add_lighting=True) as _:
+            with build_simulation_context(device=device, auto_add_lighting=True) as sim:
+                sim._app_control_on_stop_handle = None
                 # Handler for terrains importing
                 terrain_importer_cfg = terrain_gen.TerrainImporterCfg(
                     prim_path="/World/ground",
@@ -99,7 +101,8 @@ class TestTerrainImporter(unittest.TestCase):
     def test_plane(self) -> None:
         """Generates a plane and tests that the resulting mesh has the correct size."""
         for device in ("cuda:0", "cpu"):
-            with build_simulation_context(device=device, auto_add_lighting=True) as _:
+            with build_simulation_context(device=device, auto_add_lighting=True) as sim:
+                sim._app_control_on_stop_handle = None
 
                 expectedSizeX = 2.0e6
                 expectedSizeY = 2.0e6
@@ -127,7 +130,8 @@ class TestTerrainImporter(unittest.TestCase):
     def test_usd(self) -> None:
         """Imports terrain from a usd and tests that the resulting mesh has the correct size."""
         for device in ("cuda:0", "cpu"):
-            with build_simulation_context(device=device, auto_add_lighting=True) as _:
+            with build_simulation_context(device=device, auto_add_lighting=True) as sim:
+                sim._app_control_on_stop_handle = None
                 # Handler for terrains importing
                 terrain_importer_cfg = terrain_gen.TerrainImporterCfg(
                     prim_path="/World/ground",
@@ -161,6 +165,7 @@ class TestTerrainImporter(unittest.TestCase):
         """
         for device in ("cuda:0", "cpu"):
             with build_simulation_context(device=device, auto_add_lighting=True) as sim:
+                sim._app_control_on_stop_handle = None
                 # Create a scene with rough terrain and balls
                 self._populate_scene(geom_sphere=False, sim=sim)
 
@@ -189,6 +194,7 @@ class TestTerrainImporter(unittest.TestCase):
         """
         for device in ("cuda:0", "cpu"):
             with build_simulation_context(device=device, auto_add_lighting=True) as sim:
+                sim._app_control_on_stop_handle = None
                 # Create a scene with rough terrain and balls
                 # TODO: Currently the test fails with geom spheres, need to investigate with the PhysX team.
                 #   Setting the geom_sphere as False to pass the test. This test should be enabled once

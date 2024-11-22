@@ -104,6 +104,7 @@ class TestRigidObjectCollection(unittest.TestCase):
                 for device in ("cuda:0", "cpu"):
                     with self.subTest(num_envs=num_envs, num_cubes=num_cubes, device=device):
                         with build_simulation_context(device=device, auto_add_lighting=True) as sim:
+                            sim._app_control_on_stop_handle = None
                             # Generate cubes scene
                             object_collection, _ = generate_cubes_scene(
                                 num_envs=num_envs, num_cubes=num_cubes, device=device
@@ -137,6 +138,7 @@ class TestRigidObjectCollection(unittest.TestCase):
         for device in ("cuda:0", "cpu"):
             with self.subTest(num_envs=2, num_cubes=3, device=device):
                 with build_simulation_context(device=device, auto_add_lighting=True) as sim:
+                    sim._app_control_on_stop_handle = None
                     # Generate cubes scene
                     object_collection, _ = generate_cubes_scene(num_envs=2, num_cubes=3, device=device)
 
@@ -174,6 +176,7 @@ class TestRigidObjectCollection(unittest.TestCase):
                 for device in ("cuda:0", "cpu"):
                     with self.subTest(num_envs=num_envs, num_cubes=num_cubes, device=device):
                         with build_simulation_context(device=device, auto_add_lighting=True) as sim:
+                            sim._app_control_on_stop_handle = None
                             # Generate cubes scene
                             object_collection, origins = generate_cubes_scene(
                                 num_envs=num_envs, num_cubes=num_cubes, kinematic_enabled=True, device=device
@@ -212,6 +215,7 @@ class TestRigidObjectCollection(unittest.TestCase):
             for device in ("cuda:0", "cpu"):
                 with self.subTest(num_cubes=num_cubes, device=device):
                     with build_simulation_context(device=device, auto_add_lighting=True) as sim:
+                        sim._app_control_on_stop_handle = None
                         # Generate cubes scene
                         object_collection, _ = generate_cubes_scene(num_cubes=num_cubes, has_api=False, device=device)
 
@@ -239,6 +243,7 @@ class TestRigidObjectCollection(unittest.TestCase):
                         with build_simulation_context(
                             device=device, add_ground_plane=True, auto_add_lighting=True
                         ) as sim:
+                            sim._app_control_on_stop_handle = None
                             object_collection, origins = generate_cubes_scene(
                                 num_envs=num_envs, num_cubes=num_cubes, device=device
                             )
@@ -307,6 +312,7 @@ class TestRigidObjectCollection(unittest.TestCase):
                         with build_simulation_context(
                             device=device, gravity_enabled=False, auto_add_lighting=True
                         ) as sim:
+                            sim._app_control_on_stop_handle = None
                             # Generate cubes scene
                             object_collection, origins = generate_cubes_scene(
                                 num_envs=num_envs, num_cubes=num_cubes, device=device
@@ -587,6 +593,7 @@ class TestRigidObjectCollection(unittest.TestCase):
                         with build_simulation_context(
                             device=device, gravity_enabled=True, auto_add_lighting=True
                         ) as sim:
+                            sim._app_control_on_stop_handle = None
                             # Generate cubes scene
                             object_collection, _ = generate_cubes_scene(
                                 num_envs=num_envs, num_cubes=num_cubes, device=device
@@ -628,6 +635,7 @@ class TestRigidObjectCollection(unittest.TestCase):
                         with build_simulation_context(
                             device=device, gravity_enabled=True, add_ground_plane=True, auto_add_lighting=True
                         ) as sim:
+                            sim._app_control_on_stop_handle = None
                             # Generate cubes scene
                             object_collection, _ = generate_cubes_scene(
                                 num_envs=num_envs, num_cubes=num_cubes, device=device
@@ -672,6 +680,7 @@ class TestRigidObjectCollection(unittest.TestCase):
                             num_envs=num_envs, num_cubes=num_cubes, device=device, gravity_enabled=gravity_enabled
                         ):
                             with build_simulation_context(device=device, gravity_enabled=gravity_enabled) as sim:
+                                sim._app_control_on_stop_handle = None
                                 # Create a scene with random cubes
                                 object_collection, _ = generate_cubes_scene(
                                     num_envs=num_envs, num_cubes=num_cubes, device=device

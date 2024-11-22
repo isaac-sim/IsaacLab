@@ -239,6 +239,7 @@ class TestContactSensor(unittest.TestCase):
             for num_envs in [1, 6, 24]:
                 with self.subTest(device=device, num_envs=num_envs):
                     with build_simulation_context(device=device, dt=self.sim_dt, add_lighting=True) as sim:
+                        sim._app_control_on_stop_handle = None
                         # Instance new scene for the current terrain and contact prim.
                         scene_cfg = ContactSensorSceneCfg(num_envs=num_envs, env_spacing=1.0, lazy_sensor_update=False)
                         scene_cfg.terrain = FLAT_TERRAIN_CFG.replace(prim_path="/World/ground")
@@ -297,6 +298,7 @@ class TestContactSensor(unittest.TestCase):
     def test_sensor_print(self):
         """Test sensor print is working correctly."""
         with build_simulation_context(device="cuda:0", dt=self.sim_dt, add_lighting=False) as sim:
+            sim._app_control_on_stop_handle = None
             # Spawn things into stage
             scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=1.0, lazy_sensor_update=False)
             scene_cfg.terrain = FLAT_TERRAIN_CFG.replace(prim_path="/World/ground")
@@ -332,6 +334,7 @@ class TestContactSensor(unittest.TestCase):
             for terrain in self.terrains:
                 with self.subTest(device=device, terrain=terrain):
                     with build_simulation_context(device=device, dt=self.sim_dt, add_lighting=True) as sim:
+                        sim._app_control_on_stop_handle = None
                         # Instance new scene for the current terrain and contact prim.
                         scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=1.0, lazy_sensor_update=False)
                         scene_cfg.terrain = terrain

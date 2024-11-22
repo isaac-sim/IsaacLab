@@ -76,6 +76,9 @@ class TestRlGamesVecEnvWrapper(unittest.TestCase):
                             e.obj.close()
                     self.fail(f"Failed to set-up the environment for task {task_name}. Error: {e}")
 
+                # avoid shutdown of process on simulation stop
+                env.unwrapped.sim._app_control_on_stop_handle = None
+
                 # reset environment
                 obs = env.reset()
                 # check signal

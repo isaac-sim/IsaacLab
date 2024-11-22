@@ -52,6 +52,7 @@ class TestValidEntitiesConfigs(unittest.TestCase):
             for device in ("cuda:0", "cpu"):
                 with self.subTest(asset_name=asset_name, device=device):
                     with build_simulation_context(device=device, auto_add_lighting=True) as sim:
+                        sim._app_control_on_stop_handle = None
                         # print the asset name
                         print(f">>> Testing entity {asset_name} on device {device}")
                         # name the prim path
