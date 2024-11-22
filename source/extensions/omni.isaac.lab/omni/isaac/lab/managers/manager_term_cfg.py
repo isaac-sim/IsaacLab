@@ -191,7 +191,20 @@ class ObservationGroupCfg:
     Otherwise, no corruption is applied.
     """
 
+    history_length: int | None = None
+    """Number of past observation to store in the zero-initialized observation buffers for all observation terms in group.
 
+    This parameter will override ObservationTermCfg.history_length if set. ObservationGroupCfg.history_length defaults
+    to None. If None, each ObservationTermCfg.history_length will be controlled on a per term basis. See ObservationTermCfg 
+    for details on history_length implementation.  
+    """
+
+    flatten_history_dim: bool = True
+    """Flag to flatten history-based observation terms to a 2D (num_env, D) tensor for all observation terms in group. 
+    
+    This parameter will override all ObservationTermCfg.flatten_history_dim in the group if ObservationGroupCfg.history_length
+    is set. ObservationGroupCfg.flatten_history_dim defaults to True. 
+    """
 ##
 # Event manager
 ##

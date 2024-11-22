@@ -299,7 +299,6 @@ class ObservationManager(ManagerBase):
         self._group_obs_class_term_cfgs: dict[str, list[ObservationTermCfg]] = dict()
         self._group_obs_concatenate: dict[str, bool] = dict()
         self._group_obs_term_history_buffer: dict[str, dict] = dict()
-
         # create a list to store modifiers that are classes
         # we store it as a separate list to only call reset on them and prevent unnecessary calls
         self._group_obs_class_modifiers: list[modifiers.ModifierBase] = list()
@@ -336,8 +335,8 @@ class ObservationManager(ManagerBase):
             # iterate over all the terms in each group
             for term_name, term_cfg in group_cfg_items:
                 # skip non-obs settings
-                if term_name in ["enable_corruption", "concatenate_terms"]:
-                    continue
+                if term_name in ["enable_corruption", "concatenate_terms","history_length","flatten_history_dim"]:
+                    continue               
                 # check for non config
                 if term_cfg is None:
                     continue
@@ -352,9 +351,14 @@ class ObservationManager(ManagerBase):
                 # check noise settings
                 if not group_cfg.enable_corruption:
                     term_cfg.noise = None
+                # check group history params and override terms
+                if group_cfg.history_length is not None:
+                    term_cfg.history_length = group_cfg.history_length
+                    term_cfg.flatten_history_dim = group_cfg.flatten_history_dim
                 # add term config to list to list
                 self._group_obs_term_names[group_name].append(term_name)
                 self._group_obs_term_cfgs[group_name].append(term_cfg)
+                # create history buffers
                 if term_cfg.history_length > 0:
                     group_entry_history_buffer[term_name] = CircularBuffer(
                         max_len=term_cfg.history_length, batch_size=self._env.num_envs, device=self._env.device
