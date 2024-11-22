@@ -9,6 +9,7 @@ Every sensor in Isaac Lab inherits from the ``SensorBase`` abstract class that p
 
 Updating the buffers is done by overriding the ``_update_buffers_impl`` abstract method of the ``SensorBase`` class. On every time-step of the simulation, ``dt``, all sensors are queried for an update. During this query, the total time since the last update is incremented by ``dt`` for every buffer managed by that particular sensor. If the total time is greater than or equal to the ``update_period`` for a buffer, then that buffer is flagged to be updated on the next query.
 
+The following pages describe the available sensors in more detail:
 .. toctree::
   :maxdepth: 1
 
