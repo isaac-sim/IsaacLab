@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 
+import isaacsim
 import omni.kit.commands
 import omni.usd
 from omni.isaac.core.utils.extensions import enable_extension
@@ -19,7 +20,7 @@ from .mjcf_converter_cfg import MjcfConverterCfg
 class MjcfConverter(AssetConverterBase):
     """Converter for a MJCF description file to a USD file.
 
-    This class wraps around the `omni.isaac.mjcf_importer`_ extension to provide a lazy implementation
+    This class wraps around the `isaacsim.asset.importer.mjcf`_ extension to provide a lazy implementation
     for MJCF to USD conversion. It stores the output USD file in an instanceable format since that is
     what is typically used in all learning related applications.
 
@@ -29,11 +30,10 @@ class MjcfConverter(AssetConverterBase):
         :obj:`AssetConverterBaseCfg.force_usd_conversion` to True or delete the output directory.
 
     .. note::
-        From Isaac Sim 2023.1 onwards, the extension name changed from ``omni.isaac.mjcf`` to
-        ``omni.importer.mjcf``. This converter class automatically detects the version of Isaac Sim
-        and uses the appropriate extension.
+        From Isaac Sim 4.5 onwards, the extension name changed from ``omni.importer.mjcf`` to
+        ``isaacsim.asset.importer.mjcf``. This converter class now uses the latest extension from Isaac Sim.
 
-    .. _omni.isaac.mjcf_importer: https://docs.omniverse.nvidia.com/isaacsim/latest/ext_omni_isaac_mjcf.html
+    .. _isaacsim.asset.importer.mjcf: https://docs.omniverse.nvidia.com/isaacsim/latest/ext_omni_isaac_mjcf.html
     """
 
     cfg: MjcfConverterCfg
@@ -82,7 +82,7 @@ class MjcfConverter(AssetConverterBase):
         omni.usd.resolve_paths(source_layer.identifier, source_layer.identifier)
         stage.Save()
 
-    def _get_mjcf_import_config(self, cfg: MjcfConverterCfg) -> omni.importer.mjcf.ImportConfig:
+    def _get_mjcf_import_config(self, cfg: MjcfConverterCfg) -> isaacsim.asset.importer.mjcf.ImportConfig:
         """Returns the import configuration for MJCF to USD conversion.
 
         Args:
@@ -93,9 +93,9 @@ class MjcfConverter(AssetConverterBase):
         """
 
         # Enable MJCF Extensions
-        enable_extension("omni.importer.mjcf")
+        enable_extension("isaacsim.asset.importer.mjcf")
 
-        from omni.importer.mjcf import _mjcf as omni_mjcf
+        from isaacsim.asset.importer.mjcf import _mjcf as omni_mjcf
 
         import_config = omni_mjcf.ImportConfig()
 

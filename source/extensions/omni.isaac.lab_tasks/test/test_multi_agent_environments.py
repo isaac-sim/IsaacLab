@@ -107,6 +107,9 @@ class TestEnvironments(unittest.TestCase):
         # test on many environments.
         env.unwrapped.sim.set_setting("/physics/cooking/ujitsoCollisionCooking", False)
 
+        # avoid shutdown of process on simulation stop
+        env.unwrapped.sim._app_control_on_stop_handle = None
+
         # reset environment
         obs, _ = env.reset()
         # check signal

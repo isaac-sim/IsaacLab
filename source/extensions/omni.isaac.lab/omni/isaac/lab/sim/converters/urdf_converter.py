@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 
+import isaacsim
 import omni.kit.commands
 import omni.usd
 from omni.isaac.core.utils.extensions import enable_extension
@@ -35,7 +36,7 @@ _NORMALS_DIVISION = {
 class UrdfConverter(AssetConverterBase):
     """Converter for a URDF description file to a USD file.
 
-    This class wraps around the `omni.isaac.urdf_importer`_ extension to provide a lazy implementation
+    This class wraps around the `isaacsim.asset.importer.urdf`_ extension to provide a lazy implementation
     for URDF to USD conversion. It stores the output USD file in an instanceable format since that is
     what is typically used in all learning related applications.
 
@@ -45,15 +46,14 @@ class UrdfConverter(AssetConverterBase):
         :obj:`AssetConverterBaseCfg.force_usd_conversion` to True or delete the output directory.
 
     .. note::
-        From Isaac Sim 2023.1 onwards, the extension name changed from ``omni.isaac.urdf`` to
-        ``omni.importer.urdf``. This converter class automatically detects the version of Isaac Sim
-        and uses the appropriate extension.
+        From Isaac Sim 4.5 onwards, the extension name changed from ``omni.importer.urdf`` to
+        ``isaacsim.asset.importer.urdf``. This converter class now uses the latest extension from Isaac Sim.
 
         The new extension supports a custom XML tag``"dont_collapse"`` for joints. Setting this parameter
         to true in the URDF joint tag prevents the child link from collapsing when the associated joint type
         is "fixed".
 
-    .. _omni.isaac.urdf_importer: https://docs.omniverse.nvidia.com/isaacsim/latest/ext_omni_isaac_urdf.html
+    .. _isaacsim.asset.importer.urdf: https://docs.omniverse.nvidia.com/isaacsim/latest/ext_omni_isaac_urdf.html
     """
 
     cfg: UrdfConverterCfg
@@ -105,7 +105,7 @@ class UrdfConverter(AssetConverterBase):
     Helper methods.
     """
 
-    def _get_urdf_import_config(self, cfg: UrdfConverterCfg) -> omni.importer.urdf.ImportConfig:
+    def _get_urdf_import_config(self, cfg: UrdfConverterCfg) -> isaacsim.asset.importer.urdf.ImportConfig:
         """Create and fill URDF ImportConfig with desired settings
 
         Args:
@@ -115,9 +115,9 @@ class UrdfConverter(AssetConverterBase):
             The constructed ``ImportConfig`` object containing the desired settings.
         """
         # Enable urdf extension
-        enable_extension("omni.importer.urdf")
+        enable_extension("isaacsim.asset.importer.urdf")
 
-        from omni.importer.urdf import _urdf as omni_urdf
+        from isaacsim.asset.importer.urdf import _urdf as omni_urdf
 
         import_config = omni_urdf.ImportConfig()
 
@@ -127,11 +127,6 @@ class UrdfConverter(AssetConverterBase):
         import_config.set_make_default_prim(True)
         # add a physics scene to the stage on import if none exists
         import_config.set_create_physics_scene(False)
-
-        # -- instancing settings
-        # meshes will be placed in a separate usd file
-        import_config.set_make_instanceable(cfg.make_instanceable)
-        import_config.set_instanceable_usd_path(self.usd_instanceable_meshes_path)
 
         # -- asset settings
         # default density used for links, use 0 to auto-compute

@@ -42,6 +42,7 @@ class TestRobotLoadPerformance(unittest.TestCase):
             for device in ("cuda:0", "cpu"):
                 with self.subTest(test_config=test_config, device=device):
                     with build_simulation_context(device=device) as sim:
+                        sim._app_control_on_stop_handle = None
                         cloner = GridCloner(spacing=2)
                         target_paths = cloner.generate_paths("/World/Robots", 4096)
                         omni.usd.get_context().get_stage().DefinePrim(target_paths[0], "Xform")

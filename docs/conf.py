@@ -128,6 +128,7 @@ autodoc_mock_imports = [
     "carb",
     "warp",
     "pxr",
+    "isaacsim",
     "omni.kit",
     "omni.log",
     "omni.usd",

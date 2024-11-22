@@ -74,6 +74,10 @@ class TestSKRLVecEnvWrapper(unittest.TestCase):
                         if hasattr(e, "obj") and hasattr(e.obj, "_is_closed"):
                             e.obj.close()
                     self.fail(f"Failed to set-up the environment for task {task_name}. Error: {e}")
+
+                # avoid shutdown of process on simulation stop
+                env.unwrapped.sim._app_control_on_stop_handle = None
+
                 # reset environment
                 obs, extras = env.reset()
                 # check signal

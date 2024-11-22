@@ -110,6 +110,14 @@ class TestEnvironments(unittest.TestCase):
         # disable control on stop
         env.unwrapped.sim._app_control_on_stop_handle = None  # type: ignore
 
+        # override action space if set to inf
+        if isinstance(env.unwrapped.single_action_space, gym.spaces.Box):
+            for i in range(env.unwrapped.single_action_space.shape[0]):
+                if env.unwrapped.single_action_space.low[i] == float("-inf"):
+                    env.unwrapped.single_action_space.low[i] = -1.0
+                if env.unwrapped.single_action_space.high[i] == float("inf"):
+                    env.unwrapped.single_action_space.low[i] = 1.0
+
         # reset environment
         obs, _ = env.reset()
         # check signal

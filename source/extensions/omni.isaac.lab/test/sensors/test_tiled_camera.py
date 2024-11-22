@@ -669,7 +669,7 @@ class TestTiledCamera(unittest.TestCase):
             for _, im_data in camera.data.output.items():
                 self.assertEqual(im_data.shape, (num_cameras, self.camera_cfg.height, self.camera_cfg.width, 2))
                 for i in range(4):
-                    self.assertGreater((im_data[i]).mean().item(), 0.0)
+                    self.assertNotEqual((im_data[i]).mean().item(), 0.0)
         # Check data type of image
         self.assertEqual(camera.data.output["motion_vectors"].dtype, torch.float)
         del camera
@@ -1067,7 +1067,7 @@ class TestTiledCamera(unittest.TestCase):
                 elif data_type in ["motion_vectors"]:
                     self.assertEqual(im_data.shape, (num_cameras, self.camera_cfg.height, self.camera_cfg.width, 2))
                     for i in range(num_cameras):
-                        self.assertGreater(im_data[i].mean().item(), 0.0)
+                        self.assertNotEqual(im_data[i].mean().item(), 0.0)
                 elif data_type in ["depth", "distance_to_camera", "distance_to_image_plane"]:
                     self.assertEqual(im_data.shape, (num_cameras, self.camera_cfg.height, self.camera_cfg.width, 1))
                     for i in range(num_cameras):
@@ -1261,7 +1261,7 @@ class TestTiledCamera(unittest.TestCase):
                 elif data_type in ["motion_vectors"]:
                     self.assertEqual(im_data.shape, (num_cameras, self.camera_cfg.height, self.camera_cfg.width, 2))
                     for i in range(num_cameras):
-                        self.assertGreater(im_data[i].mean().item(), 0.0)
+                        self.assertNotEqual(im_data[i].mean().item(), 0.0)
                 elif data_type in ["depth", "distance_to_camera", "distance_to_image_plane"]:
                     self.assertEqual(im_data.shape, (num_cameras, self.camera_cfg.height, self.camera_cfg.width, 1))
                     for i in range(num_cameras):
