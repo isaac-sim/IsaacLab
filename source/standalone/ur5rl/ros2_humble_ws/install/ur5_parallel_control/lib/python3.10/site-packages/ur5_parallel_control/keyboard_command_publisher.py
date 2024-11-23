@@ -1,68 +1,65 @@
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Float64MultiArray
-import sys
-import termios
-import tty
-import threading
-import select
+from pynput import keyboard
 
 
 class TerminalKeyboardJointCommandPublisher(Node):
     def __init__(self):
         super().__init__("terminal_keyboard_joint_command_publisher")
         self.publisher = self.create_publisher(Float64MultiArray, "/joint_cmd", 10)
-        self.timer_period = 0.1  # 10 Hz
+        self.angle_delta = [0.0] * 7  # Initialize deltas for 6 joints + gripper
+        self.timer_period = 1 / 150  # Publish at 10 Hz
         self.timer = self.create_timer(self.timer_period, self.timer_callback)
-        self.angle_delta = [0.0] * 6  # Initialize deltas for 6 joints
-        self.lock = threading.Lock()
-        self.running = True
+        self.gripperswitch = False
 
-        # Save original terminal settings
-        self.orig_settings = termios.tcgetattr(sys.stdin)
-
-        # Start the keyboard listener in a separate thread
-        self.keyboard_thread = threading.Thread(target=self.keyboard_listener)
-        self.keyboard_thread.daemon = True
-        self.keyboard_thread.start()
+        # Start the keyboard listener
+        self.listener = keyboard.Listener(on_press=self.on_press)
+        self.listener.start()
 
     def timer_callback(self):
-        with self.lock:
+        if sum(self.angle_delta[:6]) != 0 or self.gripperswitch:
             msg = Float64MultiArray()
             msg.data = self.angle_delta
             self.publisher.publish(msg)
+            self.gripperswitch = False
 
-    def keyboard_listener(self):
-        tty.setcbreak(sys.stdin.fileno())
+    def on_press(self, key):
         try:
-            while self.running:
-                dr, dw, de = select.select([sys.stdin], [], [], 0)
-                if dr:
-                    c = sys.stdin.read(1)
-                    with self.lock:
-                        self.process_key(c)
-        except Exception as e:
-            self.get_logger().error(f"Keyboard listener exception: {e}")
-        finally:
-            termios.tcsetattr(sys.stdin, termios.TCSADRAIN, self.orig_settings)
-
-    def process_key(self, key):
-        # Reset angle delta
-        self.angle_delta = [0.0] * 6
-        if key == "\x1b":  # Escape character
-            next1, next2 = sys.stdin.read(2)
-            key = key + next1 + next2
-            if key == "\x1b[A":  # Up arrow
-                self.angle_delta[2] = 1.0
-            elif key == "\x1b[B":  # Down arrow
-                self.angle_delta[2] = -1.0
-        elif key == "q":
-            self.get_logger().info("Exiting keyboard control.")
-            self.destroy_node()
-            rclpy.shutdown()
+            char = key.char  # For single character keys
+            if char.lower() == "w":
+                if self.angle_delta[2] == -1.0:
+                    self.angle_delta[2] = 0.0
+                else:
+                    self.angle_delta[2] = -1.0
+                # self.get_logger().info("Up command received ('w').")
+            elif char.lower() == "s":
+                if self.angle_delta[2] == 1.0:
+                    self.angle_delta[2] = 0.0
+                else:
+                    self.angle_delta[2] = 1.0
+                # self.get_logger().info("Down command received ('s').")
+            elif char.lower() == "a":
+                self.angle_delta[6] = 1.0
+                self.gripperswitch = True
+                # self.get_logger().info("Gripper set to open state I/O 1 ('a').")
+            elif char.lower() == "d":
+                self.angle_delta[6] = 0.0
+                self.gripperswitch = True
+                # self.get_logger().info("Gripper set to close state I/O 0 ('d').")
+            elif char.lower() == "e":
+                # self.get_logger().info("Exiting keyboard control ('e').")
+                self.listener.stop()
+                rclpy.shutdown()
+        except AttributeError:
+            # Handle special keys (e.g., Esc)
+            if key == keyboard.Key.esc:
+                self.get_logger().info("Exiting keyboard control (Esc).")
+                self.listener.stop()
+                rclpy.shutdown()
 
     def destroy_node(self):
-        self.running = False
+        self.listener.stop()
         super().destroy_node()
 
 
@@ -74,7 +71,6 @@ def main(args=None):
     except KeyboardInterrupt:
         pass
     finally:
-        termios.tcsetattr(sys.stdin, termios.TCSADRAIN, node.orig_settings)
         node.destroy_node()
         rclpy.shutdown()
 

@@ -51,6 +51,7 @@ parser.add_argument(
     help="Publish the action commands via a ros node to a forward position position controller. This will enable real robot parallel control.",
 )
 
+# TODO Check that if ros2 is not installed, then only one environment can be spawned
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -78,13 +79,7 @@ def sync_sim_joints_with_real_robot(env: HawUr5Env, ur5_controller: Ur5JointCont
     while ur5_controller.get_joint_positions() == None:
         pass
     real_joint_positions = ur5_controller.get_joint_positions()
-
-    # TODO FIX GRIPPER JANK
-    real_joint_positions.append(0)
-
-    env.set_joint_angles_absolute(
-        joint_angles=real_joint_positions
-    )  # TODO Add Gripper control
+    env.set_joint_angles_absolute(joint_angles=real_joint_positions)
 
 
 def main():
@@ -114,7 +109,7 @@ def main():
     while simulation_app.is_running():
         with torch.inference_mode():
             # reset
-            if count % 300 == 0:
+            if count % 200 == 0:
                 count = 0
                 # env.reset()
                 print("-" * 80)
@@ -123,7 +118,7 @@ def main():
                     sync_sim_joints_with_real_robot(env, ur5_controller)
 
             # Sample test action for the gripper
-            gripper_action = -1 + count % 2
+            gripper_action = -1 + count / 100 % 2
             # create a tensor for joint position targets with 7 values (6 for joints, 1 for gripper)
             actions = torch.tensor(
                 [
@@ -142,9 +137,10 @@ def main():
 
             if PUBLISH_2_ROS:
                 # Send ros actions to the real robot # TODO implement GRIPPER CONTROL
-                ur5_controller.set_joint_delta(actions[0, :6].numpy())
+                ur5_controller.set_joint_delta(actions[0, :7].numpy())
                 real_joint_positions = ur5_controller.get_joint_positions()
 
+            print(f"Gripperaction: {gripper_action}")
             # Step the environment
             obs, rew, terminated, truncated, info = env.step(actions)
 
