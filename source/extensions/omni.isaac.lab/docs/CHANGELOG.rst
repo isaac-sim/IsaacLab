@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.27.15 (2024-11-13)
+0.27.16 (2024-11-13)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -12,6 +12,14 @@ Added
 
 * Added the possibility for :func:`~omni.isaac.lab.envs.mdp.events.reset_joints_by_scale` and
   :func:`~omni.isaac.lab.envs.mdp.events.reset_joints_by_offset` to target specific joints in robots.
+
+0.27.15 (2024-11-09)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed indexing in :meth:`omni.isaac.lab.assets.Articulation.write_joint_limits_to_sim` to correctly process non-None ``env_ids`` and ``joint_ids``.
 
 
 0.27.14 (2024-10-23)
