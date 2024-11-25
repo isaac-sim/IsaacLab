@@ -447,7 +447,7 @@ class NutThreadRewardsCfg:
         weight=2.0,
     )
     upright_reward = RewTerm(func=nut_upright_reward_forge, params={"a": 700, "b": 0, "tol": 1e-3}, weight=2)
-    success = RewTerm(func=mdp.nut_successfully_threaded, params={"threshold": 2e-4}, weight=1)
+    success = RewTerm(func=mdp.nut_successfully_threaded, params={"threshold": 3e-4}, weight=1)
     action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.000001)
 
 

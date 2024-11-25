@@ -15,7 +15,6 @@ import omni.physx.scripts.utils as physx_utils
 from einops import repeat
 from force_tool.utils.data_utils import SmartDict, read_h5_dict
 from force_tool.utils.curobo_utils import CuRoboArm
-from pytorch3d.transforms import euler_angles_to_matrix, matrix_to_quaternion, quaternion_multiply
 from omegaconf import OmegaConf
 from pxr import Usd, UsdGeom
 from regex import F
@@ -383,11 +382,11 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         
         curri_params = self.params.curriculum
         curri_params.use_obs_noise_curri = curri_params.get("use_obs_noise_curri", False)
+        curri_params.use_contact_force_curri = curri_params.get("use_contact_force_curri", False)
         
     def __post_init__(self):
         super().__post_init__()
-
-        # robot
+        # robot 
         self.scene.robot = KUKA_VICTOR_LEFT_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         robot = self.scene.robot
         robot_params = self.params.scene.robot
@@ -422,12 +421,17 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         # arm_lows = [-0.002, -0.002, -0.002, -0.0005, -0.0005, -0.5]
         # arm_highs = [0.002, 0.002, 0.002, 0.0005, 0.0005, 0.5]
         # scale = [0.002, 0.002, 0.002, 0.0005, 0.0005, 0.5]
-        arm_lows = [-0.002, -0.002, -0.002, -0.5, -0.5, -0.5]
-        arm_highs = [0.002, 0.002, 0.002, 0.5, 0.5, 0.5]
-        scale = [0.002, 0.002, 0.002, 0.5, 0.5, 0.5]
+        # arm_lows = [-0.004, -0.004, -0.002, -0.5, -0.5, -0.5]
+        # arm_highs = [0.004, 0.004, 0.002, 0.5, 0.5, 0.5]
+        # scale = [0.004, 0.004, 0.002, 0.5, 0.5, 0.5]
+        
         # arm_lows = [-0.002, -0.002, -0.002, -0.01, -0.01, -0.5]
         # arm_highs = [0.002, 0.002, 0.002, 0.01, 0.01, 0.5]
         # scale = [0.002, 0.002, 0.002, 0.01, 0.01, 0.5]
+        
+        arm_lows = [-0.004, -0.004, -0.004, -0.01, -0.01, -0.5]
+        arm_highs = [0.004, 0.004, 0.004, 0.01, 0.01, 0.5]
+        scale = [0.004, 0.004, 0.004, 0.01, 0.01, 0.5]
 
 
         if self.params.events.reset_target == "rigid_grasp_open_tilt" or \
@@ -496,14 +500,6 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         for term in self.observations.policy.__dict__.values():
             if isinstance(term, ObsTerm):
                 term.hist_len = obs_params.hist_len
-        
-        # curriculum
-        curri_params = self.params.curriculum
-        if curri_params.use_obs_noise_curri:
-            self.curriculum.modify_nut_pos_noise = CurrTerm(
-                func=modify_noise_scale,
-                params={"begin_steps": 500*32, "end_steps": 2000*32},
-            )
 
         # events
         event_params = self.params.events
@@ -571,7 +567,20 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
             )
         self.rewards.contact_force_penalty = RewTerm(
             func=mdp.contact_forces,
-            params={"threshold": 1, "sensor_cfg": SceneEntityCfg(name="contact_sensor")},
+            params={"threshold": 0, "sensor_cfg": SceneEntityCfg(name="contact_sensor")},
             weight=rewards_params.contact_force_penalty_w,
         )
         self.viewer.eye = (0.3, 0, 0.15)
+
+                # curriculum
+        curri_params = self.params.curriculum
+        if curri_params.use_obs_noise_curri:
+            self.curriculum.modify_nut_pos_noise = CurrTerm(
+                func=modify_noise_scale,
+                params={"begin_steps": 500*32, "end_steps": 2000*32},
+            )
+        if curri_params.use_contact_force_curri:
+            self.curriculum.modify_contact_force_penalty = CurrTerm(
+                func=mdp.modify_reward_weight,
+                params={"term_name": "contact_force_penalty", "weight": -10, "num_steps": 500*32},
+            )
