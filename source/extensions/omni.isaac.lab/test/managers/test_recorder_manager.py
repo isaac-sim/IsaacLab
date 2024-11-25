@@ -83,37 +83,40 @@ class DummyRecorderManagerCfg(RecorderManagerBaseCfg):
     dataset_export_mode = DatasetExportMode.EXPORT_ALL
 
 
+def create_dummy_env(device: str = "cpu") -> ManagerBasedEnv:
+    """Create a dummy environment."""
+
+    class DummyTerminationManager:
+        active_terms = []
+
+    dummy_termination_manager = DummyTerminationManager()
+    return namedtuple("ManagerBasedEnv", ["num_envs", "device", "cfg", "termination_manager"])(
+        20, device, dict(), dummy_termination_manager
+    )
+
+
 class TestRecorderManager(unittest.TestCase):
     """Test cases for various situations with recorder manager."""
 
     def setUp(self) -> None:
         self.dataset_dir = tempfile.mkdtemp()
-        self.dataset_file_name = f"{uuid.uuid4()}.hdf5"
-
-        # set up the environment
-        self.num_envs = 20
-        self.device = "cpu"
-
-        class DummyTerminationManager:
-            active_terms = []
-
-        self.dummy_termination_manager = DummyTerminationManager()
-        # create dummy environment
-        self.env = namedtuple("ManagerBasedEnv", ["num_envs", "device", "cfg", "termination_manager"])(
-            self.num_envs, self.device, dict(), self.dummy_termination_manager
-        )
 
     def tearDown(self):
         # delete the temporary directory after the test
         shutil.rmtree(self.dataset_dir)
 
+    def create_dummy_recorder_manager_cfg(self) -> DummyRecorderManagerCfg:
+        """Get the dummy recorder manager configurations."""
+        cfg = DummyRecorderManagerCfg()
+        cfg.dataset_export_dir_path = self.dataset_dir
+        cfg.dataset_filename = f"{uuid.uuid4()}.hdf5"
+        return cfg
+
     def test_str(self):
         """Test the string representation of the recorder manager."""
         # create recorder manager
         cfg = DummyRecorderManagerCfg()
-        cfg.dataset_export_dir_path = self.dataset_dir
-        cfg.dataset_filename = self.dataset_file_name
-        recorder_manager = RecorderManager(cfg, self.env)
+        recorder_manager = RecorderManager(cfg, create_dummy_env())
         self.assertEqual(len(recorder_manager.active_terms), 2)
         # print the expected string
         print()
@@ -122,42 +125,43 @@ class TestRecorderManager(unittest.TestCase):
     def test_initialize_dataset_file(self):
         """Test the initialization of the dataset file."""
         # create recorder manager
-        cfg = DummyRecorderManagerCfg()
-        cfg.dataset_export_dir_path = self.dataset_dir
-        cfg.dataset_filename = self.dataset_file_name
-        _ = RecorderManager(cfg, self.env)
+        cfg = self.create_dummy_recorder_manager_cfg()
+        _ = RecorderManager(cfg, create_dummy_env())
 
         # check if the dataset is created
-        self.assertTrue(os.path.exists(os.path.join(self.dataset_dir, self.dataset_file_name)))
+        self.assertTrue(os.path.exists(os.path.join(cfg.dataset_export_dir_path, cfg.dataset_filename)))
 
     def test_record(self):
         """Test the recording of the data."""
-        # create recorder manager
-        recorder_manager = RecorderManager(DummyRecorderManagerCfg(), self.env)
+        for device in ("cuda:0", "cpu"):
+            with self.subTest(device=device):
+                env = create_dummy_env(device)
+                # create recorder manager
+                recorder_manager = RecorderManager(self.create_dummy_recorder_manager_cfg(), env)
 
-        # record the step data
-        recorder_manager.record_pre_step()
-        recorder_manager.record_post_step()
+                # record the step data
+                recorder_manager.record_pre_step()
+                recorder_manager.record_post_step()
 
-        recorder_manager.record_pre_step()
-        recorder_manager.record_post_step()
+                recorder_manager.record_pre_step()
+                recorder_manager.record_post_step()
 
-        # check the recorded data
-        for env_id in range(self.num_envs):
-            episode = recorder_manager.get_episode(env_id)
-            self.assertEqual(episode.data["record_pre_step"].shape, (2, 4))
-            self.assertEqual(episode.data["record_post_step"].shape, (2, 5))
+                # check the recorded data
+                for env_id in range(env.num_envs):
+                    episode = recorder_manager.get_episode(env_id)
+                    self.assertEqual(episode.data["record_pre_step"].shape, (2, 4))
+                    self.assertEqual(episode.data["record_post_step"].shape, (2, 5))
 
-        # Trigger pre-reset callbacks which then export and clean the episode data
-        recorder_manager.record_pre_reset(env_ids=None)
-        for env_id in range(self.num_envs):
-            episode = recorder_manager.get_episode(env_id)
-            self.assertTrue(episode.is_empty())
+                # Trigger pre-reset callbacks which then export and clean the episode data
+                recorder_manager.record_pre_reset(env_ids=None)
+                for env_id in range(env.num_envs):
+                    episode = recorder_manager.get_episode(env_id)
+                    self.assertTrue(episode.is_empty())
 
-        recorder_manager.record_post_reset(env_ids=None)
-        for env_id in range(self.num_envs):
-            episode = recorder_manager.get_episode(env_id)
-            self.assertEqual(episode.data["record_post_reset"].shape, (1, 3))
+                recorder_manager.record_post_reset(env_ids=None)
+                for env_id in range(env.num_envs):
+                    episode = recorder_manager.get_episode(env_id)
+                    self.assertEqual(episode.data["record_post_reset"].shape, (1, 3))
 
 
 if __name__ == "__main__":
