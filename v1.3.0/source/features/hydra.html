@@ -9,7 +9,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
-    <title>Tiled-Camera Rendering &#8212; Isaac Lab Documentation</title>
+    <title>Hydra Configuration System &#8212; Isaac Lab Documentation</title>
   
   
   
@@ -52,16 +52,16 @@
     <script src="../../_static/copybutton.js"></script>
     <script src="../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
     <script src="../../_static/design-tabs.js"></script>
-    <script>DOCUMENTATION_OPTIONS.pagename = 'source/features/tiled_rendering';</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'source/features/hydra';</script>
     <link rel="icon" href="../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
-    <link rel="next" title="Reproducibility and Determinism" href="reproducibility.html" />
-    <link rel="prev" title="Multi-GPU and Multi-Node Training" href="multi_gpu.html" />
+    <link rel="next" title="Multi-GPU and Multi-Node Training" href="multi_gpu.html" />
+    <link rel="prev" title="Simple Agents" href="../overview/simple_agents.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.3.0" />
-    <meta name="docbuild:last-update" content="Nov 21, 2024"/>
+    <meta name="docbuild:last-update" content="Nov 25, 2024"/>
   </head>
   
   
@@ -156,10 +156,11 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
-            <option value="tiled_rendering.html" selected>main</option>
-            <option value="../../../v1.2.0/source/features/tiled_rendering.html" >v1.2.0</option>
-            <option value="../../../v1.1.0/source/features/tiled_rendering.html" >v1.1.0</option>
-            <option value="../../../v1.0.0/source/features/tiled_rendering.html" >v1.0.0</option>
+            <option value="../../../main/source/features/hydra.html" >main</option>
+            <option value="hydra.html" selected>v1.3.0</option>
+            <option value="../../../v1.2.0/source/features/hydra.html" >v1.2.0</option>
+            <option value="../../../v1.1.0/index.html" >v1.1.0</option>
+            <option value="../../../v1.0.0/index.html" >v1.0.0</option>
           </select>
         </li>
       </ul>
@@ -261,9 +262,9 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="current nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="hydra.html">Hydra Configuration System</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Hydra Configuration System</a></li>
 <li class="toctree-l1"><a class="reference internal" href="multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
-<li class="toctree-l1 current active"><a class="current reference internal" href="#">Tiled-Camera Rendering</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tiled_rendering.html">Tiled-Camera Rendering</a></li>
 <li class="toctree-l1"><a class="reference internal" href="reproducibility.html">Reproducibility and Determinism</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
@@ -429,7 +430,7 @@
       
       
       
-      <li><a href="https://github.com/isaac-sim/IsaacLab/edit/main/source/features/tiled_rendering.rst" target="_blank"
+      <li><a href="https://github.com/isaac-sim/IsaacLab/edit/main/source/features/hydra.rst" target="_blank"
    class="btn btn-sm btn-source-edit-button dropdown-item"
    title="Suggest edit"
    data-bs-placement="left" data-bs-toggle="tooltip"
@@ -446,7 +447,7 @@
       
       
       
-      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2Fsource/features/tiled_rendering.html&body=Your%20issue%20content%20here." target="_blank"
+      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2Fsource/features/hydra.html&body=Your%20issue%20content%20here." target="_blank"
    class="btn btn-sm btn-source-issues-button dropdown-item"
    title="Open an issue"
    data-bs-placement="left" data-bs-toggle="tooltip"
@@ -476,7 +477,7 @@
       
       
       
-      <li><a href="../../_sources/source/features/tiled_rendering.rst" target="_blank"
+      <li><a href="../../_sources/source/features/hydra.rst" target="_blank"
    class="btn btn-sm btn-download-source-button dropdown-item"
    title="Download source file"
    data-bs-placement="left" data-bs-toggle="tooltip"
@@ -552,7 +553,7 @@
               
 
 <div id="jb-print-docs-body" class="onlyprint">
-    <h1>Tiled-Camera Rendering</h1>
+    <h1>Hydra Configuration System</h1>
     <!-- Table of contents -->
     <div id="print-main-content">
         <div id="jb-print-toc">
@@ -562,19 +563,13 @@
             </div>
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#annotators-and-data-types">Annotators and Data Types</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#rgb-and-rgba">RGB and RGBA</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#depth-and-distances">Depth and Distances</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#normals">Normals</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#motion-vectors">Motion Vectors</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#semantic-segmentation">Semantic Segmentation</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#instance-id-segmentation">Instance ID Segmentation</a><ul class="nav section-nav flex-column">
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#instance-segmentation">Instance Segmentation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#modifying-advanced-parameters">Modifying advanced parameters</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#callables">Callables</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#setting-parameters-to-none">Setting parameters to None</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dictionaries">Dictionaries</a></li>
 </ul>
 </li>
-</ul>
-</li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#current-limitations">Current Limitations</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#modifying-inter-dependent-parameters">Modifying inter-dependent parameters</a></li>
 </ul>
             </nav>
         </div>
@@ -586,141 +581,199 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="tiled-camera-rendering">
-<h1>Tiled-Camera Rendering<a class="headerlink" href="#tiled-camera-rendering" title="Permalink to this heading">#</a></h1>
+  <section id="hydra-configuration-system">
+<h1>Hydra Configuration System<a class="headerlink" href="#hydra-configuration-system" title="Permalink to this heading">#</a></h1>
+<p>Isaac Lab supports the <a class="reference external" href="https://hydra.cc/docs/intro/">Hydra</a> configuration system to modify the task’s
+configuration using command line arguments, which can be useful to automate experiments and perform hyperparameter tuning.</p>
+<p>Any parameter of the environment can be modified by adding one or multiple elements of the form <code class="docutils literal notranslate"><span class="pre">env.a.b.param1=value</span></code>
+to the command line input, where <code class="docutils literal notranslate"><span class="pre">a.b.param1</span></code> reflects the parameter’s hierarchy, for example <code class="docutils literal notranslate"><span class="pre">env.actions.joint_effort.scale=10.0</span></code>.
+Similarly, the agent’s parameters can be modified by using the <code class="docutils literal notranslate"><span class="pre">agent</span></code> prefix, for example <code class="docutils literal notranslate"><span class="pre">agent.seed=2024</span></code>.</p>
+<p>The way these command line arguments are set follow the exact structure of the configuration files. Since the different
+RL frameworks use different conventions, there might be differences in the way the parameters are set. For example,
+with <em>rl_games</em> the seed will be set with <code class="docutils literal notranslate"><span class="pre">agent.params.seed</span></code>, while with <em>rsl_rl</em>, <em>skrl</em> and <em>sb3</em> it will be set with
+<code class="docutils literal notranslate"><span class="pre">agent.seed</span></code>.</p>
+<p>As a result, training with hydra arguments can be run with the following syntax:</p>
+<div class="sd-tab-set docutils">
+<input checked="checked" id="sd-tab-item-0" name="sd-tab-set-0" type="radio">
+<label class="sd-tab-label" data-sync-group="rl-train" data-sync-id="rsl_rl" for="sd-tab-item-0">
+rsl_rl</label><div class="sd-tab-content docutils">
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>source/standalone/workflows/rsl_rl/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>env.actions.joint_effort.scale<span class="o">=</span><span class="m">10</span>.0<span class="w"> </span>agent.seed<span class="o">=</span><span class="m">2024</span>
+</pre></div>
+</div>
+</div>
+<input id="sd-tab-item-1" name="sd-tab-set-0" type="radio">
+<label class="sd-tab-label" data-sync-group="rl-train" data-sync-id="rl_games" for="sd-tab-item-1">
+rl_games</label><div class="sd-tab-content docutils">
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>source/standalone/workflows/rl_games/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>env.actions.joint_effort.scale<span class="o">=</span><span class="m">10</span>.0<span class="w"> </span>agent.params.seed<span class="o">=</span><span class="m">2024</span>
+</pre></div>
+</div>
+</div>
+<input id="sd-tab-item-2" name="sd-tab-set-0" type="radio">
+<label class="sd-tab-label" data-sync-group="rl-train" data-sync-id="skrl" for="sd-tab-item-2">
+skrl</label><div class="sd-tab-content docutils">
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>source/standalone/workflows/skrl/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>env.actions.joint_effort.scale<span class="o">=</span><span class="m">10</span>.0<span class="w"> </span>agent.seed<span class="o">=</span><span class="m">2024</span>
+</pre></div>
+</div>
+</div>
+<input id="sd-tab-item-3" name="sd-tab-set-0" type="radio">
+<label class="sd-tab-label" data-sync-group="rl-train" data-sync-id="sb3" for="sd-tab-item-3">
+sb3</label><div class="sd-tab-content docutils">
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>source/standalone/workflows/sb3/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>env.actions.joint_effort.scale<span class="o">=</span><span class="m">10</span>.0<span class="w"> </span>agent.seed<span class="o">=</span><span class="m">2024</span>
+</pre></div>
+</div>
+</div>
+</div>
+<p>The above command will run the training script with the task <code class="docutils literal notranslate"><span class="pre">Isaac-Cartpole-v0</span></code> in headless mode, and set the
+<code class="docutils literal notranslate"><span class="pre">env.actions.joint_effort.scale</span></code> parameter to 10.0 and the <code class="docutils literal notranslate"><span class="pre">agent.seed</span></code> parameter to 2024.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>This feature is only available from Isaac Sim version 4.2.0 onwards.</p>
-<p>Tiled rendering in combination with image processing networks require heavy memory resources, especially
-at larger resolutions. We recommend running 512 cameras in the scene on RTX 4090 GPUs or similar.</p>
+<p>To keep backwards compatibility, and to provide a more user-friendly experience, we have kept the old cli arguments
+of the form <code class="docutils literal notranslate"><span class="pre">--param</span></code>, for example <code class="docutils literal notranslate"><span class="pre">--num_envs</span></code>, <code class="docutils literal notranslate"><span class="pre">--seed</span></code>, <code class="docutils literal notranslate"><span class="pre">--max_iterations</span></code>. These arguments have precedence
+over the hydra arguments, and will overwrite the values set by the hydra arguments.</p>
 </div>
-<p>Tiled rendering APIs provide a vectorized interface for collecting data from camera sensors.
-This is useful for reinforcement learning environments requiring vision in the loop.
-Tiled rendering works by concatenating camera outputs from multiple cameras and rendering
-one single large image instead of multiple smaller images that would have been produced
-by each individual camera. This reduces the amount of time required for rendering and
-provides a more efficient API for working with vision data.</p>
-<p>Isaac Lab provides tiled rendering APIs for RGB, depth, along with other annotators through the <a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.TiledCamera" title="omni.isaac.lab.sensors.TiledCamera"><code class="xref py py-class docutils literal notranslate"><span class="pre">TiledCamera</span></code></a>
-class. Configurations for the tiled rendering APIs can be defined through the <a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.TiledCameraCfg" title="omni.isaac.lab.sensors.TiledCameraCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">TiledCameraCfg</span></code></a>
-class, specifying parameters such as the regex expression for all camera paths, the transform
-for the cameras, the desired data type, the type of cameras to add to the scene, and the camera
-resolution.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">tiled_camera</span><span class="p">:</span> <span class="n">TiledCameraCfg</span> <span class="o">=</span> <span class="n">TiledCameraCfg</span><span class="p">(</span>
-    <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/envs/env_.*/Camera&quot;</span><span class="p">,</span>
-    <span class="n">offset</span><span class="o">=</span><span class="n">TiledCameraCfg</span><span class="o">.</span><span class="n">OffsetCfg</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="p">(</span><span class="o">-</span><span class="mf">7.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">),</span> <span class="n">rot</span><span class="o">=</span><span class="p">(</span><span class="mf">0.9945</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.1045</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span> <span class="n">convention</span><span class="o">=</span><span class="s2">&quot;world&quot;</span><span class="p">),</span>
-    <span class="n">data_types</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;rgb&quot;</span><span class="p">],</span>
-    <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PinholeCameraCfg</span><span class="p">(</span>
-        <span class="n">focal_length</span><span class="o">=</span><span class="mf">24.0</span><span class="p">,</span> <span class="n">focus_distance</span><span class="o">=</span><span class="mf">400.0</span><span class="p">,</span> <span class="n">horizontal_aperture</span><span class="o">=</span><span class="mf">20.955</span><span class="p">,</span> <span class="n">clipping_range</span><span class="o">=</span><span class="p">(</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">20.0</span><span class="p">)</span>
-    <span class="p">),</span>
-    <span class="n">width</span><span class="o">=</span><span class="mi">80</span><span class="p">,</span>
-    <span class="n">height</span><span class="o">=</span><span class="mi">80</span><span class="p">,</span>
-<span class="p">)</span>
+<section id="modifying-advanced-parameters">
+<h2>Modifying advanced parameters<a class="headerlink" href="#modifying-advanced-parameters" title="Permalink to this heading">#</a></h2>
+<section id="callables">
+<h3>Callables<a class="headerlink" href="#callables" title="Permalink to this heading">#</a></h3>
+<p>It is possible to modify functions and classes in the configuration files by using the syntax <code class="docutils literal notranslate"><span class="pre">module:attribute_name</span></code>.
+For example, in the Cartpole environment:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">ObservationsCfg</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Observation specifications for the MDP.&quot;&quot;&quot;</span>
+
+    <span class="nd">@configclass</span>
+    <span class="k">class</span> <span class="nc">PolicyCfg</span><span class="p">(</span><span class="n">ObsGroup</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Observations for policy group.&quot;&quot;&quot;</span>
+
+        <span class="c1"># observation terms (order preserved)</span>
+<span class="hll">        <span class="n">joint_pos_rel</span> <span class="o">=</span> <span class="n">ObsTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_pos_rel</span><span class="p">)</span>
+</span>        <span class="n">joint_vel_rel</span> <span class="o">=</span> <span class="n">ObsTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_vel_rel</span><span class="p">)</span>
+
+        <span class="k">def</span> <span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">enable_corruption</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">concatenate_terms</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="c1"># observation groups</span>
+    <span class="n">policy</span><span class="p">:</span> <span class="n">PolicyCfg</span> <span class="o">=</span> <span class="n">PolicyCfg</span><span class="p">()</span>
 </pre></div>
 </div>
-<p>To access the tiled rendering interface, a <a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.TiledCamera" title="omni.isaac.lab.sensors.TiledCamera"><code class="xref py py-class docutils literal notranslate"><span class="pre">TiledCamera</span></code></a> object can be created and used
-to retrieve data from the cameras.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">tiled_camera</span> <span class="o">=</span> <span class="n">TiledCamera</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">tiled_camera</span><span class="p">)</span>
-<span class="n">data_type</span> <span class="o">=</span> <span class="s2">&quot;rgb&quot;</span>
-<span class="n">data</span> <span class="o">=</span> <span class="n">tiled_camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">output</span><span class="p">[</span><span class="n">data_type</span><span class="p">]</span>
+<p>we could modify <code class="docutils literal notranslate"><span class="pre">joint_pos_rel</span></code> to compute absolute positions instead of relative positions with
+<code class="docutils literal notranslate"><span class="pre">env.observations.policy.joint_pos_rel.func=omni.isaac.lab.envs.mdp:joint_pos</span></code>.</p>
+</section>
+<section id="setting-parameters-to-none">
+<h3>Setting parameters to None<a class="headerlink" href="#setting-parameters-to-none" title="Permalink to this heading">#</a></h3>
+<p>To set parameters to None, use the <code class="docutils literal notranslate"><span class="pre">null</span></code> keyword, which is a special keyword in Hydra that is automatically converted to None.
+In the above example, we could also disable the <code class="docutils literal notranslate"><span class="pre">joint_pos_rel</span></code> observation by setting it to None with
+<code class="docutils literal notranslate"><span class="pre">env.observations.policy.joint_pos_rel=null</span></code>.</p>
+</section>
+<section id="dictionaries">
+<h3>Dictionaries<a class="headerlink" href="#dictionaries" title="Permalink to this heading">#</a></h3>
+<p>Elements in dictionaries are handled as a parameters in the hierarchy. For example, in the Cartpole environment:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span>    <span class="n">reset_cart_position</span> <span class="o">=</span> <span class="n">EventTerm</span><span class="p">(</span>
+        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">reset_joints_by_offset</span><span class="p">,</span>
+        <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;reset&quot;</span><span class="p">,</span>
+        <span class="n">params</span><span class="o">=</span><span class="p">{</span>
+            <span class="s2">&quot;asset_cfg&quot;</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;slider_to_cart&quot;</span><span class="p">]),</span>
+            <span class="s2">&quot;position_range&quot;</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">),</span>
+            <span class="s2">&quot;velocity_range&quot;</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">),</span>
+        <span class="p">},</span>
+    <span class="p">)</span>
+
+<span class="hll">    <span class="n">reset_pole_position</span> <span class="o">=</span> <span class="n">EventTerm</span><span class="p">(</span>
+</span>        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">reset_joints_by_offset</span><span class="p">,</span>
+        <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;reset&quot;</span><span class="p">,</span>
+        <span class="n">params</span><span class="o">=</span><span class="p">{</span>
+            <span class="s2">&quot;asset_cfg&quot;</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;cart_to_pole&quot;</span><span class="p">]),</span>
+            <span class="s2">&quot;position_range&quot;</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.25</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span> <span class="mf">0.25</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">),</span>
+            <span class="s2">&quot;velocity_range&quot;</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.25</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span> <span class="mf">0.25</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">),</span>
+        <span class="p">},</span>
+    <span class="p">)</span>
+
+
+<span class="nd">@configclass</span>
+<span class="k">class</span> <span class="nc">RewardsCfg</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Reward terms for the MDP.&quot;&quot;&quot;</span>
+
 </pre></div>
 </div>
-<p>The returned data will be transformed into the shape (num_cameras, height, width, num_channels), which
-can be used directly as observation for reinforcement learning.</p>
-<p>When working with rendering, make sure to add the <code class="docutils literal notranslate"><span class="pre">--enable_cameras</span></code> argument when launching the
-environment. For example:</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>source/standalone/workflows/rl_games/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-RGB-Camera-Direct-v0<span class="w"> </span>--headless<span class="w"> </span>--enable_cameras
-</pre></div>
-</div>
-<section id="annotators-and-data-types">
-<h2>Annotators and Data Types<a class="headerlink" href="#annotators-and-data-types" title="Permalink to this heading">#</a></h2>
-<p>Both <a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.TiledCamera" title="omni.isaac.lab.sensors.TiledCamera"><code class="xref py py-class docutils literal notranslate"><span class="pre">TiledCamera</span></code></a> and <a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.Camera" title="omni.isaac.lab.sensors.Camera"><code class="xref py py-class docutils literal notranslate"><span class="pre">Camera</span></code></a> classes provide APIs for retrieving various types annotator data from replicator:</p>
+<p>the <code class="docutils literal notranslate"><span class="pre">position_range</span></code> parameter can be modified with <code class="docutils literal notranslate"><span class="pre">env.events.reset_cart_position.params.position_range=&quot;[-2.0,</span> <span class="pre">2.0]&quot;</span></code>.
+This example shows two noteworthy points:</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">&quot;rgb&quot;</span></code>: A 3-channel rendered color image.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">&quot;rgba&quot;</span></code>: A 4-channel rendered color image with alpha channel.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">&quot;distance_to_camera&quot;</span></code>: An image containing the distance to camera optical center.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">&quot;distance_to_image_plane&quot;</span></code>: An image containing distances of 3D points from camera plane along camera’s z-axis.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">&quot;depth&quot;</span></code>: The same as <code class="docutils literal notranslate"><span class="pre">&quot;distance_to_image_plane&quot;</span></code>.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">&quot;normals&quot;</span></code>: An image containing the local surface normal vectors at each pixel.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">&quot;motion_vectors&quot;</span></code>: An image containing the motion vector data at each pixel.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">&quot;semantic_segmentation&quot;</span></code>: The semantic segmentation data.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">&quot;instance_segmentation_fast&quot;</span></code>: The instance segmentation data.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">&quot;instance_id_segmentation_fast&quot;</span></code>: The instance id segmentation data.</p></li>
-</ul>
-<section id="rgb-and-rgba">
-<h3>RGB and RGBA<a class="headerlink" href="#rgb-and-rgba" title="Permalink to this heading">#</a></h3>
-<p><code class="docutils literal notranslate"><span class="pre">rgb</span></code> data type returns a 3-channel RGB colored image of type <code class="docutils literal notranslate"><span class="pre">torch.uint8</span></code>, with dimension (B, H, W, 3).</p>
-<p><code class="docutils literal notranslate"><span class="pre">rgba</span></code> data type returns a 4-channel RGBA colored image of type <code class="docutils literal notranslate"><span class="pre">torch.uint8</span></code>, with dimension (B, H, W, 4).</p>
-<p>To convert the <code class="docutils literal notranslate"><span class="pre">torch.uint8</span></code> data to <code class="docutils literal notranslate"><span class="pre">torch.float32</span></code>, divide the buffer by 255.0 to obtain a <code class="docutils literal notranslate"><span class="pre">torch.float32</span></code> buffer containing data from 0 to 1.</p>
-</section>
-<section id="depth-and-distances">
-<h3>Depth and Distances<a class="headerlink" href="#depth-and-distances" title="Permalink to this heading">#</a></h3>
-<p><code class="docutils literal notranslate"><span class="pre">distance_to_camera</span></code> returns a single-channel depth image with distance to the camera optical center. The dimension for this annotator is (B, H, W, 1) and has type <code class="docutils literal notranslate"><span class="pre">torch.float32</span></code>.</p>
-<p><code class="docutils literal notranslate"><span class="pre">distance_to_image_plane</span></code> returns a single-channel depth image with distances of 3D points from the camera plane along the camera’s Z-axis. The dimension for this annotator is (B, H, W, 1) and has type <code class="docutils literal notranslate"><span class="pre">torch.float32</span></code>.</p>
-<p><code class="docutils literal notranslate"><span class="pre">depth</span></code> is provided as an alias for <code class="docutils literal notranslate"><span class="pre">distance_to_image_plane</span></code> and will return the same data as the <code class="docutils literal notranslate"><span class="pre">distance_to_image_plane</span></code> annotator, with dimension (B, H, W, 1) and type <code class="docutils literal notranslate"><span class="pre">torch.float32</span></code>.</p>
-</section>
-<section id="normals">
-<h3>Normals<a class="headerlink" href="#normals" title="Permalink to this heading">#</a></h3>
-<p><code class="docutils literal notranslate"><span class="pre">normals</span></code> returns an image containing the local surface normal vectors at each pixel. The buffer has dimension (B, H, W, 3), containing the (x, y, z) information for each vector, and has data type <code class="docutils literal notranslate"><span class="pre">torch.float32</span></code>.</p>
-</section>
-<section id="motion-vectors">
-<h3>Motion Vectors<a class="headerlink" href="#motion-vectors" title="Permalink to this heading">#</a></h3>
-<p><code class="docutils literal notranslate"><span class="pre">motion_vectors</span></code> returns the per-pixel motion vectors in image space, with a 2D array of motion vectors representing the relative motion of a pixel in the camera’s viewport between frames. The buffer has dimension (B, H, W, 2), representing x - the motion distance in the horizontal axis (image width) with movement to the left of the image being positive and movement to the right being negative and y - motion distance in the vertical axis (image height) with movement towards the top of the image being positive and movement to the bottom being negative. The data type is <code class="docutils literal notranslate"><span class="pre">torch.float32</span></code>.</p>
-</section>
-<section id="semantic-segmentation">
-<h3>Semantic Segmentation<a class="headerlink" href="#semantic-segmentation" title="Permalink to this heading">#</a></h3>
-<p><code class="docutils literal notranslate"><span class="pre">semantic_segmentation</span></code> outputs semantic segmentation of each entity in the camera’s viewport that has semantic labels. In addition to the image buffer, an <code class="docutils literal notranslate"><span class="pre">info</span></code> dictionary can be retrieved with <code class="docutils literal notranslate"><span class="pre">tiled_camera.data.info['semantic_segmentation']</span></code> containing ID to labels information.</p>
-<ul class="simple">
-<li><p>If <code class="docutils literal notranslate"><span class="pre">colorize_semantic_segmentation=True</span></code> in the camera config, a 4-channel RGBA image will be returned with dimension (B, H, W, 4) and type <code class="docutils literal notranslate"><span class="pre">torch.uint8</span></code>. The info <code class="docutils literal notranslate"><span class="pre">idToLabels</span></code> dictionary will be the mapping from color to semantic labels.</p></li>
-<li><p>If <code class="docutils literal notranslate"><span class="pre">colorize_semantic_segmentation=False</span></code>, a buffer of dimension (B, H, W, 1) of type <code class="docutils literal notranslate"><span class="pre">torch.int32</span></code> will be returned, containing the semantic ID of each pixel. The info <code class="docutils literal notranslate"><span class="pre">idToLabels</span></code> dictionary will be the mapping from semantic ID to semantic labels.</p></li>
-</ul>
-</section>
-<section id="instance-id-segmentation">
-<h3>Instance ID Segmentation<a class="headerlink" href="#instance-id-segmentation" title="Permalink to this heading">#</a></h3>
-<p><code class="docutils literal notranslate"><span class="pre">instance_id_segmentation_fast</span></code> outputs instance ID segmentation of each entity in the camera’s viewport. The instance ID is unique for each prim in the scene with different paths. In addition to the image buffer, an <code class="docutils literal notranslate"><span class="pre">info</span></code> dictionary can be retrieved with <code class="docutils literal notranslate"><span class="pre">tiled_camera.data.info['instance_id_segmentation_fast']</span></code> containing ID to labels information.</p>
-<p>The main difference between <code class="docutils literal notranslate"><span class="pre">instance_id_segmentation_fast</span></code> and <code class="docutils literal notranslate"><span class="pre">instance_segmentation_fast</span></code> are that instance segmentation annotator goes down the hierarchy to the lowest level prim which has semantic labels, where instance ID segmentation always goes down to the leaf prim.</p>
-<ul class="simple">
-<li><p>If <code class="docutils literal notranslate"><span class="pre">colorize_instance_id_segmentation=True</span></code> in the camera config, a 4-channel RGBA image will be returned with dimension (B, H, W, 4) and type <code class="docutils literal notranslate"><span class="pre">torch.uint8</span></code>. The info <code class="docutils literal notranslate"><span class="pre">idToLabels</span></code> dictionary will be the mapping from color to USD prim path of that entity.</p></li>
-<li><p>If <code class="docutils literal notranslate"><span class="pre">colorize_instance_id_segmentation=False</span></code>, a buffer of dimension (B, H, W, 1) of type <code class="docutils literal notranslate"><span class="pre">torch.int32</span></code> will be returned, containing the instance ID of each pixel. The info <code class="docutils literal notranslate"><span class="pre">idToLabels</span></code> dictionary will be the mapping from instance ID to USD prim path of that entity.</p></li>
-</ul>
-<section id="instance-segmentation">
-<h4>Instance Segmentation<a class="headerlink" href="#instance-segmentation" title="Permalink to this heading">#</a></h4>
-<p><code class="docutils literal notranslate"><span class="pre">instance_segmentation_fast</span></code> outputs instance segmentation of each entity in the camera’s viewport. In addition to the image buffer, an <code class="docutils literal notranslate"><span class="pre">info</span></code> dictionary can be retrieved with <code class="docutils literal notranslate"><span class="pre">tiled_camera.data.info['instance_segmentation_fast']</span></code> containing ID to labels and ID to semantic information.</p>
-<ul class="simple">
-<li><p>If <code class="docutils literal notranslate"><span class="pre">colorize_instance_segmentation=True</span></code> in the camera config, a 4-channel RGBA image will be returned with dimension (B, H, W, 4) and type <code class="docutils literal notranslate"><span class="pre">torch.uint8</span></code>. The info <code class="docutils literal notranslate"><span class="pre">idToLabels</span></code> dictionary will be the mapping from color to USD prim path of that semantic entity. The info <code class="docutils literal notranslate"><span class="pre">idToSemantics</span></code> dictionary will be the mapping from color to semantic labels of that semantic entity.</p></li>
-<li><p>If <code class="docutils literal notranslate"><span class="pre">colorize_instance_segmentation=False</span></code>, a buffer of dimension (B, H, W, 1) of type <code class="docutils literal notranslate"><span class="pre">torch.int32</span></code> will be returned, containing the instance ID of each pixel. The info <code class="docutils literal notranslate"><span class="pre">idToLabels</span></code> dictionary will be the mapping from instance ID to USD prim path of that semantic entity. The info <code class="docutils literal notranslate"><span class="pre">idToSemantics</span></code> dictionary will be the mapping from instance ID to semantic labels of that semantic entity.</p></li>
+<li><p>The parameter we set has a space, so it must be enclosed in quotes.</p></li>
+<li><p>The parameter is a list while it is a tuple in the config. This is due to the fact that Hydra does not support tuples.</p></li>
 </ul>
 </section>
 </section>
-</section>
-<section id="current-limitations">
-<h2>Current Limitations<a class="headerlink" href="#current-limitations" title="Permalink to this heading">#</a></h2>
-<p>Due to current limitations in the renderer, we can have only <strong>one</strong> <a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.TiledCamera" title="omni.isaac.lab.sensors.TiledCamera"><code class="xref py py-class docutils literal notranslate"><span class="pre">TiledCamera</span></code></a> instance in the scene.
-For use cases that require a setup with more than one camera, we can imitate the multi-camera behavior by moving the location
-of the camera in between render calls in a step.</p>
-<p>For example, in a stereo vision setup, the below snippet can be implemented:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># render image from &quot;first&quot; camera</span>
-<span class="n">camera_data_1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tiled_camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">output</span><span class="p">[</span><span class="s2">&quot;rgb&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span> <span class="o">/</span> <span class="mf">255.0</span>
-<span class="c1"># update camera transform to the &quot;second&quot; camera location</span>
-<span class="bp">self</span><span class="o">.</span><span class="n">_tiled_camera</span><span class="o">.</span><span class="n">set_world_poses</span><span class="p">(</span>
-    <span class="n">positions</span><span class="o">=</span><span class="n">pos</span><span class="p">,</span>
-    <span class="n">orientations</span><span class="o">=</span><span class="n">rot</span><span class="p">,</span>
-    <span class="n">convention</span><span class="o">=</span><span class="s2">&quot;world&quot;</span>
-<span class="p">)</span>
-<span class="c1"># step the renderer</span>
-<span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">render</span><span class="p">()</span>
-<span class="bp">self</span><span class="o">.</span><span class="n">_tiled_camera</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">force_recompute</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<span class="c1"># render image from &quot;second&quot; camera</span>
-<span class="n">camera_data_2</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tiled_camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">output</span><span class="p">[</span><span class="s2">&quot;rgb&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span> <span class="o">/</span> <span class="mf">255.0</span>
+<section id="modifying-inter-dependent-parameters">
+<h2>Modifying inter-dependent parameters<a class="headerlink" href="#modifying-inter-dependent-parameters" title="Permalink to this heading">#</a></h2>
+<p>Particular care should be taken when modifying the parameters using command line arguments. Some of the configurations
+perform intermediate computations based on other parameters. These computations will not be updated when the parameters
+are modified.</p>
+<p>For example, for the configuration of the Cartpole camera depth environment:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">CartpoleDepthCameraEnvCfg</span><span class="p">(</span><span class="n">CartpoleRGBCameraEnvCfg</span><span class="p">):</span>
+    <span class="c1"># camera</span>
+    <span class="n">tiled_camera</span><span class="p">:</span> <span class="n">TiledCameraCfg</span> <span class="o">=</span> <span class="n">TiledCameraCfg</span><span class="p">(</span>
+        <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/envs/env_.*/Camera&quot;</span><span class="p">,</span>
+        <span class="n">offset</span><span class="o">=</span><span class="n">TiledCameraCfg</span><span class="o">.</span><span class="n">OffsetCfg</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="p">(</span><span class="o">-</span><span class="mf">5.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">),</span> <span class="n">rot</span><span class="o">=</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span> <span class="n">convention</span><span class="o">=</span><span class="s2">&quot;world&quot;</span><span class="p">),</span>
+        <span class="n">data_types</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;depth&quot;</span><span class="p">],</span>
+        <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PinholeCameraCfg</span><span class="p">(</span>
+            <span class="n">focal_length</span><span class="o">=</span><span class="mf">24.0</span><span class="p">,</span> <span class="n">focus_distance</span><span class="o">=</span><span class="mf">400.0</span><span class="p">,</span> <span class="n">horizontal_aperture</span><span class="o">=</span><span class="mf">20.955</span><span class="p">,</span> <span class="n">clipping_range</span><span class="o">=</span><span class="p">(</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">20.0</span><span class="p">)</span>
+        <span class="p">),</span>
+<span class="hll">        <span class="n">width</span><span class="o">=</span><span class="mi">80</span><span class="p">,</span>
+</span>        <span class="n">height</span><span class="o">=</span><span class="mi">80</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="c1"># spaces</span>
+<span class="hll">    <span class="n">observation_space</span> <span class="o">=</span> <span class="p">[</span><span class="n">tiled_camera</span><span class="o">.</span><span class="n">height</span><span class="p">,</span> <span class="n">tiled_camera</span><span class="o">.</span><span class="n">width</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+</span></pre></div>
+</div>
+<p>If the user were to modify the width of the camera, i.e. <code class="docutils literal notranslate"><span class="pre">env.tiled_camera.width=128</span></code>, then the parameter
+<code class="docutils literal notranslate"><span class="pre">env.observation_space=[80,128,1]</span></code> must be updated and given as input as well.</p>
+<p>Similarly, the <code class="docutils literal notranslate"><span class="pre">__post_init__</span></code> method is not updated with the command line inputs. In the <code class="docutils literal notranslate"><span class="pre">LocomotionVelocityRoughEnvCfg</span></code>, for example,
+the post init update is as follows:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">LocomotionVelocityRoughEnvCfg</span><span class="p">(</span><span class="n">ManagerBasedRLEnvCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the locomotion velocity-tracking environment.&quot;&quot;&quot;</span>
+
+    <span class="c1"># Scene settings</span>
+    <span class="n">scene</span><span class="p">:</span> <span class="n">MySceneCfg</span> <span class="o">=</span> <span class="n">MySceneCfg</span><span class="p">(</span><span class="n">num_envs</span><span class="o">=</span><span class="mi">4096</span><span class="p">,</span> <span class="n">env_spacing</span><span class="o">=</span><span class="mf">2.5</span><span class="p">)</span>
+    <span class="c1"># Basic settings</span>
+    <span class="n">observations</span><span class="p">:</span> <span class="n">ObservationsCfg</span> <span class="o">=</span> <span class="n">ObservationsCfg</span><span class="p">()</span>
+    <span class="n">actions</span><span class="p">:</span> <span class="n">ActionsCfg</span> <span class="o">=</span> <span class="n">ActionsCfg</span><span class="p">()</span>
+    <span class="n">commands</span><span class="p">:</span> <span class="n">CommandsCfg</span> <span class="o">=</span> <span class="n">CommandsCfg</span><span class="p">()</span>
+    <span class="c1"># MDP settings</span>
+    <span class="n">rewards</span><span class="p">:</span> <span class="n">RewardsCfg</span> <span class="o">=</span> <span class="n">RewardsCfg</span><span class="p">()</span>
+    <span class="n">terminations</span><span class="p">:</span> <span class="n">TerminationsCfg</span> <span class="o">=</span> <span class="n">TerminationsCfg</span><span class="p">()</span>
+    <span class="n">events</span><span class="p">:</span> <span class="n">EventCfg</span> <span class="o">=</span> <span class="n">EventCfg</span><span class="p">()</span>
+    <span class="n">curriculum</span><span class="p">:</span> <span class="n">CurriculumCfg</span> <span class="o">=</span> <span class="n">CurriculumCfg</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Post initialization.&quot;&quot;&quot;</span>
+        <span class="c1"># general settings</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">decimation</span> <span class="o">=</span> <span class="mi">4</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">episode_length_s</span> <span class="o">=</span> <span class="mf">20.0</span>
+        <span class="c1"># simulation settings</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">dt</span> <span class="o">=</span> <span class="mf">0.005</span>
+<span class="hll">        <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">render_interval</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">decimation</span>
+</span>        <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">disable_contact_processing</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">physics_material</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">terrain</span><span class="o">.</span><span class="n">physics_material</span>
+        <span class="c1"># update sensor update periods</span>
+        <span class="c1"># we tick all the sensors based on the smallest update period (physics update period)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">height_scanner</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<span class="hll">            <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">height_scanner</span><span class="o">.</span><span class="n">update_period</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">decimation</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">dt</span>
+</span>        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">contact_forces</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<span class="hll">            <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">contact_forces</span><span class="o">.</span><span class="n">update_period</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">dt</span>
+</span>
+        <span class="c1"># check if terrain levels curriculum is enabled - if so, enable curriculum for terrain generator</span>
+        <span class="c1"># this generates terrains with increasing difficulty and is useful for training</span>
+        <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">curriculum</span><span class="p">,</span> <span class="s2">&quot;terrain_levels&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">terrain</span><span class="o">.</span><span class="n">terrain_generator</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">terrain</span><span class="o">.</span><span class="n">terrain_generator</span><span class="o">.</span><span class="n">curriculum</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">terrain</span><span class="o">.</span><span class="n">terrain_generator</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">terrain</span><span class="o">.</span><span class="n">terrain_generator</span><span class="o">.</span><span class="n">curriculum</span> <span class="o">=</span> <span class="kc">False</span>
 </pre></div>
 </div>
-<p>Note that this approach still limits the rendering resolution to be identical for all cameras. Currently, there is no workaround
-to achieve different resolution images using <a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.TiledCamera" title="omni.isaac.lab.sensors.TiledCamera"><code class="xref py py-class docutils literal notranslate"><span class="pre">TiledCamera</span></code></a>. The best approach is to use the largest resolution out of all of the
-desired resolutions and add additional scaling or cropping operations to the rendered output as a post-processing step.</p>
-<p>In addition, there may be visible quality differences when comparing render outputs of different numbers of environments.
-Currently, any combined resolution that has a width less than 265 pixels or height less than 265 will automatically switch
-to the DLAA anti-aliasing mode, which does not perform up-sampling during anti-aliasing. For resolutions larger than 265 in both
-width and height dimensions, we default to using the “performance” DLSS mode for anti-aliasing for performance benefits.
-Anti-aliasing modes and other rendering parameters can be specified in the <a class="reference internal" href="../api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.RenderCfg" title="omni.isaac.lab.sim.RenderCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">RenderCfg</span></code></a>.</p>
+<p>Here, when modifying <code class="docutils literal notranslate"><span class="pre">env.decimation</span></code> or <code class="docutils literal notranslate"><span class="pre">env.sim.dt</span></code>, the user needs to give the updated <code class="docutils literal notranslate"><span class="pre">env.sim.render_interval</span></code>,
+<code class="docutils literal notranslate"><span class="pre">env.scene.height_scanner.update_period</span></code>, and <code class="docutils literal notranslate"><span class="pre">env.scene.contact_forces.update_period</span></code> as input as well.</p>
 </section>
 </section>
 
@@ -736,20 +789,20 @@ Anti-aliasing modes and other rendering parameters can be specified in the <a cl
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="multi_gpu.html"
+       href="../overview/simple_agents.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">Multi-GPU and Multi-Node Training</p>
+        <p class="prev-next-title">Simple Agents</p>
       </div>
     </a>
     <a class="right-next"
-       href="reproducibility.html"
+       href="multi_gpu.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Reproducibility and Determinism</p>
+        <p class="prev-next-title">Multi-GPU and Multi-Node Training</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -770,19 +823,13 @@ Anti-aliasing modes and other rendering parameters can be specified in the <a cl
   </div>
   <nav class="bd-toc-nav page-toc">
     <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#annotators-and-data-types">Annotators and Data Types</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#rgb-and-rgba">RGB and RGBA</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#depth-and-distances">Depth and Distances</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#normals">Normals</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#motion-vectors">Motion Vectors</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#semantic-segmentation">Semantic Segmentation</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#instance-id-segmentation">Instance ID Segmentation</a><ul class="nav section-nav flex-column">
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#instance-segmentation">Instance Segmentation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#modifying-advanced-parameters">Modifying advanced parameters</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#callables">Callables</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#setting-parameters-to-none">Setting parameters to None</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dictionaries">Dictionaries</a></li>
 </ul>
 </li>
-</ul>
-</li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#current-limitations">Current Limitations</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#modifying-inter-dependent-parameters">Modifying inter-dependent parameters</a></li>
 </ul>
   </nav></div>
 
@@ -816,7 +863,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Nov 21, 2024.
+  Last updated on Nov 25, 2024.
   <br/>
 </p>
   </div>

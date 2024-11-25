@@ -1,0 +1,1266 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>omni.isaac.lab.sensors.camera.camera &#8212; Isaac Lab Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!-- 
+    this give us a css class that will be invisible only if js is disabled 
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../../../../_static/styles/theme.css?digest=26a4bc78f4c0ddb94549" rel="stylesheet" />
+<link href="../../../../../../_static/styles/pydata-sphinx-theme.css?digest=26a4bc78f4c0ddb94549" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../../../../_static/pygments.css" />
+    <link rel="stylesheet" href="../../../../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.10.15/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../../../_static/custom.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../../../_static/sphinx-design.4cbf315f70debaebd550c87a6162cf0f.min.css" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../../../../_static/scripts/fontawesome.js?digest=26a4bc78f4c0ddb94549"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../../../../_static/scripts/bootstrap.js?digest=26a4bc78f4c0ddb94549" />
+<link rel="preload" as="script" href="../../../../../../_static/scripts/pydata-sphinx-theme.js?digest=26a4bc78f4c0ddb94549" />
+
+    <script data-url_root="../../../../../../" id="documentation_options" src="../../../../../../_static/documentation_options.js"></script>
+    <script src="../../../../../../_static/doctools.js"></script>
+    <script src="../../../../../../_static/sphinx_highlight.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.10.15/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="../../../../../../_static/clipboard.min.js"></script>
+    <script src="../../../../../../_static/copybutton.js"></script>
+    <script src="../../../../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
+    <script src="../../../../../../_static/design-tabs.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/omni/isaac/lab/sensors/camera/camera';</script>
+    <link rel="icon" href="../../../../../../_static/favicon.ico"/>
+    <link rel="index" title="Index" href="../../../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="1.3.0" />
+    <meta name="docbuild:last-update" content="Nov 25, 2024"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../../../../_static/NVIDIA-logo-white.png" class="logo__image only-light" alt=""/>
+    <img src="../../../../../../_static/NVIDIA-logo-black.png" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">Isaac Lab Documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+<nav class="bd-links bd-docs-nav">
+    <div class="bd-toc-item navbar-nav">
+      <ul class="nav bd-sidenav">
+        <li class="toctree-l1 has-children" style="display: flex; justify-content: center; align-items: center; flex-direction: column;">
+          <div  style ="text-align:center;">
+            <label for="version-select" style="font-weight: bold; display: block;">Version</label>
+          </div>
+          <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="../../../../../../../main/index.html" >main</option>
+            <option value="camera.html" selected>v1.3.0</option>
+            <option value="../../../../../../../v1.2.0/index.html" >v1.2.0</option>
+            <option value="../../../../../../../v1.1.0/index.html" >v1.1.0</option>
+            <option value="../../../../../../../v1.0.0/index.html" >v1.0.0</option>
+          </select>
+        </li>
+      </ul>
+    </div>
+</nav>
+</div>
+        <div class="sidebar-primary-item"><ul class="navbar-icon-links"
+    aria-label="Quick Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/isaac-sim/IsaacLab" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://img.shields.io/github/stars/isaac-sim/IsaacLab?color=fedcba" title="Stars" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/github/stars/isaac-sim/IsaacLab?color=fedcba" class="icon-link-image" alt="Stars"/></a>
+        </li>
+</ul></div>
+        <div class="sidebar-primary-item">
+<form class="bd-search d-flex align-items-center"
+      action="../../../../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/setup/ecosystem.html">Isaac Lab Ecosystem</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../../../source/setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/setup/installation/pip_installation.html">Pip installation (recommended for Ubuntu 22.04 and Windows)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/setup/installation/binaries_installation.html">Binary installation (recommended for Ubuntu 20.04)</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/setup/faq.html">Frequently Asked Questions</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Overview</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../../../source/overview/developer-guide/index.html">Developer’s Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
+
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/overview/developer-guide/repo_structure.html">Repository organization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/overview/developer-guide/development.html">Application Development</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/overview/developer-guide/template.html">Building your Own Project</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../../../source/overview/core-concepts/index.html">Core Concepts</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/overview/core-concepts/task_workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/overview/core-concepts/actuators.html">Actuators</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/overview/environments.html">Available Environments</a></li>
+
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../../../source/overview/reinforcement-learning/index.html">Reinforcement Learning</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/overview/reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Wrappers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/overview/reinforcement-learning/rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/overview/reinforcement-learning/performance_benchmarks.html">Performance Benchmarks</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/overview/teleop_imitation.html">Teleoperation and Imitation Learning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/overview/showroom.html">Showroom Demos</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/overview/simple_agents.html">Simple Agents</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/features/hydra.html">Hydra Configuration System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/features/tiled_rendering.html">Tiled-Camera Rendering</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/features/reproducibility.html">Reproducibility and Determinism</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../../../source/tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/tutorials/00_sim/spawn_prims.html">Spawning prims into the scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/tutorials/00_sim/launch_app.html">Deep-dive into AppLauncher</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/tutorials/01_assets/run_rigid_object.html">Interacting with a rigid object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/tutorials/01_assets/run_articulation.html">Interacting with an articulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/tutorials/01_assets/run_deformable_object.html">Interacting with a deformable object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/tutorials/02_scene/create_scene.html">Using the Interactive Scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/create_manager_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/create_manager_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/tutorials/04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/tutorials/05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../../../source/how-to/index.html">How-to Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/how-to/import_new_asset.html">Importing a New Asset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/how-to/write_articulation_cfg.html">Writing an Asset Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/how-to/make_fixed_prim.html">Making a physics prim fixed in the simulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/how-to/multi_asset_spawning.html">Spawning Multiple Assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/how-to/save_camera_output.html">Saving rendered images and 3D re-projection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/how-to/estimate_how_many_cameras_can_run.html">Find How Many/What Cameras You Should Train With</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/how-to/draw_markers.html">Creating Visualization Markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/how-to/wrap_rl_env.html">Wrapping environments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/how-to/add_own_library.html">Adding your own learning library</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/how-to/record_animation.html">Recording Animations of Simulations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/how-to/record_video.html">Recording video clips during training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../../../source/deployment/index.html">Container Deployment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/deployment/docker.html">Docker Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/deployment/cluster.html">Cluster Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/deployment/run_docker_example.html">Running an example with Docker</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Migration Guides</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/migration/migrating_from_isaacgymenvs.html">From IsaacGymEnvs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/migration/migrating_from_omniisaacgymenvs.html">From OmniIsaacGymEnvs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/migration/migrating_from_orbit.html">From Orbit</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Source API</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../../../source/api/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/api/lab/omni.isaac.lab.app.html">omni.isaac.lab.app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/api/lab/omni.isaac.lab.actuators.html">omni.isaac.lab.actuators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html">omni.isaac.lab.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/api/lab/omni.isaac.lab.controllers.html">omni.isaac.lab.controllers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/api/lab/omni.isaac.lab.devices.html">omni.isaac.lab.devices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/api/lab/omni.isaac.lab.envs.html">omni.isaac.lab.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/api/lab/omni.isaac.lab.managers.html">omni.isaac.lab.managers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/api/lab/omni.isaac.lab.markers.html">omni.isaac.lab.markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/api/lab/omni.isaac.lab.scene.html">omni.isaac.lab.scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/api/lab/omni.isaac.lab.sensors.html">omni.isaac.lab.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/api/lab/omni.isaac.lab.sim.html">omni.isaac.lab.sim</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/api/lab/omni.isaac.lab.terrains.html">omni.isaac.lab.terrains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html">omni.isaac.lab.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html">omni.isaac.lab.envs.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/api/lab/omni.isaac.lab.envs.ui.html">omni.isaac.lab.envs.ui</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/api/lab/omni.isaac.lab.sensors.patterns.html">omni.isaac.lab.sensors.patterns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/api/lab/omni.isaac.lab.sim.converters.html">omni.isaac.lab.sim.converters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/api/lab/omni.isaac.lab.sim.schemas.html">omni.isaac.lab.sim.schemas</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/api/lab/omni.isaac.lab.sim.spawners.html">omni.isaac.lab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/api/lab_tasks/omni.isaac.lab_tasks.utils.html">omni.isaac.lab_tasks.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html">omni.isaac.lab_tasks.utils.wrappers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/api/lab_tasks/omni.isaac.lab_tasks.utils.data_collector.html">omni.isaac.lab_tasks.utils.data_collector</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/refs/reference_architecture/index.html">Reference Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/refs/additional_resources.html">Additional Resources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/refs/contributing.html">Contribution Guidelines</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/refs/troubleshooting.html">Tricks and Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/refs/issues.html">Known Issues</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/refs/changelog.html">Extensions Changelog</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/refs/license.html">License</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/refs/bibliography.html">Bibliography</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/index.html">NVIDIA PhysX</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+  
+  <div id="rtd-footer-container"></div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</label></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-source-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Source repositories">
+    <i class="fab fa-github"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab" target="_blank"
+   class="btn btn-sm btn-source-repository-button dropdown-item"
+   title="Source repository"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+<span class="btn__text-container">Repository</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2F_modules/omni/isaac/lab/sensors/camera/camera.html&body=Your%20issue%20content%20here." target="_blank"
+   class="btn btn-sm btn-source-issues-button dropdown-item"
+   title="Open an issue"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-lightbulb"></i>
+  </span>
+<span class="btn__text-container">Open issue</span>
+</a>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1></h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for omni.isaac.lab.sensors.camera.camera</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Copyright (c) 2022-2024, The Isaac Lab Project Developers.</span>
+<span class="c1"># All rights reserved.</span>
+<span class="c1">#</span>
+<span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">import</span> <span class="nn">torch</span>
+<span class="kn">from</span> <span class="nn">collections.abc</span> <span class="kn">import</span> <span class="n">Sequence</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Literal</span>
+
+<span class="kn">import</span> <span class="nn">carb</span>
+<span class="kn">import</span> <span class="nn">omni.isaac.core.utils.stage</span> <span class="k">as</span> <span class="nn">stage_utils</span>
+<span class="kn">import</span> <span class="nn">omni.kit.commands</span>
+<span class="kn">import</span> <span class="nn">omni.usd</span>
+<span class="kn">from</span> <span class="nn">omni.isaac.core.prims</span> <span class="kn">import</span> <span class="n">XFormPrimView</span>
+<span class="kn">from</span> <span class="nn">pxr</span> <span class="kn">import</span> <span class="n">UsdGeom</span>
+
+<span class="kn">import</span> <span class="nn">omni.isaac.lab.sim</span> <span class="k">as</span> <span class="nn">sim_utils</span>
+<span class="kn">from</span> <span class="nn">omni.isaac.lab.utils</span> <span class="kn">import</span> <span class="n">to_camel_case</span>
+<span class="kn">from</span> <span class="nn">omni.isaac.lab.utils.array</span> <span class="kn">import</span> <span class="n">convert_to_torch</span>
+<span class="kn">from</span> <span class="nn">omni.isaac.lab.utils.math</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">convert_camera_frame_orientation_convention</span><span class="p">,</span>
+    <span class="n">create_rotation_matrix_from_view</span><span class="p">,</span>
+    <span class="n">quat_from_matrix</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="kn">from</span> <span class="nn">..sensor_base</span> <span class="kn">import</span> <span class="n">SensorBase</span>
+<span class="kn">from</span> <span class="nn">.camera_data</span> <span class="kn">import</span> <span class="n">CameraData</span>
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">from</span> <span class="nn">.camera_cfg</span> <span class="kn">import</span> <span class="n">CameraCfg</span>
+
+
+<div class="viewcode-block" id="Camera"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.Camera">[docs]</a><span class="k">class</span> <span class="nc">Camera</span><span class="p">(</span><span class="n">SensorBase</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;The camera sensor for acquiring visual data.</span>
+
+<span class="sd">    This class wraps over the `UsdGeom Camera`_ for providing a consistent API for acquiring visual data.</span>
+<span class="sd">    It ensures that the camera follows the ROS convention for the coordinate system.</span>
+
+<span class="sd">    Summarizing from the `replicator extension`_, the following sensor types are supported:</span>
+
+<span class="sd">    - ``&quot;rgb&quot;``: A 3-channel rendered color image.</span>
+<span class="sd">    - ``&quot;rgba&quot;``: A 4-channel rendered color image with alpha channel.</span>
+<span class="sd">    - ``&quot;distance_to_camera&quot;``: An image containing the distance to camera optical center.</span>
+<span class="sd">    - ``&quot;distance_to_image_plane&quot;``: An image containing distances of 3D points from camera plane along camera&#39;s z-axis.</span>
+<span class="sd">    - ``&quot;depth&quot;``: The same as ``&quot;distance_to_image_plane&quot;``.</span>
+<span class="sd">    - ``&quot;normals&quot;``: An image containing the local surface normal vectors at each pixel.</span>
+<span class="sd">    - ``&quot;motion_vectors&quot;``: An image containing the motion vector data at each pixel.</span>
+<span class="sd">    - ``&quot;semantic_segmentation&quot;``: The semantic segmentation data.</span>
+<span class="sd">    - ``&quot;instance_segmentation_fast&quot;``: The instance segmentation data.</span>
+<span class="sd">    - ``&quot;instance_id_segmentation_fast&quot;``: The instance id segmentation data.</span>
+
+<span class="sd">    .. note::</span>
+<span class="sd">        Currently the following sensor types are not supported in a &quot;view&quot; format:</span>
+
+<span class="sd">        - ``&quot;instance_segmentation&quot;``: The instance segmentation data. Please use the fast counterparts instead.</span>
+<span class="sd">        - ``&quot;instance_id_segmentation&quot;``: The instance id segmentation data. Please use the fast counterparts instead.</span>
+<span class="sd">        - ``&quot;bounding_box_2d_tight&quot;``: The tight 2D bounding box data (only contains non-occluded regions).</span>
+<span class="sd">        - ``&quot;bounding_box_2d_tight_fast&quot;``: The tight 2D bounding box data (only contains non-occluded regions).</span>
+<span class="sd">        - ``&quot;bounding_box_2d_loose&quot;``: The loose 2D bounding box data (contains occluded regions).</span>
+<span class="sd">        - ``&quot;bounding_box_2d_loose_fast&quot;``: The loose 2D bounding box data (contains occluded regions).</span>
+<span class="sd">        - ``&quot;bounding_box_3d&quot;``: The 3D view space bounding box data.</span>
+<span class="sd">        - ``&quot;bounding_box_3d_fast&quot;``: The 3D view space bounding box data.</span>
+
+<span class="sd">    .. _replicator extension: https://docs.omniverse.nvidia.com/extensions/latest/ext_replicator/annotators_details.html#annotator-output</span>
+<span class="sd">    .. _USDGeom Camera: https://graphics.pixar.com/usd/docs/api/class_usd_geom_camera.html</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">cfg</span><span class="p">:</span> <span class="n">CameraCfg</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The configuration parameters.&quot;&quot;&quot;</span>
+
+    <span class="n">UNSUPPORTED_TYPES</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">&quot;instance_id_segmentation&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;instance_segmentation&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;bounding_box_2d_tight&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;bounding_box_2d_loose&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;bounding_box_3d&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;bounding_box_2d_tight_fast&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;bounding_box_2d_loose_fast&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;bounding_box_3d_fast&quot;</span><span class="p">,</span>
+    <span class="p">}</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The set of sensor types that are not supported by the camera class.&quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="Camera.__init__"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.Camera.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">CameraCfg</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initializes the camera sensor.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            cfg: The configuration parameters.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            RuntimeError: If no camera prim is found at the given path.</span>
+<span class="sd">            ValueError: If the provided data types are not supported by the camera.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># check if sensor path is valid</span>
+        <span class="c1"># note: currently we do not handle environment indices if there is a regex pattern in the leaf</span>
+        <span class="c1">#   For example, if the prim path is &quot;/World/Sensor_[1,2]&quot;.</span>
+        <span class="n">sensor_path</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">sensor_path_is_regex</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;^[a-zA-Z0-9/_]+$&quot;</span><span class="p">,</span> <span class="n">sensor_path</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">sensor_path_is_regex</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Invalid prim path for the camera sensor: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">.&quot;</span>
+                <span class="s2">&quot;</span><span class="se">\n\t</span><span class="s2">Hint: Please ensure that the prim path does not contain any regex patterns in the leaf.&quot;</span>
+            <span class="p">)</span>
+        <span class="c1"># perform check on supported data types</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_check_supported_data_types</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
+        <span class="c1"># initialize base class</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
+
+        <span class="c1"># toggle rendering of rtx sensors as True</span>
+        <span class="c1"># this flag is read by SimulationContext to determine if rtx sensors should be rendered</span>
+        <span class="n">carb_settings_iface</span> <span class="o">=</span> <span class="n">carb</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">get_settings</span><span class="p">()</span>
+        <span class="n">carb_settings_iface</span><span class="o">.</span><span class="n">set_bool</span><span class="p">(</span><span class="s2">&quot;/isaaclab/render/rtx_sensors&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+
+        <span class="c1"># spawn the asset</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">spawn</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># compute the rotation offset</span>
+            <span class="n">rot</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">offset</span><span class="o">.</span><span class="n">rot</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+            <span class="n">rot_offset</span> <span class="o">=</span> <span class="n">convert_camera_frame_orientation_convention</span><span class="p">(</span>
+                <span class="n">rot</span><span class="p">,</span> <span class="n">origin</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">offset</span><span class="o">.</span><span class="n">convention</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="s2">&quot;opengl&quot;</span>
+            <span class="p">)</span>
+            <span class="n">rot_offset</span> <span class="o">=</span> <span class="n">rot_offset</span><span class="o">.</span><span class="n">squeeze</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span>
+            <span class="c1"># ensure vertical aperture is set, otherwise replace with default for squared pixels</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">spawn</span><span class="o">.</span><span class="n">vertical_aperture</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">spawn</span><span class="o">.</span><span class="n">vertical_aperture</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">spawn</span><span class="o">.</span><span class="n">horizontal_aperture</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">height</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">width</span>
+            <span class="c1"># spawn the asset</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">spawn</span><span class="o">.</span><span class="n">func</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">spawn</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">offset</span><span class="o">.</span><span class="n">pos</span><span class="p">,</span> <span class="n">orientation</span><span class="o">=</span><span class="n">rot_offset</span>
+            <span class="p">)</span>
+        <span class="c1"># check that spawn was successful</span>
+        <span class="n">matching_prims</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">find_matching_prims</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">matching_prims</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Could not find prim with path </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
+
+        <span class="c1"># UsdGeom Camera prim for the sensor</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sensor_prims</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">UsdGeom</span><span class="o">.</span><span class="n">Camera</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+        <span class="c1"># Create empty variables for storing output data</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="o">=</span> <span class="n">CameraData</span><span class="p">()</span></div>
+
+    <span class="k">def</span> <span class="fm">__del__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Unsubscribes from callbacks and detach from the replicator registry.&quot;&quot;&quot;</span>
+        <span class="c1"># unsubscribe callbacks</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__del__</span><span class="p">()</span>
+        <span class="c1"># delete from replicator registry</span>
+        <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">annotators</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rep_registry</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">for</span> <span class="n">annotator</span><span class="p">,</span> <span class="n">render_product_path</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">annotators</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_render_product_paths</span><span class="p">):</span>
+                <span class="n">annotator</span><span class="o">.</span><span class="n">detach</span><span class="p">([</span><span class="n">render_product_path</span><span class="p">])</span>
+                <span class="n">annotator</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns: A string containing information about the instance.&quot;&quot;&quot;</span>
+        <span class="c1"># message for class</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Camera @ &#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">&#39;: </span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">data types   : </span><span class="si">{</span><span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">output</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span><span class="si">}</span><span class="s2"> </span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">semantic filter : </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">semantic_filter</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">colorize semantic segm.   : </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">colorize_semantic_segmentation</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">colorize instance segm.   : </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">colorize_instance_segmentation</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">colorize instance id segm.: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">colorize_instance_id_segmentation</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">update period (s): </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">update_period</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">shape        : </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">image_shape</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">number of sensors : </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">count</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="p">)</span>
+
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Properties</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">num_instances</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">count</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">data</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CameraData</span><span class="p">:</span>
+        <span class="c1"># update sensors if needed</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_update_outdated_buffers</span><span class="p">()</span>
+        <span class="c1"># return the data</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">frame</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Frame number when the measurement took place.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_frame</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">render_product_paths</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The path of the render products for the cameras.</span>
+
+<span class="sd">        This can be used via replicator interfaces to attach to writes or external annotator registry.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_render_product_paths</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">image_shape</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;A tuple containing (height, width) of the camera sensor.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">height</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">width</span><span class="p">)</span>
+
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Configuration</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="Camera.set_intrinsic_matrices"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.Camera.set_intrinsic_matrices">[docs]</a>    <span class="k">def</span> <span class="nf">set_intrinsic_matrices</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">matrices</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">focal_length</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Set parameters of the USD camera from its intrinsic matrix.</span>
+
+<span class="sd">        The intrinsic matrix and focal length are used to set the following parameters to the USD camera:</span>
+
+<span class="sd">        - ``focal_length``: The focal length of the camera.</span>
+<span class="sd">        - ``horizontal_aperture``: The horizontal aperture of the camera.</span>
+<span class="sd">        - ``vertical_aperture``: The vertical aperture of the camera.</span>
+<span class="sd">        - ``horizontal_aperture_offset``: The horizontal offset of the camera.</span>
+<span class="sd">        - ``vertical_aperture_offset``: The vertical offset of the camera.</span>
+
+<span class="sd">        .. warning::</span>
+
+<span class="sd">            Due to limitations of Omniverse camera, we need to assume that the camera is a spherical lens,</span>
+<span class="sd">            i.e. has square pixels, and the optical center is centered at the camera eye. If this assumption</span>
+<span class="sd">            is not true in the input intrinsic matrix, then the camera will not set up correctly.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            matrices: The intrinsic matrices for the camera. Shape is (N, 3, 3).</span>
+<span class="sd">            focal_length: Focal length to use when computing aperture values (in cm). Defaults to 1.0.</span>
+<span class="sd">            env_ids: A sensor ids to manipulate. Defaults to None, which means all sensor indices.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># resolve env_ids</span>
+        <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span>
+        <span class="c1"># convert matrices to numpy tensors</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">matrices</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+            <span class="n">matrices</span> <span class="o">=</span> <span class="n">matrices</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">matrices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">matrices</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+        <span class="c1"># iterate over env_ids</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">intrinsic_matrix</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">matrices</span><span class="p">):</span>
+            <span class="c1"># extract parameters from matrix</span>
+            <span class="n">f_x</span> <span class="o">=</span> <span class="n">intrinsic_matrix</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+            <span class="n">c_x</span> <span class="o">=</span> <span class="n">intrinsic_matrix</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span>
+            <span class="n">f_y</span> <span class="o">=</span> <span class="n">intrinsic_matrix</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+            <span class="n">c_y</span> <span class="o">=</span> <span class="n">intrinsic_matrix</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span>
+            <span class="c1"># get viewport parameters</span>
+            <span class="n">height</span><span class="p">,</span> <span class="n">width</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">image_shape</span>
+            <span class="n">height</span><span class="p">,</span> <span class="n">width</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">height</span><span class="p">),</span> <span class="nb">float</span><span class="p">(</span><span class="n">width</span><span class="p">)</span>
+            <span class="c1"># resolve parameters for usd camera</span>
+            <span class="n">params</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s2">&quot;focal_length&quot;</span><span class="p">:</span> <span class="n">focal_length</span><span class="p">,</span>
+                <span class="s2">&quot;horizontal_aperture&quot;</span><span class="p">:</span> <span class="n">width</span> <span class="o">*</span> <span class="n">focal_length</span> <span class="o">/</span> <span class="n">f_x</span><span class="p">,</span>
+                <span class="s2">&quot;vertical_aperture&quot;</span><span class="p">:</span> <span class="n">height</span> <span class="o">*</span> <span class="n">focal_length</span> <span class="o">/</span> <span class="n">f_y</span><span class="p">,</span>
+                <span class="s2">&quot;horizontal_aperture_offset&quot;</span><span class="p">:</span> <span class="p">(</span><span class="n">c_x</span> <span class="o">-</span> <span class="n">width</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="o">/</span> <span class="n">f_x</span><span class="p">,</span>
+                <span class="s2">&quot;vertical_aperture_offset&quot;</span><span class="p">:</span> <span class="p">(</span><span class="n">c_y</span> <span class="o">-</span> <span class="n">height</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="o">/</span> <span class="n">f_y</span><span class="p">,</span>
+            <span class="p">}</span>
+
+            <span class="c1"># TODO: Adjust to handle aperture offsets once supported by omniverse</span>
+            <span class="c1">#   Internal ticket from rendering team: OM-42611</span>
+            <span class="k">if</span> <span class="n">params</span><span class="p">[</span><span class="s2">&quot;horizontal_aperture_offset&quot;</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mf">1e-4</span> <span class="ow">or</span> <span class="n">params</span><span class="p">[</span><span class="s2">&quot;vertical_aperture_offset&quot;</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mf">1e-4</span><span class="p">:</span>
+                <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s2">&quot;Camera aperture offsets are not supported by Omniverse. These parameters are ignored.&quot;</span><span class="p">)</span>
+
+            <span class="c1"># change data for corresponding camera index</span>
+            <span class="n">sensor_prim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sensor_prims</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="c1"># set parameters for camera</span>
+            <span class="k">for</span> <span class="n">param_name</span><span class="p">,</span> <span class="n">param_value</span> <span class="ow">in</span> <span class="n">params</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="c1"># convert to camel case (CC)</span>
+                <span class="n">param_name</span> <span class="o">=</span> <span class="n">to_camel_case</span><span class="p">(</span><span class="n">param_name</span><span class="p">,</span> <span class="n">to</span><span class="o">=</span><span class="s2">&quot;CC&quot;</span><span class="p">)</span>
+                <span class="c1"># get attribute from the class</span>
+                <span class="n">param_attr</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">sensor_prim</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;Get</span><span class="si">{</span><span class="n">param_name</span><span class="si">}</span><span class="s2">Attr&quot;</span><span class="p">)</span>
+                <span class="c1"># set value</span>
+                <span class="c1"># note: We have to do it this way because the camera might be on a different</span>
+                <span class="c1">#   layer (default cameras are on session layer), and this is the simplest</span>
+                <span class="c1">#   way to set the property on the right layer.</span>
+                <span class="n">omni</span><span class="o">.</span><span class="n">usd</span><span class="o">.</span><span class="n">set_prop_val</span><span class="p">(</span><span class="n">param_attr</span><span class="p">(),</span> <span class="n">param_value</span><span class="p">)</span>
+        <span class="c1"># update the internal buffers</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_update_intrinsic_matrices</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span></div>
+
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Operations - Set pose.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="Camera.set_world_poses"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.Camera.set_world_poses">[docs]</a>    <span class="k">def</span> <span class="nf">set_world_poses</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">positions</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">orientations</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">convention</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;opengl&quot;</span><span class="p">,</span> <span class="s2">&quot;ros&quot;</span><span class="p">,</span> <span class="s2">&quot;world&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;ros&quot;</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Set the pose of the camera w.r.t. the world frame using specified convention.</span>
+
+<span class="sd">        Since different fields use different conventions for camera orientations, the method allows users to</span>
+<span class="sd">        set the camera poses in the specified convention. Possible conventions are:</span>
+
+<span class="sd">        - :obj:`&quot;opengl&quot;` - forward axis: -Z - up axis +Y - Offset is applied in the OpenGL (Usd.Camera) convention</span>
+<span class="sd">        - :obj:`&quot;ros&quot;`    - forward axis: +Z - up axis -Y - Offset is applied in the ROS convention</span>
+<span class="sd">        - :obj:`&quot;world&quot;`  - forward axis: +X - up axis +Z - Offset is applied in the World Frame convention</span>
+
+<span class="sd">        See :meth:`omni.isaac.lab.sensors.camera.utils.convert_camera_frame_orientation_convention` for more details</span>
+<span class="sd">        on the conventions.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            positions: The cartesian coordinates (in meters). Shape is (N, 3).</span>
+<span class="sd">                Defaults to None, in which case the camera position in not changed.</span>
+<span class="sd">            orientations: The quaternion orientation in (w, x, y, z). Shape is (N, 4).</span>
+<span class="sd">                Defaults to None, in which case the camera orientation in not changed.</span>
+<span class="sd">            env_ids: A sensor ids to manipulate. Defaults to None, which means all sensor indices.</span>
+<span class="sd">            convention: The convention in which the poses are fed. Defaults to &quot;ros&quot;.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            RuntimeError: If the camera prim is not set. Need to call :meth:`initialize` method first.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># resolve env_ids</span>
+        <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span>
+        <span class="c1"># convert to backend tensor</span>
+        <span class="k">if</span> <span class="n">positions</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">positions</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+                <span class="n">positions</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">from_numpy</span><span class="p">(</span><span class="n">positions</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">positions</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+                <span class="n">positions</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">positions</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+        <span class="c1"># convert rotation matrix from input convention to OpenGL</span>
+        <span class="k">if</span> <span class="n">orientations</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">orientations</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+                <span class="n">orientations</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">from_numpy</span><span class="p">(</span><span class="n">orientations</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">orientations</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+                <span class="n">orientations</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">orientations</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+            <span class="n">orientations</span> <span class="o">=</span> <span class="n">convert_camera_frame_orientation_convention</span><span class="p">(</span><span class="n">orientations</span><span class="p">,</span> <span class="n">origin</span><span class="o">=</span><span class="n">convention</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="s2">&quot;opengl&quot;</span><span class="p">)</span>
+        <span class="c1"># set the pose</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">set_world_poses</span><span class="p">(</span><span class="n">positions</span><span class="p">,</span> <span class="n">orientations</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Camera.set_world_poses_from_view"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.Camera.set_world_poses_from_view">[docs]</a>    <span class="k">def</span> <span class="nf">set_world_poses_from_view</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">eyes</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">targets</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Set the poses of the camera from the eye position and look-at target position.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            eyes: The positions of the camera&#39;s eye. Shape is (N, 3).</span>
+<span class="sd">            targets: The target locations to look at. Shape is (N, 3).</span>
+<span class="sd">            env_ids: A sensor ids to manipulate. Defaults to None, which means all sensor indices.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            RuntimeError: If the camera prim is not set. Need to call :meth:`initialize` method first.</span>
+<span class="sd">            NotImplementedError: If the stage up-axis is not &quot;Y&quot; or &quot;Z&quot;.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># resolve env_ids</span>
+        <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span>
+        <span class="c1"># get up axis of current stage</span>
+        <span class="n">up_axis</span> <span class="o">=</span> <span class="n">stage_utils</span><span class="o">.</span><span class="n">get_stage_up_axis</span><span class="p">()</span>
+        <span class="c1"># set camera poses using the view</span>
+        <span class="n">orientations</span> <span class="o">=</span> <span class="n">quat_from_matrix</span><span class="p">(</span><span class="n">create_rotation_matrix_from_view</span><span class="p">(</span><span class="n">eyes</span><span class="p">,</span> <span class="n">targets</span><span class="p">,</span> <span class="n">up_axis</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">set_world_poses</span><span class="p">(</span><span class="n">eyes</span><span class="p">,</span> <span class="n">orientations</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span></div>
+
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Operations</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="Camera.reset"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.Camera.reset">[docs]</a>    <span class="k">def</span> <span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_initialized</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                <span class="s2">&quot;Camera could not be initialized. Please ensure --enable_cameras is used to enable rendering.&quot;</span>
+            <span class="p">)</span>
+        <span class="c1"># reset the timestamps</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
+        <span class="c1"># resolve None</span>
+        <span class="c1"># note: cannot do smart indexing here since we do a for loop over data.</span>
+        <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span>
+        <span class="c1"># reset the data</span>
+        <span class="c1"># note: this recomputation is useful if one performs events such as randomizations on the camera poses.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_update_poses</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
+        <span class="c1"># Reset the frame count</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_frame</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span></div>
+
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Implementation.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">_initialize_impl</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initializes the sensor handles and internal buffers.</span>
+
+<span class="sd">        This function creates handles and registers the provided data types with the replicator registry to</span>
+<span class="sd">        be able to access the data from the sensor. It also initializes the internal buffers to store the data.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            RuntimeError: If the number of camera prims in the view does not match the number of environments.</span>
+<span class="sd">            RuntimeError: If replicator was not found.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">carb_settings_iface</span> <span class="o">=</span> <span class="n">carb</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">get_settings</span><span class="p">()</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">carb_settings_iface</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;/isaaclab/cameras_enabled&quot;</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                <span class="s2">&quot;A camera was spawned without the --enable_cameras flag. Please use --enable_cameras to enable&quot;</span>
+                <span class="s2">&quot; rendering.&quot;</span>
+            <span class="p">)</span>
+
+        <span class="kn">import</span> <span class="nn">omni.replicator.core</span> <span class="k">as</span> <span class="nn">rep</span>
+        <span class="kn">from</span> <span class="nn">omni.syntheticdata.scripts.SyntheticData</span> <span class="kn">import</span> <span class="n">SyntheticData</span>
+
+        <span class="c1"># Initialize parent class</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_initialize_impl</span><span class="p">()</span>
+        <span class="c1"># Create a view for the sensor</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_view</span> <span class="o">=</span> <span class="n">XFormPrimView</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">reset_xform_properties</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">initialize</span><span class="p">()</span>
+        <span class="c1"># Check that sizes are correct</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">count</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_num_envs</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Number of camera prims in the view (</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">count</span><span class="si">}</span><span class="s2">) does not match&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot; the number of environments (</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_num_envs</span><span class="si">}</span><span class="s2">).&quot;</span>
+            <span class="p">)</span>
+
+        <span class="c1"># WAR: use DLAA antialiasing to avoid frame offset issue at small resolutions</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">width</span> <span class="o">&lt;</span> <span class="mi">265</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">height</span> <span class="o">&lt;</span> <span class="mi">265</span><span class="p">:</span>
+            <span class="n">rep</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">set_render_rtx_realtime</span><span class="p">(</span><span class="n">antialiasing</span><span class="o">=</span><span class="s2">&quot;DLAA&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Create all env_ids buffer</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">count</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">)</span>
+        <span class="c1"># Create frame count buffer</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_frame</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">count</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">)</span>
+
+        <span class="c1"># Attach the sensor data types to render node</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_render_product_paths</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_rep_registry</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="n">rep</span><span class="o">.</span><span class="n">annotators</span><span class="o">.</span><span class="n">Annotator</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="nb">list</span><span class="p">()</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">data_types</span><span class="p">}</span>
+
+        <span class="c1"># Obtain current stage</span>
+        <span class="n">stage</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">usd</span><span class="o">.</span><span class="n">get_context</span><span class="p">()</span><span class="o">.</span><span class="n">get_stage</span><span class="p">()</span>
+        <span class="c1"># Convert all encapsulated prims to Camera</span>
+        <span class="k">for</span> <span class="n">cam_prim_path</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">prim_paths</span><span class="p">:</span>
+            <span class="c1"># Get camera prim</span>
+            <span class="n">cam_prim</span> <span class="o">=</span> <span class="n">stage</span><span class="o">.</span><span class="n">GetPrimAtPath</span><span class="p">(</span><span class="n">cam_prim_path</span><span class="p">)</span>
+            <span class="c1"># Check if prim is a camera</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">cam_prim</span><span class="o">.</span><span class="n">IsA</span><span class="p">(</span><span class="n">UsdGeom</span><span class="o">.</span><span class="n">Camera</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Prim at path &#39;</span><span class="si">{</span><span class="n">cam_prim_path</span><span class="si">}</span><span class="s2">&#39; is not a Camera.&quot;</span><span class="p">)</span>
+            <span class="c1"># Add to list</span>
+            <span class="n">sensor_prim</span> <span class="o">=</span> <span class="n">UsdGeom</span><span class="o">.</span><span class="n">Camera</span><span class="p">(</span><span class="n">cam_prim</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_sensor_prims</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">sensor_prim</span><span class="p">)</span>
+
+            <span class="c1"># Get render product</span>
+            <span class="c1"># From Isaac Sim 2023.1 onwards, render product is a HydraTexture so we need to extract the path</span>
+            <span class="n">render_prod_path</span> <span class="o">=</span> <span class="n">rep</span><span class="o">.</span><span class="n">create</span><span class="o">.</span><span class="n">render_product</span><span class="p">(</span><span class="n">cam_prim_path</span><span class="p">,</span> <span class="n">resolution</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">width</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">height</span><span class="p">))</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">render_prod_path</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+                <span class="n">render_prod_path</span> <span class="o">=</span> <span class="n">render_prod_path</span><span class="o">.</span><span class="n">path</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_render_product_paths</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">render_prod_path</span><span class="p">)</span>
+
+            <span class="c1"># Check if semantic types or semantic filter predicate is provided</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">semantic_filter</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+                <span class="n">semantic_filter_predicate</span> <span class="o">=</span> <span class="s2">&quot;:*; &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">semantic_filter</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;:*&quot;</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">semantic_filter</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+                <span class="n">semantic_filter_predicate</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">semantic_filter</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Semantic types must be a list or a string. Received: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">semantic_filter</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
+            <span class="c1"># set the semantic filter predicate</span>
+            <span class="c1"># copied from rep.scripts.writes_default.basic_writer.py</span>
+            <span class="n">SyntheticData</span><span class="o">.</span><span class="n">Get</span><span class="p">()</span><span class="o">.</span><span class="n">set_instance_mapping_semantic_filter</span><span class="p">(</span><span class="n">semantic_filter_predicate</span><span class="p">)</span>
+
+            <span class="c1"># Iterate over each data type and create annotator</span>
+            <span class="c1"># TODO: This will move out of the loop once Replicator supports multiple render products within a single</span>
+            <span class="c1">#  annotator, i.e.: rep_annotator.attach(self._render_product_paths)</span>
+            <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">data_types</span><span class="p">:</span>
+                <span class="c1"># note: we are verbose here to make it easier to understand the code.</span>
+                <span class="c1">#   if colorize is true, the data is mapped to colors and a uint8 4 channel image is returned.</span>
+                <span class="c1">#   if colorize is false, the data is returned as a uint32 image with ids as values.</span>
+                <span class="k">if</span> <span class="n">name</span> <span class="o">==</span> <span class="s2">&quot;semantic_segmentation&quot;</span><span class="p">:</span>
+                    <span class="n">init_params</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;colorize&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">colorize_semantic_segmentation</span><span class="p">}</span>
+                <span class="k">elif</span> <span class="n">name</span> <span class="o">==</span> <span class="s2">&quot;instance_segmentation_fast&quot;</span><span class="p">:</span>
+                    <span class="n">init_params</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;colorize&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">colorize_instance_segmentation</span><span class="p">}</span>
+                <span class="k">elif</span> <span class="n">name</span> <span class="o">==</span> <span class="s2">&quot;instance_id_segmentation_fast&quot;</span><span class="p">:</span>
+                    <span class="n">init_params</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;colorize&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">colorize_instance_id_segmentation</span><span class="p">}</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">init_params</span> <span class="o">=</span> <span class="kc">None</span>
+
+                <span class="c1"># Resolve device name</span>
+                <span class="k">if</span> <span class="s2">&quot;cuda&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">:</span>
+                    <span class="n">device_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;:&quot;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">device_name</span> <span class="o">=</span> <span class="s2">&quot;cpu&quot;</span>
+
+                <span class="c1"># Map special cases to their corresponding annotator names</span>
+                <span class="n">special_cases</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;rgba&quot;</span><span class="p">:</span> <span class="s2">&quot;rgb&quot;</span><span class="p">,</span> <span class="s2">&quot;depth&quot;</span><span class="p">:</span> <span class="s2">&quot;distance_to_image_plane&quot;</span><span class="p">}</span>
+                <span class="c1"># Get the annotator name, falling back to the original name if not a special case</span>
+                <span class="n">annotator_name</span> <span class="o">=</span> <span class="n">special_cases</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+                <span class="c1"># Create the annotator node</span>
+                <span class="n">rep_annotator</span> <span class="o">=</span> <span class="n">rep</span><span class="o">.</span><span class="n">AnnotatorRegistry</span><span class="o">.</span><span class="n">get_annotator</span><span class="p">(</span><span class="n">annotator_name</span><span class="p">,</span> <span class="n">init_params</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">device_name</span><span class="p">)</span>
+
+                <span class="c1"># attach annotator to render product</span>
+                <span class="n">rep_annotator</span><span class="o">.</span><span class="n">attach</span><span class="p">(</span><span class="n">render_prod_path</span><span class="p">)</span>
+                <span class="c1"># add to registry</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_rep_registry</span><span class="p">[</span><span class="n">name</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">rep_annotator</span><span class="p">)</span>
+
+        <span class="c1"># Create internal buffers</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_create_buffers</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_update_intrinsic_matrices</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_update_buffers_impl</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]):</span>
+        <span class="c1"># Increment frame count</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_frame</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="c1"># -- pose</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_update_poses</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
+        <span class="c1"># -- read the data from annotator registry</span>
+        <span class="c1"># check if buffer is called for the first time. If so then, allocate the memory</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">output</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="c1"># this is the first time buffer is called</span>
+            <span class="c1"># it allocates memory for all the sensors</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_create_annotator_data</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># iterate over all the data types</span>
+            <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">annotators</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rep_registry</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="c1"># iterate over all the annotators</span>
+                <span class="k">for</span> <span class="n">index</span> <span class="ow">in</span> <span class="n">env_ids</span><span class="p">:</span>
+                    <span class="c1"># get the output</span>
+                    <span class="n">output</span> <span class="o">=</span> <span class="n">annotators</span><span class="p">[</span><span class="n">index</span><span class="p">]</span><span class="o">.</span><span class="n">get_data</span><span class="p">()</span>
+                    <span class="c1"># process the output</span>
+                    <span class="n">data</span><span class="p">,</span> <span class="n">info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_process_annotator_output</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">output</span><span class="p">)</span>
+                    <span class="c1"># add data to output</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">output</span><span class="p">[</span><span class="n">name</span><span class="p">][</span><span class="n">index</span><span class="p">]</span> <span class="o">=</span> <span class="n">data</span>
+                    <span class="c1"># add info to output</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="n">index</span><span class="p">][</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">info</span>
+
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Private Helpers</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">_check_supported_data_types</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">CameraCfg</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Checks if the data types are supported by the ray-caster camera.&quot;&quot;&quot;</span>
+        <span class="c1"># check if there is any intersection in unsupported types</span>
+        <span class="c1"># reason: these use np structured data types which we can&#39;t yet convert to torch tensor</span>
+        <span class="n">common_elements</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">data_types</span><span class="p">)</span> <span class="o">&amp;</span> <span class="n">Camera</span><span class="o">.</span><span class="n">UNSUPPORTED_TYPES</span>
+        <span class="k">if</span> <span class="n">common_elements</span><span class="p">:</span>
+            <span class="c1"># provide alternative fast counterparts</span>
+            <span class="n">fast_common_elements</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">common_elements</span><span class="p">:</span>
+                <span class="k">if</span> <span class="s2">&quot;instance_segmentation&quot;</span> <span class="ow">in</span> <span class="n">item</span> <span class="ow">or</span> <span class="s2">&quot;instance_id_segmentation&quot;</span> <span class="ow">in</span> <span class="n">item</span><span class="p">:</span>
+                    <span class="n">fast_common_elements</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">item</span> <span class="o">+</span> <span class="s2">&quot;_fast&quot;</span><span class="p">)</span>
+            <span class="c1"># raise error</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Camera class does not support the following sensor types: </span><span class="si">{</span><span class="n">common_elements</span><span class="si">}</span><span class="s2">.&quot;</span>
+                <span class="s2">&quot;</span><span class="se">\n\t</span><span class="s2">This is because these sensor types output numpy structured data types which&quot;</span>
+                <span class="s2">&quot;can&#39;t be converted to torch tensors easily.&quot;</span>
+                <span class="s2">&quot;</span><span class="se">\n\t</span><span class="s2">Hint: If you need to work with these sensor types, we recommend using their fast counterparts.&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n\t\t</span><span class="s2">Fast counterparts: </span><span class="si">{</span><span class="n">fast_common_elements</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_create_buffers</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Create buffers for storing data.&quot;&quot;&quot;</span>
+        <span class="c1"># create the data object</span>
+        <span class="c1"># -- pose of the cameras</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">pos_w</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">count</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">quat_w_world</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">count</span><span class="p">,</span> <span class="mi">4</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+        <span class="c1"># -- intrinsic matrix</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">intrinsic_matrices</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">count</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">image_shape</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">image_shape</span>
+        <span class="c1"># -- output data</span>
+        <span class="c1"># lazy allocation of data dictionary</span>
+        <span class="c1"># since the size of the output data is not known in advance, we leave it as None</span>
+        <span class="c1"># the memory will be allocated when the buffer() function is called for the first time.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">output</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">info</span> <span class="o">=</span> <span class="p">[{</span><span class="n">name</span><span class="p">:</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">data_types</span><span class="p">}</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">count</span><span class="p">)]</span>
+
+    <span class="k">def</span> <span class="nf">_update_intrinsic_matrices</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Compute camera&#39;s matrix of intrinsic parameters.</span>
+
+<span class="sd">        Also called calibration matrix. This matrix works for linear depth images. We assume square pixels.</span>
+
+<span class="sd">        Note:</span>
+<span class="sd">            The calibration matrix projects points in the 3D scene onto an imaginary screen of the camera.</span>
+<span class="sd">            The coordinates of points on the image plane are in the homogeneous representation.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># iterate over all cameras</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">env_ids</span><span class="p">:</span>
+            <span class="c1"># Get corresponding sensor prim</span>
+            <span class="n">sensor_prim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sensor_prims</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="c1"># get camera parameters</span>
+            <span class="n">focal_length</span> <span class="o">=</span> <span class="n">sensor_prim</span><span class="o">.</span><span class="n">GetFocalLengthAttr</span><span class="p">()</span><span class="o">.</span><span class="n">Get</span><span class="p">()</span>
+            <span class="n">horiz_aperture</span> <span class="o">=</span> <span class="n">sensor_prim</span><span class="o">.</span><span class="n">GetHorizontalApertureAttr</span><span class="p">()</span><span class="o">.</span><span class="n">Get</span><span class="p">()</span>
+            <span class="n">vert_aperture</span> <span class="o">=</span> <span class="n">sensor_prim</span><span class="o">.</span><span class="n">GetVerticalApertureAttr</span><span class="p">()</span><span class="o">.</span><span class="n">Get</span><span class="p">()</span>
+            <span class="n">horiz_aperture_offset</span> <span class="o">=</span> <span class="n">sensor_prim</span><span class="o">.</span><span class="n">GetHorizontalApertureOffsetAttr</span><span class="p">()</span><span class="o">.</span><span class="n">Get</span><span class="p">()</span>
+            <span class="n">vert_aperture_offset</span> <span class="o">=</span> <span class="n">sensor_prim</span><span class="o">.</span><span class="n">GetVerticalApertureOffsetAttr</span><span class="p">()</span><span class="o">.</span><span class="n">Get</span><span class="p">()</span>
+            <span class="c1"># get viewport parameters</span>
+            <span class="n">height</span><span class="p">,</span> <span class="n">width</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">image_shape</span>
+            <span class="c1"># extract intrinsic parameters</span>
+            <span class="n">f_x</span> <span class="o">=</span> <span class="p">(</span><span class="n">width</span> <span class="o">*</span> <span class="n">focal_length</span><span class="p">)</span> <span class="o">/</span> <span class="n">horiz_aperture</span>
+            <span class="n">f_y</span> <span class="o">=</span> <span class="p">(</span><span class="n">height</span> <span class="o">*</span> <span class="n">focal_length</span><span class="p">)</span> <span class="o">/</span> <span class="n">vert_aperture</span>
+            <span class="n">c_x</span> <span class="o">=</span> <span class="n">width</span> <span class="o">*</span> <span class="mf">0.5</span> <span class="o">+</span> <span class="n">horiz_aperture_offset</span> <span class="o">*</span> <span class="n">f_x</span>
+            <span class="n">c_y</span> <span class="o">=</span> <span class="n">height</span> <span class="o">*</span> <span class="mf">0.5</span> <span class="o">+</span> <span class="n">vert_aperture_offset</span> <span class="o">*</span> <span class="n">f_y</span>
+            <span class="c1"># create intrinsic matrix for depth linear</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">intrinsic_matrices</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">f_x</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">intrinsic_matrices</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">c_x</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">intrinsic_matrices</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">f_y</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">intrinsic_matrices</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">c_y</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">intrinsic_matrices</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+
+    <span class="k">def</span> <span class="nf">_update_poses</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Computes the pose of the camera in the world frame with ROS convention.</span>
+
+<span class="sd">        This methods uses the ROS convention to resolve the input pose. In this convention,</span>
+<span class="sd">        we assume that the camera front-axis is +Z-axis and up-axis is -Y-axis.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A tuple of the position (in meters) and quaternion (w, x, y, z).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># check camera prim exists</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_sensor_prims</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Camera prim is None. Please call &#39;sim.play()&#39; first.&quot;</span><span class="p">)</span>
+
+        <span class="c1"># get the poses from the view</span>
+        <span class="n">poses</span><span class="p">,</span> <span class="n">quat</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">get_world_poses</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">pos_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">poses</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">quat_w_world</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">convert_camera_frame_orientation_convention</span><span class="p">(</span>
+            <span class="n">quat</span><span class="p">,</span> <span class="n">origin</span><span class="o">=</span><span class="s2">&quot;opengl&quot;</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="s2">&quot;world&quot;</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_create_annotator_data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Create the buffers to store the annotator data.</span>
+
+<span class="sd">        We create a buffer for each annotator and store the data in a dictionary. Since the data</span>
+<span class="sd">        shape is not known beforehand, we create a list of buffers and concatenate them later.</span>
+
+<span class="sd">        This is an expensive operation and should be called only once.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># add data from the annotators</span>
+        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">annotators</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rep_registry</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="c1"># create a list to store the data for each annotator</span>
+            <span class="n">data_all_cameras</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+            <span class="c1"># iterate over all the annotators</span>
+            <span class="k">for</span> <span class="n">index</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span><span class="p">:</span>
+                <span class="c1"># get the output</span>
+                <span class="n">output</span> <span class="o">=</span> <span class="n">annotators</span><span class="p">[</span><span class="n">index</span><span class="p">]</span><span class="o">.</span><span class="n">get_data</span><span class="p">()</span>
+                <span class="c1"># process the output</span>
+                <span class="n">data</span><span class="p">,</span> <span class="n">info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_process_annotator_output</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">output</span><span class="p">)</span>
+                <span class="c1"># append the data</span>
+                <span class="n">data_all_cameras</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+                <span class="c1"># store the info</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="n">index</span><span class="p">][</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">info</span>
+            <span class="c1"># concatenate the data along the batch dimension</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">output</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span><span class="n">data_all_cameras</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_process_annotator_output</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">output</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">,</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Process the annotator output.</span>
+
+<span class="sd">        This function is called after the data has been collected from all the cameras.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># extract info and data from the output</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">output</span><span class="p">[</span><span class="s2">&quot;data&quot;</span><span class="p">]</span>
+            <span class="n">info</span> <span class="o">=</span> <span class="n">output</span><span class="p">[</span><span class="s2">&quot;info&quot;</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">output</span>
+            <span class="n">info</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="c1"># convert data into torch tensor</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">convert_to_torch</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+
+        <span class="c1"># process data for different segmentation types</span>
+        <span class="c1"># Note: Replicator returns raw buffers of dtype int32 for segmentation types</span>
+        <span class="c1">#   so we need to convert them to uint8 4 channel images for colorized types</span>
+        <span class="n">height</span><span class="p">,</span> <span class="n">width</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">image_shape</span>
+        <span class="k">if</span> <span class="n">name</span> <span class="o">==</span> <span class="s2">&quot;semantic_segmentation&quot;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">colorize_semantic_segmentation</span><span class="p">:</span>
+                <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">uint8</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">height</span><span class="p">,</span> <span class="n">width</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">height</span><span class="p">,</span> <span class="n">width</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">name</span> <span class="o">==</span> <span class="s2">&quot;instance_segmentation_fast&quot;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">colorize_instance_segmentation</span><span class="p">:</span>
+                <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">uint8</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">height</span><span class="p">,</span> <span class="n">width</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">height</span><span class="p">,</span> <span class="n">width</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">name</span> <span class="o">==</span> <span class="s2">&quot;instance_id_segmentation_fast&quot;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">colorize_instance_id_segmentation</span><span class="p">:</span>
+                <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">uint8</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">height</span><span class="p">,</span> <span class="n">width</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">height</span><span class="p">,</span> <span class="n">width</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="c1"># make sure buffer dimensions are consistent as (H, W, C)</span>
+        <span class="k">elif</span> <span class="n">name</span> <span class="o">==</span> <span class="s2">&quot;distance_to_camera&quot;</span> <span class="ow">or</span> <span class="n">name</span> <span class="o">==</span> <span class="s2">&quot;distance_to_image_plane&quot;</span> <span class="ow">or</span> <span class="n">name</span> <span class="o">==</span> <span class="s2">&quot;depth&quot;</span><span class="p">:</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">height</span><span class="p">,</span> <span class="n">width</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="c1"># we only return the RGB channels from the RGBA output if rgb is required</span>
+        <span class="c1"># normals return (x, y, z) in first 3 channels, 4th channel is unused</span>
+        <span class="k">elif</span> <span class="n">name</span> <span class="o">==</span> <span class="s2">&quot;rgb&quot;</span> <span class="ow">or</span> <span class="n">name</span> <span class="o">==</span> <span class="s2">&quot;normals&quot;</span><span class="p">:</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span>
+        <span class="c1"># motion vectors return (x, y) in first 2 channels, 3rd and 4th channels are unused</span>
+        <span class="k">elif</span> <span class="n">name</span> <span class="o">==</span> <span class="s2">&quot;motion_vectors&quot;</span><span class="p">:</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">2</span><span class="p">]</span>
+
+        <span class="c1"># return the data and info</span>
+        <span class="k">return</span> <span class="n">data</span><span class="p">,</span> <span class="n">info</span>
+
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Internal simulation callbacks.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">_invalidate_initialize_callback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Invalidates the scene elements.&quot;&quot;&quot;</span>
+        <span class="c1"># call parent</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_invalidate_initialize_callback</span><span class="p">(</span><span class="n">event</span><span class="p">)</span>
+        <span class="c1"># set all existing views to None to invalidate them</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_view</span> <span class="o">=</span> <span class="kc">None</span></div>
+</pre></div>
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By The Isaac Lab Project Developers.
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2022-2024, The Isaac Lab Project Developers..
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    <p class="last-updated">
+  Last updated on Nov 25, 2024.
+  <br/>
+</p>
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../../../../_static/scripts/bootstrap.js?digest=26a4bc78f4c0ddb94549"></script>
+<script defer src="../../../../../../_static/scripts/pydata-sphinx-theme.js?digest=26a4bc78f4c0ddb94549"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

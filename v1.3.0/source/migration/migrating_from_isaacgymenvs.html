@@ -1,0 +1,1890 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+    <title>From IsaacGymEnvs &#8212; Isaac Lab Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!-- 
+    this give us a css class that will be invisible only if js is disabled 
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=26a4bc78f4c0ddb94549" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=26a4bc78f4c0ddb94549" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css" />
+    <link rel="stylesheet" href="../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.10.15/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.4cbf315f70debaebd550c87a6162cf0f.min.css" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../_static/scripts/fontawesome.js?digest=26a4bc78f4c0ddb94549"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=26a4bc78f4c0ddb94549" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=26a4bc78f4c0ddb94549" />
+
+    <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+    <script src="../../_static/doctools.js"></script>
+    <script src="../../_static/sphinx_highlight.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.10.15/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="../../_static/clipboard.min.js"></script>
+    <script src="../../_static/copybutton.js"></script>
+    <script src="../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
+    <script src="../../_static/design-tabs.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'source/migration/migrating_from_isaacgymenvs';</script>
+    <link rel="icon" href="../../_static/favicon.ico"/>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="From OmniIsaacGymEnvs" href="migrating_from_omniisaacgymenvs.html" />
+    <link rel="prev" title="Running an example with Docker" href="../deployment/run_docker_example.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="1.3.0" />
+    <meta name="docbuild:last-update" content="Nov 25, 2024"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/NVIDIA-logo-white.png" class="logo__image only-light" alt=""/>
+    <img src="../../_static/NVIDIA-logo-black.png" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">Isaac Lab Documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+<nav class="bd-links bd-docs-nav">
+    <div class="bd-toc-item navbar-nav">
+      <ul class="nav bd-sidenav">
+        <li class="toctree-l1 has-children" style="display: flex; justify-content: center; align-items: center; flex-direction: column;">
+          <div  style ="text-align:center;">
+            <label for="version-select" style="font-weight: bold; display: block;">Version</label>
+          </div>
+          <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="../../../main/source/migration/migrating_from_isaacgymenvs.html" >main</option>
+            <option value="migrating_from_isaacgymenvs.html" selected>v1.3.0</option>
+            <option value="../../../v1.2.0/source/migration/migrating_from_isaacgymenvs.html" >v1.2.0</option>
+            <option value="../../../v1.1.0/source/migration/migrating_from_isaacgymenvs.html" >v1.1.0</option>
+            <option value="../../../v1.0.0/source/migration/migrating_from_isaacgymenvs.html" >v1.0.0</option>
+          </select>
+        </li>
+      </ul>
+    </div>
+</nav>
+</div>
+        <div class="sidebar-primary-item"><ul class="navbar-icon-links"
+    aria-label="Quick Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/isaac-sim/IsaacLab" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://img.shields.io/github/stars/isaac-sim/IsaacLab?color=fedcba" title="Stars" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/github/stars/isaac-sim/IsaacLab?color=fedcba" class="icon-link-image" alt="Stars"/></a>
+        </li>
+</ul></div>
+        <div class="sidebar-primary-item">
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../setup/ecosystem.html">Isaac Lab Ecosystem</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../setup/installation/pip_installation.html">Pip installation (recommended for Ubuntu 22.04 and Windows)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../setup/installation/binaries_installation.html">Binary installation (recommended for Ubuntu 20.04)</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../setup/faq.html">Frequently Asked Questions</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Overview</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../overview/developer-guide/index.html">Developer’s Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
+
+<li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/repo_structure.html">Repository organization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/development.html">Application Development</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/template.html">Building your Own Project</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../overview/core-concepts/index.html">Core Concepts</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../overview/core-concepts/task_workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/core-concepts/actuators.html">Actuators</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../overview/environments.html">Available Environments</a></li>
+
+<li class="toctree-l1 has-children"><a class="reference internal" href="../overview/reinforcement-learning/index.html">Reinforcement Learning</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../overview/reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Wrappers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/reinforcement-learning/rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/reinforcement-learning/performance_benchmarks.html">Performance Benchmarks</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../overview/teleop_imitation.html">Teleoperation and Imitation Learning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../overview/showroom.html">Showroom Demos</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../overview/simple_agents.html">Simple Agents</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../features/hydra.html">Hydra Configuration System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../features/tiled_rendering.html">Tiled-Camera Rendering</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../features/reproducibility.html">Reproducibility and Determinism</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/00_sim/spawn_prims.html">Spawning prims into the scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/00_sim/launch_app.html">Deep-dive into AppLauncher</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/01_assets/run_rigid_object.html">Interacting with a rigid object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/01_assets/run_articulation.html">Interacting with an articulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/01_assets/run_deformable_object.html">Interacting with a deformable object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/02_scene/create_scene.html">Using the Interactive Scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/create_manager_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/create_manager_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../how-to/index.html">How-to Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/import_new_asset.html">Importing a New Asset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/write_articulation_cfg.html">Writing an Asset Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/make_fixed_prim.html">Making a physics prim fixed in the simulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/multi_asset_spawning.html">Spawning Multiple Assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/save_camera_output.html">Saving rendered images and 3D re-projection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/estimate_how_many_cameras_can_run.html">Find How Many/What Cameras You Should Train With</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/draw_markers.html">Creating Visualization Markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/wrap_rl_env.html">Wrapping environments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/add_own_library.html">Adding your own learning library</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/record_animation.html">Recording Animations of Simulations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/record_video.html">Recording video clips during training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../deployment/index.html">Container Deployment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../deployment/docker.html">Docker Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../deployment/cluster.html">Cluster Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../deployment/run_docker_example.html">Running an example with Docker</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Migration Guides</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">From IsaacGymEnvs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="migrating_from_omniisaacgymenvs.html">From OmniIsaacGymEnvs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="migrating_from_orbit.html">From Orbit</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Source API</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../api/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.app.html">omni.isaac.lab.app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.actuators.html">omni.isaac.lab.actuators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html">omni.isaac.lab.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.controllers.html">omni.isaac.lab.controllers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.devices.html">omni.isaac.lab.devices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.envs.html">omni.isaac.lab.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.managers.html">omni.isaac.lab.managers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.markers.html">omni.isaac.lab.markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.scene.html">omni.isaac.lab.scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.html">omni.isaac.lab.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.sim.html">omni.isaac.lab.sim</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.terrains.html">omni.isaac.lab.terrains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.utils.html">omni.isaac.lab.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.envs.mdp.html">omni.isaac.lab.envs.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.envs.ui.html">omni.isaac.lab.envs.ui</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.patterns.html">omni.isaac.lab.sensors.patterns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.sim.converters.html">omni.isaac.lab.sim.converters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.sim.schemas.html">omni.isaac.lab.sim.schemas</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.sim.spawners.html">omni.isaac.lab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab_tasks/omni.isaac.lab_tasks.utils.html">omni.isaac.lab_tasks.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html">omni.isaac.lab_tasks.utils.wrappers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab_tasks/omni.isaac.lab_tasks.utils.data_collector.html">omni.isaac.lab_tasks.utils.data_collector</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../refs/reference_architecture/index.html">Reference Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../refs/additional_resources.html">Additional Resources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../refs/contributing.html">Contribution Guidelines</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../refs/troubleshooting.html">Tricks and Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../refs/issues.html">Known Issues</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../refs/changelog.html">Extensions Changelog</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../refs/license.html">License</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../refs/bibliography.html">Bibliography</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/index.html">NVIDIA PhysX</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+  
+  <div id="rtd-footer-container"></div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</label></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-source-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Source repositories">
+    <i class="fab fa-github"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab" target="_blank"
+   class="btn btn-sm btn-source-repository-button dropdown-item"
+   title="Source repository"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+<span class="btn__text-container">Repository</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab/edit/main/source/migration/migrating_from_isaacgymenvs.rst" target="_blank"
+   class="btn btn-sm btn-source-edit-button dropdown-item"
+   title="Suggest edit"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-pencil-alt"></i>
+  </span>
+<span class="btn__text-container">Suggest edit</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2Fsource/migration/migrating_from_isaacgymenvs.html&body=Your%20issue%20content%20here." target="_blank"
+   class="btn btn-sm btn-source-issues-button dropdown-item"
+   title="Open an issue"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-lightbulb"></i>
+  </span>
+<span class="btn__text-container">Open issue</span>
+</a>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../../_sources/source/migration/migrating_from_isaacgymenvs.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+<label class="sidebar-toggle secondary-toggle btn btn-sm" for="__secondary"title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</label>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>From IsaacGymEnvs</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#task-config-setup">Task Config Setup</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#simulation-config">Simulation Config</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#scene-config">Scene Config</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#task-config">Task Config</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#rl-config-setup">RL Config Setup</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#environment-creation">Environment Creation</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#ground-plane">Ground Plane</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#actors">Actors</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#simulation-parameters-for-actors">Simulation Parameters for Actors</a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cloner">Cloner</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#accessing-states-from-simulation">Accessing States from Simulation</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#quaternion-convention">Quaternion Convention</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#articulation-joint-order">Articulation Joint Order</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#creating-a-new-environment">Creating a New Environment</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#task-logic">Task Logic</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#putting-it-all-together">Putting It All Together</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id1">Task Config</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#task-setup">Task Setup</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#scene-setup">Scene Setup</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#pre-and-post-physics-step">Pre and Post Physics Step</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dones-and-resets">Dones and Resets</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#observations">Observations</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#rewards">Rewards</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#launching-training">Launching Training</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#launching-inferencing">Launching Inferencing</a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="from-isaacgymenvs">
+<span id="migrating-from-isaacgymenvs"></span><h1>From IsaacGymEnvs<a class="headerlink" href="#from-isaacgymenvs" title="Permalink to this heading">#</a></h1>
+<p><a class="reference external" href="https://github.com/isaac-sim/IsaacGymEnvs">IsaacGymEnvs</a> was a reinforcement learning framework designed for the <a class="reference external" href="https://developer.nvidia.com/isaac-gym">Isaac Gym Preview Release</a>.
+As both IsaacGymEnvs and the Isaac Gym Preview Release are now deprecated, the following guide walks through
+the key differences between IsaacGymEnvs and Isaac Lab, as well as differences in APIs between Isaac Gym Preview
+Release and Isaac Sim.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The following changes are with respect to Isaac Lab 1.0 release. Please refer to the <a class="reference external" href="https://github.com/isaac-sim/IsaacLab/releases">release notes</a> for any changes
+in the future releases.</p>
+</div>
+<section id="task-config-setup">
+<h2>Task Config Setup<a class="headerlink" href="#task-config-setup" title="Permalink to this heading">#</a></h2>
+<p>In IsaacGymEnvs, task config files were defined in <code class="docutils literal notranslate"><span class="pre">.yaml</span></code> format. With Isaac Lab, configs are now specified using
+a specialized Python class <a class="reference internal" href="../api/lab/omni.isaac.lab.utils.html#module-omni.isaac.lab.utils.configclass" title="omni.isaac.lab.utils.configclass"><code class="xref py py-class docutils literal notranslate"><span class="pre">configclass</span></code></a>. The <a class="reference internal" href="../api/lab/omni.isaac.lab.utils.html#module-omni.isaac.lab.utils.configclass" title="omni.isaac.lab.utils.configclass"><code class="xref py py-class docutils literal notranslate"><span class="pre">configclass</span></code></a>
+module provides a wrapper on top of Python’s <code class="docutils literal notranslate"><span class="pre">dataclasses</span></code> module. Each environment should specify its own config
+class annotated by <code class="docutils literal notranslate"><span class="pre">&#64;configclass</span></code> that inherits from <a class="reference internal" href="../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnvCfg" title="omni.isaac.lab.envs.DirectRLEnvCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">DirectRLEnvCfg</span></code></a>, which can include simulation
+parameters, environment scene parameters, robot parameters, and task-specific parameters.</p>
+<p>Below is an example skeleton of a task config class:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">omni.isaac.lab.envs</span> <span class="kn">import</span> <span class="n">DirectRLEnvCfg</span>
+<span class="kn">from</span> <span class="nn">omni.isaac.lab.scene</span> <span class="kn">import</span> <span class="n">InteractiveSceneCfg</span>
+<span class="kn">from</span> <span class="nn">omni.isaac.lab.sim</span> <span class="kn">import</span> <span class="n">SimulationCfg</span>
+
+<span class="nd">@configclass</span>
+<span class="k">class</span> <span class="nc">MyEnvCfg</span><span class="p">(</span><span class="n">DirectRLEnvCfg</span><span class="p">):</span>
+   <span class="c1"># simulation</span>
+   <span class="n">sim</span><span class="p">:</span> <span class="n">SimulationCfg</span> <span class="o">=</span> <span class="n">SimulationCfg</span><span class="p">()</span>
+   <span class="c1"># robot</span>
+   <span class="n">robot_cfg</span><span class="p">:</span> <span class="n">ArticulationCfg</span> <span class="o">=</span> <span class="n">ArticulationCfg</span><span class="p">()</span>
+   <span class="c1"># scene</span>
+   <span class="n">scene</span><span class="p">:</span> <span class="n">InteractiveSceneCfg</span> <span class="o">=</span> <span class="n">InteractiveSceneCfg</span><span class="p">()</span>
+   <span class="c1"># env</span>
+   <span class="n">decimation</span> <span class="o">=</span> <span class="mi">2</span>
+   <span class="n">episode_length_s</span> <span class="o">=</span> <span class="mf">5.0</span>
+   <span class="n">action_space</span> <span class="o">=</span> <span class="mi">1</span>
+   <span class="n">observation_space</span> <span class="o">=</span> <span class="mi">4</span>
+   <span class="n">state_space</span> <span class="o">=</span> <span class="mi">0</span>
+   <span class="c1"># task-specific parameters</span>
+   <span class="o">...</span>
+</pre></div>
+</div>
+<section id="simulation-config">
+<h3>Simulation Config<a class="headerlink" href="#simulation-config" title="Permalink to this heading">#</a></h3>
+<p>Simulation related parameters are defined as part of the <a class="reference internal" href="../api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationCfg" title="omni.isaac.lab.sim.SimulationCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">SimulationCfg</span></code></a> class,
+which is a <a class="reference internal" href="../api/lab/omni.isaac.lab.utils.html#module-omni.isaac.lab.utils.configclass" title="omni.isaac.lab.utils.configclass"><code class="xref py py-class docutils literal notranslate"><span class="pre">configclass</span></code></a> module that holds simulation parameters such as <code class="docutils literal notranslate"><span class="pre">dt</span></code>,
+<code class="docutils literal notranslate"><span class="pre">device</span></code>, and <code class="docutils literal notranslate"><span class="pre">gravity</span></code>. Each task config must have a variable named <code class="docutils literal notranslate"><span class="pre">sim</span></code> defined that holds the type
+<a class="reference internal" href="../api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationCfg" title="omni.isaac.lab.sim.SimulationCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">SimulationCfg</span></code></a>.</p>
+<p>In Isaac Lab, the use of <code class="docutils literal notranslate"><span class="pre">substeps</span></code> has been replaced
+by a combination of the simulation <code class="docutils literal notranslate"><span class="pre">dt</span></code> and the <code class="docutils literal notranslate"><span class="pre">decimation</span></code> parameters. For example, in IsaacGymEnvs, having
+<code class="docutils literal notranslate"><span class="pre">dt=1/60</span></code> and <code class="docutils literal notranslate"><span class="pre">substeps=2</span></code> is equivalent to taking 2 simulation steps with <code class="docutils literal notranslate"><span class="pre">dt=1/120</span></code>, but running the task step
+at <code class="docutils literal notranslate"><span class="pre">1/60</span></code> seconds. The <code class="docutils literal notranslate"><span class="pre">decimation</span></code> parameter is a task parameter that controls the number of simulation steps to
+take for each task (or RL) step, replacing the <code class="docutils literal notranslate"><span class="pre">controlFrequencyInv</span></code> parameter in IsaacGymEnvs.
+Thus, the same setup in Isaac Lab will become <code class="docutils literal notranslate"><span class="pre">dt=1/120</span></code> and <code class="docutils literal notranslate"><span class="pre">decimation=2</span></code>.</p>
+<p>In Isaac Sim, physx simulation parameters such as <code class="docutils literal notranslate"><span class="pre">num_position_iterations</span></code>, <code class="docutils literal notranslate"><span class="pre">num_velocity_iterations</span></code>,
+<code class="docutils literal notranslate"><span class="pre">contact_offset</span></code>, <code class="docutils literal notranslate"><span class="pre">rest_offset</span></code>, <code class="docutils literal notranslate"><span class="pre">bounce_threshold_velocity</span></code>, <code class="docutils literal notranslate"><span class="pre">max_depenetration_velocity</span></code> can all
+be specified on a per-actor basis. These parameters have been moved from the physx simulation config
+to each individual articulation and rigid body config.</p>
+<p>When running simulation on the GPU, buffers in PhysX require pre-allocation for computing and storing
+information such as contacts, collisions and aggregate pairs. These buffers may need to be adjusted
+depending on the complexity of the environment, the number of expected contacts and collisions,
+and the number of actors in the environment. The <a class="reference internal" href="../api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.PhysxCfg" title="omni.isaac.lab.sim.PhysxCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">PhysxCfg</span></code></a> class provides access for
+setting the GPU buffer dimensions.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<tbody>
+<tr class="row-odd"><td><div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># IsaacGymEnvs</span>
+<span class="nt">sim</span><span class="p">:</span>
+
+<span class="w">  </span><span class="nt">dt</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.0166</span><span class="w"> </span><span class="c1"># 1/60 s</span>
+<span class="w">  </span><span class="nt">substeps</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<span class="w">  </span><span class="nt">up_axis</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;z&quot;</span>
+<span class="w">  </span><span class="nt">use_gpu_pipeline</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${eq:${...pipeline},&quot;gpu&quot;}</span>
+<span class="w">  </span><span class="nt">gravity</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0.0</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.0</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">-9.81</span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="nt">physx</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">num_threads</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${....num_threads}</span>
+<span class="w">    </span><span class="nt">solver_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${....solver_type}</span>
+<span class="w">    </span><span class="nt">use_gpu</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${contains:&quot;cuda&quot;,${....sim_device}}</span>
+<span class="w">    </span><span class="nt">num_position_iterations</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
+<span class="w">    </span><span class="nt">num_velocity_iterations</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
+<span class="w">    </span><span class="nt">contact_offset</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.02</span>
+<span class="w">    </span><span class="nt">rest_offset</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.001</span>
+<span class="w">    </span><span class="nt">bounce_threshold_velocity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.2</span>
+<span class="w">    </span><span class="nt">max_depenetration_velocity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100.0</span>
+<span class="w">    </span><span class="nt">default_buffer_size_multiplier</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2.0</span>
+<span class="w">    </span><span class="nt">max_gpu_contact_pairs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1048576</span><span class="w"> </span><span class="c1"># 1024*1024</span>
+<span class="w">    </span><span class="nt">num_subscenes</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${....num_subscenes}</span>
+<span class="w">    </span><span class="nt">contact_collection</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
+</pre></div>
+</div>
+</td>
+<td><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># IsaacLab</span>
+<span class="n">sim</span><span class="p">:</span> <span class="n">SimulationCfg</span> <span class="o">=</span> <span class="n">SimulationCfg</span><span class="p">(</span>
+   <span class="n">device</span> <span class="o">=</span> <span class="s2">&quot;cuda:0&quot;</span> <span class="c1"># can be &quot;cpu&quot;, &quot;cuda&quot;, &quot;cuda:&lt;device_id&gt;&quot;</span>
+   <span class="n">dt</span><span class="o">=</span><span class="mi">1</span> <span class="o">/</span> <span class="mi">120</span><span class="p">,</span>
+   <span class="c1"># decimation will be set in the task config</span>
+   <span class="c1"># up axis will always be Z in isaac sim</span>
+   <span class="c1"># use_gpu_pipeline is deduced from the device</span>
+   <span class="n">gravity</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">9.81</span><span class="p">),</span>
+   <span class="n">physx</span><span class="p">:</span> <span class="n">PhysxCfg</span> <span class="o">=</span> <span class="n">PhysxCfg</span><span class="p">(</span>
+       <span class="c1"># num_threads is no longer needed</span>
+       <span class="n">solver_type</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+       <span class="c1"># use_gpu is deduced from the device</span>
+       <span class="n">max_position_iteration_count</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>
+       <span class="n">max_velocity_iteration_count</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+       <span class="c1"># moved to actor config</span>
+       <span class="c1"># moved to actor config</span>
+       <span class="n">bounce_threshold_velocity</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span>
+       <span class="c1"># moved to actor config</span>
+       <span class="c1"># default_buffer_size_multiplier is no longer needed</span>
+       <span class="n">gpu_max_rigid_contact_count</span><span class="o">=</span><span class="mi">2</span><span class="o">**</span><span class="mi">23</span>
+       <span class="c1"># num_subscenes is no longer needed</span>
+       <span class="c1"># contact_collection is no longer needed</span>
+<span class="p">))</span>
+</pre></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="scene-config">
+<h3>Scene Config<a class="headerlink" href="#scene-config" title="Permalink to this heading">#</a></h3>
+<p>The <a class="reference internal" href="../api/lab/omni.isaac.lab.scene.html#omni.isaac.lab.scene.InteractiveSceneCfg" title="omni.isaac.lab.scene.InteractiveSceneCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">InteractiveSceneCfg</span></code></a> class can be used to specify parameters related to the scene,
+such as the number of environments and the spacing between environments. Each task config must have a variable named
+<code class="docutils literal notranslate"><span class="pre">scene</span></code> defined that holds the type <a class="reference internal" href="../api/lab/omni.isaac.lab.scene.html#omni.isaac.lab.scene.InteractiveSceneCfg" title="omni.isaac.lab.scene.InteractiveSceneCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">InteractiveSceneCfg</span></code></a>.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<tbody>
+<tr class="row-odd"><td><div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># IsaacGymEnvs</span>
+<span class="nt">env</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">numEnvs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${resolve_default:512,${...num_envs}}</span>
+<span class="w">  </span><span class="nt">envSpacing</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4.0</span>
+</pre></div>
+</div>
+</td>
+<td><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># IsaacLab</span>
+<span class="n">scene</span><span class="p">:</span> <span class="n">InteractiveSceneCfg</span> <span class="o">=</span> <span class="n">InteractiveSceneCfg</span><span class="p">(</span>
+   <span class="n">num_envs</span><span class="o">=</span><span class="mi">512</span><span class="p">,</span>
+   <span class="n">env_spacing</span><span class="o">=</span><span class="mf">4.0</span><span class="p">)</span>
+</pre></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="task-config">
+<h3>Task Config<a class="headerlink" href="#task-config" title="Permalink to this heading">#</a></h3>
+<p>Each environment should specify its own config class that holds task specific parameters, such as the dimensions of the
+observation and action buffers. Reward term scaling parameters can also be specified in the config class.</p>
+<p>The following parameters must be set for each environment config:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">decimation</span> <span class="o">=</span> <span class="mi">2</span>
+<span class="n">episode_length_s</span> <span class="o">=</span> <span class="mf">5.0</span>
+<span class="n">action_space</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="n">observation_space</span> <span class="o">=</span> <span class="mi">4</span>
+<span class="n">state_space</span> <span class="o">=</span> <span class="mi">0</span>
+</pre></div>
+</div>
+<p>Note that the maximum episode length parameter (now <code class="docutils literal notranslate"><span class="pre">episode_length_s</span></code>) is in seconds instead of steps as it was
+in IsaacGymEnvs. To convert between step count to seconds, use the equation:
+<code class="docutils literal notranslate"><span class="pre">episode_length_s</span> <span class="pre">=</span> <span class="pre">dt</span> <span class="pre">*</span> <span class="pre">decimation</span> <span class="pre">*</span> <span class="pre">num_steps</span></code></p>
+</section>
+</section>
+<section id="rl-config-setup">
+<h2>RL Config Setup<a class="headerlink" href="#rl-config-setup" title="Permalink to this heading">#</a></h2>
+<p>RL config files for the rl_games library can continue to be defined in <code class="docutils literal notranslate"><span class="pre">.yaml</span></code> files in Isaac Lab.
+Most of the content of the config file can be copied directly from IsaacGymEnvs.
+Note that in Isaac Lab, we do not use hydra to resolve relative paths in config files.
+Please replace any relative paths such as <code class="docutils literal notranslate"><span class="pre">${....device}</span></code> with the actual values of the parameters.</p>
+<p>Additionally, the observation and action clip ranges have been moved to the RL config file.
+For any <code class="docutils literal notranslate"><span class="pre">clipObservations</span></code> and <code class="docutils literal notranslate"><span class="pre">clipActions</span></code> parameters that were defined in the IsaacGymEnvs task config file,
+they should be moved to the RL config file in Isaac Lab.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<tbody>
+<tr class="row-odd"><td><p>IsaacGymEnvs Task Config</p></td>
+<td><p>Isaac Lab RL Config</p></td>
+</tr>
+<tr class="row-even"><td><div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># IsaacGymEnvs</span>
+<span class="nt">env</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">clipObservations</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5.0</span>
+<span class="w">  </span><span class="nt">clipActions</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span>
+</pre></div>
+</div>
+</td>
+<td><div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># IsaacLab</span>
+<span class="nt">params</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">env</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">clip_observations</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5.0</span>
+<span class="w">    </span><span class="nt">clip_actions</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span>
+</pre></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="environment-creation">
+<h2>Environment Creation<a class="headerlink" href="#environment-creation" title="Permalink to this heading">#</a></h2>
+<p>In IsaacGymEnvs, environment creation generally included four components: creating the sim object with <code class="docutils literal notranslate"><span class="pre">create_sim()</span></code>,
+creating the ground plane, importing the assets from MJCF or URDF files, and finally creating the environments
+by looping through each environment and adding actors into the environments.</p>
+<p>Isaac Lab no longer requires calling the <code class="docutils literal notranslate"><span class="pre">create_sim()</span></code> method to retrieve the sim object. Instead, the simulation
+context is retrieved automatically by the framework. It is also no longer required to use the <code class="docutils literal notranslate"><span class="pre">sim</span></code> as an
+argument for the simulation APIs.</p>
+<p>In replacement of <code class="docutils literal notranslate"><span class="pre">create_sim()</span></code>, tasks can implement the <code class="docutils literal notranslate"><span class="pre">_setup_scene()</span></code> method in Isaac Lab.
+This method can be used for adding actors into the scene, adding ground plane, cloning the actors, and
+adding any other optional objects into the scene, such as lights.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<tbody>
+<tr class="row-odd"><td><p>IsaacGymEnvs</p></td>
+<td><p>Isaac Lab</p></td>
+</tr>
+<tr class="row-even"><td><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">create_sim</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+  <span class="c1"># set the up axis to be z-up</span>
+  <span class="bp">self</span><span class="o">.</span><span class="n">up_axis</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;sim&quot;</span><span class="p">][</span><span class="s2">&quot;up_axis&quot;</span><span class="p">]</span>
+
+  <span class="bp">self</span><span class="o">.</span><span class="n">sim</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">create_sim</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">device_id</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">graphics_device_id</span><span class="p">,</span>
+                                  <span class="bp">self</span><span class="o">.</span><span class="n">physics_engine</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">sim_params</span><span class="p">)</span>
+  <span class="bp">self</span><span class="o">.</span><span class="n">_create_ground_plane</span><span class="p">()</span>
+  <span class="bp">self</span><span class="o">.</span><span class="n">_create_envs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;env&quot;</span><span class="p">][</span><span class="s1">&#39;envSpacing&#39;</span><span class="p">],</span>
+                      <span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">)))</span>
+</pre></div>
+</div>
+</td>
+<td><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">_setup_scene</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+  <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span> <span class="o">=</span> <span class="n">Articulation</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">robot_cfg</span><span class="p">)</span>
+  <span class="c1"># add ground plane</span>
+  <span class="n">spawn_ground_plane</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/ground&quot;</span><span class="p">,</span> <span class="n">cfg</span><span class="o">=</span><span class="n">GroundPlaneCfg</span><span class="p">()</span>
+  <span class="c1"># clone, filter, and replicate</span>
+  <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">clone_environments</span><span class="p">(</span><span class="n">copy_from_source</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+  <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">filter_collisions</span><span class="p">(</span><span class="n">global_prim_paths</span><span class="o">=</span><span class="p">[])</span>
+  <span class="c1"># add articulation to scene</span>
+  <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">articulations</span><span class="p">[</span><span class="s2">&quot;cartpole&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span>
+  <span class="c1"># add lights</span>
+  <span class="n">light_cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">DomeLightCfg</span><span class="p">(</span><span class="n">intensity</span><span class="o">=</span><span class="mf">2000.0</span><span class="p">)</span>
+  <span class="n">light_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="s2">&quot;/World/Light&quot;</span><span class="p">,</span> <span class="n">light_cfg</span><span class="p">)</span>
+</pre></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<section id="ground-plane">
+<h3>Ground Plane<a class="headerlink" href="#ground-plane" title="Permalink to this heading">#</a></h3>
+<p>In Isaac Lab, most of the environment creation process has been simplified into configs with the <a class="reference internal" href="../api/lab/omni.isaac.lab.utils.html#module-omni.isaac.lab.utils.configclass" title="omni.isaac.lab.utils.configclass"><code class="xref py py-class docutils literal notranslate"><span class="pre">configclass</span></code></a> module.</p>
+<p>The ground plane can be defined using the <a class="reference internal" href="../api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.TerrainImporterCfg" title="omni.isaac.lab.terrains.TerrainImporterCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">TerrainImporterCfg</span></code></a> class.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">omni.isaac.lab.terrains</span> <span class="kn">import</span> <span class="n">TerrainImporterCfg</span>
+
+<span class="n">terrain</span> <span class="o">=</span> <span class="n">TerrainImporterCfg</span><span class="p">(</span>
+     <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/ground&quot;</span><span class="p">,</span>
+     <span class="n">terrain_type</span><span class="o">=</span><span class="s2">&quot;plane&quot;</span><span class="p">,</span>
+     <span class="n">collision_group</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span>
+     <span class="n">physics_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">RigidBodyMaterialCfg</span><span class="p">(</span>
+         <span class="n">friction_combine_mode</span><span class="o">=</span><span class="s2">&quot;multiply&quot;</span><span class="p">,</span>
+         <span class="n">restitution_combine_mode</span><span class="o">=</span><span class="s2">&quot;multiply&quot;</span><span class="p">,</span>
+         <span class="n">static_friction</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
+         <span class="n">dynamic_friction</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
+         <span class="n">restitution</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+     <span class="p">),</span>
+ <span class="p">)</span>
+</pre></div>
+</div>
+<p>The terrain can then be added to the scene in <code class="docutils literal notranslate"><span class="pre">_setup_scene(self)</span></code> by referencing the <code class="docutils literal notranslate"><span class="pre">TerrainImporterCfg</span></code> object:</p>
+</section>
+<section id="actors">
+<h3>Actors<a class="headerlink" href="#actors" title="Permalink to this heading">#</a></h3>
+<p>Isaac Lab and Isaac Sim both use the <a class="reference external" href="https://github.com/PixarAnimationStudios/OpenUSD">USD (Universal Scene Description)</a>
+library for describing the scene. Assets defined in MJCF and URDF formats can be imported to USD using importer
+tools described in the <a class="reference external" href="../how-to/import_new_asset.html">Importing a New Asset</a> tutorial.</p>
+<p>Each Articulation and Rigid Body actor can also have its own config class. The
+<a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.ArticulationCfg" title="omni.isaac.lab.assets.ArticulationCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">ArticulationCfg</span></code></a> class can be used to define parameters for articulation actors,
+including file path, simulation parameters, actuator properties, and initial states.</p>
+<p>Within the <a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.ArticulationCfg" title="omni.isaac.lab.assets.ArticulationCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">ArticulationCfg</span></code></a>, the <code class="docutils literal notranslate"><span class="pre">spawn</span></code> attribute can be used to add the robot to the scene by
+specifying the path to the robot file. In addition, <a class="reference internal" href="../api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.RigidBodyPropertiesCfg" title="omni.isaac.lab.sim.schemas.RigidBodyPropertiesCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">RigidBodyPropertiesCfg</span></code></a> can
+be used to specify simulation properties for the rigid bodies in the articulation.
+Similarly, the <a class="reference internal" href="../api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.ArticulationRootPropertiesCfg" title="omni.isaac.lab.sim.schemas.ArticulationRootPropertiesCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">ArticulationRootPropertiesCfg</span></code></a> class can be used to specify
+simulation properties for the articulation. Joint properties are now specified as part of the <code class="docutils literal notranslate"><span class="pre">actuators</span></code>
+dictionary using <a class="reference internal" href="../api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.ImplicitActuatorCfg" title="omni.isaac.lab.actuators.ImplicitActuatorCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">ImplicitActuatorCfg</span></code></a>. Joints with the same properties can be grouped into
+regex expressions or provided as a list of names or expressions.</p>
+<p>Actors are added to the scene by simply calling <code class="docutils literal notranslate"><span class="pre">self.cartpole</span> <span class="pre">=</span> <span class="pre">Articulation(self.cfg.robot_cfg)</span></code>,
+where <code class="docutils literal notranslate"><span class="pre">self.cfg.robot_cfg</span></code> is an <a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.ArticulationCfg" title="omni.isaac.lab.assets.ArticulationCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">ArticulationCfg</span></code></a> object. Once initialized, they should also
+be added to the <a class="reference internal" href="../api/lab/omni.isaac.lab.scene.html#omni.isaac.lab.scene.InteractiveScene" title="omni.isaac.lab.scene.InteractiveScene"><code class="xref py py-class docutils literal notranslate"><span class="pre">InteractiveScene</span></code></a> by calling <code class="docutils literal notranslate"><span class="pre">self.scene.articulations[&quot;cartpole&quot;]</span> <span class="pre">=</span> <span class="pre">self.cartpole</span></code>
+so that the <a class="reference internal" href="../api/lab/omni.isaac.lab.scene.html#omni.isaac.lab.scene.InteractiveScene" title="omni.isaac.lab.scene.InteractiveScene"><code class="xref py py-class docutils literal notranslate"><span class="pre">InteractiveScene</span></code></a> can traverse through actors in the scene for writing values to the
+simulation and resetting.</p>
+<section id="simulation-parameters-for-actors">
+<h4>Simulation Parameters for Actors<a class="headerlink" href="#simulation-parameters-for-actors" title="Permalink to this heading">#</a></h4>
+<p>Some simulation parameters related to Rigid Bodies and Articulations may have different
+default values between Isaac Gym Preview Release and Isaac Sim.
+It may be helpful to double check the USD assets to ensure that the default values are
+applicable for the asset.</p>
+<p>For instance, the following parameters in the <code class="docutils literal notranslate"><span class="pre">RigidBodyAPI</span></code> could be different
+between Isaac Gym Preview Release and Isaac Sim:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 33.3%" />
+<col style="width: 33.3%" />
+<col style="width: 33.3%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>RigidBodyAPI Parameter</p></th>
+<th class="head"><p>Default Value in Isaac Sim</p></th>
+<th class="head"><p>Default Value in Isaac Gym Preview Release</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Linear Damping</p></td>
+<td><p>0.00</p></td>
+<td><p>0.00</p></td>
+</tr>
+<tr class="row-odd"><td><p>Angular Damping</p></td>
+<td><p>0.05</p></td>
+<td><p>0.0</p></td>
+</tr>
+<tr class="row-even"><td><p>Max Linear Velocity</p></td>
+<td><p>inf</p></td>
+<td><p>1000</p></td>
+</tr>
+<tr class="row-odd"><td><p>Max Angular Velocity</p></td>
+<td><p>5729.58008 (degree/s)</p></td>
+<td><p>64.0 (rad/s)</p></td>
+</tr>
+<tr class="row-even"><td><p>Max Contact Impulse</p></td>
+<td><p>inf</p></td>
+<td><p>1e32</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Articulation parameters for the <code class="docutils literal notranslate"><span class="pre">JointAPI</span></code> and <code class="docutils literal notranslate"><span class="pre">DriveAPI</span></code> could be altered as well. Note
+that the Isaac Sim UI assumes the unit of angle to be degrees. It is particularly
+worth noting that the <code class="docutils literal notranslate"><span class="pre">Damping</span></code> and <code class="docutils literal notranslate"><span class="pre">Stiffness</span></code> parameters in the <code class="docutils literal notranslate"><span class="pre">DriveAPI</span></code> have the unit
+of <code class="docutils literal notranslate"><span class="pre">1/deg</span></code> in the Isaac Sim UI but <code class="docutils literal notranslate"><span class="pre">1/rad</span></code> in Isaac Gym Preview Release.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 33.3%" />
+<col style="width: 33.3%" />
+<col style="width: 33.3%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Joint Parameter</p></th>
+<th class="head"><p>Default Value in Isaac Sim</p></th>
+<th class="head"><p>Default Value in Isaac Gym Preview Releases</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Maximum Joint Velocity</p></td>
+<td><p>1000000.0 (deg)</p></td>
+<td><p>100.0 (rad)</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+</section>
+<section id="cloner">
+<h3>Cloner<a class="headerlink" href="#cloner" title="Permalink to this heading">#</a></h3>
+<p>Isaac Sim introduced a concept of <code class="docutils literal notranslate"><span class="pre">Cloner</span></code>, which is a class designed for replication during the scene creation process.
+In IsaacGymEnvs, scenes had to be created by looping through the number of environments.
+Within each iteration, actors were added to each environment and their handles had to be cached.
+Isaac Lab eliminates the need for looping through the environments by using the <code class="docutils literal notranslate"><span class="pre">Cloner</span></code> APIs.
+The scene creation process is as follow:</p>
+<ol class="arabic simple">
+<li><p>Construct a single environment (what the scene would look like if number of environments = 1)</p></li>
+<li><p>Call <code class="docutils literal notranslate"><span class="pre">clone_environments()</span></code> to replicate the single environment</p></li>
+<li><p>Call <code class="docutils literal notranslate"><span class="pre">filter_collisions()</span></code> to filter out collision between environments (if required)</p></li>
+</ol>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># construct a single environment with the Cartpole robot</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span> <span class="o">=</span> <span class="n">Articulation</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">robot_cfg</span><span class="p">)</span>
+<span class="c1"># clone the environment</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">clone_environments</span><span class="p">(</span><span class="n">copy_from_source</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="c1"># filter collisions</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">filter_collisions</span><span class="p">(</span><span class="n">global_prim_paths</span><span class="o">=</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">terrain</span><span class="o">.</span><span class="n">prim_path</span><span class="p">])</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="accessing-states-from-simulation">
+<h2>Accessing States from Simulation<a class="headerlink" href="#accessing-states-from-simulation" title="Permalink to this heading">#</a></h2>
+<p>APIs for accessing physics states in Isaac Lab require the creation of an <a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation" title="omni.isaac.lab.assets.Articulation"><code class="xref py py-class docutils literal notranslate"><span class="pre">Articulation</span></code></a> or <a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObject" title="omni.isaac.lab.assets.RigidObject"><code class="xref py py-class docutils literal notranslate"><span class="pre">RigidObject</span></code></a>
+object. Multiple objects can be initialized for different articulations or rigid bodies in the scene by defining
+corresponding <a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.ArticulationCfg" title="omni.isaac.lab.assets.ArticulationCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">ArticulationCfg</span></code></a> or <a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObjectCfg" title="omni.isaac.lab.assets.RigidObjectCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">RigidObjectCfg</span></code></a> config  as outlined in the section above.
+This approach eliminates the need of retrieving body handles to slice states for specific bodies in the scene.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="bp">self</span><span class="o">.</span><span class="n">_robot</span> <span class="o">=</span> <span class="n">Articulation</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">robot</span><span class="p">)</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">_cabinet</span> <span class="o">=</span> <span class="n">Articulation</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">cabinet</span><span class="p">)</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">_object</span> <span class="o">=</span> <span class="n">RigidObject</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">object_cfg</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>We have also removed <code class="docutils literal notranslate"><span class="pre">acquire</span></code> and <code class="docutils literal notranslate"><span class="pre">refresh</span></code> APIs in Isaac Lab. Physics states can be directly applied or retrieved
+using APIs defined for the articulations and rigid objects.</p>
+<p>APIs provided in Isaac Lab no longer require explicit wrapping and un-wrapping of underlying buffers.
+APIs can now work with tensors directly for reading and writing data.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<tbody>
+<tr class="row-odd"><td><p>IsaacGymEnvs</p></td>
+<td><p>Isaac Lab</p></td>
+</tr>
+<tr class="row-even"><td><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">dof_state_tensor</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">gym</span><span class="o">.</span><span class="n">acquire_dof_state_tensor</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="p">)</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">dof_state</span> <span class="o">=</span> <span class="n">gymtorch</span><span class="o">.</span><span class="n">wrap_tensor</span><span class="p">(</span><span class="n">dof_state_tensor</span><span class="p">)</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">gym</span><span class="o">.</span><span class="n">refresh_dof_state_tensor</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="p">)</span>
+</pre></div>
+</div>
+</td>
+<td><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="bp">self</span><span class="o">.</span><span class="n">joint_pos</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">joint_pos</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">joint_vel</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">joint_vel</span>
+</pre></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Note some naming differences between APIs in Isaac Gym Preview Release and Isaac Lab. Most <code class="docutils literal notranslate"><span class="pre">dof</span></code> related APIs have been
+named to <code class="docutils literal notranslate"><span class="pre">joint</span></code> in Isaac Lab.
+APIs in Isaac Lab also no longer follow the explicit <code class="docutils literal notranslate"><span class="pre">_tensors</span></code> or <code class="docutils literal notranslate"><span class="pre">_tensor_indexed</span></code> suffixes in naming.
+Indexed versions of APIs now happen implicitly through the optional <code class="docutils literal notranslate"><span class="pre">indices</span></code> parameter.</p>
+<p>Most APIs in Isaac Lab also provide
+the option to specify an <code class="docutils literal notranslate"><span class="pre">indices</span></code> parameter, which can be used when reading or writing data for a subset
+of environments. Note that when setting states with the <code class="docutils literal notranslate"><span class="pre">indices</span></code> parameter, the shape of the states buffer
+should match with the dimension of the <code class="docutils literal notranslate"><span class="pre">indices</span></code> list.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<tbody>
+<tr class="row-odd"><td><p>IsaacGymEnvs</p></td>
+<td><p>Isaac Lab</p></td>
+</tr>
+<tr class="row-even"><td><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">env_ids_int32</span> <span class="o">=</span> <span class="n">env_ids</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">gym</span><span class="o">.</span><span class="n">set_dof_state_tensor_indexed</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="p">,</span>
+    <span class="n">gymtorch</span><span class="o">.</span><span class="n">unwrap_tensor</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dof_state</span><span class="p">),</span>
+    <span class="n">gymtorch</span><span class="o">.</span><span class="n">unwrap_tensor</span><span class="p">(</span><span class="n">env_ids_int32</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">env_ids_int32</span><span class="p">))</span>
+</pre></div>
+</div>
+</td>
+<td><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="bp">self</span><span class="o">.</span><span class="n">_robot</span><span class="o">.</span><span class="n">write_joint_state_to_sim</span><span class="p">(</span><span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span><span class="p">,</span>
+                                 <span class="n">joint_ids</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span>
+</pre></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<section id="quaternion-convention">
+<h3>Quaternion Convention<a class="headerlink" href="#quaternion-convention" title="Permalink to this heading">#</a></h3>
+<p>Isaac Lab and Isaac Sim both adopt <code class="docutils literal notranslate"><span class="pre">wxyz</span></code> as the quaternion convention. However, the quaternion
+convention used in Isaac Gym Preview Release was <code class="docutils literal notranslate"><span class="pre">xyzw</span></code>.
+Remember to switch all quaternions to use the <code class="docutils literal notranslate"><span class="pre">xyzw</span></code> convention when working indexing rotation data.
+Similarly, please ensure all quaternions are in <code class="docutils literal notranslate"><span class="pre">wxyz</span></code> before passing them to Isaac Lab APIs.</p>
+</section>
+<section id="articulation-joint-order">
+<h3>Articulation Joint Order<a class="headerlink" href="#articulation-joint-order" title="Permalink to this heading">#</a></h3>
+<p>Physics simulation in Isaac Sim and Isaac Lab assumes a breadth-first
+ordering for the joints in a given kinematic tree.
+However, Isaac Gym Preview Release assumed a depth-first ordering for joints in the kinematic tree.
+This means that indexing joints based on their ordering may be different in IsaacGymEnvs and Isaac Lab.</p>
+<p>In Isaac Lab, the list of joint names can be retrieved with <code class="docutils literal notranslate"><span class="pre">Articulation.data.joint_names</span></code>, which will
+also correspond to the ordering of the joints in the Articulation.</p>
+</section>
+</section>
+<section id="creating-a-new-environment">
+<h2>Creating a New Environment<a class="headerlink" href="#creating-a-new-environment" title="Permalink to this heading">#</a></h2>
+<p>Each environment in Isaac Lab should be in its own directory following this structure:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>my_environment/
+    - agents/
+        - __init__.py
+        - rl_games_ppo_cfg.py
+    - __init__.py
+    my_env.py
+</pre></div>
+</div>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">my_environment</span></code> is the root directory of the task.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">my_environment/agents</span></code> is the directory containing all RL config files for the task. Isaac Lab supports multiple RL libraries that can each have its own individual config file.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">my_environment/__init__.py</span></code> is the main file that registers the environment with the Gymnasium interface. This allows the training and inferencing scripts to find the task by its name. The content of this file should be as follow:</p></li>
+</ul>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">gymnasium</span> <span class="k">as</span> <span class="nn">gym</span>
+
+<span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">agents</span>
+<span class="kn">from</span> <span class="nn">.cartpole_env</span> <span class="kn">import</span> <span class="n">CartpoleEnv</span><span class="p">,</span> <span class="n">CartpoleEnvCfg</span>
+
+<span class="c1">##</span>
+<span class="c1"># Register Gym environments.</span>
+<span class="c1">##</span>
+
+<span class="n">gym</span><span class="o">.</span><span class="n">register</span><span class="p">(</span>
+    <span class="nb">id</span><span class="o">=</span><span class="s2">&quot;Isaac-Cartpole-Direct-v0&quot;</span><span class="p">,</span>
+    <span class="n">entry_point</span><span class="o">=</span><span class="s2">&quot;omni.isaac.lab_tasks.direct_workflow.cartpole:CartpoleEnv&quot;</span><span class="p">,</span>
+    <span class="n">disable_env_checker</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">kwargs</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">&quot;env_cfg_entry_point&quot;</span><span class="p">:</span> <span class="n">CartpoleEnvCfg</span><span class="p">,</span>
+        <span class="s2">&quot;rl_games_cfg_entry_point&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">agents</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">:rl_games_ppo_cfg.yaml&quot;</span>
+    <span class="p">},</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">my_environment/my_env.py</span></code> is the main python script that implements the task logic and task config class for the environment.</p></li>
+</ul>
+</section>
+<section id="task-logic">
+<h2>Task Logic<a class="headerlink" href="#task-logic" title="Permalink to this heading">#</a></h2>
+<p>In Isaac Lab, the <code class="docutils literal notranslate"><span class="pre">post_physics_step</span></code> function has been moved to the framework in the base class.
+Tasks are not required to implement this method, but can choose to override it if a different workflow is desired.</p>
+<p>By default, Isaac Lab follows the following flow in logic:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<tbody>
+<tr class="row-odd"><td><p>IsaacGymEnvs</p></td>
+<td><p>Isaac Lab</p></td>
+</tr>
+<tr class="row-even"><td><div class="highlight-none notranslate"><div class="highlight"><pre><span></span>pre_physics_step
+  |-- apply_action
+
+
+post_physics_step
+  |-- reset_idx()
+  |-- compute_observation()
+  |-- compute_reward()
+</pre></div>
+</div>
+</td>
+<td><div class="highlight-none notranslate"><div class="highlight"><pre><span></span>pre_physics_step
+  |-- _pre_physics_step(action)
+  |-- _apply_action()
+
+post_physics_step
+  |-- _get_dones()
+  |-- _get_rewards()
+  |-- _reset_idx()
+  |-- _get_observations()
+</pre></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>In Isaac Lab, we also separate the <code class="docutils literal notranslate"><span class="pre">pre_physics_step</span></code> API for processing actions from the policy with
+the <code class="docutils literal notranslate"><span class="pre">apply_action</span></code> API, which sets the actions into the simulation. This provides more flexibility in controlling
+when actions should be written to simulation when <code class="docutils literal notranslate"><span class="pre">decimation</span></code> is used.
+<code class="docutils literal notranslate"><span class="pre">pre_physics_step</span></code> will be called once per step before stepping simulation.
+<code class="docutils literal notranslate"><span class="pre">apply_actions</span></code> will be called <code class="docutils literal notranslate"><span class="pre">decimation</span></code> number of times for each RL step, once before each simulation step call.</p>
+<p>With this approach, resets are performed based on actions from the current step instead of the previous step.
+Observations will also be computed with the correct states after resets.</p>
+<p>We have also performed some renamings of APIs:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">create_sim(self)</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">_setup_scene(self)</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">pre_physics_step(self,</span> <span class="pre">actions)</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">_pre_physics_step(self,</span> <span class="pre">actions)</span></code> and <code class="docutils literal notranslate"><span class="pre">_apply_action(self)</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">reset_idx(self,</span> <span class="pre">env_ids)</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">_reset_idx(self,</span> <span class="pre">env_ids)</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">compute_observations(self)</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">_get_observations(self)</span></code> - <code class="docutils literal notranslate"><span class="pre">_get_observations()</span></code> should now return a dictionary <code class="docutils literal notranslate"><span class="pre">{&quot;policy&quot;:</span> <span class="pre">obs}</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">compute_reward(self)</span></code> –&gt; <code class="docutils literal notranslate"><span class="pre">_get_rewards(self)</span></code> - <code class="docutils literal notranslate"><span class="pre">_get_rewards()</span></code> should now return the reward buffer</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">post_physics_step(self)</span></code> –&gt; moved to the base class</p></li>
+<li><p>In addition, Isaac Lab requires the implementation of <code class="docutils literal notranslate"><span class="pre">_is_done(self)</span></code>, which should return two buffers: the <code class="docutils literal notranslate"><span class="pre">reset</span></code> buffer and the <code class="docutils literal notranslate"><span class="pre">time_out</span></code> buffer.</p></li>
+</ul>
+</section>
+<section id="putting-it-all-together">
+<h2>Putting It All Together<a class="headerlink" href="#putting-it-all-together" title="Permalink to this heading">#</a></h2>
+<p>The Cartpole environment is shown here in completion to fully show the comparison between the IsaacGymEnvs implementation and the Isaac Lab implementation.</p>
+<section id="id1">
+<h3>Task Config<a class="headerlink" href="#id1" title="Permalink to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<tbody>
+<tr class="row-odd"><td><p>IsaacGymEnvs</p></td>
+<td><p>Isaac Lab</p></td>
+</tr>
+<tr class="row-even"><td><div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># used to create the object</span>
+<span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Cartpole</span>
+
+<span class="nt">physics_engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${..physics_engine}</span>
+
+<span class="c1"># if given, will override the device setting in gym.</span>
+<span class="nt">env</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">numEnvs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${resolve_default:512,${...num_envs}}</span>
+<span class="w">  </span><span class="nt">envSpacing</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4.0</span>
+<span class="w">  </span><span class="nt">resetDist</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3.0</span>
+<span class="w">  </span><span class="nt">maxEffort</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">400.0</span>
+
+<span class="w">  </span><span class="nt">clipObservations</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5.0</span>
+<span class="w">  </span><span class="nt">clipActions</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span>
+
+<span class="w">  </span><span class="nt">asset</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">assetRoot</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;../../assets&quot;</span>
+<span class="w">    </span><span class="nt">assetFileName</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;urdf/cartpole.urdf&quot;</span>
+
+<span class="w">  </span><span class="nt">enableCameraSensors</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">False</span>
+
+<span class="nt">sim</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">dt</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.0166</span><span class="w"> </span><span class="c1"># 1/60 s</span>
+<span class="w">  </span><span class="nt">substeps</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<span class="w">  </span><span class="nt">up_axis</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;z&quot;</span>
+<span class="w">  </span><span class="nt">use_gpu_pipeline</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${eq:${...pipeline},&quot;gpu&quot;}</span>
+<span class="w">  </span><span class="nt">gravity</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0.0</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.0</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">-9.81</span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="nt">physx</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">num_threads</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${....num_threads}</span>
+<span class="w">    </span><span class="nt">solver_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${....solver_type}</span>
+<span class="w">    </span><span class="nt">use_gpu</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${contains:&quot;cuda&quot;,${....sim_device}}</span>
+<span class="w">    </span><span class="nt">num_position_iterations</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
+<span class="w">    </span><span class="nt">num_velocity_iterations</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
+<span class="w">    </span><span class="nt">contact_offset</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.02</span>
+<span class="w">    </span><span class="nt">rest_offset</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.001</span>
+<span class="w">    </span><span class="nt">bounce_threshold_velocity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.2</span>
+<span class="w">    </span><span class="nt">max_depenetration_velocity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100.0</span>
+<span class="w">    </span><span class="nt">default_buffer_size_multiplier</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2.0</span>
+<span class="w">    </span><span class="nt">max_gpu_contact_pairs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1048576</span><span class="w"> </span><span class="c1"># 1024*1024</span>
+<span class="w">    </span><span class="nt">num_subscenes</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${....num_subscenes}</span>
+<span class="w">    </span><span class="nt">contact_collection</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
+</pre></div>
+</div>
+</td>
+<td><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@configclass</span>
+<span class="k">class</span> <span class="nc">CartpoleEnvCfg</span><span class="p">(</span><span class="n">DirectRLEnvCfg</span><span class="p">):</span>
+
+    <span class="c1"># simulation</span>
+    <span class="n">sim</span><span class="p">:</span> <span class="n">SimulationCfg</span> <span class="o">=</span> <span class="n">SimulationCfg</span><span class="p">(</span><span class="n">dt</span><span class="o">=</span><span class="mi">1</span> <span class="o">/</span> <span class="mi">120</span><span class="p">)</span>
+    <span class="c1"># robot</span>
+    <span class="n">robot_cfg</span><span class="p">:</span> <span class="n">ArticulationCfg</span> <span class="o">=</span> <span class="n">CARTPOLE_CFG</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span>
+        <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/envs/env_.*/Robot&quot;</span><span class="p">)</span>
+    <span class="n">cart_dof_name</span> <span class="o">=</span> <span class="s2">&quot;slider_to_cart&quot;</span>
+    <span class="n">pole_dof_name</span> <span class="o">=</span> <span class="s2">&quot;cart_to_pole&quot;</span>
+    <span class="c1"># scene</span>
+    <span class="n">scene</span><span class="p">:</span> <span class="n">InteractiveSceneCfg</span> <span class="o">=</span> <span class="n">InteractiveSceneCfg</span><span class="p">(</span>
+        <span class="n">num_envs</span><span class="o">=</span><span class="mi">4096</span><span class="p">,</span> <span class="n">env_spacing</span><span class="o">=</span><span class="mf">4.0</span><span class="p">,</span> <span class="n">replicate_physics</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="c1"># env</span>
+    <span class="n">decimation</span> <span class="o">=</span> <span class="mi">2</span>
+    <span class="n">episode_length_s</span> <span class="o">=</span> <span class="mf">5.0</span>
+    <span class="n">action_scale</span> <span class="o">=</span> <span class="mf">100.0</span>  <span class="c1"># [N]</span>
+    <span class="n">action_space</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">observation_space</span> <span class="o">=</span> <span class="mi">4</span>
+    <span class="n">state_space</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="c1"># reset</span>
+    <span class="n">max_cart_pos</span> <span class="o">=</span> <span class="mf">3.0</span>
+    <span class="n">initial_pole_angle_range</span> <span class="o">=</span> <span class="p">[</span><span class="o">-</span><span class="mf">0.25</span><span class="p">,</span> <span class="mf">0.25</span><span class="p">]</span>
+    <span class="c1"># reward scales</span>
+    <span class="n">rew_scale_alive</span> <span class="o">=</span> <span class="mf">1.0</span>
+    <span class="n">rew_scale_terminated</span> <span class="o">=</span> <span class="o">-</span><span class="mf">2.0</span>
+    <span class="n">rew_scale_pole_pos</span> <span class="o">=</span> <span class="o">-</span><span class="mf">1.0</span>
+    <span class="n">rew_scale_cart_vel</span> <span class="o">=</span> <span class="o">-</span><span class="mf">0.01</span>
+    <span class="n">rew_scale_pole_vel</span> <span class="o">=</span> <span class="o">-</span><span class="mf">0.005</span>
+</pre></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="task-setup">
+<h3>Task Setup<a class="headerlink" href="#task-setup" title="Permalink to this heading">#</a></h3>
+<p>Isaac Lab no longer requires pre-initialization of buffers through the <code class="docutils literal notranslate"><span class="pre">acquire_*</span></code> APIs that were used in IsaacGymEnvs.
+It is also no longer necessary to <code class="docutils literal notranslate"><span class="pre">wrap</span></code> and <code class="docutils literal notranslate"><span class="pre">unwrap</span></code> tensors.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<tbody>
+<tr class="row-odd"><td><p>IsaacGymEnvs</p></td>
+<td><p>Isaac Lab</p></td>
+</tr>
+<tr class="row-even"><td><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">Cartpole</span><span class="p">(</span><span class="n">VecTask</span><span class="p">):</span>
+
+  <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="n">rl_device</span><span class="p">,</span> <span class="n">sim_device</span><span class="p">,</span> <span class="n">graphics_device_id</span><span class="p">,</span>
+   <span class="n">headless</span><span class="p">,</span> <span class="n">virtual_screen_capture</span><span class="p">,</span> <span class="n">force_render</span><span class="p">):</span>
+      <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span> <span class="o">=</span> <span class="n">cfg</span>
+
+      <span class="bp">self</span><span class="o">.</span><span class="n">reset_dist</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;env&quot;</span><span class="p">][</span><span class="s2">&quot;resetDist&quot;</span><span class="p">]</span>
+
+      <span class="bp">self</span><span class="o">.</span><span class="n">max_push_effort</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;env&quot;</span><span class="p">][</span><span class="s2">&quot;maxEffort&quot;</span><span class="p">]</span>
+      <span class="bp">self</span><span class="o">.</span><span class="n">max_episode_length</span> <span class="o">=</span> <span class="mi">500</span>
+
+      <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;env&quot;</span><span class="p">][</span><span class="s2">&quot;numObservations&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">4</span>
+      <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;env&quot;</span><span class="p">][</span><span class="s2">&quot;numActions&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+
+      <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">config</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="p">,</span>
+         <span class="n">rl_device</span><span class="o">=</span><span class="n">rl_device</span><span class="p">,</span> <span class="n">sim_device</span><span class="o">=</span><span class="n">sim_device</span><span class="p">,</span>
+         <span class="n">graphics_device_id</span><span class="o">=</span><span class="n">graphics_device_id</span><span class="p">,</span> <span class="n">headless</span><span class="o">=</span><span class="n">headless</span><span class="p">,</span>
+         <span class="n">virtual_screen_capture</span><span class="o">=</span><span class="n">virtual_screen_capture</span><span class="p">,</span>
+         <span class="n">force_render</span><span class="o">=</span><span class="n">force_render</span><span class="p">)</span>
+
+      <span class="n">dof_state_tensor</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">gym</span><span class="o">.</span><span class="n">acquire_dof_state_tensor</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="p">)</span>
+      <span class="bp">self</span><span class="o">.</span><span class="n">dof_state</span> <span class="o">=</span> <span class="n">gymtorch</span><span class="o">.</span><span class="n">wrap_tensor</span><span class="p">(</span><span class="n">dof_state_tensor</span><span class="p">)</span>
+      <span class="bp">self</span><span class="o">.</span><span class="n">dof_pos</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dof_state</span><span class="o">.</span><span class="n">view</span><span class="p">(</span>
+          <span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_dof</span><span class="p">,</span> <span class="mi">2</span><span class="p">)[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+      <span class="bp">self</span><span class="o">.</span><span class="n">dof_vel</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dof_state</span><span class="o">.</span><span class="n">view</span><span class="p">(</span>
+          <span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_dof</span><span class="p">,</span> <span class="mi">2</span><span class="p">)[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+</pre></div>
+</div>
+</td>
+<td><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">CartpoleEnv</span><span class="p">(</span><span class="n">DirectRLEnv</span><span class="p">):</span>
+  <span class="n">cfg</span><span class="p">:</span> <span class="n">CartpoleEnvCfg</span>
+  <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">CartpoleEnvCfg</span><span class="p">,</span>
+          <span class="n">render_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+
+      <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">render_mode</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+      <span class="bp">self</span><span class="o">.</span><span class="n">_cart_dof_idx</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span><span class="o">.</span><span class="n">find_joints</span><span class="p">(</span>
+          <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">cart_dof_name</span><span class="p">)</span>
+      <span class="bp">self</span><span class="o">.</span><span class="n">_pole_dof_idx</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span><span class="o">.</span><span class="n">find_joints</span><span class="p">(</span>
+          <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">pole_dof_name</span><span class="p">)</span>
+      <span class="bp">self</span><span class="o">.</span><span class="n">action_scale</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">action_scale</span>
+
+      <span class="bp">self</span><span class="o">.</span><span class="n">joint_pos</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">joint_pos</span>
+      <span class="bp">self</span><span class="o">.</span><span class="n">joint_vel</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">joint_vel</span>
+</pre></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="scene-setup">
+<h3>Scene Setup<a class="headerlink" href="#scene-setup" title="Permalink to this heading">#</a></h3>
+<p>Scene setup is now done through the <code class="docutils literal notranslate"><span class="pre">Cloner</span></code> API and by specifying actor attributes in config objects.
+This eliminates the need to loop through the number of environments to set up the environments and avoids
+the need to set simulation parameters for actors in the task implementation.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<tbody>
+<tr class="row-odd"><td><p>IsaacGymEnvs</p></td>
+<td><p>Isaac Lab</p></td>
+</tr>
+<tr class="row-even"><td><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">create_sim</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="c1"># set the up axis to be z-up given that assets are y-up by default</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">up_axis</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;sim&quot;</span><span class="p">][</span><span class="s2">&quot;up_axis&quot;</span><span class="p">]</span>
+
+    <span class="bp">self</span><span class="o">.</span><span class="n">sim</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">create_sim</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">device_id</span><span class="p">,</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">graphics_device_id</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">physics_engine</span><span class="p">,</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sim_params</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">_create_ground_plane</span><span class="p">()</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">_create_envs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;env&quot;</span><span class="p">][</span><span class="s1">&#39;envSpacing&#39;</span><span class="p">],</span>
+        <span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">)))</span>
+
+<span class="k">def</span> <span class="nf">_create_ground_plane</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="n">plane_params</span> <span class="o">=</span> <span class="n">gymapi</span><span class="o">.</span><span class="n">PlaneParams</span><span class="p">()</span>
+    <span class="c1"># set the normal force to be z dimension</span>
+    <span class="n">plane_params</span><span class="o">.</span><span class="n">normal</span> <span class="o">=</span> <span class="p">(</span><span class="n">gymapi</span><span class="o">.</span><span class="n">Vec3</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">up_axis</span> <span class="o">==</span> <span class="s1">&#39;z&#39;</span>
+        <span class="k">else</span> <span class="n">gymapi</span><span class="o">.</span><span class="n">Vec3</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">))</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">gym</span><span class="o">.</span><span class="n">add_ground</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="p">,</span> <span class="n">plane_params</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">_create_envs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_envs</span><span class="p">,</span> <span class="n">spacing</span><span class="p">,</span> <span class="n">num_per_row</span><span class="p">):</span>
+    <span class="c1"># define plane on which environments are initialized</span>
+    <span class="n">lower</span> <span class="o">=</span> <span class="p">(</span><span class="n">gymapi</span><span class="o">.</span><span class="n">Vec3</span><span class="p">(</span><span class="mf">0.5</span> <span class="o">*</span> <span class="o">-</span><span class="n">spacing</span><span class="p">,</span> <span class="o">-</span><span class="n">spacing</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">up_axis</span> <span class="o">==</span> <span class="s1">&#39;z&#39;</span>
+        <span class="k">else</span> <span class="n">gymapi</span><span class="o">.</span><span class="n">Vec3</span><span class="p">(</span><span class="mf">0.5</span> <span class="o">*</span> <span class="o">-</span><span class="n">spacing</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="o">-</span><span class="n">spacing</span><span class="p">))</span>
+    <span class="n">upper</span> <span class="o">=</span> <span class="n">gymapi</span><span class="o">.</span><span class="n">Vec3</span><span class="p">(</span><span class="mf">0.5</span> <span class="o">*</span> <span class="n">spacing</span><span class="p">,</span> <span class="n">spacing</span><span class="p">,</span> <span class="n">spacing</span><span class="p">)</span>
+
+    <span class="n">asset_root</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)),</span> <span class="s2">&quot;../../assets&quot;</span><span class="p">)</span>
+    <span class="n">asset_file</span> <span class="o">=</span> <span class="s2">&quot;urdf/cartpole.urdf&quot;</span>
+
+    <span class="k">if</span> <span class="s2">&quot;asset&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;env&quot;</span><span class="p">]:</span>
+        <span class="n">asset_root</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)),</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;env&quot;</span><span class="p">][</span><span class="s2">&quot;asset&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;assetRoot&quot;</span><span class="p">,</span> <span class="n">asset_root</span><span class="p">))</span>
+        <span class="n">asset_file</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;env&quot;</span><span class="p">][</span><span class="s2">&quot;asset&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+            <span class="s2">&quot;assetFileName&quot;</span><span class="p">,</span> <span class="n">asset_file</span><span class="p">)</span>
+
+    <span class="n">asset_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">asset_root</span><span class="p">,</span> <span class="n">asset_file</span><span class="p">)</span>
+    <span class="n">asset_root</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">asset_path</span><span class="p">)</span>
+    <span class="n">asset_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">asset_path</span><span class="p">)</span>
+
+    <span class="n">asset_options</span> <span class="o">=</span> <span class="n">gymapi</span><span class="o">.</span><span class="n">AssetOptions</span><span class="p">()</span>
+    <span class="n">asset_options</span><span class="o">.</span><span class="n">fix_base_link</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">cartpole_asset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">gym</span><span class="o">.</span><span class="n">load_asset</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="p">,</span>
+        <span class="n">asset_root</span><span class="p">,</span> <span class="n">asset_file</span><span class="p">,</span> <span class="n">asset_options</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">num_dof</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">gym</span><span class="o">.</span><span class="n">get_asset_dof_count</span><span class="p">(</span>
+        <span class="n">cartpole_asset</span><span class="p">)</span>
+
+    <span class="n">pose</span> <span class="o">=</span> <span class="n">gymapi</span><span class="o">.</span><span class="n">Transform</span><span class="p">()</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">up_axis</span> <span class="o">==</span> <span class="s1">&#39;z&#39;</span><span class="p">:</span>
+        <span class="n">pose</span><span class="o">.</span><span class="n">p</span><span class="o">.</span><span class="n">z</span> <span class="o">=</span> <span class="mf">2.0</span>
+        <span class="n">pose</span><span class="o">.</span><span class="n">r</span> <span class="o">=</span> <span class="n">gymapi</span><span class="o">.</span><span class="n">Quat</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">pose</span><span class="o">.</span><span class="n">p</span><span class="o">.</span><span class="n">y</span> <span class="o">=</span> <span class="mf">2.0</span>
+        <span class="n">pose</span><span class="o">.</span><span class="n">r</span> <span class="o">=</span> <span class="n">gymapi</span><span class="o">.</span><span class="n">Quat</span><span class="p">(</span>
+            <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">/</span><span class="mi">2</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">/</span><span class="mi">2</span><span class="p">)</span>
+
+    <span class="bp">self</span><span class="o">.</span><span class="n">cartpole_handles</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">envs</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">):</span>
+        <span class="c1"># create env instance</span>
+        <span class="n">env_ptr</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">gym</span><span class="o">.</span><span class="n">create_env</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="p">,</span> <span class="n">lower</span><span class="p">,</span> <span class="n">upper</span><span class="p">,</span> <span class="n">num_per_row</span>
+        <span class="p">)</span>
+        <span class="n">cartpole_handle</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">gym</span><span class="o">.</span><span class="n">create_actor</span><span class="p">(</span>
+            <span class="n">env_ptr</span><span class="p">,</span> <span class="n">cartpole_asset</span><span class="p">,</span> <span class="n">pose</span><span class="p">,</span>
+            <span class="s2">&quot;cartpole&quot;</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+
+        <span class="n">dof_props</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">gym</span><span class="o">.</span><span class="n">get_actor_dof_properties</span><span class="p">(</span>
+            <span class="n">env_ptr</span><span class="p">,</span> <span class="n">cartpole_handle</span><span class="p">)</span>
+        <span class="n">dof_props</span><span class="p">[</span><span class="s1">&#39;driveMode&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">gymapi</span><span class="o">.</span><span class="n">DOF_MODE_EFFORT</span>
+        <span class="n">dof_props</span><span class="p">[</span><span class="s1">&#39;driveMode&#39;</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">gymapi</span><span class="o">.</span><span class="n">DOF_MODE_NONE</span>
+        <span class="n">dof_props</span><span class="p">[</span><span class="s1">&#39;stiffness&#39;</span><span class="p">][:]</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="n">dof_props</span><span class="p">[</span><span class="s1">&#39;damping&#39;</span><span class="p">][:]</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gym</span><span class="o">.</span><span class="n">set_actor_dof_properties</span><span class="p">(</span><span class="n">env_ptr</span><span class="p">,</span> <span class="n">c</span>
+            <span class="n">artpole_handle</span><span class="p">,</span> <span class="n">dof_props</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">envs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">env_ptr</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cartpole_handles</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cartpole_handle</span><span class="p">)</span>
+</pre></div>
+</div>
+</td>
+<td><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">_setup_scene</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span> <span class="o">=</span> <span class="n">Articulation</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">robot_cfg</span><span class="p">)</span>
+    <span class="c1"># add ground plane</span>
+    <span class="n">spawn_ground_plane</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/ground&quot;</span><span class="p">,</span>
+        <span class="n">cfg</span><span class="o">=</span><span class="n">GroundPlaneCfg</span><span class="p">())</span>
+    <span class="c1"># clone, filter, and replicate</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">clone_environments</span><span class="p">(</span>
+        <span class="n">copy_from_source</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">filter_collisions</span><span class="p">(</span>
+        <span class="n">global_prim_paths</span><span class="o">=</span><span class="p">[])</span>
+    <span class="c1"># add articulation to scene</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">articulations</span><span class="p">[</span><span class="s2">&quot;cartpole&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span>
+    <span class="c1"># add lights</span>
+    <span class="n">light_cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">DomeLightCfg</span><span class="p">(</span>
+        <span class="n">intensity</span><span class="o">=</span><span class="mf">2000.0</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">))</span>
+    <span class="n">light_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="s2">&quot;/World/Light&quot;</span><span class="p">,</span> <span class="n">light_cfg</span><span class="p">)</span>
+
+<span class="n">CARTPOLE_CFG</span> <span class="o">=</span> <span class="n">ArticulationCfg</span><span class="p">(</span>
+    <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">UsdFileCfg</span><span class="p">(</span>
+        <span class="n">usd_path</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">ISAACLAB_NUCLEUS_DIR</span><span class="si">}</span><span class="s2">/.../cartpole.usd&quot;</span><span class="p">,</span>
+        <span class="n">rigid_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">RigidBodyPropertiesCfg</span><span class="p">(</span>
+            <span class="n">rigid_body_enabled</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">max_linear_velocity</span><span class="o">=</span><span class="mf">1000.0</span><span class="p">,</span>
+            <span class="n">max_angular_velocity</span><span class="o">=</span><span class="mf">1000.0</span><span class="p">,</span>
+            <span class="n">max_depenetration_velocity</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
+            <span class="n">enable_gyroscopic_forces</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="p">),</span>
+        <span class="n">articulation_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">ArticulationRootPropertiesCfg</span><span class="p">(</span>
+            <span class="n">enabled_self_collisions</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">solver_position_iteration_count</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>
+            <span class="n">solver_velocity_iteration_count</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+            <span class="n">sleep_threshold</span><span class="o">=</span><span class="mf">0.005</span><span class="p">,</span>
+            <span class="n">stabilization_threshold</span><span class="o">=</span><span class="mf">0.001</span><span class="p">,</span>
+        <span class="p">),</span>
+    <span class="p">),</span>
+    <span class="n">init_state</span><span class="o">=</span><span class="n">ArticulationCfg</span><span class="o">.</span><span class="n">InitialStateCfg</span><span class="p">(</span>
+        <span class="n">pos</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">),</span>
+        <span class="n">joint_pos</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;slider_to_cart&quot;</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span> <span class="s2">&quot;cart_to_pole&quot;</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">}</span>
+    <span class="p">),</span>
+    <span class="n">actuators</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">&quot;cart_actuator&quot;</span><span class="p">:</span> <span class="n">ImplicitActuatorCfg</span><span class="p">(</span>
+            <span class="n">joint_names_expr</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;slider_to_cart&quot;</span><span class="p">],</span>
+            <span class="n">effort_limit</span><span class="o">=</span><span class="mf">400.0</span><span class="p">,</span>
+            <span class="n">velocity_limit</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
+            <span class="n">stiffness</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+            <span class="n">damping</span><span class="o">=</span><span class="mf">10.0</span><span class="p">,</span>
+        <span class="p">),</span>
+        <span class="s2">&quot;pole_actuator&quot;</span><span class="p">:</span> <span class="n">ImplicitActuatorCfg</span><span class="p">(</span>
+            <span class="n">joint_names_expr</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;cart_to_pole&quot;</span><span class="p">],</span> <span class="n">effort_limit</span><span class="o">=</span><span class="mf">400.0</span><span class="p">,</span>
+            <span class="n">velocity_limit</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span> <span class="n">stiffness</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">damping</span><span class="o">=</span><span class="mf">0.0</span>
+        <span class="p">),</span>
+    <span class="p">},</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="pre-and-post-physics-step">
+<h3>Pre and Post Physics Step<a class="headerlink" href="#pre-and-post-physics-step" title="Permalink to this heading">#</a></h3>
+<p>In IsaacGymEnvs, due to limitations of the GPU APIs, observations had stale data when environments had to perform resets.
+This restriction has been eliminated in Isaac Lab, and thus, tasks follow the correct workflow of applying actions, stepping simulation,
+collecting states, computing dones, calculating rewards, performing resets, and finally computing observations.
+This workflow is done automatically by the framework such that a <code class="docutils literal notranslate"><span class="pre">post_physics_step</span></code> API is not required in the task.
+However, individual tasks can override the <code class="docutils literal notranslate"><span class="pre">step()</span></code> API to control the workflow.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<tbody>
+<tr class="row-odd"><td><p>IsaacGymEnvs</p></td>
+<td><p>IsaacLab</p></td>
+</tr>
+<tr class="row-even"><td><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">pre_physics_step</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">actions</span><span class="p">):</span>
+    <span class="n">actions_tensor</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_dof</span><span class="p">,</span>
+        <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float</span><span class="p">)</span>
+    <span class="n">actions_tensor</span><span class="p">[::</span><span class="bp">self</span><span class="o">.</span><span class="n">num_dof</span><span class="p">]</span> <span class="o">=</span> <span class="n">actions</span><span class="o">.</span><span class="n">to</span><span class="p">(</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_push_effort</span>
+    <span class="n">forces</span> <span class="o">=</span> <span class="n">gymtorch</span><span class="o">.</span><span class="n">unwrap_tensor</span><span class="p">(</span><span class="n">actions_tensor</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">gym</span><span class="o">.</span><span class="n">set_dof_actuation_force_tensor</span><span class="p">(</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="p">,</span> <span class="n">forces</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">post_physics_step</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">progress_buf</span> <span class="o">+=</span> <span class="mi">1</span>
+
+    <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">reset_buf</span><span class="o">.</span><span class="n">nonzero</span><span class="p">(</span>
+        <span class="n">as_tuple</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">squeeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">reset_idx</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
+
+    <span class="bp">self</span><span class="o">.</span><span class="n">compute_observations</span><span class="p">()</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">compute_reward</span><span class="p">()</span>
+</pre></div>
+</div>
+</td>
+<td><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">_pre_physics_step</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">actions</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">actions</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">action_scale</span> <span class="o">*</span> <span class="n">actions</span>
+
+<span class="k">def</span> <span class="nf">_apply_action</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span><span class="o">.</span><span class="n">set_joint_effort_target</span><span class="p">(</span>
+         <span class="bp">self</span><span class="o">.</span><span class="n">actions</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_cart_dof_idx</span><span class="p">)</span>
+</pre></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="dones-and-resets">
+<h3>Dones and Resets<a class="headerlink" href="#dones-and-resets" title="Permalink to this heading">#</a></h3>
+<p>In Isaac Lab, <code class="docutils literal notranslate"><span class="pre">dones</span></code> are computed in the <code class="docutils literal notranslate"><span class="pre">_get_dones()</span></code> method and should return two variables: <code class="docutils literal notranslate"><span class="pre">resets</span></code> and <code class="docutils literal notranslate"><span class="pre">time_out</span></code>.
+Tracking of the <code class="docutils literal notranslate"><span class="pre">progress_buf</span></code> has been moved to the base class and is now automatically incremented and reset by the framework.
+The <code class="docutils literal notranslate"><span class="pre">progress_buf</span></code> variable has also been renamed to <code class="docutils literal notranslate"><span class="pre">episode_length_buf</span></code>.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<tbody>
+<tr class="row-odd"><td><p>IsaacGymEnvs</p></td>
+<td><p>Isaac Lab</p></td>
+</tr>
+<tr class="row-even"><td><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">reset_idx</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">):</span>
+    <span class="n">positions</span> <span class="o">=</span> <span class="mf">0.2</span> <span class="o">*</span> <span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">rand</span><span class="p">((</span><span class="nb">len</span><span class="p">(</span><span class="n">env_ids</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_dof</span><span class="p">),</span>
+        <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span> <span class="o">-</span> <span class="mf">0.5</span><span class="p">)</span>
+    <span class="n">velocities</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">rand</span><span class="p">((</span><span class="nb">len</span><span class="p">(</span><span class="n">env_ids</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_dof</span><span class="p">),</span>
+        <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span> <span class="o">-</span> <span class="mf">0.5</span><span class="p">)</span>
+
+    <span class="bp">self</span><span class="o">.</span><span class="n">dof_pos</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">positions</span><span class="p">[:]</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">dof_vel</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">velocities</span><span class="p">[:]</span>
+
+    <span class="n">env_ids_int32</span> <span class="o">=</span> <span class="n">env_ids</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">gym</span><span class="o">.</span><span class="n">set_dof_state_tensor_indexed</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="p">,</span>
+        <span class="n">gymtorch</span><span class="o">.</span><span class="n">unwrap_tensor</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dof_state</span><span class="p">),</span>
+        <span class="n">gymtorch</span><span class="o">.</span><span class="n">unwrap_tensor</span><span class="p">(</span><span class="n">env_ids_int32</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">env_ids_int32</span><span class="p">))</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">reset_buf</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">progress_buf</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+</pre></div>
+</div>
+</td>
+<td><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">_get_dones</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">joint_pos</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">joint_pos</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">joint_vel</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">joint_vel</span>
+
+    <span class="n">time_out</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">episode_length_buf</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_episode_length</span> <span class="o">-</span> <span class="mi">1</span>
+    <span class="n">out_of_bounds</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">joint_pos</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cart_dof_idx</span><span class="p">])</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">max_cart_pos</span><span class="p">,</span>
+        <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">out_of_bounds</span> <span class="o">=</span> <span class="n">out_of_bounds</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">any</span><span class="p">(</span>
+        <span class="n">torch</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">joint_pos</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pole_dof_idx</span><span class="p">])</span> <span class="o">&gt;</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="mi">2</span><span class="p">,</span>
+        <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">out_of_bounds</span><span class="p">,</span> <span class="n">time_out</span>
+
+<span class="k">def</span> <span class="nf">_reset_idx</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span><span class="o">.</span><span class="n">_ALL_INDICES</span>
+    <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_reset_idx</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
+
+    <span class="n">joint_pos</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_pos</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span>
+    <span class="n">joint_pos</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pole_dof_idx</span><span class="p">]</span> <span class="o">+=</span> <span class="n">sample_uniform</span><span class="p">(</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">initial_pole_angle_range</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">initial_pole_angle_range</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span>
+        <span class="n">joint_pos</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pole_dof_idx</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
+        <span class="n">joint_pos</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">joint_vel</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_vel</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span>
+
+    <span class="n">default_root_state</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_root_state</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span>
+    <span class="n">default_root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">env_origins</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span>
+
+    <span class="bp">self</span><span class="o">.</span><span class="n">joint_pos</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">joint_pos</span>
+
+    <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span><span class="o">.</span><span class="n">write_root_pose_to_sim</span><span class="p">(</span>
+        <span class="n">default_root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">7</span><span class="p">],</span> <span class="n">env_ids</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span><span class="o">.</span><span class="n">write_root_velocity_to_sim</span><span class="p">(</span>
+        <span class="n">default_root_state</span><span class="p">[:,</span> <span class="mi">7</span><span class="p">:],</span> <span class="n">env_ids</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">cartpole</span><span class="o">.</span><span class="n">write_joint_state_to_sim</span><span class="p">(</span>
+        <span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span>
+</pre></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="observations">
+<h3>Observations<a class="headerlink" href="#observations" title="Permalink to this heading">#</a></h3>
+<p>In Isaac Lab, the <code class="docutils literal notranslate"><span class="pre">_get_observations()</span></code> API should now return a dictionary containing the <code class="docutils literal notranslate"><span class="pre">policy</span></code> key with the observation
+buffer as the value.
+For asymmetric policies, the dictionary should also include a <code class="docutils literal notranslate"><span class="pre">critic</span></code> key that holds the state buffer.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<tbody>
+<tr class="row-odd"><td><p>IsaacGymEnvs</p></td>
+<td><p>Isaac Lab</p></td>
+</tr>
+<tr class="row-even"><td><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">compute_observations</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">env_ids</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">)</span>
+
+    <span class="bp">self</span><span class="o">.</span><span class="n">gym</span><span class="o">.</span><span class="n">refresh_dof_state_tensor</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="p">)</span>
+
+    <span class="bp">self</span><span class="o">.</span><span class="n">obs_buf</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dof_pos</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">obs_buf</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dof_vel</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">obs_buf</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dof_pos</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">obs_buf</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dof_vel</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+
+    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">obs_buf</span>
+</pre></div>
+</div>
+</td>
+<td><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">_get_observations</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+    <span class="n">obs</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">(</span>
+        <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">joint_pos</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pole_dof_idx</span><span class="p">[</span><span class="mi">0</span><span class="p">]],</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">joint_vel</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pole_dof_idx</span><span class="p">[</span><span class="mi">0</span><span class="p">]],</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">joint_pos</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cart_dof_idx</span><span class="p">[</span><span class="mi">0</span><span class="p">]],</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">joint_vel</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cart_dof_idx</span><span class="p">[</span><span class="mi">0</span><span class="p">]],</span>
+        <span class="p">),</span>
+        <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">observations</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;policy&quot;</span><span class="p">:</span> <span class="n">obs</span><span class="p">}</span>
+    <span class="k">return</span> <span class="n">observations</span>
+</pre></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="rewards">
+<h3>Rewards<a class="headerlink" href="#rewards" title="Permalink to this heading">#</a></h3>
+<p>In Isaac Lab, the reward method <code class="docutils literal notranslate"><span class="pre">_get_rewards</span></code> should return the reward buffer as a return value.
+Similar to IsaacGymEnvs, computations in the reward function can also be performed using pytorch jit
+by adding the <code class="docutils literal notranslate"><span class="pre">&#64;torch.jit.script</span></code> annotation.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<tbody>
+<tr class="row-odd"><td><p>IsaacGymEnvs</p></td>
+<td><p>Isaac Lab</p></td>
+</tr>
+<tr class="row-even"><td><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">compute_reward</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="c1"># retrieve environment observations from buffer</span>
+    <span class="n">pole_angle</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">obs_buf</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">]</span>
+    <span class="n">pole_vel</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">obs_buf</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">]</span>
+    <span class="n">cart_vel</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">obs_buf</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span>
+    <span class="n">cart_pos</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">obs_buf</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span>
+
+    <span class="bp">self</span><span class="o">.</span><span class="n">rew_buf</span><span class="p">[:],</span> <span class="bp">self</span><span class="o">.</span><span class="n">reset_buf</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">compute_cartpole_reward</span><span class="p">(</span>
+        <span class="n">pole_angle</span><span class="p">,</span> <span class="n">pole_vel</span><span class="p">,</span> <span class="n">cart_vel</span><span class="p">,</span> <span class="n">cart_pos</span><span class="p">,</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">reset_dist</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">reset_buf</span><span class="p">,</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">progress_buf</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_episode_length</span>
+    <span class="p">)</span>
+
+<span class="nd">@torch</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">script</span>
+<span class="k">def</span> <span class="nf">compute_cartpole_reward</span><span class="p">(</span><span class="n">pole_angle</span><span class="p">,</span> <span class="n">pole_vel</span><span class="p">,</span>
+                            <span class="n">cart_vel</span><span class="p">,</span> <span class="n">cart_pos</span><span class="p">,</span>
+                            <span class="n">reset_dist</span><span class="p">,</span> <span class="n">reset_buf</span><span class="p">,</span>
+                            <span class="n">progress_buf</span><span class="p">,</span> <span class="n">max_episode_length</span><span class="p">):</span>
+
+    <span class="n">reward</span> <span class="o">=</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="n">pole_angle</span> <span class="o">*</span> <span class="n">pole_angle</span> <span class="o">-</span>
+        <span class="mf">0.01</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">cart_vel</span><span class="p">)</span> <span class="o">-</span>
+        <span class="mf">0.005</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">pole_vel</span><span class="p">))</span>
+
+    <span class="c1"># adjust reward for reset agents</span>
+    <span class="n">reward</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">cart_pos</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">reset_dist</span><span class="p">,</span>
+        <span class="n">torch</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">reward</span><span class="p">)</span> <span class="o">*</span> <span class="o">-</span><span class="mf">2.0</span><span class="p">,</span> <span class="n">reward</span><span class="p">)</span>
+    <span class="n">reward</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">pole_angle</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="mi">2</span><span class="p">,</span>
+        <span class="n">torch</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">reward</span><span class="p">)</span> <span class="o">*</span> <span class="o">-</span><span class="mf">2.0</span><span class="p">,</span> <span class="n">reward</span><span class="p">)</span>
+
+    <span class="n">reset</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">cart_pos</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">reset_dist</span><span class="p">,</span>
+        <span class="n">torch</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">reset_buf</span><span class="p">),</span> <span class="n">reset_buf</span><span class="p">)</span>
+    <span class="n">reset</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">pole_angle</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="mi">2</span><span class="p">,</span>
+        <span class="n">torch</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">reset_buf</span><span class="p">),</span> <span class="n">reset_buf</span><span class="p">)</span>
+    <span class="n">reset</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">progress_buf</span> <span class="o">&gt;=</span> <span class="n">max_episode_length</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="n">torch</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">reset_buf</span><span class="p">),</span> <span class="n">reset</span><span class="p">)</span>
+</pre></div>
+</div>
+</td>
+<td><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">_get_rewards</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+    <span class="n">total_reward</span> <span class="o">=</span> <span class="n">compute_rewards</span><span class="p">(</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">rew_scale_alive</span><span class="p">,</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">rew_scale_terminated</span><span class="p">,</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">rew_scale_pole_pos</span><span class="p">,</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">rew_scale_cart_vel</span><span class="p">,</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">rew_scale_pole_vel</span><span class="p">,</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">joint_pos</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pole_dof_idx</span><span class="p">[</span><span class="mi">0</span><span class="p">]],</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">joint_vel</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pole_dof_idx</span><span class="p">[</span><span class="mi">0</span><span class="p">]],</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">joint_pos</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cart_dof_idx</span><span class="p">[</span><span class="mi">0</span><span class="p">]],</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">joint_vel</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cart_dof_idx</span><span class="p">[</span><span class="mi">0</span><span class="p">]],</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">reset_terminated</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">total_reward</span>
+
+<span class="nd">@torch</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">script</span>
+<span class="k">def</span> <span class="nf">compute_rewards</span><span class="p">(</span>
+    <span class="n">rew_scale_alive</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">rew_scale_terminated</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">rew_scale_pole_pos</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">rew_scale_cart_vel</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">rew_scale_pole_vel</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">pole_pos</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">pole_vel</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">cart_pos</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">cart_vel</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">reset_terminated</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+<span class="p">):</span>
+    <span class="n">rew_alive</span> <span class="o">=</span> <span class="n">rew_scale_alive</span> <span class="o">*</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="n">reset_terminated</span><span class="o">.</span><span class="n">float</span><span class="p">())</span>
+    <span class="n">rew_termination</span> <span class="o">=</span> <span class="n">rew_scale_terminated</span> <span class="o">*</span> <span class="n">reset_terminated</span><span class="o">.</span><span class="n">float</span><span class="p">()</span>
+    <span class="n">rew_pole_pos</span> <span class="o">=</span> <span class="n">rew_scale_pole_pos</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span>
+        <span class="n">torch</span><span class="o">.</span><span class="n">square</span><span class="p">(</span><span class="n">pole_pos</span><span class="p">),</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">rew_cart_vel</span> <span class="o">=</span> <span class="n">rew_scale_cart_vel</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span>
+        <span class="n">torch</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">cart_vel</span><span class="p">),</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">rew_pole_vel</span> <span class="o">=</span> <span class="n">rew_scale_pole_vel</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span>
+        <span class="n">torch</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">pole_vel</span><span class="p">),</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">total_reward</span> <span class="o">=</span> <span class="p">(</span><span class="n">rew_alive</span> <span class="o">+</span> <span class="n">rew_termination</span>
+                     <span class="o">+</span> <span class="n">rew_pole_pos</span> <span class="o">+</span> <span class="n">rew_cart_vel</span> <span class="o">+</span> <span class="n">rew_pole_vel</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">total_reward</span>
+</pre></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+</section>
+<section id="launching-training">
+<h2>Launching Training<a class="headerlink" href="#launching-training" title="Permalink to this heading">#</a></h2>
+<p>To launch a training in Isaac Lab, use the command:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>source/standalone/workflows/rl_games/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-Direct-v0<span class="w"> </span>--headless
+</pre></div>
+</div>
+</section>
+<section id="launching-inferencing">
+<h2>Launching Inferencing<a class="headerlink" href="#launching-inferencing" title="Permalink to this heading">#</a></h2>
+<p>To launch inferencing in Isaac Lab, use the command:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>source/standalone/workflows/rl_games/play.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-Direct-v0<span class="w"> </span>--num_envs<span class="o">=</span><span class="m">25</span><span class="w"> </span>--checkpoint<span class="o">=</span>&lt;path/to/checkpoint&gt;
+</pre></div>
+</div>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="../deployment/run_docker_example.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Running an example with Docker</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="migrating_from_omniisaacgymenvs.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">From OmniIsaacGymEnvs</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#task-config-setup">Task Config Setup</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#simulation-config">Simulation Config</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#scene-config">Scene Config</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#task-config">Task Config</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#rl-config-setup">RL Config Setup</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#environment-creation">Environment Creation</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#ground-plane">Ground Plane</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#actors">Actors</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#simulation-parameters-for-actors">Simulation Parameters for Actors</a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cloner">Cloner</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#accessing-states-from-simulation">Accessing States from Simulation</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#quaternion-convention">Quaternion Convention</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#articulation-joint-order">Articulation Joint Order</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#creating-a-new-environment">Creating a New Environment</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#task-logic">Task Logic</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#putting-it-all-together">Putting It All Together</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id1">Task Config</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#task-setup">Task Setup</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#scene-setup">Scene Setup</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#pre-and-post-physics-step">Pre and Post Physics Step</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dones-and-resets">Dones and Resets</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#observations">Observations</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#rewards">Rewards</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#launching-training">Launching Training</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#launching-inferencing">Launching Inferencing</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By The Isaac Lab Project Developers.
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2022-2024, The Isaac Lab Project Developers..
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    <p class="last-updated">
+  Last updated on Nov 25, 2024.
+  <br/>
+</p>
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=26a4bc78f4c0ddb94549"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=26a4bc78f4c0ddb94549"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>
