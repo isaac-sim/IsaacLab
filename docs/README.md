@@ -1,30 +1,75 @@
 # Building Documentation
 
-We use [Sphinx](https://www.sphinx-doc.org/en/master/) with the [Book Theme](https://sphinx-book-theme.readthedocs.io/en/stable/) for maintaining the documentation.
+We use [Sphinx](https://www.sphinx-doc.org/en/master/) with the [Book Theme](https://sphinx-book-theme.readthedocs.io/en/stable/) for maintaining and generating our documentation.
 
-> **Note:** To build the documentation, we recommend creating a virtual environment to avoid any conflicts with system installed dependencies.
+> **Note:** To avoid dependency conflicts, we strongly recommend using a Python virtual environment to isolate the required dependencies from your system's global Python environment.
 
-Execute the following instructions to build the documentation (assumed from the top of the repository):
+## Current-Version Documentation
 
-1. Install the dependencies for [Sphinx](https://www.sphinx-doc.org/en/master/):
+This section describes how to build the documentation for the current version of the project.
 
-    ```bash
-    # enter the location where this readme exists
-    cd docs
-    # install dependencies
-    pip install -r requirements.txt
-    ```
+<details open>
+<summary><strong>Linux</strong></summary>
 
-2. Generate the documentation file via:
+```bash
+# 1. Navigate to the docs directory and install dependencies
+cd docs
+pip install -r requirements.txt
 
-    ```bash
-    # make the html version
-    make html
-    ```
+# 2. Build the current documentation
+make current-docs
 
-3. The documentation is now available at `docs/_build/html/index.html`:
+# 3. Open the current docs
+xdg-open _build/current/index.html
+```
+</details>
 
-    ```bash
-    # open on default browser
-    xdg-open _build/html/index.html
-    ```
+<details> <summary><strong>Windows</strong></summary>
+
+```batch
+:: 1. Navigate to the docs directory and install dependencies
+cd docs
+pip install -r requirements.txt
+
+:: 2. Build the current documentation
+make current-docs
+
+:: 3. Open the current docs
+start _build\current\index.html
+```
+</details>
+
+
+## Multi-Version Documentation
+
+This section describes how to build the multi-version documentation, which includes previous tags and the main branch.
+
+<details open> <summary><strong>Linux</strong></summary>
+
+```bash
+# 1. Navigate to the docs directory and install dependencies
+cd docs
+pip install -r requirements.txt
+
+# 2. Build the multi-version documentation
+make multi-docs
+
+# 3. Open the multi-version docs
+xdg-open _build/index.html
+```
+</details>
+
+<details> <summary><strong>Windows</strong></summary>
+
+```batch
+:: 1. Navigate to the docs directory and install dependencies
+cd docs
+pip install -r requirements.txt
+
+:: 2. Build the multi-version documentation
+make multi-docs
+
+:: 3. Open the multi-version docs
+start _build\index.html
+```
+</details>

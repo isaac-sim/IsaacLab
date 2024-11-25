@@ -121,7 +121,7 @@ class TestCamera(unittest.TestCase):
             # update camera
             camera.update(self.dt)
             # check image data
-            for im_data in camera.data.output.to_dict().values():
+            for im_data in camera.data.output.values():
                 self.assertEqual(im_data.shape, (1, self.camera_cfg.height, self.camera_cfg.width, 1))
 
     def test_camera_init_offset(self):
@@ -228,7 +228,7 @@ class TestCamera(unittest.TestCase):
             cam_2.update(self.dt)
             # check image data
             for cam in [cam_1, cam_2]:
-                for im_data in cam.data.output.to_dict().values():
+                for im_data in cam.data.output.values():
                     self.assertEqual(im_data.shape, (1, self.camera_cfg.height, self.camera_cfg.width, 1))
 
     def test_multi_camera_with_different_resolution(self):
@@ -705,7 +705,7 @@ class TestCamera(unittest.TestCase):
             with Timer(f"Time taken for writing data with shape {camera.image_shape}   "):
                 # Pack data back into replicator format to save them using its writer
                 rep_output = {"annotators": {}}
-                camera_data = convert_dict_to_backend(camera.data.output[0].to_dict(), backend="numpy")
+                camera_data = convert_dict_to_backend({k: v[0] for k, v in camera.data.output.items()}, backend="numpy")
                 for key, data, info in zip(camera_data.keys(), camera_data.values(), camera.data.info[0].values()):
                     if info is not None:
                         rep_output["annotators"][key] = {"render_product": {"data": data, **info}}
@@ -718,6 +718,15 @@ class TestCamera(unittest.TestCase):
             # Check image data
             for im_data in camera.data.output.values():
                 self.assertEqual(im_data.shape, (1, camera_cfg.height, camera_cfg.width, 1))
+
+    def test_sensor_print(self):
+        """Test sensor print is working correctly."""
+        # Create sensor
+        sensor = Camera(cfg=self.camera_cfg)
+        # Play sim
+        self.sim.reset()
+        # print info
+        print(sensor)
 
     """
     Helper functions.

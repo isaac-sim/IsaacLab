@@ -69,6 +69,8 @@ class ManagerBasedEnv:
             RuntimeError: If a simulation context already exists. The environment must always create one
                 since it configures the simulation context and controls the simulation.
         """
+        # check that the config is valid
+        cfg.validate()
         # store inputs to class
         self.cfg = cfg
         # initialize internal variables
@@ -103,7 +105,7 @@ class ManagerBasedEnv:
         if self.cfg.sim.render_interval < self.cfg.decimation:
             msg = (
                 f"The render interval ({self.cfg.sim.render_interval}) is smaller than the decimation "
-                f"({self.cfg.decimation}). Multiple multiple render calls will happen for each environment step. "
+                f"({self.cfg.decimation}). Multiple render calls will happen for each environment step. "
                 "If this is not intended, set the render interval to be equal to the decimation."
             )
             omni.log.warn(msg)

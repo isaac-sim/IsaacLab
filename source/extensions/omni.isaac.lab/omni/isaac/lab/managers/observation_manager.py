@@ -65,9 +65,15 @@ class ObservationManager(ManagerBase):
             env: The environment instance.
 
         Raises:
+            ValueError: If the configuration is None.
             RuntimeError: If the shapes of the observation terms in a group are not compatible for concatenation
                 and the :attr:`~ObservationGroupCfg.concatenate_terms` attribute is set to True.
         """
+        # check that cfg is not None
+        if cfg is None:
+            raise ValueError("Observation manager configuration is None. Please provide a valid configuration.")
+
+        # call the base class constructor (this will parse the terms config)
         super().__init__(cfg, env)
 
         # compute combined vector for obs group
@@ -284,7 +290,7 @@ class ObservationManager(ManagerBase):
                 obs = term_cfg.noise.func(obs, term_cfg.noise)
             if term_cfg.clip:
                 obs = obs.clip_(min=term_cfg.clip[0], max=term_cfg.clip[1])
-            if term_cfg.scale:
+            if term_cfg.scale is not None:
                 obs = obs.mul_(term_cfg.scale)
             cur_hist = group_term_hist[name]
             # cur_hist[:, :-1] = cur_hist[:, 1:]
@@ -353,7 +359,7 @@ class ObservationManager(ManagerBase):
             else:
                 group_cfg_items = group_cfg.__dict__.items()
             # iterate over all the terms in each group
-            for term_name, term_cfg in group_cfg.__dict__.items():
+            for term_name, term_cfg in group_cfg_items:
                 # skip non-obs settings
                 if term_name in ["enable_corruption", "concatenate_terms", "hist_len"]:
                     continue
@@ -383,6 +389,23 @@ class ObservationManager(ManagerBase):
                 self._group_obs_term_hist[group_name][term_name] = torch.zeros(
                     (obs_dims[0], term_cfg.hist_len, *obs_dims[1:]), device=self._env.device
                 )
+
+                # if scale is set, check if single float or tuple
+                if term_cfg.scale is not None:
+                    if not isinstance(term_cfg.scale, (float, int, tuple)):
+                        raise TypeError(
+                            f"Scale for observation term '{term_name}' in group '{group_name}'"
+                            f" is not of type float, int or tuple. Received: '{type(term_cfg.scale)}'."
+                        )
+                    if isinstance(term_cfg.scale, tuple) and len(term_cfg.scale) != obs_dims[1]:
+                        raise ValueError(
+                            f"Scale for observation term '{term_name}' in group '{group_name}'"
+                            f" does not match the dimensions of the observation. Expected: {obs_dims[1]}"
+                            f" but received: {len(term_cfg.scale)}."
+                        )
+
+                    # cast the scale into torch tensor
+                    term_cfg.scale = torch.tensor(term_cfg.scale, dtype=torch.float, device=self._env.device)
 
                 # prepare modifiers for each observation
                 if term_cfg.modifiers is not None:

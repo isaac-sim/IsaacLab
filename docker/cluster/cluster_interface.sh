@@ -16,8 +16,18 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 #==
 # Functions
 #==
+# Function to display warnings in red
+display_warning() {
+    echo -e "\033[31mWARNING: $1\033[0m"
+}
+
+# Helper function to compare version numbers
+version_gte() {
+    # Returns 0 if the first version is greater than or equal to the second, otherwise 1
+    [ "$(printf '%s\n' "$1" "$2" | sort -V | head -n 1)" == "$2" ]
+}
+
 # Function to check docker versions
-# If docker version is more than 25, the script errors out.
 check_docker_version() {
     # check if docker is installed
     if ! command -v docker &> /dev/null; then
@@ -28,14 +38,18 @@ check_docker_version() {
     docker_version=$(docker --version | awk '{ print $3 }')
     apptainer_version=$(apptainer --version | awk '{ print $3 }')
 
-    # Check if version is above 25.xx
-    echo "[INFO]: Building singularity with docker version: ${docker_version} and Apptainer version: ${apptainer_version}."
-    # if [ "$(echo "${docker_version}" | cut -d '.' -f 1)" -ge 25 ]; then
-    #     echo "[ERROR]: Docker version ${docker_version} is not compatible with Apptainer version ${apptainer_version}. Exiting."
-    #     exit 1
-    # else
+    # Check if Docker version is exactly 24.0.7 or Apptainer version is exactly 1.2.5
+    if [ "$docker_version" = "24.0.7" ] && [ "$apptainer_version" = "1.2.5" ]; then
+        echo "[INFO]: Docker version ${docker_version} and Apptainer version ${apptainer_version} are tested and compatible."
 
-    # fi
+    # Check if Docker version is >= 27.0.0 and Apptainer version is >= 1.3.4
+    elif version_gte "$docker_version" "27.0.0" && version_gte "$apptainer_version" "1.3.4"; then
+        echo "[INFO]: Docker version ${docker_version} and Apptainer version ${apptainer_version} are tested and compatible."
+
+    # Else, display a warning for non-tested versions
+    else
+        display_warning "Docker version ${docker_version} and Apptainer version ${apptainer_version} are non-tested versions. There could be issues, please try to update them. More info: https://isaac-sim.github.io/IsaacLab/source/deployment/cluster.html"
+    fi
 }
 
 # Checks if a docker image exists, otherwise prints warning and exists
@@ -140,7 +154,7 @@ case $command in
         fi
         # Check if Docker image exists
         check_image_exists isaac-lab-$profile:latest
-        # Check if Docker version is greater than 25
+        # Check docker and apptainer version
         check_docker_version
         # source env file to get cluster login and path information
         source $SCRIPT_DIR/.env.cluster
@@ -152,7 +166,7 @@ case $command in
         # NOTE: we create the singularity image as non-root user to allow for more flexibility. If this causes
         # issues, remove the --fakeroot flag and open an issue on the IsaacLab repository.
         cd /$SCRIPT_DIR/exports
-        APPTAINER_NOHTTPS=1 apptainer build --sandbox  isaac-lab-$profile.sif docker-daemon://isaac-lab-$profile:latest
+        APPTAINER_NOHTTPS=1 apptainer build --sandbox --fakeroot isaac-lab-$profile.sif docker-daemon://isaac-lab-$profile:latest
         # tar image (faster to send single file as opposed to directory with many files)
         tar -cvf /$SCRIPT_DIR/exports/isaac-lab-$profile.tar isaac-lab-$profile.sif
         # make sure target directory exists
@@ -163,7 +177,7 @@ case $command in
     job)
         if [ $# -ge 1 ]; then
             passed_profile=$1
-            if [ -f ".env.$passed_profile" ]; then
+            if [ -f "$SCRIPT_DIR/../.env.$passed_profile" ]; then
                 profile=$passed_profile
                 shift
             fi

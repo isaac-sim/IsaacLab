@@ -48,24 +48,11 @@ class CartpoleSceneCfg(InteractiveSceneCfg):
         prim_path="/World/DomeLight",
         spawn=sim_utils.DomeLightCfg(color=(0.9, 0.9, 0.9), intensity=500.0),
     )
-    distant_light = AssetBaseCfg(
-        prim_path="/World/DistantLight",
-        spawn=sim_utils.DistantLightCfg(color=(0.9, 0.9, 0.9), intensity=2500.0),
-        init_state=AssetBaseCfg.InitialStateCfg(rot=(0.738, 0.477, 0.477, 0.0)),
-    )
 
 
 ##
 # MDP settings
 ##
-
-
-@configclass
-class CommandsCfg:
-    """Command terms for the MDP."""
-
-    # no commands for this MDP
-    null = mdp.NullCommandCfg()
 
 
 @configclass
@@ -162,13 +149,6 @@ class TerminationsCfg:
     )
 
 
-@configclass
-class CurriculumCfg:
-    """Configuration for the curriculum."""
-
-    pass
-
-
 ##
 # Environment configuration
 ##
@@ -185,11 +165,8 @@ class CartpoleEnvCfg(ManagerBasedRLEnvCfg):
     actions: ActionsCfg = ActionsCfg()
     events: EventCfg = EventCfg()
     # MDP settings
-    curriculum: CurriculumCfg = CurriculumCfg()
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
-    # No command generator
-    commands: CommandsCfg = CommandsCfg()
 
     # Post initialization
     def __post_init__(self) -> None:
