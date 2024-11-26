@@ -75,6 +75,16 @@ class CircularBuffer:
         """
         return torch.minimum(self._num_pushes, self._max_len)
 
+    @property
+    def buffer(self) -> torch.Tensor:
+        """Complete circular buffer with most recent entry at the end and oldest entry at the beginning.
+        Returns:
+            Complete circular buffer with most recent entry at the end and oldest entry at the beginning of dimension 1. The shape is [batch_size, max_length, data.shape[1:]].
+        """
+        buf = self._buffer.clone()
+        buf = torch.roll(buf, shifts=self.max_length - self._pointer - 1, dims=0)
+        return torch.transpose(buf, dim0=0, dim1=1)
+
     """
     Operations.
     """
@@ -89,8 +99,10 @@ class CircularBuffer:
         if batch_ids is None:
             batch_ids = slice(None)
         # reset the number of pushes for the specified batch indices
-        # note: we don't need to reset the buffer since it will be overwritten. The pointer handles this.
         self._num_pushes[batch_ids] = 0
+        if self._buffer is not None:
+            # set buffer at batch_id reset indices to 0.0 so that the buffer() getter returns the cleared circular buffer after reset.
+            self._buffer[:, batch_ids, :] = 0.0
 
     def append(self, data: torch.Tensor):
         """Append the data to the circular buffer.
@@ -109,7 +121,7 @@ class CircularBuffer:
         # at the fist call, initialize the buffer
         if self._buffer is None:
             self._pointer = -1
-            self._buffer = torch.empty((self.max_length, *data.shape), dtype=data.dtype, device=self._device)
+            self._buffer = torch.zeros((self.max_length, *data.shape), dtype=data.dtype, device=self._device)
         # move the head to the next slot
         self._pointer = (self._pointer + 1) % self.max_length
         # add the new data to the last layer
