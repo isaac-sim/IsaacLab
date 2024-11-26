@@ -269,7 +269,6 @@ class ManagerBasedEnv:
 
         # reset state of scene
         self._reset_idx(env_ids)
-
         self.scene.write_data_to_sim()
 
         # trigger recorder terms for post-reset calls
@@ -317,7 +316,6 @@ class ManagerBasedEnv:
 
         # set the state
         self.scene.reset_to(state, env_ids, is_relative=is_relative)
-        self.scene.write_data_to_sim()
 
         # trigger recorder terms for post-reset calls
         self.recorder_manager.record_post_reset(env_ids)

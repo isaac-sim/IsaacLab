@@ -353,6 +353,9 @@ class InteractiveScene:
     def get_state(self, is_relative: bool = False) -> dict[str, dict[str, torch.Tensor]]:
         """Returns the state of the scene entities.
 
+        Args:
+            is_relative: If set to True, the state is considered relative to the environment origins.
+
         Returns:
             A dictionary of the state of the scene entities.
         """
@@ -412,7 +415,7 @@ class InteractiveScene:
             env_ids = slice(None)
         # -- assets
         for asset_name, articulation in self._articulations.items():
-            joint_position = torch.Tensor(state["articulation"][asset_name])
+            joint_position = state["articulation"][asset_name]
             articulation.write_joint_state_to_sim(joint_position, torch.zeros_like(joint_position), env_ids=env_ids)
             articulation.set_joint_position_target(joint_position, env_ids=env_ids)
             articulation.set_joint_velocity_target(torch.zeros_like(joint_position), env_ids=env_ids)
