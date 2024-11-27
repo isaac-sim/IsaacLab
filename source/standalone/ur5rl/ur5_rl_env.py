@@ -26,7 +26,7 @@ class HawUr5EnvCfg(DirectRLEnvCfg):
     num_states = 5
     reward_scale_example = 1.0
     decimation = 2
-    action_scale = 1.0
+    action_scale = 0.4
     v_cm = 25  # cm/s
     stepsize = v_cm * (1 / f_update) / 44  # Max angle delta per update
 
@@ -96,6 +96,7 @@ class HawUr5Env(DirectRLEnv):
         self.haw_ur5_dof_idx, _ = self.robot.find_joints(self.cfg.haw_ur5_dof_name)
         self.action_scale = self.cfg.action_scale
 
+        # Holds the current joint positions and velocities
         self.joint_pos = self.robot.data.joint_pos
         self.joint_vel = self.robot.data.joint_vel
 
@@ -125,15 +126,31 @@ class HawUr5Env(DirectRLEnv):
     def _gripper_action_to_joint_targets(
         self, gripper_action: torch.Tensor
     ) -> torch.Tensor:
+        """_summary_
+        Convert gripper action [-1,1] to the corresponding angles of all gripper joints.
+
+        Args:
+            gripper_action (torch.Tensor): single value between -1 and 1 (e.g. tensor([0.], device='cuda:0'))
+
+        Returns:
+            torch.Tensor: _description_
+        """
         # Convert each gripper action to the corresponding 6 gripper joint positions (min max 36 = joint limit)
+        # gripper_action = gripper_action * 0 if gripper_action < 0 else 1
+        gripper_action_bin = torch.where(
+            gripper_action > 0,
+            torch.tensor(1.0, device="cuda:0"),
+            torch.tensor(-1.0, device="cuda:0"),
+        )
+
         gripper_joint_targets = torch.stack(
             [
-                36 * gripper_action,  # "left_outer_knuckle_joint"
-                -36 * gripper_action,  # "left_inner_finger_joint"
-                -36 * gripper_action,  # "left_inner_knuckle_joint"
-                -36 * gripper_action,  # "right_inner_knuckle_joint"
-                36 * gripper_action,  # "right_outer_knuckle_joint"
-                36 * gripper_action,  # "right_inner_finger_joint"
+                35 * gripper_action_bin,  # "left_outer_knuckle_joint"
+                -35 * gripper_action_bin,  # "left_inner_finger_joint"
+                -35 * gripper_action_bin,  # "left_inner_knuckle_joint"
+                -35 * gripper_action_bin,  # "right_inner_knuckle_joint"
+                35 * gripper_action_bin,  # "right_outer_knuckle_joint"
+                35 * gripper_action_bin,  # "right_inner_finger_joint"
             ],
             dim=1,
         )  # Shape: (num_envs, 6)
@@ -218,14 +235,28 @@ class HawUr5Env(DirectRLEnv):
         self, joint_angles: list[float]
     ) -> bool:  # TODO not yet working
         try:
-            # Set arm joint angles from list # TODO: Add Gripper control
+            # Set arm joint angles from list
             T_arm_angles = torch.tensor(joint_angles[:6], device=self.device)
-            T_gripper_angle = torch.tensor(joint_angles[6], device=self.device)
-            T_gripper_angles = self._gripper_action_to_joint_targets(T_gripper_angle)
-            T_angles = torch.cat((T_arm_angles, T_gripper_angles), dim=1)
+            T_arm_angles = T_arm_angles.unsqueeze(1)
+            # Set gripper joint angles from list
+            T_arm_angles = torch.transpose(T_arm_angles, 0, 1)
 
-            env_ids = self.robot._ALL_INDICES  # type: ignore
-            self.robot.write_joint_state_to_sim(T_angles, torch.zeros_like(T_angles), None, env_ids=env_ids)  # type: ignore
+            default_velocities = self.robot.data.default_joint_vel
+
+            # ! YANK - BAD WORKAROUND
+            # Set joint angles by action
+            # self.joint_pos = T_angles
+            # self.joint_vel = default_velocities
+            # self.actions = T_angles
+            # self._apply_action()
+
+            # ! TODO find out why below code destroys the gripper (THIS IS THE TRUE RESET!)
+            # ? Maybe the gripper joint limits are exceeded by writing the joint state to the sim
+            # self.joint_pos = T_angles
+            # self.joint_vel = default_velocities
+            print(f"Setting joint angles to: {T_arm_angles}")
+            print(f"Shape of joint angles: {T_arm_angles.shape}")
+            self.robot.write_joint_state_to_sim(T_arm_angles, default_velocities[:, :6], self._arm_dof_idx, None)  # type: ignore
             return True
         except Exception as e:
             print(f"Error setting joint angles: {e}")
