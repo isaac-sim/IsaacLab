@@ -140,7 +140,6 @@ def main():
                 ur5_controller.set_joint_delta(actions[0, :7].numpy())
                 real_joint_positions = ur5_controller.get_joint_positions()
 
-            print(f"Gripperaction: {gripper_action}")
             # Step the environment
             obs, rew, terminated, truncated, info = env.step(actions)
 
