@@ -286,7 +286,7 @@ class ManagerBasedEnv:
 
     def reset_to(
         self,
-        state: dict[str, dict[str, torch.Tensor]],
+        state: dict[str, dict[str, dict[str, torch.Tensor]]],
         env_ids: Sequence[int] | None,
         seed: int | None = None,
         is_relative: bool = False,

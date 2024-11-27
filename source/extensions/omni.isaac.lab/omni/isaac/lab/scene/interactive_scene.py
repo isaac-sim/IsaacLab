@@ -342,7 +342,7 @@ class InteractiveScene:
         return self._extras
 
     @property
-    def state(self) -> dict[str, dict[str, torch.Tensor]]:
+    def state(self) -> dict[str, dict[str, dict[str, torch.Tensor]]]:
         """Returns the state of the scene entities.
 
         Returns:
@@ -350,7 +350,7 @@ class InteractiveScene:
         """
         return self.get_state(is_relative=False)
 
-    def get_state(self, is_relative: bool = False) -> dict[str, dict[str, torch.Tensor]]:
+    def get_state(self, is_relative: bool = False) -> dict[str, dict[str, dict[str, torch.Tensor]]]:
         """Returns the state of the scene entities.
 
         Args:
@@ -363,17 +363,23 @@ class InteractiveScene:
         # -- assets
         state["articulation"] = dict()
         for asset_name, articulation in self._articulations.items():
-            state["articulation"][asset_name] = articulation.data.joint_pos.clone()
+            state["articulation"][asset_name] = dict()
+            state["articulation"][asset_name]["joint_position"] = articulation.data.joint_pos.clone()
+            state["articulation"][asset_name]["joint_velocity"] = articulation.data.joint_vel.clone()
         state["deformable_object"] = dict()
         for asset_name, deformable_object in self._deformable_objects.items():
-            state["deformable_object"][asset_name] = deformable_object.data.root_state_w.clone()
+            state["deformable_object"][asset_name] = dict()
+            state["deformable_object"][asset_name]["nodal_position"] = deformable_object.data.nodal_pos_w.clone()
+            state["deformable_object"][asset_name]["nodal_velocity"] = deformable_object.data.nodal_vel_w.clone()
             if is_relative:
-                state["deformable_object"][asset_name][:, 0:3] -= self.env_origins
+                state["deformable_object"][asset_name]["nodal_position"][:, :3] -= self.env_origins
         state["rigid_object"] = dict()
         for asset_name, rigid_object in self._rigid_objects.items():
-            state["rigid_object"][asset_name] = rigid_object.data.root_state_w.clone()
+            state["rigid_object"][asset_name] = dict()
+            state["rigid_object"][asset_name]["root_pose"] = rigid_object.data.root_state_w[:, :7].clone()
+            state["rigid_object"][asset_name]["root_velocity"] = rigid_object.data.root_vel_w.clone()
             if is_relative:
-                state["rigid_object"][asset_name][:, 0:3] -= self.env_origins
+                state["rigid_object"][asset_name]["root_pose"][:, :3] -= self.env_origins
         return state
 
     """
@@ -401,7 +407,10 @@ class InteractiveScene:
             sensor.reset(env_ids)
 
     def reset_to(
-        self, state: dict[str, dict[str, torch.Tensor]], env_ids: Sequence[int] | None = None, is_relative: bool = False
+        self,
+        state: dict[str, dict[str, dict[str, torch.Tensor]]],
+        env_ids: Sequence[int] | None = None,
+        is_relative: bool = False,
     ):
         """Resets the scene entities to the given state.
 
@@ -415,20 +424,25 @@ class InteractiveScene:
             env_ids = slice(None)
         # -- assets
         for asset_name, articulation in self._articulations.items():
-            joint_position = state["articulation"][asset_name]
-            articulation.write_joint_state_to_sim(joint_position, torch.zeros_like(joint_position), env_ids=env_ids)
+            joint_position = state["articulation"][asset_name]["joint_position"]
+            joint_velocity = state["articulation"][asset_name]["joint_velocity"]
+            articulation.write_joint_state_to_sim(joint_position, joint_velocity, env_ids=env_ids)
             articulation.set_joint_position_target(joint_position, env_ids=env_ids)
-            articulation.set_joint_velocity_target(torch.zeros_like(joint_position), env_ids=env_ids)
+            articulation.set_joint_velocity_target(joint_velocity, env_ids=env_ids)
         for asset_name, deformable_object in self._deformable_objects.items():
-            asset_state = state["deformable_object"][asset_name]
+            nodal_position = state["deformable_object"][asset_name]["nodal_position"]
+            nodal_velocity = state["deformable_object"][asset_name]["nodal_velocity"]
             if is_relative:
-                asset_state[:, 0:3] += self.env_origins[env_ids]
-            deformable_object.write_root_state_to_sim(asset_state, env_ids=env_ids)
+                nodal_position[:, :3] += self.env_origins[env_ids]
+            deformable_object.write_nodal_pos_to_sim(nodal_position, env_ids=env_ids)
+            deformable_object.write_nodal_velocity_to_sim(nodal_velocity, env_ids=env_ids)
         for asset_name, rigid_object in self._rigid_objects.items():
-            asset_state = state["rigid_object"][asset_name]
+            root_pose = state["rigid_object"][asset_name]["root_pose"]
+            root_velocity = state["rigid_object"][asset_name]["root_velocity"]
             if is_relative:
-                asset_state[:, 0:3] += self.env_origins[env_ids]
-            rigid_object.write_root_state_to_sim(asset_state, env_ids=env_ids)
+                root_pose[:, :3] += self.env_origins[env_ids]
+            rigid_object.write_root_pose_to_sim(root_pose, env_ids=env_ids)
+            rigid_object.write_root_velocity_to_sim(root_velocity, env_ids=env_ids)
         self.write_data_to_sim()
 
     def write_data_to_sim(self):

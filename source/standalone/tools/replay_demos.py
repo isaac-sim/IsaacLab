@@ -69,6 +69,36 @@ def pause_cb():
     is_paused = True
 
 
+def compare_states(state_from_dataset, runtime_state, runtime_env_index) -> (bool, str):
+    """Compare states from dataset and runtime.
+
+    Args:
+        state_from_dataset: State from dataset.
+        runtime_state: State from runtime.
+        runtime_env_index: Index of the environment in the runtime states to be compared.
+
+    Returns:
+        bool: True if states match, False otherwise.
+        str: Log message if states don't match.
+    """
+    states_matched = True
+    output_log = ""
+    for asset_type in ["articulation", "rigid_object"]:
+        for asset_name in runtime_state[asset_type].keys():
+            for state_name in runtime_state[asset_type][asset_name].keys():
+                runtime_asset_state = runtime_state[asset_type][asset_name][state_name][runtime_env_index]
+                dataset_asset_state = state_from_dataset[asset_type][asset_name][state_name]
+                if len(dataset_asset_state) != len(runtime_asset_state):
+                    raise ValueError(f"State shape of {state_name} for asset {asset_name} don't match")
+                for i in range(len(dataset_asset_state)):
+                    if abs(dataset_asset_state[i] - runtime_asset_state[i]) > 0.01:
+                        states_matched = False
+                        output_log += f'\tState ["{asset_type}"]["{asset_name}"]["{state_name}"][{i}] don\'t match\r\n'
+                        output_log += f"\t  Dataset:\t{dataset_asset_state[i]}\r\n"
+                        output_log += f"\t  Runtime: \t{runtime_asset_state[i]}\r\n"
+    return states_matched, output_log
+
+
 def main():
     """Replay episodes loaded from a file."""
     global is_paused, current_action_index, subtask_indices
@@ -174,29 +204,17 @@ def main():
                 if state_validation_enabled:
                     state_from_dataset = env_episode_data_map[0].get_next_state()
                     if state_from_dataset is not None:
-                        # Iteratre over artiulation and rigid object states to compare with states
+                        print(
+                            f"Validating states at action-index: {env_episode_data_map[0].next_state_index - 1 :4}",
+                            end="",
+                        )
                         current_runtime_state = env.unwrapped.scene.get_state(is_relative=True)
-                        for asset_type in ["articulation", "rigid_object"]:
-                            for asset_name in current_runtime_state[asset_type].keys():
-                                current_runtime_asset_state = current_runtime_state[asset_type][asset_name][0]
-                                dataset_asset_state = state_from_dataset[asset_type][asset_name]
-                                if len(dataset_asset_state) == len(current_runtime_asset_state):
-                                    for i in range(len(dataset_asset_state)):
-                                        if abs(dataset_asset_state[i] - current_runtime_asset_state[i]) > 0.01:
-                                            print("\n")
-                                            print(
-                                                f'States for asset "{asset_name}" don\'t match at action-index:'
-                                                f" {env_episode_data_map[0].next_state_index - 1},"
-                                                f" state-tensor-index: {i}"
-                                            )
-                                            print(f"Dataset:\t{dataset_asset_state[i]}")
-                                            print(f"Runtime: \t{current_runtime_asset_state[i]}")
-                                else:
-                                    print("\n")
-                                    print(
-                                        f"State lengths for asset {asset_name} don't match at action index:"
-                                        f" {env_episode_data_map[0].next_state_index - 1}"
-                                    )
+                        states_matched, comparison_log = compare_states(state_from_dataset, current_runtime_state, 0)
+                        if states_matched:
+                            print("\t- matched.")
+                        else:
+                            print("\t- mismatched.")
+                            print(comparison_log)
             break
     # Close environment after replay in complete
     plural_trailing_s = "s" if replayed_episode_count > 1 else ""
