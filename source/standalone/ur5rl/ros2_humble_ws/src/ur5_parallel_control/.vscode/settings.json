@@ -1,0 +1,14 @@
+{
+    "python.autoComplete.extraPaths": [
+        "/home/luca/isaaclab_ws/IsaacLab/source/standalone/ur5rl/ros2_humble_ws/install/ur5_parallel_control/lib/python3.10/site-packages",
+        "/home/luca/ros2_ws/install/ur5_parallel_control/lib/python3.10/site-packages",
+        "/opt/ros/humble/lib/python3.10/site-packages",
+        "/opt/ros/humble/local/lib/python3.10/dist-packages"
+    ],
+    "python.analysis.extraPaths": [
+        "/home/luca/isaaclab_ws/IsaacLab/source/standalone/ur5rl/ros2_humble_ws/install/ur5_parallel_control/lib/python3.10/site-packages",
+        "/home/luca/ros2_ws/install/ur5_parallel_control/lib/python3.10/site-packages",
+        "/opt/ros/humble/lib/python3.10/site-packages",
+        "/opt/ros/humble/local/lib/python3.10/dist-packages"
+    ]
+}
