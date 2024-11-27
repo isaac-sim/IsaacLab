@@ -86,6 +86,7 @@ Table of Contents
 
    source/overview/developer-guide/index
    source/overview/core-concepts/index
+   source/overview/sensors/index
    source/overview/environments
    source/overview/reinforcement-learning/index
    source/overview/teleop_imitation
@@ -98,7 +99,7 @@ Table of Contents
 
    source/features/hydra
    source/features/multi_gpu
-   source/features/tiled_rendering
+   Tiled Rendering</source/overview/sensors/camera>
    source/features/reproducibility
 
 .. toctree::
