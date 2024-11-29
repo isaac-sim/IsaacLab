@@ -33,6 +33,7 @@ Guidelines for modifications:
 
 ## Contributors
 
+* Haoran Zhou
 * Alice Zhou
 * Amr Mousa
 * Andrej Orsula
