@@ -84,6 +84,7 @@ class GraspResetEventTermCfg(EventTerm):
     def __init__(
         self,
         reset_target: Literal["pre_grasp", "grasp", "mate", "rigid_grasp", "rigid_grasp_open_align"] = "grasp",
+        reset_range_scale: float = 1.0,
         reset_joint_std: float = 0.0,
         reset_randomize_mode: Literal["task", "joint", None] = "task",
         reset_use_adr: bool = False,
@@ -91,6 +92,7 @@ class GraspResetEventTermCfg(EventTerm):
     ):
         super().__init__(**kwargs)
         self.reset_target = reset_target
+        self.reset_range_scale = reset_range_scale
         self.reset_joint_std = reset_joint_std
         self.reset_randomize_mode = reset_randomize_mode
         self.reset_use_adr = reset_use_adr
@@ -115,8 +117,9 @@ class reset_scene_to_grasp_state(ManagerTermBase):
                                     )
         self.curobo_arm.update_world()
         self.reset_randomize_mode = cfg.reset_randomize_mode
-        self.reset_trans_low = torch.tensor([-0.03, -0.03, -0.0], device=env.device)
-        self.reset_trans_high = torch.tensor([0.03, 0.03, 0.04], device=env.device) 
+        self.reset_trans_low = torch.tensor([-0.03, -0.03, -0.0], device=env.device) * cfg.reset_range_scale
+        self.reset_trans_high = torch.tensor([0.03, 0.03, 0.04], device=env.device) * cfg.reset_range_scale
+        # TODO: add rotation noise
         self.reset_rot_std = 0.5
         self.reset_joint_std = cfg.reset_joint_std
         self.reset_use_adr = cfg.reset_use_adr
@@ -319,7 +322,7 @@ def modify_noise_scale(
     modifier.noise_scale = scale
 
 @configclass
-class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
+class IKRelKukaNutThreadEnvCfg(BaseNutThreadEnvCfg):
     """Configuration for the IK-based relative Kuka nut threading environment."""
 
     def get_default_env_params(self):
@@ -376,6 +379,7 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
 
         events_params = self.params.events
         events_params.reset_target = events_params.get("reset_target", "grasp")
+        events_params.reset_range_scale = events_params.get("reset_range_scale", 1.0)
         events_params.reset_randomize_mode = events_params.get("reset_randomize_mode", None)
         events_params.reset_joint_std = events_params.get("reset_joint_std", 0.0)
         events_params.reset_use_adr = events_params.get("reset_use_adr", False)
@@ -532,6 +536,7 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
             func=reset_scene_to_grasp_state,
             mode="reset",
             reset_target=event_params.reset_target,
+            reset_range_scale=event_params.reset_range_scale,
             reset_randomize_mode=event_params.reset_randomize_mode,
             reset_joint_std=event_params.reset_joint_std,
             reset_use_adr=event_params.reset_use_adr,
@@ -572,7 +577,7 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         )
         self.viewer.eye = (0.3, 0, 0.15)
 
-                # curriculum
+        # curriculum
         curri_params = self.params.curriculum
         if curri_params.use_obs_noise_curri:
             self.curriculum.modify_nut_pos_noise = CurrTerm(
@@ -582,5 +587,5 @@ class IKRelKukaNutThreadEnv(BaseNutThreadEnvCfg):
         if curri_params.use_contact_force_curri:
             self.curriculum.modify_contact_force_penalty = CurrTerm(
                 func=mdp.modify_reward_weight,
-                params={"term_name": "contact_force_penalty", "weight": -10, "num_steps": 500*32},
+                params={"term_name": "contact_force_penalty", "weight": -10, "num_steps": 800*32},
             )

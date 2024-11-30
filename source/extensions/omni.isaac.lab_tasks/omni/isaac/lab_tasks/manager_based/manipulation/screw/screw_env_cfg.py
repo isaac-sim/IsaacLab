@@ -277,13 +277,13 @@ class BaseScrewEnvCfg(ManagerBasedRLEnvCfg):
     rewards = MISSING
     terminations = MISSING
     events: EventCfg = EventCfg()
-    curriculum = MISSING
+    curriculum = CurriculumCfg()
 
     sim: SimulationCfg = SimulationCfg(
         dt=1.0 / 60.0,
         physx=PhysxCfg(
             bounce_threshold_velocity=0.2,
-            gpu_collision_stack_size=2**31,
+            gpu_collision_stack_size=2**30,
             gpu_heap_capacity=2**31,
             gpu_temp_buffer_capacity=2**30,
             gpu_max_rigid_patch_count=2**24,
