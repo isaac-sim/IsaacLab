@@ -11,10 +11,6 @@ repository = "https://github.com/isaac-sim/IsaacLab"
 category = "robotics"
 keywords = ["kit", "robotics", "learning", "ai"]
 
-[dependencies]
-"omni.isaac.core" = {}
-"omni.replicator.core" = {}
-
 [python.pipapi]
 requirements = [
     "numpy",

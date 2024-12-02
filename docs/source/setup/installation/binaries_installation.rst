@@ -107,7 +107,7 @@ For more information on common paths, please check the Isaac Sim
             # checks that python path is set correctly
             ${ISAACSIM_PYTHON_EXE} -c "print('Isaac Sim configuration is now complete.')"
             # checks that Isaac Sim can be launched from python
-            ${ISAACSIM_PYTHON_EXE} ${ISAACSIM_PATH}/standalone_examples/api/omni.isaac.core/add_cubes.py
+            ${ISAACSIM_PYTHON_EXE} ${ISAACSIM_PATH}/standalone_examples/api/isaacsim.core.api/add_cubes.py
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
@@ -117,7 +117,7 @@ For more information on common paths, please check the Isaac Sim
             :: checks that python path is set correctly
             %ISAACSIM_PYTHON_EXE% -c "print('Isaac Sim configuration is now complete.')"
             :: checks that Isaac Sim can be launched from python
-            %ISAACSIM_PYTHON_EXE% %ISAACSIM_PATH%\standalone_examples\api\omni.isaac.core\add_cubes.py
+            %ISAACSIM_PYTHON_EXE% %ISAACSIM_PATH%\standalone_examples\api\isaacsim.core.api\add_cubes.py
 
 
 .. caution::

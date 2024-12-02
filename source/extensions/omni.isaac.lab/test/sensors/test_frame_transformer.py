@@ -18,7 +18,7 @@ import scipy.spatial.transform as tf
 import torch
 import unittest
 
-import omni.isaac.core.utils.stage as stage_utils
+import isaacsim.core.utils.stage as stage_utils
 
 import omni.isaac.lab.sim as sim_utils
 import omni.isaac.lab.utils.math as math_utils

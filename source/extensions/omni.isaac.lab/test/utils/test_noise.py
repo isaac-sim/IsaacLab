@@ -83,8 +83,9 @@ class TestNoise(unittest.TestCase):
 
                             self.assertTrue(noise_cfg.n_min.device, device)
                             self.assertTrue(noise_cfg.n_max.device, device)
-                            self.assertTrue(all(torch.le(noise_cfg.n_min, min_result).tolist()))
-                            self.assertTrue(all(torch.ge(noise_cfg.n_max, max_result).tolist()))
+                            # add a small epsilon to accommodate for floating point error
+                            self.assertTrue(all(torch.le(noise_cfg.n_min - 1e-5, min_result).tolist()))
+                            self.assertTrue(all(torch.ge(noise_cfg.n_max + 1e-5, max_result).tolist()))
 
     def test_constant_noise(self):
         """Test constant_noise"""

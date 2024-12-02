@@ -23,7 +23,6 @@ optional arguments:
   -h, --help                Show this help message and exit
   --merge-joints            Consolidate links that are connected by fixed joints. (default: False)
   --fix-base                Fix the base to where it is imported. (default: False)
-  --make-instanceable       Make the asset instanceable for efficient cloning. (default: False)
 
 """
 
@@ -44,12 +43,6 @@ parser.add_argument(
     help="Consolidate links that are connected by fixed joints.",
 )
 parser.add_argument("--fix-base", action="store_true", default=False, help="Fix the base to where it is imported.")
-parser.add_argument(
-    "--make-instanceable",
-    action="store_true",
-    default=False,
-    help="Make the asset instanceable for efficient cloning.",
-)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -65,7 +58,7 @@ import contextlib
 import os
 
 import carb
-import omni.isaac.core.utils.stage as stage_utils
+import isaacsim.core.utils.stage as stage_utils
 import omni.kit.app
 
 from omni.isaac.lab.sim.converters import UrdfConverter, UrdfConverterCfg
@@ -93,7 +86,6 @@ def main():
         fix_base=args_cli.fix_base,
         merge_fixed_joints=args_cli.merge_joints,
         force_usd_conversion=True,
-        make_instanceable=args_cli.make_instanceable,
     )
 
     # Print info

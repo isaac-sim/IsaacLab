@@ -9,9 +9,9 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, ClassVar, Literal
 
-import omni.isaac.core.utils.stage as stage_utils
+import isaacsim.core.utils.stage as stage_utils
 import omni.physics.tensors.impl.api as physx
-from omni.isaac.core.prims import XFormPrimView
+from isaacsim.core.prims import XFormPrim
 
 import omni.isaac.lab.utils.math as math_utils
 from omni.isaac.lab.sensors.camera import CameraData
@@ -399,7 +399,7 @@ class RayCasterCamera(RayCaster):
         """
         # obtain the poses of the sensors
         # note: clone arg doesn't exist for xform prim view so we need to do this manually
-        if isinstance(self._view, XFormPrimView):
+        if isinstance(self._view, XFormPrim):
             pos_w, quat_w = self._view.get_world_poses(env_ids)
         elif isinstance(self._view, physx.ArticulationView):
             pos_w, quat_w = self._view.get_root_transforms()[env_ids].split([3, 4], dim=-1)

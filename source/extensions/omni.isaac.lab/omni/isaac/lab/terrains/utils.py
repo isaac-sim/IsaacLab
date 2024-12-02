@@ -80,7 +80,7 @@ def create_prim_from_mesh(prim_path: str, mesh: trimesh.Trimesh, **kwargs):
         physics_material: The physics material to apply. Defaults to None.
     """
     # need to import these here to prevent isaacsim launching when importing this module
-    import omni.isaac.core.utils.prims as prim_utils
+    import isaacsim.core.utils.prims as prim_utils
     from pxr import UsdGeom
 
     import omni.isaac.lab.sim as sim_utils

@@ -245,9 +245,9 @@ import random
 import time
 import torch
 
-import omni.isaac.core.utils.prims as prim_utils
+import isaacsim.core.utils.prims as prim_utils
 import psutil
-from omni.isaac.core.utils.stage import create_new_stage
+from isaacsim.core.utils.stage import create_new_stage
 
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.assets import RigidObject, RigidObjectCfg

@@ -23,7 +23,7 @@ import numpy as np
 import torch
 from dataclasses import MISSING
 
-import omni.isaac.core.utils.stage as stage_utils
+import isaacsim.core.utils.stage as stage_utils
 import omni.kit.commands
 import omni.physx.scripts.utils as physx_utils
 from pxr import Gf, PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, Vt
@@ -64,7 +64,7 @@ class VisualizationMarkers:
     The class parses the configuration to create different the marker prototypes into the stage. Each marker
     prototype prim is created as a child of the :class:`UsdGeom.PointInstancer` prim. The prim path for the
     the marker prim is resolved using the key of the marker in the :attr:`VisualizationMarkersCfg.markers`
-    dictionary. The marker prototypes are created using the :meth:`omni.isaac.core.utils.create_prim`
+    dictionary. The marker prototypes are created using the :meth:`isaacsim.core.utils.create_prim`
     function, and then then instanced using :class:`UsdGeom.PointInstancer` prim to allow creating multiple
     instances of the marker prims.
 

@@ -15,9 +15,9 @@ simulation_app = AppLauncher(headless=True).app
 import torch
 import unittest
 
-import omni.isaac.core.utils.prims as prim_utils
-import omni.isaac.core.utils.stage as stage_utils
-from omni.isaac.cloner import GridCloner
+import isaacsim.core.utils.prims as prim_utils
+import isaacsim.core.utils.stage as stage_utils
+from isaacsim.core.cloner import GridCloner
 
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.assets import Articulation

@@ -14,7 +14,7 @@ import contextlib
 with contextlib.suppress(ModuleNotFoundError):
     import isaacsim  # noqa: F401
 
-from omni.isaac.kit import SimulationApp
+from isaacsim import SimulationApp
 
 # add argparse arguments
 parser = argparse.ArgumentParser(
@@ -32,16 +32,16 @@ simulation_app = SimulationApp({"headless": args_cli.headless})
 
 import torch
 
-import omni.isaac.core.utils.nucleus as nucleus_utils
-import omni.isaac.core.utils.prims as prim_utils
-import omni.isaac.core.utils.stage as stage_utils
+import isaacsim.core.utils.nucleus as nucleus_utils
+import isaacsim.core.utils.prims as prim_utils
+import isaacsim.core.utils.stage as stage_utils
 import omni.kit.commands
 import omni.log
 import omni.physx
-from omni.isaac.core.articulations import ArticulationView
-from omni.isaac.core.utils.carb import set_carb_setting
-from omni.isaac.core.utils.viewports import set_camera_view
-from omni.isaac.core.world import World
+from isaacsim.core.api.world import World
+from isaacsim.core.prims import Articulation
+from isaacsim.core.utils.carb import set_carb_setting
+from isaacsim.core.utils.viewports import set_camera_view
 from pxr import PhysxSchema, UsdPhysics
 
 # check nucleus connection
@@ -146,7 +146,7 @@ def main():
         root_prim_path = parent_prim.GetPath().pathString
 
     # Setup robot
-    robot_view = ArticulationView(root_prim_path, name="ANYMAL")
+    robot_view = Articulation(root_prim_path, name="ANYMAL")
     world.scene.add(robot_view)
     # Play the simulator
     world.reset()

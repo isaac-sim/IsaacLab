@@ -5,12 +5,14 @@
 
 import os
 
-from omni.isaac.core.utils.extensions import get_extension_path_from_name
+from isaacsim.core.utils.extensions import get_extension_path_from_name
 
 from omni.isaac.lab.controllers.rmp_flow import RmpFlowControllerCfg
 
 # Note: RMP-Flow config files for supported robots are stored in the motion_generation extension
-_RMP_CONFIG_DIR = os.path.join(get_extension_path_from_name("omni.isaac.motion_generation"), "motion_policy_configs")
+_RMP_CONFIG_DIR = os.path.join(
+    get_extension_path_from_name("isaacsim.robot_motion.motion_generation"), "motion_policy_configs"
+)
 
 # Path to current directory
 _CUR_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -22,7 +24,7 @@ FRANKA_RMPFLOW_CFG = RmpFlowControllerCfg(
     frame_name="panda_end_effector",
     evaluations_per_frame=5,
 )
-"""Configuration of RMPFlow for Franka arm (default from `omni.isaac.motion_generation`)."""
+"""Configuration of RMPFlow for Franka arm (default from `isaacsim.robot_motion.motion_generation`)."""
 
 
 UR10_RMPFLOW_CFG = RmpFlowControllerCfg(
@@ -32,4 +34,4 @@ UR10_RMPFLOW_CFG = RmpFlowControllerCfg(
     frame_name="ee_link",
     evaluations_per_frame=5,
 )
-"""Configuration of RMPFlow for UR10 arm (default from `omni.isaac.motion_generation`)."""
+"""Configuration of RMPFlow for UR10 arm (default from `isaacsim.robot_motion.motion_generation`)."""

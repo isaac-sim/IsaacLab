@@ -9,8 +9,8 @@ from typing import Any
 
 import carb
 import omni.usd
-from omni.isaac.cloner import GridCloner
-from omni.isaac.core.prims import XFormPrimView
+from isaacsim.core.cloner import GridCloner
+from isaacsim.core.prims import XFormPrim
 from pxr import PhysxSchema
 
 import omni.isaac.lab.sim as sim_utils
@@ -323,10 +323,10 @@ class InteractiveScene:
         return self._sensors
 
     @property
-    def extras(self) -> dict[str, XFormPrimView]:
+    def extras(self) -> dict[str, XFormPrim]:
         """A dictionary of miscellaneous simulation objects that neither inherit from assets nor sensors.
 
-        The keys are the names of the miscellaneous objects, and the values are the `XFormPrimView`_
+        The keys are the names of the miscellaneous objects, and the values are the `XFormPrim`_
         of the corresponding prims.
 
         As an example, lights or other props in the scene that do not have any attributes or properties that you
@@ -336,7 +336,7 @@ class InteractiveScene:
             These are not reset or updated by the scene. They are mainly other prims that are not necessarily
             handled by the interactive scene, but are useful to be accessed by the user.
 
-        .. _XFormPrimView: https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/omni.isaac.core/docs/index.html#omni.isaac.core.prims.XFormPrimView
+        .. _XFormPrim: https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/isaacsim.core/docs/index.html#isaacsim.core.prims.XFormPrim
 
         """
         return self._extras
@@ -620,7 +620,7 @@ class InteractiveScene:
                     )
                 # store xform prim view corresponding to this asset
                 # all prims in the scene are Xform prims (i.e. have a transform component)
-                self._extras[asset_name] = XFormPrimView(asset_cfg.prim_path, reset_xform_properties=False)
+                self._extras[asset_name] = XFormPrim(asset_cfg.prim_path, reset_xform_properties=False)
             else:
                 raise ValueError(f"Unknown asset config type for {asset_name}: {asset_cfg}")
             # store global collision paths

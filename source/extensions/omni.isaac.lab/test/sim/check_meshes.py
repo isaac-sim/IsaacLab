@@ -40,7 +40,7 @@ import random
 import torch
 import tqdm
 
-import omni.isaac.core.utils.prims as prim_utils
+import isaacsim.core.utils.prims as prim_utils
 
 import omni.isaac.lab.sim as sim_utils
 

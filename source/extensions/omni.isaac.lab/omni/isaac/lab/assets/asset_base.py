@@ -40,7 +40,7 @@ class AssetBase(ABC):
     :mod:`omni.isaac.lab.sim.spawners` module.
 
     Unlike Isaac Sim interface, where one usually needs to call the
-    :meth:`omni.isaac.core.prims.XFormPrimView.initialize` method to initialize the PhysX handles, the asset
+    :meth:`isaacsim.core.prims.XFormPrim.initialize` method to initialize the PhysX handles, the asset
     class automatically initializes and invalidates the PhysX handles when the stage is played/stopped. This
     is done by registering callbacks for the stage play/stop events.
 

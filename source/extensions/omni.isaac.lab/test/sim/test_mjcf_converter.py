@@ -17,10 +17,10 @@ simulation_app = AppLauncher(config).app
 import os
 import unittest
 
-import omni.isaac.core.utils.prims as prim_utils
-import omni.isaac.core.utils.stage as stage_utils
-from omni.isaac.core.simulation_context import SimulationContext
-from omni.isaac.core.utils.extensions import enable_extension, get_extension_path_from_name
+import isaacsim.core.utils.prims as prim_utils
+import isaacsim.core.utils.stage as stage_utils
+from isaacsim.core.api.simulation_context import SimulationContext
+from isaacsim.core.utils.extensions import enable_extension, get_extension_path_from_name
 
 from omni.isaac.lab.sim.converters import MjcfConverter, MjcfConverterCfg
 
@@ -33,8 +33,8 @@ class TestMjcfConverter(unittest.TestCase):
         # Create a new stage
         stage_utils.create_new_stage()
         # retrieve path to mjcf importer extension
-        enable_extension("omni.importer.mjcf")
-        extension_path = get_extension_path_from_name("omni.importer.mjcf")
+        enable_extension("isaacsim.asset.importer.mjcf")
+        extension_path = get_extension_path_from_name("isaacsim.asset.importer.mjcf")
         # default configuration
         self.config = MjcfConverterCfg(
             asset_path=f"{extension_path}/data/mjcf/nv_ant.xml",

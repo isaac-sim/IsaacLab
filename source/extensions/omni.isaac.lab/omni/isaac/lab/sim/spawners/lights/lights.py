@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import omni.isaac.core.utils.prims as prim_utils
+import isaacsim.core.utils.prims as prim_utils
 from pxr import Usd, UsdLux
 
 from omni.isaac.lab.sim.utils import clone, safe_set_attribute_on_usd_prim

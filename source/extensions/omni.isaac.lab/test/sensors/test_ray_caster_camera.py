@@ -22,8 +22,8 @@ import os
 import torch
 import unittest
 
-import omni.isaac.core.utils.prims as prim_utils
-import omni.isaac.core.utils.stage as stage_utils
+import isaacsim.core.utils.prims as prim_utils
+import isaacsim.core.utils.stage as stage_utils
 import omni.replicator.core as rep
 from pxr import Gf
 

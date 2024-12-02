@@ -42,9 +42,6 @@ The default values for the importer's configuration parameters are specified are
 * :attr:`~sim.converters.UrdfConverterCfg.fix_base*` - Whether to fix the base of the robot.
   This depends on whether you have a floating-base or fixed-base robot. The command-line flag is
   ``--fix-base`` where when set, the importer will fix the base of the robot, otherwise it will default to floating-base.
-* :attr:`~sim.converters.UrdfConverterCfg.make_instanceable*` - Whether to create instanceable assets.
-  Usually, this should be set to ``True``. The command-line flag is ``--make-instanceable`` where
-  when set, the importer will create instanceable assets, otherwise it will default to non-instanceable.
 * :attr:`~sim.converters.UrdfConverterCfg.merge_fixed_joints*` - Whether to merge the fixed joints.
   Usually, this should be set to ``True`` to reduce the asset complexity. The command-line flag is
   ``--merge-joints`` where when set, the importer will merge the fixed joints, otherwise it will default to not merging the fixed joints.
@@ -57,12 +54,6 @@ The default values for the importer's configuration parameters are specified are
 * :attr:`~sim.converters.UrdfConverterCfg.default_drive_damping` - The drive damping for the joints.
   Similar to the stiffness, we recommend this to always be ``0.0``.
 
-
-Note that when instanceable option is selected, the
-importer will create two USD files: one for all the mesh data and one for
-all the non-mesh data (e.g. joints, rigid bodies, etc.). The prims in the mesh data file are
-referenced in the non-mesh data file. This allows the mesh data (which is often bulky) to be
-loaded into memory only once and used multiple times in a scene.
 
 Example Usage
 ~~~~~~~~~~~~~
@@ -94,21 +85,14 @@ The following shows the steps to clone the repository and run the converter:
   ./isaaclab.sh -p source/standalone/tools/convert_urdf.py \
     ~/git/anymal_d_simple_description/urdf/anymal.urdf \
     source/extensions/omni.isaac.lab_assets/data/Robots/ANYbotics/anymal_d.usd \
-    --merge-joints \
-    --make-instanceable
+    --merge-joints
 
 
-Executing the above script will create two USD files inside the
+Executing the above script will create a USD file inside the
 ``source/extensions/omni.isaac.lab_assets/data/Robots/ANYbotics/`` directory:
 
-* ``anymal_d.usd`` - This is the main asset file. It contains all the non-mesh data.
-* ``Props/instanceable_assets.usd`` - This is the mesh data file.
+* ``anymal_d.usd`` - This is the main asset file.
 
-.. note::
-
-  Since Isaac Sim 2023.1.1, the URDF importer behavior has changed and it stores the mesh data inside the
-  main asset file even if the ``--make-instanceable`` flag is set. This means that the
-  ``Props/instanceable_assets.usd`` file is created but not used anymore.
 
 To run the script headless, you can add the ``--headless`` flag. This will not open the GUI and
 exit the script after the conversion is complete.
@@ -153,7 +137,7 @@ The following shows the steps to clone the repository and run the converter:
   # create a directory to clone
   mkdir ~/git && cd ~/git
   # clone a repository with URDF files
-  git clone git@github.com:git@github.com:google-deepmind/mujoco_menagerie.git
+  git clone git@github.com:google-deepmind/mujoco_menagerie.git
 
   # go to top of the Isaac Lab repository
   cd IsaacLab
@@ -163,6 +147,12 @@ The following shows the steps to clone the repository and run the converter:
     source/extensions/omni.isaac.lab_assets/data/Robots/Unitree/h1.usd \
     --import-sites \
     --make-instanceable
+
+Executing the above script will create USD files inside the
+``source/extensions/omni.isaac.lab_assets/data/Robots/Unitree/`` directory:
+
+* ``h1.usd`` - This is the main asset file. It contains all the non-mesh data.
+* ``Props/instanceable_assets.usd`` - This is the mesh data file.
 
 .. figure:: ../_static/tutorials/tutorial_convert_mjcf.jpg
     :align: center

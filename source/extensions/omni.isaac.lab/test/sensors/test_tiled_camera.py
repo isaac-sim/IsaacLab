@@ -22,10 +22,10 @@ import random
 import torch
 import unittest
 
-import omni.isaac.core.utils.prims as prim_utils
-import omni.isaac.core.utils.stage as stage_utils
+import isaacsim.core.utils.prims as prim_utils
+import isaacsim.core.utils.stage as stage_utils
 import omni.replicator.core as rep
-from omni.isaac.core.prims import GeometryPrim, RigidPrim
+from isaacsim.core.prims import SingleGeometryPrim, SingleRigidPrim
 from pxr import Gf, UsdGeom
 
 import omni.isaac.lab.sim as sim_utils
@@ -1460,8 +1460,8 @@ class TestTiledCamera(unittest.TestCase):
             geom_prim.CreateDisplayColorAttr()
             geom_prim.GetDisplayColorAttr().Set([color])
             # add rigid properties
-            GeometryPrim(f"/World/Objects/Obj_{i:02d}", collision=True)
-            RigidPrim(f"/World/Objects/Obj_{i:02d}", mass=5.0)
+            SingleGeometryPrim(f"/World/Objects/Obj_{i:02d}", collision=True)
+            SingleRigidPrim(f"/World/Objects/Obj_{i:02d}", mass=5.0)
 
 
 if __name__ == "__main__":

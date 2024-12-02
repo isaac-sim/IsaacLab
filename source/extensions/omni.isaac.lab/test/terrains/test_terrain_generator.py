@@ -18,7 +18,7 @@ import shutil
 import torch
 import unittest
 
-import omni.isaac.core.utils.torch as torch_utils
+import isaacsim.core.utils.torch as torch_utils
 
 from omni.isaac.lab.terrains import FlatPatchSamplingCfg, TerrainGenerator, TerrainGeneratorCfg
 from omni.isaac.lab.terrains.config.rough import ROUGH_TERRAINS_CFG

@@ -7,8 +7,8 @@ from __future__ import annotations
 
 import torch
 
-import omni.isaac.core.utils.torch as torch_utils
-from omni.isaac.core.utils.torch.rotations import compute_heading_and_up, compute_rot, quat_conjugate
+import isaacsim.core.utils.torch as torch_utils
+from isaacsim.core.utils.torch.rotations import compute_heading_and_up, compute_rot, quat_conjugate
 
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.assets import Articulation

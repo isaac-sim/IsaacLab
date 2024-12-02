@@ -23,7 +23,7 @@ simulation_app = app_launcher.app
 
 import ctypes
 
-from omni.isaac.core.simulation_context import SimulationContext
+from isaacsim.core.api.simulation_context import SimulationContext
 
 from omni.isaac.lab.devices import Se3Keyboard
 

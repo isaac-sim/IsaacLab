@@ -22,7 +22,7 @@ simulation_app = app_launcher.app
 
 import unittest
 
-from omni.isaac.core.utils.prims import is_prim_path_valid
+from isaacsim.core.utils.prims import is_prim_path_valid
 
 from omni.isaac.lab.sim.simulation_cfg import SimulationCfg
 from omni.isaac.lab.sim.simulation_context import build_simulation_context

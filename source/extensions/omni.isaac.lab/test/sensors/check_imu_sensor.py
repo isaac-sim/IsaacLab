@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import argparse
 
-from omni.isaac.kit import SimulationApp
+from isaacsim import SimulationApp
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Imu Test Script")
@@ -40,9 +40,9 @@ import traceback
 
 import carb
 import omni
-from omni.isaac.cloner import GridCloner
-from omni.isaac.core.simulation_context import SimulationContext
-from omni.isaac.core.utils.viewports import set_camera_view
+from isaacsim.core.api.simulation_context import SimulationContext
+from isaacsim.core.cloner import GridCloner
+from isaacsim.core.utils.viewports import set_camera_view
 from pxr import PhysxSchema
 
 import omni.isaac.lab.sim as sim_utils

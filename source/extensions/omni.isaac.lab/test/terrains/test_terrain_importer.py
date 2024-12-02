@@ -16,14 +16,14 @@ import numpy as np
 import torch
 import unittest
 
-import omni.isaac.core.utils.prims as prim_utils
+import isaacsim.core.utils.prims as prim_utils
 import omni.kit
 import omni.kit.commands
 from isaacsim.core.api.materials import PhysicsMaterial, PreviewSurface
-from omni.isaac.cloner import GridCloner
-from omni.isaac.core.objects import DynamicSphere
-from omni.isaac.core.prims import GeometryPrim, RigidPrim, RigidPrimView
-from omni.isaac.core.utils.extensions import enable_extension
+from isaacsim.core.api.objects import DynamicSphere
+from isaacsim.core.cloner import GridCloner
+from isaacsim.core.prims import RigidPrim, SingleGeometryPrim, SingleRigidPrim
+from isaacsim.core.utils.extensions import enable_extension
 
 import omni.isaac.lab.terrains as terrain_gen
 from omni.isaac.lab.sim import SimulationContext, build_simulation_context
@@ -170,7 +170,7 @@ class TestTerrainImporter(unittest.TestCase):
                 self._populate_scene(geom_sphere=False, sim=sim)
 
                 # Create a view over all the balls
-                ball_view = RigidPrimView("/World/envs/env_.*/ball", reset_xform_properties=False)
+                ball_view = RigidPrim("/World/envs/env_.*/ball", reset_xform_properties=False)
 
                 # Play simulator
                 sim.reset()
@@ -202,7 +202,7 @@ class TestTerrainImporter(unittest.TestCase):
                 self._populate_scene(geom_sphere=False, sim=sim)
 
                 # Create a view over all the balls
-                ball_view = RigidPrimView("/World/envs/env_.*/ball", reset_xform_properties=False)
+                ball_view = RigidPrim("/World/envs/env_.*/ball", reset_xform_properties=False)
 
                 # Play simulator
                 sim.reset()
@@ -272,11 +272,13 @@ class TestTerrainImporter(unittest.TestCase):
             cube_prim_path = omni.kit.commands.execute("CreateMeshPrimCommand", prim_type="Sphere")[1]
             prim_utils.move_prim(cube_prim_path, "/World/envs/env_0/ball")
             # -- Ball physics
-            RigidPrim(prim_path="/World/envs/env_0/ball", mass=0.5, scale=(0.5, 0.5, 0.5), translation=(0.0, 0.0, 0.5))
-            GeometryPrim(prim_path="/World/envs/env_0/ball", collision=True)
+            SingleRigidPrim(
+                prim_path="/World/envs/env_0/ball", mass=0.5, scale=(0.5, 0.5, 0.5), translation=(0.0, 0.0, 0.5)
+            )
+            SingleGeometryPrim(prim_path="/World/envs/env_0/ball", collision=True)
 
         # -- Ball material
-        sphere_geom = GeometryPrim(prim_path="/World/envs/env_0/ball", collision=True)
+        sphere_geom = SingleGeometryPrim(prim_path="/World/envs/env_0/ball", collision=True)
         visual_material = PreviewSurface(prim_path="/World/Looks/ballColorMaterial", color=np.asarray([0.0, 0.0, 1.0]))
         physics_material = PhysicsMaterial(
             prim_path="/World/Looks/ballPhysicsMaterial",
@@ -299,7 +301,7 @@ class TestTerrainImporter(unittest.TestCase):
 
         # Set ball positions over terrain origins
         # Create a view over all the balls
-        ball_view = RigidPrimView("/World/envs/env_.*/ball", reset_xform_properties=False)
+        ball_view = RigidPrim("/World/envs/env_.*/ball", reset_xform_properties=False)
         # cache initial state of the balls
         ball_initial_positions = terrain_importer.env_origins
         ball_initial_positions[:, 2] += 5.0

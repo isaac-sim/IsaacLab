@@ -25,7 +25,7 @@ import ctypes
 import torch
 import unittest
 
-import omni.isaac.core.utils.prims as prim_utils
+import isaacsim.core.utils.prims as prim_utils
 
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.assets import RigidObjectCfg, RigidObjectCollection, RigidObjectCollectionCfg

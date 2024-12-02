@@ -15,8 +15,8 @@ simulation_app = AppLauncher(headless=True).app
 import numpy as np
 import unittest
 
-import omni.isaac.core.utils.prims as prim_utils
-from omni.isaac.core.simulation_context import SimulationContext as IsaacSimulationContext
+import isaacsim.core.utils.prims as prim_utils
+from isaacsim.core.api.simulation_context import SimulationContext as IsaacSimulationContext
 
 from omni.isaac.lab.sim import SimulationCfg, SimulationContext
 

@@ -16,8 +16,8 @@ simulation_app = AppLauncher(config).app
 import torch
 import unittest
 
-import omni.isaac.core.utils.stage as stage_utils
-from omni.isaac.core.simulation_context import SimulationContext
+import isaacsim.core.utils.stage as stage_utils
+from isaacsim.core.api.simulation_context import SimulationContext
 
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.markers import VisualizationMarkers, VisualizationMarkersCfg

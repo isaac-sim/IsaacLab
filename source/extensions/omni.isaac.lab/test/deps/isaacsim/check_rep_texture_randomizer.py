@@ -45,13 +45,13 @@ simulation_app = app_launcher.app
 import numpy as np
 import torch
 
-import omni.isaac.core.utils.prims as prim_utils
+import isaacsim.core.utils.prims as prim_utils
 import omni.replicator.core as rep
-from omni.isaac.cloner import GridCloner
-from omni.isaac.core.objects import DynamicSphere
-from omni.isaac.core.prims import RigidPrimView
-from omni.isaac.core.simulation_context import SimulationContext
-from omni.isaac.core.utils.viewports import set_camera_view
+from isaacsim.core.api.simulation_context import SimulationContext
+from isaacsim.core.cloner import GridCloner
+from isaacsim.core.objects import DynamicSphere
+from isaacsim.core.prims import RigidPrim
+from isaacsim.core.utils.viewports import set_camera_view
 
 
 def main():
@@ -112,7 +112,7 @@ def main():
 
     # Set ball positions over terrain origins
     # Create a view over all the balls
-    ball_view = RigidPrimView("/World/envs/env_.*/ball", reset_xform_properties=False)
+    ball_view = RigidPrim("/World/envs/env_.*/ball", reset_xform_properties=False)
     # cache initial state of the balls
     ball_initial_positions = torch.tensor(env_positions, dtype=torch.float, device=sim.device)
     ball_initial_positions[:, 2] += 5.0

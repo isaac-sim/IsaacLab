@@ -13,10 +13,10 @@ import re
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
-import omni.isaac.core.utils.stage as stage_utils
+import isaacsim.core.utils.stage as stage_utils
 import omni.kit.commands
 import omni.log
-from omni.isaac.cloner import Cloner
+from isaacsim.core.cloner import Cloner
 from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
 # from Isaac Sim 4.2 onwards, pxr.Semantics is deprecated
