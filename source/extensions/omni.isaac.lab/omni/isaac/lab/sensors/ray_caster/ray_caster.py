@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 import omni.log
 import omni.physics.tensors.impl.api as physx
 import warp as wp
-from omni.isaac.core.prims import XFormPrimView
+from isaacsim.core.prims import XFormPrim
 from pxr import UsdGeom, UsdPhysics
 
 import omni.isaac.lab.sim as sim_utils
@@ -136,9 +136,9 @@ class RayCaster(SensorBase):
             self._view = self._physics_sim_view.create_rigid_body_view(self.cfg.prim_path.replace(".*", "*"))
             found_supported_prim_class = True
         else:
-            self._view = XFormPrimView(self.cfg.prim_path, reset_xform_properties=False)
+            self._view = XFormPrim(self.cfg.prim_path, reset_xform_properties=False)
             found_supported_prim_class = True
-            omni.log.warn(f"The prim at path {prim.GetPath().pathString} is not a physics prim! Using XFormPrimView.")
+            omni.log.warn(f"The prim at path {prim.GetPath().pathString} is not a physics prim! Using XFormPrim.")
         # check if prim view class is found
         if not found_supported_prim_class:
             raise RuntimeError(f"Failed to find a valid prim view class for the prim paths: {self.cfg.prim_path}")
@@ -220,7 +220,7 @@ class RayCaster(SensorBase):
     def _update_buffers_impl(self, env_ids: Sequence[int]):
         """Fills the buffers of the sensor data."""
         # obtain the poses of the sensors
-        if isinstance(self._view, XFormPrimView):
+        if isinstance(self._view, XFormPrim):
             pos_w, quat_w = self._view.get_world_poses(env_ids)
         elif isinstance(self._view, physx.ArticulationView):
             pos_w, quat_w = self._view.get_root_transforms()[env_ids].split([3, 4], dim=-1)

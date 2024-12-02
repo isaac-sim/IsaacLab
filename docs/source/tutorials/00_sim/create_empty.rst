@@ -36,7 +36,7 @@ This is necessary to do at the start since various dependency modules of Isaac S
 after the simulation app is running.
 
 This can be done by importing the :class:`app.AppLauncher` class. This utility class wraps around
-:class:`omni.isaac.kit.SimulationApp` class to launch the simulator. It provides mechanisms to
+:class:`isaacsim.SimulationApp` class to launch the simulator. It provides mechanisms to
 configure the simulator using command-line arguments and environment variables.
 
 For this tutorial, we mainly look at adding the command-line options to a user-defined
@@ -73,7 +73,7 @@ context**. It takes care of various timeline events and also configures the `phy
 simulation.
 
 In Isaac Lab, the :class:`sim.SimulationContext` class inherits from Isaac Sim's
-:class:`omni.isaac.core.simulation_context.SimulationContext` to allow configuring the simulation
+:class:`isaacsim.core.api.simulation_context.SimulationContext` to allow configuring the simulation
 through Python's ``dataclass`` object and handle certain intricacies of the simulation stepping.
 
 For this tutorial, we set the physics and rendering time step to 0.01 seconds. This is done
@@ -124,7 +124,7 @@ Exiting the simulation
 ----------------------
 
 Lastly, the simulation application is stopped and its window is closed by calling
-:meth:`omni.isaac.kit.SimulationApp.close` method.
+:meth:`isaacsim.SimulationApp.close` method.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/00_sim/create_empty.py
    :language: python

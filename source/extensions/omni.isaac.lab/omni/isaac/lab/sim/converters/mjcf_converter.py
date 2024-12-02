@@ -10,7 +10,7 @@ import os
 import isaacsim
 import omni.kit.commands
 import omni.usd
-from omni.isaac.core.utils.extensions import enable_extension
+from isaacsim.core.utils.extensions import enable_extension
 from pxr import Usd
 
 from .asset_converter_base import AssetConverterBase
@@ -100,11 +100,11 @@ class MjcfConverter(AssetConverterBase):
         import_config = omni_mjcf.ImportConfig()
 
         # set the unit scaling factor, 1.0 means meters, 100.0 means cm
-        import_config.set_distance_scale(1.0)
+        # import_config.set_distance_scale(1.0)
         # set imported robot as default prim
-        import_config.set_make_default_prim(True)
+        # import_config.set_make_default_prim(True)
         # add a physics scene to the stage on import if none exists
-        import_config.set_create_physics_scene(False)
+        # import_config.set_create_physics_scene(False)
         # set flag to parse <site> tag
         import_config.set_import_sites(True)
 

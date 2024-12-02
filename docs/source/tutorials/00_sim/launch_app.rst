@@ -5,18 +5,18 @@ Deep-dive into AppLauncher
 
 In this tutorial, we will dive into the :class:`app.AppLauncher` class to configure the simulator using
 CLI arguments and environment variables (envars). Particularly, we will demonstrate how to use
-:class:`~app.AppLauncher` to enable livestreaming and configure the :class:`omni.isaac.kit.SimulationApp`
+:class:`~app.AppLauncher` to enable livestreaming and configure the :class:`isaacsim.simulation_app.SimulationApp`
 instance it wraps, while also allowing user-provided options.
 
-The :class:`~app.AppLauncher` is a wrapper for :class:`~omni.isaac.kit.SimulationApp` to simplify
-its configuration. The :class:`~omni.isaac.kit.SimulationApp` has many extensions that must be
+The :class:`~app.AppLauncher` is a wrapper for :class:`~isaacsim.simulation_app.SimulationApp` to simplify
+its configuration. The :class:`~isaacsim.simulation_app.SimulationApp` has many extensions that must be
 loaded to enable different capabilities, and some of these extensions are order- and inter-dependent.
 Additionally, there are startup options such as ``headless`` which must be set at instantiation time,
 and which have an implied relationship with some extensions, e.g. the livestreaming extensions.
 The :class:`~app.AppLauncher` presents an interface that can handle these extensions and startup
 options in a portable manner across a variety of use cases. To achieve this, we offer CLI and envar
 flags which can be merged with user-defined CLI args, while passing forward arguments intended
-for :class:`~omni.isaac.kit.SimulationApp`.
+for :class:`~isaacsim.simulation_app.SimulationApp`.
 
 
 The Code
@@ -44,7 +44,7 @@ their own scripts, while still providing a portable CLI interface.
 
 In this tutorial, a standard :class:`argparse.ArgumentParser` is instantiated and given the
 script-specific ``--size`` argument, as well as the arguments ``--height`` and ``--width``.
-The latter are ingested by :class:`~omni.isaac.kit.SimulationApp`.
+The latter are ingested by :class:`~isaacsim.simulation_app.SimulationApp`.
 
 The argument ``--size`` is not used by :class:`~app.AppLauncher`, but will merge seamlessly
 with the :class:`~app.AppLauncher` interface. In-script arguments can be merged with the
@@ -103,10 +103,10 @@ This readout details the ``--size``, ``--height``, and ``--width`` arguments def
 as well as the :class:`~app.AppLauncher` arguments.
 
 The ``[INFO]`` messages preceding the help output also reads out which of these arguments are going
-to be interpreted as arguments to the :class:`~omni.isaac.kit.SimulationApp` instance which the
+to be interpreted as arguments to the :class:`~isaacsim.simulation_app.SimulationApp` instance which the
 :class:`~app.AppLauncher` class wraps. In this case, it is ``--height`` and ``--width``. These
 are classified as such because they match the name and type of an argument which can be processed
-by :class:`~omni.isaac.kit.SimulationApp`. Please refer to the `specification`_ for such arguments
+by :class:`~isaacsim.simulation_app.SimulationApp`. Please refer to the `specification`_ for such arguments
 for more examples.
 
 Using environment variables
@@ -125,7 +125,7 @@ as we will demonstrate later in this tutorial.
 These arguments can be used with any script that starts the simulation using :class:`~app.AppLauncher`,
 with one exception, ``--enable_cameras``. This setting sets the rendering pipeline to use the
 offscreen renderer. However, this setting is only compatible with the :class:`omni.isaac.lab.sim.SimulationContext`.
-It will not work with Isaac Sim's :class:`omni.isaac.core.simulation_context.SimulationContext` class.
+It will not work with Isaac Sim's :class:`isaacsim.core.api.simulation_context.SimulationContext` class.
 For more information on this flag, please see the :class:`~app.AppLauncher` API documentation.
 
 
@@ -159,7 +159,7 @@ This will cause the same behavior as in the previous run, because although we ha
 in our envars, CLI args such as ``--livestream`` take precedence in determining behavior. The process can
 be killed by pressing ``Ctrl+C`` in the launching terminal.
 
-Finally, we will examine passing arguments to :class:`~omni.isaac.kit.SimulationApp` through
+Finally, we will examine passing arguments to :class:`~isaacsim.simulation_app.SimulationApp` through
 :class:`~app.AppLauncher`:
 
 .. code-block:: console
@@ -172,5 +172,5 @@ want our simulation to be more performant. The process can be killed by pressing
 terminal.
 
 
-.. _specification: https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/omni.isaac.kit/docs/index.html#omni.isaac.kit.SimulationApp.DEFAULT_LAUNCHER_CONFIG
+.. _specification: https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/isaacsim.simulation_app/docs/index.html#isaacsim.simulation_app.SimulationApp.DEFAULT_LAUNCHER_CONFIG
 .. _Native Livestreaming: https://docs.omniverse.nvidia.com/isaacsim/latest/installation/manual_livestream_clients.html#omniverse-streaming-client

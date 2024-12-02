@@ -25,7 +25,7 @@ import unittest
 
 import carb
 import omni.usd
-from omni.isaac.core.utils.extensions import enable_extension
+from isaacsim.core.utils.extensions import enable_extension
 
 from omni.isaac.lab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg
 from omni.isaac.lab.envs.ui import ManagerBasedRLEnvWindow

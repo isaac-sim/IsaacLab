@@ -26,7 +26,7 @@ import contextlib
 with contextlib.suppress(ModuleNotFoundError):
     import isaacsim  # noqa: F401
 
-from omni.isaac.kit import SimulationApp
+from isaacsim import SimulationApp
 
 # launch omniverse app
 simulation_app = SimulationApp({"headless": True})
@@ -40,14 +40,14 @@ import torch  # noqa: F401
 import omni.log
 
 try:
-    import omni.isaac.nucleus as nucleus_utils
+    import isaacsim.storage.native as nucleus_utils
 except ModuleNotFoundError:
-    import omni.isaac.core.utils.nucleus as nucleus_utils
+    import isaacsim.core.utils.nucleus as nucleus_utils
 
-import omni.isaac.core.utils.prims as prim_utils
-from omni.isaac.core.articulations import ArticulationView
-from omni.isaac.core.simulation_context import SimulationContext
-from omni.isaac.core.utils.carb import set_carb_setting
+import isaacsim.core.utils.prims as prim_utils
+from isaacsim.core.api.simulation_context import SimulationContext
+from isaacsim.core.prims import Articulation
+from isaacsim.core.utils.carb import set_carb_setting
 
 # check nucleus connection
 if nucleus_utils.get_assets_root_path() is None:
@@ -85,7 +85,7 @@ class AnymalArticulation:
         # Resolve robot prim paths
         root_prim_path = "/World/Robot/base"
         # Setup robot
-        self.view = ArticulationView(root_prim_path, name="ANYMAL")
+        self.view = Articulation(root_prim_path, name="ANYMAL")
 
     def __del__(self):
         """Delete the Anymal articulation class."""

@@ -5,13 +5,11 @@
 
 from __future__ import annotations
 
-import os
-
 import isaacsim
 import omni.kit.commands
 import omni.usd
-from omni.isaac.core.utils.extensions import enable_extension
-from omni.isaac.version import get_version
+from isaacsim.core.utils.extensions import enable_extension
+from isaacsim.core.version import get_version
 from pxr import Usd
 
 from .asset_converter_base import AssetConverterBase
@@ -84,14 +82,6 @@ class UrdfConverter(AssetConverterBase):
             import_config=import_config,
             dest_path=self.usd_path,
         )
-        # fix the issue that material paths are not relative
-        if self.cfg.make_instanceable:
-            instanced_usd_path = os.path.join(self.usd_dir, self.usd_instanceable_meshes_path)
-            stage = Usd.Stage.Open(instanced_usd_path)
-            # resolve all paths relative to layer path
-            source_layer = stage.GetRootLayer()
-            omni.usd.resolve_paths(source_layer.identifier, source_layer.identifier)
-            stage.Save()
 
         # fix the issue that material paths are not relative
         # note: This issue seems to have popped up in Isaac Sim 2023.1.1

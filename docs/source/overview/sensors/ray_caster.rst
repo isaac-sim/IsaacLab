@@ -48,7 +48,7 @@ Querying the sensor for data can be done at simulation run time like any other s
 
     -------------------------------
     Ray-caster @ '/World/envs/env_.*/Robot/base/lidar_cage':
-            view type            : <class 'omni.isaac.core.prims.xform_prim_view.XFormPrimView'>
+            view type            : <class 'isaacsim.core.prims.xform_prim.XFormPrim'>
             update period (s)    : 0.016666666666666666
             number of meshes     : 1
             number of sensors    : 1

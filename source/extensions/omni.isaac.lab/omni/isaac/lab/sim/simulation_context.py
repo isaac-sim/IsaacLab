@@ -15,12 +15,12 @@ from contextlib import contextmanager
 from typing import Any
 
 import carb
-import omni.isaac.core.utils.stage as stage_utils
+import isaacsim.core.utils.stage as stage_utils
 import omni.log
 import omni.physx
-from omni.isaac.core.simulation_context import SimulationContext as _SimulationContext
-from omni.isaac.core.utils.viewports import set_camera_view
-from omni.isaac.version import get_version
+from isaacsim.core.api.simulation_context import SimulationContext as _SimulationContext
+from isaacsim.core.utils.viewports import set_camera_view
+from isaacsim.core.version import get_version
 from pxr import Gf, PhysxSchema, Usd, UsdPhysics
 
 from .simulation_cfg import SimulationCfg
@@ -38,7 +38,7 @@ class SimulationContext(_SimulationContext):
     * playing, pausing, stepping and stopping the simulation
     * adding and removing callbacks to different simulation events such as physics stepping, rendering, etc.
 
-    This class inherits from the :class:`omni.isaac.core.simulation_context.SimulationContext` class and
+    This class inherits from the :class:`isaacsim.core.api.simulation_context.SimulationContext` class and
     adds additional functionalities such as setting up the simulation context with a configuration object,
     exposing other commonly used simulator-related functions, and performing version checks of Isaac Sim
     to ensure compatibility between releases.
@@ -306,7 +306,7 @@ class SimulationContext(_SimulationContext):
     def get_version(self) -> tuple[int, int, int]:
         """Returns the version of the simulator.
 
-        This is a wrapper around the ``omni.isaac.version.get_version()`` function.
+        This is a wrapper around the ``isaacsim.core.version.get_version()`` function.
 
         The returned tuple contains the following information:
 
@@ -329,7 +329,7 @@ class SimulationContext(_SimulationContext):
         """Set the location and target of the viewport camera in the stage.
 
         Note:
-            This is a wrapper around the :math:`omni.isaac.core.utils.viewports.set_camera_view` function.
+            This is a wrapper around the :math:`isaacsim.core.utils.viewports.set_camera_view` function.
             It is provided here for convenience to reduce the amount of imports needed.
 
         Args:
@@ -651,7 +651,7 @@ class SimulationContext(_SimulationContext):
                     self.render()
 
         # Note: For the following code:
-        #   The method is an exact copy of the implementation in the `omni.isaac.kit.SimulationApp` class.
+        #   The method is an exact copy of the implementation in the `isaacsim.simulation_app.SimulationApp` class.
         #   We need to remove this method once the SimulationApp class becomes a singleton.
 
         # make sure that any replicator workflows finish rendering/writing

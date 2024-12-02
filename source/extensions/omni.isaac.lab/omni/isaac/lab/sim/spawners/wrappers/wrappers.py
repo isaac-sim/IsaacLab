@@ -10,8 +10,8 @@ import re
 from typing import TYPE_CHECKING
 
 import carb
-import omni.isaac.core.utils.prims as prim_utils
-import omni.isaac.core.utils.stage as stage_utils
+import isaacsim.core.utils.prims as prim_utils
+import isaacsim.core.utils.stage as stage_utils
 from pxr import Sdf, Usd
 
 import omni.isaac.lab.sim as sim_utils

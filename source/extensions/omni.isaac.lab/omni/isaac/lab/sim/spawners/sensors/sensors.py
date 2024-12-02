@@ -9,7 +9,7 @@ import json
 import os
 from typing import TYPE_CHECKING
 
-import omni.isaac.core.utils.prims as prim_utils
+import isaacsim.core.utils.prims as prim_utils
 import omni.kit.commands
 import omni.log
 from pxr import Gf, Sdf, Usd

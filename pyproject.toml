@@ -42,8 +42,8 @@ extra_standard_library = [
 ]
 # Imports from Isaac Sim and Omniverse
 known_third_party = [
-    "omni.isaac.core",
-    "omni.replicator.isaac",
+    "isaacsim.core.api",
+    "isaacsim.replicator.common",
     "omni.replicator.core",
     "pxr",
     "omni.kit.*",

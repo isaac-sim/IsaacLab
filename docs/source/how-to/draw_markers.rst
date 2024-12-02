@@ -6,7 +6,7 @@ Creating Visualization Markers
 Visualization markers are useful to debug the state of the environment. They can be used to visualize
 the frames, commands, and other information in the simulation.
 
-While Isaac Sim provides its own :mod:`omni.isaac.debug_draw` extension, it is limited to rendering only
+While Isaac Sim provides its own :mod:`isaacsim.util.debug_draw` extension, it is limited to rendering only
 points, lines and splines. For cases, where you need to render more complex shapes, you can use the
 :class:`markers.VisualizationMarkers` class.
 

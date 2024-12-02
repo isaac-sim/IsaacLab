@@ -41,11 +41,11 @@ simulation_app = app_launcher.app
 
 import torch
 
-import omni.isaac.core.utils.prims as prim_utils
-from omni.isaac.cloner import GridCloner
-from omni.isaac.core.prims import RigidPrimView
-from omni.isaac.core.simulation_context import SimulationContext
-from omni.isaac.core.utils.viewports import set_camera_view
+import isaacsim.core.utils.prims as prim_utils
+from isaacsim.core.api.simulation_context import SimulationContext
+from isaacsim.core.cloner import GridCloner
+from isaacsim.core.prims import RigidPrim
+from isaacsim.core.utils.viewports import set_camera_view
 
 import omni.isaac.lab.sim as sim_utils
 import omni.isaac.lab.terrains as terrain_gen
@@ -128,7 +128,7 @@ def main():
     )
     ray_caster = RayCaster(cfg=ray_caster_cfg)
     # Create a view over all the balls
-    ball_view = RigidPrimView("/World/envs/env_.*/ball", reset_xform_properties=False)
+    ball_view = RigidPrim("/World/envs/env_.*/ball", reset_xform_properties=False)
 
     # Play simulator
     sim.reset()

@@ -269,7 +269,7 @@ set "arg=%~1"
 
 rem read the key
 if "%arg%"=="-i" (
-    rem install the python packages in omni.isaac.rl/source directory
+    rem install the python packages in omni.isaac.lab/source directory
     echo [INFO] Installing extensions inside the Isaac Lab repository...
     call :extract_python_exe
     for /d %%d in ("%ISAACLAB_PATH%\source\extensions\*") do (

@@ -12,10 +12,10 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, Literal
 
 import carb
-import omni.isaac.core.utils.stage as stage_utils
+import isaacsim.core.utils.stage as stage_utils
 import omni.kit.commands
 import omni.usd
-from omni.isaac.core.prims import XFormPrimView
+from isaacsim.core.prims import XFormPrim
 from pxr import UsdGeom
 
 import omni.isaac.lab.sim as sim_utils
@@ -398,7 +398,7 @@ class Camera(SensorBase):
         # Initialize parent class
         super()._initialize_impl()
         # Create a view for the sensor
-        self._view = XFormPrimView(self.cfg.prim_path, reset_xform_properties=False)
+        self._view = XFormPrim(self.cfg.prim_path, reset_xform_properties=False)
         self._view.initialize()
         # Check that sizes are correct
         if self._view.count != self._num_envs:

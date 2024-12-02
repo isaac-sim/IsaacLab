@@ -7,8 +7,8 @@ from __future__ import annotations
 
 import torch
 
-from omni.isaac.core.utils.stage import get_current_stage
-from omni.isaac.core.utils.torch.transformations import tf_combine, tf_inverse, tf_vector
+from isaacsim.core.utils.stage import get_current_stage
+from isaacsim.core.utils.torch.transformations import tf_combine, tf_inverse, tf_vector
 from pxr import UsdGeom
 
 import omni.isaac.lab.sim as sim_utils

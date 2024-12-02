@@ -6,7 +6,7 @@
 # needed to import for allowing type-hinting: Usd.Stage | None
 from __future__ import annotations
 
-import omni.isaac.core.utils.stage as stage_utils
+import isaacsim.core.utils.stage as stage_utils
 import omni.log
 import omni.physx.scripts.utils as physx_utils
 from omni.physx.scripts import deformableUtils as deformable_utils

@@ -84,7 +84,7 @@ import contextlib
 import os
 
 import carb
-import omni.isaac.core.utils.stage as stage_utils
+import isaacsim.core.utils.stage as stage_utils
 import omni.kit.app
 
 from omni.isaac.lab.sim.converters import MeshConverter, MeshConverterCfg

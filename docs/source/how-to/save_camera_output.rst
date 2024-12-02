@@ -72,7 +72,7 @@ to create a point cloud from the depth image and transform it to the world frame
    :start-at: # Derive pointcloud from camera at camera_index
    :end-before: # In the first few steps, things are still being instanced and Camera.data
 
-The resulting point cloud can be visualized using the :mod:`omni.isaac.debug_draw` extension from Isaac Sim.
+The resulting point cloud can be visualized using the :mod:`isaacsim.util.debug_draw` extension from Isaac Sim.
 This makes it easy to visualize the point cloud in the 3D space.
 
 .. literalinclude:: ../../../source/standalone/tutorials/04_sensors/run_usd_camera.py

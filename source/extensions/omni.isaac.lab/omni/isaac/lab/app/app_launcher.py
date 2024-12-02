@@ -3,12 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Sub-package with the utility class to configure the :class:`omni.isaac.kit.SimulationApp`.
+"""Sub-package with the utility class to configure the :class:`isaacsim.simulation_app.SimulationApp`.
 
 The :class:`AppLauncher` parses environment variables and input CLI arguments to launch the simulator in
 various different modes. This includes with or without GUI and switching between different Omniverse remote
 clients. Some of these require the extensions to be loaded in a specific order, otherwise a segmentation
-fault occurs. The launched :class:`omni.isaac.kit.SimulationApp` instance is accessible via the
+fault occurs. The launched :class:`isaacsim.simulation_app.SimulationApp` instance is accessible via the
 :attr:`AppLauncher.app` property.
 """
 
@@ -23,7 +23,7 @@ from typing import Any, Literal
 with contextlib.suppress(ModuleNotFoundError):
     import isaacsim  # noqa: F401
 
-from omni.isaac.kit import SimulationApp
+from isaacsim import SimulationApp
 
 
 class AppLauncher:
@@ -66,7 +66,7 @@ class AppLauncher:
                 such as ``LIVESTREAM``.
 
         .. _argparse.Namespace: https://docs.python.org/3/library/argparse.html?highlight=namespace#argparse.Namespace
-        .. _SimulationApp: https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/omni.isaac.kit/docs/index.html
+        .. _SimulationApp: https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/isaacsim.simulation_app/docs/index.html
         """
         # We allow users to pass either a dict or an argparse.Namespace into
         # __init__, anticipating that these will be all of the argparse arguments
@@ -631,7 +631,7 @@ class AppLauncher:
         # These have to be loaded after SimulationApp is initialized
         import carb
         import omni.physx.bindings._physx as physx_impl
-        from omni.isaac.core.utils.extensions import enable_extension
+        from isaacsim.core.utils.extensions import enable_extension
 
         # Retrieve carb settings for modification
         carb_settings_iface = carb.settings.get_settings()

@@ -46,16 +46,16 @@ import os
 import random
 
 try:
-    import omni.isaac.nucleus as nucleus_utils
+    import isaacsim.storage.native as nucleus_utils
 except ModuleNotFoundError:
-    import omni.isaac.core.utils.nucleus as nucleus_utils
-import omni.isaac.core.utils.prims as prim_utils
+    import isaacsim.core.utils.nucleus as nucleus_utils
+
+import isaacsim.core.utils.prims as prim_utils
 import omni.replicator.core as rep
-from omni.isaac.core.articulations import ArticulationView
-from omni.isaac.core.prims import GeometryPrim, RigidPrim, RigidPrimView
-from omni.isaac.core.utils.carb import set_carb_setting
-from omni.isaac.core.utils.viewports import set_camera_view
-from omni.isaac.core.world import World
+from isaacsim.core.api.world import World
+from isaacsim.core.prims import Articulation, RigidPrim, SingleGeometryPrim, SingleRigidPrim
+from isaacsim.core.utils.carb import set_carb_setting
+from isaacsim.core.utils.viewports import set_camera_view
 from PIL import Image, ImageChops
 from pxr import Gf, UsdGeom
 
@@ -112,8 +112,8 @@ def main():
                 semantic_label=prim_type,
             )
             # add rigid properties
-            GeometryPrim(f"/World/Objects/Obj_{i:02d}", collision=True)
-            rigid_obj = RigidPrim(f"/World/Objects/Obj_{i:02d}", mass=5.0)
+            SingleGeometryPrim(f"/World/Objects/Obj_{i:02d}", collision=True)
+            rigid_obj = SingleRigidPrim(f"/World/Objects/Obj_{i:02d}", mass=5.0)
             # cast to geom prim
             geom_prim = getattr(UsdGeom, prim_type)(rigid_obj.prim)
             # set random color
@@ -157,9 +157,9 @@ def main():
 
     # Create a view of the stuff we want to see
     if args_cli.scenario == "cube":
-        view: RigidPrimView = world.scene.add(RigidPrimView("/World/Objects/.*", name="my_object"))
+        view: RigidPrim = world.scene.add(RigidPrim("/World/Objects/.*", name="my_object"))
     else:
-        view: ArticulationView = world.scene.add(ArticulationView("/World/Robot", name="my_object"))
+        view: Articulation = world.scene.add(Articulation("/World/Robot", name="my_object"))
     # Play simulator
     world.reset()
     # Get initial state

@@ -18,11 +18,11 @@ import numpy as np
 import os
 import unittest
 
-import omni.isaac.core.utils.prims as prim_utils
-import omni.isaac.core.utils.stage as stage_utils
-from omni.isaac.core.articulations import ArticulationView
-from omni.isaac.core.simulation_context import SimulationContext
-from omni.isaac.core.utils.extensions import enable_extension, get_extension_path_from_name
+import isaacsim.core.utils.prims as prim_utils
+import isaacsim.core.utils.stage as stage_utils
+from isaacsim.core.api.simulation_context import SimulationContext
+from isaacsim.core.prims import Articulation
+from isaacsim.core.utils.extensions import enable_extension, get_extension_path_from_name
 
 from omni.isaac.lab.sim.converters import UrdfConverter, UrdfConverterCfg
 
@@ -35,8 +35,8 @@ class TestUrdfConverter(unittest.TestCase):
         # Create a new stage
         stage_utils.create_new_stage()
         # retrieve path to urdf importer extension
-        enable_extension("omni.importer.urdf")
-        extension_path = get_extension_path_from_name("omni.importer.urdf")
+        enable_extension("isaacsim.asset.importer.urdf")
+        extension_path = get_extension_path_from_name("isaacsim.asset.importer.urdf")
         # default configuration
         self.config = UrdfConverterCfg(
             asset_path=f"{extension_path}/data/urdf/robots/franka_description/robots/panda_arm_hand.urdf",
@@ -120,7 +120,7 @@ class TestUrdfConverter(unittest.TestCase):
         prim_utils.create_prim(prim_path, usd_path=urdf_converter.usd_path)
 
         # access the robot
-        robot = ArticulationView(prim_path, reset_xform_properties=False)
+        robot = Articulation(prim_path, reset_xform_properties=False)
         # play the simulator and initialize the robot
         self.sim.reset()
         robot.initialize()

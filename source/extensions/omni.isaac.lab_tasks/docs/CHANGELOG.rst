@@ -643,7 +643,7 @@ Fixed
 ^^^^^
 
 * Clarified the documentation of flags in the :class:`SimCfg` class.
-* Added enabling of ``omni.kit.viewport`` and ``omni.replicator.isaac`` extensions
+* Added enabling of ``omni.kit.viewport`` and ``isaacsim.replicator`` extensions
   dynamically to maintain order in the startup of extensions.
 * Corrected the experiment names in the configuration files for training environments with ``rsl_rl``.
 

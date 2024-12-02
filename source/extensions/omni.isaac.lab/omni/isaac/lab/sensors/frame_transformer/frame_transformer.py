@@ -204,7 +204,7 @@ class FrameTransformer(SensorBase):
                 f" {non_identity_offset_frames}"
             )
 
-        # The names of bodies that RigidPrimView will be tracking to later extract transforms from
+        # The names of bodies that RigidPrim will be tracking to later extract transforms from
         tracked_prim_paths = [body_names_to_frames[body_name]["prim_path"] for body_name in body_names_to_frames.keys()]
         tracked_body_names = [body_name for body_name in body_names_to_frames.keys()]
 

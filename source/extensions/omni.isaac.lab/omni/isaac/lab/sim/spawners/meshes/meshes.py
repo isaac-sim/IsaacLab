@@ -10,7 +10,7 @@ import trimesh
 import trimesh.transformations
 from typing import TYPE_CHECKING
 
-import omni.isaac.core.utils.prims as prim_utils
+import isaacsim.core.utils.prims as prim_utils
 from pxr import Usd, UsdPhysics
 
 from omni.isaac.lab.sim import schemas

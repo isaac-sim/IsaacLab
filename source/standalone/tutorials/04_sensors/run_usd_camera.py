@@ -65,7 +65,7 @@ import os
 import random
 import torch
 
-import omni.isaac.core.utils.prims as prim_utils
+import isaacsim.core.utils.prims as prim_utils
 import omni.replicator.core as rep
 
 import omni.isaac.lab.sim as sim_utils

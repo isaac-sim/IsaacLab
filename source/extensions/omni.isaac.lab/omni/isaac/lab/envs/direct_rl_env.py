@@ -17,10 +17,10 @@ from collections.abc import Sequence
 from dataclasses import MISSING
 from typing import Any, ClassVar
 
-import omni.isaac.core.utils.torch as torch_utils
+import isaacsim.core.utils.torch as torch_utils
 import omni.kit.app
 import omni.log
-from omni.isaac.version import get_version
+from isaacsim.core.version import get_version
 
 from omni.isaac.lab.managers import EventManager
 from omni.isaac.lab.scene import InteractiveScene

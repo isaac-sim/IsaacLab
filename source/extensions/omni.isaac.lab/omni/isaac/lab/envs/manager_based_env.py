@@ -8,7 +8,7 @@ import torch
 from collections.abc import Sequence
 from typing import Any
 
-import omni.isaac.core.utils.torch as torch_utils
+import isaacsim.core.utils.torch as torch_utils
 import omni.log
 
 from omni.isaac.lab.managers import ActionManager, EventManager, ObservationManager, RecorderManager

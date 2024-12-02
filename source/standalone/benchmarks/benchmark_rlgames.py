@@ -55,10 +55,10 @@ app_start_time_end = time.perf_counter_ns()
 """Rest everything follows."""
 
 # enable benchmarking extension
-from omni.isaac.core.utils.extensions import enable_extension
+from isaacsim.core.utils.extensions import enable_extension
 
-enable_extension("omni.isaac.benchmark.services")
-from omni.isaac.benchmark.services import BaseIsaacBenchmark
+enable_extension("isaacsim.benchmark.services")
+from isaacsim.benchmark.services import BaseIsaacBenchmark
 
 imports_time_begin = time.perf_counter_ns()
 

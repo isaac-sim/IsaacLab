@@ -36,11 +36,11 @@ simulation_app = app_launcher.app
 
 import torch
 
-import omni.isaac.core.utils.prims as prim_utils
-from omni.isaac.cloner import GridCloner
-from omni.isaac.core.simulation_context import SimulationContext
-from omni.isaac.core.utils.carb import set_carb_setting
-from omni.isaac.core.utils.viewports import set_camera_view
+import isaacsim.core.utils.prims as prim_utils
+from isaacsim.core.api.simulation_context import SimulationContext
+from isaacsim.core.cloner import GridCloner
+from isaacsim.core.utils.carb import set_carb_setting
+from isaacsim.core.utils.viewports import set_camera_view
 
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.assets import Articulation
