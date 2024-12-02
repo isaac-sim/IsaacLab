@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.3.0" />
-    <meta name="docbuild:last-update" content="Nov 25, 2024"/>
+    <meta name="docbuild:last-update" content="Dec 02, 2024"/>
   </head>
   
   
@@ -716,6 +716,11 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.DirectMARLEnv.render"><code class="docutils literal notranslate"><span class="pre">DirectMARLEnv.render()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.DirectMARLEnv.close"><code class="docutils literal notranslate"><span class="pre">DirectMARLEnv.close()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.DirectMARLEnv.set_debug_vis"><code class="docutils literal notranslate"><span class="pre">DirectMARLEnv.set_debug_vis()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.DirectMARLEnv.get_wrapper_attr"><code class="docutils literal notranslate"><span class="pre">DirectMARLEnv.get_wrapper_attr()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.DirectMARLEnv.has_wrapper_attr"><code class="docutils literal notranslate"><span class="pre">DirectMARLEnv.has_wrapper_attr()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.DirectMARLEnv.np_random"><code class="docutils literal notranslate"><span class="pre">DirectMARLEnv.np_random</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.DirectMARLEnv.np_random_seed"><code class="docutils literal notranslate"><span class="pre">DirectMARLEnv.np_random_seed</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.DirectMARLEnv.set_wrapper_attr"><code class="docutils literal notranslate"><span class="pre">DirectMARLEnv.set_wrapper_attr()</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.DirectMARLEnvCfg"><code class="docutils literal notranslate"><span class="pre">DirectMARLEnvCfg</span></code></a><ul class="nav section-nav flex-column">
@@ -2415,7 +2420,7 @@ step will be performed after each time an environment is reset.</p></li>
 <dl class="py class">
 <dt class="sig sig-object py" id="omni.isaac.lab.envs.DirectMARLEnv">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.envs.</span></span><span class="sig-name descname"><span class="pre">DirectMARLEnv</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/envs/direct_marl_env.html#DirectMARLEnv"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.envs.DirectMARLEnv" title="Permalink to this definition">#</a></dt>
-<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<dd><p>Bases: <a class="reference external" href="https://gymnasium.farama.org/api/env/#gymnasium.Env" title="(in Gymnasium)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Env</span></code></a></p>
 <p>The superclass for the direct workflow to design multi-agent environments.</p>
 <p>This class implements the core functionality for multi-agent reinforcement learning (MARL)
 environments. It is designed to be used with any RL library. The class is designed
@@ -2466,6 +2471,12 @@ in a vectorized environment.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.DirectMARLEnv.max_episode_length" title="omni.isaac.lab.envs.DirectMARLEnv.max_episode_length"><code class="xref py py-obj docutils literal notranslate"><span class="pre">max_episode_length</span></code></a></p></td>
 <td><p>The maximum episode length in steps adjusted from s.</p></td>
 </tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.DirectMARLEnv.np_random" title="omni.isaac.lab.envs.DirectMARLEnv.np_random"><code class="xref py py-obj docutils literal notranslate"><span class="pre">np_random</span></code></a></p></td>
+<td><p>Returns the environment's internal <code class="xref py py-attr docutils literal notranslate"><span class="pre">_np_random</span></code> that if not set will initialise with a random seed.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.DirectMARLEnv.np_random_seed" title="omni.isaac.lab.envs.DirectMARLEnv.np_random_seed"><code class="xref py py-obj docutils literal notranslate"><span class="pre">np_random_seed</span></code></a></p></td>
+<td><p>Returns the environment's internal <code class="xref py py-attr docutils literal notranslate"><span class="pre">_np_random_seed</span></code> that if not set will first initialise with a random int as seed.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -2502,12 +2513,21 @@ in a vectorized environment.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.DirectMARLEnv.set_debug_vis" title="omni.isaac.lab.envs.DirectMARLEnv.set_debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_debug_vis</span></code></a>(debug_vis)</p></td>
 <td><p>Toggles the environment debug visualization.</p></td>
 </tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.DirectMARLEnv.get_wrapper_attr" title="omni.isaac.lab.envs.DirectMARLEnv.get_wrapper_attr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_wrapper_attr</span></code></a>(name)</p></td>
+<td><p>Gets the attribute <cite>name</cite> from the environment.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.DirectMARLEnv.has_wrapper_attr" title="omni.isaac.lab.envs.DirectMARLEnv.has_wrapper_attr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">has_wrapper_attr</span></code></a>(name)</p></td>
+<td><p>Checks if the attribute <cite>name</cite> exists in the environment.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.DirectMARLEnv.set_wrapper_attr" title="omni.isaac.lab.envs.DirectMARLEnv.set_wrapper_attr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_wrapper_attr</span></code></a>(name, value)</p></td>
+<td><p>Sets the attribute <cite>name</cite> on the environment with <cite>value</cite>.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.envs.DirectMARLEnv.metadata">
-<span class="sig-name descname"><span class="pre">metadata</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.ClassVar" title="(in Python v3.13)"><span class="pre">ClassVar</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.13)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'isaac_sim_version':</span> <span class="pre">omni.isaac.version.get_version,</span> <span class="pre">'render_modes':</span> <span class="pre">[None,</span> <span class="pre">'human',</span> <span class="pre">'rgb_array']}</span></em><a class="headerlink" href="#omni.isaac.lab.envs.DirectMARLEnv.metadata" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">metadata</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ClassVar</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'isaac_sim_version':</span> <span class="pre">omni.isaac.version.get_version,</span> <span class="pre">'render_modes':</span> <span class="pre">[None,</span> <span class="pre">'human',</span> <span class="pre">'rgb_array']}</span></em><a class="headerlink" href="#omni.isaac.lab.envs.DirectMARLEnv.metadata" title="Permalink to this definition">#</a></dt>
 <dd><p>Metadata for the environment.</p>
 </dd></dl>
 
@@ -2736,6 +2756,51 @@ Defaults to False.</p>
 does not support debug visualization.</p>
 </dd>
 </dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.DirectMARLEnv.get_wrapper_attr">
+<span class="sig-name descname"><span class="pre">get_wrapper_attr</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.13)"><span class="pre">Any</span></a></span></span><a class="headerlink" href="#omni.isaac.lab.envs.DirectMARLEnv.get_wrapper_attr" title="Permalink to this definition">#</a></dt>
+<dd><p>Gets the attribute <cite>name</cite> from the environment.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.DirectMARLEnv.has_wrapper_attr">
+<span class="sig-name descname"><span class="pre">has_wrapper_attr</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></span></span><a class="headerlink" href="#omni.isaac.lab.envs.DirectMARLEnv.has_wrapper_attr" title="Permalink to this definition">#</a></dt>
+<dd><p>Checks if the attribute <cite>name</cite> exists in the environment.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.DirectMARLEnv.np_random">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">np_random</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://numpy.org/doc/stable/reference/random/generator.html#numpy.random.Generator" title="(in NumPy v2.1)"><span class="pre">numpy.random.Generator</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.DirectMARLEnv.np_random" title="Permalink to this definition">#</a></dt>
+<dd><p>Returns the environment’s internal <code class="xref py py-attr docutils literal notranslate"><span class="pre">_np_random</span></code> that if not set will initialise with a random seed.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Instances of <cite>np.random.Generator</cite></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.DirectMARLEnv.np_random_seed">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">np_random_seed</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.DirectMARLEnv.np_random_seed" title="Permalink to this definition">#</a></dt>
+<dd><p>Returns the environment’s internal <code class="xref py py-attr docutils literal notranslate"><span class="pre">_np_random_seed</span></code> that if not set will first initialise with a random int as seed.</p>
+<p>If <a class="reference internal" href="#omni.isaac.lab.envs.DirectMARLEnv.np_random_seed" title="omni.isaac.lab.envs.DirectMARLEnv.np_random_seed"><code class="xref py py-attr docutils literal notranslate"><span class="pre">np_random_seed</span></code></a> was set directly instead of through <a class="reference internal" href="#omni.isaac.lab.envs.DirectMARLEnv.reset" title="omni.isaac.lab.envs.DirectMARLEnv.reset"><code class="xref py py-meth docutils literal notranslate"><span class="pre">reset()</span></code></a> or <code class="xref py py-meth docutils literal notranslate"><span class="pre">set_np_random_through_seed()</span></code>,
+the seed will take the value -1.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>the seed of the current <cite>np_random</cite> or -1, if the seed of the rng is unknown</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)">int</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.DirectMARLEnv.set_wrapper_attr">
+<span class="sig-name descname"><span class="pre">set_wrapper_attr</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.13)"><span class="pre">Any</span></a></span></em><span class="sig-paren">)</span><a class="headerlink" href="#omni.isaac.lab.envs.DirectMARLEnv.set_wrapper_attr" title="Permalink to this definition">#</a></dt>
+<dd><p>Sets the attribute <cite>name</cite> on the environment with <cite>value</cite>.</p>
 </dd></dl>
 
 </dd></dl>
@@ -3341,6 +3406,11 @@ Default is (1280, 720).</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.DirectMARLEnv.render"><code class="docutils literal notranslate"><span class="pre">DirectMARLEnv.render()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.DirectMARLEnv.close"><code class="docutils literal notranslate"><span class="pre">DirectMARLEnv.close()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.DirectMARLEnv.set_debug_vis"><code class="docutils literal notranslate"><span class="pre">DirectMARLEnv.set_debug_vis()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.DirectMARLEnv.get_wrapper_attr"><code class="docutils literal notranslate"><span class="pre">DirectMARLEnv.get_wrapper_attr()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.DirectMARLEnv.has_wrapper_attr"><code class="docutils literal notranslate"><span class="pre">DirectMARLEnv.has_wrapper_attr()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.DirectMARLEnv.np_random"><code class="docutils literal notranslate"><span class="pre">DirectMARLEnv.np_random</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.DirectMARLEnv.np_random_seed"><code class="docutils literal notranslate"><span class="pre">DirectMARLEnv.np_random_seed</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.DirectMARLEnv.set_wrapper_attr"><code class="docutils literal notranslate"><span class="pre">DirectMARLEnv.set_wrapper_attr()</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.DirectMARLEnvCfg"><code class="docutils literal notranslate"><span class="pre">DirectMARLEnvCfg</span></code></a><ul class="nav section-nav flex-column">
@@ -3412,7 +3482,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Nov 25, 2024.
+  Last updated on Dec 02, 2024.
   <br/>
 </p>
   </div>
