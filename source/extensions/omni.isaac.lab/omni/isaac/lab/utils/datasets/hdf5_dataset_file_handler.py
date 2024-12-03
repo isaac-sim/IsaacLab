@@ -22,6 +22,7 @@ class HDF5DatasetFileHandler(DatasetFileHandlerBase):
         self._hdf5_file_stream = None
         self._hdf5_data_group = None
         self._demo_count = 0
+        self._env_args = {}
 
     def open(self, file_path: str, mode: str = "r"):
         """Open an existing dataset file."""
@@ -42,14 +43,19 @@ class HDF5DatasetFileHandler(DatasetFileHandlerBase):
             os.makedirs(dir_path)
         self._hdf5_file_stream = h5py.File(file_path, "w")
 
-        # Set up a data group in the file
+        # set up a data group in the file
         self._hdf5_data_group = self._hdf5_file_stream.create_group("data")
         self._hdf5_data_group.attrs["total"] = 0
-        if env_name is not None:
-            self._hdf5_data_group.attrs["env_args"] = json.dumps({
-                "env_name": env_name,
-            })
         self._demo_count = 0
+
+        # set environment arguments
+        # the environment type (we use gym environment type) is set to be compatible with robomimic
+        # Ref: https://github.com/ARISE-Initiative/robomimic/blob/master/robomimic/envs/env_base.py#L15
+        env_name = env_name if env_name is not None else ""
+        self.add_env_args({
+            "env_name": env_name,
+            "type": 2
+        })
 
     def __del__(self):
         """Destructor for the file handler."""
@@ -59,14 +65,16 @@ class HDF5DatasetFileHandler(DatasetFileHandlerBase):
     Properties
     """
 
+    def add_env_args(self, env_args: dict):
+        """Add environment arguments to the dataset."""
+        self._raise_if_not_initialized()
+        self._env_args.update(env_args)
+        self._hdf5_data_group.attrs["env_args"] = json.dumps(self._env_args)
+
     def set_env_name(self, env_name: str):
         """Set the environment name."""
         self._raise_if_not_initialized()
-        env_args = json.loads(self._hdf5_data_group.attrs["env_args"])
-        env_args["env_name"] = env_name
-        self._hdf5_data_group.attrs["env_args"] = json.dumps({
-            "env_name": env_name,
-        })
+        self.add_env_args({"env_name": env_name})
 
     def get_env_name(self) -> str | None:
         """Get the environment name."""
@@ -94,7 +102,7 @@ class HDF5DatasetFileHandler(DatasetFileHandlerBase):
     Operations.
     """
 
-    def load_episode(self, episode_name: str, device: str = "cpu") -> EpisodeData | None:
+    def load_episode(self, episode_name: str, device: str) -> EpisodeData | None:
         """Load episode data from the file."""
         self._raise_if_not_initialized()
         if episode_name not in self._hdf5_data_group:
