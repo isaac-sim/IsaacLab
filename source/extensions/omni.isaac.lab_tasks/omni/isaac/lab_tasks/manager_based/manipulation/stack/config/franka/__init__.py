@@ -40,7 +40,6 @@ gym.register(
 )
 
 
-
 ##
 # Inverse Kinematics - Relative Pose Control
 ##
@@ -63,4 +62,3 @@ gym.register(
     },
     disable_env_checker=True,
 )
-
