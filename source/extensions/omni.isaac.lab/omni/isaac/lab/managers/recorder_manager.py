@@ -206,7 +206,7 @@ class RecorderManager(ManagerBase):
     """
 
     def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, torch.Tensor]:
-        """Resets the recroder data.
+        """Resets the recorder data.
 
         Args:
             env_ids: The environment ids. Defaults to None, in which case
@@ -246,6 +246,16 @@ class RecorderManager(ManagerBase):
         return self._episodes.get(env_id, EpisodeData())
 
     def add_to_episodes(self, key: str, value: torch.Tensor | dict, env_ids: Sequence[int] | None = None):
+        """Adds the given key-value pair to the episodes for the given environment ids.
+
+        Args:
+            key: The key of the given value to be added to the episodes. The key can contain nested keys
+                separated by '/'. For example, "obs/joint_pos" would add the given value under ['obs']['policy']
+                in the underlying dictionary in the episode data.
+            value: The value to be added to the episodes. The value can be a tensor or a nested dictionary of tensors.
+                The shape of a tensor in the value is (env_ids, ...).
+            env_ids: The environment ids. Defaults to None, in which case all environments are considered.
+        """
         # Do nothing if no active recorder terms are provided
         if len(self.active_terms) == 0:
             return
@@ -270,6 +280,12 @@ class RecorderManager(ManagerBase):
             self._episodes[env_id].add(key, value[value_index])
 
     def set_success_to_episodes(self, env_ids: Sequence[int] | None, success_values: torch.Tensor):
+        """Sets the task success values to the episodes for the given environment ids.
+
+        Args:
+            env_ids: The environment ids. Defaults to None, in which case all environments are considered.
+            success_values: The task success values to be set to the episodes. The shape of the tensor is (env_ids, 1).
+        """
         # Do nothing if no active recorder terms are provided
         if len(self.active_terms) == 0:
             return

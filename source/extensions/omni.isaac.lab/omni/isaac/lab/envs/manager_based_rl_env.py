@@ -370,7 +370,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # -- termination manager
         info = self.termination_manager.reset(env_ids)
         self.extras["log"].update(info)
-        # -- recroder manager
+        # -- recorder manager
         info = self.recorder_manager.reset(env_ids)
         self.extras["log"].update(info)
 
