@@ -64,6 +64,7 @@ Guidelines for modifications:
 * Nuralem Abizov
 * Oyindamola Omotuyi
 * Özhan Özen
+* Peter Du
 * Qian Wan
 * Qinxi Yu
 * René Zurbrügg
