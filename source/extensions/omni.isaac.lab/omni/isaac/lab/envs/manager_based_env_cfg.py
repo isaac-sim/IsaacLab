@@ -13,6 +13,7 @@ from dataclasses import MISSING
 
 import omni.isaac.lab.envs.mdp as mdp
 from omni.isaac.lab.managers import EventTermCfg as EventTerm
+from omni.isaac.lab.managers import RecorderManagerBaseCfg as DefaultEmptyRecorderManagerCfg
 from omni.isaac.lab.scene import InteractiveSceneCfg
 from omni.isaac.lab.sim import SimulationCfg
 from omni.isaac.lab.utils import configclass
@@ -76,6 +77,12 @@ class ManagerBasedEnvCfg:
     """Scene settings.
 
     Please refer to the :class:`omni.isaac.lab.scene.InteractiveSceneCfg` class for more details.
+    """
+
+    recorders: object = DefaultEmptyRecorderManagerCfg()
+    """Recorder settings. Defaults to recording nothing.
+
+    Please refer to the :class:`omni.isaac.lab.managers.RecorderManager` class for more details.
     """
 
     observations: object = MISSING
