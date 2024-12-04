@@ -36,10 +36,3 @@ class PreStepFlatPolicyObservationsRecorder(RecorderTerm):
 
     def record_pre_step(self):
         return "obs", self._env.obs_buf["policy"]
-
-
-class PreStepSubtaskTermsObservationsRecorder(RecorderTerm):
-    """Recorder term that records the subtask completion observations in each step."""
-
-    def record_pre_step(self):
-        return "obs/subtask_term_signals", self._env.obs_buf["subtask_terms"]

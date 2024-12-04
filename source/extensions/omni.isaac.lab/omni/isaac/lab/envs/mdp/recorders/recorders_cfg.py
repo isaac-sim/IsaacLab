@@ -41,13 +41,6 @@ class PreStepFlatPolicyObservationsRecorderCfg(RecorderTermCfg):
     class_type: type[RecorderTerm] = recorders.PreStepFlatPolicyObservationsRecorder
 
 
-@configclass
-class PreStepSubtaskTermsObservationsRecorderCfg(RecorderTermCfg):
-    """Configuration for the step subtask terms observation recorder term."""
-
-    class_type: type[RecorderTerm] = recorders.PreStepSubtaskTermsObservationsRecorder
-
-
 ##
 # Recorder manager configurations.
 ##

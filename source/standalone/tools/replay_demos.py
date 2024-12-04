@@ -101,7 +101,7 @@ def compare_states(state_from_dataset, runtime_state, runtime_env_index) -> (boo
 
 def main():
     """Replay episodes loaded from a file."""
-    global is_paused, current_action_index, subtask_indices
+    global is_paused
 
     # Load dataset
     if not os.path.exists(args_cli.dataset_file):
