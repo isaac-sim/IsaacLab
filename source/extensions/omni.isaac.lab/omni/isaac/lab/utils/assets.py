@@ -49,7 +49,8 @@ def check_file_path(path: str) -> Literal[0, 1, 2]:
     """
     if os.path.isfile(path):
         return 1
-    elif omni.client.stat(path)[0] == omni.client.Result.OK:
+    # we need to convert backslash to forward slash on Windows for omni.client API
+    elif omni.client.stat(path.replace(os.sep, "/"))[0] == omni.client.Result.OK:
         return 2
     else:
         return 0
@@ -91,12 +92,12 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
         if not os.path.exists(download_dir):
             os.makedirs(download_dir)
         # download file in temp directory using os
-        file_name = os.path.basename(omni.client.break_url(path).path)
+        file_name = os.path.basename(omni.client.break_url(path.replace(os.sep, "/")).path)
         target_path = os.path.join(download_dir, file_name)
         # check if file already exists locally
         if not os.path.isfile(target_path) or force_download:
             # copy file to local machine
-            result = omni.client.copy(path, target_path)
+            result = omni.client.copy(path.replace(os.sep, "/"), target_path)
             if result != omni.client.Result.OK and force_download:
                 raise RuntimeError(f"Unable to copy file: '{path}'. Is the Nucleus Server running?")
         return os.path.abspath(target_path)
@@ -122,7 +123,7 @@ def read_file(path: str) -> io.BytesIO:
         with open(path, "rb") as f:
             return io.BytesIO(f.read())
     elif file_status == 2:
-        file_content = omni.client.read_file(path)[2]
+        file_content = omni.client.read_file(path.replace(os.sep, "/"))[2]
         return io.BytesIO(memoryview(file_content).tobytes())
     else:
         raise FileNotFoundError(f"Unable to find the file: {path}")

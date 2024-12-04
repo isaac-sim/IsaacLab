@@ -22,6 +22,11 @@ parser.add_argument("--num_envs", type=int, default=None, help="Number of enviro
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("--checkpoint", type=str, default=None, help="Path to model checkpoint.")
 parser.add_argument(
+    "--use_pretrained_checkpoint",
+    action="store_true",
+    help="Use the pre-trained checkpoint from Nucleus.",
+)
+parser.add_argument(
     "--use_last_checkpoint",
     action="store_true",
     help="When no checkpoint provided, use the last saved model. Otherwise use the best saved model.",
@@ -50,6 +55,7 @@ from stable_baselines3.common.vec_env import VecNormalize
 
 from omni.isaac.lab.envs import DirectMARLEnv, multi_agent_to_single_agent
 from omni.isaac.lab.utils.dict import print_dict
+from omni.isaac.lab.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
 
 import omni.isaac.lab_tasks  # noqa: F401
 from omni.isaac.lab_tasks.utils.parse_cfg import get_checkpoint_path, load_cfg_from_registry, parse_env_cfg
@@ -67,8 +73,13 @@ def main():
     # directory for logging into
     log_root_path = os.path.join("logs", "sb3", args_cli.task)
     log_root_path = os.path.abspath(log_root_path)
-    # check checkpoint is valid
-    if args_cli.checkpoint is None:
+    # checkpoint and log_dir stuff
+    if args_cli.use_pretrained_checkpoint:
+        checkpoint_path = get_published_pretrained_checkpoint("sb3", args_cli.task)
+        if not checkpoint_path:
+            print("[INFO] Unfortunately a pre-trained checkpoint is currently unavailable for this task.")
+            return
+    elif args_cli.checkpoint is None:
         if args_cli.use_last_checkpoint:
             checkpoint = "model_.*.zip"
         else:

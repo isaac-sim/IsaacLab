@@ -23,6 +23,11 @@ parser.add_argument(
 )
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
+parser.add_argument(
+    "--use_pretrained_checkpoint",
+    action="store_true",
+    help="Use the pre-trained checkpoint from Nucleus.",
+)
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
 # append AppLauncher cli args
@@ -45,7 +50,9 @@ import torch
 from rsl_rl.runners import OnPolicyRunner
 
 from omni.isaac.lab.envs import DirectMARLEnv, multi_agent_to_single_agent
+from omni.isaac.lab.utils.assets import retrieve_file_path
 from omni.isaac.lab.utils.dict import print_dict
+from omni.isaac.lab.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
 
 import omni.isaac.lab_tasks  # noqa: F401
 from omni.isaac.lab_tasks.utils import get_checkpoint_path, parse_env_cfg
@@ -69,7 +76,16 @@ def main():
     log_root_path = os.path.join("logs", "rsl_rl", agent_cfg.experiment_name)
     log_root_path = os.path.abspath(log_root_path)
     print(f"[INFO] Loading experiment from directory: {log_root_path}")
-    resume_path = get_checkpoint_path(log_root_path, agent_cfg.load_run, agent_cfg.load_checkpoint)
+    if args_cli.use_pretrained_checkpoint:
+        resume_path = get_published_pretrained_checkpoint("rsl_rl", args_cli.task)
+        if not resume_path:
+            print("[INFO] Unfortunately a pre-trained checkpoint is currently unavailable for this task.")
+            return
+    elif args_cli.checkpoint:
+        resume_path = retrieve_file_path(args_cli.checkpoint)
+    else:
+        resume_path = get_checkpoint_path(log_root_path, agent_cfg.load_run, agent_cfg.load_checkpoint)
+
     log_dir = os.path.dirname(resume_path)
 
     # create isaac environment
