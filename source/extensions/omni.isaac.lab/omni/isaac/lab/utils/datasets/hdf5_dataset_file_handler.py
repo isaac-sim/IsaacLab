@@ -52,10 +52,7 @@ class HDF5DatasetFileHandler(DatasetFileHandlerBase):
         # the environment type (we use gym environment type) is set to be compatible with robomimic
         # Ref: https://github.com/ARISE-Initiative/robomimic/blob/master/robomimic/envs/env_base.py#L15
         env_name = env_name if env_name is not None else ""
-        self.add_env_args({
-            "env_name": env_name,
-            "type": 2
-        })
+        self.add_env_args({"env_name": env_name, "type": 2})
 
     def __del__(self):
         """Destructor for the file handler."""
