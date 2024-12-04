@@ -39,6 +39,7 @@ Guidelines for modifications:
 * Anton Bjørndahl Mortensen
 * Arjun Bhardwaj
 * Brayden Zhang
+* Cameron Upright
 * Calvin Yu
 * Chenyu Yang
 * CY (Chien-Ying) Chen

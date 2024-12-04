@@ -25,6 +25,8 @@ RL-Games
             ./isaaclab.sh -p source/standalone/workflows/rl_games/train.py --task Isaac-Ant-v0 --headless
             # run script for playing with 32 environments
             ./isaaclab.sh -p source/standalone/workflows/rl_games/play.py --task Isaac-Ant-v0 --num_envs 32 --checkpoint /PATH/TO/model.pth
+            # run script for playing a pre-trained checkpoint with 32 environments
+            ./isaaclab.sh -p source/standalone/workflows/rl_games/play.py --task Isaac-Ant-v0 --num_envs 32 --use_pretrained_checkpoint
             # run script for recording video of a trained agent (requires installing `ffmpeg`)
             ./isaaclab.sh -p source/standalone/workflows/rl_games/play.py --task Isaac-Ant-v0 --headless --video --video_length 200
 
@@ -39,6 +41,8 @@ RL-Games
             isaaclab.bat -p source\standalone\workflows\rl_games\train.py --task Isaac-Ant-v0 --headless
             :: run script for playing with 32 environments
             isaaclab.bat -p source\standalone\workflows\rl_games\play.py --task Isaac-Ant-v0 --num_envs 32 --checkpoint /PATH/TO/model.pth
+            :: run script for playing a pre-trained checkpoint with 32 environments
+            isaaclab.bat -p source\standalone\workflows\rl_games\play.py --task Isaac-Ant-v0 --num_envs 32 --use_pretrained_checkpoint
             :: run script for recording video of a trained agent (requires installing `ffmpeg`)
             isaaclab.bat -p source\standalone\workflows\rl_games\play.py --task Isaac-Ant-v0 --headless --video --video_length 200
 
@@ -62,6 +66,8 @@ RSL-RL
             ./isaaclab.sh -p source/standalone/workflows/rsl_rl/train.py --task Isaac-Reach-Franka-v0 --headless
             # run script for playing with 32 environments
             ./isaaclab.sh -p source/standalone/workflows/rsl_rl/play.py --task Isaac-Reach-Franka-v0 --num_envs 32 --load_run run_folder_name --checkpoint model.pt
+            # run script for playing a pre-trained checkpoint with 32 environments
+            ./isaaclab.sh -p source/standalone/workflows/rsl_rl/play.py --task Isaac-Reach-Franka-v0 --num_envs 32 --use_pretrained_checkpoint
             # run script for recording video of a trained agent (requires installing `ffmpeg`)
             ./isaaclab.sh -p source/standalone/workflows/rsl_rl/play.py --task Isaac-Reach-Franka-v0 --headless --video --video_length 200
 
@@ -76,6 +82,8 @@ RSL-RL
             isaaclab.bat -p source\standalone\workflows\rsl_rl\train.py --task Isaac-Reach-Franka-v0 --headless
             :: run script for playing with 32 environments
             isaaclab.bat -p source\standalone\workflows\rsl_rl\play.py --task Isaac-Reach-Franka-v0 --num_envs 32 --load_run run_folder_name --checkpoint model.pt
+            :: run script for playing a pre-trained checkpoint with 32 environments
+            isaaclab.bat -p source\standalone\workflows\rsl_rl\play.py --task Isaac-Reach-Franka-v0 --num_envs 32 --use_pretrained_checkpoint
             :: run script for recording video of a trained agent (requires installing `ffmpeg`)
             isaaclab.bat -p source\standalone\workflows\rsl_rl\play.py --task Isaac-Reach-Franka-v0 --headless --video --video_length 200
 
@@ -103,6 +111,8 @@ SKRL
                      ./isaaclab.sh -p source/standalone/workflows/skrl/train.py --task Isaac-Reach-Franka-v0 --headless
                      # run script for playing with 32 environments
                      ./isaaclab.sh -p source/standalone/workflows/skrl/play.py --task Isaac-Reach-Franka-v0 --num_envs 32 --checkpoint /PATH/TO/model.pt
+                     # run script for playing a pre-trained checkpoint with 32 environments
+                     ./isaaclab.sh -p source/standalone/workflows/skrl/play.py --task Isaac-Reach-Franka-v0 --num_envs 32 --use_pretrained_checkpoint
                      # run script for recording video of a trained agent (requires installing `ffmpeg`)
                      ./isaaclab.sh -p source/standalone/workflows/skrl/play.py --task Isaac-Reach-Franka-v0 --headless --video --video_length 200
 
@@ -117,6 +127,8 @@ SKRL
                      isaaclab.bat -p source\standalone\workflows\skrl\train.py --task Isaac-Reach-Franka-v0 --headless
                      :: run script for playing with 32 environments
                      isaaclab.bat -p source\standalone\workflows\skrl\play.py --task Isaac-Reach-Franka-v0 --num_envs 32 --checkpoint /PATH/TO/model.pt
+                     :: run script for playing a pre-trained checkpoint with 32 environments
+                     isaaclab.bat -p source\standalone\workflows\skrl\play.py --task Isaac-Reach-Franka-v0 --num_envs 32 --use_pretrained_checkpoint
                      :: run script for recording video of a trained agent (requires installing `ffmpeg`)
                      isaaclab.bat -p source\standalone\workflows\skrl\play.py --task Isaac-Reach-Franka-v0 --headless --video --video_length 200
 
@@ -191,6 +203,8 @@ Stable-Baselines3
             ./isaaclab.sh -p source/standalone/workflows/sb3/train.py --task Isaac-Cartpole-v0 --headless --device cpu
             # run script for playing with 32 environments
             ./isaaclab.sh -p source/standalone/workflows/sb3/play.py --task Isaac-Cartpole-v0 --num_envs 32 --checkpoint /PATH/TO/model.zip
+            # run script for playing a pre-trained checkpoint with 32 environments
+            ./isaaclab.sh -p source/standalone/workflows/sb3/play.py --task Isaac-Cartpole-v0 --num_envs 32 --use_pretrained_checkpoint
             # run script for recording video of a trained agent (requires installing `ffmpeg`)
             ./isaaclab.sh -p source/standalone/workflows/sb3/play.py --task Isaac-Cartpole-v0 --headless --video --video_length 200
 
@@ -206,6 +220,8 @@ Stable-Baselines3
             isaaclab.bat -p source\standalone\workflows\sb3\train.py --task Isaac-Cartpole-v0 --headless --device cpu
             :: run script for playing with 32 environments
             isaaclab.bat -p source\standalone\workflows\sb3\play.py --task Isaac-Cartpole-v0 --num_envs 32 --checkpoint /PATH/TO/model.zip
+            :: run script for playing a pre-trained checkpoint with 32 environments
+            isaaclab.bat -p source\standalone\workflows\sb3\play.py --task Isaac-Cartpole-v0 --num_envs 32 --use_pretrained_checkpoint
             :: run script for recording video of a trained agent (requires installing `ffmpeg`)
             isaaclab.bat -p source\standalone\workflows\sb3\play.py --task Isaac-Cartpole-v0 --headless --video --video_length 200
 

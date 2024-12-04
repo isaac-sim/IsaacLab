@@ -22,6 +22,11 @@ parser.add_argument("--num_envs", type=int, default=None, help="Number of enviro
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("--checkpoint", type=str, default=None, help="Path to model checkpoint.")
 parser.add_argument(
+    "--use_pretrained_checkpoint",
+    action="store_true",
+    help="Use the pre-trained checkpoint from Nucleus.",
+)
+parser.add_argument(
     "--use_last_checkpoint",
     action="store_true",
     help="When no checkpoint provided, use the last saved model. Otherwise use the best saved model.",
@@ -53,6 +58,7 @@ from rl_games.torch_runner import Runner
 from omni.isaac.lab.envs import DirectMARLEnv, multi_agent_to_single_agent
 from omni.isaac.lab.utils.assets import retrieve_file_path
 from omni.isaac.lab.utils.dict import print_dict
+from omni.isaac.lab.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
 
 import omni.isaac.lab_tasks  # noqa: F401
 from omni.isaac.lab_tasks.utils import get_checkpoint_path, load_cfg_from_registry, parse_env_cfg
@@ -72,7 +78,12 @@ def main():
     log_root_path = os.path.abspath(log_root_path)
     print(f"[INFO] Loading experiment from directory: {log_root_path}")
     # find checkpoint
-    if args_cli.checkpoint is None:
+    if args_cli.use_pretrained_checkpoint:
+        resume_path = get_published_pretrained_checkpoint("rl_games", args_cli.task)
+        if not resume_path:
+            print("[INFO] Unfortunately a pre-trained checkpoint is currently unavailable for this task.")
+            return
+    elif args_cli.checkpoint is None:
         # specify directory for logging runs
         run_dir = agent_cfg["params"]["config"].get("full_experiment_name", ".*")
         # specify name of checkpoint
