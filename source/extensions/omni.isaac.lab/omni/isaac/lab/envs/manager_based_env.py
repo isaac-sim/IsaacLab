@@ -11,7 +11,7 @@ from typing import Any
 import omni.isaac.core.utils.torch as torch_utils
 import omni.log
 
-from omni.isaac.lab.managers import ActionManager, EventManager, ObservationManager
+from omni.isaac.lab.managers import ActionManager, EventManager, ObservationManager, RecorderManager
 from omni.isaac.lab.scene import InteractiveScene
 from omni.isaac.lab.sim import SimulationContext
 from omni.isaac.lab.utils.timer import Timer
@@ -45,6 +45,9 @@ class ManagerBasedEnv:
       This includes resetting the scene to a default state, applying random pushes to the robot at different intervals
       of time, or randomizing properties such as mass and friction coefficients. This is useful for training
       and evaluating the robot in a variety of scenarios.
+    * **Recorder Manager**: The recorder manager that handles recording data produced during different steps
+      in the simulation. This includes recording in the beginning and end of a reset and a step. The recorded data
+      is distinguished per episode, per environment and can be exported through a dataset file handler to a file.
 
     The environment provides a unified interface for interacting with the simulation. However, it does not
     include task-specific quantities such as the reward function, or the termination conditions. These
@@ -153,6 +156,9 @@ class ManagerBasedEnv:
         # allocate dictionary to store metrics
         self.extras = {}
 
+        # initialize observation buffers
+        self.obs_buf = {}
+
     def __del__(self):
         """Cleanup for the environment."""
         self.close()
@@ -208,6 +214,9 @@ class ManagerBasedEnv:
 
         """
         # prepare the managers
+        # -- recorder manager
+        self.recorder_manager = RecorderManager(self.cfg.recorders, self)
+        print("[INFO] Recorder Manager: ", self.recorder_manager)
         # -- action manager
         self.action_manager = ActionManager(self.cfg.actions, self)
         print("[INFO] Action Manager: ", self.action_manager)
@@ -228,15 +237,18 @@ class ManagerBasedEnv:
     Operations - MDP.
     """
 
-    def reset(self, seed: int | None = None, options: dict[str, Any] | None = None) -> tuple[VecEnvObs, dict]:
-        """Resets all the environments and returns observations.
+    def reset(
+        self, seed: int | None = None, env_ids: Sequence[int] | None = None, options: dict[str, Any] | None = None
+    ) -> tuple[VecEnvObs, dict]:
+        """Resets the specified environments and returns observations.
 
-        This function calls the :meth:`_reset_idx` function to reset all the environments.
+        This function calls the :meth:`_reset_idx` function to reset the specified environments.
         However, certain operations, such as procedural terrain generation, that happened during initialization
         are not repeated.
 
         Args:
             seed: The seed to use for randomization. Defaults to None, in which case the seed is not set.
+            env_ids: The environment ids to reset. Defaults to None, in which case all environments are reset.
             options: Additional information to specify how the environment is reset. Defaults to None.
 
                 Note:
@@ -245,20 +257,78 @@ class ManagerBasedEnv:
         Returns:
             A tuple containing the observations and extras.
         """
+        if env_ids is None:
+            env_ids = torch.arange(self.num_envs, dtype=torch.int64, device=self.device)
+
+        # trigger recorder terms for pre-reset calls
+        self.recorder_manager.record_pre_reset(env_ids)
+
         # set the seed
         if seed is not None:
             self.seed(seed)
 
         # reset state of scene
-        indices = torch.arange(self.num_envs, dtype=torch.int64, device=self.device)
-        self._reset_idx(indices)
+        self._reset_idx(env_ids)
+        self.scene.write_data_to_sim()
+
+        # trigger recorder terms for post-reset calls
+        self.recorder_manager.record_post_reset(env_ids)
 
         # if sensors are added to the scene, make sure we render to reflect changes in reset
         if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
             self.sim.render()
 
+        # compute observations
+        self.obs_buf = self.observation_manager.compute()
+
         # return observations
-        return self.observation_manager.compute(), self.extras
+        return self.obs_buf, self.extras
+
+    def reset_to(
+        self,
+        state: dict[str, dict[str, dict[str, torch.Tensor]]],
+        env_ids: Sequence[int] | None,
+        seed: int | None = None,
+        is_relative: bool = False,
+    ) -> None:
+        """Resets specified environments to known states.
+
+        Note that this is different from reset() function as it resets the environments to specific states
+
+        Args:
+            state: The state to reset the specified environments to.
+            env_ids: The environment ids to reset. Defaults to None, in which case all environments are reset.
+            seed: The seed to use for randomization. Defaults to None, in which case the seed is not set.
+            is_relative: If set to True, the state is considered relative to the environment origins. Defaults to False.
+        """
+        # reset all envs in the scene if env_ids is None
+        if env_ids is None:
+            env_ids = torch.arange(self.num_envs, dtype=torch.int64, device=self.device)
+
+        # trigger recorder terms for pre-reset calls
+        self.recorder_manager.record_pre_reset(env_ids)
+
+        # set the seed
+        if seed is not None:
+            self.seed(seed)
+
+        self._reset_idx(env_ids)
+
+        # set the state
+        self.scene.reset_to(state, env_ids, is_relative=is_relative)
+
+        # trigger recorder terms for post-reset calls
+        self.recorder_manager.record_post_reset(env_ids)
+
+        # if sensors are added to the scene, make sure we render to reflect changes in reset
+        if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
+            self.sim.render()
+
+        # compute observations
+        self.obs_buf = self.observation_manager.compute()
+
+        # return observations
+        return self.obs_buf, self.extras
 
     def step(self, action: torch.Tensor) -> tuple[VecEnvObs, dict]:
         """Execute one time-step of the environment's dynamics.
@@ -277,6 +347,8 @@ class ManagerBasedEnv:
         """
         # process actions
         self.action_manager.process_action(action.to(self.device))
+
+        self.recorder_manager.record_pre_step()
 
         # check if we need to do rendering within the physics loop
         # note: checked here once to avoid multiple checks within the loop
@@ -303,8 +375,12 @@ class ManagerBasedEnv:
         if "interval" in self.event_manager.available_modes:
             self.event_manager.apply(mode="interval", dt=self.step_dt)
 
+        # -- compute observations
+        self.obs_buf = self.observation_manager.compute()
+        self.recorder_manager.record_post_step()
+
         # return observations and extras
-        return self.observation_manager.compute(), self.extras
+        return self.obs_buf, self.extras
 
     @staticmethod
     def seed(seed: int = -1) -> int:
@@ -334,6 +410,7 @@ class ManagerBasedEnv:
             del self.action_manager
             del self.observation_manager
             del self.event_manager
+            del self.recorder_manager
             del self.scene
             # clear callbacks and instance
             self.sim.clear_all_callbacks()
@@ -374,4 +451,7 @@ class ManagerBasedEnv:
         self.extras["log"].update(info)
         # -- event manager
         info = self.event_manager.reset(env_ids)
+        self.extras["log"].update(info)
+        # -- recorder manager
+        info = self.recorder_manager.reset(env_ids)
         self.extras["log"].update(info)
