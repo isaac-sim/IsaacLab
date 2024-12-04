@@ -34,6 +34,7 @@ INSTALL_REQUIRES = [
     # image processing
     "transformers",
     "einops",  # needed for transformers, doesn't always auto-install
+    "warp-lang",
 ]
 
 PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu118"]
