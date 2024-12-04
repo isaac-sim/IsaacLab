@@ -667,6 +667,8 @@
         <span class="c1"># process actions</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">action_manager</span><span class="o">.</span><span class="n">process_action</span><span class="p">(</span><span class="n">action</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">))</span>
 
+        <span class="bp">self</span><span class="o">.</span><span class="n">recorder_manager</span><span class="o">.</span><span class="n">record_pre_step</span><span class="p">()</span>
+
         <span class="c1"># check if we need to do rendering within the physics loop</span>
         <span class="c1"># note: checked here once to avoid multiple checks within the loop</span>
         <span class="n">is_rendering</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">has_gui</span><span class="p">()</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">has_rtx_sensors</span><span class="p">()</span>
@@ -699,13 +701,28 @@
         <span class="c1"># -- reward computation</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">reward_buf</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">reward_manager</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="n">dt</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">step_dt</span><span class="p">)</span>
 
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">recorder_manager</span><span class="o">.</span><span class="n">active_terms</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="c1"># update observations for recording if needed</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">obs_buf</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">observation_manager</span><span class="o">.</span><span class="n">compute</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">recorder_manager</span><span class="o">.</span><span class="n">record_post_step</span><span class="p">()</span>
+
         <span class="c1"># -- reset envs that terminated/timed-out and log the episode information</span>
         <span class="n">reset_env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">reset_buf</span><span class="o">.</span><span class="n">nonzero</span><span class="p">(</span><span class="n">as_tuple</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">squeeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">reset_env_ids</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="c1"># trigger recorder terms for pre-reset calls</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">recorder_manager</span><span class="o">.</span><span class="n">record_pre_reset</span><span class="p">(</span><span class="n">reset_env_ids</span><span class="p">)</span>
+
             <span class="bp">self</span><span class="o">.</span><span class="n">_reset_idx</span><span class="p">(</span><span class="n">reset_env_ids</span><span class="p">)</span>
+
+            <span class="c1"># this is needed to make joint positions set from reset events effective</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">write_data_to_sim</span><span class="p">()</span>
+
             <span class="c1"># if sensors are added to the scene, make sure we render to reflect changes in reset</span>
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">has_rtx_sensors</span><span class="p">()</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">rerender_on_reset</span><span class="p">:</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">render</span><span class="p">()</span>
+
+            <span class="c1"># trigger recorder terms for post-reset calls</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">recorder_manager</span><span class="o">.</span><span class="n">record_post_reset</span><span class="p">(</span><span class="n">reset_env_ids</span><span class="p">)</span>
 
         <span class="c1"># -- update command</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">command_manager</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="n">dt</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">step_dt</span><span class="p">)</span>
@@ -861,6 +878,9 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">extras</span><span class="p">[</span><span class="s2">&quot;log&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">info</span><span class="p">)</span>
         <span class="c1"># -- termination manager</span>
         <span class="n">info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">termination_manager</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">extras</span><span class="p">[</span><span class="s2">&quot;log&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">info</span><span class="p">)</span>
+        <span class="c1"># -- recorder manager</span>
+        <span class="n">info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">recorder_manager</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">extras</span><span class="p">[</span><span class="s2">&quot;log&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">info</span><span class="p">)</span>
 
         <span class="c1"># reset the episode length buffer</span>

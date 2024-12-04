@@ -520,7 +520,7 @@
 <span class="kn">import</span> <span class="nn">omni.isaac.core.utils.torch</span> <span class="k">as</span> <span class="nn">torch_utils</span>
 <span class="kn">import</span> <span class="nn">omni.log</span>
 
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.managers</span> <span class="kn">import</span> <span class="n">ActionManager</span><span class="p">,</span> <span class="n">EventManager</span><span class="p">,</span> <span class="n">ObservationManager</span>
+<span class="kn">from</span> <span class="nn">omni.isaac.lab.managers</span> <span class="kn">import</span> <span class="n">ActionManager</span><span class="p">,</span> <span class="n">EventManager</span><span class="p">,</span> <span class="n">ObservationManager</span><span class="p">,</span> <span class="n">RecorderManager</span>
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.scene</span> <span class="kn">import</span> <span class="n">InteractiveScene</span>
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.sim</span> <span class="kn">import</span> <span class="n">SimulationContext</span>
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.utils.timer</span> <span class="kn">import</span> <span class="n">Timer</span>
@@ -554,6 +554,9 @@
 <span class="sd">      This includes resetting the scene to a default state, applying random pushes to the robot at different intervals</span>
 <span class="sd">      of time, or randomizing properties such as mass and friction coefficients. This is useful for training</span>
 <span class="sd">      and evaluating the robot in a variety of scenarios.</span>
+<span class="sd">    * **Recorder Manager**: The recorder manager that handles recording data produced during different steps</span>
+<span class="sd">      in the simulation. This includes recording in the beginning and end of a reset and a step. The recorded data</span>
+<span class="sd">      is distinguished per episode, per environment and can be exported through a dataset file handler to a file.</span>
 
 <span class="sd">    The environment provides a unified interface for interacting with the simulation. However, it does not</span>
 <span class="sd">    include task-specific quantities such as the reward function, or the termination conditions. These</span>
@@ -660,7 +663,10 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">_window</span> <span class="o">=</span> <span class="kc">None</span>
 
         <span class="c1"># allocate dictionary to store metrics</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">extras</span> <span class="o">=</span> <span class="p">{}</span></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">extras</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="c1"># initialize observation buffers</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">obs_buf</span> <span class="o">=</span> <span class="p">{}</span></div>
 
     <span class="k">def</span> <span class="fm">__del__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Cleanup for the environment.&quot;&quot;&quot;</span>
@@ -717,6 +723,9 @@
 
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># prepare the managers</span>
+        <span class="c1"># -- recorder manager</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">recorder_manager</span> <span class="o">=</span> <span class="n">RecorderManager</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">recorders</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO] Recorder Manager: &quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">recorder_manager</span><span class="p">)</span>
         <span class="c1"># -- action manager</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">action_manager</span> <span class="o">=</span> <span class="n">ActionManager</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">actions</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
         <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO] Action Manager: &quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">action_manager</span><span class="p">)</span>
@@ -737,15 +746,18 @@
 <span class="sd">    Operations - MDP.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="ManagerBasedEnv.reset"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnv.reset">[docs]</a>    <span class="k">def</span> <span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">seed</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">options</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">VecEnvObs</span><span class="p">,</span> <span class="nb">dict</span><span class="p">]:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Resets all the environments and returns observations.</span>
+<div class="viewcode-block" id="ManagerBasedEnv.reset"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnv.reset">[docs]</a>    <span class="k">def</span> <span class="nf">reset</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">seed</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">options</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">VecEnvObs</span><span class="p">,</span> <span class="nb">dict</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Resets the specified environments and returns observations.</span>
 
-<span class="sd">        This function calls the :meth:`_reset_idx` function to reset all the environments.</span>
+<span class="sd">        This function calls the :meth:`_reset_idx` function to reset the specified environments.</span>
 <span class="sd">        However, certain operations, such as procedural terrain generation, that happened during initialization</span>
 <span class="sd">        are not repeated.</span>
 
 <span class="sd">        Args:</span>
 <span class="sd">            seed: The seed to use for randomization. Defaults to None, in which case the seed is not set.</span>
+<span class="sd">            env_ids: The environment ids to reset. Defaults to None, in which case all environments are reset.</span>
 <span class="sd">            options: Additional information to specify how the environment is reset. Defaults to None.</span>
 
 <span class="sd">                Note:</span>
@@ -754,20 +766,78 @@
 <span class="sd">        Returns:</span>
 <span class="sd">            A tuple containing the observations and extras.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">env_ids</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">int64</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+
+        <span class="c1"># trigger recorder terms for pre-reset calls</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">recorder_manager</span><span class="o">.</span><span class="n">record_pre_reset</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
+
         <span class="c1"># set the seed</span>
         <span class="k">if</span> <span class="n">seed</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="n">seed</span><span class="p">)</span>
 
         <span class="c1"># reset state of scene</span>
-        <span class="n">indices</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">int64</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_reset_idx</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_reset_idx</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">write_data_to_sim</span><span class="p">()</span>
+
+        <span class="c1"># trigger recorder terms for post-reset calls</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">recorder_manager</span><span class="o">.</span><span class="n">record_post_reset</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
 
         <span class="c1"># if sensors are added to the scene, make sure we render to reflect changes in reset</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">has_rtx_sensors</span><span class="p">()</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">rerender_on_reset</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">render</span><span class="p">()</span>
 
+        <span class="c1"># compute observations</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">obs_buf</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">observation_manager</span><span class="o">.</span><span class="n">compute</span><span class="p">()</span>
+
         <span class="c1"># return observations</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">observation_manager</span><span class="o">.</span><span class="n">compute</span><span class="p">(),</span> <span class="bp">self</span><span class="o">.</span><span class="n">extras</span></div>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">obs_buf</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">extras</span></div>
+
+<div class="viewcode-block" id="ManagerBasedEnv.reset_to"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnv.reset_to">[docs]</a>    <span class="k">def</span> <span class="nf">reset_to</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">state</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]]],</span>
+        <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">seed</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">is_relative</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Resets specified environments to known states.</span>
+
+<span class="sd">        Note that this is different from reset() function as it resets the environments to specific states</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            state: The state to reset the specified environments to.</span>
+<span class="sd">            env_ids: The environment ids to reset. Defaults to None, in which case all environments are reset.</span>
+<span class="sd">            seed: The seed to use for randomization. Defaults to None, in which case the seed is not set.</span>
+<span class="sd">            is_relative: If set to True, the state is considered relative to the environment origins. Defaults to False.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># reset all envs in the scene if env_ids is None</span>
+        <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">env_ids</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">int64</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+
+        <span class="c1"># trigger recorder terms for pre-reset calls</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">recorder_manager</span><span class="o">.</span><span class="n">record_pre_reset</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
+
+        <span class="c1"># set the seed</span>
+        <span class="k">if</span> <span class="n">seed</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="n">seed</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_reset_idx</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
+
+        <span class="c1"># set the state</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">reset_to</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">,</span> <span class="n">is_relative</span><span class="o">=</span><span class="n">is_relative</span><span class="p">)</span>
+
+        <span class="c1"># trigger recorder terms for post-reset calls</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">recorder_manager</span><span class="o">.</span><span class="n">record_post_reset</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
+
+        <span class="c1"># if sensors are added to the scene, make sure we render to reflect changes in reset</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">has_rtx_sensors</span><span class="p">()</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">rerender_on_reset</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">render</span><span class="p">()</span>
+
+        <span class="c1"># compute observations</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">obs_buf</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">observation_manager</span><span class="o">.</span><span class="n">compute</span><span class="p">()</span>
+
+        <span class="c1"># return observations</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">obs_buf</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">extras</span></div>
 
 <div class="viewcode-block" id="ManagerBasedEnv.step"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnv.step">[docs]</a>    <span class="k">def</span> <span class="nf">step</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">action</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">VecEnvObs</span><span class="p">,</span> <span class="nb">dict</span><span class="p">]:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Execute one time-step of the environment&#39;s dynamics.</span>
@@ -786,6 +856,8 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># process actions</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">action_manager</span><span class="o">.</span><span class="n">process_action</span><span class="p">(</span><span class="n">action</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">))</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">recorder_manager</span><span class="o">.</span><span class="n">record_pre_step</span><span class="p">()</span>
 
         <span class="c1"># check if we need to do rendering within the physics loop</span>
         <span class="c1"># note: checked here once to avoid multiple checks within the loop</span>
@@ -812,8 +884,12 @@
         <span class="k">if</span> <span class="s2">&quot;interval&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">event_manager</span><span class="o">.</span><span class="n">available_modes</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">event_manager</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">mode</span><span class="o">=</span><span class="s2">&quot;interval&quot;</span><span class="p">,</span> <span class="n">dt</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">step_dt</span><span class="p">)</span>
 
+        <span class="c1"># -- compute observations</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">obs_buf</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">observation_manager</span><span class="o">.</span><span class="n">compute</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">recorder_manager</span><span class="o">.</span><span class="n">record_post_step</span><span class="p">()</span>
+
         <span class="c1"># return observations and extras</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">observation_manager</span><span class="o">.</span><span class="n">compute</span><span class="p">(),</span> <span class="bp">self</span><span class="o">.</span><span class="n">extras</span></div>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">obs_buf</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">extras</span></div>
 
 <div class="viewcode-block" id="ManagerBasedEnv.seed"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnv.seed">[docs]</a>    <span class="nd">@staticmethod</span>
     <span class="k">def</span> <span class="nf">seed</span><span class="p">(</span><span class="n">seed</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
@@ -843,6 +919,7 @@
             <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">action_manager</span>
             <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">observation_manager</span>
             <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">event_manager</span>
+            <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">recorder_manager</span>
             <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">scene</span>
             <span class="c1"># clear callbacks and instance</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">clear_all_callbacks</span><span class="p">()</span>
@@ -883,6 +960,9 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">extras</span><span class="p">[</span><span class="s2">&quot;log&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">info</span><span class="p">)</span>
         <span class="c1"># -- event manager</span>
         <span class="n">info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">event_manager</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">extras</span><span class="p">[</span><span class="s2">&quot;log&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">info</span><span class="p">)</span>
+        <span class="c1"># -- recorder manager</span>
+        <span class="n">info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">recorder_manager</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">extras</span><span class="p">[</span><span class="s2">&quot;log&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">info</span><span class="p">)</span></div>
 </pre></div>
 

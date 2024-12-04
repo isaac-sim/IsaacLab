@@ -531,6 +531,7 @@
     <span class="kn">from</span> <span class="nn">.action_manager</span> <span class="kn">import</span> <span class="n">ActionTerm</span>
     <span class="kn">from</span> <span class="nn">.command_manager</span> <span class="kn">import</span> <span class="n">CommandTerm</span>
     <span class="kn">from</span> <span class="nn">.manager_base</span> <span class="kn">import</span> <span class="n">ManagerTermBase</span>
+    <span class="kn">from</span> <span class="nn">.recorder_manager</span> <span class="kn">import</span> <span class="n">RecorderTerm</span>
 
 
 <div class="viewcode-block" id="ManagerTermBaseCfg"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ManagerTermBaseCfg">[docs]</a><span class="nd">@configclass</span>
@@ -558,6 +559,22 @@
 <span class="sd">        from the :class:`InteractiveScene` and process the entity&#39;s joints and bodies as specified</span>
 <span class="sd">        in the :class:`SceneEntityCfg` object.</span>
 <span class="sd">    &quot;&quot;&quot;</span></div>
+
+
+<span class="c1">##</span>
+<span class="c1"># Recorder manager.</span>
+<span class="c1">##</span>
+
+
+<span class="nd">@configclass</span>
+<span class="k">class</span> <span class="nc">RecorderTermCfg</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for an recorder term.&quot;&quot;&quot;</span>
+
+    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">RecorderTerm</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The associated recorder term class.</span>
+
+<span class="sd">    The class should inherit from :class:`omni.isaac.lab.managers.action_manager.RecorderTerm`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
 
 <span class="c1">##</span>

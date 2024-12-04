@@ -589,7 +589,10 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.rigid_object_collections"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.rigid_object_collections</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.sensors"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.sensors</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.extras"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.extras</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.state"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.state</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.get_state"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.get_state()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.reset"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.reset()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.reset_to"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.reset_to()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.write_data_to_sim"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.write_data_to_sim()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.update"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.update()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.keys"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.keys()</span></code></a></li>
@@ -724,8 +727,14 @@ for more details.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.scene.InteractiveScene.filter_collisions" title="omni.isaac.lab.scene.InteractiveScene.filter_collisions"><code class="xref py py-obj docutils literal notranslate"><span class="pre">filter_collisions</span></code></a>([global_prim_paths])</p></td>
 <td><p>Filter environments collisions.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.scene.InteractiveScene.reset" title="omni.isaac.lab.scene.InteractiveScene.reset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset</span></code></a>([env_ids])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.scene.InteractiveScene.get_state" title="omni.isaac.lab.scene.InteractiveScene.get_state"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_state</span></code></a>([is_relative])</p></td>
+<td><p>Returns the state of the scene entities.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.scene.InteractiveScene.reset" title="omni.isaac.lab.scene.InteractiveScene.reset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset</span></code></a>([env_ids])</p></td>
 <td><p>Resets the scene entities.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.scene.InteractiveScene.reset_to" title="omni.isaac.lab.scene.InteractiveScene.reset_to"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset_to</span></code></a>(state[, env_ids, is_relative])</p></td>
+<td><p>Resets the scene entities to the given state.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.scene.InteractiveScene.write_data_to_sim" title="omni.isaac.lab.scene.InteractiveScene.write_data_to_sim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">write_data_to_sim</span></code></a>()</p></td>
 <td><p>Writes the data of the scene entities to the simulation.</p></td>
@@ -783,6 +792,9 @@ for more details.</p>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.scene.InteractiveScene.extras" title="omni.isaac.lab.scene.InteractiveScene.extras"><code class="xref py py-obj docutils literal notranslate"><span class="pre">extras</span></code></a></p></td>
 <td><p>A dictionary of miscellaneous simulation objects that neither inherit from assets nor sensors.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.scene.InteractiveScene.state" title="omni.isaac.lab.scene.InteractiveScene.state"><code class="xref py py-obj docutils literal notranslate"><span class="pre">state</span></code></a></p></td>
+<td><p>Returns the state of the scene entities.</p></td>
 </tr>
 </tbody>
 </table>
@@ -928,6 +940,31 @@ handled by the interactive scene, but are useful to be accessed by the user.</p>
 </div>
 </dd></dl>
 
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.scene.InteractiveScene.state">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">state</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.scene.InteractiveScene.state" title="Permalink to this definition">#</a></dt>
+<dd><p>Returns the state of the scene entities.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>A dictionary of the state of the scene entities.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.scene.InteractiveScene.get_state">
+<span class="sig-name descname"><span class="pre">get_state</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">is_relative</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/scene/interactive_scene.html#InteractiveScene.get_state"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.scene.InteractiveScene.get_state" title="Permalink to this definition">#</a></dt>
+<dd><p>Returns the state of the scene entities.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>is_relative</strong> – If set to True, the state is considered relative to the environment origins.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A dictionary of the state of the scene entities.</p>
+</dd>
+</dl>
+</dd></dl>
+
 <dl class="py method">
 <dt class="sig sig-object py" id="omni.isaac.lab.scene.InteractiveScene.reset">
 <span class="sig-name descname"><span class="pre">reset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence" title="(in Python v3.13)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/scene/interactive_scene.html#InteractiveScene.reset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.scene.InteractiveScene.reset" title="Permalink to this definition">#</a></dt>
@@ -936,6 +973,22 @@ handled by the interactive scene, but are useful to be accessed by the user.</p>
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><p><strong>env_ids</strong> – The indices of the environments to reset.
 Defaults to None (all instances).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.scene.InteractiveScene.reset_to">
+<span class="sig-name descname"><span class="pre">reset_to</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence" title="(in Python v3.13)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">is_relative</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/scene/interactive_scene.html#InteractiveScene.reset_to"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.scene.InteractiveScene.reset_to" title="Permalink to this definition">#</a></dt>
+<dd><p>Resets the scene entities to the given state.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state</strong> – The state to reset the scene entities to.</p></li>
+<li><p><strong>env_ids</strong> – The indices of the environments to reset.
+Defaults to None (all instances).</p></li>
+<li><p><strong>is_relative</strong> – If set to True, the state is considered relative to the environment origins.</p></li>
+</ul>
 </dd>
 </dl>
 </dd></dl>
@@ -1150,7 +1203,10 @@ by the physics engine. In these cases, this flag needs to be set to False.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.rigid_object_collections"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.rigid_object_collections</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.sensors"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.sensors</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.extras"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.extras</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.state"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.state</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.get_state"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.get_state()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.reset"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.reset()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.reset_to"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.reset_to()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.write_data_to_sim"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.write_data_to_sim()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.update"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.update()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.scene.InteractiveScene.keys"><code class="docutils literal notranslate"><span class="pre">InteractiveScene.keys()</span></code></a></li>
