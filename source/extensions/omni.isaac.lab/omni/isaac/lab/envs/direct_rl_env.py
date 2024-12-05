@@ -20,6 +20,7 @@ from typing import Any, ClassVar
 import isaacsim.core.utils.torch as torch_utils
 import omni.kit.app
 import omni.log
+from isaacsim.core.simulation_manager import SimulationManager
 from isaacsim.core.version import get_version
 
 from omni.isaac.lab.managers import EventManager
@@ -280,6 +281,10 @@ class DirectRLEnv(gym.Env):
         # if sensors are added to the scene, make sure we render to reflect changes in reset
         if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
             self.sim.render()
+
+        if self.cfg.wait_for_textures and self.sim.has_rtx_sensors():
+            while SimulationManager.assets_loading():
+                self.sim.render()
 
         # return observations
         return self._get_observations(), self.extras

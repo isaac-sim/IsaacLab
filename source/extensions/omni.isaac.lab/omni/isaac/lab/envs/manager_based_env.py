@@ -10,6 +10,7 @@ from typing import Any
 
 import isaacsim.core.utils.torch as torch_utils
 import omni.log
+from isaacsim.core.simulation_manager import SimulationManager
 
 from omni.isaac.lab.managers import ActionManager, EventManager, ObservationManager, RecorderManager
 from omni.isaac.lab.scene import InteractiveScene
@@ -293,6 +294,10 @@ class ManagerBasedEnv:
 
         # compute observations
         self.obs_buf = self.observation_manager.compute()
+
+        if self.cfg.wait_for_textures and self.sim.has_rtx_sensors():
+            while SimulationManager.assets_loading():
+                self.sim.render()
 
         # return observations
         return self.obs_buf, self.extras

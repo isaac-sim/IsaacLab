@@ -222,3 +222,6 @@ class DirectRLEnvCfg:
       step will be performed after each time an environment is reset.
 
     """
+
+    wait_for_textures: bool = True
+    """True to wait for assets to be loaded completely, False otherwise. Defaults to True."""
