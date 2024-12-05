@@ -45,7 +45,6 @@
         "teleoperation",
         "xform",
         "numpy",
-        "tensordict",
         "flatcache",
         "physx",
         "dpad",
