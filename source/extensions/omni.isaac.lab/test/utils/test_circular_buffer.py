@@ -46,8 +46,30 @@ class TestCircularBuffer(unittest.TestCase):
         # reset the buffer
         self.buffer.reset()
 
-        # check if the buffer is empty
+        # check if the buffer has zeros entries
         self.assertEqual(self.buffer.current_length.tolist(), [0, 0, 0])
+
+    def test_reset_subset(self):
+        """Test resetting a subset of batches in the circular buffer."""
+        data1 = torch.ones((self.batch_size, 2), device=self.device)
+        data2 = 2.0 * data1.clone()
+        data3 = 3.0 * data1.clone()
+        self.buffer.append(data1)
+        self.buffer.append(data2)
+        # reset the buffer
+        reset_batch_id = 1
+        self.buffer.reset(batch_ids=[reset_batch_id])
+        # check that correct batch is reset
+        self.assertEqual(self.buffer.current_length.tolist()[reset_batch_id], 0)
+        # Append new set of data
+        self.buffer.append(data3)
+        # check if the correct number of entries are in each batch
+        expected_length = [3, 3, 3]
+        expected_length[reset_batch_id] = 1
+        self.assertEqual(self.buffer.current_length.tolist(), expected_length)
+        # check that all entries of the recently reset and appended batch are equal
+        for i in range(self.max_len):
+            torch.testing.assert_close(self.buffer.buffer[reset_batch_id, 0], self.buffer.buffer[reset_batch_id, i])
 
     def test_append_and_retrieve(self):
         """Test appending and retrieving data from the circular buffer."""
