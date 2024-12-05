@@ -106,10 +106,6 @@ def main():
     if not os.path.isabs(dest_path):
         dest_path = os.path.abspath(dest_path)
 
-    print(dest_path)
-    print(os.path.dirname(dest_path))
-    print(os.path.basename(dest_path))
-
     # Mass properties
     if args_cli.mass is not None:
         mass_props = schemas_cfg.MassPropertiesCfg(mass=args_cli.mass)

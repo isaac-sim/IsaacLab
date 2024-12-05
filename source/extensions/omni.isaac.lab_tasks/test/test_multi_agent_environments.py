@@ -105,7 +105,7 @@ class TestEnvironments(unittest.TestCase):
 
         # this flag is necessary to prevent a bug where the simulation gets stuck randomly when running the
         # test on many environments.
-        env.sim.set_setting("/physics/cooking/ujitsoCollisionCooking", False)
+        env.unwrapped.sim.set_setting("/physics/cooking/ujitsoCollisionCooking", False)
 
         # reset environment
         obs, _ = env.reset()
@@ -116,7 +116,9 @@ class TestEnvironments(unittest.TestCase):
             for _ in range(num_steps):
                 # sample actions according to the defined space
                 actions = {
-                    agent: sample_space(env.action_spaces[agent], device=env.unwrapped.device, batch_size=num_envs)
+                    agent: sample_space(
+                        env.unwrapped.action_spaces[agent], device=env.unwrapped.device, batch_size=num_envs
+                    )
                     for agent in env.unwrapped.possible_agents
                 }
                 # apply actions

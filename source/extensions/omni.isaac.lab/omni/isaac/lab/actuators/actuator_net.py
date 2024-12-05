@@ -18,9 +18,8 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-from omni.isaac.core.utils.types import ArticulationActions
-
 from omni.isaac.lab.utils.assets import read_file
+from omni.isaac.lab.utils.types import ArticulationActions
 
 from .actuator_pd import DCMotor
 
