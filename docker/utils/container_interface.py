@@ -21,6 +21,7 @@ class ContainerInterface:
         self,
         context_dir: Path,
         profile: str = "base",
+        project_name: str = "isaac-lab",
         yamls: list[str] | None = None,
         envs: list[str] | None = None,
         statefile: StateFile | None = None,
@@ -54,12 +55,14 @@ class ContainerInterface:
             # Silently correct from isaaclab to base, because isaaclab is a commonly passed arg
             # but not a real profile
             self.profile = "base"
+        self.project_name = project_name
 
-        self.container_name = f"isaac-lab-{self.profile}"
-        self.image_name = f"isaac-lab-{self.profile}:latest"
+        self.container_name = f"{self.project_name}-{self.profile}"
+        self.image_name = f"{self.project_name}-{self.profile}:latest"
 
         # keep the environment variables from the current environment
         self.environ = os.environ
+        self.environ["COMPOSE_PROJECT_NAME"] = f"{self.project_name}"
 
         # resolve the image extension through the passed yamls and envs
         self._resolve_image_extension(yamls, envs)
