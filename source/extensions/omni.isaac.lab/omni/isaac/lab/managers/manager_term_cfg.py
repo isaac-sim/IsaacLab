@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from .action_manager import ActionTerm
     from .command_manager import CommandTerm
     from .manager_base import ManagerTermBase
+    from .recorder_manager import RecorderTerm
 
 
 @configclass
@@ -48,6 +49,22 @@ class ManagerTermBaseCfg:
         If the value is a :class:`SceneEntityCfg` object, the manager will query the scene entity
         from the :class:`InteractiveScene` and process the entity's joints and bodies as specified
         in the :class:`SceneEntityCfg` object.
+    """
+
+
+##
+# Recorder manager.
+##
+
+
+@configclass
+class RecorderTermCfg:
+    """Configuration for an recorder term."""
+
+    class_type: type[RecorderTerm] = MISSING
+    """The associated recorder term class.
+
+    The class should inherit from :class:`omni.isaac.lab.managers.action_manager.RecorderTerm`.
     """
 
 
