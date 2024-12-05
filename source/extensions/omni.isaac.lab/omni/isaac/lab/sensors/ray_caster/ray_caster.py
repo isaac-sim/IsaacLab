@@ -175,6 +175,9 @@ class RayCaster(SensorBase):
                 mesh_prim = UsdGeom.Mesh(mesh_prim)
                 # read the vertices and faces
                 points = np.asarray(mesh_prim.GetPointsAttr().Get())
+                transform_matrix = np.array(omni.usd.get_world_transform_matrix(mesh_prim)).T
+                points = np.matmul(points, transform_matrix[:3, :3].T)
+                points += transform_matrix[:3, 3]
                 indices = np.asarray(mesh_prim.GetFaceVertexIndicesAttr().Get())
                 wp_mesh = convert_to_warp_mesh(points, indices, device=self.device)
                 # print info
