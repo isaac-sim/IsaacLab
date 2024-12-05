@@ -1,13 +1,31 @@
 Changelog
 ---------
 
-0.27.15 (2024-11-17)
+0.27.17 (2024-12-04)
 ~~~~~~~~~~~~~~~~~~~~
 
 Changed
 ^^^^^^^
 
 * Added call to update articulation kinematics after reset to ensure states are updated for non-rendering sensors. Previously, some changes in reset such as modifying joint states would not be reflected in the rigid body states immediately after reset.
+
+
+0.27.16 (2024-11-21)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed :class:`omni.isaac.lab.envs.DirectMARLEnv` to inherit from ``Gymnasium.Env`` due to requirement from Gymnasium v1.0.0 requiring all environments to be a subclass of ``Gymnasium.Env`` when using the ``make`` interface.
+
+
+0.27.15 (2024-11-09)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed indexing in :meth:`omni.isaac.lab.assets.Articulation.write_joint_limits_to_sim` to correctly process non-None ``env_ids`` and ``joint_ids``.
 
 
 0.27.14 (2024-10-23)
