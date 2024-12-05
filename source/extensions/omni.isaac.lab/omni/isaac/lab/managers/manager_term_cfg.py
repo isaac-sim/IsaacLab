@@ -161,14 +161,17 @@ class ObservationTermCfg(ManagerTermBaseCfg):
     """
 
     history_length: int = 0
-    """Number of past observations to store in the zero-initialized observation buffers.
-    Defaults to 0, which means that only the current data is stored (no history).
-    If flatten_history_dim is set to True, the source data of shape (N, H, D, ...) where N is the batch dimension and
-    H is the history length will be reshaped to a 2D tensor of shape (N, H*D*...). Otherwise, the data will be returned as is.
+    """Number of past observations to store in the observation buffers. Defaults to 0, meaning no history.
+
+    Observation history initializes to empty, but is filled with the first append after reset or initialization. Subsequent history
+    only adds a single entry to the history buffer. If flatten_history_dim is set to True, the source data of shape
+    (N, H, D, ...) where N is the batch dimension and H is the history length will be reshaped to a 2D tensor of shape
+    (N, H*D*...). Otherwise, the data will be returned as is.
     """
 
     flatten_history_dim: bool = True
-    """Whether or not the observation manager should flatten history-based observation terms to a 2D (N, D) tensor. Defaults to True."""
+    """Whether or not the observation manager should flatten history-based observation terms to a 2D (N, D) tensor.
+    Defaults to True."""
 
 
 @configclass
@@ -192,18 +195,19 @@ class ObservationGroupCfg:
     """
 
     history_length: int | None = None
-    """Number of past observation to store in the zero-initialized observation buffers for all observation terms in group.
+    """Number of past observation to store in the observation buffers for all observation terms in group.
 
-    This parameter will override ObservationTermCfg.history_length if set. ObservationGroupCfg.history_length defaults
-    to None. If None, each ObservationTermCfg.history_length will be controlled on a per term basis. See ObservationTermCfg
-    for details on history_length implementation.
+    This parameter will override :attr:`ObservationTermCfg.history_length` if set. Defaults to None. If None, each
+    terms history will be controlled on a per term basis. See :class:`ObservationTermCfg` for details on history_length
+    implementation.
     """
 
     flatten_history_dim: bool = True
     """Flag to flatten history-based observation terms to a 2D (num_env, D) tensor for all observation terms in group.
+    Defaults to True.
 
-    This parameter will override all ObservationTermCfg.flatten_history_dim in the group if ObservationGroupCfg.history_length
-    is set. ObservationGroupCfg.flatten_history_dim defaults to True.
+    This parameter will override all :attr:`ObservationTermCfg.flatten_history_dim` in the group if
+    ObservationGroupCfg.history_length is set.
     """
 
 

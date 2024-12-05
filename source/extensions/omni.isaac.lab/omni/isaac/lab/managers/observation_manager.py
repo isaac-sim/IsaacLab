@@ -47,6 +47,11 @@ class ObservationManager(ManagerBase):
         concatenated. In this case, please set the :attr:`ObservationGroupCfg.concatenate_terms` attribute in the
         group configuration to False.
 
+    Observations can also have history. This means a running history is updated per sim step. History can be controlled
+    per :class:`ObservationTermCfg` (See the :attr:`ObservationTermCfg.history_length` and
+    :attr:`ObservationTermCfg.flatten_history_dim`). History can also be controlled via :class:`ObservationGroupCfg`
+    where group configuration overwrites per term configuration if set. History follows an oldest to newest ordering.
+
     The observation manager can be used to compute observations for all the groups or for a specific group. The
     observations are computed by calling the registered functions for each term in the group. The functions are
     called in the order of the terms in the group. The functions are expected to return a tensor with shape
