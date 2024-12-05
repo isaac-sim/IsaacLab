@@ -22,4 +22,36 @@ This template serves three distinct use cases:
   features and improvements in Isaac Lab.
 
 
-To get started, please follow the instructions in the `extension template repository <https://github.com/isaac-sim/IsaacLabExtensionTemplate>`_.
+Installation
+------------
+
+Install Isaac Lab by following the `installation guide <../../setup/installation/index.html>`_. We recommend using the conda installation as it simplifies calling Python scripts from the terminal.
+
+Clone the extension template repository separately from the Isaac Lab installation (i.e. outside the IsaacLab directory):
+
+.. code:: bash
+
+	# Option 1: HTTPS
+	git clone https://github.com/isaac-sim/IsaacLabExtensionTemplate.git
+
+	# Option 2: SSH
+	git clone git@github.com:isaac-sim/IsaacLabExtensionTemplate.git
+
+Throughout the repository, the name ``ext_template`` only serves as an example and we provide a script to rename all the references to it automatically:
+
+.. code:: bash
+
+	# Enter the repository
+	cd IsaacLabExtensionTemplate
+
+	# Rename all occurrences of ext_template (in files/directories) to your_fancy_extension_name
+	python scripts/rename_template.py your_fancy_extension_name
+
+Using a python interpreter that has Isaac Lab installed, install the library:
+
+.. code:: bash
+
+	python -m pip install -e exts/ext_template
+
+
+For more details, please follow the instructions in the `extension template repository <https://github.com/isaac-sim/IsaacLabExtensionTemplate>`_.

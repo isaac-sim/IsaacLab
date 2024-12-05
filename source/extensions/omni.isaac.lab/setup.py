@@ -27,10 +27,14 @@ INSTALL_REQUIRES = [
     # devices
     "hidapi",
     # reinforcement learning
-    "gymnasium==0.29.0",
+    "gymnasium",
     # procedural-generation
     "trimesh",
     "pyglet<2",
+    # image processing
+    "transformers",
+    "einops",  # needed for transformers, doesn't always auto-install
+    "warp-lang",
 ]
 
 PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu118"]

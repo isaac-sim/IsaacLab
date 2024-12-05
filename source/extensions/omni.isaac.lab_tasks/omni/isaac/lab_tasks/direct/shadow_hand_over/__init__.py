@@ -10,8 +10,6 @@ ShadowHand Over environment.
 import gymnasium as gym
 
 from . import agents
-from .shadow_hand_over_env import ShadowHandOverEnv
-from .shadow_hand_over_env_cfg import ShadowHandOverEnvCfg
 
 ##
 # Register Gym environments.
@@ -19,10 +17,10 @@ from .shadow_hand_over_env_cfg import ShadowHandOverEnvCfg
 
 gym.register(
     id="Isaac-Shadow-Hand-Over-Direct-v0",
-    entry_point="omni.isaac.lab_tasks.direct.shadow_hand_over:ShadowHandOverEnv",
+    entry_point=f"{__name__}.shadow_hand_over_env:ShadowHandOverEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": ShadowHandOverEnvCfg,
+        "env_cfg_entry_point": f"{__name__}.shadow_hand_over_env_cfg:ShadowHandOverEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg.yaml",
         "skrl_ippo_cfg_entry_point": f"{agents.__name__}:skrl_ippo_cfg.yaml",

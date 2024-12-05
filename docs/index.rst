@@ -74,7 +74,9 @@ Table of Contents
    :maxdepth: 2
    :caption: Getting Started
 
+   source/setup/ecosystem
    source/setup/installation/index
+   source/setup/installation/cloud_installation
    source/setup/faq
 
 .. toctree::
@@ -84,6 +86,7 @@ Table of Contents
 
    source/overview/developer-guide/index
    source/overview/core-concepts/index
+   source/overview/sensors/index
    source/overview/environments
    source/overview/reinforcement-learning/index
    source/overview/teleop_imitation
@@ -96,7 +99,7 @@ Table of Contents
 
    source/features/hydra
    source/features/multi_gpu
-   source/features/tiled_rendering
+   Tiled Rendering</source/overview/sensors/camera>
    source/features/reproducibility
 
 .. toctree::
@@ -127,6 +130,7 @@ Table of Contents
    :maxdepth: 1
    :caption: References
 
+   source/refs/reference_architecture/index
    source/refs/additional_resources
    source/refs/contributing
    source/refs/troubleshooting
