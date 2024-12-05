@@ -7,6 +7,7 @@ import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.assets import Articulation, RigidObject
 from omni.isaac.lab.envs import DirectRLEnv
 from omni.isaac.lab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
+from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
 
 
 from . import factory_control as fc
@@ -172,8 +173,12 @@ class FactoryEnv(DirectRLEnv):
             cfg=GroundPlaneCfg(),
             translation=(0.0, 0.0, -0.4)
         )
+
+        # spawn a usd file of a table into the scene
+        cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd")
+        cfg.func("/World/envs/env_.*/Table", cfg, translation=(0.55, 0.0, 0.0), orientation=(0.70711, 0.0, 0.0, 0.70711))
+
         self._robot = Articulation(self.cfg.robot)
-        self._table = RigidObject(self.cfg.table)
         self._fixed_asset = RigidObject(self.cfg_task.fixed_asset)
         self._held_asset = RigidObject(self.cfg_task.held_asset)
         if self.cfg_task.name == 'gear_meshing':
@@ -184,7 +189,6 @@ class FactoryEnv(DirectRLEnv):
         self.scene.filter_collisions()
 
         self.scene.articulations["robot"] = self._robot
-        self.scene.rigid_objects["table"] = self._table
         self.scene.rigid_objects["fixed_asset"] = self._fixed_asset
         self.scene.rigid_objects["held_asset"] = self._held_asset
         if self.cfg_task.name == 'gear_meshing':

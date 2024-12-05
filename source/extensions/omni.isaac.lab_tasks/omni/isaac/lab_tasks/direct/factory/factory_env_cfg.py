@@ -1,14 +1,14 @@
 import omni.isaac.lab.sim as sim_utils
 
 from omni.isaac.lab.actuators.actuator_cfg import ImplicitActuatorCfg
-from omni.isaac.lab.assets import ArticulationCfg, RigidObjectCfg
+from omni.isaac.lab.assets import ArticulationCfg
 from omni.isaac.lab.envs import DirectRLEnvCfg
 from omni.isaac.lab.scene import InteractiveSceneCfg
 from omni.isaac.lab.sim import PhysxCfg, SimulationCfg
 from omni.isaac.lab.utils import configclass
 from omni.isaac.lab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
 
-from .factory_tasks_cfg import FactoryTask, PegInsertion, GearMeshing, NutThreading, ASSET_DIR
+from .factory_tasks_cfg import PegInsertion, GearMeshing, NutThreading, ASSET_DIR
 
 OBS_DIM_CFG = {
     'fingertip_pos': 3,
@@ -116,7 +116,7 @@ class FactoryEnvCfg(DirectRLEnvCfg):
 
     scene: InteractiveSceneCfg = InteractiveSceneCfg(
         num_envs=128,
-        env_spacing=1.0
+        env_spacing=2.0
     )
 
     robot = ArticulationCfg(
@@ -189,27 +189,4 @@ class FactoryEnvCfg(DirectRLEnvCfg):
                 armature=0.0,
             ),
         },
-    )
-
-    table: RigidObjectCfg = RigidObjectCfg(
-        prim_path="/World/envs/env_.*/Table",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=f'{ASSET_DIR}/Table/table.usd',
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                disable_gravity=True,
-                max_depenetration_velocity=5.0,
-                linear_damping=0.0,
-                angular_damping=0.0,
-                max_linear_velocity=1000.0,
-                max_angular_velocity=3666.0,
-                enable_gyroscopic_forces=True,
-                solver_position_iteration_count=192,
-                solver_velocity_iteration_count=1,
-                max_contact_impulse=1e32,
-            ),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(
-            pos=(0.5, 0.0, -0.2),
-            rot=(1.0, 0.0, 0.0, 0.0),
-        )
     )
