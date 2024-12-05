@@ -88,6 +88,8 @@ class TestEnvironments(unittest.TestCase):
         """Run random actions and check environments returned signals are valid."""
         # create a new stage
         omni.usd.get_context().new_stage()
+        # reset the rtx sensors carb setting to False
+        carb.settings.get_settings().set_bool("/isaaclab/render/rtx_sensors", False)
         try:
             # parse configuration
             env_cfg: ManagerBasedRLEnvCfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
