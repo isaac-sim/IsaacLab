@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.27.18 (2024-12-04)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the order of the incoming parameters in :class:`omni.isaac.lab.envs.DirectMARLEnv` to correctly use ``NoiseModel`` in marl-envs.
+
+
 0.27.17 (2024-12-02)
 ~~~~~~~~~~~~~~~~~~~~
 
