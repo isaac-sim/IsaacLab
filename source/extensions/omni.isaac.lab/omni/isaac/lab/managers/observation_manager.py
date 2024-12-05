@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import inspect
+import numpy as np
 import torch
 from collections.abc import Sequence
 from prettytable import PrettyTable
@@ -358,13 +359,19 @@ class ObservationManager(ManagerBase):
                 # add term config to list to list
                 self._group_obs_term_names[group_name].append(term_name)
                 self._group_obs_term_cfgs[group_name].append(term_cfg)
-                # create history buffers
+                # call function the first time to fill up dimensions
+                obs_dims = tuple(term_cfg.func(self._env, **term_cfg.params).shape)
+                # create history buffers and calculate history term dimensions
                 if term_cfg.history_length > 0:
                     group_entry_history_buffer[term_name] = CircularBuffer(
                         max_len=term_cfg.history_length, batch_size=self._env.num_envs, device=self._env.device
                     )
-                # call function the first time to fill up dimensions
-                obs_dims = tuple(term_cfg.func(self._env, **term_cfg.params).shape)
+                    old_dims = list(obs_dims)
+                    old_dims.insert(1, term_cfg.history_length)
+                    obs_dims = tuple(old_dims)
+                    if term_cfg.flatten_history_dim:
+                        obs_dims = (obs_dims[0], np.prod(obs_dims[1:]))
+
                 self._group_obs_term_dim[group_name].append(obs_dims[1:])
 
                 # if scale is set, check if single float or tuple
