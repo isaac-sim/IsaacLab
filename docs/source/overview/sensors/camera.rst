@@ -161,34 +161,7 @@ The info ``idToLabels`` dictionary will be the mapping from color to USD prim pa
 Current Limitations
 -------------------
 
-Due to current limitations in the renderer, we can have only **one** :class:`~sensors.TiledCamera` instance in the scene.
-For use cases that require a setup with more than one camera, we can imitate the multi-camera behavior by moving the location
-of the camera in between render calls in a step.
-
-For example, in a stereo vision setup, the below snippet can be implemented:
-
-.. code-block:: python
-
-    # render image from "first" camera
-    camera_data_1 = self._tiled_camera.data.output["rgb"].clone() / 255.0
-    # update camera transform to the "second" camera location
-    self._tiled_camera.set_world_poses(
-        positions=pos,
-        orientations=rot,
-        convention="world"
-    )
-    # step the renderer
-    self.sim.render()
-    self._tiled_camera.update(0, force_recompute=True)
-    # render image from "second" camera
-    camera_data_2 = self._tiled_camera.data.output["rgb"].clone() / 255.0
-
-Note that this approach still limits the rendering resolution to be identical for all cameras. Currently, there is no workaround
-to achieve different resolution images using :class:`~sensors.TiledCamera`. The best approach is to use the largest resolution out of all of the
-desired resolutions and add additional scaling or cropping operations to the rendered output as a post-processing step.
-
-In addition, there may be visible quality differences when comparing render outputs of different numbers of environments.
-Currently, any combined resolution that has a width less than 265 pixels or height less than 265 will automatically switch
-to the DLAA anti-aliasing mode, which does not perform up-sampling during anti-aliasing. For resolutions larger than 265 in both
-width and height dimensions, we default to using the "performance" DLSS mode for anti-aliasing for performance benefits.
-Anti-aliasing modes and other rendering parameters can be specified in the :class:`~sim.RenderCfg`.
+For performance reasons, we default to using the "performance" DLSS mode for anti-aliasing.
+This may result in renders of lower quality, which may be especially evident at lower resolutions.
+For higher quality rendering at a cost of performance, we recommend switching to the DLAA mode for anti-aliasing.
+Anti-aliasing modes and other rendering parameters can be specified in :class:`~sim.RenderCfg`.

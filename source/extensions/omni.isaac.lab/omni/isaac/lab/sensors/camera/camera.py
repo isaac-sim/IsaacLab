@@ -407,10 +407,6 @@ class Camera(SensorBase):
                 f" the number of environments ({self._num_envs})."
             )
 
-        # WAR: use DLAA antialiasing to avoid frame offset issue at small resolutions
-        if self.cfg.width < 265 or self.cfg.height < 265:
-            rep.settings.set_render_rtx_realtime(antialiasing="DLAA")
-
         # Create all env_ids buffer
         self._ALL_INDICES = torch.arange(self._view.count, device=self._device, dtype=torch.long)
         # Create frame count buffer
