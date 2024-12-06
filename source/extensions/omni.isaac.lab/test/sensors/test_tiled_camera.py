@@ -1424,6 +1424,89 @@ class TestTiledCamera(unittest.TestCase):
         # print info
         print(sensor)
 
+    def test_frame_offset_small_resolution(self):
+        """Test frame offset issue with small resolution camera."""
+        # Create sensor
+        camera_cfg = copy.deepcopy(self.camera_cfg)
+        camera_cfg.height = 80
+        camera_cfg.width = 80
+        tiled_camera = TiledCamera(camera_cfg)
+        # play sim
+        self.sim.reset()
+        # simulate some steps first to make sure objects are settled
+        for i in range(100):
+            # step simulation
+            self.sim.step()
+            # update camera
+            tiled_camera.update(self.dt)
+        # collect image data
+        image_before = tiled_camera.data.output["rgb"].clone() / 255.0
+
+        # update scene
+        stage = stage_utils.get_current_stage()
+        for i in range(10):
+            prim = stage.GetPrimAtPath(f"/World/Objects/Obj_{i:02d}")
+            color = Gf.Vec3f(0, 0, 0)
+            UsdGeom.Gprim(prim).GetDisplayColorAttr().Set([color])
+
+        # update rendering
+        self.sim.step()
+        # update camera
+        tiled_camera.update(self.dt)
+
+        # make sure the image is different
+        image_after = tiled_camera.data.output["rgb"].clone() / 255.0
+
+        # check difference is above threshold
+        self.assertGreater(
+            torch.abs((image_after - image_before).mean()), 0.05
+        )  # images of same color should be below 0.001
+
+    def test_frame_offset_large_resolution(self):
+        """Test frame offset issue with large resolution camera."""
+        # Create sensor
+        camera_cfg = copy.deepcopy(self.camera_cfg)
+        camera_cfg.height = 480
+        camera_cfg.width = 480
+        tiled_camera = TiledCamera(camera_cfg)
+
+        # modify scene to be less stochastic
+        stage = stage_utils.get_current_stage()
+        for i in range(10):
+            prim = stage.GetPrimAtPath(f"/World/Objects/Obj_{i:02d}")
+            color = Gf.Vec3f(1, 1, 1)
+            UsdGeom.Gprim(prim).GetDisplayColorAttr().Set([color])
+
+        # play sim
+        self.sim.reset()
+        # simulate some steps first to make sure objects are settled
+        for i in range(100):
+            # step simulation
+            self.sim.step()
+            # update camera
+            tiled_camera.update(self.dt)
+        # collect image data
+        image_before = tiled_camera.data.output["rgb"].clone() / 255.0
+
+        # update scene
+        for i in range(10):
+            prim = stage.GetPrimAtPath(f"/World/Objects/Obj_{i:02d}")
+            color = Gf.Vec3f(0, 0, 0)
+            UsdGeom.Gprim(prim).GetDisplayColorAttr().Set([color])
+
+        # update rendering
+        self.sim.step()
+        # update camera
+        tiled_camera.update(self.dt)
+
+        # make sure the image is different
+        image_after = tiled_camera.data.output["rgb"].clone() / 255.0
+
+        # check difference is above threshold
+        self.assertGreater(
+            torch.abs((image_after - image_before).mean()), 0.05
+        )  # images of same color should be below 0.001
+
     """
     Helper functions.
     """

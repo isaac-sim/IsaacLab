@@ -191,10 +191,6 @@ class TiledCamera(Camera):
         )
         self._render_product_paths = [rp.path]
 
-        # WAR: use DLAA antialiasing to avoid frame offset issue at small resolutions
-        if self._tiling_grid_shape()[0] * self.cfg.width < 265 or self._tiling_grid_shape()[1] * self.cfg.height < 265:
-            rep.settings.set_render_rtx_realtime(antialiasing="DLAA")
-
         # Define the annotators based on requested data types
         self._annotators = dict()
         for annotator_type in self.cfg.data_types:
