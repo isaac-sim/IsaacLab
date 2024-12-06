@@ -5,7 +5,6 @@
 
 from omni.isaac.lab.managers import RewardTermCfg as RewTerm
 from omni.isaac.lab.managers import SceneEntityCfg
-from omni.isaac.lab.managers import TerminationTermCfg as DoneTerm
 from omni.isaac.lab.utils import configclass
 
 import omni.isaac.lab_tasks.manager_based.locomotion.velocity.mdp as mdp
@@ -105,20 +104,8 @@ class G1Rewards(RewardsCfg):
 
 
 @configclass
-class TerminationsCfg:
-    """Termination terms for the MDP."""
-
-    time_out = DoneTerm(func=mdp.time_out, time_out=True)
-    base_contact = DoneTerm(
-        func=mdp.illegal_contact,
-        params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names="torso_link"), "threshold": 1.0},
-    )
-
-
-@configclass
 class G1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
     rewards: G1Rewards = G1Rewards()
-    terminations: TerminationsCfg = TerminationsCfg()
 
     def __post_init__(self):
         # post init of parent
@@ -162,6 +149,9 @@ class G1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.commands.base_velocity.ranges.lin_vel_x = (0.0, 1.0)
         self.commands.base_velocity.ranges.lin_vel_y = (-0.0, 0.0)
         self.commands.base_velocity.ranges.ang_vel_z = (-1.0, 1.0)
+
+        # terminations
+        self.terminations.base_contact.params["sensor_cfg"].body_names = "torso_link"
 
 
 @configclass

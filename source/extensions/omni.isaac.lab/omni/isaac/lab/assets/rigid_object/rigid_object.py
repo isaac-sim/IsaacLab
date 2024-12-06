@@ -257,6 +257,9 @@ class RigidObject(AssetBase):
             self._external_torque_b[env_ids, body_ids] = torques
         else:
             self.has_external_wrench = False
+            # reset external wrench
+            self._external_force_b[env_ids] = 0.0
+            self._external_torque_b[env_ids] = 0.0
 
     """
     Internal helper.
