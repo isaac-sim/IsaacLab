@@ -46,7 +46,7 @@ Usage:
     # Local docker: start the ray server and run above command in the same running container without run_mode arg
     # Remote (run grok cluster or create config file mentioned in :file:`submit_job.py`)
     ./isaaclab.sh -p source/standalone/workflows/ray/submit_job.py \
-    --aggregate_jobs tuner.py # cfg_file is relative to ray folder \
+    --aggregate_jobs tuner.py \
     --cfg_file hyperparameter_tuning/vision_cartpole_cfg.py \
     --cfg_class CartpoleRGBNoTuneJobCfg --mlflow_uri <MLFLOW_URI_FROM_GROK_OR_MANUAL>
 
