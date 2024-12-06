@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import functools
 import os
 import pickle
 from tracemalloc import start
@@ -84,6 +85,7 @@ class GraspResetEventTermCfg(EventTerm):
     def __init__(
         self,
         reset_target: Literal["pre_grasp", "grasp", "mate", "rigid_grasp", "rigid_grasp_open_align"] = "grasp",
+        nut_rel_pose: tuple[float, float, float, ] | None = None,
         reset_range_scale: float = 1.0,
         reset_joint_std: float = 0.0,
         reset_randomize_mode: Literal["task", "joint", None] = "task",
@@ -92,6 +94,7 @@ class GraspResetEventTermCfg(EventTerm):
     ):
         super().__init__(**kwargs)
         self.reset_target = reset_target
+        self.nut_rel_pose = nut_rel_pose
         self.reset_range_scale = reset_range_scale
         self.reset_joint_std = reset_joint_std
         self.reset_randomize_mode = reset_randomize_mode
@@ -109,8 +112,8 @@ class reset_scene_to_grasp_state(ManagerTermBase):
         self.cached_state = cached_state.apply(lambda x: repeat(x, "1 ... -> n ...", n=env.num_envs).clone())
         
         # randomization parameters
-        tensor_args = TensorDeviceType(device=env.device)
-        self.robot_base_pose = Pose.from_list([-0.15, -0.5, -0.8, 1, 0, 0, 0], tensor_args)
+        self.tensor_args = TensorDeviceType(device=env.device)
+        self.robot_base_pose = Pose.from_list([-0.15, -0.5, -0.8, 1, 0, 0, 0], self.tensor_args)
         self.curobo_arm = CuRoboArm("victor_left.yml", 
                                     external_asset_path="/home/zixuanh/force_tool/assets/victor",
                                     base_pose=self.robot_base_pose, num_ik_seeds=10, device=env.device,
@@ -119,10 +122,10 @@ class reset_scene_to_grasp_state(ManagerTermBase):
         self.reset_randomize_mode = cfg.reset_randomize_mode
         self.reset_trans_low = torch.tensor([-0.03, -0.03, -0.0], device=env.device) * cfg.reset_range_scale
         self.reset_trans_high = torch.tensor([0.03, 0.03, 0.04], device=env.device) * cfg.reset_range_scale
-        # TODO: add rotation noise
-        self.reset_rot_std = 0.5
+        self.reset_rot_std = 0.2 * cfg.reset_range_scale
         self.reset_joint_std = cfg.reset_joint_std
         self.reset_use_adr = cfg.reset_use_adr
+        self.nut_rel_pose = cfg.nut_rel_pose
         self.rand_init_configurations = None
         self.num_buckets = int(5e3)
         self.bucket_update_freq = 4
@@ -140,13 +143,19 @@ class reset_scene_to_grasp_state(ManagerTermBase):
         if self.reset_randomize_mode == "task":
             arm_state = cached_state["robot"]["joint_state"]["position"][:, :7]
             default_tool_pose = self.curobo_arm.forward_kinematics(arm_state).ee_pose
-            default_tool_pose = default_tool_pose.repeat(B)
+            nut_rel_pose = Pose.from_list(self.nut_rel_pose, self.tensor_args)
+            default_nut_pose = default_tool_pose.multiply(nut_rel_pose)
+            default_nut_pose = default_nut_pose.repeat(B)
             delta_trans = torch.rand((B, 3), device=env.device) * (self.reset_trans_high - self.reset_trans_low) + self.reset_trans_low
             delta_trans *= noise_scale
-            delta_quat = torch.zeros((B, 4), device=env.device)
-            delta_quat[:, 0] = 1
-            delta_pose = Pose(position=delta_trans, quaternion=delta_quat)
-            randomized_tool_pose = delta_pose.multiply(default_tool_pose)
+            
+            delta_rot = 2 * torch.rand((B, 3), device=env.device) * self.reset_rot_std - self.reset_rot_std
+            delta_quat = math_utils.quat_from_euler_xyz(delta_rot[:, 0], delta_rot[:, 1], delta_rot[:, 2])
+  
+            delta_pose = Pose(position=torch.zeros((B, 3), device=env.device), quaternion=delta_quat)
+            randomized_nut_pose = default_nut_pose.multiply(delta_pose)
+            randomized_nut_pose.position += delta_trans
+            randomized_tool_pose = randomized_nut_pose.multiply(nut_rel_pose.inverse())
             ik_result = self.curobo_arm.compute_ik(randomized_tool_pose)
             randomized_joint_state = ik_result.solution.squeeze(1)
         elif self.reset_randomize_mode == "joint":
@@ -231,11 +240,8 @@ def spawn_nut_with_rigid_grasp(
     tool_quat = [tool_quat.real, tool_quat.imaginary[0], tool_quat.imaginary[1], tool_quat.imaginary[2]]
     tool_quat = torch.tensor(tool_quat)[None]
 
-    # grasp_rel_pos = torch.tensor([[-0.0007,  0.0001,  0.0177]])
-    # grasp_rel_quat = torch.tensor([[-0.0020,  0.9663, -0.2569, -0.0170]])
-
-    grasp_rel_pos = torch.tensor([[0, 0.000, 0.02]])
-    grasp_rel_quat = torch.tensor([[0, 1, 0, 0]])
+    grasp_rel_pos = torch.tensor(translation)[None]
+    grasp_rel_quat = torch.tensor(orientation)[None]
 
     nut_pos, nut_quat = math_utils.combine_frame_transforms(tool_pos, tool_quat, grasp_rel_pos, grasp_rel_quat)
 
@@ -342,7 +348,7 @@ class IKRelKukaNutThreadEnvCfg(BaseNutThreadEnvCfg):
         robot_params.compliant_contact_stiffness = robot_params.get("compliant_contact_stiffness", 0.0)
         robot_params.compliant_contact_damping = robot_params.get("compliant_contact_damping", 0.0)
         robot_params.arm_stiffness = robot_params.get("arm_stiffness", 300.0)
-        robot_params.arm_damping = robot_params.get("arm_damping", 100.0)
+        robot_params.arm_damping = robot_params.get("arm_damping", 50.0)
         robot_params.gripper_stiffness = robot_params.get("gripper_stiffness", 100)
         robot_params.gripper_damping = robot_params.get("gripper_damping", 1e2)
         robot_params.gripper_effort_limit = robot_params.get("gripper_effort_limit", 200.0)
@@ -351,7 +357,7 @@ class IKRelKukaNutThreadEnvCfg(BaseNutThreadEnvCfg):
         nut_params.rigid_grasp = nut_params.get("rigid_grasp", True)
 
         action_params = self.params.actions
-        action_params.ik_lambda = action_params.get("ik_lambda", 0.1)
+        action_params.ik_lambda = action_params.get("ik_lambda", 0.001)
         action_params.keep_grasp_state = action_params.get("keep_grasp_state", False)
         action_params.uni_rotate = action_params.get("uni_rotate", False)
 
@@ -359,6 +365,7 @@ class IKRelKukaNutThreadEnvCfg(BaseNutThreadEnvCfg):
         obs_params.hist_len = obs_params.get("hist_len", 1)
         obs_params.include_action = obs_params.get("include_action", True)
         obs_params.include_wrench = obs_params.get("include_wrench", True)
+        obs_params.wrench_target_body = obs_params.get("wrench_target_body", ["victor_left_arm_flange"])
         obs_params.include_tool = obs_params.get("include_tool", False)
         obs_params.nut_pos = obs_params.get("nut_pos", OmegaConf.create())
         obs_params.nut_pos.noise_std = obs_params.nut_pos.get("noise_std", 0.0)
@@ -433,10 +440,9 @@ class IKRelKukaNutThreadEnvCfg(BaseNutThreadEnvCfg):
         # arm_highs = [0.002, 0.002, 0.002, 0.01, 0.01, 0.5]
         # scale = [0.002, 0.002, 0.002, 0.01, 0.01, 0.5]
         
-        arm_lows = [-0.004, -0.004, -0.004, -0.01, -0.01, -0.5]
-        arm_highs = [0.004, 0.004, 0.004, 0.01, 0.01, 0.5]
-        scale = [0.004, 0.004, 0.004, 0.01, 0.01, 0.5]
-
+        arm_lows = [-0.004, -0.004, -0.004, -0.02, -0.02, -0.5]
+        arm_highs = [0.004, 0.004, 0.004, 0.02, 0.02, 0.5]
+        scale = [0.004, 0.004, 0.004, 0.02, 0.02, 0.5]
 
         if self.params.events.reset_target == "rigid_grasp_open_tilt" or \
                 self.params.events.reset_joint_std > 0:
@@ -473,17 +479,19 @@ class IKRelKukaNutThreadEnvCfg(BaseNutThreadEnvCfg):
         #     is_accumulate_action=True,
         #     keep_grasp_state=action_params.keep_grasp_state
         # )
-
+        nut = self.scene.nut
+        nut.init_state.pos = (0, 0, 0.02)
+        nut.init_state.rot = (0, 1, 0, 0)
         nut_params = self.params.scene.nut
         if nut_params.rigid_grasp:
             self.scene.nut.spawn.func = spawn_nut_with_rigid_grasp
-
         # observations
         obs_params = self.params.observations
         if obs_params.include_wrench:
             self.observations.policy.wrist_wrench = ObsTerm(
                 func=mdp.body_incoming_wrench,
-                params={"asset_cfg": SceneEntityCfg("robot", body_names=["victor_left_arm_flange"])},
+                # params={"asset_cfg": SceneEntityCfg("robot", body_names=["victor_left_arm_flange"])},
+                params={"asset_cfg": SceneEntityCfg("robot", body_names=[obs_params.wrench_target_body])},
                 scale=1,
             )
         if obs_params.include_tool:
@@ -532,9 +540,11 @@ class IKRelKukaNutThreadEnvCfg(BaseNutThreadEnvCfg):
         #         "rest_offset": robot_params.rest_offset},
         #     mode="startup",
         # )
+        nut_rel_pos = np.array(nut.init_state.pos) - np.array(self.scene.nut_frame.target_frames[0].offset.pos)
         self.events.reset_default = GraspResetEventTermCfg(
             func=reset_scene_to_grasp_state,
             mode="reset",
+            nut_rel_pose=np.concatenate([nut_rel_pos, nut.init_state.rot]),
             reset_target=event_params.reset_target,
             reset_range_scale=event_params.reset_range_scale,
             reset_randomize_mode=event_params.reset_randomize_mode,
@@ -587,5 +597,5 @@ class IKRelKukaNutThreadEnvCfg(BaseNutThreadEnvCfg):
         if curri_params.use_contact_force_curri:
             self.curriculum.modify_contact_force_penalty = CurrTerm(
                 func=mdp.modify_reward_weight,
-                params={"term_name": "contact_force_penalty", "weight": -10, "num_steps": 800*32},
+                params={"term_name": "contact_force_penalty", "weight": -1, "num_steps": 800*32},
             )

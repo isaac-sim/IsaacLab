@@ -12,7 +12,7 @@ from copy import deepcopy
 from dataclasses import MISSING, Field, dataclass, field, replace
 from typing import Any, ClassVar
 
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf, ListConfig
 
 from .dict import class_to_dict, update_class_from_dict
 
@@ -264,7 +264,7 @@ def _validate(obj: object, prefix: str = "") -> list[str]:
     if type(obj) is type(MISSING):
         missing_fields.append(prefix)
         return missing_fields
-    elif isinstance(obj, (list, tuple)):
+    elif isinstance(obj, (list, tuple, ListConfig)):
         for index, item in enumerate(obj):
             current_path = f"{prefix}[{index}]"
             missing_fields.extend(_validate(item, prefix=current_path))

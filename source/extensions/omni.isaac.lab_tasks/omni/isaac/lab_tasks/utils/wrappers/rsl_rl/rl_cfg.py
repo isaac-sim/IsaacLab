@@ -157,8 +157,8 @@ class RslRlOnPolicyRunnerCfg:
 
     def __post_init__(self):
         # update the configuration with the additional parameters
-        # if self.params is None:
-        #     self.params = OmegaConf.create()
+        if self.params is None:
+            self.params = OmegaConf.create()
         agent_params = self.params.get("agent", OmegaConf.create())
         self.num_steps_per_env = agent_params.get("num_steps_per_env", self.num_steps_per_env)
         self.max_iterations = agent_params.get("max_iterations", self.max_iterations)
