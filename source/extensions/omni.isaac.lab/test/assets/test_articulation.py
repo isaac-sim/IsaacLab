@@ -847,6 +847,10 @@ class TestArticulation(unittest.TestCase):
                                 torch.testing.assert_close(
                                     articulation.data.joint_velocity_limits, expected_velocity_limit
                                 )
+                                torch.testing.assert_close(
+                                    articulation.root_physx_view.get_dof_max_velocities().to(device),
+                                    expected_velocity_limit,
+                                )
 
     def test_reset(self):
         """Test that reset method works properly.
