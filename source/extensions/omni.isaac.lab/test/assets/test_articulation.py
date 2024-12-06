@@ -572,6 +572,18 @@ class TestArticulation(unittest.TestCase):
                         torch.testing.assert_close(articulation._data.joint_limits, limits)
                         torch.testing.assert_close(articulation._data.default_joint_pos, default_joint_pos)
 
+                        # Set new joint limits with indexing
+                        env_ids = torch.arange(1, device=device)
+                        joint_ids = torch.arange(2, device=device)
+                        limits = torch.zeros(env_ids.shape[0], joint_ids.shape[0], 2, device=device)
+                        limits[..., 0] = (torch.rand(env_ids.shape[0], joint_ids.shape[0], device=device) + 5.0) * -1.0
+                        limits[..., 1] = torch.rand(env_ids.shape[0], joint_ids.shape[0], device=device) + 5.0
+                        articulation.write_joint_limits_to_sim(limits, env_ids=env_ids, joint_ids=joint_ids)
+
+                        # Check new limits are in place
+                        torch.testing.assert_close(articulation._data.joint_limits[env_ids][:, joint_ids], limits)
+                        torch.testing.assert_close(articulation._data.default_joint_pos, default_joint_pos)
+
                         # Set new joint limits that invalidate default joint pos
                         limits = torch.zeros(num_articulations, articulation.num_joints, 2, device=device)
                         limits[..., 0] = torch.rand(num_articulations, articulation.num_joints, device=device) * -0.1
@@ -582,6 +594,18 @@ class TestArticulation(unittest.TestCase):
                         within_bounds = (articulation._data.default_joint_pos >= limits[..., 0]) & (
                             articulation._data.default_joint_pos <= limits[..., 1]
                         )
+                        self.assertTrue(torch.all(within_bounds))
+
+                        # Set new joint limits that invalidate default joint pos with indexing
+                        limits = torch.zeros(env_ids.shape[0], joint_ids.shape[0], 2, device=device)
+                        limits[..., 0] = torch.rand(env_ids.shape[0], joint_ids.shape[0], device=device) * -0.1
+                        limits[..., 1] = torch.rand(env_ids.shape[0], joint_ids.shape[0], device=device) * 0.1
+                        articulation.write_joint_limits_to_sim(limits, env_ids=env_ids, joint_ids=joint_ids)
+
+                        # Check if all values are within the bounds
+                        within_bounds = (
+                            articulation._data.default_joint_pos[env_ids][:, joint_ids] >= limits[..., 0]
+                        ) & (articulation._data.default_joint_pos[env_ids][:, joint_ids] <= limits[..., 1])
                         self.assertTrue(torch.all(within_bounds))
 
     def test_external_force_on_single_body(self):

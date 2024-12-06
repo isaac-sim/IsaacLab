@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.27.14 (2024-09-28)
+0.27.20 (2024-12-06)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -17,6 +17,67 @@ Changed
   the range are clipped to zero for both ``distance_to_image_plane`` and ``distance_to_camera`` depth images. Prev.
   :class:`~omni.isaac.lab.sensors.RayCasterCamera` clipped the values to the maximum value of the depth image,
   :class:`~omni.isaac.lab.sensors.Camera` did not clip them and had a different behavior for both types.
+
+
+0.27.19 (2024-12-05)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the condition in ``isaaclab.sh`` that checks whether ``pre-commit`` is installed before attempting installation.
+
+
+0.27.18 (2024-12-04)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the order of the incoming parameters in :class:`omni.isaac.lab.envs.DirectMARLEnv` to correctly use ``NoiseModel`` in marl-envs.
+
+
+0.27.17 (2024-12-02)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~omni.isaac.lab.managers.RecorderManager` and its utility classes to record data from the simulation.
+* Added :class:`~omni.isaac.lab.utils.datasets.EpisodeData` to store data for an episode.
+* Added :class:`~omni.isaac.lab.utils.datasets.DatasetFileHandlerBase` as a base class for handling dataset files.
+* Added :class:`~omni.isaac.lab.utils.datasets.HDF5DatasetFileHandler` as a dataset file handler implementation to
+  export and load episodes from HDF5 files.
+* Added ``record_demos.py`` script to record human-teleoperated demos for a specified task and export to an HDF5 file.
+* Added ``replay_demos.py`` script to replay demos loaded from an HDF5 file.
+
+
+0.27.16 (2024-11-21)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed :class:`omni.isaac.lab.envs.DirectMARLEnv` to inherit from ``Gymnasium.Env`` due to requirement from Gymnasium v1.0.0 requiring all environments to be a subclass of ``Gymnasium.Env`` when using the ``make`` interface.
+
+
+0.27.15 (2024-11-09)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed indexing in :meth:`omni.isaac.lab.assets.Articulation.write_joint_limits_to_sim` to correctly process non-None ``env_ids`` and ``joint_ids``.
+
+
+0.27.14 (2024-10-23)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the class :class:`~omni.isaac.lab.assets.RigidObjectCollection` which allows to spawn
+  multiple objects in each environment and access/modify the quantities with a unified (env_ids, object_ids) API.
 
 
 0.27.13 (2024-10-30)

@@ -118,7 +118,9 @@ class TestEnvironments(unittest.TestCase):
         with torch.inference_mode():
             for _ in range(num_steps):
                 # sample actions according to the defined space
-                actions = sample_space(env.single_action_space, device=env.unwrapped.device, batch_size=num_envs)
+                actions = sample_space(
+                    env.unwrapped.single_action_space, device=env.unwrapped.device, batch_size=num_envs
+                )
                 # apply actions
                 transition = env.step(actions)
                 # check signals
