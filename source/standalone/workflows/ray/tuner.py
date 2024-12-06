@@ -38,12 +38,12 @@ Usage:
 
     ./isaaclab.sh -p source/standalone/workflows/ray/tuner.py -h
 
-    # Examples
-    # Local
+    # Examples 
+    # Local (not within a docker container, when within a local docker container, do not supply run_mode argument)
     ./isaaclab.sh -p source/standalone/workflows/ray/tuner.py --run_mode local \
     --cfg_file source/standalone/workflows/ray/hyperparameter_tuning/vision_cartpole_cfg.py \
-    --cfg_class CartpoleRGBNoTuneJobCfg
-
+    --cfg_class CartpoleRGBNoTuneJobCfg 
+    # Local docker: start the ray server and run above command in the same running container without run_mode arg
     # Remote (run grok cluster or create config file mentioned in :file:`submit_job.py`)
     ./isaaclab.sh -p source/standalone/workflows/ray/submit_job.py \
     --aggregate_jobs tuner.py # cfg_file is relative to ray folder \
