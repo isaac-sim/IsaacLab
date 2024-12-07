@@ -693,17 +693,21 @@
     <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">=</span> <span class="n">sensors</span><span class="o">.</span><span class="n">spawn_camera</span>
 
     <span class="n">projection_type</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span>
-        <span class="s2">&quot;fisheye_orthographic&quot;</span><span class="p">,</span> <span class="s2">&quot;fisheye_equidistant&quot;</span><span class="p">,</span> <span class="s2">&quot;fisheye_equisolid&quot;</span><span class="p">,</span> <span class="s2">&quot;fisheye_polynomial&quot;</span><span class="p">,</span> <span class="s2">&quot;fisheye_spherical&quot;</span>
-    <span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;fisheye_polynomial&quot;</span>
-<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Type of projection to use for the camera. Defaults to &quot;fisheye_polynomial&quot;.</span>
+        <span class="s2">&quot;fisheyePolynomial&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;fisheyeSpherical&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;fisheyeKannalaBrandtK3&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;fisheyeRadTanThinPrism&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;omniDirectionalStereo&quot;</span><span class="p">,</span>
+    <span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;fisheyePolynomial&quot;</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Type of projection to use for the camera. Defaults to &quot;fisheyePolynomial&quot;.</span>
 
 <span class="sd">    Available options:</span>
 
-<span class="sd">    - ``&quot;fisheye_orthographic&quot;``: Fisheye camera model using orthographic correction.</span>
-<span class="sd">    - ``&quot;fisheye_equidistant&quot;``: Fisheye camera model using equidistant correction.</span>
-<span class="sd">    - ``&quot;fisheye_equisolid&quot;``: Fisheye camera model using equisolid correction.</span>
-<span class="sd">    - ``&quot;fisheye_polynomial&quot;``: Fisheye camera model with :math:`360^{\circ}` spherical projection.</span>
-<span class="sd">    - ``&quot;fisheye_spherical&quot;``: Fisheye camera model with :math:`360^{\circ}` full-frame projection.</span>
+<span class="sd">    - ``&quot;fisheyePolynomial&quot;``: Fisheye camera model with :math:`360^{\circ}` spherical projection.</span>
+<span class="sd">    - ``&quot;fisheyeSpherical&quot;``: Fisheye camera model with :math:`360^{\circ}` full-frame projection.</span>
+<span class="sd">    - ``&quot;fisheyeKannalaBrandtK3&quot;``: Fisheye camera model using the Kannala-Brandt K3 distortion model.</span>
+<span class="sd">    - ``&quot;fisheyeRadTanThinPrism&quot;``: Fisheye camera model that combines radial and tangential distortions.</span>
+<span class="sd">    - ``&quot;omniDirectionalStereo&quot;``: Fisheye camera model supporting :math:`360^{\circ}` stereoscopic imaging.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">fisheye_nominal_width</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1936.0</span>
