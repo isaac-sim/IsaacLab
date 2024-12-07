@@ -10,8 +10,6 @@ Cartpole balancing environment.
 import gymnasium as gym
 
 from . import agents
-from .cartpole_camera_env import CartpoleCameraEnv, CartpoleDepthCameraEnvCfg, CartpoleRGBCameraEnvCfg
-from .cartpole_env import CartpoleEnv, CartpoleEnvCfg
 
 ##
 # Register Gym environments.
@@ -19,10 +17,10 @@ from .cartpole_env import CartpoleEnv, CartpoleEnvCfg
 
 gym.register(
     id="Isaac-Cartpole-Direct-v0",
-    entry_point="omni.isaac.lab_tasks.direct.cartpole:CartpoleEnv",
+    entry_point=f"{__name__}.cartpole_env:CartpoleEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": CartpoleEnvCfg,
+        "env_cfg_entry_point": f"{__name__}.cartpole_env:CartpoleEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:CartpolePPORunnerCfg",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg.yaml",
@@ -32,10 +30,10 @@ gym.register(
 
 gym.register(
     id="Isaac-Cartpole-RGB-Camera-Direct-v0",
-    entry_point="omni.isaac.lab_tasks.direct.cartpole:CartpoleCameraEnv",
+    entry_point=f"{__name__}.cartpole_camera_env:CartpoleCameraEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": CartpoleRGBCameraEnvCfg,
+        "env_cfg_entry_point": f"{__name__}.cartpole_camera_env:CartpoleRGBCameraEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_camera_ppo_cfg.yaml",
     },
@@ -43,10 +41,10 @@ gym.register(
 
 gym.register(
     id="Isaac-Cartpole-Depth-Camera-Direct-v0",
-    entry_point="omni.isaac.lab_tasks.direct.cartpole:CartpoleCameraEnv",
+    entry_point=f"{__name__}.cartpole_camera_env:CartpoleCameraEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": CartpoleDepthCameraEnvCfg,
+        "env_cfg_entry_point": f"{__name__}.cartpole_camera_env:CartpoleDepthCameraEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_camera_ppo_cfg.yaml",
     },

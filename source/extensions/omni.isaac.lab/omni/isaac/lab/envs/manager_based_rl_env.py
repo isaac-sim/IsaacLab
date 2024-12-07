@@ -158,6 +158,8 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # process actions
         self.action_manager.process_action(action.to(self.device))
 
+        self.recorder_manager.record_pre_step()
+
         # check if we need to do rendering within the physics loop
         # note: checked here once to avoid multiple checks within the loop
         is_rendering = self.sim.has_gui() or self.sim.has_rtx_sensors()
@@ -190,13 +192,28 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # -- reward computation
         self.reward_buf = self.reward_manager.compute(dt=self.step_dt)
 
+        if len(self.recorder_manager.active_terms) > 0:
+            # update observations for recording if needed
+            self.obs_buf = self.observation_manager.compute()
+            self.recorder_manager.record_post_step()
+
         # -- reset envs that terminated/timed-out and log the episode information
         reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
         if len(reset_env_ids) > 0:
+            # trigger recorder terms for pre-reset calls
+            self.recorder_manager.record_pre_reset(reset_env_ids)
+
             self._reset_idx(reset_env_ids)
+
+            # this is needed to make joint positions set from reset events effective
+            self.scene.write_data_to_sim()
+
             # if sensors are added to the scene, make sure we render to reflect changes in reset
             if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
                 self.sim.render()
+
+            # trigger recorder terms for post-reset calls
+            self.recorder_manager.record_post_reset(reset_env_ids)
 
         # -- update command
         self.command_manager.compute(dt=self.step_dt)
@@ -352,6 +369,9 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         self.extras["log"].update(info)
         # -- termination manager
         info = self.termination_manager.reset(env_ids)
+        self.extras["log"].update(info)
+        # -- recorder manager
+        info = self.recorder_manager.reset(env_ids)
         self.extras["log"].update(info)
 
         # reset the episode length buffer
