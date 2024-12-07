@@ -800,6 +800,18 @@
                 <span class="s2">&quot; Please ensure that there is only one rigid body in the prim path tree.&quot;</span>
             <span class="p">)</span>
 
+        <span class="n">articulation_prims</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">get_all_matching_child_prims</span><span class="p">(</span>
+            <span class="n">template_prim_path</span><span class="p">,</span> <span class="n">predicate</span><span class="o">=</span><span class="k">lambda</span> <span class="n">prim</span><span class="p">:</span> <span class="n">prim</span><span class="o">.</span><span class="n">HasAPI</span><span class="p">(</span><span class="n">UsdPhysics</span><span class="o">.</span><span class="n">ArticulationRootAPI</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">articulation_prims</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">articulation_prims</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">GetAttribute</span><span class="p">(</span><span class="s2">&quot;physxArticulation:articulationEnabled&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">Get</span><span class="p">():</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Found an articulation root when resolving &#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">&#39; for rigid objects. These are&quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot; located at: &#39;</span><span class="si">{</span><span class="n">articulation_prims</span><span class="si">}</span><span class="s2">&#39; under &#39;</span><span class="si">{</span><span class="n">template_prim_path</span><span class="si">}</span><span class="s2">&#39;. Please disable the articulation&quot;</span>
+                    <span class="s2">&quot; root in the USD or from code by setting the parameter&quot;</span>
+                    <span class="s2">&quot; &#39;ArticulationRootPropertiesCfg.articulation_enabled&#39; to False in the spawn configuration.&quot;</span>
+                <span class="p">)</span>
+
         <span class="c1"># resolve root prim back into regex expression</span>
         <span class="n">root_prim_path</span> <span class="o">=</span> <span class="n">root_prims</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span><span class="o">.</span><span class="n">pathString</span>
         <span class="n">root_prim_path_expr</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span> <span class="o">+</span> <span class="n">root_prim_path</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">template_prim_path</span><span class="p">)</span> <span class="p">:]</span>
