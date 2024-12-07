@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.27.21 (2024-12-06)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Corrected the projection types of fisheye camera in :class:`omni.isaac.lab.sim.spawners.sensors.sensors_cfg.FisheyeCameraCfg`.
+  Earlier, the projection names used snakecase instead of camelcase.
+
+
 0.27.20 (2024-12-06)
 ~~~~~~~~~~~~~~~~~~~~
 
