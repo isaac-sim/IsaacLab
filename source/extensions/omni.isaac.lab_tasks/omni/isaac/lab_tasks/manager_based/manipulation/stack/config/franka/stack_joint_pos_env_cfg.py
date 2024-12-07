@@ -3,11 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.assets import RigidObjectCfg
 from omni.isaac.lab.managers import EventTermCfg as EventTerm
 from omni.isaac.lab.managers import SceneEntityCfg
-from omni.isaac.lab.sensors import CameraCfg, FrameTransformerCfg
+from omni.isaac.lab.sensors import FrameTransformerCfg
 from omni.isaac.lab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from omni.isaac.lab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 from omni.isaac.lab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
@@ -118,32 +117,6 @@ class FrankaCubeStackEnvCfg(StackEnvCfg):
                 scale=(1.0, 1.0, 1.0),
                 rigid_props=cube_properties,
             ),
-        )
-
-        # Set wrist camera
-        self.scene.wrist_cam = CameraCfg(
-            prim_path="{ENV_REGEX_NS}/Robot/panda_hand/wrist_cam",
-            update_period=0.0333,
-            height=84,
-            width=84,
-            data_types=["rgb", "distance_to_image_plane"],
-            spawn=sim_utils.PinholeCameraCfg(
-                focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1.0e5)
-            ),
-            offset=CameraCfg.OffsetCfg(pos=(0.025, 0.0, 0.0), rot=(0.707, 0.0, 0.0, 0.707), convention="ros"),
-        )
-
-        # Set table view camera
-        self.scene.table_cam = CameraCfg(
-            prim_path="{ENV_REGEX_NS}/table_cam",
-            update_period=0.0333,
-            height=84,
-            width=84,
-            data_types=["rgb", "distance_to_image_plane"],
-            spawn=sim_utils.PinholeCameraCfg(
-                focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1.0e5)
-            ),
-            offset=CameraCfg.OffsetCfg(pos=(1.0, 0.0, 0.33), rot=(-0.3799, 0.5963, 0.5963, -0.3799), convention="ros"),
         )
 
         # Listens to the required transforms

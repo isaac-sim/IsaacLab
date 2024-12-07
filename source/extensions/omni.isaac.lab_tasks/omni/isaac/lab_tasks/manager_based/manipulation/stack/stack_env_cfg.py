@@ -13,7 +13,6 @@ from omni.isaac.lab.managers import ObservationTermCfg as ObsTerm
 from omni.isaac.lab.managers import SceneEntityCfg
 from omni.isaac.lab.managers import TerminationTermCfg as DoneTerm
 from omni.isaac.lab.scene import InteractiveSceneCfg
-from omni.isaac.lab.sensors import CameraCfg
 from omni.isaac.lab.sensors.frame_transformer.frame_transformer_cfg import FrameTransformerCfg
 from omni.isaac.lab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from omni.isaac.lab.utils import configclass
@@ -36,10 +35,6 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     robot: ArticulationCfg = MISSING
     # end-effector sensor: will be populated by agent env cfg
     ee_frame: FrameTransformerCfg = MISSING
-
-    # Cameras
-    wrist_cam: CameraCfg = MISSING
-    table_cam: CameraCfg = MISSING
 
     # Table
     table = AssetBaseCfg(
@@ -99,13 +94,6 @@ class ObservationsCfg:
     @configclass
     class RGBCameraPolicyCfg(ObsGroup):
         """Observations for policy group with RGB images."""
-
-        table_cam = ObsTerm(
-            func=mdp.image, params={"sensor_cfg": SceneEntityCfg("table_cam"), "data_type": "rgb", "normalize": False}
-        )
-        wrist_cam = ObsTerm(
-            func=mdp.image, params={"sensor_cfg": SceneEntityCfg("wrist_cam"), "data_type": "rgb", "normalize": False}
-        )
 
         def __post_init__(self):
             self.enable_corruption = False
