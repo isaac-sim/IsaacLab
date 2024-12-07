@@ -184,17 +184,21 @@ class FisheyeCameraCfg(PinholeCameraCfg):
     func: Callable = sensors.spawn_camera
 
     projection_type: Literal[
-        "fisheye_orthographic", "fisheye_equidistant", "fisheye_equisolid", "fisheye_polynomial", "fisheye_spherical"
-    ] = "fisheye_polynomial"
-    r"""Type of projection to use for the camera. Defaults to "fisheye_polynomial".
+        "fisheyePolynomial",
+        "fisheyeSpherical",
+        "fisheyeKannalaBrandtK3",
+        "fisheyeRadTanThinPrism",
+        "omniDirectionalStereo",
+    ] = "fisheyePolynomial"
+    r"""Type of projection to use for the camera. Defaults to "fisheyePolynomial".
 
     Available options:
 
-    - ``"fisheye_orthographic"``: Fisheye camera model using orthographic correction.
-    - ``"fisheye_equidistant"``: Fisheye camera model using equidistant correction.
-    - ``"fisheye_equisolid"``: Fisheye camera model using equisolid correction.
-    - ``"fisheye_polynomial"``: Fisheye camera model with :math:`360^{\circ}` spherical projection.
-    - ``"fisheye_spherical"``: Fisheye camera model with :math:`360^{\circ}` full-frame projection.
+    - ``"fisheyePolynomial"``: Fisheye camera model with :math:`360^{\circ}` spherical projection.
+    - ``"fisheyeSpherical"``: Fisheye camera model with :math:`360^{\circ}` full-frame projection.
+    - ``"fisheyeKannalaBrandtK3"``: Fisheye camera model using the Kannala-Brandt K3 distortion model.
+    - ``"fisheyeRadTanThinPrism"``: Fisheye camera model that combines radial and tangential distortions.
+    - ``"omniDirectionalStereo"``: Fisheye camera model supporting :math:`360^{\circ}` stereoscopic imaging.
     """
 
     fisheye_nominal_width: float = 1936.0
