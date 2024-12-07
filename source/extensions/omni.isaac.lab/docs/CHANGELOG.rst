@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.27.21 (2024-12-06)
+0.27.22 (2024-12-06)
 ~~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -10,6 +10,16 @@ Changed
 * If a USD that contains an articulation root is loaded using a
   :attr:`omni.isaac_lab.assets.RigidBody` we now fail unless the articulation root is explicitly
   disabled. Using an articulation root for rigid bodies is not needed and decreases overall performance.
+
+
+0.27.21 (2024-12-06)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Corrected the projection types of fisheye camera in :class:`omni.isaac.lab.sim.spawners.sensors.sensors_cfg.FisheyeCameraCfg`.
+  Earlier, the projection names used snakecase instead of camelcase.
 
 
 0.27.20 (2024-12-06)
