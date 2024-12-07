@@ -134,7 +134,6 @@ class JointAction(ActionTerm):
             index_list, _, value_list = string_utils.resolve_matching_names_values(self._clip, self._joint_names)
             for index in range(len(index_list)):
                 min_value, max_value = value_list[index]
-                print(value_list[index])
                 self._processed_actions[:, index_list[index]].clip_(min_value, max_value)
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
