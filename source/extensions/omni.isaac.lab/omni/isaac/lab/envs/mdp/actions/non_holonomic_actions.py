@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 
 import omni.log
 
+import omni.isaac.lab.utils.string as string_utils
 from omni.isaac.lab.assets.articulation import Articulation
 from omni.isaac.lab.managers.action_manager import ActionTerm
 from omni.isaac.lab.utils.math import euler_xyz_from_quat
@@ -59,6 +60,8 @@ class NonHolonomicAction(ActionTerm):
     """The scaling factor applied to the input action. Shape is (1, 2)."""
     _offset: torch.Tensor
     """The offset applied to the input action. Shape is (1, 2)."""
+    _clip: dict[str, tuple] | None = None
+    """The clip applied to the input action."""
 
     def __init__(self, cfg: actions_cfg.NonHolonomicActionCfg, env: ManagerBasedEnv):
         # initialize the action term
@@ -104,6 +107,12 @@ class NonHolonomicAction(ActionTerm):
         # save the scale and offset as tensors
         self._scale = torch.tensor(self.cfg.scale, device=self.device).unsqueeze(0)
         self._offset = torch.tensor(self.cfg.offset, device=self.device).unsqueeze(0)
+        # parse clip
+        if cfg.clip is not None:
+            if isinstance(cfg.clip, dict):
+                self._clip = cfg.clip
+            else:
+                raise ValueError(f"Unsupported clip type: {type(cfg.clip)}. Supported types are dict.")
 
     """
     Properties.
@@ -129,6 +138,13 @@ class NonHolonomicAction(ActionTerm):
         # store the raw actions
         self._raw_actions[:] = actions
         self._processed_actions = self.raw_actions * self._scale + self._offset
+        # clip actions
+        if self._clip is not None:
+            # resolve the dictionary config
+            index_list, _, value_list = string_utils.resolve_matching_names_values(self._clip, self._joint_names)
+            for index in range(len(index_list)):
+                min_value, max_value = value_list[index]
+                self._processed_actions[:, index_list[index]].clip_(min_value, max_value)
 
     def apply_actions(self):
         # obtain current heading

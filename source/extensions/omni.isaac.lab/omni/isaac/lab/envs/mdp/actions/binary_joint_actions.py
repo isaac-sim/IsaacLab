@@ -40,9 +40,10 @@ class BinaryJointAction(ActionTerm):
 
     cfg: actions_cfg.BinaryJointActionCfg
     """The configuration of the action term."""
-
     _asset: Articulation
     """The articulation asset on which the action term is applied."""
+    _clip: dict[str, tuple] | None = None
+    """The clip applied to the input action."""
 
     def __init__(self, cfg: actions_cfg.BinaryJointActionCfg, env: ManagerBasedEnv) -> None:
         # initialize the action term
@@ -83,6 +84,13 @@ class BinaryJointAction(ActionTerm):
             )
         self._close_command[index_list] = torch.tensor(value_list, device=self.device)
 
+        # parse clip
+        if cfg.clip is not None:
+            if isinstance(cfg.clip, dict):
+                self._clip = cfg.clip
+            else:
+                raise ValueError(f"Unsupported clip type: {type(cfg.clip)}. Supported types are dict.")
+
     """
     Properties.
     """
@@ -115,6 +123,13 @@ class BinaryJointAction(ActionTerm):
             binary_mask = actions < 0
         # compute the command
         self._processed_actions = torch.where(binary_mask, self._close_command, self._open_command)
+        # clip actions
+        if self._clip is not None:
+            # resolve the dictionary config
+            index_list, _, value_list = string_utils.resolve_matching_names_values(self._clip, self._joint_names)
+            for index in range(len(index_list)):
+                min_value, max_value = value_list[index]
+                self._processed_actions[:, index_list[index]].clip_(min_value, max_value)
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         self._raw_actions[env_ids] = 0.0

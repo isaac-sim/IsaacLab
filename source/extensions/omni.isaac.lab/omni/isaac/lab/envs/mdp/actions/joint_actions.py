@@ -101,7 +101,7 @@ class JointAction(ActionTerm):
             if isinstance(cfg.clip, dict):
                 self._clip = cfg.clip
             else:
-                raise ValueError(f"Unsupported clip type: {type(cfg.scale)}. Supported types are dict.")
+                raise ValueError(f"Unsupported clip type: {type(cfg.clip)}. Supported types are dict.")
 
     """
     Properties.
@@ -134,6 +134,7 @@ class JointAction(ActionTerm):
             index_list, _, value_list = string_utils.resolve_matching_names_values(self._clip, self._joint_names)
             for index in range(len(index_list)):
                 min_value, max_value = value_list[index]
+                print(value_list[index])
                 self._processed_actions[:, index_list[index]].clip_(min_value, max_value)
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
