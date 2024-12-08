@@ -1,5 +1,6 @@
 from omni.isaac.lab.utils import configclass
-from omni.isaac.lab.assets import RigidObjectCfg
+from omni.isaac.lab.assets import ArticulationCfg
+
 import omni.isaac.lab.sim as sim_utils
 
 ASSET_DIR = '../IsaacLab_benchmark/source/extensions/omni.isaac.lab_assets/data/Factory'
@@ -119,7 +120,7 @@ class PegInsertion(FactoryTask):
     success_threshold: float = 0.04
     engage_threshold: float = 0.9
 
-    fixed_asset: RigidObjectCfg = RigidObjectCfg(
+    fixed_asset: ArticulationCfg = ArticulationCfg(
         prim_path="/World/envs/env_.*/FixedAsset",
         spawn=sim_utils.UsdFileCfg(
             usd_path=fixed_asset_cfg.usd_path,
@@ -142,12 +143,15 @@ class PegInsertion(FactoryTask):
                 rest_offset=0.0
             ),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(
+        init_state=ArticulationCfg.InitialStateCfg(
             pos=(0.6, 0.0, 0.05),
             rot=(1.0, 0.0, 0.0, 0.0),
-        )
+            joint_pos={},
+            joint_vel={}
+        ),
+        actuators={}
     )
-    held_asset: RigidObjectCfg = RigidObjectCfg(
+    held_asset: ArticulationCfg = ArticulationCfg(
         prim_path="/World/envs/env_.*/HeldAsset",
         spawn=sim_utils.UsdFileCfg(
             usd_path=held_asset_cfg.usd_path,
@@ -170,13 +174,14 @@ class PegInsertion(FactoryTask):
                 rest_offset=0.0
             ),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(
+        init_state=ArticulationCfg.InitialStateCfg(
             pos=(0.0, 0.4, 0.1),
             rot=(1.0, 0.0, 0.0, 0.0),
-        )
+            joint_pos={},
+            joint_vel={}
+        ),
+        actuators={}
     )
-
-
 
 @configclass
 class GearBase(FixedAssetCfg):
@@ -206,7 +211,7 @@ class GearMeshing(FactoryTask):
     small_gear_usd = f'{ASSET_DIR}/factory_gear_small.usd'
     large_gear_usd = f'{ASSET_DIR}/factory_gear_large.usd'
 
-    small_gear_cfg: RigidObjectCfg = RigidObjectCfg(
+    small_gear_cfg: ArticulationCfg = ArticulationCfg(
         prim_path="/World/envs/env_.*/SmallGearAsset",
         spawn=sim_utils.UsdFileCfg(
             usd_path=small_gear_usd,
@@ -229,13 +234,16 @@ class GearMeshing(FactoryTask):
                 rest_offset=0.0
             ),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(
+        init_state=ArticulationCfg.InitialStateCfg(
             pos=(0.0, 0.4, 0.1),
             rot=(1.0, 0.0, 0.0, 0.0),
-        )
+            joint_pos={},
+            joint_vel={}
+        ),
+        actuators={}
     )
 
-    large_gear_cfg: RigidObjectCfg = RigidObjectCfg(
+    large_gear_cfg: ArticulationCfg = ArticulationCfg(
         prim_path="/World/envs/env_.*/LargeGearAsset",
         spawn=sim_utils.UsdFileCfg(
             usd_path=large_gear_usd,
@@ -258,10 +266,13 @@ class GearMeshing(FactoryTask):
                 rest_offset=0.0
             ),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(
+        init_state=ArticulationCfg.InitialStateCfg(
             pos=(0.0, 0.4, 0.1),
             rot=(1.0, 0.0, 0.0, 0.0),
-        )
+            joint_pos={},
+            joint_vel={}
+        ),
+        actuators={}
     )
 
     # Gears Asset
@@ -290,7 +301,7 @@ class GearMeshing(FactoryTask):
     success_threshold: float = 0.05
     engage_threshold: float = 0.9
 
-    fixed_asset: RigidObjectCfg = RigidObjectCfg(
+    fixed_asset: ArticulationCfg = ArticulationCfg(
         prim_path="/World/envs/env_.*/FixedAsset",
         spawn=sim_utils.UsdFileCfg(
             usd_path=fixed_asset_cfg.usd_path,
@@ -313,12 +324,15 @@ class GearMeshing(FactoryTask):
                 rest_offset=0.0
             ),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(
+        init_state=ArticulationCfg.InitialStateCfg(
             pos=(0.6, 0.0, 0.05),
             rot=(1.0, 0.0, 0.0, 0.0),
-        )
+            joint_pos={},
+            joint_vel={}
+        ),
+        actuators={}
     )
-    held_asset: RigidObjectCfg = RigidObjectCfg(
+    held_asset: ArticulationCfg = ArticulationCfg(
         prim_path="/World/envs/env_.*/HeldAsset",
         spawn=sim_utils.UsdFileCfg(
             usd_path=held_asset_cfg.usd_path,
@@ -341,10 +355,13 @@ class GearMeshing(FactoryTask):
                 rest_offset=0.0
             ),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(
+        init_state=ArticulationCfg.InitialStateCfg(
             pos=(0.0, 0.4, 0.1),
             rot=(1.0, 0.0, 0.0, 0.0),
-        )
+            joint_pos={},
+            joint_vel={}
+        ),
+        actuators={}
     )
 
 @configclass
@@ -399,7 +416,7 @@ class NutThreading(FactoryTask):
     engage_threshold: float = 0.5
     keypoint_scale: float = 0.05
 
-    fixed_asset: RigidObjectCfg = RigidObjectCfg(
+    fixed_asset: ArticulationCfg = ArticulationCfg(
         prim_path="/World/envs/env_.*/FixedAsset",
         spawn=sim_utils.UsdFileCfg(
             usd_path=fixed_asset_cfg.usd_path,
@@ -422,12 +439,15 @@ class NutThreading(FactoryTask):
                 rest_offset=0.0
             ),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(
+        init_state=ArticulationCfg.InitialStateCfg(
             pos=(0.6, 0.0, 0.05),
             rot=(1.0, 0.0, 0.0, 0.0),
-        )
+            joint_pos={},
+            joint_vel={}
+        ),
+        actuators={}
     )
-    held_asset: RigidObjectCfg = RigidObjectCfg(
+    held_asset: ArticulationCfg = ArticulationCfg(
         prim_path="/World/envs/env_.*/HeldAsset",
         spawn=sim_utils.UsdFileCfg(
             usd_path=held_asset_cfg.usd_path,
@@ -450,8 +470,11 @@ class NutThreading(FactoryTask):
                 rest_offset=0.0
             ),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(
+        init_state=ArticulationCfg.InitialStateCfg(
             pos=(0.0, 0.4, 0.1),
             rot=(1.0, 0.0, 0.0, 0.0),
-        )
+            joint_pos={},
+            joint_vel={}
+        ),
+        actuators={}
     )

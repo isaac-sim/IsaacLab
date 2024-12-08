@@ -4,7 +4,7 @@ import torch
 import carb
 import omni.isaac.core.utils.torch as torch_utils
 import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.assets import Articulation, RigidObject
+from omni.isaac.lab.assets import Articulation
 from omni.isaac.lab.envs import DirectRLEnv
 from omni.isaac.lab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
@@ -179,21 +179,21 @@ class FactoryEnv(DirectRLEnv):
         cfg.func("/World/envs/env_.*/Table", cfg, translation=(0.55, 0.0, 0.0), orientation=(0.70711, 0.0, 0.0, 0.70711))
 
         self._robot = Articulation(self.cfg.robot)
-        self._fixed_asset = RigidObject(self.cfg_task.fixed_asset)
-        self._held_asset = RigidObject(self.cfg_task.held_asset)
+        self._fixed_asset = Articulation(self.cfg_task.fixed_asset)
+        self._held_asset = Articulation(self.cfg_task.held_asset)
         if self.cfg_task.name == 'gear_meshing':
-            self._small_gear_asset = RigidObject(self.cfg_task.small_gear_cfg)
-            self._large_gear_asset = RigidObject(self.cfg_task.large_gear_cfg)
+            self._small_gear_asset = Articulation(self.cfg_task.small_gear_cfg)
+            self._large_gear_asset = Articulation(self.cfg_task.large_gear_cfg)
 
         self.scene.clone_environments(copy_from_source=False)
         self.scene.filter_collisions()
 
         self.scene.articulations["robot"] = self._robot
-        self.scene.rigid_objects["fixed_asset"] = self._fixed_asset
-        self.scene.rigid_objects["held_asset"] = self._held_asset
+        self.scene.articulations["fixed_asset"] = self._fixed_asset
+        self.scene.articulations["held_asset"] = self._held_asset
         if self.cfg_task.name == 'gear_meshing':
-            self.scene.rigid_objects["small_gear"] = self._small_gear_asset
-            self.scene.rigid_objects["large_gear"] = self._large_gear_asset
+            self.scene.articulations["small_gear"] = self._small_gear_asset
+            self.scene.articulations["large_gear"] = self._large_gear_asset
 
         # add lights
         light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
