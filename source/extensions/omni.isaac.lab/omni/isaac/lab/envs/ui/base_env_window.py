@@ -16,6 +16,8 @@ import omni.kit.commands
 import omni.usd
 from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics
 
+from omni.isaac.lab.ui.widgets import ManagerLiveVisualizer
+
 if TYPE_CHECKING:
     import omni.ui
 
@@ -57,6 +59,9 @@ class BaseEnvWindow:
             *self.env.scene.articulations.keys(),
         ]
 
+        # Listeners for environment selection changes
+        self._ui_listeners: list[ManagerLiveVisualizer] = []
+
         print("Creating window for environment.")
         # create window for UI
         self.ui_window = omni.ui.Window(
@@ -80,6 +85,10 @@ class BaseEnvWindow:
                 self._build_viewer_frame()
                 # create collapsable frame for debug visualization
                 self._build_debug_vis_frame()
+                with self.ui_window_elements["debug_frame"]:
+                    with self.ui_window_elements["debug_vstack"]:
+                        self._visualize_manager(title="Actions", class_name="action_manager")
+                        self._visualize_manager(title="Observations", class_name="observation_manager")
 
     def __del__(self):
         """Destructor for the window."""
@@ -200,9 +209,6 @@ class BaseEnvWindow:
         that has it implemented. If the element does not have a debug visualization implemented,
         a label is created instead.
         """
-        # import omni.isaac.ui.ui_utils as ui_utils
-        # import omni.ui
-
         # create collapsable frame for debug visualization
         self.ui_window_elements["debug_frame"] = omni.ui.CollapsableFrame(
             title="Scene Debug Visualization",
@@ -233,6 +239,26 @@ class BaseEnvWindow:
                 for elem, name in zip(elements, names):
                     if elem is not None:
                         self._create_debug_vis_ui_element(name, elem)
+
+    def _visualize_manager(self, title: str, class_name: str) -> None:
+        """Checks if the attribute with the name 'class_name' can be visualized. If yes, create vis interface.
+
+        Args:
+            title: The title of the manager visualization frame.
+            class_name: The name of the manager to visualize.
+        """
+
+        if hasattr(self.env, class_name) and class_name in self.env.manager_visualizers:
+            manager = self.env.manager_visualizers[class_name]
+            if hasattr(manager, "has_debug_vis_implementation"):
+                self._create_debug_vis_ui_element(title, manager)
+            else:
+                print(
+                    f"ManagerLiveVisualizer cannot be created for manager: {class_name}, has_debug_vis_implementation"
+                    " does not exist"
+                )
+        else:
+            print(f"ManagerLiveVisualizer cannot be created for manager: {class_name}, Manager does not exist")
 
     """
     Custom callbacks for UI elements.
@@ -357,6 +383,9 @@ class BaseEnvWindow:
             raise ValueError("Viewport camera controller is not initialized! Please check the rendering mode.")
         # store the desired env index, UI is 1-indexed
         vcc.set_view_env_index(model.as_int - 1)
+        # notify additional listeners
+        for listener in self._ui_listeners:
+            listener.set_env_selection(model.as_int - 1)
 
     """
     Helper functions - UI building.
@@ -379,13 +408,29 @@ class BaseEnvWindow:
                 alignment=omni.ui.Alignment.LEFT_CENTER,
                 tooltip=text,
             )
+            has_cfg = hasattr(elem, "cfg") and elem.cfg is not None
+            is_checked = False
+            if has_cfg:
+                is_checked = (hasattr(elem.cfg, "debug_vis") and elem.cfg.debug_vis) or (
+                    hasattr(elem, "debug_vis") and elem.debug_vis
+                )
             self.ui_window_elements[f"{name}_cb"] = SimpleCheckBox(
                 model=omni.ui.SimpleBoolModel(),
                 enabled=elem.has_debug_vis_implementation,
-                checked=elem.cfg.debug_vis if elem.cfg else False,
+                checked=is_checked,
                 on_checked_fn=lambda value, e=weakref.proxy(elem): e.set_debug_vis(value),
             )
             omni.isaac.ui.ui_utils.add_line_rect_flourish()
+
+        # Create a panel for the debug visualization
+        if isinstance(elem, ManagerLiveVisualizer):
+            self.ui_window_elements[f"{name}_panel"] = omni.ui.Frame(width=omni.ui.Fraction(1))
+            if not elem.set_vis_frame(self.ui_window_elements[f"{name}_panel"]):
+                print(f"Frame failed to set for ManagerLiveVisualizer: {name}")
+
+        # Add listener for environment selection changes
+        if isinstance(elem, ManagerLiveVisualizer):
+            self._ui_listeners.append(elem)
 
     async def _dock_window(self, window_title: str):
         """Docks the custom UI window to the property window."""

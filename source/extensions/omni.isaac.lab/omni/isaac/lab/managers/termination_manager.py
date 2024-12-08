@@ -184,6 +184,22 @@ class TerminationManager(ManagerBase):
         """
         return self._term_dones[name]
 
+    def get_active_iterable_terms(self, env_idx: int) -> Sequence[tuple[str, Sequence[float]]]:
+        """Returns the active terms as iterable sequence of tuples.
+
+        The first element of the tuple is the name of the term and the second element is the raw value(s) of the term.
+
+        Args:
+            env_idx: The specific environment to pull the active terms from.
+
+        Returns:
+            The active terms.
+        """
+        terms = []
+        for key in self._term_dones.keys():
+            terms.append((key, [self._term_dones[key][env_idx].float().cpu().item()]))
+        return terms
+
     """
     Operations - Term settings.
     """
