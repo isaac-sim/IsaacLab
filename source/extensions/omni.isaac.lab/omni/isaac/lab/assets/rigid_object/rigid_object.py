@@ -391,6 +391,9 @@ class RigidObject(AssetBase):
             self._external_torque_b[env_ids, body_ids] = torques
         else:
             self.has_external_wrench = False
+            # reset external wrench
+            self._external_force_b[env_ids] = 0.0
+            self._external_torque_b[env_ids] = 0.0
 
     """
     Internal helper.
@@ -421,6 +424,18 @@ class RigidObject(AssetBase):
                 f" Found multiple '{root_prims}' under '{template_prim_path}'."
                 " Please ensure that there is only one rigid body in the prim path tree."
             )
+
+        articulation_prims = sim_utils.get_all_matching_child_prims(
+            template_prim_path, predicate=lambda prim: prim.HasAPI(UsdPhysics.ArticulationRootAPI)
+        )
+        if len(articulation_prims) != 0:
+            if articulation_prims[0].GetAttribute("physxArticulation:articulationEnabled").Get():
+                raise RuntimeError(
+                    f"Found an articulation root when resolving '{self.cfg.prim_path}' for rigid objects. These are"
+                    f" located at: '{articulation_prims}' under '{template_prim_path}'. Please disable the articulation"
+                    " root in the USD or from code by setting the parameter"
+                    " 'ArticulationRootPropertiesCfg.articulation_enabled' to False in the spawn configuration."
+                )
 
         # resolve root prim back into regex expression
         root_prim_path = root_prims[0].GetPath().pathString

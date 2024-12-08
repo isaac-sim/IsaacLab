@@ -1,6 +1,53 @@
 Changelog
 ---------
 
+0.10.14 (2024-12-03)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Stack-Cube-Franka-IK-Rel-v0`` and ``Isaac-Stack-Cube-Instance-Randomize-Franka-IK-Rel-v0`` environments
+  as manager-based RL envs that implement a three cube stacking task.
+
+0.10.13 (2024-10-30)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Defined the Gymnasium task entry points with configuration strings instead of class types.
+  This avoids unnecessary imports and improves the load types.
+* Blacklisted ``mdp`` directories during the recursive module search.
+
+
+0.10.12 (2024-10-28)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed manager-based vision cartpole environment names from Isaac-Cartpole-RGB-Camera-v0
+  and Isaac-Cartpole-Depth-Camera-v0 to Isaac-Cartpole-RGB-v0 and Isaac-Cartpole-Depth-v0
+
+
+0.10.11 (2024-10-28)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added feature extracted observation cartpole examples.
+
+0.10.10 (2024-10-25)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed issues with defining Gymnasium spaces in Direct workflows due to Hydra/OmegaConf limitations with non-primitive types.
+
+
 0.10.9 (2024-10-22)
 ~~~~~~~~~~~~~~~~~~~
 

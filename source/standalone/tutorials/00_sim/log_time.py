@@ -40,12 +40,14 @@ from omni.isaac.lab.sim import SimulationCfg, SimulationContext
 def main():
     """Main function."""
     # Specify that the logs must be in logs/docker_tutorial
-    log_dir_path = os.path.join("logs", "docker_tutorial")
+    log_dir_path = os.path.join("logs")
+    if not os.path.isdir(log_dir_path):
+        os.mkdir(log_dir_path)
     # In the container, the absolute path will be
     # /workspace/isaaclab/logs/docker_tutorial, because
     # all python execution is done through /workspace/isaaclab/isaaclab.sh
     # and the calling process' path will be /workspace/isaaclab
-    log_dir_path = os.path.abspath(log_dir_path)
+    log_dir_path = os.path.abspath(os.path.join(log_dir_path, "docker_tutorial"))
     if not os.path.isdir(log_dir_path):
         os.mkdir(log_dir_path)
     print(f"[INFO] Logging experiment to directory: {log_dir_path}")

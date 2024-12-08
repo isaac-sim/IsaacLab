@@ -382,7 +382,7 @@ class BaseEnvWindow:
             self.ui_window_elements[f"{name}_cb"] = SimpleCheckBox(
                 model=omni.ui.SimpleBoolModel(),
                 enabled=elem.has_debug_vis_implementation,
-                checked=elem.cfg.debug_vis,
+                checked=elem.cfg.debug_vis if elem.cfg else False,
                 on_checked_fn=lambda value, e=weakref.proxy(elem): e.set_debug_vis(value),
             )
             omni.isaac.ui.ui_utils.add_line_rect_flourish()
