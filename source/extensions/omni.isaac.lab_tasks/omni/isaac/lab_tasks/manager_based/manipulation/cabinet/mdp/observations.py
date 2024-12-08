@@ -21,7 +21,7 @@ def rel_ee_object_distance(env: ManagerBasedRLEnv) -> torch.Tensor:
     ee_tf_data: FrameTransformerData = env.scene["ee_frame"].data
     object_data: ArticulationData = env.scene["object"].data
 
-    return object_data.root_pos_w - ee_tf_data.target_pos_w[..., 0, :]
+    return object_data.root_link_pos_w - ee_tf_data.target_pos_w[..., 0, :]
 
 
 def rel_ee_drawer_distance(env: ManagerBasedRLEnv) -> torch.Tensor:

@@ -45,9 +45,11 @@ def object_reached_goal(
     command = env.command_manager.get_command(command_name)
     # compute the desired position in the world frame
     des_pos_b = command[:, :3]
-    des_pos_w, _ = combine_frame_transforms(robot.data.root_state_w[:, :3], robot.data.root_state_w[:, 3:7], des_pos_b)
+    des_pos_w, _ = combine_frame_transforms(
+        robot.data.root_link_state_w[:, :3], robot.data.root_link_state_w[:, 3:7], des_pos_b
+    )
     # distance of the end-effector to the object: (num_envs,)
-    distance = torch.norm(des_pos_w - object.data.root_pos_w[:, :3], dim=1)
+    distance = torch.norm(des_pos_w - object.data.root_link_pos_w[:, :3], dim=1)
 
     # rewarded if the object is lifted above the threshold
     return distance < threshold
