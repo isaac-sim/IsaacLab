@@ -100,6 +100,7 @@ Table of Contents
    source/features/hydra
    source/features/multi_gpu
    Tiled Rendering</source/overview/sensors/camera>
+   source/features/ray
    source/features/reproducibility
 
 .. toctree::
