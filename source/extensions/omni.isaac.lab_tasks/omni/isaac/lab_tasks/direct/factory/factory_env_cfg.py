@@ -1,44 +1,50 @@
-import omni.isaac.lab.sim as sim_utils
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
 
+import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.actuators.actuator_cfg import ImplicitActuatorCfg
 from omni.isaac.lab.assets import ArticulationCfg
 from omni.isaac.lab.envs import DirectRLEnvCfg
 from omni.isaac.lab.scene import InteractiveSceneCfg
 from omni.isaac.lab.sim import PhysxCfg, SimulationCfg
-from omni.isaac.lab.utils import configclass
 from omni.isaac.lab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
+from omni.isaac.lab.utils import configclass
 
-from .factory_tasks_cfg import PegInsertion, GearMeshing, NutThreading, ASSET_DIR
+from .factory_tasks_cfg import ASSET_DIR, GearMeshing, NutThreading, PegInsertion
 
 OBS_DIM_CFG = {
-    'fingertip_pos': 3,
-    'fingertip_pos_rel_fixed': 3,
-    'fingertip_quat': 4,
-    'ee_linvel': 3,
-    'ee_angvel': 3,
+    "fingertip_pos": 3,
+    "fingertip_pos_rel_fixed": 3,
+    "fingertip_quat": 4,
+    "ee_linvel": 3,
+    "ee_angvel": 3,
 }
 
 STATE_DIM_CFG = {
-    'fingertip_pos': 3,
-    'fingertip_pos_rel_fixed': 3,
-    'fingertip_quat': 4,
-    'ee_linvel': 3,
-    'ee_angvel': 3,
-    'joint_pos': 7,
-    'held_pos': 3,
-    'held_pos_rel_fixed': 3,
-    'held_quat': 4,
-    'fixed_pos': 3,
-    'fixed_quat': 4,
-    'task_prop_gains': 6,
-    'ema_factor': 1,
-    'pos_threshold': 3,
-    'rot_threshold': 3
+    "fingertip_pos": 3,
+    "fingertip_pos_rel_fixed": 3,
+    "fingertip_quat": 4,
+    "ee_linvel": 3,
+    "ee_angvel": 3,
+    "joint_pos": 7,
+    "held_pos": 3,
+    "held_pos_rel_fixed": 3,
+    "held_quat": 4,
+    "fixed_pos": 3,
+    "fixed_quat": 4,
+    "task_prop_gains": 6,
+    "ema_factor": 1,
+    "pos_threshold": 3,
+    "rot_threshold": 3,
 }
+
 
 @configclass
 class ObsRandCfg:
     fixed_asset_pos = [0.001, 0.001, 0.001]
+
 
 @configclass
 class CtrlCfg:
@@ -54,9 +60,10 @@ class CtrlCfg:
     reset_rot_deriv_scale = 10.0
     default_task_prop_gains = [100, 100, 100, 30, 30, 30]
 
-    default_dof_pos_tensor = [-1.3003, -0.4015,  1.1791, -2.1493,  0.4001,  1.9425,  0.4754]
+    default_dof_pos_tensor = [-1.3003, -0.4015, 1.1791, -2.1493, 0.4001, 1.9425, 0.4754]
     kp_null = 10.0
     kd_null = 6.3246
+
 
 @configclass
 class FactoryEnvCfg(DirectRLEnvCfg):
@@ -65,29 +72,22 @@ class FactoryEnvCfg(DirectRLEnvCfg):
     # num_*: will be overwritten to correspond to obs_order, state_order.
     observation_space = 21
     state_space = 72
-    obs_order: list = [
-        'fingertip_pos_rel_fixed',
-        'fingertip_quat',
-        'ee_linvel',
-        'ee_angvel']
+    obs_order: list = ["fingertip_pos_rel_fixed", "fingertip_quat", "ee_linvel", "ee_angvel"]
     state_order: list = [
-        'fingertip_pos',
-        'fingertip_quat',
-        'ee_linvel',
-        'ee_angvel',
-        'joint_pos',
-        'held_pos',
-        'held_pos_rel_fixed',
-        'held_quat',
-        'fixed_pos',
-        'fixed_quat']
-    
-    task_name: str = 'peg_insertion'  # peg_insertion, gear_meshing, nut_threading
-    tasks: dict = {
-        'peg_insertion': PegInsertion(),
-        'gear_meshing': GearMeshing(),
-        'nut_threading': NutThreading()
-    }
+        "fingertip_pos",
+        "fingertip_quat",
+        "ee_linvel",
+        "ee_angvel",
+        "joint_pos",
+        "held_pos",
+        "held_pos_rel_fixed",
+        "held_quat",
+        "fixed_pos",
+        "fixed_quat",
+    ]
+
+    task_name: str = "peg_insertion"  # peg_insertion, gear_meshing, nut_threading
+    tasks: dict = {"peg_insertion": PegInsertion(), "gear_meshing": GearMeshing(), "nut_threading": NutThreading()}
     # task: FactoryTask = PegInsertion()  # PegInsertion, GearMeshing, NutThreading
     obs_rand: ObsRandCfg = ObsRandCfg()
     ctrl: CtrlCfg = CtrlCfg()
@@ -95,7 +95,7 @@ class FactoryEnvCfg(DirectRLEnvCfg):
     episode_length_s = 10.0  # Probably need to override.
     sim: SimulationCfg = SimulationCfg(
         device="cuda:0",
-        dt=1/120,
+        dt=1 / 120,
         gravity=(0.0, 0.0, -9.81),
         physx=PhysxCfg(
             solver_type=1,
@@ -106,7 +106,7 @@ class FactoryEnvCfg(DirectRLEnvCfg):
             friction_correlation_distance=0.00625,
             gpu_max_rigid_contact_count=2**23,
             gpu_max_rigid_patch_count=2**23,
-            gpu_max_num_partitions=1  # Important for stable simulation.
+            gpu_max_num_partitions=1,  # Important for stable simulation.
         ),
         physics_material=RigidBodyMaterialCfg(
             static_friction=1.0,
@@ -114,15 +114,12 @@ class FactoryEnvCfg(DirectRLEnvCfg):
         ),
     )
 
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(
-        num_envs=128,
-        env_spacing=2.0
-    )
+    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=128, env_spacing=2.0)
 
     robot = ArticulationCfg(
         prim_path="/World/envs/env_.*/Robot",
         spawn=sim_utils.UsdFileCfg(
-            usd_path=f'{ASSET_DIR}/franka_mimic.usd',
+            usd_path=f"{ASSET_DIR}/franka_mimic.usd",
             activate_contact_sensors=True,
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
                 disable_gravity=True,
@@ -141,18 +138,15 @@ class FactoryEnvCfg(DirectRLEnvCfg):
                 solver_position_iteration_count=192,
                 solver_velocity_iteration_count=1,
             ),
-            collision_props=sim_utils.CollisionPropertiesCfg(
-                contact_offset=0.005,
-                rest_offset=0.0
-            ),
+            collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.005, rest_offset=0.0),
         ),
         init_state=ArticulationCfg.InitialStateCfg(
             joint_pos={
-                "panda_joint1": 0.00871, 
-                "panda_joint2": -0.10368, 
-                "panda_joint3": -0.00794, 
-                "panda_joint4": -1.49139, 
-                "panda_joint5": -0.00083, 
+                "panda_joint1": 0.00871,
+                "panda_joint2": -0.10368,
+                "panda_joint3": -0.00794,
+                "panda_joint4": -1.49139,
+                "panda_joint5": -0.00083,
                 "panda_joint6": 1.38774,
                 "panda_joint7": 0.0,
                 "panda_finger_joint2": 0.04,
@@ -168,7 +162,7 @@ class FactoryEnvCfg(DirectRLEnvCfg):
                 friction=0.0,
                 armature=0.0,
                 effort_limit=87,
-                velocity_limit=124.6
+                velocity_limit=124.6,
             ),
             "panda_arm2": ImplicitActuatorCfg(
                 joint_names_expr=["panda_joint[5-7]"],
@@ -177,7 +171,7 @@ class FactoryEnvCfg(DirectRLEnvCfg):
                 friction=0.0,
                 armature=0.0,
                 effort_limit=12,
-                velocity_limit=149.5
+                velocity_limit=149.5,
             ),
             "panda_hand": ImplicitActuatorCfg(
                 joint_names_expr=["panda_finger_joint[1-2]"],

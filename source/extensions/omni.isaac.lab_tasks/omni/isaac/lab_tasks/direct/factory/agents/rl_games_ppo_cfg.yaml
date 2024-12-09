@@ -32,7 +32,7 @@ params:
         name: default
       regularizer:
         name: None
-    
+
     rnn:
       name: lstm
       units: 1024
@@ -95,7 +95,7 @@ params:
       network:
         name: actor_critic
         central_value: True
-    
+
         mlp:
           units: [512, 128, 64]
           activation: elu
@@ -105,7 +105,7 @@ params:
             name: default
           regularizer:
             name: None
-    
+
         rnn:
           name: lstm
           units: 1024
@@ -115,4 +115,3 @@ params:
           layer_norm: True
   player:
     deterministic: False
-

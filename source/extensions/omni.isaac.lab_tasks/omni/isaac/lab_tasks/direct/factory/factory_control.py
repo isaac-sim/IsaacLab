@@ -1,30 +1,7 @@
-# Copyright (c) 2021-2022, NVIDIA Corporation
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
 # All rights reserved.
 #
-# Redistribution and use in source and binary forms, with or without
-# modification, are permitted provided that the following conditions are met:
-#
-# 1. Redistributions of source code must retain the above copyright notice, this
-#    list of conditions and the following disclaimer.
-#
-# 2. Redistributions in binary form must reproduce the above copyright notice,
-#    this list of conditions and the following disclaimer in the documentation
-#    and/or other materials provided with the distribution.
-#
-# 3. Neither the name of the copyright holder nor the names of its
-#    contributors may be used to endorse or promote products derived from
-#    this software without specific prior written permission.
-#
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+# SPDX-License-Identifier: BSD-3-Clause
 
 """Factory: control module.
 
@@ -37,32 +14,34 @@ import torch
 import omni.isaac.core.utils.torch as torch_utils
 
 
-def compute_dof_pos_target(cfg_ctrl,
-                           arm_dof_pos,
-                           fingertip_midpoint_pos,
-                           fingertip_midpoint_quat,
-                           jacobian,
-                           ctrl_target_fingertip_midpoint_pos,
-                           ctrl_target_fingertip_midpoint_quat,
-                           ctrl_target_gripper_dof_pos,
-                           device):
+def compute_dof_pos_target(
+    cfg_ctrl,
+    arm_dof_pos,
+    fingertip_midpoint_pos,
+    fingertip_midpoint_quat,
+    jacobian,
+    ctrl_target_fingertip_midpoint_pos,
+    ctrl_target_fingertip_midpoint_quat,
+    ctrl_target_gripper_dof_pos,
+    device,
+):
     """Compute Franka DOF position target to move fingertips towards target pose."""
 
-    ctrl_target_dof_pos = torch.zeros((cfg_ctrl['num_envs'], 9), device=device)
+    ctrl_target_dof_pos = torch.zeros((cfg_ctrl["num_envs"], 9), device=device)
 
     pos_error, axis_angle_error = get_pose_error(
         fingertip_midpoint_pos=fingertip_midpoint_pos,
         fingertip_midpoint_quat=fingertip_midpoint_quat,
         ctrl_target_fingertip_midpoint_pos=ctrl_target_fingertip_midpoint_pos,
         ctrl_target_fingertip_midpoint_quat=ctrl_target_fingertip_midpoint_quat,
-        jacobian_type=cfg_ctrl['jacobian_type'],
-        rot_error_type='axis_angle')
+        jacobian_type=cfg_ctrl["jacobian_type"],
+        rot_error_type="axis_angle",
+    )
 
     delta_fingertip_pose = torch.cat((pos_error, axis_angle_error), dim=1)
-    delta_arm_dof_pos = _get_delta_dof_pos(delta_pose=delta_fingertip_pose,
-                                           ik_method=cfg_ctrl['ik_method'],
-                                           jacobian=jacobian,
-                                           device=device)
+    delta_arm_dof_pos = _get_delta_dof_pos(
+        delta_pose=delta_fingertip_pose, ik_method=cfg_ctrl["ik_method"], jacobian=jacobian, device=device
+    )
 
     ctrl_target_dof_pos[:, 0:7] = arm_dof_pos + delta_arm_dof_pos
     ctrl_target_dof_pos[:, 7:9] = ctrl_target_gripper_dof_pos  # gripper finger joints
@@ -70,20 +49,22 @@ def compute_dof_pos_target(cfg_ctrl,
     return ctrl_target_dof_pos
 
 
-def compute_dof_torque(cfg,
-                       dof_pos,
-                       dof_vel,
-                       fingertip_midpoint_pos,
-                       fingertip_midpoint_quat,
-                       fingertip_midpoint_linvel,
-                       fingertip_midpoint_angvel,
-                       jacobian,
-                       arm_mass_matrix,
-                       ctrl_target_fingertip_midpoint_pos,
-                       ctrl_target_fingertip_midpoint_quat,
-                       task_prop_gains,
-                       task_deriv_gains,
-                       device):
+def compute_dof_torque(
+    cfg,
+    dof_pos,
+    dof_vel,
+    fingertip_midpoint_pos,
+    fingertip_midpoint_quat,
+    fingertip_midpoint_linvel,
+    fingertip_midpoint_angvel,
+    jacobian,
+    arm_mass_matrix,
+    ctrl_target_fingertip_midpoint_pos,
+    ctrl_target_fingertip_midpoint_quat,
+    task_prop_gains,
+    task_deriv_gains,
+    device,
+):
     """Compute Franka DOF torque to move fingertips towards target pose."""
     # References:
     # 1) https://ethz.ch/content/dam/ethz/special-interest/mavt/robotics-n-intelligent-systems/rsl-dam/documents/RobotDynamics2018/RD_HS2018script.pdf
@@ -98,8 +79,9 @@ def compute_dof_torque(cfg,
         fingertip_midpoint_quat=fingertip_midpoint_quat,
         ctrl_target_fingertip_midpoint_pos=ctrl_target_fingertip_midpoint_pos,
         ctrl_target_fingertip_midpoint_quat=ctrl_target_fingertip_midpoint_quat,
-        jacobian_type='geometric',
-        rot_error_type='axis_angle')
+        jacobian_type="geometric",
+        rot_error_type="axis_angle",
+    )
     delta_fingertip_pose = torch.cat((pos_error, axis_angle_error), dim=1)
 
     # Set tau = k_p * task_pos_error - k_d * task_vel_error (building towards eq. 3.96-3.98)
@@ -108,7 +90,7 @@ def compute_dof_torque(cfg,
         fingertip_midpoint_linvel=fingertip_midpoint_linvel,
         fingertip_midpoint_angvel=fingertip_midpoint_angvel,
         task_prop_gains=task_prop_gains,
-        task_deriv_gains=task_deriv_gains
+        task_deriv_gains=task_deriv_gains,
     )
     task_wrench += task_wrench_motion
 
@@ -123,15 +105,15 @@ def compute_dof_torque(cfg,
     arm_mass_matrix_inv = torch.inverse(arm_mass_matrix)
     jacobian_T = torch.transpose(jacobian, dim0=1, dim1=2)
     arm_mass_matrix_task = torch.inverse(
-        jacobian @ torch.inverse(arm_mass_matrix) @ jacobian_T)  # ETH eq. 3.86; geometric Jacobian is assumed
+        jacobian @ torch.inverse(arm_mass_matrix) @ jacobian_T
+    )  # ETH eq. 3.86; geometric Jacobian is assumed
     j_eef_inv = arm_mass_matrix_task @ jacobian @ arm_mass_matrix_inv
-    default_dof_pos_tensor = torch.tensor(
-        cfg.ctrl.default_dof_pos_tensor,
-        device=device
-    ).repeat((num_envs, 1))
+    default_dof_pos_tensor = torch.tensor(cfg.ctrl.default_dof_pos_tensor, device=device).repeat((num_envs, 1))
     # nullspace computation
     distance_to_default_dof_pos = default_dof_pos_tensor - dof_pos[:, :7]
-    distance_to_default_dof_pos = ((distance_to_default_dof_pos + math.pi) % (2 * math.pi) - math.pi)  # normalize to [-pi, pi]
+    distance_to_default_dof_pos = (distance_to_default_dof_pos + math.pi) % (
+        2 * math.pi
+    ) - math.pi  # normalize to [-pi, pi]
     u_null = cfg.ctrl.kd_null * -dof_vel[:, :7] + cfg.ctrl.kp_null * distance_to_default_dof_pos
     u_null = arm_mass_matrix @ u_null.unsqueeze(-1)
     torque_null = (torch.eye(7, device=device).unsqueeze(0) - torch.transpose(jacobian, 1, 2) @ j_eef_inv) @ u_null
@@ -142,12 +124,14 @@ def compute_dof_torque(cfg,
     return dof_torque, task_wrench
 
 
-def get_pose_error(fingertip_midpoint_pos,
-                   fingertip_midpoint_quat,
-                   ctrl_target_fingertip_midpoint_pos,
-                   ctrl_target_fingertip_midpoint_quat,
-                   jacobian_type,
-                   rot_error_type):
+def get_pose_error(
+    fingertip_midpoint_pos,
+    fingertip_midpoint_quat,
+    ctrl_target_fingertip_midpoint_pos,
+    ctrl_target_fingertip_midpoint_quat,
+    jacobian_type,
+    rot_error_type,
+):
     """Compute task-space error between target Franka fingertip pose and current pose."""
     # Reference: https://ethz.ch/content/dam/ethz/special-interest/mavt/robotics-n-intelligent-systems/rsl-dam/documents/RobotDynamics2018/RD_HS2018script.pdf
 
@@ -155,43 +139,42 @@ def get_pose_error(fingertip_midpoint_pos,
     pos_error = ctrl_target_fingertip_midpoint_pos - fingertip_midpoint_pos
 
     # Compute rot error
-    if jacobian_type == 'geometric':  # See example 2.9.8; note use of J_g and transformation between rotation vectors
+    if jacobian_type == "geometric":  # See example 2.9.8; note use of J_g and transformation between rotation vectors
         # Compute quat error (i.e., difference quat)
         # Reference: https://personal.utdallas.edu/~sxb027100/dock/quat.html
 
         # Check for shortest path using quaternion dot product.
-        quat_dot = (ctrl_target_fingertip_midpoint_quat*fingertip_midpoint_quat).sum(dim=1, keepdim=True)
+        quat_dot = (ctrl_target_fingertip_midpoint_quat * fingertip_midpoint_quat).sum(dim=1, keepdim=True)
         ctrl_target_fingertip_midpoint_quat = torch.where(
-            quat_dot.expand(-1, 4) >= 0,
-            ctrl_target_fingertip_midpoint_quat,
-            -ctrl_target_fingertip_midpoint_quat
+            quat_dot.expand(-1, 4) >= 0, ctrl_target_fingertip_midpoint_quat, -ctrl_target_fingertip_midpoint_quat
         )
 
-        fingertip_midpoint_quat_norm = torch_utils.quat_mul(fingertip_midpoint_quat,
-                                                            torch_utils.quat_conjugate(fingertip_midpoint_quat))[:, 0]  # scalar component
+        fingertip_midpoint_quat_norm = torch_utils.quat_mul(
+            fingertip_midpoint_quat, torch_utils.quat_conjugate(fingertip_midpoint_quat)
+        )[
+            :, 0
+        ]  # scalar component
         fingertip_midpoint_quat_inv = torch_utils.quat_conjugate(
-            fingertip_midpoint_quat) / fingertip_midpoint_quat_norm.unsqueeze(-1)
+            fingertip_midpoint_quat
+        ) / fingertip_midpoint_quat_norm.unsqueeze(-1)
         quat_error = torch_utils.quat_mul(ctrl_target_fingertip_midpoint_quat, fingertip_midpoint_quat_inv)
 
         # Convert to axis-angle error
         axis_angle_error = axis_angle_from_quat(quat_error)
 
-    elif jacobian_type == 'analytic':  # See example 2.9.7; note use of J_a and difference of rotation vectors
+    elif jacobian_type == "analytic":  # See example 2.9.7; note use of J_a and difference of rotation vectors
         # Compute axis-angle error
-        axis_angle_error = axis_angle_from_quat(ctrl_target_fingertip_midpoint_quat)\
-                           - axis_angle_from_quat(fingertip_midpoint_quat)
+        axis_angle_error = axis_angle_from_quat(ctrl_target_fingertip_midpoint_quat) - axis_angle_from_quat(
+            fingertip_midpoint_quat
+        )
 
-    if rot_error_type == 'quat':
+    if rot_error_type == "quat":
         return pos_error, quat_error
-    elif rot_error_type == 'axis_angle':
+    elif rot_error_type == "axis_angle":
         return pos_error, axis_angle_error
 
 
-def _get_wrench_error(left_finger_force,
-                      right_finger_force,
-                      ctrl_target_fingertip_contact_wrench,
-                      num_envs,
-                      device):
+def _get_wrench_error(left_finger_force, right_finger_force, ctrl_target_fingertip_contact_wrench, num_envs, device):
     """Compute task-space error between target Franka fingertip contact wrench and current wrench."""
 
     fingertip_contact_wrench = torch.zeros((num_envs, 6), device=device)
@@ -211,56 +194,58 @@ def _get_delta_dof_pos(delta_pose, ik_method, jacobian, device):
     # 1) https://www.cs.cmu.edu/~15464-s13/lectures/lecture6/iksurvey.pdf
     # 2) https://ethz.ch/content/dam/ethz/special-interest/mavt/robotics-n-intelligent-systems/rsl-dam/documents/RobotDynamics2018/RD_HS2018script.pdf (p. 47)
 
-    if ik_method == 'pinv':  # Jacobian pseudoinverse
+    if ik_method == "pinv":  # Jacobian pseudoinverse
         k_val = 1.0
         jacobian_pinv = torch.linalg.pinv(jacobian)
         delta_dof_pos = k_val * jacobian_pinv @ delta_pose.unsqueeze(-1)
         delta_dof_pos = delta_dof_pos.squeeze(-1)
 
-    elif ik_method == 'trans':  # Jacobian transpose
+    elif ik_method == "trans":  # Jacobian transpose
         k_val = 1.0
         jacobian_T = torch.transpose(jacobian, dim0=1, dim1=2)
         delta_dof_pos = k_val * jacobian_T @ delta_pose.unsqueeze(-1)
         delta_dof_pos = delta_dof_pos.squeeze(-1)
 
-    elif ik_method == 'dls':  # damped least squares (Levenberg-Marquardt)
+    elif ik_method == "dls":  # damped least squares (Levenberg-Marquardt)
         lambda_val = 0.1  # 0.1
         jacobian_T = torch.transpose(jacobian, dim0=1, dim1=2)
-        lambda_matrix = (lambda_val ** 2) * torch.eye(n=jacobian.shape[1], device=device)
+        lambda_matrix = (lambda_val**2) * torch.eye(n=jacobian.shape[1], device=device)
         delta_dof_pos = jacobian_T @ torch.inverse(jacobian @ jacobian_T + lambda_matrix) @ delta_pose.unsqueeze(-1)
         delta_dof_pos = delta_dof_pos.squeeze(-1)
 
-    elif ik_method == 'svd':  # adaptive SVD
+    elif ik_method == "svd":  # adaptive SVD
         k_val = 1.0
         U, S, Vh = torch.linalg.svd(jacobian)
-        S_inv = 1. / S
+        S_inv = 1.0 / S
         min_singular_value = 1.0e-5
         S_inv = torch.where(S > min_singular_value, S_inv, torch.zeros_like(S_inv))
-        jacobian_pinv = torch.transpose(Vh, dim0=1, dim1=2)[:, :, :6] @ torch.diag_embed(S_inv) @ torch.transpose(U, dim0=1, dim1=2)
+        jacobian_pinv = (
+            torch.transpose(Vh, dim0=1, dim1=2)[:, :, :6] @ torch.diag_embed(S_inv) @ torch.transpose(U, dim0=1, dim1=2)
+        )
         delta_dof_pos = k_val * jacobian_pinv @ delta_pose.unsqueeze(-1)
         delta_dof_pos = delta_dof_pos.squeeze(-1)
 
     return delta_dof_pos
 
 
-def _apply_task_space_gains(delta_fingertip_pose,
-                            fingertip_midpoint_linvel,
-                            fingertip_midpoint_angvel,
-                            task_prop_gains,
-                            task_deriv_gains):
+def _apply_task_space_gains(
+    delta_fingertip_pose, fingertip_midpoint_linvel, fingertip_midpoint_angvel, task_prop_gains, task_deriv_gains
+):
     """Interpret PD gains as task-space gains. Apply to task-space error."""
 
     task_wrench = torch.zeros_like(delta_fingertip_pose)
 
     # Apply gains to lin error components
     lin_error = delta_fingertip_pose[:, 0:3]
-    task_wrench[:, 0:3] = task_prop_gains[:, 0:3] * lin_error + \
-                          task_deriv_gains[:, 0:3] * (0.0 - fingertip_midpoint_linvel)
+    task_wrench[:, 0:3] = task_prop_gains[:, 0:3] * lin_error + task_deriv_gains[:, 0:3] * (
+        0.0 - fingertip_midpoint_linvel
+    )
 
     # Apply gains to rot error components
     rot_error = delta_fingertip_pose[:, 3:6]
-    task_wrench[:, 3:6] = task_prop_gains[:, 3:6] * rot_error + \
-                          task_deriv_gains[:, 3:6] * (0.0 - fingertip_midpoint_angvel)
+    task_wrench[:, 3:6] = task_prop_gains[:, 3:6] * rot_error + task_deriv_gains[:, 3:6] * (
+        0.0 - fingertip_midpoint_angvel
+    )
     return task_wrench
 
 
@@ -279,23 +264,28 @@ def get_analytic_jacobian(fingertip_quat, fingertip_jacobian, num_envs, device):
     # Eq. 2.107 gives an expression for E_r_inv
 
     # Compute E_inv_top (i.e., [E_p_inv, 0])
-    I = torch.eye(3, device=device)
-    E_p_inv = I.repeat((batch, 1)).reshape(batch, 3, 3)
+    eye = torch.eye(3, device=device)
+    E_p_inv = eye.repeat((batch, 1)).reshape(batch, 3, 3)
     E_inv_top = torch.cat((E_p_inv, torch.zeros((batch, 3, 3), device=device)), dim=2)
 
     # Compute E_inv_bottom (i.e., [0, E_r_inv])
     fingertip_axis_angle = axis_angle_from_quat(fingertip_quat)
     fingertip_axis_angle_cross = get_skew_symm_matrix(fingertip_axis_angle, device=device)
     fingertip_angle = torch.linalg.vector_norm(fingertip_axis_angle, dim=1)
-    factor_1 = 1 / (fingertip_angle ** 2)
+    factor_1 = 1 / (fingertip_angle**2)
     factor_2 = 1 - fingertip_angle * 0.5 * torch.sin(fingertip_angle) / (1 - torch.cos(fingertip_angle))
     factor_3 = factor_1 * factor_2
-    E_r_inv = I \
-              - 1 * 0.5 * fingertip_axis_angle_cross \
-              + (fingertip_axis_angle_cross @ fingertip_axis_angle_cross) * factor_3.unsqueeze(-1).repeat((1, 3 * 3)).reshape((batch, 3, 3))
+    E_r_inv = (
+        eye
+        - 1 * 0.5 * fingertip_axis_angle_cross
+        + (fingertip_axis_angle_cross @ fingertip_axis_angle_cross)
+        * factor_3.unsqueeze(-1).repeat((1, 3 * 3)).reshape((batch, 3, 3))
+    )
     E_inv_bottom = torch.cat((torch.zeros((batch, 3, 3), device=device), E_r_inv), dim=2)
 
-    E_inv = torch.cat((E_inv_top.reshape((batch, 3 * 6)), E_inv_bottom.reshape((batch, 3 * 6))), dim=1).reshape((batch, 6, 6))
+    E_inv = torch.cat((E_inv_top.reshape((batch, 3 * 6)), E_inv_bottom.reshape((batch, 3 * 6))), dim=1).reshape(
+        (batch, 6, 6)
+    )
 
     J_a = E_inv @ fingertip_jacobian
 
@@ -307,12 +297,12 @@ def get_skew_symm_matrix(vec, device):
     # Reference: https://en.wikipedia.org/wiki/Cross_product#Conversion_to_matrix_multiplication
 
     batch = vec.shape[0]
-    I = torch.eye(3, device=device)
-    skew_symm = torch.transpose(torch.cross(vec.repeat((1, 3)).reshape((batch * 3, 3)),
-                                            I.repeat((batch, 1)))
-                                .reshape(batch, 3, 3),
-                                dim0=1,
-                                dim1=2)
+    eye = torch.eye(3, device=device)
+    skew_symm = torch.transpose(
+        torch.cross(vec.repeat((1, 3)).reshape((batch * 3, 3)), eye.repeat((batch, 1))).reshape(batch, 3, 3),
+        dim0=1,
+        dim1=2,
+    )
 
     return skew_symm
 
@@ -322,10 +312,9 @@ def translate_along_local_z(pos, quat, offset, device):
 
     num_vecs = pos.shape[0]
     offset_vec = offset * torch.tensor([0.0, 0.0, 1.0], device=device).repeat((num_vecs, 1))
-    _, translated_pos = torch_utils.tf_combine(q1=quat,
-                                               t1=pos,
-                                               q2=torch.tensor([1.0, 0.0, 0.0, 0.0], device=device).repeat((num_vecs, 1)),
-                                               t2=offset_vec)
+    _, translated_pos = torch_utils.tf_combine(
+        q1=quat, t1=pos, q2=torch.tensor([1.0, 0.0, 0.0, 0.0], device=device).repeat((num_vecs, 1)), t2=offset_vec
+    )
 
     return translated_pos
 
@@ -334,10 +323,9 @@ def translate_along_local_xyz(pos, quat, offset_vec, device):
     """Translate global body position along local frame and express in global coordinates."""
 
     num_vecs = pos.shape[0]
-    _, translated_pos = torch_utils.tf_combine(q1=quat,
-                                               t1=pos,
-                                               q2=torch.tensor([1.0, 0.0, 0.0, 0.0], device=device).repeat((num_vecs, 1)),
-                                               t2=offset_vec)
+    _, translated_pos = torch_utils.tf_combine(
+        q1=quat, t1=pos, q2=torch.tensor([1.0, 0.0, 0.0, 0.0], device=device).repeat((num_vecs, 1)), t2=offset_vec
+    )
 
     return translated_pos
 
@@ -346,7 +334,7 @@ def axis_angle_from_euler(euler):
     """Convert tensor of Euler angles to tensor of axis-angles."""
 
     quat = torch_utils.quat_from_euler_xyz(roll=euler[:, 0], pitch=euler[:, 1], yaw=euler[:, 2])
-    quat = quat * torch.sign(quat[:, 0]).unsqueeze(-1)  # smaller rotation 
+    quat = quat * torch.sign(quat[:, 0]).unsqueeze(-1)  # smaller rotation
     axis_angle = axis_angle_from_quat(quat)
 
     return axis_angle
@@ -359,9 +347,9 @@ def axis_angle_from_quat(quat, eps=1.0e-6):
     mag = torch.linalg.norm(quat[:, 1:], dim=1)
     half_angle = torch.atan2(mag, quat[:, 0])
     angle = 2.0 * half_angle
-    sin_half_angle_over_angle = torch.where(torch.abs(angle) > eps,
-                                            torch.sin(half_angle) / angle,
-                                            1. / 2. - angle ** 2.0 / 48)
+    sin_half_angle_over_angle = torch.where(
+        torch.abs(angle) > eps, torch.sin(half_angle) / angle, 1.0 / 2.0 - angle**2.0 / 48
+    )
 
     axis_angle = quat[:, 1:] / sin_half_angle_over_angle.unsqueeze(-1)
 
@@ -401,6 +389,7 @@ def get_nonrand_quat(num_quats, rot_perturbation, device):
     quat = torch_utils.quat_from_euler_xyz(
         torch.rand((num_quats, 1), device=device).squeeze() * rot_perturbation * 2.0 - rot_perturbation,
         torch.rand((num_quats, 1), device=device).squeeze() * rot_perturbation * 2.0 - rot_perturbation,
-        torch.rand((num_quats, 1), device=device).squeeze() * rot_perturbation * 2.0 - rot_perturbation)
+        torch.rand((num_quats, 1), device=device).squeeze() * rot_perturbation * 2.0 - rot_perturbation,
+    )
 
     return quat
