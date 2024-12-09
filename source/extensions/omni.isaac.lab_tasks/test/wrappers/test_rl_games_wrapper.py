@@ -18,12 +18,13 @@ import gymnasium as gym
 import torch
 import unittest
 
+import carb
 import omni.usd
 
 from omni.isaac.lab.envs import DirectMARLEnv, multi_agent_to_single_agent
 
 import omni.isaac.lab_tasks  # noqa: F401
-from omni.isaac.lab_tasks.utils.parse_cfg import load_cfg_from_registry, parse_env_cfg
+from omni.isaac.lab_tasks.utils.parse_cfg import parse_env_cfg
 from omni.isaac.lab_tasks.utils.wrappers.rl_games import RlGamesVecEnvWrapper
 
 
@@ -41,7 +42,13 @@ class TestRlGamesVecEnvWrapper(unittest.TestCase):
                     cls.registered_tasks.append(task_spec.id)
         # sort environments by name
         cls.registered_tasks.sort()
-        cls.registered_tasks = cls.registered_tasks[:4]
+        cls.registered_tasks = cls.registered_tasks[:5]
+
+        # this flag is necessary to prevent a bug where the simulation gets stuck randomly when running the
+        # test on many environments.
+        carb_settings_iface = carb.settings.get_settings()
+        carb_settings_iface.set_bool("/physics/cooking/ujitsoCollisionCooking", False)
+
         # print all existing task names
         print(">>> All registered environments:", cls.registered_tasks)
 
@@ -57,10 +64,11 @@ class TestRlGamesVecEnvWrapper(unittest.TestCase):
                 print(f">>> Running test for environment: {task_name}")
                 # create a new stage
                 omni.usd.get_context().new_stage()
+                # reset the rtx sensors carb setting to False
+                carb.settings.get_settings().set_bool("/isaaclab/render/rtx_sensors", False)
                 try:
                     # parse configuration
                     env_cfg = parse_env_cfg(task_name, device=self.device, num_envs=self.num_envs)
-                    agent_cfg = load_cfg_from_registry(task_name, "rl_games_cfg_entry_point")  # noqa: F841
                     # create environment
                     env = gym.make(task_name, cfg=env_cfg)
                     # convert to single-agent instance if required by the RL algorithm
