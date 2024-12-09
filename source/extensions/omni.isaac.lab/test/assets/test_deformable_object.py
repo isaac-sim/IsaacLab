@@ -25,6 +25,7 @@ import ctypes
 import torch
 import unittest
 
+import carb
 import isaacsim.core.utils.prims as prim_utils
 
 import omni.isaac.lab.sim as sim_utils
@@ -314,6 +315,12 @@ class TestDeformableObject(unittest.TestCase):
         is equal to the applied pose after simulation. We set gravity to zero as we don't want any external
         forces acting on the object to ensure state remains static.
         """
+
+        # this flag is necessary to prevent a bug where the simulation gets stuck randomly when running the
+        # test on many environments.
+        carb_settings_iface = carb.settings.get_settings()
+        carb_settings_iface.set_bool("/physics/cooking/ujitsoCollisionCooking", False)
+
         for num_cubes in (1, 2):
             with self.subTest(num_cubes=num_cubes):
                 # Turn off gravity for this test as we don't want any external forces acting on the object
