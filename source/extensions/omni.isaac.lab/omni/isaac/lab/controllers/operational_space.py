@@ -24,7 +24,11 @@ class OperationalSpaceController:
     """Operational-space controller.
 
     Reference:
-        [1] https://ethz.ch/content/dam/ethz/special-interest/mavt/robotics-n-intelligent-systems/rsl-dam/documents/RobotDynamics2017/RD_HS2017script.pdf
+
+    1. `A unified approach for motion and force control of robot manipulators: The operational space formulation <http://dx.doi.org/10.1109/JRA.1987.1087068>`_
+       by Oussama Khatib (Stanford University)
+    2. `Robot Dynamics Lecture Notes <https://ethz.ch/content/dam/ethz/special-interest/mavt/robotics-n-intelligent-systems/rsl-dam/documents/RobotDynamics2017/RD_HS2017script.pdf>`_
+       by Marco Hutter (ETH Zurich)
     """
 
     def __init__(self, cfg: OperationalSpaceControllerCfg, num_envs: int, device: str):
@@ -163,31 +167,32 @@ class OperationalSpaceController:
         """Set the task-space targets and impedance parameters.
 
         Args:
-            command (torch.Tensor): A concatenated tensor of shape ('num_envs', 'action_dim') containing task-space
+            command (torch.Tensor): A concatenated tensor of shape (``num_envs``, ``action_dim``) containing task-space
                 targets (i.e., pose/wrench) and impedance parameters.
             current_ee_pose_b (torch.Tensor, optional): Current end-effector pose, in root frame, of shape
-                ('num_envs', 7), containing position and quaternion (w, x, y, z). Required for relative
+                (``num_envs``, 7), containing position and quaternion ``(w, x, y, z)``. Required for relative
                 commands. Defaults to None.
             current_task_frame_pose_b: Current pose of the task frame, in root frame, in which the targets and the
-                (motion/wrench) control axes are defined. It is a tensor of shape (num_envs, 7),
-                containing position and the quaternion (w, x, y, z). Defaults to None.
+                (motion/wrench) control axes are defined. It is a tensor of shape (``num_envs``, 7),
+                containing position and the quaternion ``(w, x, y, z)``. Defaults to None.
 
         Format:
             Task-space targets, ordered according to 'command_types':
 
-                Absolute pose: shape ('num_envs', 7), containing position and quaternion (w, x, y, z).
-                Relative pose: shape ('num_envs', 6), containing delta position and rotation in axis-angle form.
-                Absolute wrench: shape ('num_envs', 6), containing force and torque.
+                Absolute pose: shape (``num_envs``, 7), containing position and quaternion ``(w, x, y, z)``.
+                Relative pose: shape (``num_envs``, 6), containing delta position and rotation in axis-angle form.
+                Absolute wrench: shape (``num_envs``, 6), containing force and torque.
 
-            Impedance parameters: stiffness for 'variable_kp', or stiffness, followed by damping ratio for 'variable':
+            Impedance parameters: stiffness for ``variable_kp``, or stiffness, followed by damping ratio for
+            ``variable``:
 
-                Stiffness: shape ('num_envs', 6)
-                Damping ratio: shape ('num_envs', 6)
+                Stiffness: shape (``num_envs``, 6)
+                Damping ratio: shape (``num_envs``, 6)
 
         Raises:
             ValueError: When the command dimensions are invalid.
             ValueError: When an invalid impedance mode is provided.
-            ValueError: When the current end-effector pose is not provided for the 'pose_rel' command.
+            ValueError: When the current end-effector pose is not provided for the ``pose_rel`` command.
             ValueError: When an invalid control command is provided.
         """
         # Check the input dimensions
@@ -338,26 +343,27 @@ class OperationalSpaceController:
 
         Args:
             jacobian_b: The Jacobian matrix of the end-effector in root frame. It is a tensor of shape
-                (num_envs, 6, num_DoF).
+                (``num_envs``, 6, ``num_DoF``).
             current_ee_pose_b: The current end-effector pose in root frame. It is a tensor of shape
-                (num_envs, 7), which contains the position and quaternion (w, x, y, z). Defaults to None.
+                (``num_envs``, 7), which contains the position and quaternion ``(w, x, y, z)``. Defaults to ``None``.
             current_ee_vel_b: The current end-effector velocity in root frame. It is a tensor of shape
-                (num_envs, 6), which contains the linear and angular velocities. Defaults to None.
+                (``num_envs``, 6), which contains the linear and angular velocities. Defaults to None.
             current_ee_force_b: The current external force on the end-effector in root frame.
-                It is a tensor of shape (num_envs, 3), which contains the linear force. Defaults to None.
-            mass_matrix: The joint-space mass/inertia matrix. It is a tensor of shape (num_envs, num_DoF, num_DoF).
-                Defaults to None.
-            gravity: The joint-space gravity vector. It is a tensor of shape (num_envs, num_DoF). Defaults to None.
+                It is a tensor of shape (``num_envs``, 3), which contains the linear force. Defaults to ``None``.
+            mass_matrix: The joint-space mass/inertia matrix. It is a tensor of shape (``num_envs``, ``num_DoF``,
+            ``num_DoF``). Defaults to ``None``.
+            gravity: The joint-space gravity vector. It is a tensor of shape (``num_envs``, ``num_DoF``). Defaults
+            to ``None``.
 
         Raises:
             ValueError: When motion-control is enabled but the current end-effector pose or velocity is not provided.
             ValueError: When inertial dynamics decoupling is enabled but the mass matrix is not provided.
-            ValueError: When the current end-effector pose is not provided for the 'pose_rel' command.
+            ValueError: When the current end-effector pose is not provided for the ``pose_rel`` command.
             ValueError: When closed-loop force control is enabled but the current end-effector force is not provided.
             ValueError: When gravity compensation is enabled but the gravity vector is not provided.
 
         Returns:
-            joint_efforts: The joint efforts computed by the controller. It is a tensor of shape (num_envs, num_DoF).
+            Tensor: The joint efforts computed by the controller. It is a tensor of shape (``num_envs``, ``num_DoF``).
         """
 
         # deduce number of DoF

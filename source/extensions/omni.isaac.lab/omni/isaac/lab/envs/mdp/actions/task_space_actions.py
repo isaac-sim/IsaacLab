@@ -367,7 +367,7 @@ class OperationalSpaceControllerAction(ActionTerm):
 
         Args:
             actions (torch.Tensor): The raw actions for operational space control. It is a tensor of
-                shape (num_envs, action_dim).
+                shape (``num_envs``, ``action_dim``).
         """
 
         # Update ee pose, which would be used by relative targets (i.e., pose_rel)
@@ -410,7 +410,7 @@ class OperationalSpaceControllerAction(ActionTerm):
         """Resets the raw actions and the sensors if available.
 
         Args:
-            env_ids (Sequence[int] | None): The environment indices to reset. If None, all environments are reset.
+            env_ids (Sequence[int] | None): The environment indices to reset. If ``None``, all environments are reset.
         """
         self._raw_actions[env_ids] = 0.0
         if self._contact_sensor is not None:
@@ -424,13 +424,13 @@ class OperationalSpaceControllerAction(ActionTerm):
     """
 
     def _first_RigidObject_child_path(self):
-        """Finds the first RigidObject child under the articulation asset.
+        """Finds the first ``RigidObject`` child under the articulation asset.
 
         Raises:
-            ValueError: If no child RigidObject is found under the articulation asset.
+            ValueError: If no child ``RigidObject`` is found under the articulation asset.
 
         Returns:
-            str: The path to the first RigidObject child under the articulation asset.
+            str: The path to the first ``RigidObject`` child under the articulation asset.
         """
         child_prims = find_matching_prims(self._asset.cfg.prim_path + "/.*")
         rigid_child_prim = None
@@ -580,7 +580,7 @@ class OperationalSpaceControllerAction(ActionTerm):
 
         Args:
             actions (torch.Tensor): The raw actions for operational space control. It is a tensor of
-                shape (num_envs, action_dim).
+                shape (``num_envs``, ``action_dim``).
         """
         # Store the raw actions. Please note that the actions contain task space targets
         # (in the order of the target_types), and possibly the impedance parameters depending on impedance_mode.

@@ -9,8 +9,8 @@
 
     DifferentialIKController
     DifferentialIKControllerCfg
-    OperationSpaceController
-    OperationSpaceControllerCfg
+    OperationalSpaceController
+    OperationalSpaceControllerCfg
 
 Differential Inverse Kinematics
 -------------------------------
