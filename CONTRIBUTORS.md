@@ -49,6 +49,7 @@ Guidelines for modifications:
 * Giulio Romualdi
 * Haoran Zhou
 * HoJin Jeon
+* Iretiayo Akinola
 * Jan Kerner
 * Jean Tampon
 * Jia Lin Yuan
@@ -62,6 +63,7 @@ Guidelines for modifications:
 * Lorenz Wellhausen
 * Masoud Moghani
 * Michael Gussert
+* Michael Noseworthy
 * Muhong Guo
 * Nuralem Abizov
 * Oyindamola Omotuyi
@@ -90,3 +92,4 @@ Guidelines for modifications:
 * Gavriel State
 * Hammad Mazhar
 * Marco Hutter
+* Yashraj Narang

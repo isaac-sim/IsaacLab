@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.10.15 (2024-12-09)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Factory-Direct-v0`` environment as a direct RL env that
+  implements contact-rich manipulation tasks including peg insertion,
+  gear meshing, and nut threading.
+
 0.10.14 (2024-12-03)
 ~~~~~~~~~~~~~~~~~~~~
 
