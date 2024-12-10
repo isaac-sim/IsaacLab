@@ -24,6 +24,7 @@ simulation_app = app_launcher.app
 import ctypes
 import torch
 import unittest
+from typing import Literal
 
 import omni.isaac.core.utils.prims as prim_utils
 
@@ -31,19 +32,23 @@ import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.assets import RigidObject, RigidObjectCfg
 from omni.isaac.lab.sim import build_simulation_context
 from omni.isaac.lab.sim.spawners import materials
-from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
+from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from omni.isaac.lab.utils.math import default_orientation, random_orientation
 
 
 def generate_cubes_scene(
-    num_cubes: int = 1, height=1.0, has_api: bool = True, kinematic_enabled: bool = False, device: str = "cuda:0"
+    num_cubes: int = 1,
+    height=1.0,
+    api: Literal["none", "rigid_body", "articulation_root"] = "rigid_body",
+    kinematic_enabled: bool = False,
+    device: str = "cuda:0",
 ) -> tuple[RigidObject, torch.Tensor]:
     """Generate a scene with the provided number of cubes.
 
     Args:
         num_cubes: Number of cubes to generate.
         height: Height of the cubes.
-        has_api: Whether the cubes have a rigid body API on them.
+        api: The type of API that the cubes should have.
         kinematic_enabled: Whether the cubes are kinematic.
         device: Device to use for the simulation.
 
@@ -57,17 +62,25 @@ def generate_cubes_scene(
         prim_utils.create_prim(f"/World/Table_{i}", "Xform", translation=origin)
 
     # Resolve spawn configuration
-    if has_api:
-        spawn_cfg = sim_utils.UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=kinematic_enabled),
-        )
-    else:
+    if api == "none":
         # since no rigid body properties defined, this is just a static collider
         spawn_cfg = sim_utils.CuboidCfg(
             size=(0.1, 0.1, 0.1),
             collision_props=sim_utils.CollisionPropertiesCfg(),
         )
+    elif api == "rigid_body":
+        spawn_cfg = sim_utils.UsdFileCfg(
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=kinematic_enabled),
+        )
+    elif api == "articulation_root":
+        spawn_cfg = sim_utils.UsdFileCfg(
+            usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Tests/RigidObject/Cube/dex_cube_instanceable_with_articulation_root.usd",
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=kinematic_enabled),
+        )
+    else:
+        raise ValueError(f"Unknown api: {api}")
+
     # Create rigid object
     cube_object_cfg = RigidObjectCfg(
         prim_path="/World/Table_.*/Object",
@@ -161,7 +174,27 @@ class TestRigidObject(unittest.TestCase):
                 with self.subTest(num_cubes=num_cubes, device=device):
                     with build_simulation_context(device=device, auto_add_lighting=True) as sim:
                         # Generate cubes scene
-                        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, has_api=False, device=device)
+                        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, api="none", device=device)
+
+                        # Check that boundedness of rigid object is correct
+                        self.assertEqual(ctypes.c_long.from_address(id(cube_object)).value, 1)
+
+                        # Play sim
+                        sim.reset()
+
+                        # Check if object is initialized
+                        self.assertFalse(cube_object.is_initialized)
+
+    def test_initialization_with_articulation_root(self):
+        """Test that initialization fails when an articulation root is found at the provided prim path."""
+        for num_cubes in (1, 2):
+            for device in ("cuda:0", "cpu"):
+                with self.subTest(num_cubes=num_cubes, device=device):
+                    with build_simulation_context(device=device, auto_add_lighting=True) as sim:
+                        # Generate cubes scene
+                        cube_object, _ = generate_cubes_scene(
+                            num_cubes=num_cubes, api="articulation_root", device=device
+                        )
 
                         # Check that boundedness of rigid object is correct
                         self.assertEqual(ctypes.c_long.from_address(id(cube_object)).value, 1)
