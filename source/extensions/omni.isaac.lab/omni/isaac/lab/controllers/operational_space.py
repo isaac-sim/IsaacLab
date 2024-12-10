@@ -154,14 +154,6 @@ class OperationalSpaceController:
         self.desired_ee_wrench_b = None
         self.desired_ee_wrench_task = None
 
-    def initialize(self):
-        """Initialize the internals."""
-        pass
-
-    def reset_idx(self):
-        """Reset the internals."""
-        pass
-
     def set_command(
         self,
         command: torch.Tensor,
