@@ -83,7 +83,8 @@ class OperationalSpaceController:
             torch.ones(self.num_envs, 6, device=self._device)
             * torch.tensor(self.cfg.motion_stiffness_task, dtype=torch.float, device=self._device)
         )
-        # -- -- zero out the axes that are not motion controlled, as keeping them non-zero will cause other axes to act due to coupling
+        # -- -- zero out the axes that are not motion controlled, as keeping them non-zero will cause other axes
+        # -- -- to act due to coupling
         self._motion_p_gains_task[:] = self._selection_matrix_motion_task @ self._motion_p_gains_task[:]
         self._motion_d_gains_task = torch.diag_embed(
             2
@@ -209,7 +210,7 @@ class OperationalSpaceController:
             self._task_space_target_task[:] = command
         elif self.cfg.impedance_mode == "variable_kp":
             # split input command
-            task_space_command, stiffness = torch.split(command, (self.target_dim, 6), dim=-1)
+            task_space_command, stiffness = torch.split(command, [self.target_dim, 6], dim=-1)
             # format command
             stiffness = stiffness.clip_(
                 min=self._motion_p_gains_limits[..., 0], max=self._motion_p_gains_limits[..., 1]
@@ -227,7 +228,7 @@ class OperationalSpaceController:
             )
         elif self.cfg.impedance_mode == "variable":
             # split input command
-            task_space_command, stiffness, damping_ratio = torch.split(command, (self.target_dim, 6, 6), dim=-1)
+            task_space_command, stiffness, damping_ratio = torch.split(command, [self.target_dim, 6, 6], dim=-1)
             # format command
             stiffness = stiffness.clip_(
                 min=self._motion_p_gains_limits[..., 0], max=self._motion_p_gains_limits[..., 1]

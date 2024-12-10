@@ -67,7 +67,7 @@ class OperationalSpaceControllerCfg:
     Note: Used only when :obj:`impedance_mode` is "variable".
     """
 
-    contact_wrench_stiffness_task: float | Sequence[float] = None
+    contact_wrench_stiffness_task: float | Sequence[float] | None = None
     """The proportional gain for determining operational space command forces for closed-loop contact force control.
 
     If obj:`None`, then open-loop control of desired contact wrench is performed.
