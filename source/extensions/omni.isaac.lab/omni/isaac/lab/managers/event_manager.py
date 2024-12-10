@@ -12,7 +12,7 @@ from collections.abc import Sequence
 from prettytable import PrettyTable
 from typing import TYPE_CHECKING
 
-import carb
+import omni.log
 
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import EventTermCfg
@@ -62,6 +62,12 @@ class EventManager(ManagerBase):
             cfg: A configuration object or dictionary (``dict[str, EventTermCfg]``).
             env: An environment object.
         """
+        # create buffers to parse and store terms
+        self._mode_term_names: dict[str, list[str]] = dict()
+        self._mode_term_cfgs: dict[str, list[EventTermCfg]] = dict()
+        self._mode_class_term_cfgs: dict[str, list[EventTermCfg]] = dict()
+
+        # call the base class (this will parse the terms config)
         super().__init__(cfg, env)
 
     def __str__(self) -> str:
@@ -157,7 +163,7 @@ class EventManager(ManagerBase):
         """
         # check if mode is valid
         if mode not in self._mode_term_names:
-            carb.log_warn(f"Event mode '{mode}' is not defined. Skipping event.")
+            omni.log.warn(f"Event mode '{mode}' is not defined. Skipping event.")
             return
         # check if mode is interval and dt is not provided
         if mode == "interval" and dt is None:
@@ -294,11 +300,6 @@ class EventManager(ManagerBase):
     """
 
     def _prepare_terms(self):
-        """Prepares a list of event functions."""
-        # parse remaining event terms and decimate their information
-        self._mode_term_names: dict[str, list[str]] = dict()
-        self._mode_term_cfgs: dict[str, list[EventTermCfg]] = dict()
-        self._mode_class_term_cfgs: dict[str, list[EventTermCfg]] = dict()
         # buffer to store the time left for "interval" mode
         # if interval is global, then it is a single value, otherwise it is per environment
         self._interval_term_time_left: list[torch.Tensor] = list()
@@ -324,7 +325,7 @@ class EventManager(ManagerBase):
                 )
 
             if term_cfg.mode != "reset" and term_cfg.min_step_count_between_reset != 0:
-                carb.log_warn(
+                omni.log.warn(
                     f"Event term '{term_name}' has 'min_step_count_between_reset' set to a non-zero value"
                     " but the mode is not 'reset'. Ignoring the 'min_step_count_between_reset' value."
                 )

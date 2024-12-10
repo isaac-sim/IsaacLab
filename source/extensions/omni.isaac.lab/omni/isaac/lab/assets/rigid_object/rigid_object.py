@@ -9,7 +9,7 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import carb
+import omni.log
 import omni.physics.tensors.impl.api as physx
 from pxr import UsdPhysics
 
@@ -257,6 +257,9 @@ class RigidObject(AssetBase):
             self._external_torque_b[env_ids, body_ids] = torques
         else:
             self.has_external_wrench = False
+            # reset external wrench
+            self._external_force_b[env_ids] = 0.0
+            self._external_torque_b[env_ids] = 0.0
 
     """
     Internal helper.
@@ -288,6 +291,18 @@ class RigidObject(AssetBase):
                 " Please ensure that there is only one rigid body in the prim path tree."
             )
 
+        articulation_prims = sim_utils.get_all_matching_child_prims(
+            template_prim_path, predicate=lambda prim: prim.HasAPI(UsdPhysics.ArticulationRootAPI)
+        )
+        if len(articulation_prims) != 0:
+            if articulation_prims[0].GetAttribute("physxArticulation:articulationEnabled").Get():
+                raise RuntimeError(
+                    f"Found an articulation root when resolving '{self.cfg.prim_path}' for rigid objects. These are"
+                    f" located at: '{articulation_prims}' under '{template_prim_path}'. Please disable the articulation"
+                    " root in the USD or from code by setting the parameter"
+                    " 'ArticulationRootPropertiesCfg.articulation_enabled' to False in the spawn configuration."
+                )
+
         # resolve root prim back into regex expression
         root_prim_path = root_prims[0].GetPath().pathString
         root_prim_path_expr = self.cfg.prim_path + root_prim_path[len(template_prim_path) :]
@@ -299,10 +314,10 @@ class RigidObject(AssetBase):
             raise RuntimeError(f"Failed to create rigid body at: {self.cfg.prim_path}. Please check PhysX logs.")
 
         # log information about the rigid body
-        carb.log_info(f"Rigid body initialized at: {self.cfg.prim_path} with root '{root_prim_path_expr}'.")
-        carb.log_info(f"Number of instances: {self.num_instances}")
-        carb.log_info(f"Number of bodies: {self.num_bodies}")
-        carb.log_info(f"Body names: {self.body_names}")
+        omni.log.info(f"Rigid body initialized at: {self.cfg.prim_path} with root '{root_prim_path_expr}'.")
+        omni.log.info(f"Number of instances: {self.num_instances}")
+        omni.log.info(f"Number of bodies: {self.num_bodies}")
+        omni.log.info(f"Body names: {self.body_names}")
 
         # container for data access
         self._data = RigidObjectData(self.root_physx_view, self.device)

@@ -9,7 +9,7 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import carb
+import omni.log
 from pxr import UsdPhysics
 
 import omni.isaac.lab.utils.math as math_utils
@@ -74,11 +74,11 @@ class DifferentialInverseKinematicsAction(ActionTerm):
             self._jacobi_joint_ids = [i + 6 for i in self._joint_ids]
 
         # log info for debugging
-        carb.log_info(
+        omni.log.info(
             f"Resolved joint names for the action term {self.__class__.__name__}:"
             f" {self._joint_names} [{self._joint_ids}]"
         )
-        carb.log_info(
+        omni.log.info(
             f"Resolved body name for the action term {self.__class__.__name__}: {self._body_name} [{self._body_idx}]"
         )
         # Avoid indexing across all joints for efficiency
@@ -243,11 +243,11 @@ class OperationalSpaceControllerAction(ActionTerm):
             self._jacobi_joint_idx = [i + 6 for i in self._joint_ids]
 
         # log info for debugging
-        carb.log_info(
+        omni.log.info(
             f"Resolved joint names for the action term {self.__class__.__name__}:"
             f" {self._joint_names} [{self._joint_ids}]"
         )
-        carb.log_info(
+        omni.log.info(
             f"Resolved ee body name for the action term {self.__class__.__name__}:"
             f" {self._ee_body_name} [{self._ee_body_idx}]"
         )

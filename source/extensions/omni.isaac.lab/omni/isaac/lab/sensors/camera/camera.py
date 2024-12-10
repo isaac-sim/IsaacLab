@@ -9,10 +9,10 @@ import numpy as np
 import re
 import torch
 from collections.abc import Sequence
-from tensordict import TensorDict
 from typing import TYPE_CHECKING, Any, Literal
 
 import carb
+import omni.isaac.core.utils.stage as stage_utils
 import omni.kit.commands
 import omni.usd
 from omni.isaac.core.prims import XFormPrimView
@@ -21,11 +21,14 @@ from pxr import UsdGeom
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.utils import to_camel_case
 from omni.isaac.lab.utils.array import convert_to_torch
-from omni.isaac.lab.utils.math import quat_from_matrix
+from omni.isaac.lab.utils.math import (
+    convert_camera_frame_orientation_convention,
+    create_rotation_matrix_from_view,
+    quat_from_matrix,
+)
 
 from ..sensor_base import SensorBase
 from .camera_data import CameraData
-from .utils import convert_orientation_convention, create_rotation_matrix_from_view
 
 if TYPE_CHECKING:
     from .camera_cfg import CameraCfg
@@ -116,7 +119,9 @@ class Camera(SensorBase):
         if self.cfg.spawn is not None:
             # compute the rotation offset
             rot = torch.tensor(self.cfg.offset.rot, dtype=torch.float32).unsqueeze(0)
-            rot_offset = convert_orientation_convention(rot, origin=self.cfg.offset.convention, target="opengl")
+            rot_offset = convert_camera_frame_orientation_convention(
+                rot, origin=self.cfg.offset.convention, target="opengl"
+            )
             rot_offset = rot_offset.squeeze(0).numpy()
             # ensure vertical aperture is set, otherwise replace with default for squared pixels
             if self.cfg.spawn.vertical_aperture is None:
@@ -150,7 +155,7 @@ class Camera(SensorBase):
         # message for class
         return (
             f"Camera @ '{self.cfg.prim_path}': \n"
-            f"\tdata types   : {self.data.output.sorted_keys} \n"
+            f"\tdata types   : {list(self.data.output.keys())} \n"
             f"\tsemantic filter : {self.cfg.semantic_filter}\n"
             f"\tcolorize semantic segm.   : {self.cfg.colorize_semantic_segmentation}\n"
             f"\tcolorize instance segm.   : {self.cfg.colorize_instance_segmentation}\n"
@@ -251,7 +256,7 @@ class Camera(SensorBase):
             # TODO: Adjust to handle aperture offsets once supported by omniverse
             #   Internal ticket from rendering team: OM-42611
             if params["horizontal_aperture_offset"] > 1e-4 or params["vertical_aperture_offset"] > 1e-4:
-                carb.log_warn("Camera aperture offsets are not supported by Omniverse. These parameters are ignored.")
+                omni.log.warn("Camera aperture offsets are not supported by Omniverse. These parameters are ignored.")
 
             # change data for corresponding camera index
             sensor_prim = self._sensor_prims[i]
@@ -289,7 +294,7 @@ class Camera(SensorBase):
         - :obj:`"ros"`    - forward axis: +Z - up axis -Y - Offset is applied in the ROS convention
         - :obj:`"world"`  - forward axis: +X - up axis +Z - Offset is applied in the World Frame convention
 
-        See :meth:`omni.isaac.lab.sensors.camera.utils.convert_orientation_convention` for more details
+        See :meth:`omni.isaac.lab.sensors.camera.utils.convert_camera_frame_orientation_convention` for more details
         on the conventions.
 
         Args:
@@ -318,7 +323,7 @@ class Camera(SensorBase):
                 orientations = torch.from_numpy(orientations).to(device=self._device)
             elif not isinstance(orientations, torch.Tensor):
                 orientations = torch.tensor(orientations, device=self._device)
-            orientations = convert_orientation_convention(orientations, origin=convention, target="opengl")
+            orientations = convert_camera_frame_orientation_convention(orientations, origin=convention, target="opengl")
         # set the pose
         self._view.set_world_poses(positions, orientations, env_ids)
 
@@ -339,8 +344,10 @@ class Camera(SensorBase):
         # resolve env_ids
         if env_ids is None:
             env_ids = self._ALL_INDICES
+        # get up axis of current stage
+        up_axis = stage_utils.get_stage_up_axis()
         # set camera poses using the view
-        orientations = quat_from_matrix(create_rotation_matrix_from_view(eyes, targets, device=self._device))
+        orientations = quat_from_matrix(create_rotation_matrix_from_view(eyes, targets, up_axis, device=self._device))
         self._view.set_world_poses(eyes, orientations, env_ids)
 
     """
@@ -489,7 +496,7 @@ class Camera(SensorBase):
         self._update_poses(env_ids)
         # -- read the data from annotator registry
         # check if buffer is called for the first time. If so then, allocate the memory
-        if len(self._data.output.sorted_keys) == 0:
+        if len(self._data.output) == 0:
             # this is the first time buffer is called
             # it allocates memory for all the sensors
             self._create_annotator_data()
@@ -506,6 +513,19 @@ class Camera(SensorBase):
                     self._data.output[name][index] = data
                     # add info to output
                     self._data.info[index][name] = info
+                # NOTE: The `distance_to_camera` annotator returns the distance to the camera optical center. However,
+                #       the replicator depth clipping is applied w.r.t. to the image plane which may result in values
+                #       larger than the clipping range in the output. We apply an additional clipping to ensure values
+                #       are within the clipping range for all the annotators.
+                if name == "distance_to_camera":
+                    self._data.output[name][self._data.output[name] > self.cfg.spawn.clipping_range[1]] = torch.inf
+                # apply defined clipping behavior
+                if (
+                    name == "distance_to_camera" or name == "distance_to_image_plane"
+                ) and self.cfg.depth_clipping_behavior != "none":
+                    self._data.output[name][torch.isinf(self._data.output[name])] = (
+                        0.0 if self.cfg.depth_clipping_behavior == "zero" else self.cfg.spawn.clipping_range[1]
+                    )
 
     """
     Private Helpers
@@ -544,7 +564,7 @@ class Camera(SensorBase):
         # lazy allocation of data dictionary
         # since the size of the output data is not known in advance, we leave it as None
         # the memory will be allocated when the buffer() function is called for the first time.
-        self._data.output = TensorDict({}, batch_size=self._view.count, device=self.device)
+        self._data.output = {}
         self._data.info = [{name: None for name in self.cfg.data_types} for _ in range(self._view.count)]
 
     def _update_intrinsic_matrices(self, env_ids: Sequence[int]):
@@ -596,7 +616,9 @@ class Camera(SensorBase):
         # get the poses from the view
         poses, quat = self._view.get_world_poses(env_ids)
         self._data.pos_w[env_ids] = poses
-        self._data.quat_w_world[env_ids] = convert_orientation_convention(quat, origin="opengl", target="world")
+        self._data.quat_w_world[env_ids] = convert_camera_frame_orientation_convention(
+            quat, origin="opengl", target="world"
+        )
 
     def _create_annotator_data(self):
         """Create the buffers to store the annotator data.
@@ -622,6 +644,19 @@ class Camera(SensorBase):
                 self._data.info[index][name] = info
             # concatenate the data along the batch dimension
             self._data.output[name] = torch.stack(data_all_cameras, dim=0)
+            # NOTE: `distance_to_camera` and `distance_to_image_plane` are not both clipped to the maximum defined
+            #       in the clipping range. The clipping is applied only to `distance_to_image_plane` and then both
+            #       outputs are only clipped where the values in `distance_to_image_plane` exceed the threshold. To
+            #       have a unified behavior between all cameras, we clip both outputs to the maximum value defined.
+            if name == "distance_to_camera":
+                self._data.output[name][self._data.output[name] > self.cfg.spawn.clipping_range[1]] = torch.inf
+            # clip the data if needed
+            if (
+                name == "distance_to_camera" or name == "distance_to_image_plane"
+            ) and self.cfg.depth_clipping_behavior != "none":
+                self._data.output[name][torch.isinf(self._data.output[name])] = (
+                    0.0 if self.cfg.depth_clipping_behavior == "zero" else self.cfg.spawn.clipping_range[1]
+                )
 
     def _process_annotator_output(self, name: str, output: Any) -> tuple[torch.tensor, dict | None]:
         """Process the annotator output.

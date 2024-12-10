@@ -9,6 +9,7 @@ Any tests not listed here will use the default timeout.
 """
 PER_TEST_TIMEOUTS = {
     "test_articulation.py": 200,
+    "test_deformable_object.py": 200,
     "test_environments.py": 1200,  # This test runs through all the environments for 100 steps each
     "test_environment_determinism.py": 200,  # This test runs through many the environments for 100 steps each
     "test_env_rendering_logic.py": 300,

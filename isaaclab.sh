@@ -328,7 +328,7 @@ while [[ $# -gt 0 ]]; do
             fi
             # run the formatter over the repository
             # check if pre-commit is installed
-            if [ ! command -v pre-commit &>/dev/null ]; then
+            if ! command -v pre-commit &>/dev/null; then
                 echo "[INFO] Installing pre-commit..."
                 pip install pre-commit
             fi
@@ -350,7 +350,7 @@ while [[ $# -gt 0 ]]; do
             python_exe=$(extract_python_exe)
             echo "[INFO] Using python from: ${python_exe}"
             shift # past argument
-            ${python_exe} $@
+            ${python_exe} "$@"
             # exit neatly
             break
             ;;
@@ -396,10 +396,10 @@ while [[ $# -gt 0 ]]; do
             cd ${ISAACLAB_PATH}/docs
             ${python_exe} -m pip install -r requirements.txt > /dev/null
             # build the documentation
-            ${python_exe} -m sphinx -b html -d _build/doctrees . _build/html
+            ${python_exe} -m sphinx -b html -d _build/doctrees . _build/current
             # open the documentation
             echo -e "[INFO] To open documentation on default browser, run:"
-            echo -e "\n\t\txdg-open $(pwd)/_build/html/index.html\n"
+            echo -e "\n\t\txdg-open $(pwd)/_build/current/index.html\n"
             # exit neatly
             cd - > /dev/null
             shift # past argument

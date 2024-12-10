@@ -12,6 +12,7 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
+import torch
 import unittest
 from collections import namedtuple
 
@@ -122,6 +123,21 @@ class TestRewardManager(unittest.TestCase):
         # check the reward for environment index 0
         self.assertEqual(float(rewards[0]), expected_reward)
         self.assertEqual(tuple(rewards.shape), (self.env.num_envs,))
+
+    def test_config_empty(self):
+        """Test the creation of reward manager with empty config."""
+        self.rew_man = RewardManager(None, self.env)
+        self.assertEqual(len(self.rew_man.active_terms), 0)
+
+        # print the expected string
+        print()
+        print(self.rew_man)
+
+        # compute reward
+        rewards = self.rew_man.compute(dt=self.env.dt)
+
+        # check all rewards are zero
+        torch.testing.assert_close(rewards, torch.zeros_like(rewards))
 
     def test_active_terms(self):
         """Test the correct reading of active terms."""

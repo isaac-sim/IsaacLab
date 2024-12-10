@@ -10,7 +10,7 @@ import omni
 import omni.kit.commands
 import omni.usd
 from omni.isaac.core.utils.extensions import enable_extension
-from pxr import Usd, UsdGeom, UsdPhysics, UsdUtils
+from pxr import Gf, Tf, Usd, UsdGeom, UsdPhysics, UsdUtils
 
 from omni.isaac.lab.sim.converters.asset_converter_base import AssetConverterBase
 from omni.isaac.lab.sim.converters.mesh_converter_cfg import MeshConverterCfg
@@ -64,12 +64,13 @@ class MeshConverter(AssetConverterBase):
     def _convert_asset(self, cfg: MeshConverterCfg):
         """Generate USD from OBJ, STL or FBX.
 
-        It stores the asset in the following format:
+        The USD file has Y-up axis and is scaled to meters.
+        The asset hierarchy is arranged as follows:
 
-        /file_name (default prim)
-          |- /geometry <- Made instanceable if requested
-            |- /Looks
-            |- /mesh
+        .. code-block:: none
+            mesh_file_basename (default prim)
+                |- /geometry/Looks
+                |- /geometry/mesh
 
         Args:
             cfg: The configuration for conversion of mesh to USD.
@@ -81,17 +82,37 @@ class MeshConverter(AssetConverterBase):
         mesh_file_basename, mesh_file_format = os.path.basename(cfg.asset_path).split(".")
         mesh_file_format = mesh_file_format.lower()
 
+        # Check if mesh_file_basename is a valid USD identifier
+        if not Tf.IsValidIdentifier(mesh_file_basename):
+            # Correct the name to a valid identifier and update the basename
+            mesh_file_basename_original = mesh_file_basename
+            mesh_file_basename = Tf.MakeValidIdentifier(mesh_file_basename)
+            omni.log.warn(
+                f"Input file name '{mesh_file_basename_original}' is an invalid identifier for the mesh prim path."
+                f" Renaming it to '{mesh_file_basename}' for the conversion."
+            )
+
         # Convert USD
         asyncio.get_event_loop().run_until_complete(
-            self._convert_mesh_to_usd(
-                in_file=cfg.asset_path, out_file=self.usd_path, prim_path=f"/{mesh_file_basename}"
-            )
+            self._convert_mesh_to_usd(in_file=cfg.asset_path, out_file=self.usd_path)
         )
+        # Create a new stage, set Z up and meters per unit
+        temp_stage = Usd.Stage.CreateInMemory()
+        UsdGeom.SetStageUpAxis(temp_stage, UsdGeom.Tokens.z)
+        UsdGeom.SetStageMetersPerUnit(temp_stage, 1.0)
+        UsdPhysics.SetStageKilogramsPerUnit(temp_stage, 1.0)
+        # Add mesh to stage
+        base_prim = temp_stage.DefinePrim(f"/{mesh_file_basename}", "Xform")
+        prim = temp_stage.DefinePrim(f"/{mesh_file_basename}/geometry", "Xform")
+        prim.GetReferences().AddReference(self.usd_path)
+        temp_stage.SetDefaultPrim(base_prim)
+        temp_stage.Export(self.usd_path)
+
         # Open converted USD stage
-        # note: This opens a new stage and does not use the stage created earlier by the user
-        # create a new stage
         stage = Usd.Stage.Open(self.usd_path)
-        # add USD to stage cache
+        # Need to reload the stage to get the new prim structure, otherwise it can be taken from the cache
+        stage.Reload()
+        # Add USD to stage cache
         stage_id = UsdUtils.StageCache.Get().Insert(stage)
         # Get the default prim (which is the root prim) -- "/{mesh_file_basename}"
         xform_prim = stage.GetDefaultPrim()
@@ -111,6 +132,32 @@ class MeshConverter(AssetConverterBase):
                     )
         # Delete the old Xform and make the new Xform the default prim
         stage.SetDefaultPrim(xform_prim)
+        # Apply default Xform rotation to mesh -> enable to set rotation and scale
+        omni.kit.commands.execute(
+            "CreateDefaultXformOnPrimCommand",
+            prim_path=xform_prim.GetPath(),
+            **{"stage": stage},
+        )
+
+        # Apply translation, rotation, and scale to the Xform
+        geom_xform = UsdGeom.Xform(geom_prim)
+        geom_xform.ClearXformOpOrder()
+
+        # Remove any existing rotation attributes
+        rotate_attr = geom_prim.GetAttribute("xformOp:rotateXYZ")
+        if rotate_attr:
+            geom_prim.RemoveProperty(rotate_attr.GetName())
+
+        # translation
+        translate_op = geom_xform.AddTranslateOp(UsdGeom.XformOp.PrecisionDouble)
+        translate_op.Set(Gf.Vec3d(*cfg.translation))
+        # rotation
+        orient_op = geom_xform.AddOrientOp(UsdGeom.XformOp.PrecisionDouble)
+        orient_op.Set(Gf.Quatd(*cfg.rotation))
+        # scale
+        scale_op = geom_xform.AddScaleOp(UsdGeom.XformOp.PrecisionDouble)
+        scale_op.Set(Gf.Vec3d(*cfg.scale))
+
         # Handle instanceable
         # Create a new Xform prim that will be the prototype prim
         if cfg.make_instanceable:
@@ -148,28 +195,18 @@ class MeshConverter(AssetConverterBase):
     """
 
     @staticmethod
-    async def _convert_mesh_to_usd(
-        in_file: str, out_file: str, prim_path: str = "/World", load_materials: bool = True
-    ) -> bool:
+    async def _convert_mesh_to_usd(in_file: str, out_file: str, load_materials: bool = True) -> bool:
         """Convert mesh from supported file types to USD.
 
         This function uses the Omniverse Asset Converter extension to convert a mesh file to USD.
         It is an asynchronous function and should be called using `asyncio.get_event_loop().run_until_complete()`.
 
         The converted asset is stored in the USD format in the specified output file.
-        The USD file has Y-up axis and is scaled to meters.
-
-        The asset hierarchy is arranged as follows:
-
-        .. code-block:: none
-            prim_path (default prim)
-                |- /geometry/Looks
-                |- /geometry/mesh
+        The USD file has Y-up axis and is scaled to cm.
 
         Args:
             in_file: The file to convert.
             out_file: The path to store the output file.
-            prim_path: The prim path of the mesh.
             load_materials: Set to True to enable attaching materials defined in the input file
                 to the generated USD mesh. Defaults to True.
 
@@ -177,11 +214,9 @@ class MeshConverter(AssetConverterBase):
             True if the conversion succeeds.
         """
         enable_extension("omni.kit.asset_converter")
-        enable_extension("omni.usd.metrics.assembler")
 
         import omni.kit.asset_converter
         import omni.usd
-        from omni.metrics.assembler.core import get_metrics_assembler_interface
 
         # Create converter context
         converter_context = omni.kit.asset_converter.AssetConverterContext()
@@ -202,29 +237,9 @@ class MeshConverter(AssetConverterBase):
 
         # Create converter task
         instance = omni.kit.asset_converter.get_instance()
-        out_file_non_metric = out_file.replace(".usd", "_non_metric.usd")
-        task = instance.create_converter_task(in_file, out_file_non_metric, None, converter_context)
+        task = instance.create_converter_task(in_file, out_file, None, converter_context)
         # Start conversion task and wait for it to finish
-        success = True
-        while True:
-            success = await task.wait_until_finished()
-            if not success:
-                await asyncio.sleep(0.1)
-            else:
-                break
-
-        temp_stage = Usd.Stage.CreateInMemory()
-        UsdGeom.SetStageUpAxis(temp_stage, UsdGeom.Tokens.z)
-        UsdGeom.SetStageMetersPerUnit(temp_stage, 1.0)
-        UsdPhysics.SetStageKilogramsPerUnit(temp_stage, 1.0)
-
-        base_prim = temp_stage.DefinePrim(prim_path, "Xform")
-        prim = temp_stage.DefinePrim(f"{prim_path}/geometry", "Xform")
-        prim.GetReferences().AddReference(out_file_non_metric)
-        cache = UsdUtils.StageCache.Get()
-        cache.Insert(temp_stage)
-        stage_id = cache.GetId(temp_stage).ToLongInt()
-        get_metrics_assembler_interface().resolve_stage(stage_id)
-        temp_stage.SetDefaultPrim(base_prim)
-        temp_stage.Export(out_file)
+        success = await task.wait_until_finished()
+        if not success:
+            raise RuntimeError(f"Failed to convert {in_file} to USD. Error: {task.get_error_message()}")
         return success
