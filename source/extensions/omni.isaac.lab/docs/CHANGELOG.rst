@@ -1,6 +1,23 @@
 Changelog
 ---------
 
+## [Unreleased]
+~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed errors within the calculations of :class:`omni.isaac.lab.controllers.OperationalSpaceController`.
+
+Added
+^^^^^
+
+* Added :class:`omni.isaac.lab.controllers.OperationalSpaceController` to API documentation.
+* Added test cases for :class:`omni.isaac.lab.controllers.OperationalSpaceController`.
+* Added a tutorial for :class:`omni.isaac.lab.controllers.OperationalSpaceController`.
+* Added the implementation of :class:`omni.isaac.lab.envs.mdp.actions.OperationalSpaceControllerAction` class.
+
+
 0.27.23 (2024-12-06)
 ~~~~~~~~~~~~~~~~~~~~
 
