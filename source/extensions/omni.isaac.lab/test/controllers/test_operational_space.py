@@ -232,7 +232,7 @@ class TestOperationalSpaceController(unittest.TestCase):
         self._run_op_space_controller(robot, osc, "panda_hand", ["panda_joint.*"], self.target_abs_pose_set_b)
 
     def test_franka_pose_abs_with_partial_inertial_decoupling(self):
-        """Test absolute pose control with fixed impedance and partial inertial dynamics decoupling.."""
+        """Test absolute pose control with fixed impedance and partial inertial dynamics decoupling."""
         robot = Articulation(cfg=self.robot_cfg)
         osc_cfg = OperationalSpaceControllerCfg(
             target_types=["pose_abs"],
