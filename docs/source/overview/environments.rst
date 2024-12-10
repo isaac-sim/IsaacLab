@@ -181,9 +181,9 @@ For example:
 .. |factory-gear| image:: ../_static/tasks/factory/gear_meshing.png
 .. |factory-nut| image:: ../_static/tasks/factory/nut_bolt_fastening.png
 
-.. |factory-peg-link| replace:: `Factory-Direct-v0 env.task_name=peg_insertion <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/factory/factory_env_cfg.py>`__
-.. |factory-gear-link| replace:: `Factory-Direct-v0 env.task_name=gear_meshing <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/factory/factory_env_cfg.py>`__
-.. |factory-nut-link| replace:: `Factory-Direct-v0 env.task_name=nut_threading  <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/factory/factory_env_cfg.py>`__
+.. |factory-peg-link| replace:: `Factory-Direct-v0 env.task_name=peg_insertion env.episode_length_s=10.0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/factory/factory_env_cfg.py>`__
+.. |factory-gear-link| replace:: `Factory-Direct-v0 env.task_name=gear_meshing env.episode_length_s=20.0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/factory/factory_env_cfg.py>`__
+.. |factory-nut-link| replace:: `Factory-Direct-v0 env.task_name=nut_threading env.episode_length_s=30.0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/factory/factory_env_cfg.py>`__
 
 Locomotion
 ~~~~~~~~~~
