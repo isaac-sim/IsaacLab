@@ -19,12 +19,9 @@ import shutil
 import tempfile
 import torch
 import unittest
-import uuid
 
 import carb
 import omni.usd
-
-from omni.isaac.lab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 
 import omni.isaac.lab_tasks  # noqa: F401
 from omni.isaac.lab_tasks.utils.parse_cfg import parse_env_cfg
@@ -56,8 +53,6 @@ class TestFrameTransformerAfterReset(unittest.TestCase):
                     with self.subTest(task_name=task_name, device=device):
                         omni.usd.get_context().new_stage()
 
-                        dummy_dataset_filename = f"{uuid.uuid4()}.hdf5"
-
                         # parse configuration
                         env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
 
@@ -67,7 +62,7 @@ class TestFrameTransformerAfterReset(unittest.TestCase):
                         # disable control on stop
                         env.unwrapped.sim._app_control_on_stop_handle = None  # type: ignore
 
-                        # reset envrionment
+                        # reset environment
                         obs = env.reset()[0]
 
                         # get the end effector position after the reset

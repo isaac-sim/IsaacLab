@@ -592,9 +592,9 @@ class TestFrameTransformer(unittest.TestCase):
             ],
         )
         scene = InteractiveScene(scene_cfg)
+
         # Play the simulator
         self.sim.reset()
-
         # print info
         print(scene.sensors["frame_transformer"])
 
