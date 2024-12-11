@@ -41,6 +41,7 @@ Guidelines for modifications:
 * Brayden Zhang
 * Cameron Upright
 * Calvin Yu
+* Cheng-Rong Lai
 * Chenyu Yang
 * CY (Chien-Ying) Chen
 * David Yang

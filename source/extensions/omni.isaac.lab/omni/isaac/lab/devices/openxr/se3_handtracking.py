@@ -36,11 +36,11 @@ class Se3HandTracking(DeviceBase):
     * - "RESET": signals simulation reset
     """
 
-    GRIP_HYSTERESIS_METERS: Final[float] = 0.0254  # 1.0 inch
-    DELTA_POS_SCALE_FACTOR = 20
-    DELTA_ROT_SCALE_FACTOR = 5
+    GRIP_HYSTERESIS_METERS: Final[float] = 0.05  # 2.0 inch
+    DELTA_POS_SCALE_FACTOR = 10
+    DELTA_ROT_SCALE_FACTOR = 10
 
-    def __init__(self, hand, abs=True):
+    def __init__(self, hand, abs=True, zero_out_xy_rotation=False, use_wrist_rotation=False):
         self._openxr = OpenXR()
         self._previous_pos = np.zeros(3)
         self._previous_rot = np.zeros(3)
@@ -48,6 +48,8 @@ class Se3HandTracking(DeviceBase):
         self._previous_gripper_command = False
         self._hand = hand
         self._abs = abs
+        self._zero_out_xy_rotation = zero_out_xy_rotation
+        self._use_wrist_rotation = use_wrist_rotation
         self._additional_callbacks = dict()
         self._vc = teleop_command.TeleopCommand()
         self._vc_subscription = (
@@ -58,6 +60,11 @@ class Se3HandTracking(DeviceBase):
             )
         )
         self._tracking = False
+
+        self._alpha_pos = 0.5
+        self._alpha_rot = 0.5
+        self._smoothed_delta_pos = np.zeros(3)
+        self._smoothed_delta_rot = np.zeros(3)
 
     def __del__(self):
         return
@@ -154,49 +161,81 @@ class Se3HandTracking(DeviceBase):
     def _calculate_target_delta_pose(self, hand_joints):
         index_tip = hand_joints[OpenXRSpec.HandJointEXT.XR_HAND_JOINT_INDEX_TIP_EXT]
         thumb_tip = hand_joints[OpenXRSpec.HandJointEXT.XR_HAND_JOINT_THUMB_TIP_EXT]
+        wrist = hand_joints[OpenXRSpec.HandJointEXT.XR_HAND_JOINT_WRIST_EXT]
+
+        # Define thresholds
+        POSITION_THRESHOLD = 0.001
+        ROTATION_THRESHOLD = 0.01
 
         # position:
-        if not index_tip.locationFlags & OpenXRSpec.XR_SPACE_LOCATION_POSITION_VALID_BIT:
-            delta_pos = np.zeros(3)
-        if not thumb_tip.locationFlags & OpenXRSpec.XR_SPACE_LOCATION_POSITION_VALID_BIT:
+        if not wrist.locationFlags & OpenXRSpec.XR_SPACE_LOCATION_POSITION_VALID_BIT:
             delta_pos = np.zeros(3)
         else:
-            index_tip_pos = index_tip.pose.position
-            index_tip_position = np.array([index_tip_pos.x, index_tip_pos.y, index_tip_pos.z], dtype=np.float32)
+            wrist_pos = wrist.pose.position
+            target_pos = np.array([wrist_pos.x, wrist_pos.y, wrist_pos.z], dtype=np.float32)
 
-            thumb_tip_pos = thumb_tip.pose.position
-            thumb_tip_position = np.array([thumb_tip_pos.x, thumb_tip_pos.y, thumb_tip_pos.z], dtype=np.float32)
-
-            target_pos = (index_tip_position + thumb_tip_position) / 2
             delta_pos = target_pos - self._previous_pos
             self._previous_pos = target_pos
 
+        self._smoothed_delta_pos = (self._alpha_pos * delta_pos) + ((1 - self._alpha_pos) * self._smoothed_delta_pos)
+
+        # Apply position threshold
+        if np.linalg.norm(self._smoothed_delta_pos) < POSITION_THRESHOLD:
+            self._smoothed_delta_pos = np.zeros(3)
+
         # rotation
-        if not index_tip.locationFlags & OpenXRSpec.XR_SPACE_LOCATION_ORIENTATION_VALID_BIT:
-            delta_rot = np.zeros(3)
-        if not thumb_tip.locationFlags & OpenXRSpec.XR_SPACE_LOCATION_ORIENTATION_VALID_BIT:
-            delta_rot = np.zeros(3)
+        if self._use_wrist_rotation:
+            # Rotation using wrist orientation only
+            if not wrist.locationFlags & OpenXRSpec.XR_SPACE_LOCATION_ORIENTATION_VALID_BIT:
+                delta_rot = np.zeros(3)
+            else:
+                wrist_quat = wrist.pose.orientation
+                wrist_quat = np.array([wrist_quat.x, wrist_quat.y, wrist_quat.z, wrist_quat.w], dtype=np.float32)
+
+                wrist_rotation = Rotation.from_quat(wrist_quat)
+                target_rot = wrist_rotation.as_rotvec()
+
+                delta_rot = target_rot - self._previous_rot
+                self._previous_rot = target_rot
         else:
-            index_tip_quat = index_tip.pose.orientation
-            index_tip_quat = np.array(
-                [index_tip_quat.x, index_tip_quat.y, index_tip_quat.z, index_tip_quat.w], dtype=np.float32
-            )
+            if not index_tip.locationFlags & OpenXRSpec.XR_SPACE_LOCATION_ORIENTATION_VALID_BIT:
+                delta_rot = np.zeros(3)
+            if not thumb_tip.locationFlags & OpenXRSpec.XR_SPACE_LOCATION_ORIENTATION_VALID_BIT:
+                delta_rot = np.zeros(3)
+            else:
+                index_tip_quat = index_tip.pose.orientation
+                index_tip_quat = np.array(
+                    [index_tip_quat.x, index_tip_quat.y, index_tip_quat.z, index_tip_quat.w], dtype=np.float32
+                )
 
-            thumb_tip_quat = thumb_tip.pose.orientation
-            thumb_tip_quat = np.array(
-                [thumb_tip_quat.x, thumb_tip_quat.y, thumb_tip_quat.z, thumb_tip_quat.w], dtype=np.float32
-            )
+                thumb_tip_quat = thumb_tip.pose.orientation
+                thumb_tip_quat = np.array(
+                    [thumb_tip_quat.x, thumb_tip_quat.y, thumb_tip_quat.z, thumb_tip_quat.w], dtype=np.float32
+                )
 
-            r0 = Rotation.from_quat(index_tip_quat)
-            r1 = Rotation.from_quat(thumb_tip_quat)
-            key_times = [0, 1]
-            slerp = Slerp(key_times, Rotation.concatenate([r0, r1]))
-            interp_time = [0.5]
-            interp_rotation = slerp(interp_time)[0]
+                r0 = Rotation.from_quat(index_tip_quat)
+                r1 = Rotation.from_quat(thumb_tip_quat)
+                key_times = [0, 1]
+                slerp = Slerp(key_times, Rotation.concatenate([r0, r1]))
+                interp_time = [0.5]
+                interp_rotation = slerp(interp_time)[0]
 
-            target_rot = interp_rotation.as_rotvec()
-            delta_rot = target_rot - self._previous_rot
-            self._previous_rot = target_rot
+                target_rot = interp_rotation.as_rotvec()
+                delta_rot = target_rot - self._previous_rot
+                self._previous_rot = target_rot
+
+        if self._zero_out_xy_rotation:
+            delta_rot[0] = 0.0  # Zero out rotation around x-axis
+            delta_rot[1] = 0.0  # Zero out rotation around y-axis
+
+        self._smoothed_delta_rot = (self._alpha_rot * delta_rot) + ((1 - self._alpha_rot) * self._smoothed_delta_rot)
+
+        # Apply rotation threshold
+        if np.linalg.norm(self._smoothed_delta_rot) < ROTATION_THRESHOLD:
+            self._smoothed_delta_rot = np.zeros(3)
+
+        delta_pos = self._smoothed_delta_pos
+        delta_rot = self._smoothed_delta_rot
 
         # if not tracking still update prev positions but return no delta pose
         if not self._tracking:
