@@ -65,7 +65,7 @@ class FactoryTask:
     held_asset_rot_init: float = -90.0
 
     # Reward
-    ee_success_yaw: float = 0.0  # nut_threading task only.
+    ee_success_yaw: float = 0.0  # nut_thread task only.
     action_penalty_scale: float = 0.0
     action_grad_penalty_scale: float = 0.0
     # Reward function details can be found in Appendix B of https://arxiv.org/pdf/2408.04587.
@@ -100,8 +100,8 @@ class Hole8mm(FixedAssetCfg):
 
 
 @configclass
-class PegInsertion(FactoryTask):
-    name = "peg_insertion"
+class PegInsert(FactoryTask):
+    name = "peg_insert"
     fixed_asset_cfg = Hole8mm()
     held_asset_cfg = Peg8mm()
     asset_size = 8.0
@@ -201,8 +201,8 @@ class MediumGear(HeldAssetCfg):
 
 
 @configclass
-class GearMeshing(FactoryTask):
-    name = "gear_meshing"
+class GearMesh(FactoryTask):
+    name = "gear_mesh"
     fixed_asset_cfg = GearBase()
     held_asset_cfg = MediumGear()
     target_gear = "gear_medium"
@@ -360,8 +360,8 @@ class BoltM16(FixedAssetCfg):
 
 
 @configclass
-class NutThreading(FactoryTask):
-    name = "nut_threading"
+class NutThread(FactoryTask):
+    name = "nut_thread"
     fixed_asset_cfg = BoltM16()
     held_asset_cfg = NutM16()
     asset_size = 16.0

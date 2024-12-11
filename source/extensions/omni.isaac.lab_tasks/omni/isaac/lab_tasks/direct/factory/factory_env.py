@@ -29,7 +29,7 @@ class FactoryEnv(DirectRLEnv):
         cfg.state_space = sum([STATE_DIM_CFG[state] for state in cfg.state_order])
         cfg.observation_space += cfg.action_space
         cfg.state_space += cfg.action_space
-        self.cfg_task = cfg.tasks[cfg.task_name]
+        self.cfg_task = cfg.task
 
         super().__init__(cfg, render_mode, **kwargs)
 
@@ -90,13 +90,13 @@ class FactoryEnv(DirectRLEnv):
 
         # Held asset
         held_base_x_offset = 0.0
-        if self.cfg_task.name == "peg_insertion":
+        if self.cfg_task.name == "peg_insert":
             held_base_z_offset = 0.0
-        elif self.cfg_task.name == "gear_meshing":
+        elif self.cfg_task.name == "gear_mesh":
             gear_base_offset = self._get_target_gear_base_offset()
             held_base_x_offset = gear_base_offset[0]
             held_base_z_offset = gear_base_offset[2]
-        elif self.cfg_task.name == "nut_threading":
+        elif self.cfg_task.name == "nut_thread":
             held_base_z_offset = self.cfg_task.fixed_asset_cfg.base_height
         else:
             raise NotImplementedError("Task not implemented")
@@ -131,13 +131,13 @@ class FactoryEnv(DirectRLEnv):
 
         # Used to compute target poses.
         self.fixed_success_pos_local = torch.zeros((self.num_envs, 3), device=self.device)
-        if self.cfg_task.name == "peg_insertion":
+        if self.cfg_task.name == "peg_insert":
             self.fixed_success_pos_local[:, 2] = 0.0
-        elif self.cfg_task.name == "gear_meshing":
+        elif self.cfg_task.name == "gear_mesh":
             gear_base_offset = self._get_target_gear_base_offset()
             self.fixed_success_pos_local[:, 0] = gear_base_offset[0]
             self.fixed_success_pos_local[:, 2] = gear_base_offset[2]
-        elif self.cfg_task.name == "nut_threading":
+        elif self.cfg_task.name == "nut_thread":
             head_height = self.cfg_task.fixed_asset_cfg.base_height
             shank_length = self.cfg_task.fixed_asset_cfg.height
             thread_pitch = self.cfg_task.fixed_asset_cfg.thread_pitch
@@ -168,7 +168,7 @@ class FactoryEnv(DirectRLEnv):
         self._robot = Articulation(self.cfg.robot)
         self._fixed_asset = Articulation(self.cfg_task.fixed_asset)
         self._held_asset = Articulation(self.cfg_task.held_asset)
-        if self.cfg_task.name == "gear_meshing":
+        if self.cfg_task.name == "gear_mesh":
             self._small_gear_asset = Articulation(self.cfg_task.small_gear_cfg)
             self._large_gear_asset = Articulation(self.cfg_task.large_gear_cfg)
 
@@ -178,7 +178,7 @@ class FactoryEnv(DirectRLEnv):
         self.scene.articulations["robot"] = self._robot
         self.scene.articulations["fixed_asset"] = self._fixed_asset
         self.scene.articulations["held_asset"] = self._held_asset
-        if self.cfg_task.name == "gear_meshing":
+        if self.cfg_task.name == "gear_mesh":
             self.scene.articulations["small_gear"] = self._small_gear_asset
             self.scene.articulations["large_gear"] = self._large_gear_asset
 
@@ -437,9 +437,9 @@ class FactoryEnv(DirectRLEnv):
         is_centered = torch.where(xy_dist < 0.0025, torch.ones_like(curr_successes), torch.zeros_like(curr_successes))
         # Height threshold to target
         fixed_cfg = self.cfg_task.fixed_asset_cfg
-        if self.cfg_task.name == "peg_insertion" or self.cfg_task.name == "gear_meshing":
+        if self.cfg_task.name == "peg_insert" or self.cfg_task.name == "gear_mesh":
             height_threshold = fixed_cfg.height * success_threshold
-        elif self.cfg_task.name == "nut_threading":
+        elif self.cfg_task.name == "nut_thread":
             height_threshold = fixed_cfg.thread_pitch * success_threshold
         else:
             raise NotImplementedError("Task not implemented")
@@ -457,7 +457,7 @@ class FactoryEnv(DirectRLEnv):
     def _get_rewards(self):
         """Update rewards and compute success statistics."""
         # Get successful and failed envs at current timestep
-        check_rot = self.cfg_task.name == "nut_threading"
+        check_rot = self.cfg_task.name == "nut_thread"
         curr_successes = self._get_curr_successes(
             success_threshold=self.cfg_task.success_threshold, check_rot=check_rot
         )
@@ -604,23 +604,23 @@ class FactoryEnv(DirectRLEnv):
 
     def get_handheld_asset_relative_pose(self):
         """Get default relative pose between help asset and fingertip."""
-        if self.cfg_task.name == "peg_insertion":
+        if self.cfg_task.name == "peg_insert":
             held_asset_relative_pos = torch.zeros_like(self.held_base_pos_local)
             held_asset_relative_pos[:, 2] = self.cfg_task.held_asset_cfg.height
             held_asset_relative_pos[:, 2] -= self.cfg_task.robot_cfg.franka_fingerpad_length
-        elif self.cfg_task.name == "gear_meshing":
+        elif self.cfg_task.name == "gear_mesh":
             held_asset_relative_pos = torch.zeros_like(self.held_base_pos_local)
             gear_base_offset = self._get_target_gear_base_offset()
             held_asset_relative_pos[:, 0] += gear_base_offset[0]
             held_asset_relative_pos[:, 2] += gear_base_offset[2]
             held_asset_relative_pos[:, 2] += self.cfg_task.held_asset_cfg.height / 2.0 * 1.1
-        elif self.cfg_task.name == "nut_threading":
+        elif self.cfg_task.name == "nut_thread":
             held_asset_relative_pos = self.held_base_pos_local
         else:
             raise NotImplementedError("Task not implemented")
 
         held_asset_relative_quat = self.identity_quat
-        if self.cfg_task.name == "nut_threading":
+        if self.cfg_task.name == "nut_thread":
             # Rotate along z-axis of frame for default position.
             initial_rot_deg = self.cfg_task.held_asset_rot_init
             rot_yaw_euler = torch.tensor([0.0, 0.0, initial_rot_deg * np.pi / 180.0], device=self.device).repeat(
@@ -701,7 +701,7 @@ class FactoryEnv(DirectRLEnv):
         fixed_tip_pos_local = torch.zeros_like(self.fixed_pos)
         fixed_tip_pos_local[:, 2] += self.cfg_task.fixed_asset_cfg.height
         fixed_tip_pos_local[:, 2] += self.cfg_task.fixed_asset_cfg.base_height
-        if self.cfg_task.name == "gear_meshing":
+        if self.cfg_task.name == "gear_mesh":
             fixed_tip_pos_local[:, 0] = self._get_target_gear_base_offset()[0]
 
         _, fixed_tip_pos = torch_utils.tf_combine(
@@ -767,7 +767,7 @@ class FactoryEnv(DirectRLEnv):
         self.step_sim_no_action()
 
         # Add flanking gears after servo (so arm doesn't move them).
-        if self.cfg_task.name == "gear_meshing" and self.cfg_task.add_flanking_gears:
+        if self.cfg_task.name == "gear_mesh" and self.cfg_task.add_flanking_gears:
             small_gear_state = self._small_gear_asset.data.default_root_state.clone()[env_ids]
             small_gear_state[:, 0:7] = fixed_state[:, 0:7]
             small_gear_state[:, 7:] = 0.0  # vel
@@ -803,7 +803,7 @@ class FactoryEnv(DirectRLEnv):
         # Add asset in hand randomization
         rand_sample = torch.rand((self.num_envs, 3), dtype=torch.float32, device=self.device)
         self.held_asset_pos_noise = 2 * (rand_sample - 0.5)  # [-1, 1]
-        if self.cfg_task.name == "gear_meshing":
+        if self.cfg_task.name == "gear_mesh":
             self.held_asset_pos_noise[:, 2] = -rand_sample[:, 2]  # [-1, 0]
 
         held_asset_pos_noise = torch.tensor(self.cfg_task.held_asset_pos_noise, device=self.device)

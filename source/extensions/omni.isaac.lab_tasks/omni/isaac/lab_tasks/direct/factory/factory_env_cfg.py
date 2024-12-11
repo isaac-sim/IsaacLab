@@ -12,7 +12,7 @@ from omni.isaac.lab.sim import PhysxCfg, SimulationCfg
 from omni.isaac.lab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
 from omni.isaac.lab.utils import configclass
 
-from .factory_tasks_cfg import ASSET_DIR, GearMeshing, NutThreading, PegInsertion
+from .factory_tasks_cfg import ASSET_DIR, FactoryTask, GearMesh, NutThread, PegInsert
 
 OBS_DIM_CFG = {
     "fingertip_pos": 3,
@@ -86,9 +86,8 @@ class FactoryEnvCfg(DirectRLEnvCfg):
         "fixed_quat",
     ]
 
-    task_name: str = "peg_insertion"  # peg_insertion, gear_meshing, nut_threading
-    tasks: dict = {"peg_insertion": PegInsertion(), "gear_meshing": GearMeshing(), "nut_threading": NutThreading()}
-    # task: FactoryTask = PegInsertion()  # PegInsertion, GearMeshing, NutThreading
+    task_name: str = "peg_insert"  # peg_insert, gear_mesh, nut_thread
+    task: FactoryTask = FactoryTask()
     obs_rand: ObsRandCfg = ObsRandCfg()
     ctrl: CtrlCfg = CtrlCfg()
 
@@ -184,3 +183,24 @@ class FactoryEnvCfg(DirectRLEnvCfg):
             ),
         },
     )
+
+
+@configclass
+class FactoryTaskPegInsertCfg(FactoryEnvCfg):
+    task_name = "peg_insert"
+    task = PegInsert()
+    episode_length_s = 10.0
+
+
+@configclass
+class FactoryTaskGearMeshCfg(FactoryEnvCfg):
+    task_name = "gear_mesh"
+    task = GearMesh()
+    episode_length_s = 20.0
+
+
+@configclass
+class FactoryTaskNutThreadCfg(FactoryEnvCfg):
+    task_name = "nut_thread"
+    task = NutThread()
+    episode_length_s = 30.0
