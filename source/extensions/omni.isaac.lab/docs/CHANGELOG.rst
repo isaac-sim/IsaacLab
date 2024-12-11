@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.27.25 (2024-12-09)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Added call to update articulation kinematics after reset to ensure states are updated for non-rendering sensors. Previously, some changes in reset such as modifying joint states would not be reflected in the rigid body states immediately after reset.
+
+
 0.27.24 (2024-12-09)
 ~~~~~~~~~~~~~~~~~~~~
 
