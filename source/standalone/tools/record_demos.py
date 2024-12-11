@@ -23,6 +23,7 @@ optional arguments:
 """Launch Isaac Sim Simulator first."""
 
 import argparse
+import os
 
 from omni.isaac.lab.app import AppLauncher
 
@@ -39,6 +40,9 @@ AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
 args_cli = parser.parse_args()
 
+if args_cli.teleop_device.lower() == "handtracking":
+    vars(args_cli)["experience"] = f'{os.environ["ISAACLAB_PATH"]}/source/apps/isaaclab.python.xr.openxr.kit'
+
 # launch the simulator
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
@@ -47,11 +51,10 @@ simulation_app = app_launcher.app
 
 import contextlib
 import gymnasium as gym
-import os
 import time
 import torch
 
-from omni.isaac.lab.devices import Se3Keyboard, Se3SpaceMouse
+from omni.isaac.lab.devices import Se3HandTracking, Se3Keyboard, Se3SpaceMouse
 from omni.isaac.lab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 
 import omni.isaac.lab_tasks  # noqa: F401
@@ -131,20 +134,27 @@ def main():
     # create environment
     env = gym.make(args_cli.task, cfg=env_cfg)
 
-    # create controller
-    if args_cli.teleop_device.lower() == "keyboard":
-        teleop_interface = Se3Keyboard(pos_sensitivity=0.2, rot_sensitivity=0.5)
-    elif args_cli.teleop_device.lower() == "spacemouse":
-        teleop_interface = Se3SpaceMouse(pos_sensitivity=0.2, rot_sensitivity=0.5)
-    else:
-        raise ValueError(f"Invalid device interface '{args_cli.teleop_device}'. Supported: 'keyboard', 'spacemouse'.")
-
     # add teleoperation key for reset current recording instance
     should_reset_recording_instance = False
 
     def reset_recording_instance():
         nonlocal should_reset_recording_instance
         should_reset_recording_instance = True
+
+    # create controller
+    if args_cli.teleop_device.lower() == "keyboard":
+        teleop_interface = Se3Keyboard(pos_sensitivity=0.2, rot_sensitivity=0.5)
+    elif args_cli.teleop_device.lower() == "spacemouse":
+        teleop_interface = Se3SpaceMouse(pos_sensitivity=0.2, rot_sensitivity=0.5)
+    elif args_cli.teleop_device.lower() == "handtracking":
+        from isaacsim.xr.openxr import OpenXRSpec
+
+        teleop_interface = Se3HandTracking(OpenXRSpec.XrHandEXT.XR_HAND_RIGHT_EXT, False, True)
+        teleop_interface.add_callback("RESET", reset_recording_instance)
+    else:
+        raise ValueError(
+            f"Invalid device interface '{args_cli.teleop_device}'. Supported: 'keyboard', 'spacemouse', 'handtracking'."
+        )
 
     teleop_interface.add_callback("R", reset_recording_instance)
     print(teleop_interface)

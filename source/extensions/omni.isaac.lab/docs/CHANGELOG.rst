@@ -163,7 +163,7 @@ Added
 * Added full buffer property to :class:`omni.isaac.lab.utils.buffers.circular_buffer.CircularBuffer`
 
 
-0.27.35 (2024-12-15)
+0.27.36 (2024-12-15)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -172,7 +172,7 @@ Added
 * Added action clip to all :class:`omni.isaac.lab.envs.mdp.actions`.
 
 
-0.27.34 (2024-12-14)
+0.27.35 (2024-12-14)
 ~~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -181,7 +181,7 @@ Changed
 * Added check for error below threshold in state machines to ensure the state has been reached.
 
 
-0.27.33 (2024-12-13)
+0.27.34 (2024-12-13)
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -190,7 +190,7 @@ Fixed
 * Fixed the shape of ``quat_w`` in the ``apply_actions`` method of :attr:`~omni.isaac.lab.env.mdp.NonHolonomicAction` (previously (N,B,4), now (N,4) since the number of root bodies B is required to be 1). Previously ``apply_actions`` errored because ``euler_xyz_from_quat`` requires inputs of shape (N,4).
 
 
-0.27.32 (2024-12-11)
+0.27.33 (2024-12-11)
 ~~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -201,7 +201,7 @@ Changed
 * Improved documentation to clarify the usage of the :meth:`~omni.isaac.lab.envs.mdp.rewards.base_height_l2` function in both flat and rough terrain settings.
 
 
-0.27.31 (2024-12-11)
+0.27.32 (2024-12-11)
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -209,6 +209,20 @@ Fixed
 
 * Modified :class:`omni.isaac.lab.envs.mdp.actions.DifferentialInverseKinematicsAction` class to use the geometric
   Jacobian computed w.r.t. to the root frame of the robot. This helps ensure that root pose does not affect the tracking.
+
+
+0.27.31 (2024-12-09)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Introduced configuration options in :class:`Se3HandTracking` to:
+  - Zero out rotation around the x/y axes
+  - Apply smoothing and thresholding to position and rotation deltas for reduced jitter
+  - Use wrist-based rotation reference as an alternative to fingertip-based rotation
+
+* Switched the default position reference in :class:`Se3HandTracking` to the wrist joint pose, providing more stable relative-based positioning.
 
 
 0.27.30 (2024-12-09)
