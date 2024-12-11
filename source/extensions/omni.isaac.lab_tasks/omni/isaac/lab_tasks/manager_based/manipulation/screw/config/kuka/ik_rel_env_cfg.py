@@ -365,7 +365,7 @@ class IKRelKukaNutThreadEnvCfg(BaseNutThreadEnvCfg):
         obs_params.hist_len = obs_params.get("hist_len", 1)
         obs_params.include_action = obs_params.get("include_action", True)
         obs_params.include_wrench = obs_params.get("include_wrench", True)
-        obs_params.wrench_target_body = obs_params.get("wrench_target_body", ["victor_left_arm_flange"])
+        obs_params.wrench_target_body = obs_params.get("wrench_target_body", "victor_left_tool0")
         obs_params.include_tool = obs_params.get("include_tool", False)
         obs_params.nut_pos = obs_params.get("nut_pos", OmegaConf.create())
         obs_params.nut_pos.noise_std = obs_params.nut_pos.get("noise_std", 0.0)
@@ -439,7 +439,9 @@ class IKRelKukaNutThreadEnvCfg(BaseNutThreadEnvCfg):
         # arm_lows = [-0.002, -0.002, -0.002, -0.01, -0.01, -0.5]
         # arm_highs = [0.002, 0.002, 0.002, 0.01, 0.01, 0.5]
         # scale = [0.002, 0.002, 0.002, 0.01, 0.01, 0.5]
-        
+        # arm_lows = [-0.01, -0.01, -0.01, -0.05, -0.05, -0.5]
+        # arm_highs = [0.01, 0.01, 0.01, 0.05, 0.05, 0.5]
+        # scale = [0.01, 0.01, 0.01, 0.05, 0.05, 0.5]
         arm_lows = [-0.004, -0.004, -0.004, -0.02, -0.02, -0.5]
         arm_highs = [0.004, 0.004, 0.004, 0.02, 0.02, 0.5]
         scale = [0.004, 0.004, 0.004, 0.02, 0.02, 0.5]
@@ -490,7 +492,6 @@ class IKRelKukaNutThreadEnvCfg(BaseNutThreadEnvCfg):
         if obs_params.include_wrench:
             self.observations.policy.wrist_wrench = ObsTerm(
                 func=mdp.body_incoming_wrench,
-                # params={"asset_cfg": SceneEntityCfg("robot", body_names=["victor_left_arm_flange"])},
                 params={"asset_cfg": SceneEntityCfg("robot", body_names=[obs_params.wrench_target_body])},
                 scale=1,
             )
