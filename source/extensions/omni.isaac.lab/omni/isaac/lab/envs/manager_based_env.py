@@ -319,6 +319,9 @@ class ManagerBasedEnv:
         # set the state
         self.scene.reset_to(state, env_ids, is_relative=is_relative)
 
+        # update articulation kinematics
+        self.sim.forward()
+
         # if sensors are added to the scene, make sure we render to reflect changes in reset
         if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
             self.sim.render()
