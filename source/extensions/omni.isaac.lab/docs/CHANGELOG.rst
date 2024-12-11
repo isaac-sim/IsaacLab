@@ -10,6 +10,16 @@ Changed
 * Added call to update articulation kinematics after reset to ensure states are updated for non-rendering sensors. Previously, some changes in reset such as modifying joint states would not be reflected in the rigid body states immediately after reset.
 
 
+0.27.24 (2024-12-09)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the initial state recorder term in :class:`omni.isaac.lab.envs.mdp.recorders.InitialStateRecorder` to
+  return only the states of the specified environment IDs.
+
+
 0.27.23 (2024-12-06)
 ~~~~~~~~~~~~~~~~~~~~
 
@@ -262,7 +272,6 @@ Added
   the class :class:`omni.isaac.lab.command_generators.NullCommandGenerator`.
 * Moved the ``meshes`` attribute in the :class:`omni.isaac.lab.sensors.RayCaster` class from class variable to instance variable.
   This prevents the meshes to overwrite each other.
->>>>>>> 9d6594b4b360d5c48e460d5886440affd2810563
 
 
 0.26.0 (2024-10-16)
