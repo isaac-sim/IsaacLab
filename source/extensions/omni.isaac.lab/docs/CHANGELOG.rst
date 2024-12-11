@@ -5,6 +5,7 @@ Changelog
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
+^^^^^
 
 * Fixed the initial state recorder term in :class:`omni.isaac.lab.envs.mdp.recorders.InitialStateRecorder` to
   return only the states of the specified environment IDs.
