@@ -113,5 +113,6 @@ params:
           before_mlp: True
           concat_input: True
           layer_norm: True
-  player:
-    deterministic: False
+
+    player:
+      deterministic: False
