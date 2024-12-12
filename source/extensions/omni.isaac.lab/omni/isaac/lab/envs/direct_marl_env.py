@@ -34,7 +34,7 @@ from .ui import ViewportCameraController
 from .utils.spaces import sample_space, spec_to_gym_space
 
 
-class DirectMARLEnv:
+class DirectMARLEnv(gym.Env):
     """The superclass for the direct workflow to design multi-agent environments.
 
     This class implements the core functionality for multi-agent reinforcement learning (MARL)
@@ -175,13 +175,13 @@ class DirectMARLEnv:
         # setup noise cfg for adding action and observation noise
         if self.cfg.action_noise_model:
             self._action_noise_model: dict[AgentID, NoiseModel] = {
-                agent: noise_model.class_type(self.num_envs, noise_model, self.device)
+                agent: noise_model.class_type(noise_model, num_envs=self.num_envs, device=self.device)
                 for agent, noise_model in self.cfg.action_noise_model.items()
                 if noise_model is not None
             }
         if self.cfg.observation_noise_model:
             self._observation_noise_model: dict[AgentID, NoiseModel] = {
-                agent: noise_model.class_type(self.num_envs, noise_model, self.device)
+                agent: noise_model.class_type(noise_model, num_envs=self.num_envs, device=self.device)
                 for agent, noise_model in self.cfg.observation_noise_model.items()
                 if noise_model is not None
             }

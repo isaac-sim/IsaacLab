@@ -297,14 +297,23 @@ class RayCasterCamera(RayCaster):
                 )
             )[:, :, 0]
             # apply the maximum distance after the transformation
-            distance_to_image_plane = torch.clip(distance_to_image_plane, max=self.cfg.max_distance)
+            if self.cfg.depth_clipping_behavior == "max":
+                distance_to_image_plane = torch.clip(distance_to_image_plane, max=self.cfg.max_distance)
+                distance_to_image_plane[torch.isnan(distance_to_image_plane)] = self.cfg.max_distance
+            elif self.cfg.depth_clipping_behavior == "zero":
+                distance_to_image_plane[distance_to_image_plane > self.cfg.max_distance] = 0.0
+                distance_to_image_plane[torch.isnan(distance_to_image_plane)] = 0.0
             self._data.output["distance_to_image_plane"][env_ids] = distance_to_image_plane.view(
                 -1, *self.image_shape, 1
             )
+
         if "distance_to_camera" in self.cfg.data_types:
-            self._data.output["distance_to_camera"][env_ids] = torch.clip(
-                ray_depth.view(-1, *self.image_shape, 1), max=self.cfg.max_distance
-            )
+            if self.cfg.depth_clipping_behavior == "max":
+                ray_depth = torch.clip(ray_depth, max=self.cfg.max_distance)
+            elif self.cfg.depth_clipping_behavior == "zero":
+                ray_depth[ray_depth > self.cfg.max_distance] = 0.0
+            self._data.output["distance_to_camera"][env_ids] = ray_depth.view(-1, *self.image_shape, 1)
+
         if "normals" in self.cfg.data_types:
             self._data.output["normals"][env_ids] = ray_normal.view(-1, *self.image_shape, 3)
 
