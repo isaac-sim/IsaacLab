@@ -161,7 +161,9 @@ The info ``idToLabels`` dictionary will be the mapping from color to USD prim pa
 Current Limitations
 -------------------
 
-For performance reasons, we default to using the "performance" DLSS mode for anti-aliasing.
+For performance reasons, we default to using DLSS for denoising, which generally provides better performance.
 This may result in renders of lower quality, which may be especially evident at lower resolutions.
-For higher quality rendering at a cost of performance, we recommend switching to the DLAA mode for anti-aliasing.
-Anti-aliasing modes and other rendering parameters can be specified in :class:`~sim.RenderCfg`.
+Due to this, we recommend using per-tile or per-camera resolution of at least 100 x 100.
+For renders at lower resolutions, we advice setting the ``antialiasing_mode`` attribute in :class:`~sim.RenderCfg` to
+``DLAA``, and also potentially enabling ``enable_dl_denoiser``. Both of these settings should help improve render
+quality, but also comes at a cost of performance. Additional rendering parameters can also be specified in :class:`~sim.RenderCfg`.

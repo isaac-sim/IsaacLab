@@ -36,7 +36,8 @@ class TestSimulationRenderConfig(unittest.TestCase):
         enable_global_illumination = True
         antialiasing_mode = "DLAA"
         enable_dlssg = True
-        dlss_mode = 3
+        enable_dl_denoiser = True
+        dlss_mode = 0
         enable_direct_lighting = True
         samples_per_pixel = 4
         enable_shadows = True
@@ -49,6 +50,7 @@ class TestSimulationRenderConfig(unittest.TestCase):
             antialiasing_mode=antialiasing_mode,
             enable_dlssg=enable_dlssg,
             dlss_mode=dlss_mode,
+            enable_dl_denoiser=enable_dl_denoiser,
             enable_direct_lighting=enable_direct_lighting,
             samples_per_pixel=samples_per_pixel,
             enable_shadows=enable_shadows,
@@ -65,6 +67,7 @@ class TestSimulationRenderConfig(unittest.TestCase):
         self.assertEqual(sim.cfg.render.antialiasing_mode, antialiasing_mode)
         self.assertEqual(sim.cfg.render.enable_dlssg, enable_dlssg)
         self.assertEqual(sim.cfg.render.dlss_mode, dlss_mode)
+        self.assertEqual(sim.cfg.render.enable_dl_denoiser, enable_dl_denoiser)
         self.assertEqual(sim.cfg.render.enable_direct_lighting, enable_direct_lighting)
         self.assertEqual(sim.cfg.render.samples_per_pixel, samples_per_pixel)
         self.assertEqual(sim.cfg.render.enable_shadows, enable_shadows)
@@ -76,7 +79,10 @@ class TestSimulationRenderConfig(unittest.TestCase):
         self.assertEqual(
             carb_settings_iface.get("/rtx/indirectDiffuse/enabled"), sim.cfg.render.enable_global_illumination
         )
-        self.assertEqual(carb_settings_iface.get("/rtx/transient/dlssg/enabled"), sim.cfg.render.enable_dlssg)
+        self.assertEqual(carb_settings_iface.get("/rtx-transient/dlssg/enabled"), sim.cfg.render.enable_dlssg)
+        self.assertEqual(
+            carb_settings_iface.get("/rtx-transient/dldenoiser/enabled"), sim.cfg.render.enable_dl_denoiser
+        )
         self.assertEqual(carb_settings_iface.get("/rtx/post/dlss/execMode"), sim.cfg.render.dlss_mode)
         self.assertEqual(carb_settings_iface.get("/rtx/directLighting/enabled"), sim.cfg.render.enable_direct_lighting)
         self.assertEqual(
@@ -96,7 +102,8 @@ class TestSimulationRenderConfig(unittest.TestCase):
         enable_global_illumination = False
         antialiasing_mode = "DLSS"
         enable_dlssg = False
-        dlss_mode = 0
+        enable_dl_denoiser = False
+        dlss_mode = 2
         enable_direct_lighting = False
         samples_per_pixel = 1
         enable_shadows = False
@@ -108,6 +115,7 @@ class TestSimulationRenderConfig(unittest.TestCase):
             enable_global_illumination=enable_global_illumination,
             antialiasing_mode=antialiasing_mode,
             enable_dlssg=enable_dlssg,
+            enable_dl_denoiser=enable_dl_denoiser,
             dlss_mode=dlss_mode,
             enable_direct_lighting=enable_direct_lighting,
             samples_per_pixel=samples_per_pixel,
@@ -124,6 +132,7 @@ class TestSimulationRenderConfig(unittest.TestCase):
         self.assertEqual(sim.cfg.render.enable_global_illumination, enable_global_illumination)
         self.assertEqual(sim.cfg.render.antialiasing_mode, antialiasing_mode)
         self.assertEqual(sim.cfg.render.enable_dlssg, enable_dlssg)
+        self.assertEqual(sim.cfg.render.enable_dl_denoiser, enable_dl_denoiser)
         self.assertEqual(sim.cfg.render.dlss_mode, dlss_mode)
         self.assertEqual(sim.cfg.render.enable_direct_lighting, enable_direct_lighting)
         self.assertEqual(sim.cfg.render.samples_per_pixel, samples_per_pixel)
@@ -136,7 +145,10 @@ class TestSimulationRenderConfig(unittest.TestCase):
         self.assertEqual(
             carb_settings_iface.get("/rtx/indirectDiffuse/enabled"), sim.cfg.render.enable_global_illumination
         )
-        self.assertEqual(carb_settings_iface.get("/rtx/transient/dlssg/enabled"), sim.cfg.render.enable_dlssg)
+        self.assertEqual(carb_settings_iface.get("/rtx-transient/dlssg/enabled"), sim.cfg.render.enable_dlssg)
+        self.assertEqual(
+            carb_settings_iface.get("/rtx-transient/dldenoiser/enabled"), sim.cfg.render.enable_dl_denoiser
+        )
         self.assertEqual(carb_settings_iface.get("/rtx/post/dlss/execMode"), sim.cfg.render.dlss_mode)
         self.assertEqual(carb_settings_iface.get("/rtx/directLighting/enabled"), sim.cfg.render.enable_direct_lighting)
         self.assertEqual(
