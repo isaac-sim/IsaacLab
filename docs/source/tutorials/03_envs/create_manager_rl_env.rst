@@ -36,7 +36,7 @@ For this tutorial, we use the cartpole environment defined in ``omni.isaac.lab_t
 
    .. literalinclude:: ../../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/classic/cartpole/cartpole_env_cfg.py
       :language: python
-      :emphasize-lines: 63-68, 124-149, 152-162, 165-169, 187-192
+      :emphasize-lines: 117-141, 144-154, 172-174
       :linenos:
 
 The script for running the environment ``run_cartpole_rl_env.py`` is present in the
@@ -117,13 +117,8 @@ For various goal-conditioned tasks, it is useful to specify the goals or command
 handled through the :class:`managers.CommandManager`. The command manager handles resampling and updating the
 commands at each step. It can also be used to provide the commands as an observation to the agent.
 
-For this simple task, we do not use any commands. This is specified by using a command term with the
-:class:`envs.mdp.NullCommandCfg` configuration. However, you can see an example of command definitions in the
-locomotion or manipulation tasks.
-
-.. literalinclude:: ../../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/classic/cartpole/cartpole_env_cfg.py
-   :language: python
-   :pyobject: CommandsCfg
+For this simple task, we do not use any commands. Hence, we leave this attribute as its default value, which is None.
+You can see an example of how to define a command manager in the other locomotion or manipulation tasks.
 
 Defining curriculum
 -------------------
@@ -134,11 +129,6 @@ we provide a :class:`managers.CurriculumManager` class that can be used to defin
 
 In this tutorial we don't implement a curriculum for simplicity, but you can see an example of a
 curriculum definition in the other locomotion or manipulation tasks.
-We use a simple pass-through curriculum to define a curriculum manager that does not modify the environment.
-
-.. literalinclude:: ../../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/classic/cartpole/cartpole_env_cfg.py
-   :language: python
-   :pyobject: CurriculumCfg
 
 Tying it all together
 ---------------------

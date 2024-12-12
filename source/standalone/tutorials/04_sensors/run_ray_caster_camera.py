@@ -129,24 +129,19 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
             # Extract camera data
             camera_index = 0
             # note: BasicWriter only supports saving data in numpy format, so we need to convert the data to numpy.
-            if sim.backend == "torch":
-                # tensordict allows easy indexing of tensors in the dictionary
-                single_cam_data = convert_dict_to_backend(camera.data.output[camera_index], backend="numpy")
-            else:
-                # for numpy, we need to manually index the data
-                single_cam_data = dict()
-                for key, value in camera.data.output.items():
-                    single_cam_data[key] = value[camera_index]
+            single_cam_data = convert_dict_to_backend(
+                {k: v[camera_index] for k, v in camera.data.output.items()}, backend="numpy"
+            )
             # Extract the other information
             single_cam_info = camera.data.info[camera_index]
 
             # Pack data back into replicator format to save them using its writer
-            rep_output = dict()
+            rep_output = {"annotators": {}}
             for key, data, info in zip(single_cam_data.keys(), single_cam_data.values(), single_cam_info.values()):
                 if info is not None:
-                    rep_output[key] = {"data": data, "info": info}
+                    rep_output["annotators"][key] = {"render_product": {"data": data, **info}}
                 else:
-                    rep_output[key] = data
+                    rep_output["annotators"][key] = {"render_product": {"data": data}}
             # Save images
             rep_output["trigger_outputs"] = {"on_time": camera.frame[camera_index]}
             rep_writer.write(rep_output)

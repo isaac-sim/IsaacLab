@@ -89,8 +89,8 @@ Elements in dictionaries are handled as a parameters in the hierarchy. For examp
 
 .. literalinclude:: ../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/classic/cartpole/cartpole_env_cfg.py
     :language: python
-    :lines: 99-111
-    :emphasize-lines: 10
+    :lines: 90-114
+    :emphasize-lines: 11
 
 the ``position_range`` parameter can be modified with ``env.events.reset_cart_position.params.position_range="[-2.0, 2.0]"``.
 This example shows two noteworthy points:
@@ -112,10 +112,10 @@ For example, for the configuration of the Cartpole camera depth environment:
     :language: python
     :start-at: class CartpoleDepthCameraEnvCfg
     :end-at: tiled_camera.width
-    :emphasize-lines: 16
+    :emphasize-lines: 10, 15
 
 If the user were to modify the width of the camera, i.e. ``env.tiled_camera.width=128``, then the parameter
-``env.num_observations=10240`` (1*80*128) must be updated and given as input as well.
+``env.observation_space=[80,128,1]`` must be updated and given as input as well.
 
 Similarly, the ``__post_init__`` method is not updated with the command line inputs. In the ``LocomotionVelocityRoughEnvCfg``, for example,
 the post init update is as follows:

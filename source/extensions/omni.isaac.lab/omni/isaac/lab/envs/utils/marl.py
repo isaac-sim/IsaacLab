@@ -9,9 +9,9 @@ import numpy as np
 import torch
 from typing import Any
 
-from .common import ActionType, AgentID, EnvStepReturn, ObsType, StateType, VecEnvObs, VecEnvStepReturn
-from .direct_marl_env import DirectMARLEnv
-from .direct_rl_env import DirectRLEnv
+from ..common import ActionType, AgentID, EnvStepReturn, ObsType, StateType, VecEnvObs, VecEnvStepReturn
+from ..direct_marl_env import DirectMARLEnv
+from ..direct_rl_env import DirectRLEnv
 
 
 def multi_agent_to_single_agent(env: DirectMARLEnv, state_as_observation: bool = False) -> DirectRLEnv:
@@ -39,7 +39,7 @@ def multi_agent_to_single_agent(env: DirectMARLEnv, state_as_observation: bool =
 
     Raises:
         AssertionError: If the environment state cannot be used as observation since it was explicitly defined
-            as unconstructed (:attr:`DirectMARLEnvCfg.num_states`).
+            as unconstructed (:attr:`DirectMARLEnvCfg.state_space`).
     """
 
     class Env(DirectRLEnv):
@@ -49,7 +49,7 @@ def multi_agent_to_single_agent(env: DirectMARLEnv, state_as_observation: bool =
             # check if it is possible to use the multi-agent environment state as single-agent observation
             self._state_as_observation = state_as_observation
             if self._state_as_observation:
-                assert self.env.cfg.num_states != 0, (
+                assert self.env.cfg.state_space != 0, (
                     "The environment state cannot be used as observation since it was explicitly defined as"
                     " unconstructed"
                 )
@@ -58,18 +58,17 @@ def multi_agent_to_single_agent(env: DirectMARLEnv, state_as_observation: bool =
             self.cfg = self.env.cfg
             self.sim = self.env.sim
             self.scene = self.env.scene
-            self.num_actions = sum(self.env.cfg.num_actions.values())
-            self.num_observations = sum(self.env.cfg.num_observations.values())
-            self.num_states = self.env.cfg.num_states
 
             self.single_observation_space = gym.spaces.Dict()
             if self._state_as_observation:
                 self.single_observation_space["policy"] = self.env.state_space
             else:
-                self.single_observation_space["policy"] = gym.spaces.Box(
-                    low=-np.inf, high=np.inf, shape=(self.num_observations,)
+                self.single_observation_space["policy"] = gym.spaces.flatten_space(
+                    gym.spaces.Tuple([self.env.observation_spaces[agent] for agent in self.env.possible_agents])
                 )
-            self.single_action_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(self.num_actions,))
+            self.single_action_space = gym.spaces.flatten_space(
+                gym.spaces.Tuple([self.env.action_spaces[agent] for agent in self.env.possible_agents])
+            )
 
             # batch the spaces for vectorized environments
             self.observation_space = gym.vector.utils.batch_space(
@@ -84,18 +83,25 @@ def multi_agent_to_single_agent(env: DirectMARLEnv, state_as_observation: bool =
             if self._state_as_observation:
                 obs = {"policy": self.env.state()}
             # concatenate agents' observations
+            # FIXME: This implementation assumes the spaces are fundamental ones. Fix it to support composite spaces
             else:
-                obs = {"policy": torch.cat([obs[agent] for agent in self.env.possible_agents], dim=-1)}
+                obs = {
+                    "policy": torch.cat(
+                        [obs[agent].reshape(self.num_envs, -1) for agent in self.env.possible_agents], dim=-1
+                    )
+                }
 
             return obs, extras
 
         def step(self, action: torch.Tensor) -> VecEnvStepReturn:
             # split single-agent actions to build the multi-agent ones
+            # FIXME: This implementation assumes the spaces are fundamental ones. Fix it to support composite spaces
             index = 0
             _actions = {}
             for agent in self.env.possible_agents:
-                _actions[agent] = action[:, index : index + self.env.cfg.num_actions[agent]]
-                index += self.env.cfg.num_actions[agent]
+                delta = gym.spaces.flatdim(self.env.action_spaces[agent])
+                _actions[agent] = action[:, index : index + delta]
+                index += delta
 
             # step the environment
             obs, rewards, terminated, time_outs, extras = self.env.step(_actions)
@@ -104,8 +110,13 @@ def multi_agent_to_single_agent(env: DirectMARLEnv, state_as_observation: bool =
             if self._state_as_observation:
                 obs = {"policy": self.env.state()}
             # concatenate agents' observations
+            # FIXME: This implementation assumes the spaces are fundamental ones. Fix it to support composite spaces
             else:
-                obs = {"policy": torch.cat([obs[agent] for agent in self.env.possible_agents], dim=-1)}
+                obs = {
+                    "policy": torch.cat(
+                        [obs[agent].reshape(self.num_envs, -1) for agent in self.env.possible_agents], dim=-1
+                    )
+                }
 
             # process environment outputs to return single-agent data
             rewards = sum(rewards.values())
@@ -147,7 +158,7 @@ def multi_agent_with_one_agent(env: DirectMARLEnv, state_as_observation: bool = 
 
     Raises:
         AssertionError: If the environment state cannot be used as observation since it was explicitly defined
-            as unconstructed (:attr:`DirectMARLEnvCfg.num_states`).
+            as unconstructed (:attr:`DirectMARLEnvCfg.state_space`).
     """
 
     class Env(DirectMARLEnv):
@@ -157,7 +168,7 @@ def multi_agent_with_one_agent(env: DirectMARLEnv, state_as_observation: bool = 
             # check if it is possible to use the multi-agent environment state as agent observation
             self._state_as_observation = state_as_observation
             if self._state_as_observation:
-                assert self.env.cfg.num_states != 0, (
+                assert self.env.cfg.state_space != 0, (
                     "The environment state cannot be used as observation since it was explicitly defined as"
                     " unconstructed"
                 )
@@ -170,13 +181,13 @@ def multi_agent_with_one_agent(env: DirectMARLEnv, state_as_observation: bool = 
                 self._exported_observation_spaces = {self._agent_id: self.env.state_space}
             else:
                 self._exported_observation_spaces = {
-                    self._agent_id: gym.spaces.Box(
-                        low=-np.inf, high=np.inf, shape=(sum(self.env.cfg.num_observations.values()),)
+                    self._agent_id: gym.spaces.flatten_space(
+                        gym.spaces.Tuple([self.env.observation_spaces[agent] for agent in self.env.possible_agents])
                     )
                 }
             self._exported_action_spaces = {
-                self._agent_id: gym.spaces.Box(
-                    low=-np.inf, high=np.inf, shape=(sum(self.env.cfg.num_actions.values()),)
+                self._agent_id: gym.spaces.flatten_space(
+                    gym.spaces.Tuple([self.env.action_spaces[agent] for agent in self.env.possible_agents])
                 )
             }
 
@@ -208,18 +219,25 @@ def multi_agent_with_one_agent(env: DirectMARLEnv, state_as_observation: bool = 
             if self._state_as_observation:
                 obs = {self._agent_id: self.env.state()}
             # concatenate agents' observations
+            # FIXME: This implementation assumes the spaces are fundamental ones. Fix it to support composite spaces
             else:
-                obs = {self._agent_id: torch.cat([obs[agent] for agent in self.env.possible_agents], dim=-1)}
+                obs = {
+                    self._agent_id: torch.cat(
+                        [obs[agent].reshape(self.num_envs, -1) for agent in self.env.possible_agents], dim=-1
+                    )
+                }
 
             return obs, extras
 
         def step(self, actions: dict[AgentID, ActionType]) -> EnvStepReturn:
             # split agent actions to build the multi-agent ones
+            # FIXME: This implementation assumes the spaces are fundamental ones. Fix it to support composite spaces
             index = 0
             _actions = {}
             for agent in self.env.possible_agents:
-                _actions[agent] = actions[self._agent_id][:, index : index + self.env.cfg.num_actions[agent]]
-                index += self.env.cfg.num_actions[agent]
+                delta = gym.spaces.flatdim(self.env.action_spaces[agent])
+                _actions[agent] = actions[self._agent_id][:, index : index + delta]
+                index += delta
 
             # step the environment
             obs, rewards, terminated, time_outs, extras = self.env.step(_actions)
@@ -228,8 +246,13 @@ def multi_agent_with_one_agent(env: DirectMARLEnv, state_as_observation: bool = 
             if self._state_as_observation:
                 obs = {self._agent_id: self.env.state()}
             # concatenate agents' observations
+            # FIXME: This implementation assumes the spaces are fundamental ones. Fix it to support composite spaces
             else:
-                obs = {self._agent_id: torch.cat([obs[agent] for agent in self.env.possible_agents], dim=-1)}
+                obs = {
+                    self._agent_id: torch.cat(
+                        [obs[agent].reshape(self.num_envs, -1) for agent in self.env.possible_agents], dim=-1
+                    )
+                }
 
             # process environment outputs to return agent data
             rewards = {self._agent_id: sum(rewards.values())}

@@ -111,13 +111,124 @@ class TestTiledCamera(unittest.TestCase):
             # update camera
             camera.update(self.dt)
             # check image data
-            for im_type, im_data in camera.data.output.to_dict().items():
+            for im_type, im_data in camera.data.output.items():
                 if im_type == "rgb":
                     self.assertEqual(im_data.shape, (1, self.camera_cfg.height, self.camera_cfg.width, 3))
                     self.assertGreater((im_data / 255.0).mean().item(), 0.0)
                 elif im_type == "depth":
                     self.assertEqual(im_data.shape, (1, self.camera_cfg.height, self.camera_cfg.width, 1))
                     self.assertGreater(im_data.mean().item(), 0.0)
+        del camera
+
+    def test_depth_clipping_max(self):
+        """Test depth max clipping."""
+        # get camera cfgs
+        camera_cfg = TiledCameraCfg(
+            prim_path="/World/Camera",
+            offset=TiledCameraCfg.OffsetCfg(pos=(2.5, 2.5, 6.0), rot=(-0.125, 0.362, 0.873, -0.302), convention="ros"),
+            spawn=sim_utils.PinholeCameraCfg().from_intrinsic_matrix(
+                focal_length=38.0,
+                intrinsic_matrix=[380.08, 0.0, 467.79, 0.0, 380.08, 262.05, 0.0, 0.0, 1.0],
+                height=540,
+                width=960,
+                clipping_range=(4.9, 5.0),
+            ),
+            height=540,
+            width=960,
+            data_types=["depth"],
+            depth_clipping_behavior="max",
+        )
+        camera = TiledCamera(camera_cfg)
+
+        # Play sim
+        self.sim.reset()
+
+        # note: This is a workaround to ensure that the textures are loaded.
+        #   Check "Known Issues" section in the documentation for more details.
+        for _ in range(5):
+            self.sim.step()
+
+        camera.update(self.dt)
+
+        self.assertTrue(len(camera.data.output["depth"][torch.isinf(camera.data.output["depth"])]) == 0)
+        self.assertTrue(camera.data.output["depth"].min() >= camera_cfg.spawn.clipping_range[0])
+        self.assertTrue(camera.data.output["depth"].max() <= camera_cfg.spawn.clipping_range[1])
+
+        del camera
+
+    def test_depth_clipping_none(self):
+        """Test depth none clipping."""
+        # get camera cfgs
+        camera_cfg = TiledCameraCfg(
+            prim_path="/World/Camera",
+            offset=TiledCameraCfg.OffsetCfg(pos=(2.5, 2.5, 6.0), rot=(-0.125, 0.362, 0.873, -0.302), convention="ros"),
+            spawn=sim_utils.PinholeCameraCfg().from_intrinsic_matrix(
+                focal_length=38.0,
+                intrinsic_matrix=[380.08, 0.0, 467.79, 0.0, 380.08, 262.05, 0.0, 0.0, 1.0],
+                height=540,
+                width=960,
+                clipping_range=(4.9, 5.0),
+            ),
+            height=540,
+            width=960,
+            data_types=["depth"],
+            depth_clipping_behavior="none",
+        )
+        camera = TiledCamera(camera_cfg)
+
+        # Play sim
+        self.sim.reset()
+
+        # note: This is a workaround to ensure that the textures are loaded.
+        #   Check "Known Issues" section in the documentation for more details.
+        for _ in range(5):
+            self.sim.step()
+
+        camera.update(self.dt)
+
+        self.assertTrue(len(camera.data.output["depth"][torch.isinf(camera.data.output["depth"])]) > 0)
+        self.assertTrue(camera.data.output["depth"].min() >= camera_cfg.spawn.clipping_range[0])
+        self.assertTrue(
+            camera.data.output["depth"][~torch.isinf(camera.data.output["depth"])].max()
+            <= camera_cfg.spawn.clipping_range[1]
+        )
+
+        del camera
+
+    def test_depth_clipping_zero(self):
+        """Test depth zero clipping."""
+        # get camera cfgs
+        camera_cfg = TiledCameraCfg(
+            prim_path="/World/Camera",
+            offset=TiledCameraCfg.OffsetCfg(pos=(2.5, 2.5, 6.0), rot=(-0.125, 0.362, 0.873, -0.302), convention="ros"),
+            spawn=sim_utils.PinholeCameraCfg().from_intrinsic_matrix(
+                focal_length=38.0,
+                intrinsic_matrix=[380.08, 0.0, 467.79, 0.0, 380.08, 262.05, 0.0, 0.0, 1.0],
+                height=540,
+                width=960,
+                clipping_range=(4.9, 5.0),
+            ),
+            height=540,
+            width=960,
+            data_types=["depth"],
+            depth_clipping_behavior="zero",
+        )
+        camera = TiledCamera(camera_cfg)
+
+        # Play sim
+        self.sim.reset()
+
+        # note: This is a workaround to ensure that the textures are loaded.
+        #   Check "Known Issues" section in the documentation for more details.
+        for _ in range(5):
+            self.sim.step()
+
+        camera.update(self.dt)
+
+        self.assertTrue(len(camera.data.output["depth"][torch.isinf(camera.data.output["depth"])]) == 0)
+        self.assertTrue(camera.data.output["depth"].min() == 0.0)
+        self.assertTrue(camera.data.output["depth"].max() <= camera_cfg.spawn.clipping_range[1])
+
         del camera
 
     def test_multi_camera_init(self):
@@ -162,7 +273,7 @@ class TestTiledCamera(unittest.TestCase):
             # update camera
             camera.update(self.dt)
             # check image data
-            for im_type, im_data in camera.data.output.to_dict().items():
+            for im_type, im_data in camera.data.output.items():
                 if im_type == "rgb":
                     self.assertEqual(im_data.shape, (num_cameras, self.camera_cfg.height, self.camera_cfg.width, 3))
                     for i in range(4):
@@ -347,7 +458,7 @@ class TestTiledCamera(unittest.TestCase):
             # update camera
             camera.update(self.dt)
             # check image data
-            for _, im_data in camera.data.output.to_dict().items():
+            for _, im_data in camera.data.output.items():
                 self.assertEqual(im_data.shape, (num_cameras, self.camera_cfg.height, self.camera_cfg.width, 4))
                 for i in range(4):
                     self.assertGreater((im_data[i] / 255.0).mean().item(), 0.0)
@@ -399,7 +510,7 @@ class TestTiledCamera(unittest.TestCase):
             # update camera
             camera.update(self.dt)
             # check image data
-            for _, im_data in camera.data.output.to_dict().items():
+            for _, im_data in camera.data.output.items():
                 self.assertEqual(im_data.shape, (num_cameras, self.camera_cfg.height, self.camera_cfg.width, 1))
                 for i in range(4):
                     self.assertGreater((im_data[i]).mean().item(), 0.0)
@@ -451,7 +562,7 @@ class TestTiledCamera(unittest.TestCase):
             # update camera
             camera.update(self.dt)
             # check image data
-            for _, im_data in camera.data.output.to_dict().items():
+            for _, im_data in camera.data.output.items():
                 self.assertEqual(im_data.shape, (num_cameras, self.camera_cfg.height, self.camera_cfg.width, 1))
                 for i in range(4):
                     self.assertGreater((im_data[i]).mean().item(), 0.0)
@@ -503,7 +614,7 @@ class TestTiledCamera(unittest.TestCase):
             # update camera
             camera.update(self.dt)
             # check image data
-            for _, im_data in camera.data.output.to_dict().items():
+            for _, im_data in camera.data.output.items():
                 self.assertEqual(im_data.shape, (num_cameras, self.camera_cfg.height, self.camera_cfg.width, 3))
                 for i in range(4):
                     self.assertGreater((im_data[i]).mean().item(), 0.0)
@@ -555,7 +666,7 @@ class TestTiledCamera(unittest.TestCase):
             # update camera
             camera.update(self.dt)
             # check image data
-            for _, im_data in camera.data.output.to_dict().items():
+            for _, im_data in camera.data.output.items():
                 self.assertEqual(im_data.shape, (num_cameras, self.camera_cfg.height, self.camera_cfg.width, 2))
                 for i in range(4):
                     self.assertGreater((im_data[i]).mean().item(), 0.0)
@@ -607,7 +718,7 @@ class TestTiledCamera(unittest.TestCase):
             # update camera
             camera.update(self.dt)
             # check image data
-            for _, im_data in camera.data.output.to_dict().items():
+            for _, im_data in camera.data.output.items():
                 self.assertEqual(im_data.shape, (num_cameras, self.camera_cfg.height, self.camera_cfg.width, 4))
                 for i in range(4):
                     self.assertGreater((im_data[i] / 255.0).mean().item(), 0.0)
@@ -660,7 +771,7 @@ class TestTiledCamera(unittest.TestCase):
             # update camera
             camera.update(self.dt)
             # check image data
-            for _, im_data in camera.data.output.to_dict().items():
+            for _, im_data in camera.data.output.items():
                 self.assertEqual(im_data.shape, (num_cameras, self.camera_cfg.height, self.camera_cfg.width, 4))
                 for i in range(num_cameras):
                     self.assertGreater((im_data[i] / 255.0).mean().item(), 0.0)
@@ -713,7 +824,7 @@ class TestTiledCamera(unittest.TestCase):
             # update camera
             camera.update(self.dt)
             # check image data
-            for _, im_data in camera.data.output.to_dict().items():
+            for _, im_data in camera.data.output.items():
                 self.assertEqual(im_data.shape, (num_cameras, self.camera_cfg.height, self.camera_cfg.width, 4))
                 for i in range(num_cameras):
                     self.assertGreater((im_data[i] / 255.0).mean().item(), 0.0)
@@ -767,7 +878,7 @@ class TestTiledCamera(unittest.TestCase):
             # update camera
             camera.update(self.dt)
             # check image data
-            for _, im_data in camera.data.output.to_dict().items():
+            for _, im_data in camera.data.output.items():
                 self.assertEqual(im_data.shape, (num_cameras, self.camera_cfg.height, self.camera_cfg.width, 1))
                 for i in range(num_cameras):
                     self.assertGreater(im_data[i].to(dtype=float).mean().item(), 0.0)
@@ -822,7 +933,7 @@ class TestTiledCamera(unittest.TestCase):
             # update camera
             camera.update(self.dt)
             # check image data
-            for _, im_data in camera.data.output.to_dict().items():
+            for _, im_data in camera.data.output.items():
                 self.assertEqual(im_data.shape, (num_cameras, self.camera_cfg.height, self.camera_cfg.width, 1))
                 for i in range(num_cameras):
                     self.assertGreater(im_data[i].to(dtype=float).mean().item(), 0.0)
@@ -876,7 +987,7 @@ class TestTiledCamera(unittest.TestCase):
             # update camera
             camera.update(self.dt)
             # check image data
-            for _, im_data in camera.data.output.to_dict().items():
+            for _, im_data in camera.data.output.items():
                 self.assertEqual(im_data.shape, (num_cameras, self.camera_cfg.height, self.camera_cfg.width, 1))
                 for i in range(num_cameras):
                     self.assertGreater(im_data[i].to(dtype=float).mean().item(), 0.0)
@@ -941,7 +1052,7 @@ class TestTiledCamera(unittest.TestCase):
             # update camera
             camera.update(self.dt)
             # check image data
-            for data_type, im_data in camera.data.output.to_dict().items():
+            for data_type, im_data in camera.data.output.items():
                 if data_type in ["rgb", "normals"]:
                     self.assertEqual(im_data.shape, (num_cameras, self.camera_cfg.height, self.camera_cfg.width, 3))
                 elif data_type in [
@@ -1039,7 +1150,7 @@ class TestTiledCamera(unittest.TestCase):
             # update camera
             camera.update(self.dt)
             # check image data
-            for data_type, im_data in camera.data.output.to_dict().items():
+            for data_type, im_data in camera.data.output.items():
                 if data_type in ["rgb", "normals"]:
                     self.assertEqual(im_data.shape, (num_cameras, camera_cfg.height, camera_cfg.width, 3))
                 elif data_type in [
@@ -1135,7 +1246,7 @@ class TestTiledCamera(unittest.TestCase):
             # update camera
             camera.update(self.dt)
             # check image data
-            for data_type, im_data in camera.data.output.to_dict().items():
+            for data_type, im_data in camera.data.output.items():
                 if data_type in ["rgb", "normals"]:
                     self.assertEqual(im_data.shape, (num_cameras, self.camera_cfg.height, self.camera_cfg.width, 3))
                 elif data_type in [
@@ -1201,7 +1312,7 @@ class TestTiledCamera(unittest.TestCase):
             with Timer(f"Time taken for updating camera with shape {camera.image_shape}"):
                 camera.update(self.dt)
             # Check image data
-            for im_type, im_data in camera.data.output.to_dict().items():
+            for im_type, im_data in camera.data.output.items():
                 if im_type == "rgb":
                     self.assertEqual(im_data.shape, (1, camera_cfg.height, camera_cfg.width, 3))
                     self.assertGreater((im_data / 255.0).mean().item(), 0.0)
@@ -1303,6 +1414,15 @@ class TestTiledCamera(unittest.TestCase):
 
         del camera_tiled
         del camera_usd
+
+    def test_sensor_print(self):
+        """Test sensor print is working correctly."""
+        # Create sensor
+        sensor = TiledCamera(cfg=self.camera_cfg)
+        # Play sim
+        self.sim.reset()
+        # print info
+        print(sensor)
 
     """
     Helper functions.

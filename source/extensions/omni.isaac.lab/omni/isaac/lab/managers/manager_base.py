@@ -11,7 +11,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
-import carb
+import omni.log
 
 import omni.isaac.lab.utils.string as string_utils
 from omni.isaac.lab.utils import string_to_callable
@@ -120,14 +120,15 @@ class ManagerBase(ABC):
         """Initialize the manager.
 
         Args:
-            cfg: The configuration object.
+            cfg: The configuration object. If None, the manager is initialized without any terms.
             env: The environment instance.
         """
         # store the inputs
         self.cfg = copy.deepcopy(cfg)
         self._env = env
         # parse config to create terms information
-        self._prepare_terms()
+        if self.cfg:
+            self._prepare_terms()
 
     """
     Properties.
@@ -251,7 +252,7 @@ class ManagerBase(ABC):
                 if value.body_ids is not None:
                     msg += f"\n\tBody names: {value.body_names} [{value.body_ids}]"
                 # print the information
-                carb.log_info(msg)
+                omni.log.info(msg)
             # store the entity
             term_cfg.params[key] = value
 

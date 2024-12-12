@@ -10,7 +10,7 @@ from omni.isaac.lab.sim import SimulationCfg
 from omni.isaac.lab.utils import configclass
 from omni.isaac.lab.utils.noise import NoiseModelCfg
 
-from .common import ViewerCfg
+from .common import SpaceType, ViewerCfg
 from .ui import BaseEnvWindow
 
 
@@ -98,19 +98,74 @@ class DirectRLEnvCfg:
     Please refer to the :class:`omni.isaac.lab.scene.InteractiveSceneCfg` class for more details.
     """
 
-    events: object = None
+    events: object | None = None
     """Event settings. Defaults to None, in which case no events are applied through the event manager.
 
     Please refer to the :class:`omni.isaac.lab.managers.EventManager` class for more details.
     """
 
-    num_observations: int = MISSING
-    """The dimension of the observation space from each environment instance."""
+    observation_space: SpaceType = MISSING
+    """Observation space definition.
 
-    num_states: int = 0
-    """The dimension of the state-space from each environment instance. Default is 0, which means no state-space is defined.
+    The space can be defined either using Gymnasium :py:mod:`~gymnasium.spaces` (when a more detailed
+    specification of the space is desired) or basic Python data types (for simplicity).
+
+    .. list-table::
+        :header-rows: 1
+
+        * - Gymnasium space
+          - Python data type
+        * - :class:`~gymnasium.spaces.Box`
+          - Integer or list of integers (e.g.: ``7``, ``[64, 64, 3]``)
+        * - :class:`~gymnasium.spaces.Discrete`
+          - Single-element set (e.g.: ``{2}``)
+        * - :class:`~gymnasium.spaces.MultiDiscrete`
+          - List of single-element sets (e.g.: ``[{2}, {5}]``)
+        * - :class:`~gymnasium.spaces.Dict`
+          - Dictionary (e.g.: ``{"joints": 7, "rgb": [64, 64, 3], "gripper": {2}}``)
+        * - :class:`~gymnasium.spaces.Tuple`
+          - Tuple (e.g.: ``(7, [64, 64, 3], {2})``)
+    """
+
+    num_observations: int | None = None
+    """The dimension of the observation space from each environment instance.
+
+    .. warning::
+
+        This attribute is deprecated. Use :attr:`~omni.isaac.lab.envs.DirectRLEnvCfg.observation_space` instead.
+    """
+
+    state_space: SpaceType | None = None
+    """State space definition.
 
     This is useful for asymmetric actor-critic and defines the observation space for the critic.
+
+    The space can be defined either using Gymnasium :py:mod:`~gymnasium.spaces` (when a more detailed
+    specification of the space is desired) or basic Python data types (for simplicity).
+
+    .. list-table::
+        :header-rows: 1
+
+        * - Gymnasium space
+          - Python data type
+        * - :class:`~gymnasium.spaces.Box`
+          - Integer or list of integers (e.g.: ``7``, ``[64, 64, 3]``)
+        * - :class:`~gymnasium.spaces.Discrete`
+          - Single-element set (e.g.: ``{2}``)
+        * - :class:`~gymnasium.spaces.MultiDiscrete`
+          - List of single-element sets (e.g.: ``[{2}, {5}]``)
+        * - :class:`~gymnasium.spaces.Dict`
+          - Dictionary (e.g.: ``{"joints": 7, "rgb": [64, 64, 3], "gripper": {2}}``)
+        * - :class:`~gymnasium.spaces.Tuple`
+          - Tuple (e.g.: ``(7, [64, 64, 3], {2})``)
+    """
+
+    num_states: int | None = None
+    """The dimension of the state-space from each environment instance.
+
+    .. warning::
+
+        This attribute is deprecated. Use :attr:`~omni.isaac.lab.envs.DirectRLEnvCfg.state_space` instead.
     """
 
     observation_noise_model: NoiseModelCfg | None = None
@@ -119,8 +174,36 @@ class DirectRLEnvCfg:
     Please refer to the :class:`omni.isaac.lab.utils.noise.NoiseModel` class for more details.
     """
 
-    num_actions: int = MISSING
-    """The dimension of the action space for each environment."""
+    action_space: SpaceType = MISSING
+    """Action space definition.
+
+    The space can be defined either using Gymnasium :py:mod:`~gymnasium.spaces` (when a more detailed
+    specification of the space is desired) or basic Python data types (for simplicity).
+
+    .. list-table::
+        :header-rows: 1
+
+        * - Gymnasium space
+          - Python data type
+        * - :class:`~gymnasium.spaces.Box`
+          - Integer or list of integers (e.g.: ``7``, ``[64, 64, 3]``)
+        * - :class:`~gymnasium.spaces.Discrete`
+          - Single-element set (e.g.: ``{2}``)
+        * - :class:`~gymnasium.spaces.MultiDiscrete`
+          - List of single-element sets (e.g.: ``[{2}, {5}]``)
+        * - :class:`~gymnasium.spaces.Dict`
+          - Dictionary (e.g.: ``{"joints": 7, "rgb": [64, 64, 3], "gripper": {2}}``)
+        * - :class:`~gymnasium.spaces.Tuple`
+          - Tuple (e.g.: ``(7, [64, 64, 3], {2})``)
+    """
+
+    num_actions: int | None = None
+    """The dimension of the action space for each environment.
+
+    .. warning::
+
+        This attribute is deprecated. Use :attr:`~omni.isaac.lab.envs.DirectRLEnvCfg.action_space` instead.
+    """
 
     action_noise_model: NoiseModelCfg | None = None
     """The noise model applied to the actions provided to the environment. Default is None, which means no noise is added.

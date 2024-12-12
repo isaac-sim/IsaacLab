@@ -15,7 +15,7 @@ import os
 import torch
 from collections.abc import Iterable
 
-import carb
+import omni.log
 
 
 class RobomimicDataCollector:
@@ -148,10 +148,10 @@ class RobomimicDataCollector:
         """
         # check if data should be recorded
         if self._is_first_interaction:
-            carb.log_warn("Please call reset before adding new data. Calling reset...")
+            omni.log.warn("Please call reset before adding new data. Calling reset...")
             self.reset()
         if self._is_stop:
-            carb.log_warn(f"Desired number of demonstrations collected: {self._demo_count} >= {self._num_demos}.")
+            omni.log.warn(f"Desired number of demonstrations collected: {self._demo_count} >= {self._num_demos}.")
             return
         # check datatype
         if isinstance(value, torch.Tensor):
@@ -192,7 +192,7 @@ class RobomimicDataCollector:
         """
         # check that data is being recorded
         if self._h5_file_stream is None or self._h5_data_group is None:
-            carb.log_error("No file stream has been opened. Please call reset before flushing data.")
+            omni.log.error("No file stream has been opened. Please call reset before flushing data.")
             return
 
         # iterate over each environment and add their data
