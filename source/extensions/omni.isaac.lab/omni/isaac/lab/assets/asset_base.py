@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any
 
 import omni.kit.app
 import omni.timeline
+import omni.isaac.core.utils.prims as prim_utils
 
 import omni.isaac.lab.sim as sim_utils
 
@@ -160,6 +161,15 @@ class AssetBase(ABC):
     """
     Operations.
     """
+
+    def set_visibility(self, visible: bool):
+        """Set the visibility of the prims corresponding to the asset.
+
+        Args:
+            visible: Whether to make the prims visible or not.
+        """
+        for prim in sim_utils.find_matching_prims(self.cfg.prim_path):
+            prim_utils.set_prim_visibility(prim, visible)
 
     def set_debug_vis(self, debug_vis: bool) -> bool:
         """Sets whether to visualize the asset data.
