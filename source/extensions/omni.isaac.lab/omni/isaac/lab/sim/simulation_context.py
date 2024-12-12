@@ -158,7 +158,8 @@ class SimulationContext(_SimulationContext):
         carb_settings_iface.set_bool("/rtx/translucency/enabled", self.cfg.render.enable_translucency)
         carb_settings_iface.set_bool("/rtx/reflections/enabled", self.cfg.render.enable_reflections)
         carb_settings_iface.set_bool("/rtx/indirectDiffuse/enabled", self.cfg.render.enable_global_illumination)
-        carb_settings_iface.set_bool("/rtx/transient/dlssg/enabled", self.cfg.render.enable_dlssg)
+        carb_settings_iface.set_bool("/rtx-transient/dlssg/enabled", self.cfg.render.enable_dlssg)
+        carb_settings_iface.set_bool("/rtx-transient/dldenoiser/enabled", self.cfg.render.enable_dl_denoiser)
         carb_settings_iface.set_int("/rtx/post/dlss/execMode", self.cfg.render.dlss_mode)
         carb_settings_iface.set_bool("/rtx/directLighting/enabled", self.cfg.render.enable_direct_lighting)
         carb_settings_iface.set_int(

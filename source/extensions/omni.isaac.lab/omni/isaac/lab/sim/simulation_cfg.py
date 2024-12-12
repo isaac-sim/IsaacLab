@@ -172,7 +172,11 @@ class RenderCfg:
     """Enables Diffused Global Illumination at the cost of some performance. Default is False."""
 
     antialiasing_mode: Literal["Off", "FXAA", "DLSS", "TAA", "DLAA"] = "DLSS"
-    """Selects the anti-aliasing mode to use. Defaults to DLSS."""
+    """Selects the anti-aliasing mode to use. Defaults to DLSS.
+       - DLSS: Boosts performance by using AI to output higher resolution frames from a lower resolution input.
+               DLSS samples multiple lower resolution images and uses motion data and feedback from prior frames to reconstruct native quality images.
+       - DLAA: Provides higher image quality with an AI-based anti-aliasing technique.
+               DLAA uses the same Super Resolution technology developed for DLSS, reconstructing a native resolution image to maximize image quality."""
 
     enable_dlssg: bool = False
     """"Enables the use of DLSS-G.
@@ -181,6 +185,11 @@ class RenderCfg:
         This feature requires an Ada Lovelace architecture GPU.
         Enabling this feature also enables additional thread-related activities, which can hurt performance.
         Default is False."""
+
+    enable_dl_denoiser: bool = False
+    """Enables the use of a DL denoiser.
+       The DL denoiser can help improve the quality of renders, but comes at a cost of performance.
+    """
 
     dlss_mode: Literal[0, 1, 2, 3] = 0
     """For DLSS anti-aliasing, selects the performance/quality tradeoff mode.
