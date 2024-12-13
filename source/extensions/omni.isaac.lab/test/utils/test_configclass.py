@@ -19,6 +19,7 @@ simulation_app = app_launcher.app
 
 import copy
 import os
+import torch
 import unittest
 from collections.abc import Callable
 from dataclasses import MISSING, asdict, field
@@ -132,6 +133,14 @@ class BasicDemoPostInitCfg:
     def __post_init__(self):
         self.device_id = 1
         self.add_variable = 3
+
+
+@configclass
+class BasicDemoTorchCfg:
+    """Dummy configuration class with a torch tensor ."""
+
+    some_number: int = 0
+    some_tensor: torch.Tensor = torch.Tensor([1, 2, 3])
 
 
 """
@@ -514,6 +523,12 @@ class TestConfigClass(unittest.TestCase):
         # internal function
         self.assertDictEqual(cfg.to_dict(), basic_demo_cfg_correct)
         self.assertDictEqual(cfg.env.to_dict(), basic_demo_cfg_correct["env"])
+
+        torch_cfg = BasicDemoTorchCfg()
+        torch_cfg_dict = torch_cfg.to_dict()
+        # We have to do a manual check because torch.Tensor does not work with assertDictEqual.
+        self.assertEqual(torch_cfg_dict["some_number"], 0)
+        self.assertTrue(torch.all(torch_cfg_dict["some_tensor"] == torch.tensor([1, 2, 3])))
 
     def test_dict_conversion_order(self):
         """Tests that order is conserved when converting to dictionary."""
