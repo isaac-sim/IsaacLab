@@ -14,7 +14,7 @@ the general workflow is the same.
 
 .. attention::
 
-  This functionality is experimental.
+  This functionality is experimental, and has been tested only on Linux.
 
 .. contents:: Table of Contents
   :depth: 3
@@ -106,10 +106,12 @@ be installed via the `Kubernetes website <https://kubernetes.io/docs/tasks/tools
 The pythonic dependencies can be installed with:
 
 .. code-block:: bash
-
-  ./isaaclab.sh -p -m pip install 'ray[default, tune]==2.31.0'
+  # For multi-run support and resource isolation
+  ./isaaclab.sh -p -m pip install ray[default]==2.31.0
+  # For hyperparameter tuning
+  ./isaaclab.sh -p -m pip install ray[tuning]==2.31.0
   ./isaaclab.sh -p -m pip install optuna bayesian-optimization
-  # MLFlow is needed for fetching logs on clusters
+  # MLFlow is needed only for fetching logs on clusters, not needed for local
   ./isaaclab.sh -p -m pip install mlflow
 
 If using KubeRay clusters on Google GKE with the batteries-included cluster launch file,
