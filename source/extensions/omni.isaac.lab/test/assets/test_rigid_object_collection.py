@@ -97,283 +97,283 @@ class TestRigidObjectCollection(unittest.TestCase):
     Tests
     """
 
-    # def test_initialization(self):
-    #     """Test initialization for prim with rigid body API at the provided prim path."""
-    #     for num_envs in (1, 2):
-    #         for num_cubes in (1, 3):
-    #             for device in ("cuda:0", "cpu"):
-    #                 with self.subTest(num_envs=num_envs, num_cubes=num_cubes, device=device):
-    #                     with build_simulation_context(device=device, auto_add_lighting=True) as sim:
-    #                         # Generate cubes scene
-    #                         object_collection, _ = generate_cubes_scene(
-    #                             num_envs=num_envs, num_cubes=num_cubes, device=device
-    #                         )
+    def test_initialization(self):
+        """Test initialization for prim with rigid body API at the provided prim path."""
+        for num_envs in (1, 2):
+            for num_cubes in (1, 3):
+                for device in ("cuda:0", "cpu"):
+                    with self.subTest(num_envs=num_envs, num_cubes=num_cubes, device=device):
+                        with build_simulation_context(device=device, auto_add_lighting=True) as sim:
+                            # Generate cubes scene
+                            object_collection, _ = generate_cubes_scene(
+                                num_envs=num_envs, num_cubes=num_cubes, device=device
+                            )
 
-    #                         # Check that boundedness of rigid object is correct
-    #                         self.assertEqual(ctypes.c_long.from_address(id(object_collection)).value, 1)
+                            # Check that boundedness of rigid object is correct
+                            self.assertEqual(ctypes.c_long.from_address(id(object_collection)).value, 1)
 
-    #                         # Play sim
-    #                         sim.reset()
+                            # Play sim
+                            sim.reset()
 
-    #                         # Check if object is initialized
-    #                         self.assertTrue(object_collection.is_initialized)
-    #                         self.assertEqual(len(object_collection.object_names), num_cubes)
+                            # Check if object is initialized
+                            self.assertTrue(object_collection.is_initialized)
+                            self.assertEqual(len(object_collection.object_names), num_cubes)
 
-    #                         # Check buffers that exists and have correct shapes
-    #                         self.assertEqual(object_collection.data.object_link_pos_w.shape, (num_envs, num_cubes, 3))
-    #                         self.assertEqual(object_collection.data.object_link_quat_w.shape, (num_envs, num_cubes, 4))
-    #                         self.assertEqual(object_collection.data.default_mass.shape, (num_envs, num_cubes, 1))
-    #                         self.assertEqual(object_collection.data.default_inertia.shape, (num_envs, num_cubes, 9))
+                            # Check buffers that exists and have correct shapes
+                            self.assertEqual(object_collection.data.object_link_pos_w.shape, (num_envs, num_cubes, 3))
+                            self.assertEqual(object_collection.data.object_link_quat_w.shape, (num_envs, num_cubes, 4))
+                            self.assertEqual(object_collection.data.default_mass.shape, (num_envs, num_cubes, 1))
+                            self.assertEqual(object_collection.data.default_inertia.shape, (num_envs, num_cubes, 9))
 
-    #                         # Simulate physics
-    #                         for _ in range(2):
-    #                             # perform rendering
-    #                             sim.step()
-    #                             # update object
-    #                             object_collection.update(sim.cfg.dt)
+                            # Simulate physics
+                            for _ in range(2):
+                                # perform rendering
+                                sim.step()
+                                # update object
+                                object_collection.update(sim.cfg.dt)
 
-    # def test_id_conversion(self):
-    #     """Test environment and object index conversion to physics view indices."""
-    #     for device in ("cuda:0", "cpu"):
-    #         with self.subTest(num_envs=2, num_cubes=3, device=device):
-    #             with build_simulation_context(device=device, auto_add_lighting=True) as sim:
-    #                 # Generate cubes scene
-    #                 object_collection, _ = generate_cubes_scene(num_envs=2, num_cubes=3, device=device)
+    def test_id_conversion(self):
+        """Test environment and object index conversion to physics view indices."""
+        for device in ("cuda:0", "cpu"):
+            with self.subTest(num_envs=2, num_cubes=3, device=device):
+                with build_simulation_context(device=device, auto_add_lighting=True) as sim:
+                    # Generate cubes scene
+                    object_collection, _ = generate_cubes_scene(num_envs=2, num_cubes=3, device=device)
 
-    #                 # Play sim
-    #                 sim.reset()
+                    # Play sim
+                    sim.reset()
 
-    #                 expected = [
-    #                     torch.tensor([4, 5], device=device, dtype=torch.long),
-    #                     torch.tensor([4], device=device, dtype=torch.long),
-    #                     torch.tensor([0, 2, 4], device=device, dtype=torch.long),
-    #                     torch.tensor([1, 3, 5], device=device, dtype=torch.long),
-    #                 ]
+                    expected = [
+                        torch.tensor([4, 5], device=device, dtype=torch.long),
+                        torch.tensor([4], device=device, dtype=torch.long),
+                        torch.tensor([0, 2, 4], device=device, dtype=torch.long),
+                        torch.tensor([1, 3, 5], device=device, dtype=torch.long),
+                    ]
 
-    #                 view_ids = object_collection._env_obj_ids_to_view_ids(
-    #                     object_collection._ALL_ENV_INDICES, object_collection._ALL_OBJ_INDICES[None, 2]
-    #                 )
-    #                 self.assertTrue((view_ids == expected[0]).all())
-    #                 view_ids = object_collection._env_obj_ids_to_view_ids(
-    #                     object_collection._ALL_ENV_INDICES[None, 0], object_collection._ALL_OBJ_INDICES[None, 2]
-    #                 )
-    #                 self.assertTrue((view_ids == expected[1]).all())
-    #                 view_ids = object_collection._env_obj_ids_to_view_ids(
-    #                     object_collection._ALL_ENV_INDICES[None, 0], object_collection._ALL_OBJ_INDICES
-    #                 )
-    #                 self.assertTrue((view_ids == expected[2]).all())
-    #                 view_ids = object_collection._env_obj_ids_to_view_ids(
-    #                     object_collection._ALL_ENV_INDICES[None, 1], object_collection._ALL_OBJ_INDICES
-    #                 )
-    #                 self.assertTrue((view_ids == expected[3]).all())
+                    view_ids = object_collection._env_obj_ids_to_view_ids(
+                        object_collection._ALL_ENV_INDICES, object_collection._ALL_OBJ_INDICES[None, 2]
+                    )
+                    self.assertTrue((view_ids == expected[0]).all())
+                    view_ids = object_collection._env_obj_ids_to_view_ids(
+                        object_collection._ALL_ENV_INDICES[None, 0], object_collection._ALL_OBJ_INDICES[None, 2]
+                    )
+                    self.assertTrue((view_ids == expected[1]).all())
+                    view_ids = object_collection._env_obj_ids_to_view_ids(
+                        object_collection._ALL_ENV_INDICES[None, 0], object_collection._ALL_OBJ_INDICES
+                    )
+                    self.assertTrue((view_ids == expected[2]).all())
+                    view_ids = object_collection._env_obj_ids_to_view_ids(
+                        object_collection._ALL_ENV_INDICES[None, 1], object_collection._ALL_OBJ_INDICES
+                    )
+                    self.assertTrue((view_ids == expected[3]).all())
 
-    # def test_initialization_with_kinematic_enabled(self):
-    #     """Test that initialization for prim with kinematic flag enabled."""
-    #     for num_envs in (1, 2):
-    #         for num_cubes in (1, 3):
-    #             for device in ("cuda:0", "cpu"):
-    #                 with self.subTest(num_envs=num_envs, num_cubes=num_cubes, device=device):
-    #                     with build_simulation_context(device=device, auto_add_lighting=True) as sim:
-    #                         # Generate cubes scene
-    #                         object_collection, origins = generate_cubes_scene(
-    #                             num_envs=num_envs, num_cubes=num_cubes, kinematic_enabled=True, device=device
-    #                         )
+    def test_initialization_with_kinematic_enabled(self):
+        """Test that initialization for prim with kinematic flag enabled."""
+        for num_envs in (1, 2):
+            for num_cubes in (1, 3):
+                for device in ("cuda:0", "cpu"):
+                    with self.subTest(num_envs=num_envs, num_cubes=num_cubes, device=device):
+                        with build_simulation_context(device=device, auto_add_lighting=True) as sim:
+                            # Generate cubes scene
+                            object_collection, origins = generate_cubes_scene(
+                                num_envs=num_envs, num_cubes=num_cubes, kinematic_enabled=True, device=device
+                            )
 
-    #                         # Check that boundedness of rigid object is correct
-    #                         self.assertEqual(ctypes.c_long.from_address(id(object_collection)).value, 1)
+                            # Check that boundedness of rigid object is correct
+                            self.assertEqual(ctypes.c_long.from_address(id(object_collection)).value, 1)
 
-    #                         # Play sim
-    #                         sim.reset()
+                            # Play sim
+                            sim.reset()
 
-    #                         # Check if object is initialized
-    #                         self.assertTrue(object_collection.is_initialized)
-    #                         self.assertEqual(len(object_collection.object_names), num_cubes)
+                            # Check if object is initialized
+                            self.assertTrue(object_collection.is_initialized)
+                            self.assertEqual(len(object_collection.object_names), num_cubes)
 
-    #                         # Check buffers that exists and have correct shapes
-    #                         self.assertEqual(object_collection.data.object_link_pos_w.shape, (num_envs, num_cubes, 3))
-    #                         self.assertEqual(object_collection.data.object_link_quat_w.shape, (num_envs, num_cubes, 4))
+                            # Check buffers that exists and have correct shapes
+                            self.assertEqual(object_collection.data.object_link_pos_w.shape, (num_envs, num_cubes, 3))
+                            self.assertEqual(object_collection.data.object_link_quat_w.shape, (num_envs, num_cubes, 4))
 
-    #                         # Simulate physics
-    #                         for _ in range(2):
-    #                             # perform rendering
-    #                             sim.step()
-    #                             # update object
-    #                             object_collection.update(sim.cfg.dt)
-    #                             # check that the object is kinematic
-    #                             default_object_state = object_collection.data.default_object_state.clone()
-    #                             default_object_state[..., :3] += origins.unsqueeze(1)
-    #                             torch.testing.assert_close(object_collection.data.object_state_w, default_object_state)
+                            # Simulate physics
+                            for _ in range(2):
+                                # perform rendering
+                                sim.step()
+                                # update object
+                                object_collection.update(sim.cfg.dt)
+                                # check that the object is kinematic
+                                default_object_state = object_collection.data.default_object_state.clone()
+                                default_object_state[..., :3] += origins.unsqueeze(1)
+                                torch.testing.assert_close(object_collection.data.object_state_w, default_object_state)
 
-    # def test_initialization_with_no_rigid_body(self):
-    #     """Test that initialization fails when no rigid body is found at the provided prim path."""
-    #     for num_cubes in (1, 2):
-    #         for device in ("cuda:0", "cpu"):
-    #             with self.subTest(num_cubes=num_cubes, device=device):
-    #                 with build_simulation_context(device=device, auto_add_lighting=True) as sim:
-    #                     # Generate cubes scene
-    #                     object_collection, _ = generate_cubes_scene(num_cubes=num_cubes, has_api=False, device=device)
+    def test_initialization_with_no_rigid_body(self):
+        """Test that initialization fails when no rigid body is found at the provided prim path."""
+        for num_cubes in (1, 2):
+            for device in ("cuda:0", "cpu"):
+                with self.subTest(num_cubes=num_cubes, device=device):
+                    with build_simulation_context(device=device, auto_add_lighting=True) as sim:
+                        # Generate cubes scene
+                        object_collection, _ = generate_cubes_scene(num_cubes=num_cubes, has_api=False, device=device)
 
-    #                     # Check that boundedness of rigid object is correct
-    #                     self.assertEqual(ctypes.c_long.from_address(id(object_collection)).value, 1)
+                        # Check that boundedness of rigid object is correct
+                        self.assertEqual(ctypes.c_long.from_address(id(object_collection)).value, 1)
 
-    #                     # Play sim
-    #                     sim.reset()
+                        # Play sim
+                        sim.reset()
 
-    #                     # Check if object is initialized
-    #                     self.assertFalse(object_collection.is_initialized)
+                        # Check if object is initialized
+                        self.assertFalse(object_collection.is_initialized)
 
-    # def test_external_force_on_single_body(self):
-    #     """Test application of external force on the base of the object.
+    def test_external_force_on_single_body(self):
+        """Test application of external force on the base of the object.
 
-    #     In this test, we apply a force equal to the weight of an object on the base of
-    #     one of the objects. We check that the object does not move. For the other object,
-    #     we do not apply any force and check that it falls down.
-    #     """
-    #     for num_envs in (1, 2):
-    #         for num_cubes in (1, 4):
-    #             for device in ("cuda:0", "cpu"):
-    #                 with self.subTest(num_envs=num_envs, num_cubes=num_cubes, device=device):
-    #                     # Generate cubes scene
-    #                     with build_simulation_context(
-    #                         device=device, add_ground_plane=True, auto_add_lighting=True
-    #                     ) as sim:
-    #                         object_collection, origins = generate_cubes_scene(
-    #                             num_envs=num_envs, num_cubes=num_cubes, device=device
-    #                         )
+        In this test, we apply a force equal to the weight of an object on the base of
+        one of the objects. We check that the object does not move. For the other object,
+        we do not apply any force and check that it falls down.
+        """
+        for num_envs in (1, 2):
+            for num_cubes in (1, 4):
+                for device in ("cuda:0", "cpu"):
+                    with self.subTest(num_envs=num_envs, num_cubes=num_cubes, device=device):
+                        # Generate cubes scene
+                        with build_simulation_context(
+                            device=device, add_ground_plane=True, auto_add_lighting=True
+                        ) as sim:
+                            object_collection, origins = generate_cubes_scene(
+                                num_envs=num_envs, num_cubes=num_cubes, device=device
+                            )
 
-    #                         # Play the simulator
-    #                         sim.reset()
+                            # Play the simulator
+                            sim.reset()
 
-    #                         # Find objects to apply the force
-    #                         object_ids, object_names = object_collection.find_objects(".*")
+                            # Find objects to apply the force
+                            object_ids, object_names = object_collection.find_objects(".*")
 
-    #                         # Sample a force equal to the weight of the object
-    #                         external_wrench_b = torch.zeros(
-    #                             object_collection.num_instances, len(object_ids), 6, device=sim.device
-    #                         )
-    #                         # Every 2nd cube should have a force applied to it
-    #                         external_wrench_b[:, 0::2, 2] = 9.81 * object_collection.data.default_mass[:, 0::2, 0]
+                            # Sample a force equal to the weight of the object
+                            external_wrench_b = torch.zeros(
+                                object_collection.num_instances, len(object_ids), 6, device=sim.device
+                            )
+                            # Every 2nd cube should have a force applied to it
+                            external_wrench_b[:, 0::2, 2] = 9.81 * object_collection.data.default_mass[:, 0::2, 0]
 
-    #                         # Now we are ready!
-    #                         for _ in range(5):
-    #                             # reset object state
-    #                             object_state = object_collection.data.default_object_state.clone()
+                            # Now we are ready!
+                            for _ in range(5):
+                                # reset object state
+                                object_state = object_collection.data.default_object_state.clone()
 
-    #                             # need to shift the position of the cubes otherwise they will be on top of each other
-    #                             object_state[..., :2] += origins.unsqueeze(1)[..., :2]
-    #                             object_collection.write_object_state_to_sim(object_state)
+                                # need to shift the position of the cubes otherwise they will be on top of each other
+                                object_state[..., :2] += origins.unsqueeze(1)[..., :2]
+                                object_collection.write_object_state_to_sim(object_state)
 
-    #                             # reset object
-    #                             object_collection.reset()
+                                # reset object
+                                object_collection.reset()
 
-    #                             # apply force
-    #                             object_collection.set_external_force_and_torque(
-    #                                 external_wrench_b[..., :3], external_wrench_b[..., 3:], object_ids=object_ids
-    #                             )
-    #                             # perform simulation
-    #                             for _ in range(10):
-    #                                 # apply action to the object
-    #                                 object_collection.write_data_to_sim()
+                                # apply force
+                                object_collection.set_external_force_and_torque(
+                                    external_wrench_b[..., :3], external_wrench_b[..., 3:], object_ids=object_ids
+                                )
+                                # perform simulation
+                                for _ in range(10):
+                                    # apply action to the object
+                                    object_collection.write_data_to_sim()
 
-    #                                 # perform step
-    #                                 sim.step()
+                                    # perform step
+                                    sim.step()
 
-    #                                 # update buffers
-    #                                 object_collection.update(sim.cfg.dt)
+                                    # update buffers
+                                    object_collection.update(sim.cfg.dt)
 
-    #                             # First object should still be at the same Z position (1.0)
-    #                             torch.testing.assert_close(
-    #                                 object_collection.data.object_link_pos_w[:, 0::2, 2],
-    #                                 torch.ones_like(object_collection.data.object_pos_w[:, 0::2, 2]),
-    #                             )
-    #                             # Second object should have fallen, so it's Z height should be less than initial height of 1.0
-    #                             self.assertTrue(torch.all(object_collection.data.object_link_pos_w[:, 1::2, 2] < 1.0))
+                                # First object should still be at the same Z position (1.0)
+                                torch.testing.assert_close(
+                                    object_collection.data.object_link_pos_w[:, 0::2, 2],
+                                    torch.ones_like(object_collection.data.object_pos_w[:, 0::2, 2]),
+                                )
+                                # Second object should have fallen, so it's Z height should be less than initial height of 1.0
+                                self.assertTrue(torch.all(object_collection.data.object_link_pos_w[:, 1::2, 2] < 1.0))
 
-    # def test_set_object_state(self):
-    #     """Test setting the state of the object.
+    def test_set_object_state(self):
+        """Test setting the state of the object.
 
-    #     In this test, we set the state of the object to a random state and check
-    #     that the object is in that state after simulation. We set gravity to zero as
-    #     we don't want any external forces acting on the object to ensure state remains static.
-    #     """
-    #     for num_envs in (1, 3):
-    #         for num_cubes in (1, 2):
-    #             for device in ("cuda:0", "cpu"):
-    #                 with self.subTest(num_envs=num_envs, num_cubes=num_cubes, device=device):
-    #                     # Turn off gravity for this test as we don't want any external forces acting on the object
-    #                     # to ensure state remains static
-    #                     with build_simulation_context(
-    #                         device=device, gravity_enabled=False, auto_add_lighting=True
-    #                     ) as sim:
-    #                         # Generate cubes scene
-    #                         object_collection, origins = generate_cubes_scene(
-    #                             num_envs=num_envs, num_cubes=num_cubes, device=device
-    #                         )
+        In this test, we set the state of the object to a random state and check
+        that the object is in that state after simulation. We set gravity to zero as
+        we don't want any external forces acting on the object to ensure state remains static.
+        """
+        for num_envs in (1, 3):
+            for num_cubes in (1, 2):
+                for device in ("cuda:0", "cpu"):
+                    with self.subTest(num_envs=num_envs, num_cubes=num_cubes, device=device):
+                        # Turn off gravity for this test as we don't want any external forces acting on the object
+                        # to ensure state remains static
+                        with build_simulation_context(
+                            device=device, gravity_enabled=False, auto_add_lighting=True
+                        ) as sim:
+                            # Generate cubes scene
+                            object_collection, origins = generate_cubes_scene(
+                                num_envs=num_envs, num_cubes=num_cubes, device=device
+                            )
 
-    #                         # Play the simulator
-    #                         sim.reset()
+                            # Play the simulator
+                            sim.reset()
 
-    #                         state_types = ["object_pos_w", "object_quat_w", "object_lin_vel_w", "object_ang_vel_w"]
+                            state_types = ["object_pos_w", "object_quat_w", "object_lin_vel_w", "object_ang_vel_w"]
 
-    #                         # Set each state type individually as they are dependent on each other
-    #                         for state_type_to_randomize in state_types:
-    #                             state_dict = {
-    #                                 "object_pos_w": torch.zeros_like(
-    #                                     object_collection.data.object_pos_w, device=sim.device
-    #                                 ),
-    #                                 "object_quat_w": default_orientation(
-    #                                     num=num_cubes * num_envs, device=sim.device
-    #                                 ).view(num_envs, num_cubes, 4),
-    #                                 "object_lin_vel_w": torch.zeros_like(
-    #                                     object_collection.data.object_lin_vel_w, device=sim.device
-    #                                 ),
-    #                                 "object_ang_vel_w": torch.zeros_like(
-    #                                     object_collection.data.object_ang_vel_w, device=sim.device
-    #                                 ),
-    #                             }
+                            # Set each state type individually as they are dependent on each other
+                            for state_type_to_randomize in state_types:
+                                state_dict = {
+                                    "object_pos_w": torch.zeros_like(
+                                        object_collection.data.object_pos_w, device=sim.device
+                                    ),
+                                    "object_quat_w": default_orientation(
+                                        num=num_cubes * num_envs, device=sim.device
+                                    ).view(num_envs, num_cubes, 4),
+                                    "object_lin_vel_w": torch.zeros_like(
+                                        object_collection.data.object_lin_vel_w, device=sim.device
+                                    ),
+                                    "object_ang_vel_w": torch.zeros_like(
+                                        object_collection.data.object_ang_vel_w, device=sim.device
+                                    ),
+                                }
 
-    #                             # Now we are ready!
-    #                             for _ in range(5):
-    #                                 # reset object
-    #                                 object_collection.reset()
+                                # Now we are ready!
+                                for _ in range(5):
+                                    # reset object
+                                    object_collection.reset()
 
-    #                                 # Set random state
-    #                                 if state_type_to_randomize == "object_quat_w":
-    #                                     state_dict[state_type_to_randomize] = random_orientation(
-    #                                         num=num_cubes * num_envs, device=sim.device
-    #                                     ).view(num_envs, num_cubes, 4)
-    #                                 else:
-    #                                     state_dict[state_type_to_randomize] = torch.randn(
-    #                                         num_envs, num_cubes, 3, device=sim.device
-    #                                     )
-    #                                     # make sure objects do not overlap
-    #                                     if state_type_to_randomize == "object_pos_w":
-    #                                         state_dict[state_type_to_randomize][..., :2] += origins.unsqueeze(1)[
-    #                                             ..., :2
-    #                                         ]
+                                    # Set random state
+                                    if state_type_to_randomize == "object_quat_w":
+                                        state_dict[state_type_to_randomize] = random_orientation(
+                                            num=num_cubes * num_envs, device=sim.device
+                                        ).view(num_envs, num_cubes, 4)
+                                    else:
+                                        state_dict[state_type_to_randomize] = torch.randn(
+                                            num_envs, num_cubes, 3, device=sim.device
+                                        )
+                                        # make sure objects do not overlap
+                                        if state_type_to_randomize == "object_pos_w":
+                                            state_dict[state_type_to_randomize][..., :2] += origins.unsqueeze(1)[
+                                                ..., :2
+                                            ]
 
-    #                                 # perform simulation
-    #                                 for _ in range(5):
-    #                                     object_state = torch.cat(
-    #                                         [
-    #                                             state_dict["object_pos_w"],
-    #                                             state_dict["object_quat_w"],
-    #                                             state_dict["object_lin_vel_w"],
-    #                                             state_dict["object_ang_vel_w"],
-    #                                         ],
-    #                                         dim=-1,
-    #                                     )
-    #                                     # reset object state
-    #                                     object_collection.write_object_state_to_sim(object_state=object_state)
+                                    # perform simulation
+                                    for _ in range(5):
+                                        object_state = torch.cat(
+                                            [
+                                                state_dict["object_pos_w"],
+                                                state_dict["object_quat_w"],
+                                                state_dict["object_lin_vel_w"],
+                                                state_dict["object_ang_vel_w"],
+                                            ],
+                                            dim=-1,
+                                        )
+                                        # reset object state
+                                        object_collection.write_object_state_to_sim(object_state=object_state)
 
-    #                                     sim.step()
+                                        sim.step()
 
-    #                                     # assert that set object quantities are equal to the ones set in the state_dict
-    #                                     for key, expected_value in state_dict.items():
-    #                                         value = getattr(object_collection.data, key)
-    #                                         torch.testing.assert_close(value, expected_value, rtol=1e-5, atol=1e-5)
+                                        # assert that set object quantities are equal to the ones set in the state_dict
+                                        for key, expected_value in state_dict.items():
+                                            value = getattr(object_collection.data, key)
+                                            torch.testing.assert_close(value, expected_value, rtol=1e-5, atol=1e-5)
 
-    #                                     object_collection.update(sim.cfg.dt)
+                                        object_collection.update(sim.cfg.dt)
 
     def test_object_state_properties(self):
         """Test the object_com_state_w and object_link_state_w properties."""
