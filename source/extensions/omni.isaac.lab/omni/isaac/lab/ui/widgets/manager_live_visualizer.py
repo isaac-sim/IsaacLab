@@ -250,7 +250,7 @@ class DefaultManagerBasedRLEnvLiveVisCfg(DefaultManagerBasedEnvLiveVisCfg):
 
     curriculum_live_vis = ManagerLiveVisualizerCfg(manager_name="curriculum_manager")
     command_live_vis = ManagerLiveVisualizerCfg(manager_name="command_manager")
-    reward_live_vis = ManagerLiveVisualizerCfg(manager_name="command_manager")
+    reward_live_vis = ManagerLiveVisualizerCfg(manager_name="reward_manager")
     termination_live_vis = ManagerLiveVisualizerCfg(manager_name="termination_manager")
 
 
