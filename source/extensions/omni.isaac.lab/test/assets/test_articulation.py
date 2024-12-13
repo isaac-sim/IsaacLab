@@ -621,6 +621,73 @@ class TestArticulation(unittest.TestCase):
                         ) & (articulation._data.default_joint_pos[env_ids][:, joint_ids] <= limits[..., 1])
                         self.assertTrue(torch.all(within_bounds))
 
+    def test_external_force_buffer(self):
+        """Test if external force buffer correctly updates in the force value is zero case."""
+
+        num_articulations = 2
+        for device in ("cuda:0", "cpu"):
+            with self.subTest(num_articulations=num_articulations, device=device):
+                with build_simulation_context(device=device, add_ground_plane=False, auto_add_lighting=True) as sim:
+                    sim._app_control_on_stop_handle = None
+                    articulation_cfg = generate_articulation_cfg(articulation_type="anymal")
+                    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device)
+
+                    # play the simulator
+                    sim.reset()
+
+                    # find bodies to apply the force
+                    body_ids, _ = articulation.find_bodies("base")
+
+                    # reset root state
+                    root_state = articulation.data.default_root_state.clone()
+                    articulation.write_root_state_to_sim(root_state)
+
+                    # reset dof state
+                    joint_pos, joint_vel = (
+                        articulation.data.default_joint_pos,
+                        articulation.data.default_joint_vel,
+                    )
+                    articulation.write_joint_state_to_sim(joint_pos, joint_vel)
+
+                    # reset articulation
+                    articulation.reset()
+
+                    # perform simulation
+                    for step in range(5):
+                        # initiate force tensor
+                        external_wrench_b = torch.zeros(articulation.num_instances, len(body_ids), 6, device=sim.device)
+
+                        if step == 0 or step == 3:
+                            # set a non-zero force
+                            force = 1
+                        else:
+                            # set a zero force
+                            force = 0
+
+                        # set force value
+                        external_wrench_b[:, :, 0] = force
+                        external_wrench_b[:, :, 3] = force
+
+                        # apply force
+                        articulation.set_external_force_and_torque(
+                            external_wrench_b[..., :3], external_wrench_b[..., 3:], body_ids=body_ids
+                        )
+
+                        # check if the articulation's force and torque buffers are correctly updated
+                        for i in range(num_articulations):
+                            self.assertTrue(articulation._external_force_b[i, 0, 0].item() == force)
+                            self.assertTrue(articulation._external_torque_b[i, 0, 0].item() == force)
+
+                        # apply action to the articulation
+                        articulation.set_joint_position_target(articulation.data.default_joint_pos.clone())
+                        articulation.write_data_to_sim()
+
+                        # perform step
+                        sim.step()
+
+                        # update buffers
+                        articulation.update(sim.cfg.dt)
+
     def test_external_force_on_single_body(self):
         """Test application of external force on the base of the articulation."""
         for num_articulations in (1, 2):

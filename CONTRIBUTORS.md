@@ -26,6 +26,7 @@ Guidelines for modifications:
 * James Smith
 * James Tigue
 * Kelly (Yunrong) Guo
+* Matthew Trepte
 * Mayank Mittal
 * Nikita Rudin
 * Pascal Roth

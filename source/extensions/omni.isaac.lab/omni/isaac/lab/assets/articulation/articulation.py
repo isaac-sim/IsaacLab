@@ -767,31 +767,32 @@ class Articulation(AssetBase):
         """
         if forces.any() or torques.any():
             self.has_external_wrench = True
-            # resolve all indices
-            # -- env_ids
-            if env_ids is None:
-                env_ids = self._ALL_INDICES
-            elif not isinstance(env_ids, torch.Tensor):
-                env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
-            # -- body_ids
-            if body_ids is None:
-                body_ids = torch.arange(self.num_bodies, dtype=torch.long, device=self.device)
-            elif isinstance(body_ids, slice):
-                body_ids = torch.arange(self.num_bodies, dtype=torch.long, device=self.device)[body_ids]
-            elif not isinstance(body_ids, torch.Tensor):
-                body_ids = torch.tensor(body_ids, dtype=torch.long, device=self.device)
-
-            # note: we need to do this complicated indexing since torch doesn't support multi-indexing
-            # create global body indices from env_ids and env_body_ids
-            # (env_id * total_bodies_per_env) + body_id
-            indices = body_ids.repeat(len(env_ids), 1) + env_ids.unsqueeze(1) * self.num_bodies
-            indices = indices.view(-1)
-            # set into internal buffers
-            # note: these are applied in the write_to_sim function
-            self._external_force_b.flatten(0, 1)[indices] = forces.flatten(0, 1)
-            self._external_torque_b.flatten(0, 1)[indices] = torques.flatten(0, 1)
         else:
             self.has_external_wrench = False
+
+        # resolve all indices
+        # -- env_ids
+        if env_ids is None:
+            env_ids = self._ALL_INDICES
+        elif not isinstance(env_ids, torch.Tensor):
+            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
+        # -- body_ids
+        if body_ids is None:
+            body_ids = torch.arange(self.num_bodies, dtype=torch.long, device=self.device)
+        elif isinstance(body_ids, slice):
+            body_ids = torch.arange(self.num_bodies, dtype=torch.long, device=self.device)[body_ids]
+        elif not isinstance(body_ids, torch.Tensor):
+            body_ids = torch.tensor(body_ids, dtype=torch.long, device=self.device)
+
+        # note: we need to do this complicated indexing since torch doesn't support multi-indexing
+        # create global body indices from env_ids and env_body_ids
+        # (env_id * total_bodies_per_env) + body_id
+        indices = body_ids.repeat(len(env_ids), 1) + env_ids.unsqueeze(1) * self.num_bodies
+        indices = indices.view(-1)
+        # set into internal buffers
+        # note: these are applied in the write_to_sim function
+        self._external_force_b.flatten(0, 1)[indices] = forces.flatten(0, 1)
+        self._external_torque_b.flatten(0, 1)[indices] = torques.flatten(0, 1)
 
     def set_joint_position_target(
         self, target: torch.Tensor, joint_ids: Sequence[int] | slice | None = None, env_ids: Sequence[int] | None = None
