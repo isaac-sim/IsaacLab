@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.27.25 (2024-12-11)
+0.27.26 (2024-12-11)
 ~~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -10,6 +10,16 @@ Changed
 * Introduced an optional ``sensor_cfg`` parameter to the :meth:`~omni.isaac.lab.envs.mdp.rewards.base_height_l2` function, enabling the use of
   :class:`~omni.isaac.lab.sensors.RayCaster` for height adjustments. For flat terrains, the function retains its previous behavior.
 * Improved documentation to clarify the usage of the :meth:`~omni.isaac.lab.envs.mdp.rewards.base_height_l2` function in both flat and rough terrain settings.
+
+
+0.27.25 (2024-12-11)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Modified :class:`omni.isaac.lab.envs.mdp.actions.DifferentialInverseKinematicsAction` class to use the geometric
+  Jacobian computed w.r.t. to the root frame of the robot. This helps ensure that root pose does not affect the tracking.
 
 
 0.27.24 (2024-12-09)
