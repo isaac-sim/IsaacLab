@@ -90,21 +90,12 @@ compatibility issues with some Linux distributions. If you encounter any issues,
       pip install --upgrade pip
 
 
--  Then, install the Isaac Sim packages. There are 2 options: A complete installation, or a minimal installation for running Isaac Lab only.
+-  Then, install the Isaac Sim packages.
 
-   -  Complete installation:
+   .. code-block:: none
 
-      .. code-block:: bash
+      pip install isaacsim[all,extscache]==4.5.0 --extra-index-url https://pypi.nvidia.com
 
-         pip install isaacsim==4.2.0.2 isaacsim-extscache-physics==4.2.0.2 isaacsim-extscache-kit==4.2.0.2 isaacsim-extscache-kit-sdk==4.2.0.2 --extra-index-url https://pypi.nvidia.com
-
-   -  Minimal set of packages for running Isaac Lab only:
-
-      .. code-block:: bash
-
-         pip install isaacsim-rl isaacsim-replicator isaacsim-extscache-physics isaacsim-extscache-kit-sdk isaacsim-extscache-kit isaacsim-app --extra-index-url https://pypi.nvidia.com
-
-      Note that you cannot run ``isaacsim`` with this.
 
 Verifying the Isaac Sim installation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
