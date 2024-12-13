@@ -1806,6 +1806,15 @@ resource requirements:</p>
 such as Google Kubernetes Engine or Amazon Elastic Kubernetes Service, <code class="docutils literal notranslate"><span class="pre">kubectl</span></code> is required, and can
 be installed via the <a class="reference external" href="https://kubernetes.io/docs/tasks/tools/">Kubernetes website</a></p>
 <p>The pythonic dependencies can be installed with:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># For multi-run support and resource isolation</span>
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>ray<span class="o">[</span>default<span class="o">]==</span><span class="m">2</span>.31.0
+<span class="c1"># For hyperparameter tuning</span>
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>ray<span class="o">[</span>tune<span class="o">]==</span><span class="m">2</span>.31.0
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>optuna<span class="w"> </span>bayesian-optimization
+<span class="c1"># MLFlow is needed only for fetching logs on clusters, not needed for local</span>
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>mlflow
+</pre></div>
+</div>
 <p>If using KubeRay clusters on Google GKE with the batteries-included cluster launch file,
 the following dependencies are also needed.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>kubernetes<span class="w"> </span>Jinja2
