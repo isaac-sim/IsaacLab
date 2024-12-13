@@ -11,8 +11,6 @@ TESTS_TO_SKIP = [
     "test_env_var_launch.py",  # app.close issue
     "test_kwarg_launch.py",  # app.close issue
     "test_differential_ik.py",  # Failing
-    "test_urdf_converter.py",  # need to update wrapper for URDF importer
-    "test_mjcf_converter.py",  # need to update wrapper for MJCF importer
     # lab_tasks
     "test_data_collector.py",  # Failing
     "test_record_video.py",  # Failing

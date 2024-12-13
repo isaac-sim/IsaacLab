@@ -13,7 +13,6 @@ simulation_app = AppLauncher(config).app
 
 """Rest everything follows."""
 
-import math
 import numpy as np
 import os
 import unittest
@@ -41,11 +40,16 @@ class TestUrdfConverter(unittest.TestCase):
         self.config = UrdfConverterCfg(
             asset_path=f"{extension_path}/data/urdf/robots/franka_description/robots/panda_arm_hand.urdf",
             fix_base=True,
+            joint_drive=UrdfConverterCfg.JointDriveCfg(
+                gains=UrdfConverterCfg.JointDriveCfg.PDGainsCfg(stiffness=400.0, damping=40.0)
+            ),
         )
         # Simulation time-step
         self.dt = 0.01
         # Load kit helper
-        self.sim = SimulationContext(physics_dt=self.dt, rendering_dt=self.dt, backend="numpy")
+        self.sim = SimulationContext(
+            physics_dt=self.dt, rendering_dt=self.dt, stage_units_in_meters=1.0, backend="numpy"
+        )
 
     def tearDown(self) -> None:
         """Stops simulator after each test."""
@@ -109,10 +113,9 @@ class TestUrdfConverter(unittest.TestCase):
 
         # change the config
         self.config.force_usd_conversion = True
-        self.config.default_drive_type = "position"
-        self.config.default_drive_stiffness = 400.0
-        self.config.default_drive_damping = 40.0
-        self.config.override_joint_dynamics = True
+        self.config.joint_drive.target_type = "position"
+        self.config.joint_drive.gains.stiffness = 42.0
+        self.config.joint_drive.gains.damping = 4.2
         self.config.usd_dir = output_dir
         urdf_converter = UrdfConverter(self.config)
         # check the drive type of the robot
@@ -127,36 +130,14 @@ class TestUrdfConverter(unittest.TestCase):
 
         # check drive values for the robot (read from physx)
         drive_stiffness, drive_damping = robot.get_gains()
-        # -- for the arm (revolute joints)
-        # user provides the values in radians but simulator sets them as in degrees
-        expected_drive_stiffness = math.degrees(self.config.default_drive_stiffness)
-        expected_drive_damping = math.degrees(self.config.default_drive_damping)
-        np.testing.assert_array_equal(drive_stiffness[:, :7], expected_drive_stiffness)
-        np.testing.assert_array_equal(drive_damping[:, :7], expected_drive_damping)
-        # -- for the hand (prismatic joints)
-        # note: from isaac sim 2023.1, the test asset has mimic joints for the hand
-        #  so the mimic joint doesn't have drive values
-        expected_drive_stiffness = self.config.default_drive_stiffness
-        expected_drive_damping = self.config.default_drive_damping
-        np.testing.assert_array_equal(drive_stiffness[:, 7], expected_drive_stiffness)
-        np.testing.assert_array_equal(drive_damping[:, 7], expected_drive_damping)
+        np.testing.assert_array_equal(drive_stiffness, self.config.joint_drive.gains.stiffness)
+        np.testing.assert_array_equal(drive_damping, self.config.joint_drive.gains.damping)
 
         # check drive values for the robot (read from usd)
         self.sim.stop()
         drive_stiffness, drive_damping = robot.get_gains()
-        # -- for the arm (revolute joints)
-        # user provides the values in radians but simulator sets them as in degrees
-        expected_drive_stiffness = math.degrees(self.config.default_drive_stiffness)
-        expected_drive_damping = math.degrees(self.config.default_drive_damping)
-        np.testing.assert_array_equal(drive_stiffness[:, :7], expected_drive_stiffness)
-        np.testing.assert_array_equal(drive_damping[:, :7], expected_drive_damping)
-        # -- for the hand (prismatic joints)
-        # note: from isaac sim 2023.1, the test asset has mimic joints for the hand
-        #  so the mimic joint doesn't have drive values
-        expected_drive_stiffness = self.config.default_drive_stiffness
-        expected_drive_damping = self.config.default_drive_damping
-        np.testing.assert_array_equal(drive_stiffness[:, 7], expected_drive_stiffness)
-        np.testing.assert_array_equal(drive_damping[:, 7], expected_drive_damping)
+        np.testing.assert_array_equal(drive_stiffness, self.config.joint_drive.gains.stiffness)
+        np.testing.assert_array_equal(drive_damping, self.config.joint_drive.gains.damping)
 
 
 if __name__ == "__main__":

@@ -10,8 +10,6 @@ import os
 import isaacsim
 import omni.kit.commands
 import omni.usd
-from isaacsim.core.utils.extensions import enable_extension
-from pxr import Usd
 
 from .asset_converter_base import AssetConverterBase
 from .mjcf_converter_cfg import MjcfConverterCfg
@@ -57,47 +55,24 @@ class MjcfConverter(AssetConverterBase):
         Args:
             cfg: The configuration instance for MJCF to USD conversion.
         """
-        import_config = self._get_mjcf_import_config(cfg)
+        import_config = self._get_mjcf_import_config()
+        file_basename, _ = os.path.basename(cfg.asset_path).split(".")
         omni.kit.commands.execute(
             "MJCFCreateAsset",
             mjcf_path=cfg.asset_path,
             import_config=import_config,
             dest_path=self.usd_path,
+            prim_path=f"/{file_basename}",
         )
 
-        # fix the issue that material paths are not relative
-        if self.cfg.make_instanceable:
-            instanced_usd_path = os.path.join(self.usd_dir, self.usd_instanceable_meshes_path)
-            stage = Usd.Stage.Open(instanced_usd_path)
-            # resolve all paths relative to layer path
-            source_layer = stage.GetRootLayer()
-            omni.usd.resolve_paths(source_layer.identifier, source_layer.identifier)
-            stage.Save()
-
-        # fix the issue that material paths are not relative
-        # note: This issue seems to have popped up in Isaac Sim 2023.1.1
-        stage = Usd.Stage.Open(self.usd_path)
-        # resolve all paths relative to layer path
-        source_layer = stage.GetRootLayer()
-        omni.usd.resolve_paths(source_layer.identifier, source_layer.identifier)
-        stage.Save()
-
-    def _get_mjcf_import_config(self, cfg: MjcfConverterCfg) -> isaacsim.asset.importer.mjcf.ImportConfig:
+    def _get_mjcf_import_config(self) -> isaacsim.asset.importer.mjcf.ImportConfig:
         """Returns the import configuration for MJCF to USD conversion.
-
-        Args:
-            cfg: The configuration instance for MJCF to USD conversion.
 
         Returns:
             The constructed ``ImportConfig`` object containing the desired settings.
         """
 
-        # Enable MJCF Extensions
-        enable_extension("isaacsim.asset.importer.mjcf")
-
-        from isaacsim.asset.importer.mjcf import _mjcf as omni_mjcf
-
-        import_config = omni_mjcf.ImportConfig()
+        _, import_config = omni.kit.commands.execute("MJCFCreateImportConfig")
 
         # set the unit scaling factor, 1.0 means meters, 100.0 means cm
         # import_config.set_distance_scale(1.0)
@@ -110,19 +85,19 @@ class MjcfConverter(AssetConverterBase):
 
         # -- instancing settings
         # meshes will be placed in a separate usd file
-        import_config.set_make_instanceable(cfg.make_instanceable)
+        import_config.set_make_instanceable(self.cfg.make_instanceable)
         import_config.set_instanceable_usd_path(self.usd_instanceable_meshes_path)
 
         # -- asset settings
         # default density used for links, use 0 to auto-compute
-        import_config.set_density(cfg.link_density)
+        import_config.set_density(self.cfg.link_density)
         # import inertia tensor from urdf, if it is not specified in urdf it will import as identity
-        import_config.set_import_inertia_tensor(cfg.import_inertia_tensor)
+        import_config.set_import_inertia_tensor(self.cfg.import_inertia_tensor)
 
         # -- physics settings
         # create fix joint for base link
-        import_config.set_fix_base(cfg.fix_base)
+        import_config.set_fix_base(self.cfg.fix_base)
         # self collisions between links in the articulation
-        import_config.set_self_collision(cfg.self_collision)
+        import_config.set_self_collision(self.cfg.self_collision)
 
         return import_config
