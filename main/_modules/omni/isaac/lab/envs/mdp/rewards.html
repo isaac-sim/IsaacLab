@@ -527,7 +527,7 @@
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.managers</span> <span class="kn">import</span> <span class="n">SceneEntityCfg</span>
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.managers.manager_base</span> <span class="kn">import</span> <span class="n">ManagerTermBase</span>
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.managers.manager_term_cfg</span> <span class="kn">import</span> <span class="n">RewardTermCfg</span>
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.sensors</span> <span class="kn">import</span> <span class="n">ContactSensor</span>
+<span class="kn">from</span> <span class="nn">omni.isaac.lab.sensors</span> <span class="kn">import</span> <span class="n">ContactSensor</span><span class="p">,</span> <span class="n">RayCaster</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
     <span class="kn">from</span> <span class="nn">omni.isaac.lab.envs</span> <span class="kn">import</span> <span class="n">ManagerBasedRLEnv</span>
@@ -607,17 +607,28 @@
 
 
 <div class="viewcode-block" id="base_height_l2"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.base_height_l2">[docs]</a><span class="k">def</span> <span class="nf">base_height_l2</span><span class="p">(</span>
-    <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">,</span> <span class="n">target_height</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span> <span class="o">=</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">)</span>
+    <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">,</span>
+    <span class="n">target_height</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span> <span class="o">=</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">),</span>
+    <span class="n">sensor_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Penalize asset height from its target using L2 squared kernel.</span>
 
 <span class="sd">    Note:</span>
-<span class="sd">        Currently, it assumes a flat terrain, i.e. the target height is in the world frame.</span>
+<span class="sd">        For flat terrain, target height is in the world frame. For rough terrain,</span>
+<span class="sd">        sensor readings can adjust the target height to account for the terrain.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="c1"># extract the used quantities (to enable type-hinting)</span>
     <span class="n">asset</span><span class="p">:</span> <span class="n">RigidObject</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="p">[</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
-    <span class="c1"># TODO: Fix this for rough-terrain.</span>
-    <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">square</span><span class="p">(</span><span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_pos_w</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">-</span> <span class="n">target_height</span><span class="p">)</span></div>
+    <span class="k">if</span> <span class="n">sensor_cfg</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">sensor</span><span class="p">:</span> <span class="n">RayCaster</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="p">[</span><span class="n">sensor_cfg</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
+        <span class="c1"># Adjust the target height using the sensor data</span>
+        <span class="n">adjusted_target_height</span> <span class="o">=</span> <span class="n">target_height</span> <span class="o">+</span> <span class="n">sensor</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">pos_w</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># Use the provided target height directly for flat terrain</span>
+        <span class="n">adjusted_target_height</span> <span class="o">=</span> <span class="n">target_height</span>
+    <span class="c1"># Compute the L2 squared penalty</span>
+    <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">square</span><span class="p">(</span><span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_pos_w</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">-</span> <span class="n">adjusted_target_height</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="body_lin_acc_l2"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.body_lin_acc_l2">[docs]</a><span class="k">def</span> <span class="nf">body_lin_acc_l2</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">,</span> <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span> <span class="o">=</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">))</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
