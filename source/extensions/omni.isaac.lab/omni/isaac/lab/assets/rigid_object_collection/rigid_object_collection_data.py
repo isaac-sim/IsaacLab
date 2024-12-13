@@ -69,6 +69,8 @@ class RigidObjectCollectionData:
 
         # Initialize the lazy buffers.
         self._object_state_w = TimestampedBuffer()
+        self._object_link_state_w = TimestampedBuffer()
+        self._object_com_state_w = TimestampedBuffer()
         self._object_acc_w = TimestampedBuffer()
 
         # deprecation warning check
@@ -147,7 +149,7 @@ class RigidObjectCollectionData:
         The position, quaternion, and linear/angular velocity are of the rigid body root frame relative to the
         world.
         """
-         if self._object_state_w.timestamp < self._sim_timestamp:
+         if self._object_link_state_w.timestamp < self._sim_timestamp:
             # read data from simulation
             pose = self._reshape_view_to_data(self._root_physx_view.get_transforms().clone())
             pose[..., 3:7] = math_utils.convert_quat(pose[..., 3:7], to="wxyz")
@@ -159,9 +161,9 @@ class RigidObjectCollectionData:
             )
 
             # set the buffer data and timestamp
-            self._object_state_w.data = torch.cat((pose, velocity), dim=-1)
-            self._object_state_w.timestamp = self._sim_timestamp
-        return self._object_state_w.data
+            self._object_link_state_w.data = torch.cat((pose, velocity), dim=-1)
+            self._object_link_state_w.timestamp = self._sim_timestamp
+        return self._object_link_state_w.data
 
     @property
     def object_com_state_w(self):
@@ -171,7 +173,7 @@ class RigidObjectCollectionData:
         relative to the world. Center of mass frame is the orientation principle axes of inertia.
         """
 
-        if self._object_state_w.timestamp < self._sim_timestamp:
+        if self._object_com_state_w.timestamp < self._sim_timestamp:
             # read data from simulation
             pose = self._reshape_view_to_data(self._root_physx_view.get_transforms().clone())
             pose[..., 3:7] = math_utils.convert_quat(pose[..., 3:7], to="wxyz")
@@ -183,9 +185,9 @@ class RigidObjectCollectionData:
             )
 
             # set the buffer data and timestamp
-            self._object_state_w.data = torch.cat((pos,quat, velocity), dim=-1)
-            self._object_state_w.timestamp = self._sim_timestamp
-        return self._object_state_w.data
+            self._object_com_state_w.data = torch.cat((pos,quat, velocity), dim=-1)
+            self._object_com_state_w.timestamp = self._sim_timestamp
+        return self._object_com_state_w.data
 
 
     @property
@@ -203,7 +205,7 @@ class RigidObjectCollectionData:
     @property
     def projected_gravity_b(self):
         """Projection of the gravity direction on base frame. Shape is (num_instances, num_objects, 3)."""
-        return math_utils.quat_rotate_inverse(self.object_quat_w, self.GRAVITY_VEC_W)
+        return math_utils.quat_rotate_inverse(self.object_link_quat_w, self.GRAVITY_VEC_W)
 
     @property
     def heading_w(self):
@@ -213,7 +215,7 @@ class RigidObjectCollectionData:
             This quantity is computed by assuming that the forward-direction of the base
             frame is along x-direction, i.e. :math:`(1, 0, 0)`.
         """
-        forward_w = math_utils.quat_apply(self.object_quat_w, self.FORWARD_VEC_B)
+        forward_w = math_utils.quat_apply(self.object_link_quat_w, self.FORWARD_VEC_B)
         return torch.atan2(forward_w[..., 1], forward_w[..., 0])
 
     ##
