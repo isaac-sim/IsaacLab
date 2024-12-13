@@ -1,13 +1,44 @@
 Changelog
 ---------
 
-0.27.24 (2024-12-07)
+0.27.27 (2024-12-13)
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
 
 * Fixed the shape of `quat_w` in the `apply_actions` method of :attr:`~omni.isaac.lab.env.mdp.NonHolonomicAction` (previously (N,B,4), now (N,4) since the number of root bodies B is required to be 1). Previously `apply_actions` erred because `euler_xyz_from_quat` requires inputs of shape (N,4).
+
+
+0.27.26 (2024-12-11)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Introduced an optional ``sensor_cfg`` parameter to the :meth:`~omni.isaac.lab.envs.mdp.rewards.base_height_l2` function, enabling the use of
+  :class:`~omni.isaac.lab.sensors.RayCaster` for height adjustments. For flat terrains, the function retains its previous behavior.
+* Improved documentation to clarify the usage of the :meth:`~omni.isaac.lab.envs.mdp.rewards.base_height_l2` function in both flat and rough terrain settings.
+
+
+0.27.25 (2024-12-11)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Modified :class:`omni.isaac.lab.envs.mdp.actions.DifferentialInverseKinematicsAction` class to use the geometric
+  Jacobian computed w.r.t. to the root frame of the robot. This helps ensure that root pose does not affect the tracking.
+
+
+0.27.24 (2024-12-09)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the initial state recorder term in :class:`omni.isaac.lab.envs.mdp.recorders.InitialStateRecorder` to
+  return only the states of the specified environment IDs.
 
 
 0.27.23 (2024-12-06)
