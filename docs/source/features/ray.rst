@@ -109,7 +109,7 @@ The pythonic dependencies can be installed with:
   # For multi-run support and resource isolation
   ./isaaclab.sh -p -m pip install ray[default]==2.31.0
   # For hyperparameter tuning
-  ./isaaclab.sh -p -m pip install ray[tuning]==2.31.0
+  ./isaaclab.sh -p -m pip install ray[tune]==2.31.0
   ./isaaclab.sh -p -m pip install optuna bayesian-optimization
   # MLFlow is needed only for fetching logs on clusters, not needed for local
   ./isaaclab.sh -p -m pip install mlflow
