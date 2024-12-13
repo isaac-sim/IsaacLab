@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from .action_manager import ActionTerm
     from .command_manager import CommandTerm
     from .manager_base import ManagerTermBase
+    from .recorder_manager import RecorderTerm
 
 
 @configclass
@@ -48,6 +49,22 @@ class ManagerTermBaseCfg:
         If the value is a :class:`SceneEntityCfg` object, the manager will query the scene entity
         from the :class:`InteractiveScene` and process the entity's joints and bodies as specified
         in the :class:`SceneEntityCfg` object.
+    """
+
+
+##
+# Recorder manager.
+##
+
+
+@configclass
+class RecorderTermCfg:
+    """Configuration for an recorder term."""
+
+    class_type: type[RecorderTerm] = MISSING
+    """The associated recorder term class.
+
+    The class should inherit from :class:`omni.isaac.lab.managers.action_manager.RecorderTerm`.
     """
 
 
@@ -152,9 +169,13 @@ class ObservationTermCfg(ManagerTermBaseCfg):
     """The clipping range for the observation after adding noise. Defaults to None,
     in which case no clipping is applied."""
 
-    scale: float | None = None
+    scale: tuple[float, ...] | float | None = None
     """The scale to apply to the observation after clipping. Defaults to None,
-    in which case no scaling is applied (same as setting scale to :obj:`1`)."""
+    in which case no scaling is applied (same as setting scale to :obj:`1`).
+
+    We leverage PyTorch broadcasting to scale the observation tensor with the provided value. If a tuple is provided,
+    please make sure the length of the tuple matches the dimensions of the tensor outputted from the term.
+    """
 
 
 @configclass

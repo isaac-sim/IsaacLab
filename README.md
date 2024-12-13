@@ -13,13 +13,28 @@
 [![License](https://img.shields.io/badge/license-BSD--3-yellow.svg)](https://opensource.org/licenses/BSD-3-Clause)
 
 
-**Isaac Lab** is a unified and modular framework for robot learning that aims to simplify common workflows
-in robotics research (such as RL, learning from demonstrations, and motion planning). It is built upon
-[NVIDIA Isaac Sim](https://docs.omniverse.nvidia.com/isaacsim/latest/overview.html) to leverage the latest
-simulation capabilities for photo-realistic scenes and fast and accurate simulation.
+**Isaac Lab** is a GPU-accelerated, open-source framework designed to unify and simplify robotics research workflows, such as reinforcement learning, imitation learning, and motion planning. Built on [NVIDIA Isaac Sim](https://docs.omniverse.nvidia.com/isaacsim/latest/overview.html), it combines fast and accurate physics and sensor simulation, making it an ideal choice for sim-to-real transfer in robotics.
 
-Please refer to our [documentation page](https://isaac-sim.github.io/IsaacLab) to learn more about the
-installation steps, features, tutorials, and how to set up your project with Isaac Lab.
+Isaac Lab provides developers with a range of essential features for accurate sensor simulation, such as RTX-based cameras, LIDAR, or contact sensors. The framework's GPU acceleration enables users to run complex simulations and computations faster, which is key for iterative processes like reinforcement learning and data-intensive tasks. Moreover, Isaac Lab can run locally or be distributed across the cloud, offering flexibility for large-scale deployments.
+
+## Key Features
+
+Isaac Lab offers a comprehensive set of tools and environments designed to facilitate robot learning:
+- **Robots**: A diverse collection of robots, from manipulators, quadrupeds, to humanoids, with 16 commonly available models.
+- **Environments**: Ready-to-train implementations of more than 30 environments, which can be trained with popular reinforcement learning frameworks such as RSL RL, SKRL, RL Games, or Stable Baselines. We also support multi-agent reinforcement learning.
+- **Physics**: Rigid bodies, articulated systems, deformable objects
+- **Sensors**: RGB/depth/segmentation cameras, camera annotations, IMU, contact sensors, ray casters.
+
+
+## Getting Started
+
+Our [documentation page](https://isaac-sim.github.io/IsaacLab) provides everything you need to get started, including detailed tutorials and step-by-step guides. Follow these links to learn more about:
+
+- [Installation steps](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/index.html#local-installation)
+- [Reinforcement learning](https://isaac-sim.github.io/IsaacLab/main/source/overview/reinforcement-learning/rl_existing_scripts.html)
+- [Tutorials](https://isaac-sim.github.io/IsaacLab/main/source/tutorials/index.html)
+- [Available environments](https://isaac-sim.github.io/IsaacLab/main/source/overview/environments.html)
+
 
 ## Contributing to Isaac Lab
 

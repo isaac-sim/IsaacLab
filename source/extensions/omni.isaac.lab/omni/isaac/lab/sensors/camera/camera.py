@@ -9,7 +9,6 @@ import numpy as np
 import re
 import torch
 from collections.abc import Sequence
-from tensordict import TensorDict
 from typing import TYPE_CHECKING, Any, Literal
 
 import carb
@@ -156,7 +155,7 @@ class Camera(SensorBase):
         # message for class
         return (
             f"Camera @ '{self.cfg.prim_path}': \n"
-            f"\tdata types   : {self.data.output.sorted_keys} \n"
+            f"\tdata types   : {list(self.data.output.keys())} \n"
             f"\tsemantic filter : {self.cfg.semantic_filter}\n"
             f"\tcolorize semantic segm.   : {self.cfg.colorize_semantic_segmentation}\n"
             f"\tcolorize instance segm.   : {self.cfg.colorize_instance_segmentation}\n"
@@ -497,7 +496,7 @@ class Camera(SensorBase):
         self._update_poses(env_ids)
         # -- read the data from annotator registry
         # check if buffer is called for the first time. If so then, allocate the memory
-        if len(self._data.output.sorted_keys) == 0:
+        if len(self._data.output) == 0:
             # this is the first time buffer is called
             # it allocates memory for all the sensors
             self._create_annotator_data()
@@ -514,6 +513,19 @@ class Camera(SensorBase):
                     self._data.output[name][index] = data
                     # add info to output
                     self._data.info[index][name] = info
+                # NOTE: The `distance_to_camera` annotator returns the distance to the camera optical center. However,
+                #       the replicator depth clipping is applied w.r.t. to the image plane which may result in values
+                #       larger than the clipping range in the output. We apply an additional clipping to ensure values
+                #       are within the clipping range for all the annotators.
+                if name == "distance_to_camera":
+                    self._data.output[name][self._data.output[name] > self.cfg.spawn.clipping_range[1]] = torch.inf
+                # apply defined clipping behavior
+                if (
+                    name == "distance_to_camera" or name == "distance_to_image_plane"
+                ) and self.cfg.depth_clipping_behavior != "none":
+                    self._data.output[name][torch.isinf(self._data.output[name])] = (
+                        0.0 if self.cfg.depth_clipping_behavior == "zero" else self.cfg.spawn.clipping_range[1]
+                    )
 
     """
     Private Helpers
@@ -552,7 +564,7 @@ class Camera(SensorBase):
         # lazy allocation of data dictionary
         # since the size of the output data is not known in advance, we leave it as None
         # the memory will be allocated when the buffer() function is called for the first time.
-        self._data.output = TensorDict({}, batch_size=self._view.count, device=self.device)
+        self._data.output = {}
         self._data.info = [{name: None for name in self.cfg.data_types} for _ in range(self._view.count)]
 
     def _update_intrinsic_matrices(self, env_ids: Sequence[int]):
@@ -632,6 +644,19 @@ class Camera(SensorBase):
                 self._data.info[index][name] = info
             # concatenate the data along the batch dimension
             self._data.output[name] = torch.stack(data_all_cameras, dim=0)
+            # NOTE: `distance_to_camera` and `distance_to_image_plane` are not both clipped to the maximum defined
+            #       in the clipping range. The clipping is applied only to `distance_to_image_plane` and then both
+            #       outputs are only clipped where the values in `distance_to_image_plane` exceed the threshold. To
+            #       have a unified behavior between all cameras, we clip both outputs to the maximum value defined.
+            if name == "distance_to_camera":
+                self._data.output[name][self._data.output[name] > self.cfg.spawn.clipping_range[1]] = torch.inf
+            # clip the data if needed
+            if (
+                name == "distance_to_camera" or name == "distance_to_image_plane"
+            ) and self.cfg.depth_clipping_behavior != "none":
+                self._data.output[name][torch.isinf(self._data.output[name])] = (
+                    0.0 if self.cfg.depth_clipping_behavior == "zero" else self.cfg.spawn.clipping_range[1]
+                )
 
     def _process_annotator_output(self, name: str, output: Any) -> tuple[torch.tensor, dict | None]:
         """Process the annotator output.

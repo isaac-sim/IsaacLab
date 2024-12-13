@@ -22,18 +22,18 @@ INSTALL_REQUIRES = [
     "torch==2.4.0",
     "onnx==1.16.1",  # 1.16.2 throws access violation on Windows
     "prettytable==3.3.0",
-    "tensordict",
     "toml",
     # devices
     "hidapi",
     # reinforcement learning
-    "gymnasium==0.29.0",
+    "gymnasium",
     # procedural-generation
     "trimesh",
     "pyglet<2",
     # image processing
     "transformers",
     "einops",  # needed for transformers, doesn't always auto-install
+    "warp-lang",
 ]
 
 PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu118"]
