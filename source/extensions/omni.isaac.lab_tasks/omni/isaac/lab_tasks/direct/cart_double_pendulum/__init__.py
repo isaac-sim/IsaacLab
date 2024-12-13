@@ -10,7 +10,6 @@ Inverted Double Pendulum on a Cart balancing environment.
 import gymnasium as gym
 
 from . import agents
-from .cart_double_pendulum_env import CartDoublePendulumEnv, CartDoublePendulumEnvCfg
 
 ##
 # Register Gym environments.
@@ -18,10 +17,10 @@ from .cart_double_pendulum_env import CartDoublePendulumEnv, CartDoublePendulumE
 
 gym.register(
     id="Isaac-Cart-Double-Pendulum-Direct-v0",
-    entry_point="omni.isaac.lab_tasks.direct.cart_double_pendulum:CartDoublePendulumEnv",
+    entry_point=f"{__name__}.cart_double_pendulum_env:CartDoublePendulumEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": CartDoublePendulumEnvCfg,
+        "env_cfg_entry_point": f"{__name__}.cart_double_pendulum_env:CartDoublePendulumEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg.yaml",
         "skrl_ippo_cfg_entry_point": f"{agents.__name__}:skrl_ippo_cfg.yaml",

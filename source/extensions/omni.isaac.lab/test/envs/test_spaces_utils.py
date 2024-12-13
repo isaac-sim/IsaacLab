@@ -26,7 +26,7 @@ import torch
 import unittest
 from gymnasium.spaces import Box, Dict, Discrete, MultiDiscrete, Tuple
 
-from omni.isaac.lab.envs.utils.spaces import sample_space, spec_to_gym_space
+from omni.isaac.lab.envs.utils.spaces import deserialize_space, sample_space, serialize_space, spec_to_gym_space
 
 
 class TestSpacesUtils(unittest.TestCase):
@@ -103,6 +103,59 @@ class TestSpacesUtils(unittest.TestCase):
         sample = sample_space(Dict({"box": Box(-1, 1, shape=(1,)), "discrete": Discrete(2)}), device, batch_size=5)
         self.assertIsInstance(sample, dict)
         self._check_tensorized(sample, batch_size=5)
+
+    def test_space_serialization_deserialization(self):
+        # fundamental spaces
+        # Box
+        space = 1
+        output = deserialize_space(serialize_space(space))
+        self.assertEqual(space, output)
+        space = [1, 2, 3, 4, 5]
+        output = deserialize_space(serialize_space(space))
+        self.assertEqual(space, output)
+        space = Box(low=-1.0, high=1.0, shape=(1, 2))
+        output = deserialize_space(serialize_space(space))
+        self.assertIsInstance(output, Box)
+        self.assertTrue((space.low == output.low).all())
+        self.assertTrue((space.high == output.high).all())
+        self.assertEqual(space.shape, output.shape)
+        # Discrete
+        space = {2}
+        output = deserialize_space(serialize_space(space))
+        self.assertEqual(space, output)
+        space = Discrete(2)
+        output = deserialize_space(serialize_space(space))
+        self.assertIsInstance(output, Discrete)
+        self.assertEqual(space.n, output.n)
+        # MultiDiscrete
+        space = [{1}, {2}, {3}]
+        output = deserialize_space(serialize_space(space))
+        self.assertEqual(space, output)
+        space = MultiDiscrete(np.array([1, 2, 3]))
+        output = deserialize_space(serialize_space(space))
+        self.assertIsInstance(output, MultiDiscrete)
+        self.assertTrue((space.nvec == output.nvec).all())
+        # composite spaces
+        # Tuple
+        space = ([1, 2, 3, 4, 5], {2}, [{1}, {2}, {3}])
+        output = deserialize_space(serialize_space(space))
+        self.assertEqual(space, output)
+        space = Tuple((Box(-1, 1, shape=(1,)), Discrete(2)))
+        output = deserialize_space(serialize_space(space))
+        self.assertIsInstance(output, Tuple)
+        self.assertEqual(len(output), 2)
+        self.assertIsInstance(output[0], Box)
+        self.assertIsInstance(output[1], Discrete)
+        # Dict
+        space = {"box": [1, 2, 3, 4, 5], "discrete": {2}, "multi_discrete": [{1}, {2}, {3}]}
+        output = deserialize_space(serialize_space(space))
+        self.assertEqual(space, output)
+        space = Dict({"box": Box(-1, 1, shape=(1,)), "discrete": Discrete(2)})
+        output = deserialize_space(serialize_space(space))
+        self.assertIsInstance(output, Dict)
+        self.assertEqual(len(output), 2)
+        self.assertIsInstance(output["box"], Box)
+        self.assertIsInstance(output["discrete"], Discrete)
 
     """
     Helper functions.

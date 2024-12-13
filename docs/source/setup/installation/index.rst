@@ -1,5 +1,5 @@
-Installation Guide
-===================
+Local Installation
+==================
 
 .. image:: https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg
    :target: https://developer.nvidia.com/isaac-sim
@@ -31,14 +31,9 @@ Installation Guide
     For the full list of system requirements for Isaac Sim, please refer to the
     `Isaac Sim system requirements <https://docs.omniverse.nvidia.com/isaacsim/latest/installation/requirements.html#system-requirements>`_.
 
-As an experimental feature since Isaac Sim 4.0 release, Isaac Sim can also be installed through pip.
-This simplifies the installation
-process by avoiding the need to download the Omniverse Launcher and installing Isaac Sim through
-the launcher. Therefore, there are two ways to install Isaac Lab:
 
 .. toctree::
     :maxdepth: 2
 
-    Option 1: Installation using Isaac Sim pip <pip_installation>
-    Option 2: Installation using Isaac Sim binaries <binaries_installation>
-    cloud_installation
+    Pip installation (recommended for Ubuntu 22.04 and Windows) <pip_installation>
+    Binary installation (recommended for Ubuntu 20.04) <binaries_installation>

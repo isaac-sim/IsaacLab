@@ -82,10 +82,9 @@ class PickSmWaitTime:
 
 
 @wp.func
-def distance_below_threshold(current_pos: wp.vec3, 
-                             desired_pos: wp.vec3, 
-                             threshold: float) -> bool:
+def distance_below_threshold(current_pos: wp.vec3, desired_pos: wp.vec3, threshold: float) -> bool:
     return wp.length(current_pos - desired_pos) < threshold
+
 
 @wp.kernel
 def infer_state_machine(
@@ -98,7 +97,7 @@ def infer_state_machine(
     des_ee_pose: wp.array(dtype=wp.transform),
     gripper_state: wp.array(dtype=float),
     offset: wp.array(dtype=wp.transform),
-    position_threshold:float
+    position_threshold: float,
 ):
     # retrieve thread id
     tid = wp.tid()
@@ -116,7 +115,11 @@ def infer_state_machine(
     elif state == PickSmState.APPROACH_ABOVE_OBJECT:
         des_ee_pose[tid] = wp.transform_multiply(offset[tid], object_pose[tid])
         gripper_state[tid] = GripperState.OPEN
-        if distance_below_threshold(wp.transform_get_translation(ee_pose[tid]), wp.transform_get_translation(des_ee_pose[tid]), position_threshold):
+        if distance_below_threshold(
+            wp.transform_get_translation(ee_pose[tid]),
+            wp.transform_get_translation(des_ee_pose[tid]),
+            position_threshold,
+        ):
             # wait for a while
             if sm_wait_time[tid] >= PickSmWaitTime.APPROACH_OBJECT:
                 # move to next state and reset wait time
@@ -125,7 +128,11 @@ def infer_state_machine(
     elif state == PickSmState.APPROACH_OBJECT:
         des_ee_pose[tid] = object_pose[tid]
         gripper_state[tid] = GripperState.OPEN
-        if distance_below_threshold(wp.transform_get_translation(ee_pose[tid]), wp.transform_get_translation(des_ee_pose[tid]), position_threshold):
+        if distance_below_threshold(
+            wp.transform_get_translation(ee_pose[tid]),
+            wp.transform_get_translation(des_ee_pose[tid]),
+            position_threshold,
+        ):
             if sm_wait_time[tid] >= PickSmWaitTime.APPROACH_OBJECT:
                 # move to next state and reset wait time
                 sm_state[tid] = PickSmState.GRASP_OBJECT
@@ -141,7 +148,11 @@ def infer_state_machine(
     elif state == PickSmState.LIFT_OBJECT:
         des_ee_pose[tid] = des_object_pose[tid]
         gripper_state[tid] = GripperState.CLOSE
-        if distance_below_threshold(wp.transform_get_translation(ee_pose[tid]), wp.transform_get_translation(des_ee_pose[tid]), position_threshold):
+        if distance_below_threshold(
+            wp.transform_get_translation(ee_pose[tid]),
+            wp.transform_get_translation(des_ee_pose[tid]),
+            position_threshold,
+        ):
             # wait for a while
             if sm_wait_time[tid] >= PickSmWaitTime.LIFT_OBJECT:
                 # move to next state and reset wait time
@@ -265,7 +276,9 @@ def main():
     desired_orientation = torch.zeros((env.unwrapped.num_envs, 4), device=env.unwrapped.device)
     desired_orientation[:, 1] = 1.0
     # create state machine
-    pick_sm = PickAndLiftSm(env_cfg.sim.dt * env_cfg.decimation, env.unwrapped.num_envs, env.unwrapped.device, position_threshold=0.01)
+    pick_sm = PickAndLiftSm(
+        env_cfg.sim.dt * env_cfg.decimation, env.unwrapped.num_envs, env.unwrapped.device, position_threshold=0.01
+    )
 
     while simulation_app.is_running():
         # run everything in inference mode

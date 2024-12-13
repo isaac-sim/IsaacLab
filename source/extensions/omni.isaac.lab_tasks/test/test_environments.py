@@ -100,10 +100,10 @@ class TestEnvironments(unittest.TestCase):
             # create environment
             env = gym.make(task_name, cfg=env_cfg)
         except Exception as e:
-            if "env" in locals():
+            if "env" in locals() and hasattr(env, "_is_closed"):
                 env.close()
             else:
-                if hasattr(e, "obj") and hasattr(e.obj, "close"):
+                if hasattr(e, "obj") and hasattr(e.obj, "_is_closed"):
                     e.obj.close()
             self.fail(f"Failed to set-up the environment for task {task_name}. Error: {e}")
 
@@ -118,7 +118,9 @@ class TestEnvironments(unittest.TestCase):
         with torch.inference_mode():
             for _ in range(num_steps):
                 # sample actions according to the defined space
-                actions = sample_space(env.single_action_space, device=env.unwrapped.device, batch_size=num_envs)
+                actions = sample_space(
+                    env.unwrapped.single_action_space, device=env.unwrapped.device, batch_size=num_envs
+                )
                 # apply actions
                 transition = env.step(actions)
                 # check signals

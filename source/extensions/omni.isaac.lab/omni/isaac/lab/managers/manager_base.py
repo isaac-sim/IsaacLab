@@ -120,14 +120,15 @@ class ManagerBase(ABC):
         """Initialize the manager.
 
         Args:
-            cfg: The configuration object.
+            cfg: The configuration object. If None, the manager is initialized without any terms.
             env: The environment instance.
         """
         # store the inputs
         self.cfg = copy.deepcopy(cfg)
         self._env = env
         # parse config to create terms information
-        self._prepare_terms()
+        if self.cfg:
+            self._prepare_terms()
 
     """
     Properties.

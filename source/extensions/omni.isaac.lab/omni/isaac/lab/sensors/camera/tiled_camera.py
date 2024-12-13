@@ -9,7 +9,6 @@ import math
 import numpy as np
 import torch
 from collections.abc import Sequence
-from tensordict import TensorDict
 from typing import TYPE_CHECKING, Any
 
 import carb
@@ -106,7 +105,7 @@ class TiledCamera(Camera):
         # message for class
         return (
             f"Tiled Camera @ '{self.cfg.prim_path}': \n"
-            f"\tdata types   : {self.data.output.sorted_keys} \n"
+            f"\tdata types   : {list(self.data.output.keys())} \n"
             f"\tsemantic filter : {self.cfg.semantic_filter}\n"
             f"\tcolorize semantic segm.   : {self.cfg.colorize_semantic_segmentation}\n"
             f"\tcolorize instance segm.   : {self.cfg.colorize_instance_segmentation}\n"
@@ -280,6 +279,22 @@ class TiledCamera(Camera):
             if data_type == "rgba" and "rgb" in self.cfg.data_types:
                 self._data.output["rgb"] = self._data.output["rgba"][..., :3]
 
+            # NOTE: The `distance_to_camera` annotator returns the distance to the camera optical center. However,
+            #       the replicator depth clipping is applied w.r.t. to the image plane which may result in values
+            #       larger than the clipping range in the output. We apply an additional clipping to ensure values
+            #       are within the clipping range for all the annotators.
+            if data_type == "distance_to_camera":
+                self._data.output[data_type][
+                    self._data.output[data_type] > self.cfg.spawn.clipping_range[1]
+                ] = torch.inf
+            # apply defined clipping behavior
+            if (
+                data_type == "distance_to_camera" or data_type == "distance_to_image_plane" or data_type == "depth"
+            ) and self.cfg.depth_clipping_behavior != "none":
+                self._data.output[data_type][torch.isinf(self._data.output[data_type])] = (
+                    0.0 if self.cfg.depth_clipping_behavior == "zero" else self.cfg.spawn.clipping_range[1]
+                )
+
     """
     Private Helpers
     """
@@ -372,7 +387,7 @@ class TiledCamera(Camera):
                     (self._view.count, self.cfg.height, self.cfg.width, 1), device=self.device, dtype=torch.int32
                 ).contiguous()
 
-        self._data.output = TensorDict(data_dict, batch_size=self._view.count, device=self.device)
+        self._data.output = data_dict
         self._data.info = dict()
 
     def _tiled_image_shape(self) -> tuple[int, int]:
