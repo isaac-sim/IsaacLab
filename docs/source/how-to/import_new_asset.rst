@@ -37,23 +37,30 @@ For using the URDF importer in the GUI, please check the documentation at `URDF 
 is then passed to the :class:`~sim.converters.UrdfConverter` class.
 
 The URDF importer has various configuration parameters that can be set to control the behavior of the importer.
-The default values for the importer's configuration parameters are specified are in the :class:`~sim.converters.UrdfConverterCfg` class, and they are listed below. We made a few commonly modified settings to be available as command-line arguments when calling the ``convert_urdf.py``, and they are marked with ``*``` in the list. For a comprehensive list of the configuration parameters, please check the the documentation at `URDF importer`_.
+The default values for the importer's configuration parameters are specified are in the :class:`~sim.converters.UrdfConverterCfg` class, and they are listed below. We made a few commonly modified settings to be available as command-line arguments when calling the ``convert_urdf.py``, and they are marked with ``*`` in the list. For a comprehensive list of the configuration parameters, please check the the documentation at `URDF importer`_.
 
-* :attr:`~sim.converters.UrdfConverterCfg.fix_base*` - Whether to fix the base of the robot.
+* :attr:`~sim.converters.UrdfConverterCfg.fix_base` * - Whether to fix the base of the robot.
   This depends on whether you have a floating-base or fixed-base robot. The command-line flag is
   ``--fix-base`` where when set, the importer will fix the base of the robot, otherwise it will default to floating-base.
-* :attr:`~sim.converters.UrdfConverterCfg.merge_fixed_joints*` - Whether to merge the fixed joints.
+* :attr:`~sim.converters.UrdfConverterCfg.root_link_name` - The link on which the PhysX articulation root is placed.
+* :attr:`~sim.converters.UrdfConverterCfg.merge_fixed_joints` * - Whether to merge the fixed joints.
   Usually, this should be set to ``True`` to reduce the asset complexity. The command-line flag is
   ``--merge-joints`` where when set, the importer will merge the fixed joints, otherwise it will default to not merging the fixed joints.
-* :attr:`~sim.converters.UrdfConverterCfg.default_drive_type` - The drive-type for the joints.
-  We recommend this to always be ``"none"``. This allows changing the drive configuration using the
-  actuator models.
-* :attr:`~sim.converters.UrdfConverterCfg.default_drive_stiffness` - The drive stiffness for the joints.
-  We recommend this to always be ``0.0``. This allows changing the drive configuration using the
-  actuator models.
-* :attr:`~sim.converters.UrdfConverterCfg.default_drive_damping` - The drive damping for the joints.
-  Similar to the stiffness, we recommend this to always be ``0.0``.
+* :attr:`~sim.converters.UrdfConverterCfg.joint_drive` - The configuration for the joint drives on the robot.
 
+  * :attr:`~sim.converters.UrdfConverterCfg.JointDriveCfg.drive_type` - The drive type for the joints.
+    This can be either ``"acceleration"`` or ``"force"``. We recommend using ``"force"`` for most cases.
+  * :attr:`~sim.converters.UrdfConverterCfg.JointDriveCfg.target_type` - The target type for the joints.
+    This can be either ``"none"``, ``"position"``, or ``"velocity"``. We recommend using ``"position"`` for most cases.
+    Setting this to ``"none"`` will disable the drive and set the joint gains to 0.0.
+  * :attr:`~sim.converters.UrdfConverterCfg.JointDriveCfg.gains` - The drive stiffness and damping gains for the joint.
+    We support two ways to set the gains:
+
+    * :attr:`~sim.converters.UrdfConverterCfg.JointDriveCfg.PDGainsCfg` - To directly set the stiffness and damping.
+    * :attr:`~sim.converters.UrdfConverterCfg.JointDriveCfg.NaturalFrequencyGainsCfg` - To set the gains using the
+      desired natural frequency response of the system.
+
+For more detailed information on the configuration parameters, please check the documentation for :class:`~sim.converters.UrdfConverterCfg`.
 
 Example Usage
 ~~~~~~~~~~~~~

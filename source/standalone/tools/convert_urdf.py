@@ -86,6 +86,9 @@ def main():
         fix_base=args_cli.fix_base,
         merge_fixed_joints=args_cli.merge_joints,
         force_usd_conversion=True,
+        joint_drive=UrdfConverterCfg.JointDriveCfg(
+            gains=UrdfConverterCfg.JointDriveCfg.PDGainsCfg(stiffness=100.0, damping=1.0)
+        ),
     )
 
     # Print info
