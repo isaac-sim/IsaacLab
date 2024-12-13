@@ -163,7 +163,7 @@ Added
 * Added full buffer property to :class:`omni.isaac.lab.utils.buffers.circular_buffer.CircularBuffer`
 
 
-0.28.3 (2024-12-15)
+0.28.4 (2024-12-15)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -172,7 +172,7 @@ Added
 * Added action clip to all :class:`omni.isaac.lab.envs.mdp.actions`.
 
 
-0.28.2 (2024-12-14)
+0.28.3 (2024-12-14)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -181,13 +181,22 @@ Changed
 * Added check for error below threshold in state machines to ensure the state has been reached.
 
 
-0.28.1 (2024-12-13)
+0.28.2 (2024-12-13)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
 
 * Fixed the shape of ``quat_w`` in the ``apply_actions`` method of :attr:`~omni.isaac.lab.env.mdp.NonHolonomicAction` (previously (N,B,4), now (N,4) since the number of root bodies B is required to be 1). Previously ``apply_actions`` errored because ``euler_xyz_from_quat`` requires inputs of shape (N,4).
+
+
+0.28.1 (2024-12-13)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the internal buffers for ``set_external_force_and_torque`` where the buffer values would be stale if zero values are sent to the APIs.
 
 
 0.28.0 (2024-12-12)

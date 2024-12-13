@@ -228,6 +228,70 @@ class TestRigidObjectCollection(unittest.TestCase):
                         # Check if object is initialized
                         self.assertFalse(object_collection.is_initialized)
 
+    def test_external_force_buffer(self):
+        """Test if external force buffer correctly updates in the force value is zero case.
+
+        In this test, we apply a non-zero force, then a zero force, then finally a non-zero force
+        to an object collection. We check if the force buffer is properly updated at each step.
+        """
+
+        num_envs = 2
+        num_cubes = 1
+        for device in ("cuda:0", "cpu"):
+            with self.subTest(num_cubes=1, device=device):
+                # Generate cubes scene
+                with build_simulation_context(device=device, add_ground_plane=True, auto_add_lighting=True) as sim:
+                    sim._app_control_on_stop_handle = None
+                    object_collection, origins = generate_cubes_scene(
+                        num_envs=num_envs, num_cubes=num_cubes, device=device
+                    )
+                    # play the simulator
+                    sim.reset()
+
+                    # find objects to apply the force
+                    object_ids, object_names = object_collection.find_objects(".*")
+
+                    # reset object
+                    object_collection.reset()
+
+                    # perform simulation
+                    for step in range(5):
+
+                        # initiate force tensor
+                        external_wrench_b = torch.zeros(
+                            object_collection.num_instances, len(object_ids), 6, device=sim.device
+                        )
+
+                        if step == 0 or step == 3:
+                            # set a non-zero force
+                            force = 1
+                        else:
+                            # set a zero force
+                            force = 0
+
+                        # set force value
+                        external_wrench_b[:, :, 0] = force
+                        external_wrench_b[:, :, 3] = force
+
+                        # apply force
+                        object_collection.set_external_force_and_torque(
+                            external_wrench_b[..., :3], external_wrench_b[..., 3:], object_ids=object_ids
+                        )
+
+                        # check if the object collection's force and torque buffers are correctly updated
+                        for i in range(num_envs):
+                            self.assertTrue(object_collection._external_force_b[i, 0, 0].item() == force)
+                            self.assertTrue(object_collection._external_torque_b[i, 0, 0].item() == force)
+
+                        # apply action to the object collection
+                        object_collection.write_data_to_sim()
+
+                        # perform step
+                        sim.step()
+
+                        # update buffers
+                        object_collection.update(sim.cfg.dt)
+
     def test_external_force_on_single_body(self):
         """Test application of external force on the base of the object.
 

@@ -505,18 +505,21 @@ class RigidObjectCollection(AssetBase):
         """
         if forces.any() or torques.any():
             self.has_external_wrench = True
-            # resolve all indices
-            # -- env_ids
-            if env_ids is None:
-                env_ids = self._ALL_ENV_INDICES
-            # -- object_ids
-            if object_ids is None:
-                object_ids = self._ALL_OBJ_INDICES
-            # set into internal buffers
-            self._external_force_b[env_ids[:, None], object_ids] = forces
-            self._external_torque_b[env_ids[:, None], object_ids] = torques
         else:
             self.has_external_wrench = False
+            # to be safe, explicitly set value to zero
+            forces = torques = 0.0
+
+        # resolve all indices
+        # -- env_ids
+        if env_ids is None:
+            env_ids = self._ALL_ENV_INDICES
+        # -- object_ids
+        if object_ids is None:
+            object_ids = self._ALL_OBJ_INDICES
+        # set into internal buffers
+        self._external_force_b[env_ids[:, None], object_ids] = forces
+        self._external_torque_b[env_ids[:, None], object_ids] = torques
 
     """
     Internal helper.

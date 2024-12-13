@@ -376,25 +376,24 @@ class RigidObject(AssetBase):
         """
         if forces.any() or torques.any():
             self.has_external_wrench = True
-            # resolve all indices
-            # -- env_ids
-            if env_ids is None:
-                env_ids = slice(None)
-            # -- body_ids
-            if body_ids is None:
-                body_ids = slice(None)
-            # broadcast env_ids if needed to allow double indexing
-            if env_ids != slice(None) and body_ids != slice(None):
-                env_ids = env_ids[:, None]
-
-            # set into internal buffers
-            self._external_force_b[env_ids, body_ids] = forces
-            self._external_torque_b[env_ids, body_ids] = torques
         else:
             self.has_external_wrench = False
-            # reset external wrench
-            self._external_force_b[env_ids] = 0.0
-            self._external_torque_b[env_ids] = 0.0
+            # to be safe, explicitly set value to zero
+            forces = torques = 0.0
+
+        # resolve all indices
+        # -- env_ids
+        if env_ids is None:
+            env_ids = slice(None)
+        # -- body_ids
+        if body_ids is None:
+            body_ids = slice(None)
+        # broadcast env_ids if needed to allow double indexing
+        if env_ids != slice(None) and body_ids != slice(None):
+            env_ids = env_ids[:, None]
+        # set into internal buffers
+        self._external_force_b[env_ids, body_ids] = forces
+        self._external_torque_b[env_ids, body_ids] = torques
 
     """
     Internal helper.
