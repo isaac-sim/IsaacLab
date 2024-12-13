@@ -202,7 +202,7 @@ class TestRigidObjectCollection(unittest.TestCase):
                                 # check that the object is kinematic
                                 default_object_state = object_collection.data.default_object_state.clone()
                                 default_object_state[..., :3] += origins.unsqueeze(1)
-                                torch.testing.assert_close(object_collection.data.object_state_w, default_object_state)
+                                torch.testing.assert_close(object_collection.data.object_link_state_w, default_object_state)
 
     def test_initialization_with_no_rigid_body(self):
         """Test that initialization fails when no rigid body is found at the provided prim path."""
