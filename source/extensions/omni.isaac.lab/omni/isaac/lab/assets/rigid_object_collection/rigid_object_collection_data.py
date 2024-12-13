@@ -149,7 +149,7 @@ class RigidObjectCollectionData:
         The position, quaternion, and linear/angular velocity are of the rigid body root frame relative to the
         world.
         """
-         if self._object_link_state_w.timestamp < self._sim_timestamp:
+        if self._object_link_state_w.timestamp < self._sim_timestamp:
             # read data from simulation
             pose = self._reshape_view_to_data(self._root_physx_view.get_transforms().clone())
             pose[..., 3:7] = math_utils.convert_quat(pose[..., 3:7], to="wxyz")
@@ -185,7 +185,7 @@ class RigidObjectCollectionData:
             )
 
             # set the buffer data and timestamp
-            self._object_com_state_w.data = torch.cat((pos,quat, velocity), dim=-1)
+            self._object_com_state_w.data = torch.cat((pos, quat, velocity), dim=-1)
             self._object_com_state_w.timestamp = self._sim_timestamp
         return self._object_com_state_w.data
 
@@ -420,16 +420,18 @@ class RigidObjectCollectionData:
 
         This quantity is the center of mass location relative to its body frame.
         """
-        return self._root_physx_view.get_coms().to(self.device)[..., :3].view(-1, 1, 3)
-
+        pos = self._root_physx_view.get_coms().to(self.device)[..., :3]
+        return self._reshape_view_to_data(pos)
+        
     @property
     def com_quat_b(self) -> torch.Tensor:
         """Orientation (w,x,y,z) of the prinicple axies of inertia of all of the bodies in simulation world frame. Shape is (num_instances, 1, 4).
 
         This quantity is the orientation of the principles axes of inertia relative to its body frame.
         """
-        quat = self._root_physx_view.get_coms().to(self.device)[..., 3:7]
-        return math_utils.convert_quat(quat, to="wxyz").view(-1, 1, 4)
+        quat = self._root_physx_view.get_coms().to(self.device)[..., 3:7].view(self.num_instances,self.num_objects,4)
+        quat_wxyz = math_utils.convert_quat(quat, to="wxyz")
+        return self._reshape_view_to_data(quat_wxyz)
 
     ##
     # Helpers.
