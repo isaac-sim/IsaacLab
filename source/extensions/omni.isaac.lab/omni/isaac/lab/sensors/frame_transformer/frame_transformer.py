@@ -395,16 +395,33 @@ class FrameTransformer(SensorBase):
         if debug_vis:
             if not hasattr(self, "frame_visualizer"):
                 self.frame_visualizer = VisualizationMarkers(self.cfg.visualizer_cfg)
+
+                import omni.isaac.debug_draw._debug_draw as isaac_debug_draw
+
+                self.debug_draw = isaac_debug_draw.acquire_debug_draw_interface()
+
             # set their visibility to true
             self.frame_visualizer.set_visibility(True)
         else:
             if hasattr(self, "frame_visualizer"):
                 self.frame_visualizer.set_visibility(False)
+                # clear the lines
+                self.debug_draw.clear_lines()
 
     def _debug_vis_callback(self, event):
         # Update the visualized markers
-        if self.frame_visualizer is not None:
-            self.frame_visualizer.visualize(self._data.target_pos_w.view(-1, 3), self._data.target_quat_w.view(-1, 4))
+        all_pos = torch.cat([self._data.source_pos_w, self._data.target_pos_w.view(-1, 3)], dim=0)
+        all_quat = torch.cat([self._data.source_quat_w, self._data.target_quat_w.view(-1, 4)], dim=0)
+        self.frame_visualizer.visualize(all_pos, all_quat)
+
+        # Draw lines connecting the source frame to the target frames
+        self.debug_draw.clear_lines()
+        # make the lines color yellow
+        source_pos = self._data.source_pos_w.cpu().tolist()
+        colors = [[1, 1, 0, 1]] * self._num_envs
+        for frame_index in range(len(self._target_frame_names)):
+            target_pos = self._data.target_pos_w[:, frame_index].cpu().tolist()
+            self.debug_draw.draw_lines(source_pos, target_pos, colors, [1.5] * self._num_envs)
 
     """
     Internal simulation callbacks.
