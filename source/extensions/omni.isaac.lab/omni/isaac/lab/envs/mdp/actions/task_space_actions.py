@@ -107,7 +107,9 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         # parse clip
         if self.cfg.clip is not None:
             if isinstance(cfg.clip, dict):
-                self._clip = torch.tensor([[-float('inf'), float('inf')]], device=self.device).expand(self.num_envs, self.action_dim, 2).clone()
+                self._clip = torch.tensor([[-float("inf"), float("inf")]], device=self.device).repeat(
+                    self.num_envs, self.action_dim, 1
+                )
                 index_list, _, value_list = string_utils.resolve_matching_names_values(self.cfg.clip, self._joint_names)
                 self._clip[:, index_list] = torch.tensor(value_list, device=self.device)
             else:
@@ -151,7 +153,9 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         self._raw_actions[:] = actions
         self._processed_actions[:] = self.raw_actions * self._scale
         if self.cfg.clip is not None:
-            self._processed_actions = torch.clamp(self._processed_actions, min=self._clip[:, :, 0], max=self._clip[:, :, 1])
+            self._processed_actions = torch.clamp(
+                self._processed_actions, min=self._clip[:, :, 0], max=self._clip[:, :, 1]
+            )
         # obtain quantities from simulation
         ee_pos_curr, ee_quat_curr = self._compute_frame_pose()
         # set command into controller
