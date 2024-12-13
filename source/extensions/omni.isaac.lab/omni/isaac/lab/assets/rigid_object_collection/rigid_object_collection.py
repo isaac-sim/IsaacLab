@@ -229,8 +229,8 @@ class RigidObjectCollection(AssetBase):
         # deprecation warning
         if not self._root_state_dep_warn:
             omni.log.warn(
-                "DeprecationWarning: RigidObjectCollection.write_object_state_to_sim will be removed in a future release. Please"
-                " use write_object_link_state_to_sim or write_object_com_state_to_sim instead."
+                "DeprecationWarning: RigidObjectCollection.write_object_state_to_sim will be removed in a future"
+                " release. Please use write_object_link_state_to_sim or write_object_com_state_to_sim instead."
             )
             self._root_state_dep_warn = True
 
@@ -247,7 +247,7 @@ class RigidObjectCollection(AssetBase):
         """Set the object center of mass state over selected environment indices into the simulation.
         The object state comprises of the cartesian position, quaternion orientation in (w, x, y, z), and linear
         and angular velocity. All the quantities are in the simulation frame.
-        
+
         Args:
             object_state: Object state in simulation frame. Shape is (len(env_ids), len(object_ids), 13).
             env_ids: Environment indices. If None, then all indices are used.
@@ -266,7 +266,7 @@ class RigidObjectCollection(AssetBase):
         """Set the object link state over selected environment indices into the simulation.
         The object state comprises of the cartesian position, quaternion orientation in (w, x, y, z), and linear
         and angular velocity. All the quantities are in the simulation frame.
-        
+
         Args:
             object_state: Object state in simulation frame. Shape is (len(env_ids), len(object_ids), 13).
             env_ids: Environment indices. If None, then all indices are used.
@@ -294,12 +294,12 @@ class RigidObjectCollection(AssetBase):
         # deprecation warning
         if not self._root_pose_dep_warn:
             omni.log.warn(
-                "DeprecationWarning: RigidObjectCollection.write_object_pose_to_sim will be removed in a future release. Please use"
-                " write_object_link_pose_to_sim or write_object_com_pose_to_sim instead."
+                "DeprecationWarning: RigidObjectCollection.write_object_pose_to_sim will be removed in a future"
+                " release. Please use write_object_link_pose_to_sim or write_object_com_pose_to_sim instead."
             )
             self._root_pose_dep_warn = True
 
-        self.write_object_link_pose_to_sim(object_pose,env_ids,object_ids)
+        self.write_object_link_pose_to_sim(object_pose, env_ids, object_ids)
 
     def write_object_link_pose_to_sim(
         self,
@@ -389,8 +389,8 @@ class RigidObjectCollection(AssetBase):
         # deprecation warning
         if not self._root_vel_dep_warn:
             omni.log.warn(
-                "DeprecationWarning: RigidObjectCollection.write_object_velocity_to_sim will be removed in a future release. Please"
-                " use write_object_link_velocity_to_sim or write_object_com_velocity_to_sim instead."
+                "DeprecationWarning: RigidObjectCollection.write_object_velocity_to_sim will be removed in a future"
+                " release. Please use write_object_link_velocity_to_sim or write_object_com_velocity_to_sim instead."
             )
             self._root_vel_dep_warn = True
 
@@ -427,7 +427,8 @@ class RigidObjectCollection(AssetBase):
             self.reshape_data_to_view(self._data.object_com_state_w[..., 7:]), indices=view_ids
         )
 
-    def write_object_link_velocity_to_sim(self,
+    def write_object_link_velocity_to_sim(
+        self,
         object_velocity: torch.Tensor,
         env_ids: torch.Tensor | None = None,
         object_ids: slice | torch.Tensor | None = None,
@@ -452,13 +453,15 @@ class RigidObjectCollection(AssetBase):
 
         object_com_velocity = object_velocity.clone()
         quat = self.data.object_link_state_w[local_env_ids, local_object_ids, 3:7]
-        com_pos_b = self.data.com_pos_b[local_env_ids,  local_object_ids, :]
+        com_pos_b = self.data.com_pos_b[local_env_ids, local_object_ids, :]
         # transform given velocity to center of mass
         object_com_velocity[..., :3] += torch.linalg.cross(
             object_com_velocity[..., 3:], math_utils.quat_rotate(quat, com_pos_b), dim=-1
         )
         # write center of mass velocity to sim
-        self.write_object_com_velocity_to_sim(object_velocity=object_com_velocity, env_ids=env_ids, object_ids=object_ids)   
+        self.write_object_com_velocity_to_sim(
+            object_velocity=object_com_velocity, env_ids=env_ids, object_ids=object_ids
+        )
 
     """
     Operations - Setters.
