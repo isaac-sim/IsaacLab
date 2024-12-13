@@ -179,7 +179,7 @@ class RigidObjectData:
             )
             pose = torch.cat((pos, quat), dim=-1)
             # set the buffer data and timestamp
-            self._root_com_state_w.data = torch.cat((pose, velocity), dim=-1)
+            self._root_com_state_w.data = torch.cat((pos,quat, velocity), dim=-1)
             self._root_com_state_w.timestamp = self._sim_timestamp
         return self._root_com_state_w.data
 
