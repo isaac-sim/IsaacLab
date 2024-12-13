@@ -22,6 +22,7 @@ from omni.isaac.lab.utils.math import (
     is_identity_pose,
     subtract_frame_transforms,
 )
+import omni.isaac.lab.utils.string as string_utils
 
 from ..sensor_base import SensorBase
 from .frame_transformer_data import FrameTransformerData
@@ -88,6 +89,26 @@ class FrameTransformer(SensorBase):
         # return the data
         return self._data
 
+    @property
+    def num_bodies(self) -> int:
+        """Returns the number of target bodies being tracked.
+
+        Note:
+            This is an alias used for consistency with other sensors. Otherwise, we recommend using
+            :attr:`len(data.target_frame_names)` to access the number of target frames.
+        """
+        return len(self._target_frame_body_names)
+
+    @property
+    def body_names(self) -> list[str]:
+        """Returns the names of the target bodies being tracked.
+
+        Note:
+            This is an alias used for consistency with other sensors. Otherwise, we recommend using
+            :attr:`data.target_frame_names` to access the target frame names.
+        """
+        return self._target_frame_body_names
+
     """
     Operations
     """
@@ -98,6 +119,18 @@ class FrameTransformer(SensorBase):
         # resolve None
         if env_ids is None:
             env_ids = ...
+
+    def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
+        """Find bodies in the articulation based on the name keys.
+
+        Args:
+            name_keys: A regular expression or a list of regular expressions to match the body names.
+            preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
+
+        Returns:
+            A tuple of lists containing the body indices and names.
+        """
+        return string_utils.resolve_matching_names(name_keys, self._target_frame_names, preserve_order)
 
     """
     Implementation.
