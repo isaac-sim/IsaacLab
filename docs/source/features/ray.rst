@@ -106,6 +106,7 @@ be installed via the `Kubernetes website <https://kubernetes.io/docs/tasks/tools
 The pythonic dependencies can be installed with:
 
 .. code-block:: bash
+
   # For multi-run support and resource isolation
   ./isaaclab.sh -p -m pip install ray[default]==2.31.0
   # For hyperparameter tuning
