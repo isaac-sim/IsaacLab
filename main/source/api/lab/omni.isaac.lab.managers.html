@@ -637,8 +637,8 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.ObservationTermCfg.modifiers"><code class="docutils literal notranslate"><span class="pre">ObservationTermCfg.modifiers</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.ObservationTermCfg.noise"><code class="docutils literal notranslate"><span class="pre">ObservationTermCfg.noise</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.ObservationTermCfg.clip"><code class="docutils literal notranslate"><span class="pre">ObservationTermCfg.clip</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.ObservationTermCfg.scale"><code class="docutils literal notranslate"><span class="pre">ObservationTermCfg.scale</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.ObservationTermCfg.params"><code class="docutils literal notranslate"><span class="pre">ObservationTermCfg.params</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.ObservationTermCfg.scale"><code class="docutils literal notranslate"><span class="pre">ObservationTermCfg.scale</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -680,6 +680,7 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.ActionTermCfg.class_type"><code class="docutils literal notranslate"><span class="pre">ActionTermCfg.class_type</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.ActionTermCfg.asset_name"><code class="docutils literal notranslate"><span class="pre">ActionTermCfg.asset_name</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.ActionTermCfg.debug_vis"><code class="docutils literal notranslate"><span class="pre">ActionTermCfg.debug_vis</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.ActionTermCfg.clip"><code class="docutils literal notranslate"><span class="pre">ActionTermCfg.clip</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -1577,11 +1578,11 @@ Otherwise, no corruption is applied.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.ObservationTermCfg.clip" title="omni.isaac.lab.managers.ObservationTermCfg.clip"><code class="xref py py-obj docutils literal notranslate"><span class="pre">clip</span></code></a></p></td>
 <td><p>The clipping range for the observation after adding noise.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.ObservationTermCfg.scale" title="omni.isaac.lab.managers.ObservationTermCfg.scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">scale</span></code></a></p></td>
-<td><p>The scale to apply to the observation after clipping.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.ObservationTermCfg.params" title="omni.isaac.lab.managers.ObservationTermCfg.params"><code class="xref py py-obj docutils literal notranslate"><span class="pre">params</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.ObservationTermCfg.params" title="omni.isaac.lab.managers.ObservationTermCfg.params"><code class="xref py py-obj docutils literal notranslate"><span class="pre">params</span></code></a></p></td>
 <td><p>The parameters to be passed to the function as keyword arguments.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.ObservationTermCfg.scale" title="omni.isaac.lab.managers.ObservationTermCfg.scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">scale</span></code></a></p></td>
+<td><p>The scale to apply to the observation after clipping.</p></td>
 </tr>
 </tbody>
 </table>
@@ -1620,15 +1621,6 @@ in which case no clipping is applied.</p>
 </dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="omni.isaac.lab.managers.ObservationTermCfg.scale">
-<span class="sig-name descname"><span class="pre">scale</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.managers.ObservationTermCfg.scale" title="Permalink to this definition">#</a></dt>
-<dd><p>The scale to apply to the observation after clipping. Defaults to None,
-in which case no scaling is applied (same as setting scale to <code class="xref py py-obj docutils literal notranslate"><span class="pre">1</span></code>).</p>
-<p>We leverage PyTorch broadcasting to scale the observation tensor with the provided value. If a tuple is provided,
-please make sure the length of the tuple matches the dimensions of the tensor outputted from the term.</p>
-</dd></dl>
-
-<dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.managers.ObservationTermCfg.params">
 <span class="sig-name descname"><span class="pre">params</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference internal" href="#omni.isaac.lab.managers.SceneEntityCfg" title="omni.isaac.lab.managers.SceneEntityCfg"><span class="pre">SceneEntityCfg</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.managers.ObservationTermCfg.params" title="Permalink to this definition">#</a></dt>
 <dd><p>The parameters to be passed to the function as keyword arguments. Defaults to an empty dict.</p>
@@ -1638,6 +1630,15 @@ please make sure the length of the tuple matches the dimensions of the tensor ou
 from the <code class="xref py py-class docutils literal notranslate"><span class="pre">InteractiveScene</span></code> and process the entity’s joints and bodies as specified
 in the <a class="reference internal" href="#omni.isaac.lab.managers.SceneEntityCfg" title="omni.isaac.lab.managers.SceneEntityCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">SceneEntityCfg</span></code></a> object.</p>
 </div>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.managers.ObservationTermCfg.scale">
+<span class="sig-name descname"><span class="pre">scale</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.managers.ObservationTermCfg.scale" title="Permalink to this definition">#</a></dt>
+<dd><p>The scale to apply to the observation after clipping. Defaults to None,
+in which case no scaling is applied (same as setting scale to <code class="xref py py-obj docutils literal notranslate"><span class="pre">1</span></code>).</p>
+<p>We leverage PyTorch broadcasting to scale the observation tensor with the provided value. If a tuple is provided,
+please make sure the length of the tuple matches the dimensions of the tensor outputted from the term.</p>
 </dd></dl>
 
 </dd></dl>
@@ -2047,6 +2048,9 @@ all environments are considered.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.ActionTermCfg.debug_vis" title="omni.isaac.lab.managers.ActionTermCfg.debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">debug_vis</span></code></a></p></td>
 <td><p>Whether to visualize debug information.</p></td>
 </tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.ActionTermCfg.clip" title="omni.isaac.lab.managers.ActionTermCfg.clip"><code class="xref py py-obj docutils literal notranslate"><span class="pre">clip</span></code></a></p></td>
+<td><p>Clip range for the action (dict of regex expressions).</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -2069,6 +2073,12 @@ class for more details.</p>
 <dt class="sig sig-object py" id="omni.isaac.lab.managers.ActionTermCfg.debug_vis">
 <span class="sig-name descname"><span class="pre">debug_vis</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.managers.ActionTermCfg.debug_vis" title="Permalink to this definition">#</a></dt>
 <dd><p>Whether to visualize debug information. Defaults to False.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.managers.ActionTermCfg.clip">
+<span class="sig-name descname"><span class="pre">clip</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.managers.ActionTermCfg.clip" title="Permalink to this definition">#</a></dt>
+<dd><p>Clip range for the action (dict of regex expressions). Defaults to None.</p>
 </dd></dl>
 
 </dd></dl>
@@ -3435,8 +3445,8 @@ in the <a class="reference internal" href="#omni.isaac.lab.managers.SceneEntityC
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.ObservationTermCfg.modifiers"><code class="docutils literal notranslate"><span class="pre">ObservationTermCfg.modifiers</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.ObservationTermCfg.noise"><code class="docutils literal notranslate"><span class="pre">ObservationTermCfg.noise</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.ObservationTermCfg.clip"><code class="docutils literal notranslate"><span class="pre">ObservationTermCfg.clip</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.ObservationTermCfg.scale"><code class="docutils literal notranslate"><span class="pre">ObservationTermCfg.scale</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.ObservationTermCfg.params"><code class="docutils literal notranslate"><span class="pre">ObservationTermCfg.params</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.ObservationTermCfg.scale"><code class="docutils literal notranslate"><span class="pre">ObservationTermCfg.scale</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -3478,6 +3488,7 @@ in the <a class="reference internal" href="#omni.isaac.lab.managers.SceneEntityC
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.ActionTermCfg.class_type"><code class="docutils literal notranslate"><span class="pre">ActionTermCfg.class_type</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.ActionTermCfg.asset_name"><code class="docutils literal notranslate"><span class="pre">ActionTermCfg.asset_name</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.ActionTermCfg.debug_vis"><code class="docutils literal notranslate"><span class="pre">ActionTermCfg.debug_vis</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.ActionTermCfg.clip"><code class="docutils literal notranslate"><span class="pre">ActionTermCfg.clip</span></code></a></li>
 </ul>
 </li>
 </ul>
