@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 import omni.log
 
 import omni.isaac.lab.utils.math as math_utils
+import omni.isaac.lab.utils.string as string_utils
 from omni.isaac.lab.assets.articulation import Articulation
 from omni.isaac.lab.controllers.differential_ik import DifferentialIKController
 from omni.isaac.lab.managers.action_manager import ActionTerm
@@ -42,6 +43,8 @@ class DifferentialInverseKinematicsAction(ActionTerm):
     """The articulation asset on which the action term is applied."""
     _scale: torch.Tensor
     """The scaling factor applied to the input action. Shape is (1, action_dim)."""
+    _clip: torch.Tensor
+    """The clip applied to the input action."""
 
     def __init__(self, cfg: actions_cfg.DifferentialInverseKinematicsActionCfg, env: ManagerBasedEnv):
         # initialize the action term
@@ -101,6 +104,17 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         else:
             self._offset_pos, self._offset_rot = None, None
 
+        # parse clip
+        if self.cfg.clip is not None:
+            if isinstance(cfg.clip, dict):
+                self._clip = torch.tensor([[-float("inf"), float("inf")]], device=self.device).repeat(
+                    self.num_envs, self.action_dim, 1
+                )
+                index_list, _, value_list = string_utils.resolve_matching_names_values(self.cfg.clip, self._joint_names)
+                self._clip[:, index_list] = torch.tensor(value_list, device=self.device)
+            else:
+                raise ValueError(f"Unsupported clip type: {type(cfg.clip)}. Supported types are dict.")
+
     """
     Properties.
     """
@@ -138,6 +152,10 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         # store the raw actions
         self._raw_actions[:] = actions
         self._processed_actions[:] = self.raw_actions * self._scale
+        if self.cfg.clip is not None:
+            self._processed_actions = torch.clamp(
+                self._processed_actions, min=self._clip[:, :, 0], max=self._clip[:, :, 1]
+            )
         # obtain quantities from simulation
         ee_pos_curr, ee_quat_curr = self._compute_frame_pose()
         # set command into controller
