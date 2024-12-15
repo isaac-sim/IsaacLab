@@ -49,6 +49,7 @@ Guidelines for modifications:
 * Giulio Romualdi
 * Haoran Zhou
 * HoJin Jeon
+* Hongwei Xiong
 * Jan Kerner
 * Jean Tampon
 * Jia Lin Yuan
