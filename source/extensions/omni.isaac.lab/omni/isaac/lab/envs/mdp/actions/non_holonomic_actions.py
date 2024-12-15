@@ -150,7 +150,7 @@ class NonHolonomicAction(ActionTerm):
 
     def apply_actions(self):
         # obtain current heading
-        quat_w = self._asset.data.body_quat_w[:, self._body_idx]
+        quat_w = self._asset.data.body_quat_w[:, self._body_idx].view(self.num_envs, 4)
         yaw_w = euler_xyz_from_quat(quat_w)[2]
         # compute joint velocities targets
         self._joint_vel_command[:, 0] = torch.cos(yaw_w) * self.processed_actions[:, 0]  # x

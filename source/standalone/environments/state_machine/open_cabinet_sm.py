@@ -83,6 +83,11 @@ class OpenDrawerSmWaitTime:
     RELEASE_HANDLE = wp.constant(0.2)
 
 
+@wp.func
+def distance_below_threshold(current_pos: wp.vec3, desired_pos: wp.vec3, threshold: float) -> bool:
+    return wp.length(current_pos - desired_pos) < threshold
+
+
 @wp.kernel
 def infer_state_machine(
     dt: wp.array(dtype=float),
@@ -95,6 +100,7 @@ def infer_state_machine(
     handle_approach_offset: wp.array(dtype=wp.transform),
     handle_grasp_offset: wp.array(dtype=wp.transform),
     drawer_opening_rate: wp.array(dtype=wp.transform),
+    position_threshold: float,
 ):
     # retrieve thread id
     tid = wp.tid()
@@ -112,21 +118,29 @@ def infer_state_machine(
     elif state == OpenDrawerSmState.APPROACH_INFRONT_HANDLE:
         des_ee_pose[tid] = wp.transform_multiply(handle_approach_offset[tid], handle_pose[tid])
         gripper_state[tid] = GripperState.OPEN
-        # TODO: error between current and desired ee pose below threshold
-        # wait for a while
-        if sm_wait_time[tid] >= OpenDrawerSmWaitTime.APPROACH_INFRONT_HANDLE:
-            # move to next state and reset wait time
-            sm_state[tid] = OpenDrawerSmState.APPROACH_HANDLE
-            sm_wait_time[tid] = 0.0
+        if distance_below_threshold(
+            wp.transform_get_translation(ee_pose[tid]),
+            wp.transform_get_translation(des_ee_pose[tid]),
+            position_threshold,
+        ):
+            # wait for a while
+            if sm_wait_time[tid] >= OpenDrawerSmWaitTime.APPROACH_INFRONT_HANDLE:
+                # move to next state and reset wait time
+                sm_state[tid] = OpenDrawerSmState.APPROACH_HANDLE
+                sm_wait_time[tid] = 0.0
     elif state == OpenDrawerSmState.APPROACH_HANDLE:
         des_ee_pose[tid] = handle_pose[tid]
         gripper_state[tid] = GripperState.OPEN
-        # TODO: error between current and desired ee pose below threshold
-        # wait for a while
-        if sm_wait_time[tid] >= OpenDrawerSmWaitTime.APPROACH_HANDLE:
-            # move to next state and reset wait time
-            sm_state[tid] = OpenDrawerSmState.GRASP_HANDLE
-            sm_wait_time[tid] = 0.0
+        if distance_below_threshold(
+            wp.transform_get_translation(ee_pose[tid]),
+            wp.transform_get_translation(des_ee_pose[tid]),
+            position_threshold,
+        ):
+            # wait for a while
+            if sm_wait_time[tid] >= OpenDrawerSmWaitTime.APPROACH_HANDLE:
+                # move to next state and reset wait time
+                sm_state[tid] = OpenDrawerSmState.GRASP_HANDLE
+                sm_wait_time[tid] = 0.0
     elif state == OpenDrawerSmState.GRASP_HANDLE:
         des_ee_pose[tid] = wp.transform_multiply(handle_grasp_offset[tid], handle_pose[tid])
         gripper_state[tid] = GripperState.CLOSE
@@ -170,7 +184,7 @@ class OpenDrawerSm:
     5. RELEASE_HANDLE: The robot releases the handle of the drawer. This is the final state.
     """
 
-    def __init__(self, dt: float, num_envs: int, device: torch.device | str = "cpu"):
+    def __init__(self, dt: float, num_envs: int, device: torch.device | str = "cpu", position_threshold=0.01):
         """Initialize the state machine.
 
         Args:
@@ -182,6 +196,7 @@ class OpenDrawerSm:
         self.dt = float(dt)
         self.num_envs = num_envs
         self.device = device
+        self.position_threshold = position_threshold
         # initialize state machine
         self.sm_dt = torch.full((self.num_envs,), self.dt, device=self.device)
         self.sm_state = torch.full((self.num_envs,), 0, dtype=torch.int32, device=self.device)
@@ -248,6 +263,7 @@ class OpenDrawerSm:
                 self.handle_approach_offset_wp,
                 self.handle_grasp_offset_wp,
                 self.drawer_opening_rate_wp,
+                self.position_threshold,
             ],
             device=self.device,
         )
