@@ -547,6 +547,10 @@ class ArticulationData:
 
         This quantity is the position of the actor frame of the root rigid body relative to the world.
         """
+        if self._body_com_state_w.timestamp < self._sim_timestamp:
+            # read data from simulation (pose is of link)
+            pose = self._root_physx_view.get_root_transforms()
+            return pose[:, :3]
         return self.root_link_state_w[:, :3]
 
     @property
@@ -555,6 +559,11 @@ class ArticulationData:
 
         This quantity is the orientation of the actor frame of the root rigid body.
         """
+        if self._body_com_state_w.timestamp < self._sim_timestamp:
+            # read data from simulation (pose is of link)
+            pose = self._root_physx_view.get_root_transforms().clone()
+            pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
+            return pose[:, 3:7]
         return self.root_link_state_w[:, 3:7]
 
     @property
@@ -626,6 +635,10 @@ class ArticulationData:
 
         This quantity contains the linear and angular velocities of the root rigid body's center of mass frame relative to the world.
         """
+        if self._root_com_state_w.timestamp < self._sim_timestamp:
+            # read data from simulation (pose is of link)
+            velocity = self._root_physx_view.get_root_velocities()
+            return velocity
         return self.root_com_state_w[:, 7:13]
 
     @property
@@ -634,6 +647,10 @@ class ArticulationData:
 
         This quantity is the linear velocity of the root rigid body's center of mass frame relative to the world.
         """
+        if self._root_com_state_w.timestamp < self._sim_timestamp:
+            # read data from simulation (pose is of link)
+            velocity = self._root_physx_view.get_root_velocities()
+            return velocity[:, 0:3]
         return self.root_com_state_w[:, 7:10]
 
     @property
@@ -642,6 +659,11 @@ class ArticulationData:
 
         This quantity is the angular velocity of the root rigid body's center of mass frame relative to the world.
         """
+        if self._root_com_state_w.timestamp < self._sim_timestamp:
+            self._physics_sim_view.update_articulations_kinematic()
+            # read data from simulation (pose is of link)
+            velocity = self._root_physx_view.get_root_velocities()
+            return velocity[:, 3:6]
         return self.root_com_state_w[:, 10:13]
 
     @property
@@ -729,7 +751,12 @@ class ArticulationData:
 
         This quantity is the position of the rigid bodies' actor frame relative to the world.
         """
-        return self.body_link_state_w[..., :3]
+        if self._body_link_state_w.timestamp < self._sim_timestamp:
+            self._physics_sim_view.update_articulations_kinematic()
+            # read data from simulation
+            pose = self._root_physx_view.get_link_transforms()
+            return pose[..., :3]
+        return self._body_link_state_w.data[..., :3]
 
     @property
     def body_link_quat_w(self) -> torch.Tensor:
@@ -737,6 +764,12 @@ class ArticulationData:
 
         This quantity is the orientation of the rigid bodies' actor frame  relative to the world.
         """
+        if self._body_link_state_w.timestamp < self._sim_timestamp:
+            self._physics_sim_view.update_articulations_kinematic()
+            # read data from simulation
+            pose = self._root_physx_view.get_link_transforms().clone()
+            pose[..., 3:7] = math_utils.convert_quat(pose[..., 3:7], to="wxyz")
+            return pose[..., 3:7]
         return self.body_link_state_w[..., 3:7]
 
     @property
@@ -790,6 +823,11 @@ class ArticulationData:
 
         This quantity contains the linear and angular velocities of the rigid bodies' center of mass frame.
         """
+        if self._body_com_state_w.timestamp < self._sim_timestamp:
+            self._physics_sim_view.update_articulations_kinematic()
+            # read data from simulation (velocity is of com)
+            velocity = self._root_physx_view.get_link_velocities()
+            return velocity
         return self.body_com_state_w[..., 7:13]
 
     @property
@@ -798,6 +836,11 @@ class ArticulationData:
 
         This quantity is the linear velocity of the rigid bodies' center of mass frame.
         """
+        if self._body_com_state_w.timestamp < self._sim_timestamp:
+            self._physics_sim_view.update_articulations_kinematic()
+            # read data from simulation (velocity is of com)
+            velocity = self._root_physx_view.get_link_velocities()
+            return velocity[..., 0:3]
         return self.body_com_state_w[..., 7:10]
 
     @property
@@ -806,6 +849,11 @@ class ArticulationData:
 
         This quantity is the angular velocity of the rigid bodies' center of mass frame.
         """
+        if self._body_com_state_w.timestamp < self._sim_timestamp:
+            self._physics_sim_view.update_articulations_kinematic()
+            # read data from simulation (velocity is of com)
+            velocity = self._root_physx_view.get_link_velocities()
+            return velocity[..., 3:6]
         return self.body_com_state_w[..., 10:13]
 
     @property

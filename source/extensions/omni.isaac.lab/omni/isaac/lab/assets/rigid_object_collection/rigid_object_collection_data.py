@@ -303,6 +303,10 @@ class RigidObjectCollectionData:
 
         This quantity is the position of the actor frame of the rigid bodies.
         """
+        if self._object_state_w.timestamp < self._sim_timestamp:
+            # read data from simulation
+            pose = self._reshape_view_to_data(self._root_physx_view.get_transforms().clone())
+            return pose[..., :3]
         return self.object_link_state_w[..., :3]
 
     @property
@@ -311,6 +315,11 @@ class RigidObjectCollectionData:
 
         This quantity is the orientation of the actor frame of the rigid bodies.
         """
+        if self._object_state_w.timestamp < self._sim_timestamp:
+            # read data from simulation
+            pose = self._reshape_view_to_data(self._root_physx_view.get_transforms().clone())
+            pose[..., 3:7] = math_utils.convert_quat(pose[..., 3:7], to="wxyz")
+            return pose[..., 3:7]
         return self.object_link_state_w[..., 3:7]
 
     @property
@@ -377,6 +386,10 @@ class RigidObjectCollectionData:
 
         This quantity contains the linear and angular velocities of the rigid bodies' center of mass frame.
         """
+        if self._object_state_w.timestamp < self._sim_timestamp:
+            # read data from simulation
+            velocity = self._reshape_view_to_data(self._root_physx_view.get_velocities())
+            return velocity
         return self.object_com_state_w[..., 7:13]
 
     @property
@@ -385,6 +398,10 @@ class RigidObjectCollectionData:
 
         This quantity is the linear velocity of the rigid bodies' center of mass frame.
         """
+        if self._object_state_w.timestamp < self._sim_timestamp:
+            # read data from simulation
+            velocity = self._reshape_view_to_data(self._root_physx_view.get_velocities())
+            return velocity[..., 0:3]
         return self.object_com_state_w[..., 7:10]
 
     @property
@@ -393,6 +410,10 @@ class RigidObjectCollectionData:
 
         This quantity is the angular velocity of the rigid bodies' center of mass frame.
         """
+        if self._object_state_w.timestamp < self._sim_timestamp:
+            # read data from simulation
+            velocity = self._reshape_view_to_data(self._root_physx_view.get_velocities())
+            return velocity[..., 3:6]
         return self.object_com_state_w[..., 10:13]
 
     @property
