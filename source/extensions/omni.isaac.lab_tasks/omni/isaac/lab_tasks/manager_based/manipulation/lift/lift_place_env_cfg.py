@@ -5,8 +5,10 @@
 
 from dataclasses import MISSING
 
+import torch
 import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.assets import ArticulationCfg, AssetBaseCfg, DeformableObjectCfg, RigidObjectCfg
+from omni.isaac.lab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
+from omni.isaac.lab.envs import ManagerBasedRLEnv
 from omni.isaac.lab.envs import ManagerBasedRLEnvCfg
 from omni.isaac.lab.managers import CurriculumTermCfg as CurrTerm
 from omni.isaac.lab.managers import EventTermCfg as EventTerm
@@ -40,7 +42,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     # end-effector sensor: will be populated by agent env cfg
     ee_frame: FrameTransformerCfg = MISSING
     # target object: will be populated by agent env cfg
-    object: RigidObjectCfg | DeformableObjectCfg = MISSING
+    object: RigidObjectCfg = MISSING
 
     # Table
     table = AssetBaseCfg(
@@ -74,11 +76,21 @@ class CommandsCfg:
 
     object_pose = mdp.UniformPoseCommandCfg(
         asset_name="robot",
-        body_name=MISSING,  # will be set by agent env cfg
+        body_name="panda_hand",
         resampling_time_range=(5.0, 5.0),
         debug_vis=True,
         ranges=mdp.UniformPoseCommandCfg.Ranges(
             pos_x=(0.4, 0.6), pos_y=(-0.25, 0.25), pos_z=(0.25, 0.5), roll=(0.0, 0.0), pitch=(0.0, 0.0), yaw=(0.0, 0.0)
+        ),
+    )
+
+    place_pose = mdp.UniformPoseCommandCfg(
+        asset_name="robot",
+        body_name="panda_hand",
+        resampling_time_range=(5.0, 5.0),
+        debug_vis=True,
+        ranges=mdp.UniformPoseCommandCfg.Ranges(
+            pos_x=(0.4, 0.6), pos_y=(-0.25, 0.25), pos_z=(0.05, 0.05), roll=(0.0, 0.0), pitch=(0.0, 0.0), yaw=(0.0, 0.0)
         ),
     )
 
@@ -104,6 +116,7 @@ class ObservationsCfg:
         joint_vel = ObsTerm(func=mdp.joint_vel_rel)
         object_position = ObsTerm(func=mdp.object_position_in_robot_root_frame)
         target_object_position = ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
+        target_place_position = ObsTerm(func=mdp.generated_commands, params={"command_name": "place_pose"})
         actions = ObsTerm(func=mdp.last_action)
 
         def __post_init__(self):
@@ -135,29 +148,51 @@ class EventCfg:
 class RewardsCfg:
     """Reward terms for the MDP."""
 
-    reaching_object = RewTerm(func=mdp.object_ee_distance, params={"std": 0.1}, weight=1.0)
+    # Reward for reaching object
+    reaching_object = RewTerm(
+        func=mdp.object_ee_distance, 
+        params={"std": 0.1}, 
+        weight=1.0
+    )
 
-    lifting_object = RewTerm(func=mdp.object_is_lifted, params={"minimal_height": 0.04}, weight=15.0)
+    # Reward for lifting object
+    lifting_object = RewTerm(
+        func=mdp.object_is_lifted,
+        params={"minimal_height": 0.04, "maximal_height": 0.5},
+        weight=15.0
+    )
 
+    # Reward for moving object to lifting position
     object_goal_tracking = RewTerm(
         func=mdp.object_goal_distance,
-        params={"std": 0.3, "minimal_height": 0.04, "command_name": "object_pose"},
-        weight=16.0,
+        params={
+            "std": 0.3,
+            "minimal_height": 0.04,
+            "maximal_height": 0.5,
+            "command_name": "object_pose"
+        },
+        weight=16.0
     )
 
-    object_goal_tracking_fine_grained = RewTerm(
+    # Reward for moving object to placing position
+    placing_tracking = RewTerm(
         func=mdp.object_goal_distance,
-        params={"std": 0.05, "minimal_height": 0.04, "command_name": "object_pose"},
-        weight=5.0,
+        params={
+            "std": 0.1,
+            "minimal_height": 0.04,
+            "maximal_height": 0.5,
+            "command_name": "place_pose"
+        },
+        weight=18.0
     )
 
-    # action penalty
-    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-1e-4)
-
-    joint_vel = RewTerm(
-        func=mdp.joint_vel_l2,
-        weight=-1e-4,
-        params={"asset_cfg": SceneEntityCfg("robot")},
+    object_placed = RewTerm(
+        func=mdp.object_is_placed,  # Reference the function directly
+        params={
+            "distance_threshold": 0.02,
+            "height_threshold": 0.01,
+        },
+        weight=20.0
     )
 
 
