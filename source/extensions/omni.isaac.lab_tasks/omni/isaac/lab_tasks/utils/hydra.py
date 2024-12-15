@@ -17,6 +17,7 @@ except ImportError:
     raise ImportError("Hydra is not installed. Please install it by running 'pip install hydra-core'.")
 
 from omni.isaac.lab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
+from omni.isaac.lab.envs.utils.spaces import replace_env_cfg_spaces_with_strings, replace_strings_with_env_cfg_spaces
 from omni.isaac.lab.utils import replace_slices_with_strings, replace_strings_with_slices
 
 from omni.isaac.lab_tasks.utils.parse_cfg import load_cfg_from_registry
@@ -40,6 +41,9 @@ def register_task_to_hydra(
     # load the configurations
     env_cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
     agent_cfg = load_cfg_from_registry(task_name, agent_cfg_entry_point)
+    # replace gymnasium spaces with strings because OmegaConf does not support them.
+    # this must be done before converting the env configs to dictionary to avoid internal reinterpretations
+    replace_env_cfg_spaces_with_strings(env_cfg)
     # convert the configs to dictionary
     env_cfg_dict = env_cfg.to_dict()
     if isinstance(agent_cfg, dict):
@@ -83,6 +87,10 @@ def hydra_task_config(task_name: str, agent_cfg_entry_point: str) -> Callable:
                 hydra_env_cfg = replace_strings_with_slices(hydra_env_cfg)
                 # update the configs with the Hydra command line arguments
                 env_cfg.from_dict(hydra_env_cfg["env"])
+                # replace strings that represent gymnasium spaces because OmegaConf does not support them.
+                # this must be done after converting the env configs from dictionary to avoid internal reinterpretations
+                replace_strings_with_env_cfg_spaces(env_cfg)
+                # get agent configs
                 if isinstance(agent_cfg, dict):
                     agent_cfg = hydra_env_cfg["agent"]
                 else:

@@ -262,7 +262,7 @@ html_sidebars = {
 
 def skip_member(app, what, name, obj, skip, options):
     # List the names of the functions you want to skip here
-    exclusions = ["from_dict", "to_dict", "replace", "copy", "__post_init__"]
+    exclusions = ["from_dict", "to_dict", "replace", "copy", "validate", "__post_init__"]
     if name in exclusions:
         return True
     return None

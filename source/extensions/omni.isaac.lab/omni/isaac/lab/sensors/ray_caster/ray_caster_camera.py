@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import torch
 from collections.abc import Sequence
-from tensordict import TensorDict
 from typing import TYPE_CHECKING, ClassVar, Literal
 
 import omni.isaac.core.utils.stage as stage_utils
@@ -87,7 +86,7 @@ class RayCasterCamera(RayCaster):
             f"Ray-Caster-Camera @ '{self.cfg.prim_path}': \n"
             f"\tview type            : {self._view.__class__}\n"
             f"\tupdate period (s)    : {self.cfg.update_period}\n"
-            f"\tnumber of meshes     : {len(RayCaster.meshes)}\n"
+            f"\tnumber of meshes     : {len(self.meshes)}\n"
             f"\tnumber of sensors    : {self._view.count}\n"
             f"\tnumber of rays/sensor: {self.num_rays}\n"
             f"\ttotal number of rays : {self.num_rays * self._view.count}\n"
@@ -281,7 +280,7 @@ class RayCasterCamera(RayCaster):
         self.ray_hits_w, ray_depth, ray_normal, _ = raycast_mesh(
             ray_starts_w,
             ray_directions_w,
-            mesh=RayCasterCamera.meshes[self.cfg.mesh_prim_paths[0]],
+            mesh=self.meshes[self.cfg.mesh_prim_paths[0]],
             max_dist=1e6,
             return_distance=any(
                 [name in self.cfg.data_types for name in ["distance_to_image_plane", "distance_to_camera"]]
@@ -298,14 +297,23 @@ class RayCasterCamera(RayCaster):
                 )
             )[:, :, 0]
             # apply the maximum distance after the transformation
-            distance_to_image_plane = torch.clip(distance_to_image_plane, max=self.cfg.max_distance)
+            if self.cfg.depth_clipping_behavior == "max":
+                distance_to_image_plane = torch.clip(distance_to_image_plane, max=self.cfg.max_distance)
+                distance_to_image_plane[torch.isnan(distance_to_image_plane)] = self.cfg.max_distance
+            elif self.cfg.depth_clipping_behavior == "zero":
+                distance_to_image_plane[distance_to_image_plane > self.cfg.max_distance] = 0.0
+                distance_to_image_plane[torch.isnan(distance_to_image_plane)] = 0.0
             self._data.output["distance_to_image_plane"][env_ids] = distance_to_image_plane.view(
                 -1, *self.image_shape, 1
             )
+
         if "distance_to_camera" in self.cfg.data_types:
-            self._data.output["distance_to_camera"][env_ids] = torch.clip(
-                ray_depth.view(-1, *self.image_shape, 1), max=self.cfg.max_distance
-            )
+            if self.cfg.depth_clipping_behavior == "max":
+                ray_depth = torch.clip(ray_depth, max=self.cfg.max_distance)
+            elif self.cfg.depth_clipping_behavior == "zero":
+                ray_depth[ray_depth > self.cfg.max_distance] = 0.0
+            self._data.output["distance_to_camera"][env_ids] = ray_depth.view(-1, *self.image_shape, 1)
+
         if "normals" in self.cfg.data_types:
             self._data.output["normals"][env_ids] = ray_normal.view(-1, *self.image_shape, 3)
 
@@ -347,7 +355,7 @@ class RayCasterCamera(RayCaster):
         self._data.image_shape = self.image_shape
         # -- output data
         # create the buffers to store the annotator data.
-        self._data.output = TensorDict({}, batch_size=self._view.count, device=self.device)
+        self._data.output = {}
         self._data.info = [{name: None for name in self.cfg.data_types}] * self._view.count
         for name in self.cfg.data_types:
             if name in ["distance_to_image_plane", "distance_to_camera"]:
