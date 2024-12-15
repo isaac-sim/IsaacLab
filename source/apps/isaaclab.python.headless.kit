@@ -30,16 +30,11 @@ app.version = "4.5.0"
 
 
 [settings]
-renderer.active = "rtx"
-
 app.content.emptyStageOnStart = false
 
 # Disable print outs on extension startup information
 # this only disables the app print_and_log function
 app.enableStdoutOutput = false
-
-# Setting the port for the embedded http server
-exts."omni.services.transport.server.http".port = 8211
 
 # default viewport is fill
 app.runLoops.rendering_0.fillResolution = false
@@ -55,32 +50,6 @@ exts."omni.replicator.core".Orchestrator.enabled = false
 persistent = true
 dev_build = false
 fabricDefaultStageFrameHistoryCount = 3 # needed for omni.syntheticdata TODO105 still true?
-
-[settings.app.window]
-title = "Isaac Sim"
-hideUi = false
-_iconSize = 256
-iconPath = "${omni.isaac.app.setup}/data/omni.isaac.sim.png"
-
-# width = 1700
-# height = 900
-# x = -1
-# y = -1
-
-# Fonts
-[setting.app.font]
-file = "${fonts}/OpenSans-SemiBold.ttf"
-size = 16
-
-# [setting.app.runLoops]
-# main.rateLimitEnabled = false
-# main.rateLimitFrequency = 60
-# main.rateLimitUseBusyLoop = false
-# rendering_0.rateLimitEnabled = false
-
-[settings.exts.'omni.kit.window.extensions']
-# List extensions here we want to show as featured when extension manager is opened
-featuredExts = []
 
 [settings.app.python]
 # These disable the kit app from also printing out python output, which gets confusing
@@ -113,12 +82,6 @@ app.vulkan = true
 exts."omni.kit.window.extensions".hideNonToggleableExts = true
 exts."omni.kit.window.extensions".showFeatureOnly = false
 
-# Hang Detector
-################################
-# app.hangDetector.enabled = false
-# app.hangDetector.timeout = 120
-
-
 # set the default ros bridge to disable on startup
 isaac.startup.ros_bridge_extension = ""
 
@@ -126,7 +89,7 @@ isaac.startup.ros_bridge_extension = ""
 ###############################
 [settings.exts."omni.kit.registry.nucleus"]
 registries = [
-    { name = "kit/default", url = "https://ovextensionsprod.blob.core.windows.net/exts/kit/prod/shared" },
+    { name = "kit/default", url = "https://ovextensionsprod.blob.core.windows.net/exts/kit/prod/106/shared" },
     { name = "kit/sdk", url = "https://ovextensionsprod.blob.core.windows.net/exts/kit/prod/sdk/${kit_version_short}/${kit_git_hash}" },
     { name = "kit/community", url = "https://dw290v42wisod.cloudfront.net/exts/kit/community" },
 ]
@@ -135,50 +98,8 @@ registries = [
 skipPublishVerification = false
 registryEnabled = true
 
-[settings.exts."omni.kit.window.modifier.titlebar"]
-titleFormatString = "  Isaac Sim  {version:${app}/../SHORT_VERSION,font_color=0x909090,font_size=16} {separator} {file, board=true}"
-showFileFullPath = true
-icon.file = "${app}/../exts/omni.isaac.app.setup/data/nvidia-omniverse-isaacsim.ico"
-icon.size = 256
-defaultFont.name = "Arial"
-defaultFont.size = 16
-defaultFont.color = 0xD0D0D0
-separator.color = 0x00B976
-separator.width = 1
-windowBorder.color = 0x0F0F0F
-windowBorder.width = 2
-colors.caption = 0x0F0F0F
-colors.client = 0x0F0F0F
-respondOnMouseUp = true
-changeWindowRegion = true
-
 [settings.crashreporter.data]
 experience = "Isaac Sim"
-
-# Isaac Sim Settings
-###############################
-[settings.app.renderer]
-skipWhileMinimized = false
-sleepMsOnFocus = 0
-sleepMsOutOfFocus = 0
-resolution.width=1280
-resolution.height=720
-
-# default camera position in meters
-[settings.app.viewport]
-defaultCamPos.x = 5
-defaultCamPos.y = 5
-defaultCamPos.z = 5
-
-[settings.rtx]
-raytracing.fractionalCutoutOpacity = false
-hydra.enableSemanticSchema = true
-mdltranslator.mdlDistilling = false
-# descriptorSets=60000
-# reservedDescriptors=500000
-# sceneDb.maxInstances=1000000
-# Enable this for static scenes, improves visual quality
-# directLighting.sampledLighting.enabled = true
 
 [settings.persistent]
 app.file.recentFiles = []

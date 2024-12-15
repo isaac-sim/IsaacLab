@@ -280,23 +280,6 @@ The container defaults to ``FastRTPS``, but ``CylconeDDS`` is also supported. Ea
       :language: bash
 
 
-Known Issues
-------------
-
-WebRTC Streaming
-~~~~~~~~~~~~~~~~
-
-When streaming the GUI from Isaac Sim, there are `several streaming clients`_ available. There is a `known issue`_ when
-attempting to use WebRTC streaming client on Google Chrome and Safari while running Isaac Sim inside a container.
-To avoid this problem, we suggest using the Native Streaming Client or using the
-Mozilla Firefox browser on which WebRTC works.
-
-Streaming is the only supported method for visualizing the Isaac GUI from within the container. The Omniverse Streaming Client
-is freely available from the Omniverse app, and is easy to use. The other streaming methods similarly require only a web browser.
-If users want to use X11 forwarding in order to have the apps behave as local GUI windows, they can uncomment the relevant portions
-in docker-compose.yaml.
-
-
 .. _`NVIDIA Omniverse EULA`: https://docs.omniverse.nvidia.com/platform/latest/common/NVIDIA_Omniverse_License_Agreement.html
 .. _`container installation`: https://docs.omniverse.nvidia.com/isaacsim/latest/installation/install_container.html
 .. _`Docker website`: https://docs.docker.com/desktop/install/linux-install/

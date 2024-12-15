@@ -136,11 +136,11 @@ We will now run the example script:
 
 .. code-block:: console
 
-   LIVESTREAM=1 ./isaaclab.sh -p source/standalone/tutorials/00_sim/launch_app.py --size 0.5
+   LIVESTREAM=2 ./isaaclab.sh -p source/standalone/tutorials/00_sim/launch_app.py --size 0.5
 
 This will spawn a 0.5m\ :sup:`3` volume cuboid in the simulation. No GUI will appear, equivalent
 to if we had passed the ``--headless`` flag because headlessness is implied by our ``LIVESTREAM``
-envar. If a visualization is desired, we could get one via Isaac's `Native Livestreaming`_. Streaming
+envar. If a visualization is desired, we could get one via Isaac's `WebRTC Livestreaming`_. Streaming
 is currently the only supported method of visualization from within the container. The
 process can be killed by pressing ``Ctrl+C`` in the launching terminal.
 
@@ -153,7 +153,7 @@ Now, let's look at how :class:`~app.AppLauncher` handles conflicting commands:
 
 .. code-block:: console
 
-   LIVESTREAM=0 ./isaaclab.sh -p source/standalone/tutorials/00_sim/launch_app.py --size 0.5 --livestream 1
+   LIVESTREAM=0 ./isaaclab.sh -p source/standalone/tutorials/00_sim/launch_app.py --size 0.5 --livestream 2
 
 This will cause the same behavior as in the previous run, because although we have set ``LIVESTREAM=0``
 in our envars, CLI args such as ``--livestream`` take precedence in determining behavior. The process can
@@ -164,7 +164,7 @@ Finally, we will examine passing arguments to :class:`~isaacsim.simulation_app.S
 
 .. code-block:: console
 
-   LIVESTREAM=1 ./isaaclab.sh -p source/standalone/tutorials/00_sim/launch_app.py --size 0.5 --width 1920 --height 1080
+   LIVESTREAM=2 ./isaaclab.sh -p source/standalone/tutorials/00_sim/launch_app.py --size 0.5 --width 1920 --height 1080
 
 This will cause the same behavior as before, but now the viewport will be rendered at 1920x1080p resolution.
 This can be useful when we want to gather high-resolution video, or we can specify a lower resolution if we
@@ -173,4 +173,4 @@ terminal.
 
 
 .. _specification: https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/isaacsim.simulation_app/docs/index.html#isaacsim.simulation_app.SimulationApp.DEFAULT_LAUNCHER_CONFIG
-.. _Native Livestreaming: https://docs.omniverse.nvidia.com/isaacsim/latest/installation/manual_livestream_clients.html#omniverse-streaming-client
+.. _WebRTC Livestreaming: https://docs.omniverse.nvidia.com/isaacsim/latest/installation/manual_livestream_clients.html#isaac-sim-short-webrtc-streaming-client
