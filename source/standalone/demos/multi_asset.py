@@ -245,7 +245,8 @@ def run_simulator(sim: SimulationContext, scene: InteractiveScene):
             # object collection
             object_state = rigid_object_collection.data.default_object_state.clone()
             object_state[..., :3] += scene.env_origins.unsqueeze(1)
-            rigid_object_collection.write_object_state_to_sim(object_state)
+            rigid_object_collection.write_object_link_pose_to_sim(object_state[..., :7])
+            rigid_object_collection.write_object_com_velocity_to_sim(object_state[..., 7:])
             # robot
             # -- root state
             root_state = robot.data.default_root_state.clone()

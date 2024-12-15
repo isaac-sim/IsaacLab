@@ -78,6 +78,7 @@ class ArticulationData:
         # deprecation warning check
         self._root_state_dep_warn = False
         self._body_state_dep_warn = False
+        self._ignore_dep_warn = False
 
     def update(self, dt: float):
         # update the simulation timestamp
@@ -273,7 +274,7 @@ class ArticulationData:
         the linear and angular velocities are of the articulation root's center of mass frame.
         """
 
-        if not self._root_state_dep_warn:
+        if not self._root_state_dep_warn and not self._ignore_dep_warn:
             omni.log.warn(
                 "DeprecationWarning: root_state_w and it's derived properties will be deprecated in a future release."
                 " Please use root_link_state_w or root_com_state_w."
@@ -346,7 +347,7 @@ class ArticulationData:
         velocities are of the articulation links's center of mass frame.
         """
 
-        if not self._body_state_dep_warn:
+        if not self._body_state_dep_warn and not self._ignore_dep_warn:
             omni.log.warn(
                 "DeprecationWarning: body_state_w and it's derived properties will be deprecated in a future release."
                 " Please use body_link_state_w or body_com_state_w."

@@ -235,7 +235,9 @@ class RigidObject(AssetBase):
         # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
         self._data.root_link_state_w[env_ids, :7] = root_pose.clone()
+        self._data._ignore_dep_warn = True
         self._data.root_state_w[env_ids, :7] = self._data.root_link_state_w[env_ids, :7]
+        self._data._ignore_dep_warn = False
         # convert root quaternion from wxyz to xyzw
         root_poses_xyzw = self._data.root_link_state_w[:, :7].clone()
         root_poses_xyzw[:, 3:] = math_utils.convert_quat(root_poses_xyzw[:, 3:], to="xyzw")
@@ -309,7 +311,9 @@ class RigidObject(AssetBase):
         # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
         self._data.root_com_state_w[env_ids, 7:] = root_velocity.clone()
+        self._data._ignore_dep_warn = True
         self._data.root_state_w[env_ids, 7:] = self._data.root_com_state_w[env_ids, 7:]
+        self._data._ignore_dep_warn = False
         self._data.body_acc_w[env_ids] = 0.0
         # set into simulation
         self.root_physx_view.set_velocities(self._data.root_com_state_w[:, 7:], indices=physx_env_ids)

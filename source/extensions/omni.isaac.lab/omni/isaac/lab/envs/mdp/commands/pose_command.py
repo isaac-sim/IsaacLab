@@ -152,4 +152,4 @@ class UniformPoseCommand(CommandTerm):
         self.goal_pose_visualizer.visualize(self.pose_command_w[:, :3], self.pose_command_w[:, 3:])
         # -- current body pose
         body_link_state_w = self.robot.data.body_link_state_w[:, self.body_idx]
-        self.body_pose_visualizer.visualize(body_link_state_w[:, :3], body_link_state_w[:, 3:7])
+        self.current_pose_visualizer.visualize(body_link_state_w[:, :3], body_link_state_w[:, 3:7])

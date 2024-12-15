@@ -71,6 +71,7 @@ class RigidObjectData:
 
         # deprecation warning check
         self._root_state_dep_warn = False
+        self._ignore_dep_warn = False
 
     def update(self, dt: float):
         """Updates the data for the rigid object.
@@ -120,7 +121,7 @@ class RigidObjectData:
         The position and orientation are of the rigid body's actor frame. Meanwhile, the linear and angular
         velocities are of the rigid body's center of mass frame.
         """
-        if not self._root_state_dep_warn:
+        if not self._root_state_dep_warn and not self._ignore_dep_warn:
             omni.log.warn(
                 "DeprecationWarning: root_state_w and it's derived properties will be deprecated in a future release."
                 " Please use root_link_state_w or root_com_state_w."

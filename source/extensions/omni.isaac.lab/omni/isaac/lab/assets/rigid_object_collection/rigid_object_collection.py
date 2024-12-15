@@ -327,7 +327,9 @@ class RigidObjectCollection(AssetBase):
         # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
         self._data.object_link_state_w[env_ids[:, None], object_ids, :7] = object_pose.clone()
+        self._data._ignore_dep_warn = True
         self._data.object_state_w[env_ids[:, None], object_ids, :7] = object_pose.clone()
+        self._data._ignore_dep_warn = False
         # convert the quaternion from wxyz to xyzw
         poses_xyzw = self._data.object_link_state_w[..., :7].clone()
         poses_xyzw[..., 3:] = math_utils.convert_quat(poses_xyzw[..., 3:], to="xyzw")
@@ -418,7 +420,9 @@ class RigidObjectCollection(AssetBase):
             object_ids = self._ALL_OBJ_INDICES
 
         self._data.object_com_state_w[env_ids[:, None], object_ids, 7:] = object_velocity.clone()
+        self._data._ignore_dep_warn = True
         self._data.object_state_w[env_ids[:, None], object_ids, 7:] = object_velocity.clone()
+        self._data._ignore_dep_warn = False
         self._data.object_acc_w[env_ids[:, None], object_ids] = 0.0
 
         # set into simulation

@@ -124,7 +124,7 @@ class DifferentialInverseKinematicsAction(ActionTerm):
     @property
     def jacobian_b(self) -> torch.Tensor:
         jacobian = self.jacobian_w
-        base_rot = self._asset.data.root_quat_w
+        base_rot = self._asset.data.root_link_quat_w
         base_rot_matrix = math_utils.matrix_from_quat(math_utils.quat_inv(base_rot))
         jacobian[:, :3, :] = torch.bmm(base_rot_matrix, jacobian[:, :3, :])
         jacobian[:, 3:, :] = torch.bmm(base_rot_matrix, jacobian[:, 3:, :])

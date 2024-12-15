@@ -140,7 +140,7 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Deformab
         cube_object.update(sim_dt)
         # print the root position
         if count % 50 == 0:
-            print(f"Root position (in world): {cube_object.data.root_link_pos_w[:, :3]}")
+            print(f"Root position (in world): {cube_object.data.root_pos_w[:, :3]}")
 
 
 def main():
