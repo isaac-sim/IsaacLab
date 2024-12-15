@@ -152,6 +152,107 @@ class TestWarpCamera(unittest.TestCase):
                 im_data.shape == (1, self.camera_cfg.pattern_cfg.height, self.camera_cfg.pattern_cfg.width, 1)
             )
 
+    def test_depth_clipping(self):
+        """Test depth clipping.
+
+        .. note::
+
+            This test is the same for all camera models to enforce the same clipping behavior.
+        """
+        prim_utils.create_prim("/World/CameraZero", "Xform")
+        prim_utils.create_prim("/World/CameraNone", "Xform")
+        prim_utils.create_prim("/World/CameraMax", "Xform")
+
+        # get camera cfgs
+        camera_cfg_zero = RayCasterCameraCfg(
+            prim_path="/World/CameraZero",
+            mesh_prim_paths=["/World/defaultGroundPlane"],
+            offset=RayCasterCameraCfg.OffsetCfg(
+                pos=(2.5, 2.5, 6.0), rot=(0.9914449, 0.0, 0.1305, 0.0), convention="world"
+            ),
+            pattern_cfg=patterns.PinholeCameraPatternCfg().from_intrinsic_matrix(
+                focal_length=38.0,
+                intrinsic_matrix=[380.08, 0.0, 467.79, 0.0, 380.08, 262.05, 0.0, 0.0, 1.0],
+                height=540,
+                width=960,
+            ),
+            max_distance=10.0,
+            data_types=["distance_to_image_plane", "distance_to_camera"],
+            depth_clipping_behavior="zero",
+        )
+        camera_zero = RayCasterCamera(camera_cfg_zero)
+
+        camera_cfg_none = copy.deepcopy(camera_cfg_zero)
+        camera_cfg_none.prim_path = "/World/CameraNone"
+        camera_cfg_none.depth_clipping_behavior = "none"
+        camera_none = RayCasterCamera(camera_cfg_none)
+
+        camera_cfg_max = copy.deepcopy(camera_cfg_zero)
+        camera_cfg_max.prim_path = "/World/CameraMax"
+        camera_cfg_max.depth_clipping_behavior = "max"
+        camera_max = RayCasterCamera(camera_cfg_max)
+
+        # Play sim
+        self.sim.reset()
+
+        camera_zero.update(self.dt)
+        camera_none.update(self.dt)
+        camera_max.update(self.dt)
+
+        # none clipping should contain inf values
+        self.assertTrue(torch.isinf(camera_none.data.output["distance_to_camera"]).any())
+        self.assertTrue(torch.isnan(camera_none.data.output["distance_to_image_plane"]).any())
+        self.assertTrue(
+            camera_none.data.output["distance_to_camera"][
+                ~torch.isinf(camera_none.data.output["distance_to_camera"])
+            ].max()
+            > camera_cfg_zero.max_distance
+        )
+        self.assertTrue(
+            camera_none.data.output["distance_to_image_plane"][
+                ~torch.isnan(camera_none.data.output["distance_to_image_plane"])
+            ].max()
+            > camera_cfg_zero.max_distance
+        )
+
+        # zero clipping should result in zero values
+        self.assertTrue(
+            torch.all(
+                camera_zero.data.output["distance_to_camera"][
+                    torch.isinf(camera_none.data.output["distance_to_camera"])
+                ]
+                == 0.0
+            )
+        )
+        self.assertTrue(
+            torch.all(
+                camera_zero.data.output["distance_to_image_plane"][
+                    torch.isnan(camera_none.data.output["distance_to_image_plane"])
+                ]
+                == 0.0
+            )
+        )
+        self.assertTrue(camera_zero.data.output["distance_to_camera"].max() <= camera_cfg_zero.max_distance)
+        self.assertTrue(camera_zero.data.output["distance_to_image_plane"].max() <= camera_cfg_zero.max_distance)
+
+        # max clipping should result in max values
+        self.assertTrue(
+            torch.all(
+                camera_max.data.output["distance_to_camera"][torch.isinf(camera_none.data.output["distance_to_camera"])]
+                == camera_cfg_zero.max_distance
+            )
+        )
+        self.assertTrue(
+            torch.all(
+                camera_max.data.output["distance_to_image_plane"][
+                    torch.isnan(camera_none.data.output["distance_to_image_plane"])
+                ]
+                == camera_cfg_zero.max_distance
+            )
+        )
+        self.assertTrue(camera_max.data.output["distance_to_camera"].max() <= camera_cfg_zero.max_distance)
+        self.assertTrue(camera_max.data.output["distance_to_image_plane"].max() <= camera_cfg_zero.max_distance)
+
     def test_camera_init_offset(self):
         """Test camera initialization with offset using different conventions."""
         # define the same offset in all conventions

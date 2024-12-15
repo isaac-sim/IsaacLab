@@ -424,6 +424,39 @@ class Articulation(AssetBase):
         # set into simulation
         self.root_physx_view.set_dof_dampings(self._data.joint_damping.cpu(), indices=physx_env_ids.cpu())
 
+    def write_joint_velocity_limit_to_sim(
+        self,
+        limits: torch.Tensor | float,
+        joint_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | None = None,
+    ):
+        """Write joint max velocity to the simulation.
+
+        Args:
+            limits: Joint max velocity. Shape is (len(env_ids), len(joint_ids)).
+            joint_ids: The joint indices to set the max velocity for. Defaults to None (all joints).
+            env_ids: The environment indices to set the max velocity for. Defaults to None (all environments).
+        """
+        # resolve indices
+        physx_env_ids = env_ids
+        if env_ids is None:
+            env_ids = slice(None)
+            physx_env_ids = self._ALL_INDICES
+        if joint_ids is None:
+            joint_ids = slice(None)
+        # broadcast env_ids if needed to allow double indexing
+        if env_ids != slice(None) and joint_ids != slice(None):
+            env_ids = env_ids[:, None]
+        # move tensor to cpu if needed
+        if isinstance(limits, torch.Tensor):
+            limits = limits.to(self.device)
+
+        # set into internal buffers
+        self._data.joint_velocity_limits = self.root_physx_view.get_dof_max_velocities().to(self.device)
+        self._data.joint_velocity_limits[env_ids, joint_ids] = limits
+        # set into simulation
+        self.root_physx_view.set_dof_max_velocities(self._data.joint_velocity_limits.cpu(), indices=physx_env_ids.cpu())
+
     def write_joint_effort_limit_to_sim(
         self,
         limits: torch.Tensor | float,
@@ -1158,6 +1191,7 @@ class Articulation(AssetBase):
                 self.write_joint_stiffness_to_sim(actuator.stiffness, joint_ids=actuator.joint_indices)
                 self.write_joint_damping_to_sim(actuator.damping, joint_ids=actuator.joint_indices)
                 self.write_joint_effort_limit_to_sim(actuator.effort_limit, joint_ids=actuator.joint_indices)
+                self.write_joint_velocity_limit_to_sim(actuator.velocity_limit, joint_ids=actuator.joint_indices)
                 self.write_joint_armature_to_sim(actuator.armature, joint_ids=actuator.joint_indices)
                 self.write_joint_friction_to_sim(actuator.friction, joint_ids=actuator.joint_indices)
             else:
@@ -1166,6 +1200,7 @@ class Articulation(AssetBase):
                 self.write_joint_stiffness_to_sim(0.0, joint_ids=actuator.joint_indices)
                 self.write_joint_damping_to_sim(0.0, joint_ids=actuator.joint_indices)
                 self.write_joint_effort_limit_to_sim(1.0e9, joint_ids=actuator.joint_indices)
+                self.write_joint_velocity_limit_to_sim(actuator.velocity_limit, joint_ids=actuator.joint_indices)
                 self.write_joint_armature_to_sim(actuator.armature, joint_ids=actuator.joint_indices)
                 self.write_joint_friction_to_sim(actuator.friction, joint_ids=actuator.joint_indices)
                 # Store the actual default stiffness and damping values for explicit actuators (not written the sim)
