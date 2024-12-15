@@ -14,11 +14,12 @@ import torch
 import weakref
 from abc import abstractmethod
 from collections.abc import Sequence
+from dataclasses import MISSING
 from typing import Any, ClassVar
 
-import carb
 import omni.isaac.core.utils.torch as torch_utils
 import omni.kit.app
+import omni.log
 from omni.isaac.version import get_version
 
 from omni.isaac.lab.managers import EventManager
@@ -30,6 +31,7 @@ from omni.isaac.lab.utils.timer import Timer
 from .common import VecEnvObs, VecEnvStepReturn
 from .direct_rl_env_cfg import DirectRLEnvCfg
 from .ui import ViewportCameraController
+from .utils.spaces import sample_space, spec_to_gym_space
 
 
 class DirectRLEnv(gym.Env):
@@ -77,6 +79,8 @@ class DirectRLEnv(gym.Env):
             RuntimeError: If a simulation context already exists. The environment must always create one
                 since it configures the simulation context and controls the simulation.
         """
+        # check that the config is valid
+        cfg.validate()
         # store inputs to class
         self.cfg = cfg
         # store the render mode
@@ -88,7 +92,7 @@ class DirectRLEnv(gym.Env):
         if self.cfg.seed is not None:
             self.cfg.seed = self.seed(self.cfg.seed)
         else:
-            carb.log_warn("Seed not set for the environment. The environment creation may not be deterministic.")
+            omni.log.warn("Seed not set for the environment. The environment creation may not be deterministic.")
 
         # create a simulation context to control the simulator
         if SimulationContext.instance() is None:
@@ -107,10 +111,10 @@ class DirectRLEnv(gym.Env):
         if self.cfg.sim.render_interval < self.cfg.decimation:
             msg = (
                 f"The render interval ({self.cfg.sim.render_interval}) is smaller than the decimation "
-                f"({self.cfg.decimation}). Multiple multiple render calls will happen for each environment step."
+                f"({self.cfg.decimation}). Multiple render calls will happen for each environment step."
                 "If this is not intended, set the render interval to be equal to the decimation."
             )
-            carb.log_warn(msg)
+            omni.log.warn(msg)
 
         # generate scene
         with Timer("[INFO]: Time taken for scene creation", "scene_creation"):
@@ -171,7 +175,6 @@ class DirectRLEnv(gym.Env):
         self.reset_terminated = torch.zeros(self.num_envs, device=self.device, dtype=torch.bool)
         self.reset_time_outs = torch.zeros_like(self.reset_terminated)
         self.reset_buf = torch.zeros(self.num_envs, dtype=torch.bool, device=self.sim.device)
-        self.actions = torch.zeros(self.num_envs, self.cfg.num_actions, device=self.sim.device)
 
         # setup the action and observation spaces for Gym
         self._configure_gym_env_spaces()
@@ -507,26 +510,39 @@ class DirectRLEnv(gym.Env):
 
     def _configure_gym_env_spaces(self):
         """Configure the action and observation spaces for the Gym environment."""
-        # observation space (unbounded since we don't impose any limits)
-        self.num_actions = self.cfg.num_actions
-        self.num_observations = self.cfg.num_observations
-        self.num_states = self.cfg.num_states
+        # show deprecation message and overwrite configuration
+        if self.cfg.num_actions is not None:
+            omni.log.warn("DirectRLEnvCfg.num_actions is deprecated. Use DirectRLEnvCfg.action_space instead.")
+            if isinstance(self.cfg.action_space, type(MISSING)):
+                self.cfg.action_space = self.cfg.num_actions
+        if self.cfg.num_observations is not None:
+            omni.log.warn(
+                "DirectRLEnvCfg.num_observations is deprecated. Use DirectRLEnvCfg.observation_space instead."
+            )
+            if isinstance(self.cfg.observation_space, type(MISSING)):
+                self.cfg.observation_space = self.cfg.num_observations
+        if self.cfg.num_states is not None:
+            omni.log.warn("DirectRLEnvCfg.num_states is deprecated. Use DirectRLEnvCfg.state_space instead.")
+            if isinstance(self.cfg.state_space, type(MISSING)):
+                self.cfg.state_space = self.cfg.num_states
 
         # set up spaces
         self.single_observation_space = gym.spaces.Dict()
-        self.single_observation_space["policy"] = gym.spaces.Box(
-            low=-np.inf, high=np.inf, shape=(self.num_observations,)
-        )
-        self.single_action_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(self.num_actions,))
+        self.single_observation_space["policy"] = spec_to_gym_space(self.cfg.observation_space)
+        self.single_action_space = spec_to_gym_space(self.cfg.action_space)
 
         # batch the spaces for vectorized environments
         self.observation_space = gym.vector.utils.batch_space(self.single_observation_space["policy"], self.num_envs)
         self.action_space = gym.vector.utils.batch_space(self.single_action_space, self.num_envs)
 
         # optional state space for asymmetric actor-critic architectures
-        if self.num_states > 0:
-            self.single_observation_space["critic"] = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(self.num_states,))
+        self.state_space = None
+        if self.cfg.state_space:
+            self.single_observation_space["critic"] = spec_to_gym_space(self.cfg.state_space)
             self.state_space = gym.vector.utils.batch_space(self.single_observation_space["critic"], self.num_envs)
+
+        # instantiate actions (needed for tasks for which the observations computation is dependent on the actions)
+        self.actions = sample_space(self.single_action_space, self.sim.device, batch_size=self.num_envs, fill_value=0)
 
     def _reset_idx(self, env_ids: Sequence[int]):
         """Reset environments based on specified indices.
@@ -601,7 +617,7 @@ class DirectRLEnv(gym.Env):
         """Compute and return the states for the environment.
 
         The state-space is used for asymmetric actor-critic architectures. It is configured
-        using the :attr:`DirectRLEnvCfg.num_states` parameter.
+        using the :attr:`DirectRLEnvCfg.state_space` parameter.
 
         Returns:
             The states for the environment. If the environment does not have a state-space, the function

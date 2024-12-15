@@ -5,9 +5,7 @@
 
 from __future__ import annotations
 
-import gymnasium as gym
 import math
-import numpy as np
 import torch
 from collections.abc import Sequence
 
@@ -29,9 +27,6 @@ class CartpoleRGBCameraEnvCfg(DirectRLEnvCfg):
     decimation = 2
     episode_length_s = 5.0
     action_scale = 100.0  # [N]
-    num_actions = 1
-    num_channels = 3
-    num_states = 0
 
     # simulation
     sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation)
@@ -52,8 +47,12 @@ class CartpoleRGBCameraEnvCfg(DirectRLEnvCfg):
         width=80,
         height=80,
     )
-    num_observations = num_channels * tiled_camera.height * tiled_camera.width
     write_image_to_file = False
+
+    # spaces
+    action_space = 1
+    state_space = 0
+    observation_space = [tiled_camera.height, tiled_camera.width, 3]
 
     # change viewer settings
     viewer = ViewerCfg(eye=(20.0, 20.0, 20.0))
@@ -87,9 +86,8 @@ class CartpoleDepthCameraEnvCfg(CartpoleRGBCameraEnvCfg):
         height=80,
     )
 
-    # env
-    num_channels = 1
-    num_observations = num_channels * tiled_camera.height * tiled_camera.width
+    # spaces
+    observation_space = [tiled_camera.height, tiled_camera.width, 1]
 
 
 class CartpoleCameraEnv(DirectRLEnv):
@@ -118,35 +116,6 @@ class CartpoleCameraEnv(DirectRLEnv):
         """Cleanup for the environment."""
         super().close()
 
-    def _configure_gym_env_spaces(self):
-        """Configure the action and observation spaces for the Gym environment."""
-        # observation space (unbounded since we don't impose any limits)
-        self.num_actions = self.cfg.num_actions
-        self.num_observations = self.cfg.num_observations
-        self.num_states = self.cfg.num_states
-
-        # set up spaces
-        self.single_observation_space = gym.spaces.Dict()
-        self.single_observation_space["policy"] = gym.spaces.Box(
-            low=-np.inf,
-            high=np.inf,
-            shape=(self.cfg.tiled_camera.height, self.cfg.tiled_camera.width, self.cfg.num_channels),
-        )
-        if self.num_states > 0:
-            self.single_observation_space["critic"] = gym.spaces.Box(
-                low=-np.inf,
-                high=np.inf,
-                shape=(self.cfg.tiled_camera.height, self.cfg.tiled_camera.width, self.cfg.num_channels),
-            )
-        self.single_action_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(self.num_actions,))
-
-        # batch the spaces for vectorized environments
-        self.observation_space = gym.vector.utils.batch_space(self.single_observation_space, self.num_envs)
-        self.action_space = gym.vector.utils.batch_space(self.single_action_space, self.num_envs)
-
-        # RL specifics
-        self.actions = torch.zeros(self.num_envs, self.num_actions, device=self.sim.device)
-
     def _setup_scene(self):
         """Setup the scene with the cartpole and camera."""
         self._cartpole = Articulation(self.cfg.robot_cfg)
@@ -156,7 +125,7 @@ class CartpoleCameraEnv(DirectRLEnv):
         self.scene.clone_environments(copy_from_source=False)
         self.scene.filter_collisions(global_prim_paths=[])
 
-        # add articultion and sensors to scene
+        # add articulation and sensors to scene
         self.scene.articulations["cartpole"] = self._cartpole
         self.scene.sensors["tiled_camera"] = self._tiled_camera
         # add lights

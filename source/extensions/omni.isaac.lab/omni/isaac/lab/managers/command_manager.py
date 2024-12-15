@@ -243,12 +243,17 @@ class CommandManager(ManagerBase):
             cfg: The configuration object or dictionary (``dict[str, CommandTermCfg]``).
             env: The environment instance.
         """
+        # create buffers to parse and store terms
+        self._terms: dict[str, CommandTerm] = dict()
+
+        # call the base class constructor (this prepares the terms)
         super().__init__(cfg, env)
         # store the commands
         self._commands = dict()
-        self.cfg.debug_vis = False
-        for term in self._terms.values():
-            self.cfg.debug_vis |= term.cfg.debug_vis
+        if self.cfg:
+            self.cfg.debug_vis = False
+            for term in self._terms.values():
+                self.cfg.debug_vis |= term.cfg.debug_vis
 
     def __str__(self) -> str:
         """Returns: A string representation for the command manager."""
@@ -371,10 +376,6 @@ class CommandManager(ManagerBase):
     """
 
     def _prepare_terms(self):
-        """Prepares a list of command terms."""
-        # parse command terms from the config
-        self._terms: dict[str, CommandTerm] = dict()
-
         # check if config is dict already
         if isinstance(self.cfg, dict):
             cfg_items = self.cfg.items()
@@ -393,5 +394,8 @@ class CommandManager(ManagerBase):
                 )
             # create the action term
             term = term_cfg.class_type(term_cfg, self._env)
+            # sanity check if term is valid type
+            if not isinstance(term, CommandTerm):
+                raise TypeError(f"Returned object for the term '{term_name}' is not of type CommandType.")
             # add class to dict
             self._terms[term_name] = term

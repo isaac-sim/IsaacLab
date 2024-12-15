@@ -42,6 +42,8 @@ def generate_articulation_cfg(
     articulation_type: Literal["humanoid", "panda", "anymal", "shadow_hand", "single_joint"],
     stiffness: float | None = 10.0,
     damping: float | None = 2.0,
+    vel_limit: float | None = 100.0,
+    effort_limit: float | None = 400.0,
 ) -> ArticulationCfg:
     """Generate an articulation configuration.
 
@@ -72,8 +74,8 @@ def generate_articulation_cfg(
             actuators={
                 "joint": ImplicitActuatorCfg(
                     joint_names_expr=[".*"],
-                    effort_limit=400.0,
-                    velocity_limit=100.0,
+                    effort_limit=effort_limit,
+                    velocity_limit=vel_limit,
                     stiffness=0.0,
                     damping=10.0,
                 ),
@@ -542,6 +544,72 @@ class TestArticulation(unittest.TestCase):
             # Check if articulation is initialized
             self.assertFalse(articulation._is_initialized)
 
+    def test_joint_limits(self):
+        """Test write_joint_limits_to_sim API and when default pos falls outside of the new limits."""
+        for num_articulations in (1, 2):
+            for device in ("cuda:0", "cpu"):
+                with self.subTest(num_articulations=num_articulations, device=device):
+                    with build_simulation_context(device=device, add_ground_plane=True, auto_add_lighting=True) as sim:
+                        # Create articulation
+                        articulation_cfg = generate_articulation_cfg(articulation_type="panda")
+                        articulation, _ = generate_articulation(articulation_cfg, num_articulations, device)
+
+                        # Play sim
+                        sim.reset()
+                        # Check if articulation is initialized
+                        self.assertTrue(articulation._is_initialized)
+
+                        # Get current default joint pos
+                        default_joint_pos = articulation._data.default_joint_pos.clone()
+
+                        # Set new joint limits
+                        limits = torch.zeros(num_articulations, articulation.num_joints, 2, device=device)
+                        limits[..., 0] = (
+                            torch.rand(num_articulations, articulation.num_joints, device=device) + 5.0
+                        ) * -1.0
+                        limits[..., 1] = torch.rand(num_articulations, articulation.num_joints, device=device) + 5.0
+                        articulation.write_joint_limits_to_sim(limits)
+
+                        # Check new limits are in place
+                        torch.testing.assert_close(articulation._data.joint_limits, limits)
+                        torch.testing.assert_close(articulation._data.default_joint_pos, default_joint_pos)
+
+                        # Set new joint limits with indexing
+                        env_ids = torch.arange(1, device=device)
+                        joint_ids = torch.arange(2, device=device)
+                        limits = torch.zeros(env_ids.shape[0], joint_ids.shape[0], 2, device=device)
+                        limits[..., 0] = (torch.rand(env_ids.shape[0], joint_ids.shape[0], device=device) + 5.0) * -1.0
+                        limits[..., 1] = torch.rand(env_ids.shape[0], joint_ids.shape[0], device=device) + 5.0
+                        articulation.write_joint_limits_to_sim(limits, env_ids=env_ids, joint_ids=joint_ids)
+
+                        # Check new limits are in place
+                        torch.testing.assert_close(articulation._data.joint_limits[env_ids][:, joint_ids], limits)
+                        torch.testing.assert_close(articulation._data.default_joint_pos, default_joint_pos)
+
+                        # Set new joint limits that invalidate default joint pos
+                        limits = torch.zeros(num_articulations, articulation.num_joints, 2, device=device)
+                        limits[..., 0] = torch.rand(num_articulations, articulation.num_joints, device=device) * -0.1
+                        limits[..., 1] = torch.rand(num_articulations, articulation.num_joints, device=device) * 0.1
+                        articulation.write_joint_limits_to_sim(limits)
+
+                        # Check if all values are within the bounds
+                        within_bounds = (articulation._data.default_joint_pos >= limits[..., 0]) & (
+                            articulation._data.default_joint_pos <= limits[..., 1]
+                        )
+                        self.assertTrue(torch.all(within_bounds))
+
+                        # Set new joint limits that invalidate default joint pos with indexing
+                        limits = torch.zeros(env_ids.shape[0], joint_ids.shape[0], 2, device=device)
+                        limits[..., 0] = torch.rand(env_ids.shape[0], joint_ids.shape[0], device=device) * -0.1
+                        limits[..., 1] = torch.rand(env_ids.shape[0], joint_ids.shape[0], device=device) * 0.1
+                        articulation.write_joint_limits_to_sim(limits, env_ids=env_ids, joint_ids=joint_ids)
+
+                        # Check if all values are within the bounds
+                        within_bounds = (
+                            articulation._data.default_joint_pos[env_ids][:, joint_ids] >= limits[..., 0]
+                        ) & (articulation._data.default_joint_pos[env_ids][:, joint_ids] <= limits[..., 1])
+                        self.assertTrue(torch.all(within_bounds))
+
     def test_external_force_on_single_body(self):
         """Test application of external force on the base of the articulation."""
         for num_articulations in (1, 2):
@@ -746,6 +814,43 @@ class TestArticulation(unittest.TestCase):
                         # Check that gains are loaded from USD file
                         torch.testing.assert_close(articulation.actuators["body"].stiffness, expected_stiffness)
                         torch.testing.assert_close(articulation.actuators["body"].damping, expected_damping)
+
+    def test_setting_velocity_limits(self):
+        """Test that velocity limits are loaded form the configuration correctly."""
+        for num_articulations in (1, 2):
+            for device in ("cuda:0", "cpu"):
+                for limit in (5.0, None):
+                    with self.subTest(num_articulations=num_articulations, device=device, limit=limit):
+                        with build_simulation_context(
+                            device=device, add_ground_plane=False, auto_add_lighting=True
+                        ) as sim:
+                            articulation_cfg = generate_articulation_cfg(
+                                articulation_type="single_joint", vel_limit=limit, effort_limit=limit
+                            )
+                            articulation, _ = generate_articulation(
+                                articulation_cfg=articulation_cfg, num_articulations=num_articulations, device=device
+                            )
+                            # Play sim
+                            sim.reset()
+
+                            if limit is not None:
+                                # Expected gains
+                                expected_velocity_limit = torch.full(
+                                    (articulation.num_instances, articulation.num_joints),
+                                    limit,
+                                    device=articulation.device,
+                                )
+                                # Check that gains are loaded from USD file
+                                torch.testing.assert_close(
+                                    articulation.actuators["joint"].velocity_limit, expected_velocity_limit
+                                )
+                                torch.testing.assert_close(
+                                    articulation.data.joint_velocity_limits, expected_velocity_limit
+                                )
+                                torch.testing.assert_close(
+                                    articulation.root_physx_view.get_dof_max_velocities().to(device),
+                                    expected_velocity_limit,
+                                )
 
     def test_reset(self):
         """Test that reset method works properly.

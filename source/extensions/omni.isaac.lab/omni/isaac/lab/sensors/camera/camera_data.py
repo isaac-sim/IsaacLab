@@ -5,10 +5,9 @@
 
 import torch
 from dataclasses import dataclass
-from tensordict import TensorDict
 from typing import Any
 
-from .utils import convert_orientation_convention
+from omni.isaac.lab.utils.math import convert_camera_frame_orientation_convention
 
 
 @dataclass
@@ -47,7 +46,7 @@ class CameraData:
     Shape is (N, 3, 3) where N is the number of sensors.
     """
 
-    output: TensorDict = None
+    output: dict[str, torch.Tensor] = None
     """The retrieved sensor data with sensor types as key.
 
     The format of the data is available in the `Replicator Documentation`_. For semantic-based data,
@@ -77,7 +76,7 @@ class CameraData:
 
         Shape is (N, 4) where N is the number of sensors.
         """
-        return convert_orientation_convention(self.quat_w_world, origin="world", target="ros")
+        return convert_camera_frame_orientation_convention(self.quat_w_world, origin="world", target="ros")
 
     @property
     def quat_w_opengl(self) -> torch.Tensor:
@@ -89,4 +88,4 @@ class CameraData:
 
         Shape is (N, 4) where N is the number of sensors.
         """
-        return convert_orientation_convention(self.quat_w_world, origin="world", target="opengl")
+        return convert_camera_frame_orientation_convention(self.quat_w_world, origin="world", target="opengl")

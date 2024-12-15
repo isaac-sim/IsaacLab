@@ -48,9 +48,9 @@ config should define the number of actions and observations for the environment.
    @configclass
    class CartpoleEnvCfg(DirectRLEnvCfg):
       ...
-      num_actions = 1
-      num_observations = 4
-      num_states = 0
+      action_space = 1
+      observation_space = 4
+      state_space = 0
 
 The config class can also be used to define task-specific attributes, such as scaling for reward terms
 and thresholds for reset conditions.

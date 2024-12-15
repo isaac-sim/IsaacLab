@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import gymnasium as gym
 import torch
 from typing import Dict, Literal, TypeVar
 
@@ -61,6 +62,9 @@ class ViewerCfg:
 ##
 # Types.
 ##
+
+SpaceType = TypeVar("SpaceType", gym.spaces.Space, int, set, tuple, list, dict)
+"""A sentinel object to indicate a valid space type to specify states, observations and actions."""
 
 VecEnvObs = Dict[str, torch.Tensor | Dict[str, torch.Tensor]]
 """Observation returned by the environment.

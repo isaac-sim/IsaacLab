@@ -103,14 +103,6 @@ class MySceneCfg(InteractiveSceneCfg):
 
 
 @configclass
-class CommandsCfg:
-    """Command terms for the MDP."""
-
-    # no commands for this MDP
-    null = mdp.NullCommandCfg()
-
-
-@configclass
 class ActionsCfg:
     """Action specifications for the MDP."""
 
@@ -249,13 +241,6 @@ class TerminationsCfg:
 
 
 @configclass
-class CurriculumCfg:
-    """Curriculum terms for the MDP."""
-
-    pass
-
-
-@configclass
 class HumanoidEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the MuJoCo-style Humanoid walking environment."""
 
@@ -264,13 +249,10 @@ class HumanoidEnvCfg(ManagerBasedRLEnvCfg):
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
-    commands: CommandsCfg = CommandsCfg()
-
     # MDP settings
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
     events: EventCfg = EventCfg()
-    curriculum: CurriculumCfg = CurriculumCfg()
 
     def __post_init__(self):
         """Post initialization."""

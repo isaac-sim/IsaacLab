@@ -10,7 +10,7 @@ from omni.isaac.lab.sim import SimulationCfg
 from omni.isaac.lab.utils import configclass
 from omni.isaac.lab.utils.noise import NoiseModelCfg
 
-from .common import AgentID, ViewerCfg
+from .common import AgentID, SpaceType, ViewerCfg
 from .ui import BaseEnvWindow
 
 
@@ -104,11 +104,39 @@ class DirectMARLEnvCfg:
     Please refer to the :class:`omni.isaac.lab.managers.EventManager` class for more details.
     """
 
-    num_observations: dict[AgentID, int] = MISSING
-    """The dimension of the observation space from each agent."""
+    observation_spaces: dict[AgentID, SpaceType] = MISSING
+    """Observation space definition for each agent.
 
-    num_states: int = MISSING
-    """The dimension of the state space from each environment instance.
+    The space can be defined either using Gymnasium :py:mod:`~gymnasium.spaces` (when a more detailed
+    specification of the space is desired) or basic Python data types (for simplicity).
+
+    .. list-table::
+        :header-rows: 1
+
+        * - Gymnasium space
+          - Python data type
+        * - :class:`~gymnasium.spaces.Box`
+          - Integer or list of integers (e.g.: ``7``, ``[64, 64, 3]``)
+        * - :class:`~gymnasium.spaces.Discrete`
+          - Single-element set (e.g.: ``{2}``)
+        * - :class:`~gymnasium.spaces.MultiDiscrete`
+          - List of single-element sets (e.g.: ``[{2}, {5}]``)
+        * - :class:`~gymnasium.spaces.Dict`
+          - Dictionary (e.g.: ``{"joints": 7, "rgb": [64, 64, 3], "gripper": {2}}``)
+        * - :class:`~gymnasium.spaces.Tuple`
+          - Tuple (e.g.: ``(7, [64, 64, 3], {2})``)
+    """
+
+    num_observations: dict[AgentID, int] | None = None
+    """The dimension of the observation space for each agent.
+
+    .. warning::
+
+        This attribute is deprecated. Use :attr:`~omni.isaac.lab.envs.DirectMARLEnvCfg.observation_spaces` instead.
+    """
+
+    state_space: SpaceType = MISSING
+    """State space definition.
 
     The following values are supported:
 
@@ -116,6 +144,33 @@ class DirectMARLEnvCfg:
     * 0: No state-space will be constructed (`state_space` is None).
       This is useful to save computational resources when the algorithm to be trained does not need it.
     * greater than 0: Custom state-space dimension to be provided by the task implementation.
+
+    The space can be defined either using Gymnasium :py:mod:`~gymnasium.spaces` (when a more detailed
+    specification of the space is desired) or basic Python data types (for simplicity).
+
+    .. list-table::
+        :header-rows: 1
+
+        * - Gymnasium space
+          - Python data type
+        * - :class:`~gymnasium.spaces.Box`
+          - Integer or list of integers (e.g.: ``7``, ``[64, 64, 3]``)
+        * - :class:`~gymnasium.spaces.Discrete`
+          - Single-element set (e.g.: ``{2}``)
+        * - :class:`~gymnasium.spaces.MultiDiscrete`
+          - List of single-element sets (e.g.: ``[{2}, {5}]``)
+        * - :class:`~gymnasium.spaces.Dict`
+          - Dictionary (e.g.: ``{"joints": 7, "rgb": [64, 64, 3], "gripper": {2}}``)
+        * - :class:`~gymnasium.spaces.Tuple`
+          - Tuple (e.g.: ``(7, [64, 64, 3], {2})``)
+    """
+
+    num_states: int | None = None
+    """The dimension of the state space from each environment instance.
+
+    .. warning::
+
+        This attribute is deprecated. Use :attr:`~omni.isaac.lab.envs.DirectMARLEnvCfg.state_space` instead.
     """
 
     observation_noise_model: dict[AgentID, NoiseModelCfg | None] | None = None
@@ -124,8 +179,36 @@ class DirectMARLEnvCfg:
     Please refer to the :class:`omni.isaac.lab.utils.noise.NoiseModel` class for more details.
     """
 
-    num_actions: dict[AgentID, int] = MISSING
-    """The dimension of the action space for each agent."""
+    action_spaces: dict[AgentID, SpaceType] = MISSING
+    """Action space definition for each agent.
+
+    The space can be defined either using Gymnasium :py:mod:`~gymnasium.spaces` (when a more detailed
+    specification of the space is desired) or basic Python data types (for simplicity).
+
+    .. list-table::
+        :header-rows: 1
+
+        * - Gymnasium space
+          - Python data type
+        * - :class:`~gymnasium.spaces.Box`
+          - Integer or list of integers (e.g.: ``7``, ``[64, 64, 3]``)
+        * - :class:`~gymnasium.spaces.Discrete`
+          - Single-element set (e.g.: ``{2}``)
+        * - :class:`~gymnasium.spaces.MultiDiscrete`
+          - List of single-element sets (e.g.: ``[{2}, {5}]``)
+        * - :class:`~gymnasium.spaces.Dict`
+          - Dictionary (e.g.: ``{"joints": 7, "rgb": [64, 64, 3], "gripper": {2}}``)
+        * - :class:`~gymnasium.spaces.Tuple`
+          - Tuple (e.g.: ``(7, [64, 64, 3], {2})``)
+    """
+
+    num_actions: dict[AgentID, int] | None = None
+    """The dimension of the action space for each agent.
+
+    .. warning::
+
+        This attribute is deprecated. Use :attr:`~omni.isaac.lab.envs.DirectMARLEnvCfg.action_spaces` instead.
+    """
 
     action_noise_model: dict[AgentID, NoiseModelCfg | None] | None = None
     """The noise model applied to the actions provided to the environment. Default is None, which means no noise is added.

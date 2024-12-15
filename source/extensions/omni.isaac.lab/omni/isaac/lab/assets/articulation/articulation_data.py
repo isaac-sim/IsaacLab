@@ -220,6 +220,9 @@ class ArticulationData:
     joint_limits: torch.Tensor = None
     """Joint limits provided to simulation. Shape is (num_instances, num_joints, 2)."""
 
+    joint_velocity_limits: torch.Tensor = None
+    """Joint maximum velocity provided to simulation. Shape is (num_instances, num_joints)."""
+
     ##
     # Fixed tendon properties.
     ##
