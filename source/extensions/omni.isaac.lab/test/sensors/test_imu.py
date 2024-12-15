@@ -299,7 +299,7 @@ class TestImu(unittest.TestCase):
 
             # check the angular velocity
             torch.testing.assert_close(
-                self.scene.sensors["imu_ball"].data.com_ang_vel_b,
+                self.scene.sensors["imu_ball"].data.ang_vel_b,
                 self.scene.rigid_objects["balls"].data.root_com_ang_vel_b,
                 rtol=1e-4,
                 atol=1e-4,
