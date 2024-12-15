@@ -18,6 +18,7 @@ import os
 import re
 import signal
 import sys
+import warnings
 from typing import Any, Literal
 
 with contextlib.suppress(ModuleNotFoundError):
@@ -161,8 +162,8 @@ class AppLauncher:
           Valid options are:
 
           - ``0``: Disabled
-          - ``1``: `Native <https://docs.omniverse.nvidia.com/extensions/latest/ext_livestream/native.html>`_
-          - ``2``: `WebRTC <https://docs.omniverse.nvidia.com/extensions/latest/ext_livestream/webrtc.html>`_
+          - ``1``: `Native [DEPRECATED] <https://docs.omniverse.nvidia.com/isaacsim/latest/installation/manual_livestream_clients.html#omniverse-streaming-client-deprecated>`_
+          - ``2``: `WebRTC <https://docs.omniverse.nvidia.com/isaacsim/latest/installation/manual_livestream_clients.html#isaac-sim-short-webrtc-streaming-client>`_
 
         * ``enable_cameras`` (bool): If True, the app will enable camera sensors and render them, even when in
           headless mode. This flag must be set to True if the environments contains any camera sensors.
@@ -527,7 +528,7 @@ class AppLauncher:
             os.environ["PXR_WORK_THREAD_LIMIT"] = str(num_threads_per_process)
             os.environ["OPENBLAS_NUM_THREADS"] = str(num_threads_per_process)
             # pass command line variable to kit
-            sys.argv.append(f"--/plugins/carb.tasking.plugin/threadCount={num_threads_per_process}")
+            self._kit_args.append(f"--/plugins/carb.tasking.plugin/threadCount={num_threads_per_process}")
 
         # set physics and rendering device
         launcher_args["physics_gpu"] = self.device_id
@@ -572,6 +573,38 @@ class AppLauncher:
                 f"Invalid value for input keyword argument `experience`: {self._sim_experience_file}."
                 " The file does not exist."
             )
+
+        # Process livestream here before launching kit because some of the extensions only work when launched with the kit file
+        if self._livestream >= 1:
+            livestream_args = []
+            # Note: Only one livestream extension can be enabled at a time
+            if self._livestream == 1:
+                warnings.warn(
+                    "Native Livestream is deprecated. Please use WebRTC Livestream instead with --livestream 2."
+                )
+                livestream_args += [
+                    '--/app/livestream/proto="ws"',
+                    "--/app/livestream/allowResize=true",
+                    "--enable",
+                    "omni.kit.livestream.core-4.1.2",
+                    "--enable",
+                    "omni.kit.livestream.native-5.0.1",
+                    "--enable",
+                    "omni.kit.streamsdk.plugins-4.1.1",
+                ]
+            elif self._livestream == 2:
+                livestream_args += [
+                    "--/app/livestream/allowResize=false",
+                    "--enable",
+                    "omni.kit.livestream.core-6.1.0",
+                    "--enable",
+                    "omni.kit.livestream.webrtc-6.0.0",
+                    "--enable",
+                    "omni.kit.streamsdk.plugins-6.1.7",
+                ]
+            else:
+                raise ValueError(f"Invalid value for livestream: {self._livestream}. Expected: 1, 2 .")
+            sys.argv += livestream_args
 
         # Resolve additional arguments passed to Kit
         self._kit_args = []
@@ -631,36 +664,9 @@ class AppLauncher:
         # These have to be loaded after SimulationApp is initialized
         import carb
         import omni.physx.bindings._physx as physx_impl
-        from isaacsim.core.utils.extensions import enable_extension
 
         # Retrieve carb settings for modification
         carb_settings_iface = carb.settings.get_settings()
-
-        if self._livestream >= 1:
-            # Ensure that a viewport exists in case an experience has been
-            # loaded which does not load it by default
-            enable_extension("omni.kit.viewport.window")
-            # Set carb settings to allow for livestreaming
-            carb_settings_iface.set_bool("/app/livestream/enabled", True)
-            carb_settings_iface.set_bool("/app/window/drawMouse", True)
-            carb_settings_iface.set_bool("/ngx/enabled", False)
-            carb_settings_iface.set_string("/app/livestream/proto", "ws")
-            carb_settings_iface.set_int("/app/livestream/websocket/framerate_limit", 120)
-            # Note: Only one livestream extension can be enabled at a time
-            if self._livestream == 1:
-                # Enable Native Livestream extension
-                # Default App: Streaming Client from the Omniverse Launcher
-                enable_extension("omni.kit.streamsdk.plugins-3.2.1")
-                enable_extension("omni.kit.livestream.core-3.2.0")
-                enable_extension("omni.kit.livestream.native-4.1.0")
-            elif self._livestream == 2:
-                # Enable WebRTC Livestream extension
-                # Default URL: http://localhost:8211/streaming/webrtc-client/
-                enable_extension("omni.services.streamclient.webrtc")
-            else:
-                raise ValueError(f"Invalid value for livestream: {self._livestream}. Expected: 1, 2 .")
-        else:
-            carb_settings_iface.set_bool("/app/livestream/enabled", False)
 
         # set carb setting to indicate Isaac Lab's offscreen_render pipeline should be enabled
         # this flag is used by the SimulationContext class to enable the offscreen_render pipeline
