@@ -10,7 +10,6 @@ Changed
 * Added check for error below threshold in state machines to ensure the state has been reached.
 
 
-
 0.27.27 (2024-12-13)
 ~~~~~~~~~~~~~~~~~~~~
 
