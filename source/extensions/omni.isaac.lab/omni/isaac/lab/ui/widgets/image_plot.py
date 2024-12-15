@@ -5,7 +5,7 @@
 
 import numpy as np
 from matplotlib import cm
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 import carb
 import omni
@@ -44,7 +44,7 @@ class ImagePlot(UIWidgetWrapper):
 
     def __init__(
         self,
-        image: np.ndarray | None,
+        image: Optional[np.ndarray] = None,
         label: str = "",
         widget_height: int = 200,
         show_min_max: bool = True,
