@@ -405,7 +405,7 @@ class TestContactSensor(unittest.TestCase):
             duration = self.durations[idx]
             while current_test_time < duration:
                 # set object states to contact the ground plane
-                shape.write_root_pose_to_sim(root_pose=test_pose)
+                shape.write_root_link_pose_to_sim(root_pose=test_pose)
                 # perform simulation step
                 self._perform_sim_step()
                 # increment contact time
@@ -432,7 +432,7 @@ class TestContactSensor(unittest.TestCase):
                     dt=duration + self.sim_dt,
                 )
             # switch the contact mode for 1 dt step before the next contact test begins.
-            shape.write_root_pose_to_sim(root_pose=reset_pose)
+            shape.write_root_link_pose_to_sim(root_pose=reset_pose)
             # perform simulation step
             self._perform_sim_step()
             # set the last air time to 2 sim_dt steps, because last_air_time and last_contact_time

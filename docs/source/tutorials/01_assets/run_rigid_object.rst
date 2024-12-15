@@ -96,7 +96,7 @@ desired state of the rigid object prim into the world frame before setting it.
 We use the :attr:`assets.RigidObject.data.default_root_state` attribute to get the default root state of the
 spawned rigid object prims. This default state can be configured from the :attr:`assets.RigidObjectCfg.init_state`
 attribute, which we left as identity in this tutorial. We then randomize the translation of the root state and
-set the desired state of the rigid object prim using the :meth:`assets.RigidObject.write_root_state_to_sim` method.
+set the desired state of the rigid object prim using the :meth:`assets.RigidObject.write_root_link_pose_to_sim` and :meth:`assets.RigidObject.write_root_com_velocity_to_sim` methods.
 As the name suggests, this method writes the root state of the rigid object prim into the simulation buffer.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/01_assets/run_rigid_object.py

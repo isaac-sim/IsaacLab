@@ -349,7 +349,7 @@ class ArticulationData:
         if not self._body_state_dep_warn:
             omni.log.warn(
                 "DeprecationWarning: body_state_w and it's derived properties will be deprecated in a future release."
-                " Please use body_link_state_w or bodt_com_state_w."
+                " Please use body_link_state_w or body_com_state_w."
             )
             self._body_state_dep_warn = True
 

@@ -633,7 +633,8 @@ class TestArticulation(unittest.TestCase):
                             # reset root state
                             root_state = articulation.data.default_root_state.clone()
 
-                            articulation.write_root_state_to_sim(root_state)
+                            articulation.write_root_link_pose_to_sim(root_state[:, :7])
+                            articulation.write_root_com_velocity_to_sim(root_state[:, 7:])
                             # reset dof state
                             joint_pos, joint_vel = (
                                 articulation.data.default_joint_pos,
@@ -680,7 +681,12 @@ class TestArticulation(unittest.TestCase):
                         # Now we are ready!
                         for _ in range(5):
                             # reset root state
-                            articulation.write_root_state_to_sim(articulation.data.default_root_state.clone())
+                            articulation.write_root_link_pose_to_sim(
+                                articulation.data.default_root_state.clone()[:, :7]
+                            )
+                            articulation.write_root_com_velocity_to_sim(
+                                articulation.data.default_root_state.clone()[:, 7:]
+                            )
                             # reset dof state
                             joint_pos, joint_vel = (
                                 articulation.data.default_joint_pos,

@@ -97,7 +97,8 @@ def main():
                 robot.write_joint_state_to_sim(joint_pos, joint_vel)
                 root_state = robot.data.default_root_state.clone()
                 root_state[:, :3] += origins[index]
-                robot.write_root_state_to_sim(root_state)
+                robot.write_root_link_pose_to_sim(root_state[:, :7])
+                robot.write_root_com_velocity_to_sim(root_state[:, 7:])
                 robot.reset()
             # reset command
             print(">>>>>>>> Reset!")

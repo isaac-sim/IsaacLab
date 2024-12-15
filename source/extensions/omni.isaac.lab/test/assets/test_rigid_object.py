@@ -237,7 +237,8 @@ class TestRigidObject(unittest.TestCase):
 
                             # need to shift the position of the cubes otherwise they will be on top of each other
                             root_state[:, :3] = origins
-                            cube_object.write_root_state_to_sim(root_state)
+                            cube_object.write_root_link_pose_to_sim(root_state[:, :7])
+                            cube_object.write_root_com_velocity_to_sim(root_state[:, 7:])
 
                             # reset object
                             cube_object.reset()
@@ -288,10 +289,14 @@ class TestRigidObject(unittest.TestCase):
                         # Set each state type individually as they are dependent on each other
                         for state_type_to_randomize in state_types:
                             state_dict = {
-                                "root_pos_w": torch.zeros_like(cube_object.data.root_pos_w, device=sim.device),
+                                "root_pos_w": torch.zeros_like(cube_object.data.root_link_pos_w, device=sim.device),
                                 "root_quat_w": default_orientation(num=num_cubes, device=sim.device),
-                                "root_lin_vel_w": torch.zeros_like(cube_object.data.root_lin_vel_w, device=sim.device),
-                                "root_ang_vel_w": torch.zeros_like(cube_object.data.root_ang_vel_w, device=sim.device),
+                                "root_lin_vel_w": torch.zeros_like(
+                                    cube_object.data.root_com_lin_vel_w, device=sim.device
+                                ),
+                                "root_ang_vel_w": torch.zeros_like(
+                                    cube_object.data.root_com_ang_vel_w, device=sim.device
+                                ),
                             }
 
                             # Now we are ready!
@@ -319,7 +324,8 @@ class TestRigidObject(unittest.TestCase):
                                         dim=-1,
                                     )
                                     # reset root state
-                                    cube_object.write_root_state_to_sim(root_state=root_state)
+                                    cube_object.write_root_link_pose_to_sim(root_state[:, :7])
+                                    cube_object.write_root_com_velocity_to_sim(root_state[:, 7:])
 
                                     sim.step()
 
@@ -355,7 +361,8 @@ class TestRigidObject(unittest.TestCase):
 
                             # Random orientation
                             root_state[:, 3:7] = random_orientation(num=num_cubes, device=sim.device)
-                            cube_object.write_root_state_to_sim(root_state)
+                            cube_object.write_root_link_pose_to_sim(root_state[:, :7])
+                            cube_object.write_root_com_velocity_to_sim(root_state[:, 7:])
 
                             if i % 2 == 0:
                                 # reset object
@@ -440,7 +447,7 @@ class TestRigidObject(unittest.TestCase):
                         initial_velocity = torch.zeros((num_cubes, 6), device=sim.cfg.device)
                         initial_velocity[:, 0] = 0.1
 
-                        cube_object.write_root_velocity_to_sim(initial_velocity)
+                        cube_object.write_root_com_velocity_to_sim(initial_velocity)
 
                         # Simulate physics
                         for _ in range(5):
@@ -505,7 +512,7 @@ class TestRigidObject(unittest.TestCase):
                         for _ in range(100):
                             sim.step()
                             cube_object.update(sim.cfg.dt)
-                        cube_object.write_root_velocity_to_sim(torch.zeros((num_cubes, 6), device=sim.device))
+                        cube_object.write_root_com_velocity_to_sim(torch.zeros((num_cubes, 6), device=sim.device))
                         cube_mass = cube_object.root_physx_view.get_masses()
                         gravity_magnitude = abs(sim.cfg.gravity[2])
                         # 2 cases: force applied is below and above mu
@@ -514,7 +521,9 @@ class TestRigidObject(unittest.TestCase):
                         for force in "below_mu", "above_mu":
                             with self.subTest(force=force):
                                 # set initial velocity to zero
-                                cube_object.write_root_velocity_to_sim(torch.zeros((num_cubes, 6), device=sim.device))
+                                cube_object.write_root_com_velocity_to_sim(
+                                    torch.zeros((num_cubes, 6), device=sim.device)
+                                )
 
                                 external_wrench_b = torch.zeros((num_cubes, 1, 6), device=sim.device)
                                 if force == "below_mu":
@@ -532,7 +541,7 @@ class TestRigidObject(unittest.TestCase):
                                 )
 
                                 # Get root state
-                                initial_root_pos = cube_object.data.root_pos_w.clone()
+                                initial_root_pos = cube_object.data.root_link_pos_w.clone()
                                 # Simulate physics
                                 for _ in range(200):
                                     # apply the wrench
@@ -543,7 +552,7 @@ class TestRigidObject(unittest.TestCase):
                                     if force == "below_mu":
                                         # Assert that the block has not moved
                                         torch.testing.assert_close(
-                                            cube_object.data.root_pos_w, initial_root_pos, rtol=1e-3, atol=1e-3
+                                            cube_object.data.root_link_pos_w, initial_root_pos, rtol=1e-3, atol=1e-3
                                         )
                                 if force == "above_mu":
                                     self.assertTrue(
@@ -595,7 +604,8 @@ class TestRigidObject(unittest.TestCase):
                             root_state[:, 2] = 1.0  # Set an initial drop height
                             root_state[:, 9] = -1.0  # Set an initial downward velocity
 
-                            cube_object.write_root_state_to_sim(root_state=root_state)
+                            cube_object.write_root_link_pose_to_sim(root_state[:, :7])
+                            cube_object.write_root_com_velocity_to_sim(root_state[:, 7:])
 
                             static_friction = torch.zeros(num_cubes, 1)
                             dynamic_friction = torch.zeros(num_cubes, 1)
@@ -606,14 +616,14 @@ class TestRigidObject(unittest.TestCase):
                             # Add restitution to cube
                             cube_object.root_physx_view.set_material_properties(cube_object_materials, indices)
 
-                            curr_z_velocity = cube_object.data.root_lin_vel_w[:, 2].clone()
+                            curr_z_velocity = cube_object.data.root_com_lin_vel_w[:, 2].clone()
 
                             for _ in range(100):
                                 sim.step()
 
                                 # update object
                                 cube_object.update(sim.cfg.dt)
-                                curr_z_velocity = cube_object.data.root_lin_vel_w[:, 2].clone()
+                                curr_z_velocity = cube_object.data.root_com_lin_vel_w[:, 2].clone()
 
                                 if expected_collision_type == "inelastic":
                                     # assert that the block has not bounced by checking that the z velocity is less than or equal to 0

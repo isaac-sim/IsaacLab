@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.28.0 (2024-12-14)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Previously, physx returns the rigid bodies and articulations velocities in the com of bodies rather than the link frame, while poses are in link frames. We now explicitly provide :attr:`body_link_state_w` and :attr:`body_com_state_w` APIs replacing the previous :attr:`body_state_w` API. Previous APIs are now marked as deprecated. Please update any code using the previous APIs to use the new ``*_link_*`` or ``*_com_*`` APIs in :attr:`omni.isaac_lab.assets.RigidBody`, :attr:`omni.isaac_lab.assets.RigidBodyCollection`, and :attr:`omni.isaac_lab.assets.Articulation`.
+
+
 0.27.23 (2024-12-06)
 ~~~~~~~~~~~~~~~~~~~~
 

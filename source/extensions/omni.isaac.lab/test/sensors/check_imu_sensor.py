@@ -151,8 +151,8 @@ def main():
     # Get the ball initial positions
     sim.step(render=not args_cli.headless)
     balls.update(sim.get_physics_dt())
-    ball_initial_positions = balls.data.root_pos_w.clone()
-    ball_initial_orientations = balls.data.root_quat_w.clone()
+    ball_initial_positions = balls.data.root_link_pos_w.clone()
+    ball_initial_orientations = balls.data.root_link_quat_w.clone()
 
     # Create a counter for resetting the scene
     step_count = 0
@@ -168,7 +168,7 @@ def main():
         # Reset the scene
         if step_count % 500 == 0:
             # reset ball positions
-            balls.write_root_pose_to_sim(torch.cat([ball_initial_positions, ball_initial_orientations], dim=-1))
+            balls.write_root_link_pose_to_sim(torch.cat([ball_initial_positions, ball_initial_orientations], dim=-1))
             balls.reset()
             # reset the sensor
             imu.reset()

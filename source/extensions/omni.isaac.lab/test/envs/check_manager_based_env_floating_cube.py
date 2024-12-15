@@ -132,7 +132,7 @@ class CubeActionTerm(ActionTerm):
         vel_error = -self._asset.data.root_com_lin_vel_w
         # set velocity targets
         self._vel_command[:, :3] = self.p_gain * pos_error + self.d_gain * vel_error
-        self._asset.write_root_velocity_to_sim(self._vel_command)
+        self._asset.write_root_com_velocity_to_sim(self._vel_command)
 
 
 @configclass
