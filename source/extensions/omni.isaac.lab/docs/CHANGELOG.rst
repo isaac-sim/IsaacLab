@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.27.27 (2024-12-13)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the shape of ``quat_w`` in the ``apply_actions`` method of :attr:`~omni.isaac.lab.env.mdp.NonHolonomicAction` (previously (N,B,4), now (N,4) since the number of root bodies B is required to be 1). Previously ``apply_actions`` errored because ``euler_xyz_from_quat`` requires inputs of shape (N,4).
+
+
 0.27.26 (2024-12-11)
 ~~~~~~~~~~~~~~~~~~~~
 
