@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.27.29 (2024-12-15)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added action clip to all :class:`omni.isaac.lab.envs.mdp.actions`.
+
+
 0.27.28 (2024-12-14)
 ~~~~~~~~~~~~~~~~~~~~
 
