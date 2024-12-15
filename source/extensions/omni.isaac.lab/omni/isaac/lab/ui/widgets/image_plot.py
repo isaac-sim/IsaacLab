@@ -44,7 +44,7 @@ class ImagePlot(UIWidgetWrapper):
 
     def __init__(
         self,
-        image: np.ndarray | None = None,
+        image: Optional[np.ndarray] = None,
         label: str = "",
         widget_height: int = 200,
         show_min_max: bool = True,
