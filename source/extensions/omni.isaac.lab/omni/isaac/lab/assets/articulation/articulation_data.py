@@ -301,7 +301,7 @@ class ArticulationData:
             # read data from simulation
             pose = self._root_physx_view.get_root_transforms().clone()
             pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
-            velocity = self._root_physx_view.get_root_velocities()
+            velocity = self._root_physx_view.get_root_velocities().clone()
 
             # adjust linear velocity to link from center of mass
             velocity[:, :3] += torch.linalg.cross(

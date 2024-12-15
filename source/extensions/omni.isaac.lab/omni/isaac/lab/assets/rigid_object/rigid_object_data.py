@@ -148,7 +148,7 @@ class RigidObjectData:
             # read data from simulation
             pose = self._root_physx_view.get_transforms().clone()
             pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
-            velocity = self._root_physx_view.get_velocities()
+            velocity = self._root_physx_view.get_velocities().clone()
 
             # adjust linear velocity to link from center of mass
             velocity[:, :3] += torch.linalg.cross(
@@ -193,7 +193,7 @@ class RigidObjectData:
 
         omni.log.warn(
             "DeprecationWarning: body_state_w and it's derived properties will be deprecated in a future release."
-            " Please use body_link_state_w or bodt_com_state_w."
+            " Please use body_link_state_w or body_com_state_w."
         )
 
         return self.root_state_w.view(-1, 1, 13)
