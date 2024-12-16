@@ -91,7 +91,7 @@ Manipulation
 Environments based on fixed-arm manipulation tasks.
 
 For many of these tasks, we include configurations with different arm action spaces. For example,
-for the reach environment:
+for the lift-cube environment:
 
 * |lift-cube-link|: Franka arm with joint position control
 * |lift-cube-ik-abs-link|: Franka arm with absolute IK control
@@ -466,6 +466,10 @@ Comprehensive List of Environments
       -
       - Manager Based
       -
+    * - Isaac-Reach-Franka-OSC-v0
+      - Isaac-Reach-Franka-OSC-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO)
     * - Isaac-Reach-Franka-v0
       - Isaac-Reach-Franka-Play-v0
       - Manager Based
