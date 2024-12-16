@@ -1,8 +1,8 @@
 Changelog
 ---------
 
-## [Unreleased]
-~~~~~~~~~~~~~~~
+0.29.2 (2024-12-16)
+~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
@@ -16,6 +16,99 @@ Added
 * Added test cases for :class:`omni.isaac.lab.controllers.OperationalSpaceController`.
 * Added a tutorial for :class:`omni.isaac.lab.controllers.OperationalSpaceController`.
 * Added the implementation of :class:`omni.isaac.lab.envs.mdp.actions.OperationalSpaceControllerAction` class.
+
+
+0.29.1 (2024-12-15)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Added call to update articulation kinematics after reset to ensure states are updated for non-rendering sensors. Previously, some changes in reset such as modifying joint states would not be reflected in the rigid body states immediately after reset.
+
+
+0.29.0 (2024-12-15)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added UI interface to the Managers in the ManagerBasedEnv and MangerBasedRLEnv classes.
+* Added UI widgets for :class:`LiveLinePlot` and :class:`ImagePlot`.
+* Added ``ManagerLiveVisualizer/Cfg``: Given a ManagerBase (i.e. action_manager, observation_manager, etc) and a config file this class creates the the interface between managers and the UI.
+* Added :class:`EnvLiveVisualizer`: A 'manager' of ManagerLiveVisualizer. This is added to the ManagerBasedEnv but is only called during the initialization of the managers in load_managers
+* Added ``get_active_iterable_terms`` implementation methods to ActionManager, ObservationManager, CommandsManager, CurriculumManager, RewardManager, and TerminationManager. This method exports the active term data and labels for each manager and is called by ManagerLiveVisualizer.
+* Additions to :class:`BaseEnvWindow` and :class:`RLEnvWindow` to register ManagerLiveVisualizer UI interfaces for the chosen managers.
+
+
+0.28.0 (2024-12-15)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added observation history computation to :class:`omni.isaac.lab.manager.observation_manager.ObservationManager`.
+* Added ``history_length`` and ``flatten_history_dim`` configuration parameters to :class:`omni.isaac.lab.manager.manager_term_cfg.ObservationTermCfg`
+* Added ``history_length`` and ``flatten_history_dim`` configuration parameters to :class:`omni.isaac.lab.manager.manager_term_cfg.ObservationGroupCfg`
+* Added full buffer property to :class:`omni.isaac.lab.utils.buffers.circular_buffer.CircularBuffer`
+
+
+0.27.29 (2024-12-15)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added action clip to all :class:`omni.isaac.lab.envs.mdp.actions`.
+
+
+0.27.28 (2024-12-14)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Added check for error below threshold in state machines to ensure the state has been reached.
+
+
+0.27.27 (2024-12-13)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the shape of ``quat_w`` in the ``apply_actions`` method of :attr:`~omni.isaac.lab.env.mdp.NonHolonomicAction` (previously (N,B,4), now (N,4) since the number of root bodies B is required to be 1). Previously ``apply_actions`` errored because ``euler_xyz_from_quat`` requires inputs of shape (N,4).
+
+
+0.27.26 (2024-12-11)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Introduced an optional ``sensor_cfg`` parameter to the :meth:`~omni.isaac.lab.envs.mdp.rewards.base_height_l2` function, enabling the use of
+  :class:`~omni.isaac.lab.sensors.RayCaster` for height adjustments. For flat terrains, the function retains its previous behavior.
+* Improved documentation to clarify the usage of the :meth:`~omni.isaac.lab.envs.mdp.rewards.base_height_l2` function in both flat and rough terrain settings.
+
+
+0.27.25 (2024-12-11)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Modified :class:`omni.isaac.lab.envs.mdp.actions.DifferentialInverseKinematicsAction` class to use the geometric
+  Jacobian computed w.r.t. to the root frame of the robot. This helps ensure that root pose does not affect the tracking.
+
+
+0.27.24 (2024-12-09)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the initial state recorder term in :class:`omni.isaac.lab.envs.mdp.recorders.InitialStateRecorder` to
+  return only the states of the specified environment IDs.
 
 
 0.27.23 (2024-12-06)
@@ -40,7 +133,7 @@ Changed
 
 
 0.27.21 (2024-12-06)
-~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^

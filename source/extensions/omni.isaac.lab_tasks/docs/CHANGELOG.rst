@@ -1,12 +1,12 @@
 Changelog
 ---------
 
-## [Unreleased]
-~~~~~~~~~~~~~~~
+0.10.15 (2024-12-16)
+~~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
-* Added ``Isaac-Reach-Franka-OSC-v0`` and ``Isaac-Reach-Franka-Play-OSC-v0``
+* Added ``Isaac-Reach-Franka-OSC-v0`` and ``Isaac-Reach-Franka-OSC-Play-v0``
   variations of the manager based reach environment that uses
   :class:`omni.isaac.lab.envs.mdp.actions.OperationalSpaceControllerAction`.
 

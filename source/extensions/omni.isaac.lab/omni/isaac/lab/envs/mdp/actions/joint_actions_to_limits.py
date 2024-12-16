@@ -44,6 +44,8 @@ class JointPositionToLimitsAction(ActionTerm):
     """The articulation asset on which the action term is applied."""
     _scale: torch.Tensor | float
     """The scaling factor applied to the input action."""
+    _clip: torch.Tensor
+    """The clip applied to the input action."""
 
     def __init__(self, cfg: actions_cfg.JointPositionToLimitsActionCfg, env: ManagerBasedEnv):
         # initialize the action term
@@ -76,6 +78,16 @@ class JointPositionToLimitsAction(ActionTerm):
             self._scale[:, index_list] = torch.tensor(value_list, device=self.device)
         else:
             raise ValueError(f"Unsupported scale type: {type(cfg.scale)}. Supported types are float and dict.")
+        # parse clip
+        if self.cfg.clip is not None:
+            if isinstance(cfg.clip, dict):
+                self._clip = torch.tensor([[-float("inf"), float("inf")]], device=self.device).repeat(
+                    self.num_envs, self.action_dim, 1
+                )
+                index_list, _, value_list = string_utils.resolve_matching_names_values(self.cfg.clip, self._joint_names)
+                self._clip[:, index_list] = torch.tensor(value_list, device=self.device)
+            else:
+                raise ValueError(f"Unsupported clip type: {type(cfg.clip)}. Supported types are dict.")
 
     """
     Properties.
@@ -102,6 +114,10 @@ class JointPositionToLimitsAction(ActionTerm):
         self._raw_actions[:] = actions
         # apply affine transformations
         self._processed_actions = self._raw_actions * self._scale
+        if self.cfg.clip is not None:
+            self._processed_actions = torch.clamp(
+                self._processed_actions, min=self._clip[:, :, 0], max=self._clip[:, :, 1]
+            )
         # rescale the position targets if configured
         # this is useful when the input actions are in the range [-1, 1]
         if self.cfg.rescale_to_limits:
