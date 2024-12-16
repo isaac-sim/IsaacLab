@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.29.3 (2024-12-16)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ordering of logging and resamping in the command manager, where we were logging the metrics after resampling the commands. This leads to incorrect logging of metrics when inside the resample call, the metrics tensors get reset.
+
+
 0.29.2 (2024-12-16)
 ~~~~~~~~~~~~~~~~~~~
 
