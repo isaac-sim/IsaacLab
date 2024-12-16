@@ -170,7 +170,7 @@ The current and desired end-effector poses should be displayed using frame marke
 You should see that the robot reaches the desired pose while applying a constant force perpendicular to the wall
 surface.
 
-.. figure:: ../../_static/tutorials/tutorial_operational_space_controller.png
+.. figure:: ../../_static/tutorials/tutorial_operational_space_controller.jpg
     :align: center
     :figwidth: 100%
     :alt: result of run_osc.py
