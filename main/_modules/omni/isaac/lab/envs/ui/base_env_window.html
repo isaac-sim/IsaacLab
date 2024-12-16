@@ -526,6 +526,8 @@
 <span class="kn">import</span> <span class="nn">omni.usd</span>
 <span class="kn">from</span> <span class="nn">pxr</span> <span class="kn">import</span> <span class="n">PhysxSchema</span><span class="p">,</span> <span class="n">Sdf</span><span class="p">,</span> <span class="n">Usd</span><span class="p">,</span> <span class="n">UsdGeom</span><span class="p">,</span> <span class="n">UsdPhysics</span>
 
+<span class="kn">from</span> <span class="nn">omni.isaac.lab.ui.widgets</span> <span class="kn">import</span> <span class="n">ManagerLiveVisualizer</span>
+
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
     <span class="kn">import</span> <span class="nn">omni.ui</span>
 
@@ -567,6 +569,9 @@
             <span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">articulations</span><span class="o">.</span><span class="n">keys</span><span class="p">(),</span>
         <span class="p">]</span>
 
+        <span class="c1"># Listeners for environment selection changes</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ui_listeners</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">ManagerLiveVisualizer</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+
         <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Creating window for environment.&quot;</span><span class="p">)</span>
         <span class="c1"># create window for UI</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">ui_window</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">Window</span><span class="p">(</span>
@@ -589,7 +594,11 @@
                 <span class="c1"># create collapsable frame for viewer</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">_build_viewer_frame</span><span class="p">()</span>
                 <span class="c1"># create collapsable frame for debug visualization</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">_build_debug_vis_frame</span><span class="p">()</span></div>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_build_debug_vis_frame</span><span class="p">()</span>
+                <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">ui_window_elements</span><span class="p">[</span><span class="s2">&quot;debug_frame&quot;</span><span class="p">]:</span>
+                    <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">ui_window_elements</span><span class="p">[</span><span class="s2">&quot;debug_vstack&quot;</span><span class="p">]:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_visualize_manager</span><span class="p">(</span><span class="n">title</span><span class="o">=</span><span class="s2">&quot;Actions&quot;</span><span class="p">,</span> <span class="n">class_name</span><span class="o">=</span><span class="s2">&quot;action_manager&quot;</span><span class="p">)</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_visualize_manager</span><span class="p">(</span><span class="n">title</span><span class="o">=</span><span class="s2">&quot;Observations&quot;</span><span class="p">,</span> <span class="n">class_name</span><span class="o">=</span><span class="s2">&quot;observation_manager&quot;</span><span class="p">)</span></div>
 
     <span class="k">def</span> <span class="fm">__del__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Destructor for the window.&quot;&quot;&quot;</span>
@@ -710,9 +719,6 @@
 <span class="sd">        that has it implemented. If the element does not have a debug visualization implemented,</span>
 <span class="sd">        a label is created instead.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># import omni.isaac.ui.ui_utils as ui_utils</span>
-        <span class="c1"># import omni.ui</span>
-
         <span class="c1"># create collapsable frame for debug visualization</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">ui_window_elements</span><span class="p">[</span><span class="s2">&quot;debug_frame&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">CollapsableFrame</span><span class="p">(</span>
             <span class="n">title</span><span class="o">=</span><span class="s2">&quot;Scene Debug Visualization&quot;</span><span class="p">,</span>
@@ -743,6 +749,26 @@
                 <span class="k">for</span> <span class="n">elem</span><span class="p">,</span> <span class="n">name</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">elements</span><span class="p">,</span> <span class="n">names</span><span class="p">):</span>
                     <span class="k">if</span> <span class="n">elem</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
                         <span class="bp">self</span><span class="o">.</span><span class="n">_create_debug_vis_ui_element</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">elem</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_visualize_manager</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">title</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">class_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Checks if the attribute with the name &#39;class_name&#39; can be visualized. If yes, create vis interface.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            title: The title of the manager visualization frame.</span>
+<span class="sd">            class_name: The name of the manager to visualize.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="p">,</span> <span class="n">class_name</span><span class="p">)</span> <span class="ow">and</span> <span class="n">class_name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">manager_visualizers</span><span class="p">:</span>
+            <span class="n">manager</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">manager_visualizers</span><span class="p">[</span><span class="n">class_name</span><span class="p">]</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">manager</span><span class="p">,</span> <span class="s2">&quot;has_debug_vis_implementation&quot;</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_create_debug_vis_ui_element</span><span class="p">(</span><span class="n">title</span><span class="p">,</span> <span class="n">manager</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;ManagerLiveVisualizer cannot be created for manager: </span><span class="si">{</span><span class="n">class_name</span><span class="si">}</span><span class="s2">, has_debug_vis_implementation&quot;</span>
+                    <span class="s2">&quot; does not exist&quot;</span>
+                <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;ManagerLiveVisualizer cannot be created for manager: </span><span class="si">{</span><span class="n">class_name</span><span class="si">}</span><span class="s2">, Manager does not exist&quot;</span><span class="p">)</span>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Custom callbacks for UI elements.</span>
@@ -867,6 +893,9 @@
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Viewport camera controller is not initialized! Please check the rendering mode.&quot;</span><span class="p">)</span>
         <span class="c1"># store the desired env index, UI is 1-indexed</span>
         <span class="n">vcc</span><span class="o">.</span><span class="n">set_view_env_index</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">as_int</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="c1"># notify additional listeners</span>
+        <span class="k">for</span> <span class="n">listener</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ui_listeners</span><span class="p">:</span>
+            <span class="n">listener</span><span class="o">.</span><span class="n">set_env_selection</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">as_int</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Helper functions - UI building.</span>
@@ -889,13 +918,29 @@
                 <span class="n">alignment</span><span class="o">=</span><span class="n">omni</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">Alignment</span><span class="o">.</span><span class="n">LEFT_CENTER</span><span class="p">,</span>
                 <span class="n">tooltip</span><span class="o">=</span><span class="n">text</span><span class="p">,</span>
             <span class="p">)</span>
+            <span class="n">has_cfg</span> <span class="o">=</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">elem</span><span class="p">,</span> <span class="s2">&quot;cfg&quot;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">elem</span><span class="o">.</span><span class="n">cfg</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="n">is_checked</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="k">if</span> <span class="n">has_cfg</span><span class="p">:</span>
+                <span class="n">is_checked</span> <span class="o">=</span> <span class="p">(</span><span class="nb">hasattr</span><span class="p">(</span><span class="n">elem</span><span class="o">.</span><span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;debug_vis&quot;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">elem</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">debug_vis</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span>
+                    <span class="nb">hasattr</span><span class="p">(</span><span class="n">elem</span><span class="p">,</span> <span class="s2">&quot;debug_vis&quot;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">elem</span><span class="o">.</span><span class="n">debug_vis</span>
+                <span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">ui_window_elements</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">_cb&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">SimpleCheckBox</span><span class="p">(</span>
                 <span class="n">model</span><span class="o">=</span><span class="n">omni</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">SimpleBoolModel</span><span class="p">(),</span>
                 <span class="n">enabled</span><span class="o">=</span><span class="n">elem</span><span class="o">.</span><span class="n">has_debug_vis_implementation</span><span class="p">,</span>
-                <span class="n">checked</span><span class="o">=</span><span class="n">elem</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">debug_vis</span> <span class="k">if</span> <span class="n">elem</span><span class="o">.</span><span class="n">cfg</span> <span class="k">else</span> <span class="kc">False</span><span class="p">,</span>
+                <span class="n">checked</span><span class="o">=</span><span class="n">is_checked</span><span class="p">,</span>
                 <span class="n">on_checked_fn</span><span class="o">=</span><span class="k">lambda</span> <span class="n">value</span><span class="p">,</span> <span class="n">e</span><span class="o">=</span><span class="n">weakref</span><span class="o">.</span><span class="n">proxy</span><span class="p">(</span><span class="n">elem</span><span class="p">):</span> <span class="n">e</span><span class="o">.</span><span class="n">set_debug_vis</span><span class="p">(</span><span class="n">value</span><span class="p">),</span>
             <span class="p">)</span>
             <span class="n">omni</span><span class="o">.</span><span class="n">isaac</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">ui_utils</span><span class="o">.</span><span class="n">add_line_rect_flourish</span><span class="p">()</span>
+
+        <span class="c1"># Create a panel for the debug visualization</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">elem</span><span class="p">,</span> <span class="n">ManagerLiveVisualizer</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ui_window_elements</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">_panel&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">Frame</span><span class="p">(</span><span class="n">width</span><span class="o">=</span><span class="n">omni</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">Fraction</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">elem</span><span class="o">.</span><span class="n">set_vis_frame</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ui_window_elements</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">_panel&quot;</span><span class="p">]):</span>
+                <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Frame failed to set for ManagerLiveVisualizer: </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Add listener for environment selection changes</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">elem</span><span class="p">,</span> <span class="n">ManagerLiveVisualizer</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_ui_listeners</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">elem</span><span class="p">)</span>
 
     <span class="k">async</span> <span class="k">def</span> <span class="nf">_dock_window</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">window_title</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Docks the custom UI window to the property window.&quot;&quot;&quot;</span>

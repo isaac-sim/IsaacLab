@@ -608,7 +608,10 @@
                         <span class="s2">&quot; Otherwise, set &#39;concatenate_terms&#39; to False in the group configuration.&quot;</span>
                     <span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_dim</span><span class="p">[</span><span class="n">group_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">group_term_dims</span></div>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_dim</span><span class="p">[</span><span class="n">group_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">group_term_dims</span>
+
+        <span class="c1"># Stores the latest observations.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_obs_buffer</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span></div>
 
     <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns: A string representation for the observation manager.&quot;&quot;&quot;</span>
@@ -639,6 +642,43 @@
             <span class="n">msg</span> <span class="o">+=</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span>
 
         <span class="k">return</span> <span class="n">msg</span>
+
+<div class="viewcode-block" id="ObservationManager.get_active_iterable_terms"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ObservationManager.get_active_iterable_terms">[docs]</a>    <span class="k">def</span> <span class="nf">get_active_iterable_terms</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">float</span><span class="p">]]]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the active terms as iterable sequence of tuples.</span>
+
+<span class="sd">        The first element of the tuple is the name of the term and the second element is the raw value(s) of the term.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            env_idx: The specific environment to pull the active terms from.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The active terms.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">terms</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_obs_buffer</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">compute</span><span class="p">()</span>
+        <span class="n">obs_buffer</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_obs_buffer</span>
+
+        <span class="k">for</span> <span class="n">group_name</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_dim</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">group_obs_concatenate</span><span class="p">[</span><span class="n">group_name</span><span class="p">]:</span>
+                <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">term</span> <span class="ow">in</span> <span class="n">obs_buffer</span><span class="p">[</span><span class="n">group_name</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                    <span class="n">terms</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">group_name</span> <span class="o">+</span> <span class="s2">&quot;-&quot;</span> <span class="o">+</span> <span class="n">name</span><span class="p">,</span> <span class="n">term</span><span class="p">[</span><span class="n">env_idx</span><span class="p">]</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">tolist</span><span class="p">()))</span>
+                <span class="k">continue</span>
+
+            <span class="n">idx</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="c1"># add info for each term</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">obs_buffer</span><span class="p">[</span><span class="n">group_name</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">shape</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_term_names</span><span class="p">[</span><span class="n">group_name</span><span class="p">],</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_term_dim</span><span class="p">[</span><span class="n">group_name</span><span class="p">],</span>
+            <span class="p">):</span>
+                <span class="n">data_length</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span>
+                <span class="n">term</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="n">env_idx</span><span class="p">,</span> <span class="n">idx</span> <span class="p">:</span> <span class="n">idx</span> <span class="o">+</span> <span class="n">data_length</span><span class="p">]</span>
+                <span class="n">terms</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">group_name</span> <span class="o">+</span> <span class="s2">&quot;-&quot;</span> <span class="o">+</span> <span class="n">name</span><span class="p">,</span> <span class="n">term</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">tolist</span><span class="p">()))</span>
+                <span class="n">idx</span> <span class="o">+=</span> <span class="n">data_length</span>
+
+        <span class="k">return</span> <span class="n">terms</span></div>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Properties.</span>
@@ -722,6 +762,9 @@
         <span class="k">for</span> <span class="n">group_name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_term_names</span><span class="p">:</span>
             <span class="n">obs_buffer</span><span class="p">[</span><span class="n">group_name</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">compute_group</span><span class="p">(</span><span class="n">group_name</span><span class="p">)</span>
         <span class="c1"># otherwise return a dict with observations of all groups</span>
+
+        <span class="c1"># Cache the observations.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_obs_buffer</span> <span class="o">=</span> <span class="n">obs_buffer</span>
         <span class="k">return</span> <span class="n">obs_buffer</span></div>
 
 <div class="viewcode-block" id="ObservationManager.compute_group"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ObservationManager.compute_group">[docs]</a>    <span class="k">def</span> <span class="nf">compute_group</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">group_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>

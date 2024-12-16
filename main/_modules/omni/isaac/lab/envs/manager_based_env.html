@@ -524,6 +524,7 @@
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.managers</span> <span class="kn">import</span> <span class="n">ActionManager</span><span class="p">,</span> <span class="n">EventManager</span><span class="p">,</span> <span class="n">ObservationManager</span><span class="p">,</span> <span class="n">RecorderManager</span>
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.scene</span> <span class="kn">import</span> <span class="n">InteractiveScene</span>
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.sim</span> <span class="kn">import</span> <span class="n">SimulationContext</span>
+<span class="kn">from</span> <span class="nn">omni.isaac.lab.ui.widgets</span> <span class="kn">import</span> <span class="n">ManagerLiveVisualizer</span>
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.utils.timer</span> <span class="kn">import</span> <span class="n">Timer</span>
 
 <span class="kn">from</span> <span class="nn">.common</span> <span class="kn">import</span> <span class="n">VecEnvObs</span>
@@ -658,6 +659,8 @@
         <span class="c1"># we need to do this here after all the managers are initialized</span>
         <span class="c1"># this is because they dictate the sensors and commands right now</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">has_gui</span><span class="p">()</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">ui_window_class_type</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># setup live visualizers</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">setup_manager_visualizers</span><span class="p">()</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_window</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">ui_window_class_type</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">window_name</span><span class="o">=</span><span class="s2">&quot;IsaacLab&quot;</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="c1"># if no window, then we don&#39;t need to store the window</span>
@@ -742,6 +745,14 @@
         <span class="c1"># when all the other managers are created</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span> <span class="o">==</span> <span class="n">ManagerBasedEnv</span> <span class="ow">and</span> <span class="s2">&quot;startup&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">event_manager</span><span class="o">.</span><span class="n">available_modes</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">event_manager</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">mode</span><span class="o">=</span><span class="s2">&quot;startup&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="ManagerBasedEnv.setup_manager_visualizers"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnv.setup_manager_visualizers">[docs]</a>    <span class="k">def</span> <span class="nf">setup_manager_visualizers</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Creates live visualizers for manager terms.&quot;&quot;&quot;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">manager_visualizers</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;action_manager&quot;</span><span class="p">:</span> <span class="n">ManagerLiveVisualizer</span><span class="p">(</span><span class="n">manager</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">action_manager</span><span class="p">),</span>
+            <span class="s2">&quot;observation_manager&quot;</span><span class="p">:</span> <span class="n">ManagerLiveVisualizer</span><span class="p">(</span><span class="n">manager</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">observation_manager</span><span class="p">),</span>
+        <span class="p">}</span></div>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Operations - MDP.</span>

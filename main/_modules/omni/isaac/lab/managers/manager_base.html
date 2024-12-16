@@ -703,6 +703,16 @@
         <span class="c1"># return the matching names</span>
         <span class="k">return</span> <span class="n">string_utils</span><span class="o">.</span><span class="n">resolve_matching_names</span><span class="p">(</span><span class="n">name_keys</span><span class="p">,</span> <span class="n">list_of_strings</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span></div>
 
+<div class="viewcode-block" id="ManagerBase.get_active_iterable_terms"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ManagerBase.get_active_iterable_terms">[docs]</a>    <span class="k">def</span> <span class="nf">get_active_iterable_terms</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">float</span><span class="p">]]]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the active terms as iterable sequence of tuples.</span>
+
+<span class="sd">        The first element of the tuple is the name of the term and the second element is the raw value(s) of the term.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The active terms.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span></div>
+
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Implementation specific.</span>
 <span class="sd">    &quot;&quot;&quot;</span>

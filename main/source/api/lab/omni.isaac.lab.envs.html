@@ -579,6 +579,7 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedEnv.step_dt"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnv.step_dt</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedEnv.device"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnv.device</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedEnv.load_managers"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnv.load_managers()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedEnv.setup_manager_visualizers"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnv.setup_manager_visualizers()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedEnv.reset"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnv.reset()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedEnv.reset_to"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnv.reset_to()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedEnv.step"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnv.step()</span></code></a></li>
@@ -611,6 +612,7 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.max_episode_length_s"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnv.max_episode_length_s</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.max_episode_length"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnv.max_episode_length</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.load_managers"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnv.load_managers()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.setup_manager_visualizers"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnv.setup_manager_visualizers()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.step"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnv.step()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.render"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnv.render()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.close"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnv.close()</span></code></a></li>
@@ -904,19 +906,22 @@ querying the <a class="reference internal" href="#omni.isaac.lab.envs.ManagerBas
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedEnv.load_managers" title="omni.isaac.lab.envs.ManagerBasedEnv.load_managers"><code class="xref py py-obj docutils literal notranslate"><span class="pre">load_managers</span></code></a>()</p></td>
 <td><p>Load the managers for the environment.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedEnv.reset" title="omni.isaac.lab.envs.ManagerBasedEnv.reset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset</span></code></a>([seed, env_ids, options])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedEnv.setup_manager_visualizers" title="omni.isaac.lab.envs.ManagerBasedEnv.setup_manager_visualizers"><code class="xref py py-obj docutils literal notranslate"><span class="pre">setup_manager_visualizers</span></code></a>()</p></td>
+<td><p>Creates live visualizers for manager terms.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedEnv.reset" title="omni.isaac.lab.envs.ManagerBasedEnv.reset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset</span></code></a>([seed, env_ids, options])</p></td>
 <td><p>Resets the specified environments and returns observations.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedEnv.reset_to" title="omni.isaac.lab.envs.ManagerBasedEnv.reset_to"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset_to</span></code></a>(state, env_ids[, seed, is_relative])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedEnv.reset_to" title="omni.isaac.lab.envs.ManagerBasedEnv.reset_to"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset_to</span></code></a>(state, env_ids[, seed, is_relative])</p></td>
 <td><p>Resets specified environments to known states.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedEnv.step" title="omni.isaac.lab.envs.ManagerBasedEnv.step"><code class="xref py py-obj docutils literal notranslate"><span class="pre">step</span></code></a>(action)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedEnv.step" title="omni.isaac.lab.envs.ManagerBasedEnv.step"><code class="xref py py-obj docutils literal notranslate"><span class="pre">step</span></code></a>(action)</p></td>
 <td><p>Execute one time-step of the environment's dynamics.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedEnv.seed" title="omni.isaac.lab.envs.ManagerBasedEnv.seed"><code class="xref py py-obj docutils literal notranslate"><span class="pre">seed</span></code></a>([seed])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedEnv.seed" title="omni.isaac.lab.envs.ManagerBasedEnv.seed"><code class="xref py py-obj docutils literal notranslate"><span class="pre">seed</span></code></a>([seed])</p></td>
 <td><p>Set the seed for the environment.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedEnv.close" title="omni.isaac.lab.envs.ManagerBasedEnv.close"><code class="xref py py-obj docutils literal notranslate"><span class="pre">close</span></code></a>()</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedEnv.close" title="omni.isaac.lab.envs.ManagerBasedEnv.close"><code class="xref py py-obj docutils literal notranslate"><span class="pre">close</span></code></a>()</p></td>
 <td><p>Cleanup for the environment.</p></td>
 </tr>
 </tbody>
@@ -996,6 +1001,12 @@ automatically when the class is initialized.</p>
 is reset. This is because the simulator is only reset when the user calls
 <code class="xref py py-meth docutils literal notranslate"><span class="pre">SimulationContext.reset_async()</span></code> and it isn’t possible to call async functions in the constructor.</p>
 </div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.ManagerBasedEnv.setup_manager_visualizers">
+<span class="sig-name descname"><span class="pre">setup_manager_visualizers</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/envs/manager_based_env.html#ManagerBasedEnv.setup_manager_visualizers"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.envs.ManagerBasedEnv.setup_manager_visualizers" title="Permalink to this definition">#</a></dt>
+<dd><p>Creates live visualizers for manager terms.</p>
 </dd></dl>
 
 <dl class="py method">
@@ -1301,31 +1312,34 @@ in a vectorized environment.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.load_managers" title="omni.isaac.lab.envs.ManagerBasedRLEnv.load_managers"><code class="xref py py-obj docutils literal notranslate"><span class="pre">load_managers</span></code></a>()</p></td>
 <td><p>Load the managers for the environment.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.step" title="omni.isaac.lab.envs.ManagerBasedRLEnv.step"><code class="xref py py-obj docutils literal notranslate"><span class="pre">step</span></code></a>(action)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.setup_manager_visualizers" title="omni.isaac.lab.envs.ManagerBasedRLEnv.setup_manager_visualizers"><code class="xref py py-obj docutils literal notranslate"><span class="pre">setup_manager_visualizers</span></code></a>()</p></td>
+<td><p>Creates live visualizers for manager terms.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.step" title="omni.isaac.lab.envs.ManagerBasedRLEnv.step"><code class="xref py py-obj docutils literal notranslate"><span class="pre">step</span></code></a>(action)</p></td>
 <td><p>Execute one time-step of the environment's dynamics and reset terminated environments.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.render" title="omni.isaac.lab.envs.ManagerBasedRLEnv.render"><code class="xref py py-obj docutils literal notranslate"><span class="pre">render</span></code></a>([recompute])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.render" title="omni.isaac.lab.envs.ManagerBasedRLEnv.render"><code class="xref py py-obj docutils literal notranslate"><span class="pre">render</span></code></a>([recompute])</p></td>
 <td><p>Run rendering without stepping through the physics.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.close" title="omni.isaac.lab.envs.ManagerBasedRLEnv.close"><code class="xref py py-obj docutils literal notranslate"><span class="pre">close</span></code></a>()</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.close" title="omni.isaac.lab.envs.ManagerBasedRLEnv.close"><code class="xref py py-obj docutils literal notranslate"><span class="pre">close</span></code></a>()</p></td>
 <td><p>Cleanup for the environment.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.get_wrapper_attr" title="omni.isaac.lab.envs.ManagerBasedRLEnv.get_wrapper_attr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_wrapper_attr</span></code></a>(name)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.get_wrapper_attr" title="omni.isaac.lab.envs.ManagerBasedRLEnv.get_wrapper_attr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_wrapper_attr</span></code></a>(name)</p></td>
 <td><p>Gets the attribute <cite>name</cite> from the environment.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.has_wrapper_attr" title="omni.isaac.lab.envs.ManagerBasedRLEnv.has_wrapper_attr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">has_wrapper_attr</span></code></a>(name)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.has_wrapper_attr" title="omni.isaac.lab.envs.ManagerBasedRLEnv.has_wrapper_attr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">has_wrapper_attr</span></code></a>(name)</p></td>
 <td><p>Checks if the attribute <cite>name</cite> exists in the environment.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.reset" title="omni.isaac.lab.envs.ManagerBasedRLEnv.reset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset</span></code></a>([seed, env_ids, options])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.reset" title="omni.isaac.lab.envs.ManagerBasedRLEnv.reset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset</span></code></a>([seed, env_ids, options])</p></td>
 <td><p>Resets the specified environments and returns observations.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.reset_to" title="omni.isaac.lab.envs.ManagerBasedRLEnv.reset_to"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset_to</span></code></a>(state, env_ids[, seed, is_relative])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.reset_to" title="omni.isaac.lab.envs.ManagerBasedRLEnv.reset_to"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset_to</span></code></a>(state, env_ids[, seed, is_relative])</p></td>
 <td><p>Resets specified environments to known states.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.seed" title="omni.isaac.lab.envs.ManagerBasedRLEnv.seed"><code class="xref py py-obj docutils literal notranslate"><span class="pre">seed</span></code></a>([seed])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.seed" title="omni.isaac.lab.envs.ManagerBasedRLEnv.seed"><code class="xref py py-obj docutils literal notranslate"><span class="pre">seed</span></code></a>([seed])</p></td>
 <td><p>Set the seed for the environment.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.set_wrapper_attr" title="omni.isaac.lab.envs.ManagerBasedRLEnv.set_wrapper_attr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_wrapper_attr</span></code></a>(name, value)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.set_wrapper_attr" title="omni.isaac.lab.envs.ManagerBasedRLEnv.set_wrapper_attr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_wrapper_attr</span></code></a>(name, value)</p></td>
 <td><p>Sets the attribute <cite>name</cite> on the environment with <cite>value</cite>.</p></td>
 </tr>
 </tbody>
@@ -1391,6 +1405,12 @@ automatically when the class is initialized.</p>
 is reset. This is because the simulator is only reset when the user calls
 <code class="xref py py-meth docutils literal notranslate"><span class="pre">SimulationContext.reset_async()</span></code> and it isn’t possible to call async functions in the constructor.</p>
 </div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.ManagerBasedRLEnv.setup_manager_visualizers">
+<span class="sig-name descname"><span class="pre">setup_manager_visualizers</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/envs/manager_based_rl_env.html#ManagerBasedRLEnv.setup_manager_visualizers"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.setup_manager_visualizers" title="Permalink to this definition">#</a></dt>
+<dd><p>Creates live visualizers for manager terms.</p>
 </dd></dl>
 
 <dl class="py method">
@@ -3338,6 +3358,7 @@ Default is (1280, 720).</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedEnv.step_dt"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnv.step_dt</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedEnv.device"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnv.device</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedEnv.load_managers"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnv.load_managers()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedEnv.setup_manager_visualizers"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnv.setup_manager_visualizers()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedEnv.reset"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnv.reset()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedEnv.reset_to"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnv.reset_to()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedEnv.step"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnv.step()</span></code></a></li>
@@ -3370,6 +3391,7 @@ Default is (1280, 720).</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.max_episode_length_s"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnv.max_episode_length_s</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.max_episode_length"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnv.max_episode_length</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.load_managers"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnv.load_managers()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.setup_manager_visualizers"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnv.setup_manager_visualizers()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.step"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnv.step()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.render"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnv.render()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnv.close"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnv.close()</span></code></a></li>

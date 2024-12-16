@@ -569,7 +569,10 @@
         <span class="k">for</span> <span class="n">term_name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_term_names</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_episode_sums</span><span class="p">[</span><span class="n">term_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
         <span class="c1"># create buffer for managing reward per environment</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_reward_buf</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_reward_buf</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+
+        <span class="c1"># Buffer which stores the current step reward for each term for each environment</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_step_reward</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_term_names</span><span class="p">)),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span></div>
 
     <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns: A string representation for reward manager.&quot;&quot;&quot;</span>
@@ -658,6 +661,9 @@
             <span class="c1"># update episodic sum</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_episode_sums</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">+=</span> <span class="n">value</span>
 
+            <span class="c1"># Update current reward for this step.</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_step_reward</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_term_names</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">name</span><span class="p">)]</span> <span class="o">=</span> <span class="n">value</span> <span class="o">/</span> <span class="n">dt</span>
+
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reward_buf</span></div>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
@@ -695,6 +701,22 @@
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Reward term &#39;</span><span class="si">{</span><span class="n">term_name</span><span class="si">}</span><span class="s2">&#39; not found.&quot;</span><span class="p">)</span>
         <span class="c1"># return the configuration</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_term_cfgs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_term_names</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">term_name</span><span class="p">)]</span></div>
+
+<div class="viewcode-block" id="RewardManager.get_active_iterable_terms"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.RewardManager.get_active_iterable_terms">[docs]</a>    <span class="k">def</span> <span class="nf">get_active_iterable_terms</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">float</span><span class="p">]]]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the active terms as iterable sequence of tuples.</span>
+
+<span class="sd">        The first element of the tuple is the name of the term and the second element is the raw value(s) of the term.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            env_idx: The specific environment to pull the active terms from.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The active terms.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">terms</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">name</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_term_names</span><span class="p">):</span>
+            <span class="n">terms</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">name</span><span class="p">,</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_step_reward</span><span class="p">[</span><span class="n">env_idx</span><span class="p">,</span> <span class="n">idx</span><span class="p">]</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">()]))</span>
+        <span class="k">return</span> <span class="n">terms</span></div>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Helper functions.</span>

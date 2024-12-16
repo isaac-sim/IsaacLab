@@ -526,6 +526,7 @@
 <span class="kn">from</span> <span class="nn">omni.isaac.version</span> <span class="kn">import</span> <span class="n">get_version</span>
 
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.managers</span> <span class="kn">import</span> <span class="n">CommandManager</span><span class="p">,</span> <span class="n">CurriculumManager</span><span class="p">,</span> <span class="n">RewardManager</span><span class="p">,</span> <span class="n">TerminationManager</span>
+<span class="kn">from</span> <span class="nn">omni.isaac.lab.ui.widgets</span> <span class="kn">import</span> <span class="n">ManagerLiveVisualizer</span>
 
 <span class="kn">from</span> <span class="nn">.common</span> <span class="kn">import</span> <span class="n">VecEnvStepReturn</span>
 <span class="kn">from</span> <span class="nn">.manager_based_env</span> <span class="kn">import</span> <span class="n">ManagerBasedEnv</span>
@@ -641,6 +642,18 @@
         <span class="c1"># perform events at the start of the simulation</span>
         <span class="k">if</span> <span class="s2">&quot;startup&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">event_manager</span><span class="o">.</span><span class="n">available_modes</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">event_manager</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">mode</span><span class="o">=</span><span class="s2">&quot;startup&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="ManagerBasedRLEnv.setup_manager_visualizers"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnv.setup_manager_visualizers">[docs]</a>    <span class="k">def</span> <span class="nf">setup_manager_visualizers</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Creates live visualizers for manager terms.&quot;&quot;&quot;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">manager_visualizers</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;action_manager&quot;</span><span class="p">:</span> <span class="n">ManagerLiveVisualizer</span><span class="p">(</span><span class="n">manager</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">action_manager</span><span class="p">),</span>
+            <span class="s2">&quot;observation_manager&quot;</span><span class="p">:</span> <span class="n">ManagerLiveVisualizer</span><span class="p">(</span><span class="n">manager</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">observation_manager</span><span class="p">),</span>
+            <span class="s2">&quot;command_manager&quot;</span><span class="p">:</span> <span class="n">ManagerLiveVisualizer</span><span class="p">(</span><span class="n">manager</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">command_manager</span><span class="p">),</span>
+            <span class="s2">&quot;termination_manager&quot;</span><span class="p">:</span> <span class="n">ManagerLiveVisualizer</span><span class="p">(</span><span class="n">manager</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">termination_manager</span><span class="p">),</span>
+            <span class="s2">&quot;reward_manager&quot;</span><span class="p">:</span> <span class="n">ManagerLiveVisualizer</span><span class="p">(</span><span class="n">manager</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">reward_manager</span><span class="p">),</span>
+            <span class="s2">&quot;curriculum_manager&quot;</span><span class="p">:</span> <span class="n">ManagerLiveVisualizer</span><span class="p">(</span><span class="n">manager</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">curriculum_manager</span><span class="p">),</span>
+        <span class="p">}</span></div>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Operations - MDP</span>

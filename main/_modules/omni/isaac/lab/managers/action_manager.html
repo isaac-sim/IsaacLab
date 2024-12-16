@@ -616,6 +616,7 @@
         <span class="c1"># check if debug visualization is supported</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">has_debug_vis_implementation</span><span class="p">:</span>
             <span class="k">return</span> <span class="kc">False</span>
+
         <span class="c1"># toggle debug visualization objects</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_set_debug_vis_impl</span><span class="p">(</span><span class="n">debug_vis</span><span class="p">)</span>
         <span class="c1"># toggle debug visualization handles</span>
@@ -772,7 +773,26 @@
 <span class="sd">    Operations.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="ActionManager.set_debug_vis"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ActionManager.set_debug_vis">[docs]</a>    <span class="k">def</span> <span class="nf">set_debug_vis</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">debug_vis</span><span class="p">:</span> <span class="nb">bool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<div class="viewcode-block" id="ActionManager.get_active_iterable_terms"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ActionManager.get_active_iterable_terms">[docs]</a>    <span class="k">def</span> <span class="nf">get_active_iterable_terms</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">float</span><span class="p">]]]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the active terms as iterable sequence of tuples.</span>
+
+<span class="sd">        The first element of the tuple is the name of the term and the second element is the raw value(s) of the term.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            env_idx: The specific environment to pull the active terms from.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The active terms.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">terms</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">idx</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">term</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_terms</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">term_actions</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_action</span><span class="p">[</span><span class="n">env_idx</span><span class="p">,</span> <span class="n">idx</span> <span class="p">:</span> <span class="n">idx</span> <span class="o">+</span> <span class="n">term</span><span class="o">.</span><span class="n">action_dim</span><span class="p">]</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span>
+            <span class="n">terms</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">name</span><span class="p">,</span> <span class="n">term_actions</span><span class="o">.</span><span class="n">tolist</span><span class="p">()))</span>
+            <span class="n">idx</span> <span class="o">+=</span> <span class="n">term</span><span class="o">.</span><span class="n">action_dim</span>
+        <span class="k">return</span> <span class="n">terms</span></div>
+
+<div class="viewcode-block" id="ActionManager.set_debug_vis"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ActionManager.set_debug_vis">[docs]</a>    <span class="k">def</span> <span class="nf">set_debug_vis</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">debug_vis</span><span class="p">:</span> <span class="nb">bool</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Sets whether to visualize the action data.</span>
 <span class="sd">        Args:</span>
 <span class="sd">            debug_vis: Whether to visualize the action data.</span>
