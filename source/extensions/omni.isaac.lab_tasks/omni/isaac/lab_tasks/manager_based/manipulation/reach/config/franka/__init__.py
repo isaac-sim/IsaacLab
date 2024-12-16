@@ -81,7 +81,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Reach-Franka-Play-OSC-v0",
+    id="Isaac-Reach-Franka-OSC-Play-v0",
     entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
