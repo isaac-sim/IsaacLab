@@ -402,6 +402,18 @@ Comprehensive List of Environments
       -
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
+    * - Isaac-Factory-GearMesh-Direct-v0
+      -
+      - Direct
+      - **rl_games** (PPO)
+    * - Isaac-Factory-NutThread-Direct-v0
+      -
+      - Direct
+      - **rl_games** (PPO)
+    * - Isaac-Factory-PegInsert-Direct-v0
+      -
+      - Direct
+      - **rl_games** (PPO)
     * - Isaac-Franka-Cabinet-Direct-v0
       -
       - Direct
