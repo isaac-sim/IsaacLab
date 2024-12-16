@@ -46,8 +46,30 @@ class TestCircularBuffer(unittest.TestCase):
         # reset the buffer
         self.buffer.reset()
 
-        # check if the buffer is empty
+        # check if the buffer has zeros entries
         self.assertEqual(self.buffer.current_length.tolist(), [0, 0, 0])
+
+    def test_reset_subset(self):
+        """Test resetting a subset of batches in the circular buffer."""
+        data1 = torch.ones((self.batch_size, 2), device=self.device)
+        data2 = 2.0 * data1.clone()
+        data3 = 3.0 * data1.clone()
+        self.buffer.append(data1)
+        self.buffer.append(data2)
+        # reset the buffer
+        reset_batch_id = 1
+        self.buffer.reset(batch_ids=[reset_batch_id])
+        # check that correct batch is reset
+        self.assertEqual(self.buffer.current_length.tolist()[reset_batch_id], 0)
+        # Append new set of data
+        self.buffer.append(data3)
+        # check if the correct number of entries are in each batch
+        expected_length = [3, 3, 3]
+        expected_length[reset_batch_id] = 1
+        self.assertEqual(self.buffer.current_length.tolist(), expected_length)
+        # check that all entries of the recently reset and appended batch are equal
+        for i in range(self.max_len):
+            torch.testing.assert_close(self.buffer.buffer[reset_batch_id, 0], self.buffer.buffer[reset_batch_id, i])
 
     def test_append_and_retrieve(self):
         """Test appending and retrieving data from the circular buffer."""
@@ -120,6 +142,33 @@ class TestCircularBuffer(unittest.TestCase):
 
         retrieved_data = self.buffer[torch.tensor([5, 5, 5], device=self.device)]
         self.assertTrue(torch.equal(retrieved_data, data1))
+
+    def test_return_buffer_prop(self):
+        """Test retrieving the whole buffer for correct size and contents.
+        Returning the whole buffer should have the shape [batch_size,max_len,data.shape[1:]]
+        """
+        num_overflow = 2
+        for i in range(self.buffer.max_length + num_overflow):
+            data = torch.tensor([[i]], device=self.device).repeat(3, 2)
+            self.buffer.append(data)
+
+        retrieved_buffer = self.buffer.buffer
+        # check shape
+        self.assertTrue(retrieved_buffer.shape == torch.Size([self.buffer.batch_size, self.buffer.max_length, 2]))
+        # check that batch is first dimension
+        torch.testing.assert_close(retrieved_buffer[0], retrieved_buffer[1])
+        # check oldest
+        torch.testing.assert_close(
+            retrieved_buffer[:, 0], torch.tensor([[num_overflow]], device=self.device).repeat(3, 2)
+        )
+        # check most recent
+        torch.testing.assert_close(
+            retrieved_buffer[:, -1],
+            torch.tensor([[self.buffer.max_length + num_overflow - 1]], device=self.device).repeat(3, 2),
+        )
+        # check that it is returned oldest first
+        for idx in range(self.buffer.max_length - 1):
+            self.assertTrue(torch.all(torch.le(retrieved_buffer[:, idx], retrieved_buffer[:, idx + 1])))
 
 
 if __name__ == "__main__":
