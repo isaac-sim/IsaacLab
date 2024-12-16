@@ -339,7 +339,6 @@ class OperationalSpaceControllerAction(ActionTerm):
 
         # create tensors for the dynamic-related quantities
         self._jacobian_b = torch.zeros(self.num_envs, 6, self._num_DoF, device=self.device)
-        self._jacobian_w = torch.zeros(self.num_envs, 6, self._num_DoF, device=self.device)
         self._mass_matrix = torch.zeros(self.num_envs, self._num_DoF, self._num_DoF, device=self.device)
         self._gravity = torch.zeros(self.num_envs, self._num_DoF, device=self.device)
 
@@ -388,6 +387,19 @@ class OperationalSpaceControllerAction(ActionTerm):
     def processed_actions(self) -> torch.Tensor:
         """Processed actions for operational space control."""
         return self._processed_actions
+
+    @property
+    def jacobian_w(self) -> torch.Tensor:
+        return self._asset.root_physx_view.get_jacobians()[:, self._jacobi_ee_body_idx, :, self._jacobi_joint_idx]
+
+    @property
+    def jacobian_b(self) -> torch.Tensor:
+        jacobian = self.jacobian_w
+        base_rot = self._asset.data.root_quat_w
+        base_rot_matrix = math_utils.matrix_from_quat(math_utils.quat_inv(base_rot))
+        jacobian[:, :3, :] = torch.bmm(base_rot_matrix, jacobian[:, :3, :])
+        jacobian[:, 3:, :] = torch.bmm(base_rot_matrix, jacobian[:, 3:, :])
+        return jacobian
 
     """
     Operations.
@@ -526,16 +538,8 @@ class OperationalSpaceControllerAction(ActionTerm):
         This function accounts for the target frame offset and applies the necessary transformations to obtain
         the right Jacobian from the parent body Jacobian.
         """
-        # read the parent jacobian
-        self._jacobian_w[:] = self._asset.root_physx_view.get_jacobians()[
-            :, self._jacobi_ee_body_idx, :, self._jacobi_joint_idx
-        ]
-
-        # Convert the Jacobian from world to root frame
-        self._jacobian_b[:] = self._jacobian_w
-        root_rot_matrix = math_utils.matrix_from_quat(math_utils.quat_inv(self._asset.data.root_state_w[:, 3:7]))
-        self._jacobian_b[:, :3, :] = torch.bmm(root_rot_matrix, self._jacobian_b[:, :3, :])
-        self._jacobian_b[:, 3:, :] = torch.bmm(root_rot_matrix, self._jacobian_b[:, 3:, :])
+        # Get the Jacobian in root frame
+        self._jacobian_b[:] = self.jacobian_b
 
         # account for the offset
         if self.cfg.body_offset is not None:
