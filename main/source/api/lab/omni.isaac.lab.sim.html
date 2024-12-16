@@ -591,6 +591,7 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationContext.set_render_mode"><code class="docutils literal notranslate"><span class="pre">SimulationContext.set_render_mode()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationContext.set_setting"><code class="docutils literal notranslate"><span class="pre">SimulationContext.set_setting()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationContext.get_setting"><code class="docutils literal notranslate"><span class="pre">SimulationContext.get_setting()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationContext.forward"><code class="docutils literal notranslate"><span class="pre">SimulationContext.forward()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationContext.step"><code class="docutils literal notranslate"><span class="pre">SimulationContext.step()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationContext.render"><code class="docutils literal notranslate"><span class="pre">SimulationContext.render()</span></code></a></li>
 </ul>
@@ -832,10 +833,13 @@ the non-<code class="docutils literal notranslate"><span class="pre">_async</spa
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.SimulationContext.get_setting" title="omni.isaac.lab.sim.SimulationContext.get_setting"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_setting</span></code></a>(name)</p></td>
 <td><p>Read the simulation setting using the Carbonite SDK.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.SimulationContext.step" title="omni.isaac.lab.sim.SimulationContext.step"><code class="xref py py-obj docutils literal notranslate"><span class="pre">step</span></code></a>([render])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.SimulationContext.forward" title="omni.isaac.lab.sim.SimulationContext.forward"><code class="xref py py-obj docutils literal notranslate"><span class="pre">forward</span></code></a>()</p></td>
+<td><p>Updates articulation kinematics and fabric for rendering.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.SimulationContext.step" title="omni.isaac.lab.sim.SimulationContext.step"><code class="xref py py-obj docutils literal notranslate"><span class="pre">step</span></code></a>([render])</p></td>
 <td><p>Steps the simulation.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.SimulationContext.render" title="omni.isaac.lab.sim.SimulationContext.render"><code class="xref py py-obj docutils literal notranslate"><span class="pre">render</span></code></a>([mode])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.SimulationContext.render" title="omni.isaac.lab.sim.SimulationContext.render"><code class="xref py py-obj docutils literal notranslate"><span class="pre">render</span></code></a>([mode])</p></td>
 <td><p>Refreshes the rendering components including UI elements and view-ports depending on the render mode.</p></td>
 </tr>
 </tbody>
@@ -1042,6 +1046,12 @@ documentation.</p>
 <dd class="field-even"><p>The value of the setting.</p>
 </dd>
 </dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.SimulationContext.forward">
+<span class="sig-name descname"><span class="pre">forward</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/sim/simulation_context.html#SimulationContext.forward"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.sim.SimulationContext.forward" title="Permalink to this definition">#</a></dt>
+<dd><p>Updates articulation kinematics and fabric for rendering.</p>
 </dd></dl>
 
 <dl class="py method">
@@ -2135,6 +2145,7 @@ selections as follows:</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationContext.set_render_mode"><code class="docutils literal notranslate"><span class="pre">SimulationContext.set_render_mode()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationContext.set_setting"><code class="docutils literal notranslate"><span class="pre">SimulationContext.set_setting()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationContext.get_setting"><code class="docutils literal notranslate"><span class="pre">SimulationContext.get_setting()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationContext.forward"><code class="docutils literal notranslate"><span class="pre">SimulationContext.forward()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationContext.step"><code class="docutils literal notranslate"><span class="pre">SimulationContext.step()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationContext.render"><code class="docutils literal notranslate"><span class="pre">SimulationContext.render()</span></code></a></li>
 </ul>

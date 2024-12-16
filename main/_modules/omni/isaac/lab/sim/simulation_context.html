@@ -926,6 +926,14 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_settings</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">name</span><span class="p">)</span></div>
 
+<div class="viewcode-block" id="SimulationContext.forward"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext.forward">[docs]</a>    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Updates articulation kinematics and fabric for rendering.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fabric_iface</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">physics_sim_view</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_playing</span><span class="p">():</span>
+                <span class="c1"># Update the articulations&#39; link&#39;s poses before rendering</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">physics_sim_view</span><span class="o">.</span><span class="n">update_articulations_kinematic</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_update_fabric</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)</span></div>
+
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Operations - Override (standalone)</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -996,11 +1004,7 @@
                 <span class="bp">self</span><span class="o">.</span><span class="n">set_setting</span><span class="p">(</span><span class="s2">&quot;/app/player/playSimulations&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="c1"># manually flush the fabric data to update Hydra textures</span>
-            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fabric_iface</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">physics_sim_view</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_playing</span><span class="p">():</span>
-                    <span class="c1"># Update the articulations&#39; link&#39;s poses before rendering</span>
-                    <span class="bp">self</span><span class="o">.</span><span class="n">physics_sim_view</span><span class="o">.</span><span class="n">update_articulations_kinematic</span><span class="p">()</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">_update_fabric</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">forward</span><span class="p">()</span>
             <span class="c1"># render the simulation</span>
             <span class="c1"># note: we don&#39;t call super().render() anymore because they do above operation inside</span>
             <span class="c1">#  and we don&#39;t want to do it twice. We may remove it once we drop support for Isaac Sim 2022.2.</span>

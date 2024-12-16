@@ -783,6 +783,10 @@
         <span class="n">indices</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">int64</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_reset_idx</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
 
+        <span class="c1"># update articulation kinematics</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">write_data_to_sim</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">forward</span><span class="p">()</span>
+
         <span class="c1"># if sensors are added to the scene, make sure we render to reflect changes in reset</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">has_rtx_sensors</span><span class="p">()</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">rerender_on_reset</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">render</span><span class="p">()</span>
@@ -856,6 +860,9 @@
         <span class="n">reset_env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">reset_buf</span><span class="o">.</span><span class="n">nonzero</span><span class="p">(</span><span class="n">as_tuple</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">squeeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">reset_env_ids</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_reset_idx</span><span class="p">(</span><span class="n">reset_env_ids</span><span class="p">)</span>
+            <span class="c1"># update articulation kinematics</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">write_data_to_sim</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">forward</span><span class="p">()</span>
             <span class="c1"># if sensors are added to the scene, make sure we render to reflect changes in reset</span>
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">has_rtx_sensors</span><span class="p">()</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">rerender_on_reset</span><span class="p">:</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">render</span><span class="p">()</span>

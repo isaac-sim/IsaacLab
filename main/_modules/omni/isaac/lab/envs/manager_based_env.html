@@ -790,14 +790,16 @@
 
         <span class="c1"># reset state of scene</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_reset_idx</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
+
+        <span class="c1"># update articulation kinematics</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">write_data_to_sim</span><span class="p">()</span>
-
-        <span class="c1"># trigger recorder terms for post-reset calls</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">recorder_manager</span><span class="o">.</span><span class="n">record_post_reset</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
-
+        <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">forward</span><span class="p">()</span>
         <span class="c1"># if sensors are added to the scene, make sure we render to reflect changes in reset</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">has_rtx_sensors</span><span class="p">()</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">rerender_on_reset</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">render</span><span class="p">()</span>
+
+        <span class="c1"># trigger recorder terms for post-reset calls</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">recorder_manager</span><span class="o">.</span><span class="n">record_post_reset</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
 
         <span class="c1"># compute observations</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">obs_buf</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">observation_manager</span><span class="o">.</span><span class="n">compute</span><span class="p">()</span>
@@ -838,12 +840,15 @@
         <span class="c1"># set the state</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">reset_to</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">,</span> <span class="n">is_relative</span><span class="o">=</span><span class="n">is_relative</span><span class="p">)</span>
 
-        <span class="c1"># trigger recorder terms for post-reset calls</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">recorder_manager</span><span class="o">.</span><span class="n">record_post_reset</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
+        <span class="c1"># update articulation kinematics</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">forward</span><span class="p">()</span>
 
         <span class="c1"># if sensors are added to the scene, make sure we render to reflect changes in reset</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">has_rtx_sensors</span><span class="p">()</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">rerender_on_reset</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">render</span><span class="p">()</span>
+
+        <span class="c1"># trigger recorder terms for post-reset calls</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">recorder_manager</span><span class="o">.</span><span class="n">record_post_reset</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
 
         <span class="c1"># compute observations</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">obs_buf</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">observation_manager</span><span class="o">.</span><span class="n">compute</span><span class="p">()</span>
