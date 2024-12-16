@@ -63,7 +63,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.3.0" />
-    <meta name="docbuild:last-update" content="Dec 15, 2024"/>
+    <meta name="docbuild:last-update" content="Dec 16, 2024"/>
   </head>
   
   
@@ -608,6 +608,7 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.buffers.CircularBuffer.device"><code class="docutils literal notranslate"><span class="pre">CircularBuffer.device</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.buffers.CircularBuffer.max_length"><code class="docutils literal notranslate"><span class="pre">CircularBuffer.max_length</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.buffers.CircularBuffer.current_length"><code class="docutils literal notranslate"><span class="pre">CircularBuffer.current_length</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.buffers.CircularBuffer.buffer"><code class="docutils literal notranslate"><span class="pre">CircularBuffer.buffer</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.buffers.CircularBuffer.reset"><code class="docutils literal notranslate"><span class="pre">CircularBuffer.reset()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.buffers.CircularBuffer.append"><code class="docutils literal notranslate"><span class="pre">CircularBuffer.append()</span></code></a></li>
 </ul>
@@ -1326,6 +1327,9 @@ batch dimension. Correspondingly, the shape of the ring buffer is (max_len, batc
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.buffers.CircularBuffer.current_length" title="omni.isaac.lab.utils.buffers.CircularBuffer.current_length"><code class="xref py py-obj docutils literal notranslate"><span class="pre">current_length</span></code></a></p></td>
 <td><p>The current length of the buffer.</p></td>
 </tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.buffers.CircularBuffer.buffer" title="omni.isaac.lab.utils.buffers.CircularBuffer.buffer"><code class="xref py py-obj docutils literal notranslate"><span class="pre">buffer</span></code></a></p></td>
+<td><p>Complete circular buffer with most recent entry at the end and oldest entry at the beginning.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -1371,6 +1375,14 @@ batch dimension. Correspondingly, the shape of the ring buffer is (max_len, batc
 <dd><p>The current length of the buffer. Shape is (batch_size,).</p>
 <p>Since the buffer is circular, the current length is the minimum of the number of pushes
 and the maximum length.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.utils.buffers.CircularBuffer.buffer">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">buffer</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.utils.buffers.CircularBuffer.buffer" title="Permalink to this definition">#</a></dt>
+<dd><p>Complete circular buffer with most recent entry at the end and oldest entry at the beginning.
+:returns: ]].
+:rtype: Complete circular buffer with most recent entry at the end and oldest entry at the beginning of dimension 1. The shape is [batch_size, max_length, data.shape[1</p>
 </dd></dl>
 
 <dl class="py method">
@@ -4531,6 +4543,7 @@ The returned tensor contains <code class="xref py py-obj docutils literal notran
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.buffers.CircularBuffer.device"><code class="docutils literal notranslate"><span class="pre">CircularBuffer.device</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.buffers.CircularBuffer.max_length"><code class="docutils literal notranslate"><span class="pre">CircularBuffer.max_length</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.buffers.CircularBuffer.current_length"><code class="docutils literal notranslate"><span class="pre">CircularBuffer.current_length</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.buffers.CircularBuffer.buffer"><code class="docutils literal notranslate"><span class="pre">CircularBuffer.buffer</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.buffers.CircularBuffer.reset"><code class="docutils literal notranslate"><span class="pre">CircularBuffer.reset()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.buffers.CircularBuffer.append"><code class="docutils literal notranslate"><span class="pre">CircularBuffer.append()</span></code></a></li>
 </ul>
@@ -4784,7 +4797,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Dec 15, 2024.
+  Last updated on Dec 16, 2024.
   <br/>
 </p>
   </div>

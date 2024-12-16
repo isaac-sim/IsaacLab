@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.3.0" />
-    <meta name="docbuild:last-update" content="Dec 15, 2024"/>
+    <meta name="docbuild:last-update" content="Dec 16, 2024"/>
   </head>
   
   
@@ -518,12 +518,14 @@
 <span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">annotations</span>
 
 <span class="kn">import</span> <span class="nn">inspect</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">import</span> <span class="nn">torch</span>
 <span class="kn">from</span> <span class="nn">collections.abc</span> <span class="kn">import</span> <span class="n">Sequence</span>
 <span class="kn">from</span> <span class="nn">prettytable</span> <span class="kn">import</span> <span class="n">PrettyTable</span>
 <span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
 
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.utils</span> <span class="kn">import</span> <span class="n">modifiers</span>
+<span class="kn">from</span> <span class="nn">omni.isaac.lab.utils.buffers</span> <span class="kn">import</span> <span class="n">CircularBuffer</span>
 
 <span class="kn">from</span> <span class="nn">.manager_base</span> <span class="kn">import</span> <span class="n">ManagerBase</span><span class="p">,</span> <span class="n">ManagerTermBase</span>
 <span class="kn">from</span> <span class="nn">.manager_term_cfg</span> <span class="kn">import</span> <span class="n">ObservationGroupCfg</span><span class="p">,</span> <span class="n">ObservationTermCfg</span>
@@ -554,6 +556,11 @@
 <span class="sd">        When the observation terms in a group do not have the same shape, the observation terms cannot be</span>
 <span class="sd">        concatenated. In this case, please set the :attr:`ObservationGroupCfg.concatenate_terms` attribute in the</span>
 <span class="sd">        group configuration to False.</span>
+
+<span class="sd">    Observations can also have history. This means a running history is updated per sim step. History can be controlled</span>
+<span class="sd">    per :class:`ObservationTermCfg` (See the :attr:`ObservationTermCfg.history_length` and</span>
+<span class="sd">    :attr:`ObservationTermCfg.flatten_history_dim`). History can also be controlled via :class:`ObservationGroupCfg`</span>
+<span class="sd">    where group configuration overwrites per term configuration if set. History follows an oldest to newest ordering.</span>
 
 <span class="sd">    The observation manager can be used to compute observations for all the groups or for a specific group. The</span>
 <span class="sd">    observations are computed by calling the registered functions for each term in the group. The functions are</span>
@@ -684,12 +691,17 @@
 
 <div class="viewcode-block" id="ObservationManager.reset"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ObservationManager.reset">[docs]</a>    <span class="k">def</span> <span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]:</span>
         <span class="c1"># call all terms that are classes</span>
-        <span class="k">for</span> <span class="n">group_cfg</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_class_term_cfgs</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+        <span class="k">for</span> <span class="n">group_name</span><span class="p">,</span> <span class="n">group_cfg</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_class_term_cfgs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
             <span class="k">for</span> <span class="n">term_cfg</span> <span class="ow">in</span> <span class="n">group_cfg</span><span class="p">:</span>
                 <span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span>
+            <span class="c1"># reset terms with history</span>
+            <span class="k">for</span> <span class="n">term_name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_term_names</span><span class="p">[</span><span class="n">group_name</span><span class="p">]:</span>
+                <span class="k">if</span> <span class="n">term_name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_term_history_buffer</span><span class="p">[</span><span class="n">group_name</span><span class="p">]:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_term_history_buffer</span><span class="p">[</span><span class="n">group_name</span><span class="p">][</span><span class="n">term_name</span><span class="p">]</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">batch_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span>
         <span class="c1"># call all modifiers that are classes</span>
         <span class="k">for</span> <span class="n">mod</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_class_modifiers</span><span class="p">:</span>
             <span class="n">mod</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span>
+
         <span class="c1"># nothing to log here</span>
         <span class="k">return</span> <span class="p">{}</span></div>
 
@@ -758,7 +770,7 @@
         <span class="n">obs_terms</span> <span class="o">=</span> <span class="nb">zip</span><span class="p">(</span><span class="n">group_term_names</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_term_cfgs</span><span class="p">[</span><span class="n">group_name</span><span class="p">])</span>
 
         <span class="c1"># evaluate terms: compute, add noise, clip, scale, custom modifiers</span>
-        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">term_cfg</span> <span class="ow">in</span> <span class="n">obs_terms</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">term_name</span><span class="p">,</span> <span class="n">term_cfg</span> <span class="ow">in</span> <span class="n">obs_terms</span><span class="p">:</span>
             <span class="c1"># compute term&#39;s value</span>
             <span class="n">obs</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="p">,</span> <span class="o">**</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">params</span><span class="p">)</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
             <span class="c1"># apply post-processing</span>
@@ -771,8 +783,17 @@
                 <span class="n">obs</span> <span class="o">=</span> <span class="n">obs</span><span class="o">.</span><span class="n">clip_</span><span class="p">(</span><span class="nb">min</span><span class="o">=</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">clip</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="nb">max</span><span class="o">=</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">clip</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
             <span class="k">if</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">scale</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="n">obs</span> <span class="o">=</span> <span class="n">obs</span><span class="o">.</span><span class="n">mul_</span><span class="p">(</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">scale</span><span class="p">)</span>
-            <span class="c1"># add value to list</span>
-            <span class="n">group_obs</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">obs</span>
+            <span class="c1"># Update the history buffer if observation term has history enabled</span>
+            <span class="k">if</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">history_length</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_term_history_buffer</span><span class="p">[</span><span class="n">group_name</span><span class="p">][</span><span class="n">term_name</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">obs</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">flatten_history_dim</span><span class="p">:</span>
+                    <span class="n">group_obs</span><span class="p">[</span><span class="n">term_name</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_term_history_buffer</span><span class="p">[</span><span class="n">group_name</span><span class="p">][</span><span class="n">term_name</span><span class="p">]</span><span class="o">.</span><span class="n">buffer</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span>
+                    <span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">group_obs</span><span class="p">[</span><span class="n">term_name</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_term_history_buffer</span><span class="p">[</span><span class="n">group_name</span><span class="p">][</span><span class="n">term_name</span><span class="p">]</span><span class="o">.</span><span class="n">buffer</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">group_obs</span><span class="p">[</span><span class="n">term_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">obs</span>
 
         <span class="c1"># concatenate all observations in the group together</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_concatenate</span><span class="p">[</span><span class="n">group_name</span><span class="p">]:</span>
@@ -793,7 +814,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_term_cfgs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="n">ObservationTermCfg</span><span class="p">]]</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_class_term_cfgs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="n">ObservationTermCfg</span><span class="p">]]</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_concatenate</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">bool</span><span class="p">]</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
-
+        <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_term_history_buffer</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">]</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
         <span class="c1"># create a list to store modifiers that are classes</span>
         <span class="c1"># we store it as a separate list to only call reset on them and prevent unnecessary calls</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_class_modifiers</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">modifiers</span><span class="o">.</span><span class="n">ModifierBase</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
@@ -819,6 +840,7 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_term_dim</span><span class="p">[</span><span class="n">group_name</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_term_cfgs</span><span class="p">[</span><span class="n">group_name</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_class_term_cfgs</span><span class="p">[</span><span class="n">group_name</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+            <span class="n">group_entry_history_buffer</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">CircularBuffer</span><span class="p">]</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
             <span class="c1"># read common config for the group</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_concatenate</span><span class="p">[</span><span class="n">group_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">group_cfg</span><span class="o">.</span><span class="n">concatenate_terms</span>
             <span class="c1"># check if config is dict already</span>
@@ -829,7 +851,7 @@
             <span class="c1"># iterate over all the terms in each group</span>
             <span class="k">for</span> <span class="n">term_name</span><span class="p">,</span> <span class="n">term_cfg</span> <span class="ow">in</span> <span class="n">group_cfg_items</span><span class="p">:</span>
                 <span class="c1"># skip non-obs settings</span>
-                <span class="k">if</span> <span class="n">term_name</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;enable_corruption&quot;</span><span class="p">,</span> <span class="s2">&quot;concatenate_terms&quot;</span><span class="p">]:</span>
+                <span class="k">if</span> <span class="n">term_name</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;enable_corruption&quot;</span><span class="p">,</span> <span class="s2">&quot;concatenate_terms&quot;</span><span class="p">,</span> <span class="s2">&quot;history_length&quot;</span><span class="p">,</span> <span class="s2">&quot;flatten_history_dim&quot;</span><span class="p">]:</span>
                     <span class="k">continue</span>
                 <span class="c1"># check for non config</span>
                 <span class="k">if</span> <span class="n">term_cfg</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
@@ -845,12 +867,26 @@
                 <span class="c1"># check noise settings</span>
                 <span class="k">if</span> <span class="ow">not</span> <span class="n">group_cfg</span><span class="o">.</span><span class="n">enable_corruption</span><span class="p">:</span>
                     <span class="n">term_cfg</span><span class="o">.</span><span class="n">noise</span> <span class="o">=</span> <span class="kc">None</span>
+                <span class="c1"># check group history params and override terms</span>
+                <span class="k">if</span> <span class="n">group_cfg</span><span class="o">.</span><span class="n">history_length</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">term_cfg</span><span class="o">.</span><span class="n">history_length</span> <span class="o">=</span> <span class="n">group_cfg</span><span class="o">.</span><span class="n">history_length</span>
+                    <span class="n">term_cfg</span><span class="o">.</span><span class="n">flatten_history_dim</span> <span class="o">=</span> <span class="n">group_cfg</span><span class="o">.</span><span class="n">flatten_history_dim</span>
                 <span class="c1"># add term config to list to list</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_term_names</span><span class="p">[</span><span class="n">group_name</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">term_name</span><span class="p">)</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_term_cfgs</span><span class="p">[</span><span class="n">group_name</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">term_cfg</span><span class="p">)</span>
-
                 <span class="c1"># call function the first time to fill up dimensions</span>
                 <span class="n">obs_dims</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="p">,</span> <span class="o">**</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">params</span><span class="p">)</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+                <span class="c1"># create history buffers and calculate history term dimensions</span>
+                <span class="k">if</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">history_length</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">group_entry_history_buffer</span><span class="p">[</span><span class="n">term_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">CircularBuffer</span><span class="p">(</span>
+                        <span class="n">max_len</span><span class="o">=</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">history_length</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="o">.</span><span class="n">device</span>
+                    <span class="p">)</span>
+                    <span class="n">old_dims</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">obs_dims</span><span class="p">)</span>
+                    <span class="n">old_dims</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">history_length</span><span class="p">)</span>
+                    <span class="n">obs_dims</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">old_dims</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">flatten_history_dim</span><span class="p">:</span>
+                        <span class="n">obs_dims</span> <span class="o">=</span> <span class="p">(</span><span class="n">obs_dims</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">np</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="n">obs_dims</span><span class="p">[</span><span class="mi">1</span><span class="p">:]))</span>
+
                 <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_term_dim</span><span class="p">[</span><span class="n">group_name</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">obs_dims</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
 
                 <span class="c1"># if scale is set, check if single float or tuple</span>
@@ -920,7 +956,9 @@
                 <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">,</span> <span class="n">ManagerTermBase</span><span class="p">):</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_class_term_cfgs</span><span class="p">[</span><span class="n">group_name</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">term_cfg</span><span class="p">)</span>
                     <span class="c1"># call reset (in-case above call to get obs dims changed the state)</span>
-                    <span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span></div>
+                    <span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+            <span class="c1"># add history buffers for each group</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_group_obs_term_history_buffer</span><span class="p">[</span><span class="n">group_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">group_entry_history_buffer</span></div>
 </pre></div>
 
                 </article>
@@ -968,7 +1006,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Dec 15, 2024.
+  Last updated on Dec 16, 2024.
   <br/>
 </p>
   </div>

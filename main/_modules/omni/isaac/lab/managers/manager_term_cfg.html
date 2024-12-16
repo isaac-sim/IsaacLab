@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.3.0" />
-    <meta name="docbuild:last-update" content="Dec 15, 2024"/>
+    <meta name="docbuild:last-update" content="Dec 16, 2024"/>
   </head>
   
   
@@ -688,7 +688,20 @@
 
 <span class="sd">    We leverage PyTorch broadcasting to scale the observation tensor with the provided value. If a tuple is provided,</span>
 <span class="sd">    please make sure the length of the tuple matches the dimensions of the tensor outputted from the term.</span>
-<span class="sd">    &quot;&quot;&quot;</span></div>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">history_length</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Number of past observations to store in the observation buffers. Defaults to 0, meaning no history.</span>
+
+<span class="sd">    Observation history initializes to empty, but is filled with the first append after reset or initialization. Subsequent history</span>
+<span class="sd">    only adds a single entry to the history buffer. If flatten_history_dim is set to True, the source data of shape</span>
+<span class="sd">    (N, H, D, ...) where N is the batch dimension and H is the history length will be reshaped to a 2D tensor of shape</span>
+<span class="sd">    (N, H*D*...). Otherwise, the data will be returned as is.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">flatten_history_dim</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether or not the observation manager should flatten history-based observation terms to a 2D (N, D) tensor.</span>
+<span class="sd">    Defaults to True.&quot;&quot;&quot;</span></div>
 
 
 <div class="viewcode-block" id="ObservationGroupCfg"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ObservationGroupCfg">[docs]</a><span class="nd">@configclass</span>
@@ -709,6 +722,22 @@
 
 <span class="sd">    If true, the observation terms in the group are corrupted by adding noise (if specified).</span>
 <span class="sd">    Otherwise, no corruption is applied.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">history_length</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Number of past observation to store in the observation buffers for all observation terms in group.</span>
+
+<span class="sd">    This parameter will override :attr:`ObservationTermCfg.history_length` if set. Defaults to None. If None, each</span>
+<span class="sd">    terms history will be controlled on a per term basis. See :class:`ObservationTermCfg` for details on history_length</span>
+<span class="sd">    implementation.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">flatten_history_dim</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Flag to flatten history-based observation terms to a 2D (num_env, D) tensor for all observation terms in group.</span>
+<span class="sd">    Defaults to True.</span>
+
+<span class="sd">    This parameter will override all :attr:`ObservationTermCfg.flatten_history_dim` in the group if</span>
+<span class="sd">    ObservationGroupCfg.history_length is set.</span>
 <span class="sd">    &quot;&quot;&quot;</span></div>
 
 
@@ -870,7 +899,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Dec 15, 2024.
+  Last updated on Dec 16, 2024.
   <br/>
 </p>
   </div>
