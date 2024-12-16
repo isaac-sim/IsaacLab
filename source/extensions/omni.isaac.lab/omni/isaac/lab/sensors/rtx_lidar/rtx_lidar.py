@@ -291,7 +291,7 @@ class RtxLidar(SensorBase):
             # process the output
             data, info = self._process_annotator_output("", output)
 
-            # # add data to output
+            # add data to output
             data_all_lidar.append(data)
 
             # store the info
