@@ -48,7 +48,7 @@ class RtxLidarData:
             data will be returned relative to simulation world. If 'sensor' the data will be returned relative to
             sensor frame.
         distance: The distance of the return hit from sensor origin in meters.
-        intensity: The intensity value in the range [0.0 1.0] of each return.
+        intensity: The intensity value in the range [0.0, 1.0] of each return.
         timestamp: The time since sensor creation time in nanoseconds for each return.
 
     The following keys will OPTIONALLY be returned:
