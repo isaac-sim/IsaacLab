@@ -14,10 +14,10 @@ from omni.isaac.lab.assets import Articulation
 from omni.isaac.lab.envs import DirectRLEnv
 from omni.isaac.lab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
+from omni.isaac.lab.utils.math import axis_angle_from_quat
 
 from . import factory_control as fc
 from .factory_env_cfg import OBS_DIM_CFG, STATE_DIM_CFG, FactoryEnvCfg
-from .torch_jit_utils import quat_to_angle_axis
 
 
 class FactoryEnv(DirectRLEnv):
@@ -218,9 +218,8 @@ class FactoryEnv(DirectRLEnv):
             self.fingertip_midpoint_quat, torch_utils.quat_conjugate(self.prev_fingertip_quat)
         )
         rot_diff_quat *= torch.sign(rot_diff_quat[:, 0]).unsqueeze(-1)
-        rot_diff_aa = quat_to_angle_axis(rot_diff_quat)
-
-        self.ee_angvel_fd = (rot_diff_aa[0].unsqueeze(-1) * rot_diff_aa[1]) / dt
+        rot_diff_aa = axis_angle_from_quat(rot_diff_quat)
+        self.ee_angvel_fd = rot_diff_aa / dt
         self.prev_fingertip_quat = self.fingertip_midpoint_quat.clone()
 
         joint_diff = self.joint_pos[:, 0:7] - self.prev_joint_pos
@@ -414,7 +413,7 @@ class FactoryEnv(DirectRLEnv):
             device=self.device,
         )
 
-        # set target for gripper joints to use GYM's PD controller
+        # set target for gripper joints to use physx's PD controller
         self.ctrl_target_joint_pos[:, 7:9] = self.ctrl_target_gripper_dof_pos
         self.joint_torque[:, 7:9] = 0.0
 
@@ -530,9 +529,7 @@ class FactoryEnv(DirectRLEnv):
         super()._reset_idx(env_ids)
 
         self._set_assets_to_default_pose(env_ids)
-        self._set_franka_to_default_pose(
-            joints=[1.5178e-03, -1.9651e-01, -1.4364e-03, -1.9761, -2.7717e-04, 1.7796, 7.8556e-01], env_ids=env_ids
-        )
+        self._set_franka_to_default_pose(joints=self.cfg.ctrl.reset_joints, env_ids=env_ids)
         self.step_sim_no_action()
 
         self.randomize_initial_state(env_ids)
@@ -593,7 +590,6 @@ class FactoryEnv(DirectRLEnv):
             self.ctrl_target_joint_pos[env_ids, 0:7] = self.joint_pos[env_ids, 0:7]
             # Update dof state.
             self._robot.write_joint_state_to_sim(self.joint_pos, self.joint_vel)
-            self._robot.reset()
             self._robot.set_joint_position_target(self.ctrl_target_joint_pos)
 
             # Simulate and update tensors.
@@ -652,7 +648,7 @@ class FactoryEnv(DirectRLEnv):
     def step_sim_no_action(self):
         """Step the simulation without an action. Used for resets."""
         self.scene.write_data_to_sim()
-        self.sim.step(render=True)
+        self.sim.step(render=False)
         self.scene.update(dt=self.physics_dt)
         self._compute_intermediate_values(dt=self.physics_dt)
 
@@ -753,8 +749,8 @@ class FactoryEnv(DirectRLEnv):
             any_error = torch.logical_or(pos_error, angle_error)
             bad_envs = bad_envs[any_error.nonzero(as_tuple=False).squeeze(-1)]
 
+            # Check IK succeeded for all envs, otherwise try again for those envs
             if bad_envs.shape[0] == 0:
-                print("Done IK")
                 break
 
             self._set_franka_to_default_pose(
@@ -840,11 +836,6 @@ class FactoryEnv(DirectRLEnv):
             self.step_sim_no_action()
             grasp_time += self.sim.get_physics_dt()
 
-            diff = self.target_held_base_pos - self.held_base_pos
-
-        bad_idxs = env_ids[diff[:, 1] > 0.05]
-        print("Bad:", bad_idxs)
-
         self.prev_joint_pos = self.joint_pos[:, 0:7].clone()
         self.prev_fingertip_pos = self.fingertip_midpoint_pos.clone()
         self.prev_fingertip_quat = self.fingertip_midpoint_quat.clone()
@@ -887,4 +878,3 @@ class FactoryEnv(DirectRLEnv):
         self._set_gains(self.default_gains)
 
         physics_sim_view.set_gravity(carb.Float3(*self.cfg.sim.gravity))
-        print("Done Reset")

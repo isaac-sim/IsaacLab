@@ -13,40 +13,7 @@ import torch
 
 import omni.isaac.core.utils.torch as torch_utils
 
-
-def compute_dof_pos_target(
-    cfg_ctrl,
-    arm_dof_pos,
-    fingertip_midpoint_pos,
-    fingertip_midpoint_quat,
-    jacobian,
-    ctrl_target_fingertip_midpoint_pos,
-    ctrl_target_fingertip_midpoint_quat,
-    ctrl_target_gripper_dof_pos,
-    device,
-):
-    """Compute Franka DOF position target to move fingertips towards target pose."""
-
-    ctrl_target_dof_pos = torch.zeros((cfg_ctrl["num_envs"], 9), device=device)
-
-    pos_error, axis_angle_error = get_pose_error(
-        fingertip_midpoint_pos=fingertip_midpoint_pos,
-        fingertip_midpoint_quat=fingertip_midpoint_quat,
-        ctrl_target_fingertip_midpoint_pos=ctrl_target_fingertip_midpoint_pos,
-        ctrl_target_fingertip_midpoint_quat=ctrl_target_fingertip_midpoint_quat,
-        jacobian_type=cfg_ctrl["jacobian_type"],
-        rot_error_type="axis_angle",
-    )
-
-    delta_fingertip_pose = torch.cat((pos_error, axis_angle_error), dim=1)
-    delta_arm_dof_pos = _get_delta_dof_pos(
-        delta_pose=delta_fingertip_pose, ik_method=cfg_ctrl["ik_method"], jacobian=jacobian, device=device
-    )
-
-    ctrl_target_dof_pos[:, 0:7] = arm_dof_pos + delta_arm_dof_pos
-    ctrl_target_dof_pos[:, 7:9] = ctrl_target_gripper_dof_pos  # gripper finger joints
-
-    return ctrl_target_dof_pos
+from omni.isaac.lab.utils.math import axis_angle_from_quat
 
 
 def compute_dof_torque(
@@ -162,30 +129,10 @@ def get_pose_error(
         # Convert to axis-angle error
         axis_angle_error = axis_angle_from_quat(quat_error)
 
-    elif jacobian_type == "analytic":  # See example 2.9.7; note use of J_a and difference of rotation vectors
-        # Compute axis-angle error
-        axis_angle_error = axis_angle_from_quat(ctrl_target_fingertip_midpoint_quat) - axis_angle_from_quat(
-            fingertip_midpoint_quat
-        )
-
     if rot_error_type == "quat":
         return pos_error, quat_error
     elif rot_error_type == "axis_angle":
         return pos_error, axis_angle_error
-
-
-def _get_wrench_error(left_finger_force, right_finger_force, ctrl_target_fingertip_contact_wrench, num_envs, device):
-    """Compute task-space error between target Franka fingertip contact wrench and current wrench."""
-
-    fingertip_contact_wrench = torch.zeros((num_envs, 6), device=device)
-
-    fingertip_contact_wrench[:, 0:3] = left_finger_force + right_finger_force  # net contact force on fingers
-    # Cols 3 to 6 are all zeros, as we do not have enough information
-
-    force_error = ctrl_target_fingertip_contact_wrench[:, 0:3] - (-fingertip_contact_wrench[:, 0:3])
-    torque_error = ctrl_target_fingertip_contact_wrench[:, 3:6] - (-fingertip_contact_wrench[:, 3:6])
-
-    return force_error, torque_error
 
 
 def _get_delta_dof_pos(delta_pose, ik_method, jacobian, device):
@@ -247,149 +194,3 @@ def _apply_task_space_gains(
         0.0 - fingertip_midpoint_angvel
     )
     return task_wrench
-
-
-def get_analytic_jacobian(fingertip_quat, fingertip_jacobian, num_envs, device):
-    """Convert geometric Jacobian to analytic Jacobian."""
-    # Reference: https://ethz.ch/content/dam/ethz/special-interest/mavt/robotics-n-intelligent-systems/rsl-dam/documents/RobotDynamics2018/RD_HS2018script.pdf
-    # NOTE: Gym returns world-space geometric Jacobians by default
-
-    batch = num_envs
-
-    # Overview:
-    # x = [x_p; x_r]
-    # From eq. 2.189 and 2.192, x_dot = J_a @ q_dot = (E_inv @ J_g) @ q_dot
-    # From eq. 2.191, E = block(E_p, E_r); thus, E_inv = block(E_p_inv, E_r_inv)
-    # Eq. 2.12 gives an expression for E_p_inv
-    # Eq. 2.107 gives an expression for E_r_inv
-
-    # Compute E_inv_top (i.e., [E_p_inv, 0])
-    eye = torch.eye(3, device=device)
-    E_p_inv = eye.repeat((batch, 1)).reshape(batch, 3, 3)
-    E_inv_top = torch.cat((E_p_inv, torch.zeros((batch, 3, 3), device=device)), dim=2)
-
-    # Compute E_inv_bottom (i.e., [0, E_r_inv])
-    fingertip_axis_angle = axis_angle_from_quat(fingertip_quat)
-    fingertip_axis_angle_cross = get_skew_symm_matrix(fingertip_axis_angle, device=device)
-    fingertip_angle = torch.linalg.vector_norm(fingertip_axis_angle, dim=1)
-    factor_1 = 1 / (fingertip_angle**2)
-    factor_2 = 1 - fingertip_angle * 0.5 * torch.sin(fingertip_angle) / (1 - torch.cos(fingertip_angle))
-    factor_3 = factor_1 * factor_2
-    E_r_inv = (
-        eye
-        - 1 * 0.5 * fingertip_axis_angle_cross
-        + (fingertip_axis_angle_cross @ fingertip_axis_angle_cross)
-        * factor_3.unsqueeze(-1).repeat((1, 3 * 3)).reshape((batch, 3, 3))
-    )
-    E_inv_bottom = torch.cat((torch.zeros((batch, 3, 3), device=device), E_r_inv), dim=2)
-
-    E_inv = torch.cat((E_inv_top.reshape((batch, 3 * 6)), E_inv_bottom.reshape((batch, 3 * 6))), dim=1).reshape(
-        (batch, 6, 6)
-    )
-
-    J_a = E_inv @ fingertip_jacobian
-
-    return J_a
-
-
-def get_skew_symm_matrix(vec, device):
-    """Convert vector to skew-symmetric matrix."""
-    # Reference: https://en.wikipedia.org/wiki/Cross_product#Conversion_to_matrix_multiplication
-
-    batch = vec.shape[0]
-    eye = torch.eye(3, device=device)
-    skew_symm = torch.transpose(
-        torch.cross(vec.repeat((1, 3)).reshape((batch * 3, 3)), eye.repeat((batch, 1))).reshape(batch, 3, 3),
-        dim0=1,
-        dim1=2,
-    )
-
-    return skew_symm
-
-
-def translate_along_local_z(pos, quat, offset, device):
-    """Translate global body position along local Z-axis and express in global coordinates."""
-
-    num_vecs = pos.shape[0]
-    offset_vec = offset * torch.tensor([0.0, 0.0, 1.0], device=device).repeat((num_vecs, 1))
-    _, translated_pos = torch_utils.tf_combine(
-        q1=quat, t1=pos, q2=torch.tensor([1.0, 0.0, 0.0, 0.0], device=device).repeat((num_vecs, 1)), t2=offset_vec
-    )
-
-    return translated_pos
-
-
-def translate_along_local_xyz(pos, quat, offset_vec, device):
-    """Translate global body position along local frame and express in global coordinates."""
-
-    num_vecs = pos.shape[0]
-    _, translated_pos = torch_utils.tf_combine(
-        q1=quat, t1=pos, q2=torch.tensor([1.0, 0.0, 0.0, 0.0], device=device).repeat((num_vecs, 1)), t2=offset_vec
-    )
-
-    return translated_pos
-
-
-def axis_angle_from_euler(euler):
-    """Convert tensor of Euler angles to tensor of axis-angles."""
-
-    quat = torch_utils.quat_from_euler_xyz(roll=euler[:, 0], pitch=euler[:, 1], yaw=euler[:, 2])
-    quat = quat * torch.sign(quat[:, 0]).unsqueeze(-1)  # smaller rotation
-    axis_angle = axis_angle_from_quat(quat)
-
-    return axis_angle
-
-
-def axis_angle_from_quat(quat, eps=1.0e-6):
-    """Convert tensor of quaternions to tensor of axis-angles."""
-    # Reference: https://github.com/facebookresearch/pytorch3d/blob/bee31c48d3d36a8ea268f9835663c52ff4a476ec/pytorch3d/transforms/rotation_conversions.py#L516-L544
-
-    mag = torch.linalg.norm(quat[:, 1:], dim=1)
-    half_angle = torch.atan2(mag, quat[:, 0])
-    angle = 2.0 * half_angle
-    sin_half_angle_over_angle = torch.where(
-        torch.abs(angle) > eps, torch.sin(half_angle) / angle, 1.0 / 2.0 - angle**2.0 / 48
-    )
-
-    axis_angle = quat[:, 1:] / sin_half_angle_over_angle.unsqueeze(-1)
-
-    return axis_angle
-
-
-def axis_angle_from_quat_naive(quat):
-    """Convert tensor of quaternions to tensor of axis-angles."""
-    # Reference: https://en.wikipedia.org/wiki/quats_and_spatial_rotation#Recovering_the_axis-angle_representation
-    # NOTE: Susceptible to undesirable behavior due to divide-by-zero
-
-    mag = torch.linalg.vector_norm(quat[:, 1:], dim=1)  # zero when quat = [0, 0, 0, 1]
-    axis = quat[:, 1:] / mag.unsqueeze(-1)
-    angle = 2.0 * torch.atan2(mag, quat[:, 0])
-    axis_angle = axis * angle.unsqueeze(-1)
-
-    return axis_angle
-
-
-def get_rand_quat(num_quats, device):
-    """Generate tensor of random quaternions."""
-    # Reference: http://planning.cs.uiuc.edu/node198.html
-
-    u = torch.rand((num_quats, 3), device=device)
-    quat = torch.zeros((num_quats, 4), device=device)
-    quat[:, 1] = torch.sqrt(1 - u[:, 0]) * torch.sin(2 * math.pi * u[:, 1])
-    quat[:, 2] = torch.sqrt(1 - u[:, 0]) * torch.cos(2 * math.pi * u[:, 1])
-    quat[:, 3] = torch.sqrt(u[:, 0]) * torch.sin(2 * math.pi * u[:, 2])
-    quat[:, 0] = torch.sqrt(u[:, 0]) * torch.cos(2 * math.pi * u[:, 2])
-
-    return quat
-
-
-def get_nonrand_quat(num_quats, rot_perturbation, device):
-    """Generate tensor of non-random quaternions by composing random Euler rotations."""
-
-    quat = torch_utils.quat_from_euler_xyz(
-        torch.rand((num_quats, 1), device=device).squeeze() * rot_perturbation * 2.0 - rot_perturbation,
-        torch.rand((num_quats, 1), device=device).squeeze() * rot_perturbation * 2.0 - rot_perturbation,
-        torch.rand((num_quats, 1), device=device).squeeze() * rot_perturbation * 2.0 - rot_perturbation,
-    )
-
-    return quat

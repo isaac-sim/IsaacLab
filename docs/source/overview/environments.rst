@@ -177,13 +177,13 @@ For example:
     | |factory-nut|      | |factory-nut-link|      | Thread the nut onto the first 2 threads of the bolt, using the Franka robot |
     +--------------------+-------------------------+-----------------------------------------------------------------------------+
 
-.. |factory-peg| image:: ../_static/tasks/factory/peg_insertion.png
-.. |factory-gear| image:: ../_static/tasks/factory/gear_meshing.png
-.. |factory-nut| image:: ../_static/tasks/factory/nut_bolt_fastening.png
+.. |factory-peg| image:: ../_static/tasks/factory/peg_insert.jpg
+.. |factory-gear| image:: ../_static/tasks/factory/gear_mesh.jpg
+.. |factory-nut| image:: ../_static/tasks/factory/nut_thread.jpg
 
-.. |factory-peg-link| replace:: `Factory-PegInsert-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/factory/factory_env_cfg.py>`__
-.. |factory-gear-link| replace:: `Factory-GearMesh-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/factory/factory_env_cfg.py>`__
-.. |factory-nut-link| replace:: `Factory-NutThread-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/factory/factory_env_cfg.py>`__
+.. |factory-peg-link| replace:: `Isaac-Factory-PegInsert-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/factory/factory_env_cfg.py>`__
+.. |factory-gear-link| replace:: `Isaac-Factory-GearMesh-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/factory/factory_env_cfg.py>`__
+.. |factory-nut-link| replace:: `Isaac-Factory-NutThread-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/factory/factory_env_cfg.py>`__
 
 Locomotion
 ~~~~~~~~~~
