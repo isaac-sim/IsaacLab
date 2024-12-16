@@ -217,9 +217,9 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             self.recorder_manager.record_pre_reset(reset_env_ids)
 
             self._reset_idx(reset_env_ids)
-
-            # this is needed to make joint positions set from reset events effective
+            # update articulation kinematics
             self.scene.write_data_to_sim()
+            self.sim.forward()
 
             # if sensors are added to the scene, make sure we render to reflect changes in reset
             if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
