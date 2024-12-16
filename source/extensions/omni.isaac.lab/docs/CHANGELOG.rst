@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+0.28.0 (2024-12-15)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added observation history computation to :class:`omni.isaac.lab.manager.observation_manager.ObservationManager`.
+* Added ``history_length`` and ``flatten_history_dim`` configuration parameters to :class:`omni.isaac.lab.manager.manager_term_cfg.ObservationTermCfg`
+* Added ``history_length`` and ``flatten_history_dim`` configuration parameters to :class:`omni.isaac.lab.manager.manager_term_cfg.ObservationGroupCfg`
+* Added full buffer property to :class:`omni.isaac.lab.utils.buffers.circular_buffer.CircularBuffer`
+
+
 0.27.29 (2024-12-15)
 ~~~~~~~~~~~~~~~~~~~~
 
