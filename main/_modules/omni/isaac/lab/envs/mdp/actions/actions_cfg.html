@@ -292,6 +292,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../../../../../source/tutorials/03_envs/modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../../../../source/tutorials/04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../../../../source/tutorials/05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../../source/tutorials/05_controllers/run_osc.html">Using an operational space controller</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../../../../../source/how-to/index.html">How-to Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -515,7 +516,7 @@
 
 <span class="kn">from</span> <span class="nn">dataclasses</span> <span class="kn">import</span> <span class="n">MISSING</span>
 
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.controllers</span> <span class="kn">import</span> <span class="n">DifferentialIKControllerCfg</span>
+<span class="kn">from</span> <span class="nn">omni.isaac.lab.controllers</span> <span class="kn">import</span> <span class="n">DifferentialIKControllerCfg</span><span class="p">,</span> <span class="n">OperationalSpaceControllerCfg</span>
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.managers.action_manager</span> <span class="kn">import</span> <span class="n">ActionTerm</span><span class="p">,</span> <span class="n">ActionTermCfg</span>
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.utils</span> <span class="kn">import</span> <span class="n">configclass</span>
 
@@ -758,6 +759,61 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Scale factor for the action. Defaults to 1.0.&quot;&quot;&quot;</span>
     <span class="n">controller</span><span class="p">:</span> <span class="n">DifferentialIKControllerCfg</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The configuration for the differential IK controller.&quot;&quot;&quot;</span></div>
+
+
+<div class="viewcode-block" id="OperationalSpaceControllerActionCfg"><a class="viewcode-back" href="../../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg">[docs]</a><span class="nd">@configclass</span>
+<span class="k">class</span> <span class="nc">OperationalSpaceControllerActionCfg</span><span class="p">(</span><span class="n">ActionTermCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for operational space controller action term.</span>
+
+<span class="sd">    See :class:`OperationalSpaceControllerAction` for more details.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="OperationalSpaceControllerActionCfg.OffsetCfg"><a class="viewcode-back" href="../../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.OffsetCfg">[docs]</a>    <span class="nd">@configclass</span>
+    <span class="k">class</span> <span class="nc">OffsetCfg</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The offset pose from parent frame to child frame.</span>
+
+<span class="sd">        On many robots, end-effector frames are fictitious frames that do not have a corresponding</span>
+<span class="sd">        rigid body. In such cases, it is easier to define this transform w.r.t. their parent rigid body.</span>
+<span class="sd">        For instance, for the Franka Emika arm, the end-effector is defined at an offset to the the</span>
+<span class="sd">        &quot;panda_hand&quot; frame.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">pos</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Translation w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0).&quot;&quot;&quot;</span>
+        <span class="n">rot</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Quaternion rotation ``(w, x, y, z)`` w.r.t. the parent frame. Defaults to (1.0, 0.0, 0.0, 0.0).&quot;&quot;&quot;</span></div>
+
+    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">ActionTerm</span><span class="p">]</span> <span class="o">=</span> <span class="n">task_space_actions</span><span class="o">.</span><span class="n">OperationalSpaceControllerAction</span>
+
+    <span class="n">joint_names</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;List of joint names or regex expressions that the action will be mapped to.&quot;&quot;&quot;</span>
+
+    <span class="n">body_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Name of the body or frame for which motion/force control is performed.&quot;&quot;&quot;</span>
+
+    <span class="n">body_offset</span><span class="p">:</span> <span class="n">OffsetCfg</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Offset of target frame w.r.t. to the body frame. Defaults to None, in which case no offset is applied.&quot;&quot;&quot;</span>
+
+    <span class="n">task_frame_rel_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The path of a ``RigidObject``, relative to the sub-environment, representing task frame. Defaults to None.&quot;&quot;&quot;</span>
+
+    <span class="n">controller_cfg</span><span class="p">:</span> <span class="n">OperationalSpaceControllerCfg</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The configuration for the operational space controller.&quot;&quot;&quot;</span>
+
+    <span class="n">position_scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Scale factor for the position targets. Defaults to 1.0.&quot;&quot;&quot;</span>
+
+    <span class="n">orientation_scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Scale factor for the orientation (quad for ``pose_abs`` or axis-angle for ``pose_rel``). Defaults to 1.0.&quot;&quot;&quot;</span>
+
+    <span class="n">wrench_scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Scale factor for the wrench targets. Defaults to 1.0.&quot;&quot;&quot;</span>
+
+    <span class="n">stiffness_scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Scale factor for the stiffness commands. Defaults to 1.0.&quot;&quot;&quot;</span>
+
+    <span class="n">damping_ratio_scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Scale factor for the damping ratio commands. Defaults to 1.0.&quot;&quot;&quot;</span></div>
 </pre></div>
 
                 </article>

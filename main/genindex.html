@@ -292,6 +292,7 @@
 <li class="toctree-l2"><a class="reference internal" href="source/tutorials/03_envs/modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/tutorials/04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/tutorials/05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/tutorials/05_controllers/run_osc.html">Using an operational space controller</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="source/how-to/index.html">How-to Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -582,6 +583,8 @@
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.controllers.html#omni.isaac.lab.controllers.DifferentialIKController.__init__">(omni.isaac.lab.controllers.DifferentialIKController method)</a>
 </li>
+        <li><a href="source/api/lab/omni.isaac.lab.controllers.html#omni.isaac.lab.controllers.OperationalSpaceController.__init__">(omni.isaac.lab.controllers.OperationalSpaceController method)</a>
+</li>
         <li><a href="source/api/lab/omni.isaac.lab.devices.html#omni.isaac.lab.devices.DeviceBase.__init__">(omni.isaac.lab.devices.DeviceBase method)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.devices.html#omni.isaac.lab.devices.Se2Gamepad.__init__">(omni.isaac.lab.devices.Se2Gamepad method)</a>
@@ -714,6 +717,8 @@
       <li><a href="source/api/lab/omni.isaac.lab.controllers.html#omni.isaac.lab.controllers.DifferentialIKController.action_dim">action_dim (omni.isaac.lab.controllers.DifferentialIKController property)</a>
 
       <ul>
+        <li><a href="source/api/lab/omni.isaac.lab.controllers.html#omni.isaac.lab.controllers.OperationalSpaceController.action_dim">(omni.isaac.lab.controllers.OperationalSpaceController property)</a>
+</li>
         <li><a href="source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ActionTerm.action_dim">(omni.isaac.lab.managers.ActionTerm property)</a>
 </li>
       </ul></li>
@@ -1024,6 +1029,8 @@
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.asset_name">(omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg attribute)</a>
 </li>
+        <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.asset_name">(omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg attribute)</a>
+</li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.RelativeJointPositionActionCfg.asset_name">(omni.isaac.lab.envs.mdp.actions.actions_cfg.RelativeJointPositionActionCfg attribute)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg.asset_name">(omni.isaac.lab.envs.mdp.commands.commands_cfg.NormalVelocityCommandCfg attribute)</a>
@@ -1174,6 +1181,8 @@
       <ul>
         <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.body_name">(omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg attribute)</a>
 </li>
+        <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.body_name">(omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg attribute)</a>
+</li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.body_name">(omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg attribute)</a>
 </li>
       </ul></li>
@@ -1194,7 +1203,11 @@
 </li>
       </ul></li>
       <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.body_offset">body_offset (omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg attribute)</a>
+
+      <ul>
+        <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.body_offset">(omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg attribute)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.ContactSensor.body_physx_view">body_physx_view (omni.isaac.lab.sensors.ContactSensor property)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.ArticulationData.body_pos_w">body_pos_w (omni.isaac.lab.assets.ArticulationData property)</a>
@@ -1385,6 +1398,8 @@
         <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.JointVelocityActionCfg.clip">(omni.isaac.lab.envs.mdp.actions.actions_cfg.JointVelocityActionCfg attribute)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.clip">(omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg attribute)</a>
+</li>
+        <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.clip">(omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg attribute)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.RelativeJointPositionActionCfg.clip">(omni.isaac.lab.envs.mdp.actions.actions_cfg.RelativeJointPositionActionCfg attribute)</a>
 </li>
@@ -1592,6 +1607,8 @@
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.controllers.html#omni.isaac.lab.controllers.DifferentialIKController.compute">(omni.isaac.lab.controllers.DifferentialIKController method)</a>
 </li>
+        <li><a href="source/api/lab/omni.isaac.lab.controllers.html#omni.isaac.lab.controllers.OperationalSpaceController.compute">(omni.isaac.lab.controllers.OperationalSpaceController method)</a>
+</li>
         <li><a href="source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.CommandManager.compute">(omni.isaac.lab.managers.CommandManager method)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.CommandTerm.compute">(omni.isaac.lab.managers.CommandTerm method)</a>
@@ -1661,6 +1678,10 @@
       </ul></li>
       <li><a href="source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.ContactSensor.contact_physx_view">contact_physx_view (omni.isaac.lab.sensors.ContactSensor property)</a>
 </li>
+      <li><a href="source/api/lab/omni.isaac.lab.controllers.html#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.contact_wrench_control_axes_task">contact_wrench_control_axes_task (omni.isaac.lab.controllers.OperationalSpaceControllerCfg attribute)</a>
+</li>
+      <li><a href="source/api/lab/omni.isaac.lab.controllers.html#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.contact_wrench_stiffness_task">contact_wrench_stiffness_task (omni.isaac.lab.controllers.OperationalSpaceControllerCfg attribute)</a>
+</li>
       <li><a href="source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.ContactSensor">ContactSensor (class in omni.isaac.lab.sensors)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.ContactSensorCfg">ContactSensorCfg (class in omni.isaac.lab.sensors)</a>
@@ -1668,6 +1689,8 @@
       <li><a href="source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.ContactSensorData">ContactSensorData (class in omni.isaac.lab.sensors)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.controller">controller (omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg attribute)</a>
+</li>
+      <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.controller_cfg">controller_cfg (omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.CameraCfg.OffsetCfg.convention">convention (omni.isaac.lab.sensors.CameraCfg.OffsetCfg attribute)</a>
 
@@ -1833,6 +1856,8 @@
         <li><a href="source/api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.FixedTendonPropertiesCfg.damping">(omni.isaac.lab.sim.schemas.FixedTendonPropertiesCfg attribute)</a>
 </li>
       </ul></li>
+      <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.damping_ratio_scale">damping_ratio_scale (omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg attribute)</a>
+</li>
       <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.materials.DeformableBodyMaterialCfg.damping_scale">damping_scale (omni.isaac.lab.sim.spawners.materials.DeformableBodyMaterialCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.data">data (omni.isaac.lab.assets.Articulation property)</a>
@@ -1907,6 +1932,8 @@
         <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.JointVelocityActionCfg.debug_vis">(omni.isaac.lab.envs.mdp.actions.actions_cfg.JointVelocityActionCfg attribute)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.debug_vis">(omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg attribute)</a>
+</li>
+        <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.debug_vis">(omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg attribute)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.RelativeJointPositionActionCfg.debug_vis">(omni.isaac.lab.envs.mdp.actions.actions_cfg.RelativeJointPositionActionCfg attribute)</a>
 </li>
@@ -2873,6 +2900,8 @@
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.ImuCfg.gravity_bias">gravity_bias (omni.isaac.lab.sensors.ImuCfg attribute)</a>
 </li>
+      <li><a href="source/api/lab/omni.isaac.lab.controllers.html#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.gravity_compensation">gravity_compensation (omni.isaac.lab.controllers.OperationalSpaceControllerCfg attribute)</a>
+</li>
       <li><a href="source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRandomGridTerrainCfg.grid_height_range">grid_height_range (omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRandomGridTerrainCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.sensors.patterns.html#omni.isaac.lab.sensors.patterns.grid_pattern">grid_pattern() (in module omni.isaac.lab.sensors.patterns)</a>
@@ -3135,6 +3164,8 @@
         <li><a href="source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.TiledCamera.image_shape">(omni.isaac.lab.sensors.TiledCamera property)</a>
 </li>
       </ul></li>
+      <li><a href="source/api/lab/omni.isaac.lab.controllers.html#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.impedance_mode">impedance_mode (omni.isaac.lab.controllers.OperationalSpaceControllerCfg attribute)</a>
+</li>
       <li><a href="source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.ImplicitActuator">ImplicitActuator (class in omni.isaac.lab.actuators)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.ImplicitActuatorCfg">ImplicitActuatorCfg (class in omni.isaac.lab.actuators)</a>
@@ -3166,6 +3197,8 @@
       <li><a href="source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.ImuCfg">ImuCfg (class in omni.isaac.lab.sensors)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.ImuCfg.OffsetCfg">ImuCfg.OffsetCfg (class in omni.isaac.lab.sensors)</a>
+</li>
+      <li><a href="source/api/lab/omni.isaac.lab.controllers.html#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.inertial_dynamics_decoupling">inertial_dynamics_decoupling (omni.isaac.lab.controllers.OperationalSpaceControllerCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.CameraData.info">info (omni.isaac.lab.sensors.CameraData attribute)</a>
 </li>
@@ -3387,6 +3420,8 @@
         <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.JointPositionToLimitsActionCfg.joint_names">(omni.isaac.lab.envs.mdp.actions.actions_cfg.JointPositionToLimitsActionCfg attribute)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.JointVelocityActionCfg.joint_names">(omni.isaac.lab.envs.mdp.actions.actions_cfg.JointVelocityActionCfg attribute)</a>
+</li>
+        <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.joint_names">(omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg attribute)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.RelativeJointPositionActionCfg.joint_names">(omni.isaac.lab.envs.mdp.actions.actions_cfg.RelativeJointPositionActionCfg attribute)</a>
 </li>
@@ -3797,14 +3832,14 @@
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshPyramidStairsTerrainCfg">MeshPyramidStairsTerrainCfg (class in omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRailsTerrainCfg">MeshRailsTerrainCfg (class in omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRandomGridTerrainCfg">MeshRandomGridTerrainCfg (class in omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedBoxesTerrainCfg">MeshRepeatedBoxesTerrainCfg (class in omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedBoxesTerrainCfg.ObjectCfg">MeshRepeatedBoxesTerrainCfg.ObjectCfg (class in omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedCylindersTerrainCfg">MeshRepeatedCylindersTerrainCfg (class in omni.isaac.lab.terrains.trimesh.mesh_terrains_cfg)</a>
@@ -3998,6 +4033,16 @@
         <li><a href="source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#module-omni.isaac.lab_tasks.utils.wrappers.skrl">omni.isaac.lab_tasks.utils.wrappers.skrl</a>
 </li>
       </ul></li>
+      <li><a href="source/api/lab/omni.isaac.lab.controllers.html#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.motion_control_axes_task">motion_control_axes_task (omni.isaac.lab.controllers.OperationalSpaceControllerCfg attribute)</a>
+</li>
+      <li><a href="source/api/lab/omni.isaac.lab.controllers.html#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.motion_damping_ratio_limits_task">motion_damping_ratio_limits_task (omni.isaac.lab.controllers.OperationalSpaceControllerCfg attribute)</a>
+</li>
+      <li><a href="source/api/lab/omni.isaac.lab.controllers.html#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.motion_damping_ratio_task">motion_damping_ratio_task (omni.isaac.lab.controllers.OperationalSpaceControllerCfg attribute)</a>
+</li>
+      <li><a href="source/api/lab/omni.isaac.lab.controllers.html#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.motion_stiffness_limits_task">motion_stiffness_limits_task (omni.isaac.lab.controllers.OperationalSpaceControllerCfg attribute)</a>
+</li>
+      <li><a href="source/api/lab/omni.isaac.lab.controllers.html#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.motion_stiffness_task">motion_stiffness_task (omni.isaac.lab.controllers.OperationalSpaceControllerCfg attribute)</a>
+</li>
       <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg">MultiAssetSpawnerCfg (class in omni.isaac.lab.sim.spawners.wrappers)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg">MultiUsdFileCfg (class in omni.isaac.lab.sim.spawners.wrappers)</a>
@@ -4530,8 +4575,6 @@
         <li><a href="source/api/lab/omni.isaac.lab.scene.html#module-omni.isaac.lab.scene">module</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li>
     omni.isaac.lab.sensors
 
@@ -4539,6 +4582,8 @@
         <li><a href="source/api/lab/omni.isaac.lab.sensors.html#module-omni.isaac.lab.sensors">module</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li>
     omni.isaac.lab.sensors.patterns
 
@@ -4832,7 +4877,17 @@
         <li><a href="source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.noise.UniformNoiseCfg.operation">(omni.isaac.lab.utils.noise.UniformNoiseCfg attribute)</a>
 </li>
       </ul></li>
+      <li><a href="source/api/lab/omni.isaac.lab.controllers.html#omni.isaac.lab.controllers.OperationalSpaceController">OperationalSpaceController (class in omni.isaac.lab.controllers)</a>
+</li>
+      <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg">OperationalSpaceControllerActionCfg (class in omni.isaac.lab.envs.mdp.actions.actions_cfg)</a>
+</li>
+      <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.OffsetCfg">OperationalSpaceControllerActionCfg.OffsetCfg (class in omni.isaac.lab.envs.mdp.actions.actions_cfg)</a>
+</li>
+      <li><a href="source/api/lab/omni.isaac.lab.controllers.html#omni.isaac.lab.controllers.OperationalSpaceControllerCfg">OperationalSpaceControllerCfg (class in omni.isaac.lab.controllers)</a>
+</li>
       <li><a href="source/api/lab/omni.isaac.lab.sensors.patterns.html#omni.isaac.lab.sensors.patterns.GridPatternCfg.ordering">ordering (omni.isaac.lab.sensors.patterns.GridPatternCfg attribute)</a>
+</li>
+      <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.orientation_scale">orientation_scale (omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ViewerCfg.origin_type">origin_type (omni.isaac.lab.envs.ViewerCfg attribute)</a>
 </li>
@@ -4871,6 +4926,8 @@
 </li>
       </ul></li>
       <li><a href="source/api/lab_tasks/omni.isaac.lab_tasks.utils.html#omni.isaac.lab_tasks.utils.parse_env_cfg">parse_env_cfg() (in module omni.isaac.lab_tasks.utils)</a>
+</li>
+      <li><a href="source/api/lab/omni.isaac.lab.controllers.html#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.partial_inertial_dynamics_decoupling">partial_inertial_dynamics_decoupling (omni.isaac.lab.controllers.OperationalSpaceControllerCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext.RenderMode.PARTIAL_RENDERING">PARTIAL_RENDERING (omni.isaac.lab.sim.SimulationContext.RenderMode attribute)</a>
 </li>
@@ -5029,6 +5086,8 @@
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.OffsetCfg.pos">(omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.OffsetCfg attribute)</a>
 </li>
+        <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.OffsetCfg.pos">(omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.OffsetCfg attribute)</a>
+</li>
         <li><a href="source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.CameraCfg.OffsetCfg.pos">(omni.isaac.lab.sensors.CameraCfg.OffsetCfg attribute)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.ImuCfg.OffsetCfg.pos">(omni.isaac.lab.sensors.ImuCfg.OffsetCfg attribute)</a>
@@ -5067,6 +5126,8 @@
 </li>
       </ul></li>
       <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.Ranges.pos_z">pos_z (omni.isaac.lab.envs.mdp.commands.commands_cfg.UniformPoseCommandCfg.Ranges attribute)</a>
+</li>
+      <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.position_scale">position_scale (omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectMARLEnvCfg.possible_agents">possible_agents (omni.isaac.lab.envs.DirectMARLEnvCfg attribute)</a>
 </li>
@@ -5489,6 +5550,8 @@
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.controllers.html#omni.isaac.lab.controllers.DifferentialIKController.reset">(omni.isaac.lab.controllers.DifferentialIKController method)</a>
 </li>
+        <li><a href="source/api/lab/omni.isaac.lab.controllers.html#omni.isaac.lab.controllers.OperationalSpaceController.reset">(omni.isaac.lab.controllers.OperationalSpaceController method)</a>
+</li>
         <li><a href="source/api/lab/omni.isaac.lab.devices.html#omni.isaac.lab.devices.DeviceBase.reset">(omni.isaac.lab.devices.DeviceBase method)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.devices.html#omni.isaac.lab.devices.Se2Gamepad.reset">(omni.isaac.lab.devices.Se2Gamepad method)</a>
@@ -5801,6 +5864,8 @@
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.OffsetCfg.rot">(omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.OffsetCfg attribute)</a>
 </li>
+        <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.OffsetCfg.rot">(omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.OffsetCfg attribute)</a>
+</li>
         <li><a href="source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.CameraCfg.OffsetCfg.rot">(omni.isaac.lab.sensors.CameraCfg.OffsetCfg attribute)</a>
 </li>
         <li><a href="source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.ImuCfg.OffsetCfg.rot">(omni.isaac.lab.sensors.ImuCfg.OffsetCfg attribute)</a>
@@ -6033,7 +6098,11 @@
       <li><a href="source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext.set_camera_view">set_camera_view() (omni.isaac.lab.sim.SimulationContext method)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.controllers.html#omni.isaac.lab.controllers.DifferentialIKController.set_command">set_command() (omni.isaac.lab.controllers.DifferentialIKController method)</a>
+
+      <ul>
+        <li><a href="source/api/lab/omni.isaac.lab.controllers.html#omni.isaac.lab.controllers.OperationalSpaceController.set_command">(omni.isaac.lab.controllers.OperationalSpaceController method)</a>
 </li>
+      </ul></li>
       <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.set_debug_vis">set_debug_vis() (omni.isaac.lab.assets.Articulation method)</a>
 
       <ul>
@@ -6496,6 +6565,8 @@
         <li><a href="source/api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.FixedTendonPropertiesCfg.stiffness">(omni.isaac.lab.sim.schemas.FixedTendonPropertiesCfg attribute)</a>
 </li>
       </ul></li>
+      <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.stiffness_scale">stiffness_scale (omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg attribute)</a>
+</li>
       <li><a href="source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfSteppingStonesTerrainCfg.stone_distance_range">stone_distance_range (omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfSteppingStonesTerrainCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.terrains.html#omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfSteppingStonesTerrainCfg.stone_height_max">stone_height_max (omni.isaac.lab.terrains.height_field.hf_terrains_cfg.HfSteppingStonesTerrainCfg attribute)</a>
@@ -6531,6 +6602,10 @@
       <li><a href="source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.FrameTransformerData.target_quat_source">target_quat_source (omni.isaac.lab.sensors.FrameTransformerData attribute)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.FrameTransformerData.target_quat_w">target_quat_w (omni.isaac.lab.sensors.FrameTransformerData attribute)</a>
+</li>
+      <li><a href="source/api/lab/omni.isaac.lab.controllers.html#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.target_types">target_types (omni.isaac.lab.controllers.OperationalSpaceControllerCfg attribute)</a>
+</li>
+      <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.task_frame_rel_path">task_frame_rel_path (omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.FixedTendonPropertiesCfg.tendon_enabled">tendon_enabled (omni.isaac.lab.sim.schemas.FixedTendonPropertiesCfg attribute)</a>
 </li>
@@ -6578,10 +6653,10 @@
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.lights.DomeLightCfg.texture_file">texture_file (omni.isaac.lab.sim.spawners.lights.DomeLightCfg attribute)</a>
 </li>
-      <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.lights.DomeLightCfg.texture_format">texture_format (omni.isaac.lab.sim.spawners.lights.DomeLightCfg attribute)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.lights.DomeLightCfg.texture_format">texture_format (omni.isaac.lab.sim.spawners.lights.DomeLightCfg attribute)</a>
+</li>
       <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.materials.MdlFileCfg.texture_scale">texture_scale (omni.isaac.lab.sim.spawners.materials.MdlFileCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.materials.GlassMdlCfg.thin_walled">thin_walled (omni.isaac.lab.sim.spawners.materials.GlassMdlCfg attribute)</a>
@@ -7115,6 +7190,8 @@
 </li>
       </ul></li>
       <li><a href="source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.math.wrap_to_pi">wrap_to_pi() (in module omni.isaac.lab.utils.math)</a>
+</li>
+      <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.wrench_scale">wrench_scale (omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg attribute)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.write_data_to_sim">write_data_to_sim() (omni.isaac.lab.assets.Articulation method)</a>
 

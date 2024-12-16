@@ -293,6 +293,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../tutorials/04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../tutorials/05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/05_controllers/run_osc.html">Using an operational space controller</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../how-to/index.html">How-to Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -702,30 +703,51 @@
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg"><code class="docutils literal notranslate"><span class="pre">NonHolonomicActionCfg</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.body_name"><code class="docutils literal notranslate"><span class="pre">NonHolonomicActionCfg.body_name</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.asset_name"><code class="docutils literal notranslate"><span class="pre">NonHolonomicActionCfg.asset_name</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.debug_vis"><code class="docutils literal notranslate"><span class="pre">NonHolonomicActionCfg.debug_vis</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.clip"><code class="docutils literal notranslate"><span class="pre">NonHolonomicActionCfg.clip</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.x_joint_name"><code class="docutils literal notranslate"><span class="pre">NonHolonomicActionCfg.x_joint_name</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.y_joint_name"><code class="docutils literal notranslate"><span class="pre">NonHolonomicActionCfg.y_joint_name</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.yaw_joint_name"><code class="docutils literal notranslate"><span class="pre">NonHolonomicActionCfg.yaw_joint_name</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.scale"><code class="docutils literal notranslate"><span class="pre">NonHolonomicActionCfg.scale</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.offset"><code class="docutils literal notranslate"><span class="pre">NonHolonomicActionCfg.offset</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.asset_name"><code class="docutils literal notranslate"><span class="pre">NonHolonomicActionCfg.asset_name</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.debug_vis"><code class="docutils literal notranslate"><span class="pre">NonHolonomicActionCfg.debug_vis</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.clip"><code class="docutils literal notranslate"><span class="pre">NonHolonomicActionCfg.clip</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg"><code class="docutils literal notranslate"><span class="pre">DifferentialInverseKinematicsActionCfg</span></code></a><ul class="nav section-nav flex-column">
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.asset_name"><code class="docutils literal notranslate"><span class="pre">DifferentialInverseKinematicsActionCfg.asset_name</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.debug_vis"><code class="docutils literal notranslate"><span class="pre">DifferentialInverseKinematicsActionCfg.debug_vis</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.clip"><code class="docutils literal notranslate"><span class="pre">DifferentialInverseKinematicsActionCfg.clip</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.OffsetCfg"><code class="docutils literal notranslate"><span class="pre">DifferentialInverseKinematicsActionCfg.OffsetCfg</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.OffsetCfg.pos"><code class="docutils literal notranslate"><span class="pre">DifferentialInverseKinematicsActionCfg.OffsetCfg.pos</span></code></a></li>
 <li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.OffsetCfg.rot"><code class="docutils literal notranslate"><span class="pre">DifferentialInverseKinematicsActionCfg.OffsetCfg.rot</span></code></a></li>
 </ul>
 </li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.asset_name"><code class="docutils literal notranslate"><span class="pre">DifferentialInverseKinematicsActionCfg.asset_name</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.debug_vis"><code class="docutils literal notranslate"><span class="pre">DifferentialInverseKinematicsActionCfg.debug_vis</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.clip"><code class="docutils literal notranslate"><span class="pre">DifferentialInverseKinematicsActionCfg.clip</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.joint_names"><code class="docutils literal notranslate"><span class="pre">DifferentialInverseKinematicsActionCfg.joint_names</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.body_name"><code class="docutils literal notranslate"><span class="pre">DifferentialInverseKinematicsActionCfg.body_name</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.body_offset"><code class="docutils literal notranslate"><span class="pre">DifferentialInverseKinematicsActionCfg.body_offset</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.scale"><code class="docutils literal notranslate"><span class="pre">DifferentialInverseKinematicsActionCfg.scale</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.controller"><code class="docutils literal notranslate"><span class="pre">DifferentialInverseKinematicsActionCfg.controller</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerActionCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.asset_name"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerActionCfg.asset_name</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.debug_vis"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerActionCfg.debug_vis</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.clip"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerActionCfg.clip</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.OffsetCfg"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerActionCfg.OffsetCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.OffsetCfg.pos"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerActionCfg.OffsetCfg.pos</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.OffsetCfg.rot"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerActionCfg.OffsetCfg.rot</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.joint_names"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerActionCfg.joint_names</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.body_name"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerActionCfg.body_name</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.body_offset"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerActionCfg.body_offset</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.task_frame_rel_path"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerActionCfg.task_frame_rel_path</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.controller_cfg"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerActionCfg.controller_cfg</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.position_scale"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerActionCfg.position_scale</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.orientation_scale"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerActionCfg.orientation_scale</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.wrench_scale"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerActionCfg.wrench_scale</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.stiffness_scale"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerActionCfg.stiffness_scale</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.damping_ratio_scale"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerActionCfg.damping_ratio_scale</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -1314,6 +1336,9 @@ entire action tensor is returned.</p>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">DifferentialInverseKinematicsActionCfg</span></code></a></p></td>
 <td><p>Configuration for inverse differential kinematics action term.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">OperationalSpaceControllerActionCfg</span></code></a></p></td>
+<td><p>Configuration for operational space controller action term.</p></td>
 </tr>
 </tbody>
 </table>
@@ -2130,29 +2155,29 @@ class for more details.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.body_name" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.body_name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_name</span></code></a></p></td>
 <td><p>Name of the body which has the dummy mechanism connected to.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.asset_name" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.asset_name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">asset_name</span></code></a></p></td>
-<td><p>The name of the scene entity.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.debug_vis" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">debug_vis</span></code></a></p></td>
-<td><p>Whether to visualize debug information.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.clip" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.clip"><code class="xref py py-obj docutils literal notranslate"><span class="pre">clip</span></code></a></p></td>
-<td><p>Clip range for the action (dict of regex expressions).</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.x_joint_name" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.x_joint_name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">x_joint_name</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.x_joint_name" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.x_joint_name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">x_joint_name</span></code></a></p></td>
 <td><p>The dummy joint name in the x direction.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.y_joint_name" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.y_joint_name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">y_joint_name</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.y_joint_name" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.y_joint_name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">y_joint_name</span></code></a></p></td>
 <td><p>The dummy joint name in the y direction.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.yaw_joint_name" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.yaw_joint_name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">yaw_joint_name</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.yaw_joint_name" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.yaw_joint_name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">yaw_joint_name</span></code></a></p></td>
 <td><p>The dummy joint name in the yaw direction.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.scale" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">scale</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.scale" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">scale</span></code></a></p></td>
 <td><p>Scale factor for the action.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.offset" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.offset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">offset</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.offset" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.offset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">offset</span></code></a></p></td>
 <td><p>Offset factor for the action.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.asset_name" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.asset_name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">asset_name</span></code></a></p></td>
+<td><p>The name of the scene entity.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.debug_vis" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">debug_vis</span></code></a></p></td>
+<td><p>Whether to visualize debug information.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.clip" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.clip"><code class="xref py py-obj docutils literal notranslate"><span class="pre">clip</span></code></a></p></td>
+<td><p>Clip range for the action (dict of regex expressions).</p></td>
 </tr>
 </tbody>
 </table>
@@ -2161,26 +2186,6 @@ class for more details.</p>
 <dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.body_name">
 <span class="sig-name descname"><span class="pre">body_name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.body_name" title="Permalink to this definition">#</a></dt>
 <dd><p>Name of the body which has the dummy mechanism connected to.</p>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.asset_name">
-<span class="sig-name descname"><span class="pre">asset_name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.asset_name" title="Permalink to this definition">#</a></dt>
-<dd><p>The name of the scene entity.</p>
-<p>This is the name defined in the scene configuration file. See the <code class="xref py py-class docutils literal notranslate"><span class="pre">InteractiveSceneCfg</span></code>
-class for more details.</p>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.debug_vis">
-<span class="sig-name descname"><span class="pre">debug_vis</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.debug_vis" title="Permalink to this definition">#</a></dt>
-<dd><p>Whether to visualize debug information. Defaults to False.</p>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.clip">
-<span class="sig-name descname"><span class="pre">clip</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.clip" title="Permalink to this definition">#</a></dt>
-<dd><p>Clip range for the action (dict of regex expressions). Defaults to None.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -2213,6 +2218,26 @@ class for more details.</p>
 <dd><p>Offset factor for the action. Defaults to (0.0, 0.0).</p>
 </dd></dl>
 
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.asset_name">
+<span class="sig-name descname"><span class="pre">asset_name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.asset_name" title="Permalink to this definition">#</a></dt>
+<dd><p>The name of the scene entity.</p>
+<p>This is the name defined in the scene configuration file. See the <code class="xref py py-class docutils literal notranslate"><span class="pre">InteractiveSceneCfg</span></code>
+class for more details.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.debug_vis">
+<span class="sig-name descname"><span class="pre">debug_vis</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.debug_vis" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether to visualize debug information. Defaults to False.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.clip">
+<span class="sig-name descname"><span class="pre">clip</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.clip" title="Permalink to this definition">#</a></dt>
+<dd><p>Clip range for the action (dict of regex expressions). Defaults to None.</p>
+</dd></dl>
+
 </dd></dl>
 
 <dl class="py class">
@@ -2221,6 +2246,15 @@ class for more details.</p>
 <dd><p>Bases: <a class="reference internal" href="omni.isaac.lab.managers.html#omni.isaac.lab.managers.ActionTermCfg" title="omni.isaac.lab.managers.manager_term_cfg.ActionTermCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">ActionTermCfg</span></code></a></p>
 <p>Configuration for inverse differential kinematics action term.</p>
 <p>See <code class="xref py py-class docutils literal notranslate"><span class="pre">DifferentialInverseKinematicsAction</span></code> for more details.</p>
+<p><strong>Classes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.OffsetCfg" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.OffsetCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">OffsetCfg</span></code></a></p></td>
+<td><p>The offset pose from parent frame to child frame.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
@@ -2251,35 +2285,6 @@ class for more details.</p>
 </tbody>
 </table>
 </div>
-<p><strong>Classes:</strong></p>
-<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
-<tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.OffsetCfg" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.OffsetCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">OffsetCfg</span></code></a></p></td>
-<td><p>The offset pose from parent frame to child frame.</p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<dl class="py attribute">
-<dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.asset_name">
-<span class="sig-name descname"><span class="pre">asset_name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.asset_name" title="Permalink to this definition">#</a></dt>
-<dd><p>The name of the scene entity.</p>
-<p>This is the name defined in the scene configuration file. See the <code class="xref py py-class docutils literal notranslate"><span class="pre">InteractiveSceneCfg</span></code>
-class for more details.</p>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.debug_vis">
-<span class="sig-name descname"><span class="pre">debug_vis</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.debug_vis" title="Permalink to this definition">#</a></dt>
-<dd><p>Whether to visualize debug information. Defaults to False.</p>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.clip">
-<span class="sig-name descname"><span class="pre">clip</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.clip" title="Permalink to this definition">#</a></dt>
-<dd><p>Clip range for the action (dict of regex expressions). Defaults to None.</p>
-</dd></dl>
-
 <dl class="py class">
 <dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.OffsetCfg">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">OffsetCfg</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/envs/mdp/actions/actions_cfg.html#DifferentialInverseKinematicsActionCfg.OffsetCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.OffsetCfg" title="Permalink to this definition">#</a></dt>
@@ -2316,6 +2321,26 @@ For instance, for the Franka Emika arm, the end-effector is defined at an offset
 </dd></dl>
 
 <dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.asset_name">
+<span class="sig-name descname"><span class="pre">asset_name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.asset_name" title="Permalink to this definition">#</a></dt>
+<dd><p>The name of the scene entity.</p>
+<p>This is the name defined in the scene configuration file. See the <code class="xref py py-class docutils literal notranslate"><span class="pre">InteractiveSceneCfg</span></code>
+class for more details.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.debug_vis">
+<span class="sig-name descname"><span class="pre">debug_vis</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.debug_vis" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether to visualize debug information. Defaults to False.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.clip">
+<span class="sig-name descname"><span class="pre">clip</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.clip" title="Permalink to this definition">#</a></dt>
+<dd><p>Clip range for the action (dict of regex expressions). Defaults to None.</p>
+</dd></dl>
+
+<dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.joint_names">
 <span class="sig-name descname"><span class="pre">joint_names</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.joint_names" title="Permalink to this definition">#</a></dt>
 <dd><p>List of joint names or regex expressions that the action will be mapped to.</p>
@@ -2343,6 +2368,183 @@ For instance, for the Franka Emika arm, the end-effector is defined at an offset
 <dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.controller">
 <span class="sig-name descname"><span class="pre">controller</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="omni.isaac.lab.controllers.html#omni.isaac.lab.controllers.DifferentialIKControllerCfg" title="omni.isaac.lab.controllers.differential_ik_cfg.DifferentialIKControllerCfg"><span class="pre">DifferentialIKControllerCfg</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.controller" title="Permalink to this definition">#</a></dt>
 <dd><p>The configuration for the differential IK controller.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.envs.mdp.actions.actions_cfg.</span></span><span class="sig-name descname"><span class="pre">OperationalSpaceControllerActionCfg</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/envs/mdp/actions/actions_cfg.html#OperationalSpaceControllerActionCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="omni.isaac.lab.managers.html#omni.isaac.lab.managers.ActionTermCfg" title="omni.isaac.lab.managers.manager_term_cfg.ActionTermCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">ActionTermCfg</span></code></a></p>
+<p>Configuration for operational space controller action term.</p>
+<p>See <code class="xref py py-class docutils literal notranslate"><span class="pre">OperationalSpaceControllerAction</span></code> for more details.</p>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.asset_name" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.asset_name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">asset_name</span></code></a></p></td>
+<td><p>The name of the scene entity.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.debug_vis" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">debug_vis</span></code></a></p></td>
+<td><p>Whether to visualize debug information.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.clip" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.clip"><code class="xref py py-obj docutils literal notranslate"><span class="pre">clip</span></code></a></p></td>
+<td><p>Clip range for the action (dict of regex expressions).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.joint_names" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.joint_names"><code class="xref py py-obj docutils literal notranslate"><span class="pre">joint_names</span></code></a></p></td>
+<td><p>List of joint names or regex expressions that the action will be mapped to.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.body_name" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.body_name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_name</span></code></a></p></td>
+<td><p>Name of the body or frame for which motion/force control is performed.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.body_offset" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.body_offset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_offset</span></code></a></p></td>
+<td><p>Offset of target frame w.r.t.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.task_frame_rel_path" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.task_frame_rel_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">task_frame_rel_path</span></code></a></p></td>
+<td><p>The path of a <code class="docutils literal notranslate"><span class="pre">RigidObject</span></code>, relative to the sub-environment, representing task frame.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.controller_cfg" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.controller_cfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">controller_cfg</span></code></a></p></td>
+<td><p>The configuration for the operational space controller.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.position_scale" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.position_scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">position_scale</span></code></a></p></td>
+<td><p>Scale factor for the position targets.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.orientation_scale" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.orientation_scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">orientation_scale</span></code></a></p></td>
+<td><p>Scale factor for the orientation (quad for <code class="docutils literal notranslate"><span class="pre">pose_abs</span></code> or axis-angle for <code class="docutils literal notranslate"><span class="pre">pose_rel</span></code>).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.wrench_scale" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.wrench_scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">wrench_scale</span></code></a></p></td>
+<td><p>Scale factor for the wrench targets.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.stiffness_scale" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.stiffness_scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">stiffness_scale</span></code></a></p></td>
+<td><p>Scale factor for the stiffness commands.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.damping_ratio_scale" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.damping_ratio_scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">damping_ratio_scale</span></code></a></p></td>
+<td><p>Scale factor for the damping ratio commands.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Classes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.OffsetCfg" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.OffsetCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">OffsetCfg</span></code></a></p></td>
+<td><p>The offset pose from parent frame to child frame.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.asset_name">
+<span class="sig-name descname"><span class="pre">asset_name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.asset_name" title="Permalink to this definition">#</a></dt>
+<dd><p>The name of the scene entity.</p>
+<p>This is the name defined in the scene configuration file. See the <code class="xref py py-class docutils literal notranslate"><span class="pre">InteractiveSceneCfg</span></code>
+class for more details.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.debug_vis">
+<span class="sig-name descname"><span class="pre">debug_vis</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.debug_vis" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether to visualize debug information. Defaults to False.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.clip">
+<span class="sig-name descname"><span class="pre">clip</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.clip" title="Permalink to this definition">#</a></dt>
+<dd><p>Clip range for the action (dict of regex expressions). Defaults to None.</p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.OffsetCfg">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">OffsetCfg</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/envs/mdp/actions/actions_cfg.html#OperationalSpaceControllerActionCfg.OffsetCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.OffsetCfg" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>The offset pose from parent frame to child frame.</p>
+<p>On many robots, end-effector frames are fictitious frames that do not have a corresponding
+rigid body. In such cases, it is easier to define this transform w.r.t. their parent rigid body.
+For instance, for the Franka Emika arm, the end-effector is defined at an offset to the the
+“panda_hand” frame.</p>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.OffsetCfg.pos" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.OffsetCfg.pos"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pos</span></code></a></p></td>
+<td><p>Translation w.r.t.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.OffsetCfg.rot" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.OffsetCfg.rot"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rot</span></code></a></p></td>
+<td><p>Quaternion rotation <code class="docutils literal notranslate"><span class="pre">(w,</span> <span class="pre">x,</span> <span class="pre">y,</span> <span class="pre">z)</span></code> w.r.t.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.OffsetCfg.pos">
+<span class="sig-name descname"><span class="pre">pos</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.OffsetCfg.pos" title="Permalink to this definition">#</a></dt>
+<dd><p>Translation w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.OffsetCfg.rot">
+<span class="sig-name descname"><span class="pre">rot</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.OffsetCfg.rot" title="Permalink to this definition">#</a></dt>
+<dd><p>Quaternion rotation <code class="docutils literal notranslate"><span class="pre">(w,</span> <span class="pre">x,</span> <span class="pre">y,</span> <span class="pre">z)</span></code> w.r.t. the parent frame. Defaults to (1.0, 0.0, 0.0, 0.0).</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.joint_names">
+<span class="sig-name descname"><span class="pre">joint_names</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.joint_names" title="Permalink to this definition">#</a></dt>
+<dd><p>List of joint names or regex expressions that the action will be mapped to.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.body_name">
+<span class="sig-name descname"><span class="pre">body_name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.body_name" title="Permalink to this definition">#</a></dt>
+<dd><p>Name of the body or frame for which motion/force control is performed.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.body_offset">
+<span class="sig-name descname"><span class="pre">body_offset</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.OffsetCfg" title="omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.OffsetCfg"><span class="pre">OffsetCfg</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.body_offset" title="Permalink to this definition">#</a></dt>
+<dd><p>Offset of target frame w.r.t. to the body frame. Defaults to None, in which case no offset is applied.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.task_frame_rel_path">
+<span class="sig-name descname"><span class="pre">task_frame_rel_path</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.task_frame_rel_path" title="Permalink to this definition">#</a></dt>
+<dd><p>The path of a <code class="docutils literal notranslate"><span class="pre">RigidObject</span></code>, relative to the sub-environment, representing task frame. Defaults to None.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.controller_cfg">
+<span class="sig-name descname"><span class="pre">controller_cfg</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="omni.isaac.lab.controllers.html#omni.isaac.lab.controllers.OperationalSpaceControllerCfg" title="omni.isaac.lab.controllers.operational_space_cfg.OperationalSpaceControllerCfg"><span class="pre">OperationalSpaceControllerCfg</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.controller_cfg" title="Permalink to this definition">#</a></dt>
+<dd><p>The configuration for the operational space controller.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.position_scale">
+<span class="sig-name descname"><span class="pre">position_scale</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.position_scale" title="Permalink to this definition">#</a></dt>
+<dd><p>Scale factor for the position targets. Defaults to 1.0.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.orientation_scale">
+<span class="sig-name descname"><span class="pre">orientation_scale</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.orientation_scale" title="Permalink to this definition">#</a></dt>
+<dd><p>Scale factor for the orientation (quad for <code class="docutils literal notranslate"><span class="pre">pose_abs</span></code> or axis-angle for <code class="docutils literal notranslate"><span class="pre">pose_rel</span></code>). Defaults to 1.0.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.wrench_scale">
+<span class="sig-name descname"><span class="pre">wrench_scale</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.wrench_scale" title="Permalink to this definition">#</a></dt>
+<dd><p>Scale factor for the wrench targets. Defaults to 1.0.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.stiffness_scale">
+<span class="sig-name descname"><span class="pre">stiffness_scale</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.stiffness_scale" title="Permalink to this definition">#</a></dt>
+<dd><p>Scale factor for the stiffness commands. Defaults to 1.0.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.damping_ratio_scale">
+<span class="sig-name descname"><span class="pre">damping_ratio_scale</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.damping_ratio_scale" title="Permalink to this definition">#</a></dt>
+<dd><p>Scale factor for the damping ratio commands. Defaults to 1.0.</p>
 </dd></dl>
 
 </dd></dl>
@@ -4034,30 +4236,51 @@ the curriculum introduced by the function.</p>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg"><code class="docutils literal notranslate"><span class="pre">NonHolonomicActionCfg</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.body_name"><code class="docutils literal notranslate"><span class="pre">NonHolonomicActionCfg.body_name</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.asset_name"><code class="docutils literal notranslate"><span class="pre">NonHolonomicActionCfg.asset_name</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.debug_vis"><code class="docutils literal notranslate"><span class="pre">NonHolonomicActionCfg.debug_vis</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.clip"><code class="docutils literal notranslate"><span class="pre">NonHolonomicActionCfg.clip</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.x_joint_name"><code class="docutils literal notranslate"><span class="pre">NonHolonomicActionCfg.x_joint_name</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.y_joint_name"><code class="docutils literal notranslate"><span class="pre">NonHolonomicActionCfg.y_joint_name</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.yaw_joint_name"><code class="docutils literal notranslate"><span class="pre">NonHolonomicActionCfg.yaw_joint_name</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.scale"><code class="docutils literal notranslate"><span class="pre">NonHolonomicActionCfg.scale</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.offset"><code class="docutils literal notranslate"><span class="pre">NonHolonomicActionCfg.offset</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.asset_name"><code class="docutils literal notranslate"><span class="pre">NonHolonomicActionCfg.asset_name</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.debug_vis"><code class="docutils literal notranslate"><span class="pre">NonHolonomicActionCfg.debug_vis</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.NonHolonomicActionCfg.clip"><code class="docutils literal notranslate"><span class="pre">NonHolonomicActionCfg.clip</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg"><code class="docutils literal notranslate"><span class="pre">DifferentialInverseKinematicsActionCfg</span></code></a><ul class="nav section-nav flex-column">
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.asset_name"><code class="docutils literal notranslate"><span class="pre">DifferentialInverseKinematicsActionCfg.asset_name</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.debug_vis"><code class="docutils literal notranslate"><span class="pre">DifferentialInverseKinematicsActionCfg.debug_vis</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.clip"><code class="docutils literal notranslate"><span class="pre">DifferentialInverseKinematicsActionCfg.clip</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.OffsetCfg"><code class="docutils literal notranslate"><span class="pre">DifferentialInverseKinematicsActionCfg.OffsetCfg</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.OffsetCfg.pos"><code class="docutils literal notranslate"><span class="pre">DifferentialInverseKinematicsActionCfg.OffsetCfg.pos</span></code></a></li>
 <li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.OffsetCfg.rot"><code class="docutils literal notranslate"><span class="pre">DifferentialInverseKinematicsActionCfg.OffsetCfg.rot</span></code></a></li>
 </ul>
 </li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.asset_name"><code class="docutils literal notranslate"><span class="pre">DifferentialInverseKinematicsActionCfg.asset_name</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.debug_vis"><code class="docutils literal notranslate"><span class="pre">DifferentialInverseKinematicsActionCfg.debug_vis</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.clip"><code class="docutils literal notranslate"><span class="pre">DifferentialInverseKinematicsActionCfg.clip</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.joint_names"><code class="docutils literal notranslate"><span class="pre">DifferentialInverseKinematicsActionCfg.joint_names</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.body_name"><code class="docutils literal notranslate"><span class="pre">DifferentialInverseKinematicsActionCfg.body_name</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.body_offset"><code class="docutils literal notranslate"><span class="pre">DifferentialInverseKinematicsActionCfg.body_offset</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.scale"><code class="docutils literal notranslate"><span class="pre">DifferentialInverseKinematicsActionCfg.scale</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.DifferentialInverseKinematicsActionCfg.controller"><code class="docutils literal notranslate"><span class="pre">DifferentialInverseKinematicsActionCfg.controller</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerActionCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.asset_name"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerActionCfg.asset_name</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.debug_vis"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerActionCfg.debug_vis</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.clip"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerActionCfg.clip</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.OffsetCfg"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerActionCfg.OffsetCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.OffsetCfg.pos"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerActionCfg.OffsetCfg.pos</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.OffsetCfg.rot"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerActionCfg.OffsetCfg.rot</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.joint_names"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerActionCfg.joint_names</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.body_name"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerActionCfg.body_name</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.body_offset"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerActionCfg.body_offset</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.task_frame_rel_path"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerActionCfg.task_frame_rel_path</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.controller_cfg"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerActionCfg.controller_cfg</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.position_scale"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerActionCfg.position_scale</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.orientation_scale"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerActionCfg.orientation_scale</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.wrench_scale"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerActionCfg.wrench_scale</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.stiffness_scale"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerActionCfg.stiffness_scale</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.mdp.actions.actions_cfg.OperationalSpaceControllerActionCfg.damping_ratio_scale"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerActionCfg.damping_ratio_scale</span></code></a></li>
 </ul>
 </li>
 </ul>

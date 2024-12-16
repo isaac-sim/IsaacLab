@@ -292,6 +292,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../../../source/tutorials/03_envs/modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../../source/tutorials/04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../../source/tutorials/05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/tutorials/05_controllers/run_osc.html">Using an operational space controller</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../../../source/how-to/index.html">How-to Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -642,10 +643,7 @@
         <span class="c1"># resolve the environment IDs</span>
         <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">env_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
-        <span class="c1"># set the command counter to zero</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">command_counter</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
-        <span class="c1"># resample the command</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_resample</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
+
         <span class="c1"># add logging metrics</span>
         <span class="n">extras</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="k">for</span> <span class="n">metric_name</span><span class="p">,</span> <span class="n">metric_value</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">metrics</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
@@ -653,6 +651,12 @@
             <span class="n">extras</span><span class="p">[</span><span class="n">metric_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">metric_value</span><span class="p">[</span><span class="n">env_ids</span><span class="p">])</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
             <span class="c1"># reset the metric value</span>
             <span class="n">metric_value</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
+
+        <span class="c1"># set the command counter to zero</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">command_counter</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="c1"># resample the command</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_resample</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
+
         <span class="k">return</span> <span class="n">extras</span></div>
 
 <div class="viewcode-block" id="CommandTerm.compute"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.CommandTerm.compute">[docs]</a>    <span class="k">def</span> <span class="nf">compute</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dt</span><span class="p">:</span> <span class="nb">float</span><span class="p">):</span>
@@ -685,8 +689,8 @@
 <span class="sd">        Args:</span>
 <span class="sd">            env_ids: The list of environment IDs to resample.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># resample the time left before resampling</span>
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="c1"># resample the time left before resampling</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">time_left</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_left</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span><span class="o">.</span><span class="n">uniform_</span><span class="p">(</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">resampling_time_range</span><span class="p">)</span>
             <span class="c1"># increment the command counter</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">command_counter</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>

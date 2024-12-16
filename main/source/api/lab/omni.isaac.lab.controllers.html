@@ -295,6 +295,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../tutorials/04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../tutorials/05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/05_controllers/run_osc.html">Using an operational space controller</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../how-to/index.html">How-to Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -591,6 +592,32 @@
 </li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#operational-space-controllers">Operational Space controllers</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.OperationalSpaceController"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceController</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.OperationalSpaceController.__init__"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceController.__init__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.OperationalSpaceController.action_dim"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceController.action_dim</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.OperationalSpaceController.reset"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceController.reset()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.OperationalSpaceController.set_command"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceController.set_command()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.OperationalSpaceController.compute"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceController.compute()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.target_types"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerCfg.target_types</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.motion_control_axes_task"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerCfg.motion_control_axes_task</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.contact_wrench_control_axes_task"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerCfg.contact_wrench_control_axes_task</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.inertial_dynamics_decoupling"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerCfg.inertial_dynamics_decoupling</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.partial_inertial_dynamics_decoupling"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerCfg.partial_inertial_dynamics_decoupling</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.gravity_compensation"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerCfg.gravity_compensation</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.impedance_mode"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerCfg.impedance_mode</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.motion_stiffness_task"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerCfg.motion_stiffness_task</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.motion_damping_ratio_task"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerCfg.motion_damping_ratio_task</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.motion_stiffness_limits_task"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerCfg.motion_stiffness_limits_task</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.motion_damping_ratio_limits_task"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerCfg.motion_damping_ratio_limits_task</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.contact_wrench_stiffness_task"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerCfg.contact_wrench_stiffness_task</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
 </ul>
             </nav>
         </div>
@@ -617,6 +644,12 @@ commands to be sent to the robot.</p>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.controllers.DifferentialIKControllerCfg" title="omni.isaac.lab.controllers.DifferentialIKControllerCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">DifferentialIKControllerCfg</span></code></a></p></td>
 <td><p>Configuration for differential inverse kinematics controller.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.controllers.OperationalSpaceController" title="omni.isaac.lab.controllers.OperationalSpaceController"><code class="xref py py-obj docutils literal notranslate"><span class="pre">OperationalSpaceController</span></code></a></p></td>
+<td><p>Operational-space controller.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg" title="omni.isaac.lab.controllers.OperationalSpaceControllerCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">OperationalSpaceControllerCfg</span></code></a></p></td>
+<td><p>Configuration for operational-space controller.</p></td>
 </tr>
 </tbody>
 </table>
@@ -849,6 +882,307 @@ parameters for the method are used.</p>
 </dd></dl>
 
 </section>
+<section id="operational-space-controllers">
+<h2>Operational Space controllers<a class="headerlink" href="#operational-space-controllers" title="Permalink to this heading">#</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="omni.isaac.lab.controllers.OperationalSpaceController">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.controllers.</span></span><span class="sig-name descname"><span class="pre">OperationalSpaceController</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/controllers/operational_space.html#OperationalSpaceController"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.controllers.OperationalSpaceController" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Operational-space controller.</p>
+<p>Reference:</p>
+<ol class="arabic simple">
+<li><p><a class="reference external" href="http://dx.doi.org/10.1109/JRA.1987.1087068">A unified approach for motion and force control of robot manipulators: The operational space formulation</a>
+by Oussama Khatib (Stanford University)</p></li>
+<li><p><a class="reference external" href="https://ethz.ch/content/dam/ethz/special-interest/mavt/robotics-n-intelligent-systems/rsl-dam/documents/RobotDynamics2017/RD_HS2017script.pdf">Robot Dynamics Lecture Notes</a>
+by Marco Hutter (ETH Zurich)</p></li>
+</ol>
+<p><strong>Methods:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.controllers.OperationalSpaceController.__init__" title="omni.isaac.lab.controllers.OperationalSpaceController.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>(cfg, num_envs, device)</p></td>
+<td><p>Initialize operational-space controller.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.controllers.OperationalSpaceController.reset" title="omni.isaac.lab.controllers.OperationalSpaceController.reset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset</span></code></a>()</p></td>
+<td><p>Reset the internals.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.controllers.OperationalSpaceController.set_command" title="omni.isaac.lab.controllers.OperationalSpaceController.set_command"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_command</span></code></a>(command[, current_ee_pose_b, ...])</p></td>
+<td><p>Set the task-space targets and impedance parameters.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.controllers.OperationalSpaceController.compute" title="omni.isaac.lab.controllers.OperationalSpaceController.compute"><code class="xref py py-obj docutils literal notranslate"><span class="pre">compute</span></code></a>(jacobian_b[, current_ee_pose_b, ...])</p></td>
+<td><p>Performs inference with the controller.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.controllers.OperationalSpaceController.action_dim" title="omni.isaac.lab.controllers.OperationalSpaceController.action_dim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">action_dim</span></code></a></p></td>
+<td><p>Dimension of the action space of controller.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.controllers.OperationalSpaceController.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg" title="omni.isaac.lab.controllers.OperationalSpaceControllerCfg"><span class="pre">OperationalSpaceControllerCfg</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_envs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">device</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/controllers/operational_space.html#OperationalSpaceController.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.controllers.OperationalSpaceController.__init__" title="Permalink to this definition">#</a></dt>
+<dd><p>Initialize operational-space controller.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>cfg</strong> – The configuration for operational-space controller.</p></li>
+<li><p><strong>num_envs</strong> – The number of environments.</p></li>
+<li><p><strong>device</strong> – The device to use for computations.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.13)"><strong>ValueError</strong></a> – When invalid control command is provided.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.controllers.OperationalSpaceController.action_dim">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">action_dim</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a></em><a class="headerlink" href="#omni.isaac.lab.controllers.OperationalSpaceController.action_dim" title="Permalink to this definition">#</a></dt>
+<dd><p>Dimension of the action space of controller.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.controllers.OperationalSpaceController.reset">
+<span class="sig-name descname"><span class="pre">reset</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/controllers/operational_space.html#OperationalSpaceController.reset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.controllers.OperationalSpaceController.reset" title="Permalink to this definition">#</a></dt>
+<dd><p>Reset the internals.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.controllers.OperationalSpaceController.set_command">
+<span class="sig-name descname"><span class="pre">set_command</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">command</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">current_ee_pose_b</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">current_task_frame_pose_b</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/controllers/operational_space.html#OperationalSpaceController.set_command"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.controllers.OperationalSpaceController.set_command" title="Permalink to this definition">#</a></dt>
+<dd><p>Set the task-space targets and impedance parameters.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>command</strong> (<a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><em>torch.Tensor</em></a>) – A concatenated tensor of shape (<code class="docutils literal notranslate"><span class="pre">num_envs</span></code>, <code class="docutils literal notranslate"><span class="pre">action_dim</span></code>) containing task-space
+targets (i.e., pose/wrench) and impedance parameters.</p></li>
+<li><p><strong>current_ee_pose_b</strong> (<a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><em>torch.Tensor</em></a><em>, </em><em>optional</em>) – Current end-effector pose, in root frame, of shape
+(<code class="docutils literal notranslate"><span class="pre">num_envs</span></code>, 7), containing position and quaternion <code class="docutils literal notranslate"><span class="pre">(w,</span> <span class="pre">x,</span> <span class="pre">y,</span> <span class="pre">z)</span></code>. Required for relative
+commands. Defaults to None.</p></li>
+<li><p><strong>current_task_frame_pose_b</strong> – Current pose of the task frame, in root frame, in which the targets and the
+(motion/wrench) control axes are defined. It is a tensor of shape (<code class="docutils literal notranslate"><span class="pre">num_envs</span></code>, 7),
+containing position and the quaternion <code class="docutils literal notranslate"><span class="pre">(w,</span> <span class="pre">x,</span> <span class="pre">y,</span> <span class="pre">z)</span></code>. Defaults to None.</p></li>
+</ul>
+</dd>
+</dl>
+<dl>
+<dt>Format:</dt><dd><p>Task-space targets, ordered according to ‘command_types’:</p>
+<blockquote>
+<div><p>Absolute pose: shape (<code class="docutils literal notranslate"><span class="pre">num_envs</span></code>, 7), containing position and quaternion <code class="docutils literal notranslate"><span class="pre">(w,</span> <span class="pre">x,</span> <span class="pre">y,</span> <span class="pre">z)</span></code>.
+Relative pose: shape (<code class="docutils literal notranslate"><span class="pre">num_envs</span></code>, 6), containing delta position and rotation in axis-angle form.
+Absolute wrench: shape (<code class="docutils literal notranslate"><span class="pre">num_envs</span></code>, 6), containing force and torque.</p>
+</div></blockquote>
+<p>Impedance parameters: stiffness for <code class="docutils literal notranslate"><span class="pre">variable_kp</span></code>, or stiffness, followed by damping ratio for
+<code class="docutils literal notranslate"><span class="pre">variable</span></code>:</p>
+<blockquote>
+<div><p>Stiffness: shape (<code class="docutils literal notranslate"><span class="pre">num_envs</span></code>, 6)
+Damping ratio: shape (<code class="docutils literal notranslate"><span class="pre">num_envs</span></code>, 6)</p>
+</div></blockquote>
+</dd>
+</dl>
+<dl class="field-list simple">
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.13)"><strong>ValueError</strong></a> – When the command dimensions are invalid.</p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.13)"><strong>ValueError</strong></a> – When an invalid impedance mode is provided.</p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.13)"><strong>ValueError</strong></a> – When the current end-effector pose is not provided for the <code class="docutils literal notranslate"><span class="pre">pose_rel</span></code> command.</p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.13)"><strong>ValueError</strong></a> – When an invalid control command is provided.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.controllers.OperationalSpaceController.compute">
+<span class="sig-name descname"><span class="pre">compute</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">jacobian_b</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">current_ee_pose_b</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">current_ee_vel_b</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">current_ee_force_b</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mass_matrix</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gravity</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.5)"><span class="pre">torch.Tensor</span></a></span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/controllers/operational_space.html#OperationalSpaceController.compute"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.controllers.OperationalSpaceController.compute" title="Permalink to this definition">#</a></dt>
+<dd><p>Performs inference with the controller.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>jacobian_b</strong> – The Jacobian matrix of the end-effector in root frame. It is a tensor of shape
+(<code class="docutils literal notranslate"><span class="pre">num_envs</span></code>, 6, <code class="docutils literal notranslate"><span class="pre">num_DoF</span></code>).</p></li>
+<li><p><strong>current_ee_pose_b</strong> – The current end-effector pose in root frame. It is a tensor of shape
+(<code class="docutils literal notranslate"><span class="pre">num_envs</span></code>, 7), which contains the position and quaternion <code class="docutils literal notranslate"><span class="pre">(w,</span> <span class="pre">x,</span> <span class="pre">y,</span> <span class="pre">z)</span></code>. Defaults to <code class="docutils literal notranslate"><span class="pre">None</span></code>.</p></li>
+<li><p><strong>current_ee_vel_b</strong> – The current end-effector velocity in root frame. It is a tensor of shape
+(<code class="docutils literal notranslate"><span class="pre">num_envs</span></code>, 6), which contains the linear and angular velocities. Defaults to None.</p></li>
+<li><p><strong>current_ee_force_b</strong> – The current external force on the end-effector in root frame.
+It is a tensor of shape (<code class="docutils literal notranslate"><span class="pre">num_envs</span></code>, 3), which contains the linear force. Defaults to <code class="docutils literal notranslate"><span class="pre">None</span></code>.</p></li>
+<li><p><strong>mass_matrix</strong> – The joint-space mass/inertia matrix. It is a tensor of shape (<code class="docutils literal notranslate"><span class="pre">num_envs</span></code>, <code class="docutils literal notranslate"><span class="pre">num_DoF</span></code>,</p></li>
+<li><p><strong>None.</strong> (<em>to</em>) – </p></li>
+<li><p><strong>gravity</strong> – The joint-space gravity vector. It is a tensor of shape (<code class="docutils literal notranslate"><span class="pre">num_envs</span></code>, <code class="docutils literal notranslate"><span class="pre">num_DoF</span></code>). Defaults</p></li>
+<li><p><strong>None.</strong> – </p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.13)"><strong>ValueError</strong></a> – When motion-control is enabled but the current end-effector pose or velocity is not provided.</p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.13)"><strong>ValueError</strong></a> – When inertial dynamics decoupling is enabled but the mass matrix is not provided.</p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.13)"><strong>ValueError</strong></a> – When the current end-effector pose is not provided for the <code class="docutils literal notranslate"><span class="pre">pose_rel</span></code> command.</p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.13)"><strong>ValueError</strong></a> – When closed-loop force control is enabled but the current end-effector force is not provided.</p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.13)"><strong>ValueError</strong></a> – When gravity compensation is enabled but the gravity vector is not provided.</p></li>
+</ul>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The joint efforts computed by the controller. It is a tensor of shape (<code class="docutils literal notranslate"><span class="pre">num_envs</span></code>, <code class="docutils literal notranslate"><span class="pre">num_DoF</span></code>).</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>Tensor</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="omni.isaac.lab.controllers.OperationalSpaceControllerCfg">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.controllers.</span></span><span class="sig-name descname"><span class="pre">OperationalSpaceControllerCfg</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/controllers/operational_space_cfg.html#OperationalSpaceControllerCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Configuration for operational-space controller.</p>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.target_types" title="omni.isaac.lab.controllers.OperationalSpaceControllerCfg.target_types"><code class="xref py py-obj docutils literal notranslate"><span class="pre">target_types</span></code></a></p></td>
+<td><p>Type of task-space targets.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.motion_control_axes_task" title="omni.isaac.lab.controllers.OperationalSpaceControllerCfg.motion_control_axes_task"><code class="xref py py-obj docutils literal notranslate"><span class="pre">motion_control_axes_task</span></code></a></p></td>
+<td><p>Motion direction to control in task reference frame.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.contact_wrench_control_axes_task" title="omni.isaac.lab.controllers.OperationalSpaceControllerCfg.contact_wrench_control_axes_task"><code class="xref py py-obj docutils literal notranslate"><span class="pre">contact_wrench_control_axes_task</span></code></a></p></td>
+<td><p>Contact wrench direction to control in task reference frame.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.inertial_dynamics_decoupling" title="omni.isaac.lab.controllers.OperationalSpaceControllerCfg.inertial_dynamics_decoupling"><code class="xref py py-obj docutils literal notranslate"><span class="pre">inertial_dynamics_decoupling</span></code></a></p></td>
+<td><p>Whether to perform inertial dynamics decoupling for motion control (inverse dynamics).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.partial_inertial_dynamics_decoupling" title="omni.isaac.lab.controllers.OperationalSpaceControllerCfg.partial_inertial_dynamics_decoupling"><code class="xref py py-obj docutils literal notranslate"><span class="pre">partial_inertial_dynamics_decoupling</span></code></a></p></td>
+<td><p>Whether to ignore the inertial coupling between the translational &amp; rotational motions.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.gravity_compensation" title="omni.isaac.lab.controllers.OperationalSpaceControllerCfg.gravity_compensation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gravity_compensation</span></code></a></p></td>
+<td><p>Whether to perform gravity compensation.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.impedance_mode" title="omni.isaac.lab.controllers.OperationalSpaceControllerCfg.impedance_mode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">impedance_mode</span></code></a></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&quot;fixed&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;variable&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;variable_kp&quot;</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.motion_stiffness_task" title="omni.isaac.lab.controllers.OperationalSpaceControllerCfg.motion_stiffness_task"><code class="xref py py-obj docutils literal notranslate"><span class="pre">motion_stiffness_task</span></code></a></p></td>
+<td><p>The positional gain for determining operational space command forces based on task-space pose error.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.motion_damping_ratio_task" title="omni.isaac.lab.controllers.OperationalSpaceControllerCfg.motion_damping_ratio_task"><code class="xref py py-obj docutils literal notranslate"><span class="pre">motion_damping_ratio_task</span></code></a></p></td>
+<td><p>The damping ratio is used in-conjunction with positional gain to compute operational space command forces based on task-space velocity error.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.motion_stiffness_limits_task" title="omni.isaac.lab.controllers.OperationalSpaceControllerCfg.motion_stiffness_limits_task"><code class="xref py py-obj docutils literal notranslate"><span class="pre">motion_stiffness_limits_task</span></code></a></p></td>
+<td><p>Minimum and maximum values for positional gains.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.motion_damping_ratio_limits_task" title="omni.isaac.lab.controllers.OperationalSpaceControllerCfg.motion_damping_ratio_limits_task"><code class="xref py py-obj docutils literal notranslate"><span class="pre">motion_damping_ratio_limits_task</span></code></a></p></td>
+<td><p>Minimum and maximum values for damping ratios used to compute velocity gains.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.contact_wrench_stiffness_task" title="omni.isaac.lab.controllers.OperationalSpaceControllerCfg.contact_wrench_stiffness_task"><code class="xref py py-obj docutils literal notranslate"><span class="pre">contact_wrench_stiffness_task</span></code></a></p></td>
+<td><p>The proportional gain for determining operational space command forces for closed-loop contact force control.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.controllers.OperationalSpaceControllerCfg.target_types">
+<span class="sig-name descname"><span class="pre">target_types</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence" title="(in Python v3.13)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.target_types" title="Permalink to this definition">#</a></dt>
+<dd><p>Type of task-space targets.</p>
+<dl class="simple">
+<dt>It has two sub-strings joined by underscore:</dt><dd><ul class="simple">
+<li><p>type of task-space target: <code class="docutils literal notranslate"><span class="pre">&quot;pose&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;wrench&quot;</span></code></p></li>
+<li><p>reference for the task-space targets: <code class="docutils literal notranslate"><span class="pre">&quot;abs&quot;</span></code> (absolute), <code class="docutils literal notranslate"><span class="pre">&quot;rel&quot;</span></code> (relative, only for pose)</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.controllers.OperationalSpaceControllerCfg.motion_control_axes_task">
+<span class="sig-name descname"><span class="pre">motion_control_axes_task</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence" title="(in Python v3.13)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.motion_control_axes_task" title="Permalink to this definition">#</a></dt>
+<dd><p>Motion direction to control in task reference frame. Mark as <code class="docutils literal notranslate"><span class="pre">0/1</span></code> for each axis.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.controllers.OperationalSpaceControllerCfg.contact_wrench_control_axes_task">
+<span class="sig-name descname"><span class="pre">contact_wrench_control_axes_task</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence" title="(in Python v3.13)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.contact_wrench_control_axes_task" title="Permalink to this definition">#</a></dt>
+<dd><p>Contact wrench direction to control in task reference frame. Mark as 0/1 for each axis.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.controllers.OperationalSpaceControllerCfg.inertial_dynamics_decoupling">
+<span class="sig-name descname"><span class="pre">inertial_dynamics_decoupling</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.inertial_dynamics_decoupling" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether to perform inertial dynamics decoupling for motion control (inverse dynamics).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.controllers.OperationalSpaceControllerCfg.partial_inertial_dynamics_decoupling">
+<span class="sig-name descname"><span class="pre">partial_inertial_dynamics_decoupling</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.partial_inertial_dynamics_decoupling" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether to ignore the inertial coupling between the translational &amp; rotational motions.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.controllers.OperationalSpaceControllerCfg.gravity_compensation">
+<span class="sig-name descname"><span class="pre">gravity_compensation</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.gravity_compensation" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether to perform gravity compensation.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.controllers.OperationalSpaceControllerCfg.impedance_mode">
+<span class="sig-name descname"><span class="pre">impedance_mode</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.impedance_mode" title="Permalink to this definition">#</a></dt>
+<dd><p><code class="docutils literal notranslate"><span class="pre">&quot;fixed&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;variable&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;variable_kp&quot;</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Type of gains for motion control</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.controllers.OperationalSpaceControllerCfg.motion_stiffness_task">
+<span class="sig-name descname"><span class="pre">motion_stiffness_task</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence" title="(in Python v3.13)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.motion_stiffness_task" title="Permalink to this definition">#</a></dt>
+<dd><p>The positional gain for determining operational space command forces based on task-space pose error.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.controllers.OperationalSpaceControllerCfg.motion_damping_ratio_task">
+<span class="sig-name descname"><span class="pre">motion_damping_ratio_task</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence" title="(in Python v3.13)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.motion_damping_ratio_task" title="Permalink to this definition">#</a></dt>
+<dd><p>The damping ratio is used in-conjunction with positional gain to compute operational space command forces
+based on task-space velocity error.</p>
+<dl class="simple">
+<dt>The following math operation is performed for computing velocity gains:</dt><dd><p><span class="math notranslate nohighlight">\(d_gains = 2 * sqrt(p_gains) * damping_ratio\)</span>.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.controllers.OperationalSpaceControllerCfg.motion_stiffness_limits_task">
+<span class="sig-name descname"><span class="pre">motion_stiffness_limits_task</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.motion_stiffness_limits_task" title="Permalink to this definition">#</a></dt>
+<dd><p>Minimum and maximum values for positional gains.</p>
+<p>Note: Used only when <a class="reference internal" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.impedance_mode" title="omni.isaac.lab.controllers.OperationalSpaceControllerCfg.impedance_mode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">impedance_mode</span></code></a> is <code class="docutils literal notranslate"><span class="pre">&quot;variable&quot;</span></code> or <code class="docutils literal notranslate"><span class="pre">&quot;variable_kp&quot;</span></code>.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.controllers.OperationalSpaceControllerCfg.motion_damping_ratio_limits_task">
+<span class="sig-name descname"><span class="pre">motion_damping_ratio_limits_task</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.motion_damping_ratio_limits_task" title="Permalink to this definition">#</a></dt>
+<dd><p>Minimum and maximum values for damping ratios used to compute velocity gains.</p>
+<p>Note: Used only when <a class="reference internal" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.impedance_mode" title="omni.isaac.lab.controllers.OperationalSpaceControllerCfg.impedance_mode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">impedance_mode</span></code></a> is <code class="docutils literal notranslate"><span class="pre">&quot;variable&quot;</span></code>.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.controllers.OperationalSpaceControllerCfg.contact_wrench_stiffness_task">
+<span class="sig-name descname"><span class="pre">contact_wrench_stiffness_task</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence" title="(in Python v3.13)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.contact_wrench_stiffness_task" title="Permalink to this definition">#</a></dt>
+<dd><p>The proportional gain for determining operational space command forces for closed-loop contact force control.</p>
+<p>If <code class="docutils literal notranslate"><span class="pre">None</span></code>, then open-loop control of desired contact wrench is performed.</p>
+<p>Note: since only the linear forces could be measured at the moment,
+only the first three elements are used for the feedback loop.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
 </section>
 
 
@@ -911,6 +1245,32 @@ parameters for the method are used.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.DifferentialIKControllerCfg.use_relative_mode"><code class="docutils literal notranslate"><span class="pre">DifferentialIKControllerCfg.use_relative_mode</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.DifferentialIKControllerCfg.ik_method"><code class="docutils literal notranslate"><span class="pre">DifferentialIKControllerCfg.ik_method</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.DifferentialIKControllerCfg.ik_params"><code class="docutils literal notranslate"><span class="pre">DifferentialIKControllerCfg.ik_params</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#operational-space-controllers">Operational Space controllers</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.OperationalSpaceController"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceController</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.OperationalSpaceController.__init__"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceController.__init__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.OperationalSpaceController.action_dim"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceController.action_dim</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.OperationalSpaceController.reset"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceController.reset()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.OperationalSpaceController.set_command"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceController.set_command()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.OperationalSpaceController.compute"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceController.compute()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.target_types"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerCfg.target_types</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.motion_control_axes_task"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerCfg.motion_control_axes_task</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.contact_wrench_control_axes_task"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerCfg.contact_wrench_control_axes_task</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.inertial_dynamics_decoupling"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerCfg.inertial_dynamics_decoupling</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.partial_inertial_dynamics_decoupling"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerCfg.partial_inertial_dynamics_decoupling</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.gravity_compensation"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerCfg.gravity_compensation</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.impedance_mode"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerCfg.impedance_mode</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.motion_stiffness_task"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerCfg.motion_stiffness_task</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.motion_damping_ratio_task"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerCfg.motion_damping_ratio_task</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.motion_stiffness_limits_task"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerCfg.motion_stiffness_limits_task</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.motion_damping_ratio_limits_task"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerCfg.motion_damping_ratio_limits_task</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.controllers.OperationalSpaceControllerCfg.contact_wrench_stiffness_task"><code class="docutils literal notranslate"><span class="pre">OperationalSpaceControllerCfg.contact_wrench_stiffness_task</span></code></a></li>
 </ul>
 </li>
 </ul>
