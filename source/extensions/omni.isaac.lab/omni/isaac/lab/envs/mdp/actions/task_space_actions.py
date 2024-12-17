@@ -351,6 +351,10 @@ class OperationalSpaceControllerAction(ActionTerm):
         self._ee_force_w = torch.zeros(self.num_envs, 3, device=self.device)  # Only the forces are used for now
         self._ee_force_b = torch.zeros(self.num_envs, 3, device=self.device)  # Only the forces are used for now
 
+        # create tensors for the joint states
+        self._joint_pos = torch.zeros(self.num_envs, self._num_DoF, device=self.device)
+        self._joint_vel = torch.zeros(self.num_envs, self._num_DoF, device=self.device)
+
         # create the joint effort tensor
         self._joint_efforts = torch.zeros(self.num_envs, self._num_DoF, device=self.device)
 
@@ -368,6 +372,10 @@ class OperationalSpaceControllerAction(ActionTerm):
         self._stiffness_idx = None
         self._damping_ratio_idx = None
         self._resolve_command_indexes()
+
+        # Nullspace position control joint targets
+        self._nullspace_joint_pos_target = None
+        self._resolve_nullspace_joint_pos_targets()
 
     """
     Properties.
@@ -438,6 +446,7 @@ class OperationalSpaceControllerAction(ActionTerm):
         self._compute_ee_pose()
         self._compute_ee_velocity()
         self._compute_ee_force()
+        self._compute_joint_states()
         # Calculate the joint efforts
         self._joint_efforts[:] = self._osc.compute(
             jacobian_b=self._jacobian_b,
@@ -446,6 +455,9 @@ class OperationalSpaceControllerAction(ActionTerm):
             current_ee_force_b=self._ee_force_b,
             mass_matrix=self._mass_matrix,
             gravity=self._gravity,
+            current_joint_pos=self._joint_pos,
+            current_joint_vel=self._joint_vel,
+            nullspace_joint_pos_target=self._nullspace_joint_pos_target,
         )
         self._asset.set_joint_effort_target(self._joint_efforts, joint_ids=self._joint_ids)
 
@@ -523,6 +535,35 @@ class OperationalSpaceControllerAction(ActionTerm):
         # Check if any command is left unresolved
         if self.action_dim != cmd_idx:
             raise ValueError("Not all command indexes have been resolved.")
+
+    def _resolve_nullspace_joint_pos_targets(self):
+        """Resolves the nullspace joint pos targets for the operational space controller.
+
+        Raises:
+            ValueError: If the nullspace joint pos targets are set when null space control is not set to 'position'.
+            ValueError: If the nullspace joint pos targets are not set when null space control is set to 'position'.
+            ValueError: If an invalid value is set for nullspace joint pos targets.
+        """
+
+        if self.cfg.nullspace_joint_pos_target != "none" and self.cfg.controller_cfg.nullspace_control != "position":
+            raise ValueError("Nullspace joint targets can only be set when null space control is set to 'position'.")
+
+        if self.cfg.nullspace_joint_pos_target == "none" and self.cfg.controller_cfg.nullspace_control == "position":
+            raise ValueError("Nullspace joint targets must be set when null space control is set to 'position'.")
+
+        if self.cfg.nullspace_joint_pos_target == "zero" or self.cfg.nullspace_joint_pos_target == "none":
+            # Keep the nullspace joint targets as None as this is later processed as zero in the controller
+            self._nullspace_joint_pos_target = None
+        elif self.cfg.nullspace_joint_pos_target == "center":
+            # Get the center of the robot soft joint limits
+            self._nullspace_joint_pos_target = torch.mean(
+                self._asset.data.soft_joint_pos_limits[:, self._joint_ids, :], dim=-1
+            )
+        elif self.cfg.nullspace_joint_pos_target == "default":
+            # Get the default joint positions
+            self._nullspace_joint_pos_target = self._asset.data.default_joint_pos[:, self._joint_ids]
+        else:
+            raise ValueError("Invalid value for nullspace joint pos targets.")
 
     def _compute_dynamic_quantities(self):
         """Computes the dynamic quantities for operational space control."""
@@ -604,6 +645,12 @@ class OperationalSpaceControllerAction(ActionTerm):
             self._ee_force_w[:] = self._contact_sensor.data.net_forces_w[:, 0, :]  # type: ignore
             # Rotate forces and torques into root frame
             self._ee_force_b[:] = math_utils.quat_rotate_inverse(self._asset.data.root_link_quat_w, self._ee_force_w)
+
+    def _compute_joint_states(self):
+        """Computes the joint states for operational space control."""
+        # Extract joint positions and velocities
+        self._joint_pos[:] = self._asset.data.joint_pos[:, self._joint_ids]
+        self._joint_vel[:] = self._asset.data.joint_vel[:, self._joint_ids]
 
     def _compute_task_frame_pose(self):
         """Computes the pose of the task frame in root frame."""

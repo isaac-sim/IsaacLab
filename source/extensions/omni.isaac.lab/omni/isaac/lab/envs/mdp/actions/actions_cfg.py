@@ -303,3 +303,9 @@ class OperationalSpaceControllerActionCfg(ActionTermCfg):
 
     damping_ratio_scale: float = 1.0
     """Scale factor for the damping ratio commands. Defaults to 1.0."""
+
+    nullspace_joint_pos_target: str = "none"
+    """The joint targets for the null space control: "none", "zero", "default", "center".
+
+    Note: Functional only when null_space_control is set to "position" within the OperationalSpaceControllerCfg.
+    """
