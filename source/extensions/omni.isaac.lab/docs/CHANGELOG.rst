@@ -1,13 +1,74 @@
 Changelog
 ---------
 
-0.28.0 (2024-12-14)
+0.30.0 (2024-12-16)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
 ^^^^^^^
 
 * Previously, physx returns the rigid bodies and articulations velocities in the com of bodies rather than the link frame, while poses are in link frames. We now explicitly provide :attr:`body_link_state` and :attr:`body_com_state` APIs replacing the previous :attr:`body_state` API. Previous APIs are now marked as deprecated. Please update any code using the previous pose and velocity APIs to use the new ``*_link_*`` or ``*_com_*`` APIs in :attr:`omni.isaac_lab.assets.RigidBody`, :attr:`omni.isaac_lab.assets.RigidBodyCollection`, and :attr:`omni.isaac_lab.assets.Articulation`.
+
+
+0.29.3 (2024-12-16)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ordering of logging and resamping in the command manager, where we were logging the metrics after resampling the commands. This leads to incorrect logging of metrics when inside the resample call, the metrics tensors get reset.
+
+
+0.29.2 (2024-12-16)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed errors within the calculations of :class:`omni.isaac.lab.controllers.OperationalSpaceController`.
+
+Added
+^^^^^
+
+* Added :class:`omni.isaac.lab.controllers.OperationalSpaceController` to API documentation.
+* Added test cases for :class:`omni.isaac.lab.controllers.OperationalSpaceController`.
+* Added a tutorial for :class:`omni.isaac.lab.controllers.OperationalSpaceController`.
+* Added the implementation of :class:`omni.isaac.lab.envs.mdp.actions.OperationalSpaceControllerAction` class.
+
+
+0.29.1 (2024-12-15)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Added call to update articulation kinematics after reset to ensure states are updated for non-rendering sensors. Previously, some changes in reset such as modifying joint states would not be reflected in the rigid body states immediately after reset.
+
+
+0.29.0 (2024-12-15)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added UI interface to the Managers in the ManagerBasedEnv and MangerBasedRLEnv classes.
+* Added UI widgets for :class:`LiveLinePlot` and :class:`ImagePlot`.
+* Added ``ManagerLiveVisualizer/Cfg``: Given a ManagerBase (i.e. action_manager, observation_manager, etc) and a config file this class creates the the interface between managers and the UI.
+* Added :class:`EnvLiveVisualizer`: A 'manager' of ManagerLiveVisualizer. This is added to the ManagerBasedEnv but is only called during the initialization of the managers in load_managers
+* Added ``get_active_iterable_terms`` implementation methods to ActionManager, ObservationManager, CommandsManager, CurriculumManager, RewardManager, and TerminationManager. This method exports the active term data and labels for each manager and is called by ManagerLiveVisualizer.
+* Additions to :class:`BaseEnvWindow` and :class:`RLEnvWindow` to register ManagerLiveVisualizer UI interfaces for the chosen managers.
+
+
+0.28.0 (2024-12-15)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added observation history computation to :class:`omni.isaac.lab.manager.observation_manager.ObservationManager`.
+* Added ``history_length`` and ``flatten_history_dim`` configuration parameters to :class:`omni.isaac.lab.manager.manager_term_cfg.ObservationTermCfg`
+* Added ``history_length`` and ``flatten_history_dim`` configuration parameters to :class:`omni.isaac.lab.manager.manager_term_cfg.ObservationGroupCfg`
+* Added full buffer property to :class:`omni.isaac.lab.utils.buffers.circular_buffer.CircularBuffer`
 
 
 0.27.29 (2024-12-15)
@@ -90,7 +151,7 @@ Changed
 
 
 0.27.21 (2024-12-06)
-~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^

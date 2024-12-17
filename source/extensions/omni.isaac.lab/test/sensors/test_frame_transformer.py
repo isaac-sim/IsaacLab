@@ -376,9 +376,9 @@ class TestFrameTransformer(unittest.TestCase):
 
             # check absolute frame transforms in world frame
             # -- ground-truth
-            root_pose_w = scene.articulations["robot"].data.root_state_w[:, :7]
-            cube_pos_w_gt = scene.rigid_objects["cube"].data.root_state_w[:, :3]
-            cube_quat_w_gt = scene.rigid_objects["cube"].data.root_state_w[:, 3:7]
+            root_pose_w = scene.articulations["robot"].data.root_link_state_w[:, :7]
+            cube_pos_w_gt = scene.rigid_objects["cube"].data.root_link_state_w[:, :3]
+            cube_quat_w_gt = scene.rigid_objects["cube"].data.root_link_state_w[:, 3:7]
             # -- frame transformer
             source_pos_w_tf = scene.sensors["frame_transformer"].data.source_pos_w
             source_quat_w_tf = scene.sensors["frame_transformer"].data.source_quat_w
@@ -464,8 +464,8 @@ class TestFrameTransformer(unittest.TestCase):
 
             # check absolute frame transforms in world frame
             # -- ground-truth
-            cube_pos_w_gt = scene["cube"].data.root_state_w[:, :3]
-            cube_quat_w_gt = scene["cube"].data.root_state_w[:, 3:7]
+            cube_pos_w_gt = scene["cube"].data.root_link_state_w[:, :3]
+            cube_quat_w_gt = scene["cube"].data.root_link_state_w[:, 3:7]
             # -- frame transformer
             source_pos_w_tf = scene.sensors["frame_transformer"].data.source_pos_w
             source_quat_w_tf = scene.sensors["frame_transformer"].data.source_quat_w
@@ -556,7 +556,7 @@ class TestFrameTransformer(unittest.TestCase):
 
             # check absolute frame transforms in world frame
             # -- ground-truth
-            root_pose_w = scene.articulations["robot"].data.root_state_w[:, :7]
+            root_pose_w = scene.articulations["robot"].data.root_link_state_w[:, :7]
             bodies_pos_w_gt = scene.articulations["robot"].data.body_link_pos_w
             bodies_quat_w_gt = scene.articulations["robot"].data.body_link_quat_w
 

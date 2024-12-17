@@ -132,10 +132,7 @@ class CommandTerm(ManagerTermBase):
         # resolve the environment IDs
         if env_ids is None:
             env_ids = slice(None)
-        # set the command counter to zero
-        self.command_counter[env_ids] = 0
-        # resample the command
-        self._resample(env_ids)
+
         # add logging metrics
         extras = {}
         for metric_name, metric_value in self.metrics.items():
@@ -143,6 +140,12 @@ class CommandTerm(ManagerTermBase):
             extras[metric_name] = torch.mean(metric_value[env_ids]).item()
             # reset the metric value
             metric_value[env_ids] = 0.0
+
+        # set the command counter to zero
+        self.command_counter[env_ids] = 0
+        # resample the command
+        self._resample(env_ids)
+
         return extras
 
     def compute(self, dt: float):
@@ -175,8 +178,8 @@ class CommandTerm(ManagerTermBase):
         Args:
             env_ids: The list of environment IDs to resample.
         """
-        # resample the time left before resampling
         if len(env_ids) != 0:
+            # resample the time left before resampling
             self.time_left[env_ids] = self.time_left[env_ids].uniform_(*self.cfg.resampling_time_range)
             # increment the command counter
             self.command_counter[env_ids] += 1
@@ -296,7 +299,26 @@ class CommandManager(ManagerBase):
     Operations.
     """
 
-    def set_debug_vis(self, debug_vis: bool) -> bool:
+    def get_active_iterable_terms(self, env_idx: int) -> Sequence[tuple[str, Sequence[float]]]:
+        """Returns the active terms as iterable sequence of tuples.
+
+        The first element of the tuple is the name of the term and the second element is the raw value(s) of the term.
+
+        Args:
+            env_idx: The specific environment to pull the active terms from.
+
+        Returns:
+            The active terms.
+        """
+
+        terms = []
+        idx = 0
+        for name, term in self._terms.items():
+            terms.append((name, term.command[env_idx].cpu().tolist()))
+            idx += term.command.shape[1]
+        return terms
+
+    def set_debug_vis(self, debug_vis: bool):
         """Sets whether to visualize the command data.
 
         Args:

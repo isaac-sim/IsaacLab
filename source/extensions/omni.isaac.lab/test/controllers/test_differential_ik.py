@@ -177,9 +177,10 @@ class TestDifferentialIKController(unittest.TestCase):
                 robot.set_joint_position_target(joint_pos)
                 robot.write_data_to_sim()
                 # randomize root state yaw, ik should work regardless base rotation
-                root_state = robot.data.root_state_w.clone()
+                root_state = robot.data.root_link_state_w.clone()
                 root_state[:, 3:7] = random_yaw_orientation(self.num_envs, self.sim.device)
-                robot.write_root_state_to_sim(root_state)
+                robot.write_root_link_pose_to_sim(root_state[:, :7])
+                robot.write_root_com_velocity_to_sim(root_state[:, 7:])
                 robot.reset()
                 # reset actions
                 ee_pose_b_des[:] = self.ee_pose_b_des_set[current_goal_idx]

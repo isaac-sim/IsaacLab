@@ -14,6 +14,7 @@ import omni.log
 from omni.isaac.lab.managers import ActionManager, EventManager, ObservationManager, RecorderManager
 from omni.isaac.lab.scene import InteractiveScene
 from omni.isaac.lab.sim import SimulationContext
+from omni.isaac.lab.ui.widgets import ManagerLiveVisualizer
 from omni.isaac.lab.utils.timer import Timer
 
 from .common import VecEnvObs
@@ -148,6 +149,8 @@ class ManagerBasedEnv:
         # we need to do this here after all the managers are initialized
         # this is because they dictate the sensors and commands right now
         if self.sim.has_gui() and self.cfg.ui_window_class_type is not None:
+            # setup live visualizers
+            self.setup_manager_visualizers()
             self._window = self.cfg.ui_window_class_type(self, window_name="IsaacLab")
         else:
             # if no window, then we don't need to store the window
@@ -233,6 +236,14 @@ class ManagerBasedEnv:
         if self.__class__ == ManagerBasedEnv and "startup" in self.event_manager.available_modes:
             self.event_manager.apply(mode="startup")
 
+    def setup_manager_visualizers(self):
+        """Creates live visualizers for manager terms."""
+
+        self.manager_visualizers = {
+            "action_manager": ManagerLiveVisualizer(manager=self.action_manager),
+            "observation_manager": ManagerLiveVisualizer(manager=self.observation_manager),
+        }
+
     """
     Operations - MDP.
     """
@@ -269,14 +280,16 @@ class ManagerBasedEnv:
 
         # reset state of scene
         self._reset_idx(env_ids)
+
+        # update articulation kinematics
         self.scene.write_data_to_sim()
-
-        # trigger recorder terms for post-reset calls
-        self.recorder_manager.record_post_reset(env_ids)
-
+        self.sim.forward()
         # if sensors are added to the scene, make sure we render to reflect changes in reset
         if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
             self.sim.render()
+
+        # trigger recorder terms for post-reset calls
+        self.recorder_manager.record_post_reset(env_ids)
 
         # compute observations
         self.obs_buf = self.observation_manager.compute()
@@ -317,12 +330,15 @@ class ManagerBasedEnv:
         # set the state
         self.scene.reset_to(state, env_ids, is_relative=is_relative)
 
-        # trigger recorder terms for post-reset calls
-        self.recorder_manager.record_post_reset(env_ids)
+        # update articulation kinematics
+        self.sim.forward()
 
         # if sensors are added to the scene, make sure we render to reflect changes in reset
         if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
             self.sim.render()
+
+        # trigger recorder terms for post-reset calls
+        self.recorder_manager.record_post_reset(env_ids)
 
         # compute observations
         self.obs_buf = self.observation_manager.compute()
