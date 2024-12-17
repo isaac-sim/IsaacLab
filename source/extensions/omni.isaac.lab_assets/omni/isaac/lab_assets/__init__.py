@@ -36,6 +36,7 @@ from .humanoid import *
 from .kinova import *
 from .quadcopter import *
 from .ridgeback_franka import *
+from .rhoban import *
 from .sawyer import *
 from .shadow_hand import *
 from .unitree import *

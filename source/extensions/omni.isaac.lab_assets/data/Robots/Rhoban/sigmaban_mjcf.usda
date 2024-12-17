@@ -1,0 +1,2372 @@
+#usda 1.0
+(
+    customLayerData = {
+        dictionary cameraSettings = {
+            dictionary Front = {
+                double3 position = (5, 0, 0)
+                double radius = 5
+            }
+            dictionary Perspective = {
+                double3 position = (0.7020686632785792, 0.7020686632785806, 0.7020687658625957)
+                double3 target = (-3.978038431995401e-8, -3.978038265461947e-8, 7.956076986115335e-8)
+            }
+            dictionary Right = {
+                double3 position = (0, -5, 0)
+                double radius = 5
+            }
+            dictionary Top = {
+                double3 position = (0, 0, 5)
+                double radius = 5
+            }
+            string boundCamera = "/OmniverseKit_Persp"
+        }
+        dictionary omni_layer = {
+            string authoring_layer = "./sigmaban_mjcf.usda"
+            dictionary locked = {
+            }
+            dictionary muteness = {
+            }
+        }
+        dictionary renderSettings = {
+            float3 "rtx:debugView:pixelDebug:textColor" = (0, 1e18, 0)
+            float3 "rtx:fog:fogColor" = (0.75, 0.75, 0.75)
+            float3 "rtx:index:backgroundColor" = (0, 0, 0)
+            float3 "rtx:index:regionOfInterestMax" = (0, 0, 0)
+            float3 "rtx:index:regionOfInterestMin" = (0, 0, 0)
+            float3 "rtx:post:backgroundZeroAlpha:backgroundDefaultColor" = (0, 0, 0)
+            float3 "rtx:post:colorcorr:contrast" = (1, 1, 1)
+            float3 "rtx:post:colorcorr:gain" = (1, 1, 1)
+            float3 "rtx:post:colorcorr:gamma" = (1, 1, 1)
+            float3 "rtx:post:colorcorr:offset" = (0, 0, 0)
+            float3 "rtx:post:colorcorr:saturation" = (1, 1, 1)
+            float3 "rtx:post:colorgrad:blackpoint" = (0, 0, 0)
+            float3 "rtx:post:colorgrad:contrast" = (1, 1, 1)
+            float3 "rtx:post:colorgrad:gain" = (1, 1, 1)
+            float3 "rtx:post:colorgrad:gamma" = (1, 1, 1)
+            float3 "rtx:post:colorgrad:lift" = (0, 0, 0)
+            float3 "rtx:post:colorgrad:multiply" = (1, 1, 1)
+            float3 "rtx:post:colorgrad:offset" = (0, 0, 0)
+            float3 "rtx:post:colorgrad:whitepoint" = (1, 1, 1)
+            float3 "rtx:post:lensDistortion:lensFocalLengthArray" = (10, 30, 50)
+            float3 "rtx:post:lensFlares:anisoFlareFalloffX" = (450, 475, 500)
+            float3 "rtx:post:lensFlares:anisoFlareFalloffY" = (10, 10, 10)
+            float3 "rtx:post:lensFlares:cutoffPoint" = (2, 2, 2)
+            float3 "rtx:post:lensFlares:haloFlareFalloff" = (10, 10, 10)
+            float3 "rtx:post:lensFlares:haloFlareRadius" = (75, 75, 75)
+            float3 "rtx:post:lensFlares:isotropicFlareFalloff" = (50, 50, 50)
+            float3 "rtx:post:lensFlares:spectralBlurWavelengthRange" = (380, 550, 770)
+            float3 "rtx:post:tonemap:whitepoint" = (1, 1, 1)
+            float3 "rtx:raytracing:indexdirect:svoBrickSize" = (32, 32, 32)
+            float3 "rtx:raytracing:inscattering:singleScatteringAlbedo" = (0.9, 0.9, 0.9)
+            float3 "rtx:raytracing:inscattering:transmittanceColor" = (0.5, 0.5, 0.5)
+            float3 "rtx:sceneDb:ambientLightColor" = (0.1, 0.1, 0.1)
+            float2 "rtx:viewTile:resolution" = (0, 0)
+        }
+    }
+    defaultPrim = "sigmaban"
+    endTimeCode = 0
+    metersPerUnit = 1
+    startTimeCode = -1
+    upAxis = "Z"
+)
+
+def Xform "sigmaban" (
+    prepend apiSchemas = ["PhysicsArticulationRootAPI", "PhysxArticulationAPI"]
+)
+{
+    bool physxArticulation:enabledSelfCollisions = 0
+    quatf xformOp:orient = (1, 0, 0, 0)
+    float3 xformOp:scale = (1, 1, 1)
+    double3 xformOp:translate = (0, 0, 0)
+    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+
+    def Xform "torso" (
+        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysxRigidBodyAPI", "PhysicsMassAPI", "PhysicsFilteredPairsAPI"]
+    )
+    {
+        point3f physics:centerOfMass = (0.00156484, 6.73262e-05, 0.070745)
+        float3 physics:diagonalInertia = (0.0199727, 0.0188364, 0.0126333)
+        float physics:mass = 3.27516
+        matrix4d xformOp:transform = ( (1, 0, 0, 0), (0, 1, 0, 0), (0, 0, 1, 0), (0, 0, 0, 1) )
+        uniform token[] xformOpOrder = ["xformOp:transform"]
+
+        def "collisions"
+        {
+            def Cube "_geom_0" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.0725, -0.057796, -0.003), (0.0725, 0.057796, 0.003)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (0, -0.07249999791383743, 0, 0), (0, 0, -0.05779600143432617, 0), (0.003000000026077032, 0, 0, 0), (0.0603891983628273, 1.471740063152538e-7, 0.0680823028087616, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_1" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.0201, -0.03055, -0.0205), (0.0201, 0.03055, 0.0205)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (-2.7006129324624545e-9, -0.020100002083704858, 0, 0), (-0.030550003431130488, -4.104662975123242e-9, 0, 0), (0, 0, -0.020500006074957392, 0), (0.02093919925391674, 0.046400099992752075, 0.02199999988079071, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_2" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.0201, -0.03055, -0.0205), (0.0201, 0.03055, 0.0205)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (-2.7006129324624545e-9, -0.020100002083704858, 0, 0), (-0.030550003431130488, -4.104662975123242e-9, 0, 0), (0, -0, -0.020500006074957392, 0), (0.02093919925391674, -0.04639989882707596, 0.02199999988079071, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_3" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.0201, -0.03055, -0.0205), (0.0201, 0.03055, 0.0205)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (-2.7006129324624545e-9, -0.020100002083704858, 0, 0), (0.030550003431130488, -4.104662975123242e-9, 0, 0), (0, 0, 0.020500000566244125, 0), (0.01583920046687126, 1.471740063152538e-7, 0.15700000524520874, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_4" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.0725, -0.057796, -0.003), (0.0725, 0.057796, 0.003)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (0, 0.07249999791383743, 0, 0), (0, 0, 0.05779600143432617, 0), (0.003000000026077032, 0, 0, 0), (-0.059610798954963684, 1.471740063152538e-7, 0.07191769778728485, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_5" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.0201, -0.03055, -0.0205), (0.0201, 0.03055, 0.0205)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (0, 0, 0.020099999383091927, 0), (0.030549999326467514, 0, 0, 0), (0, 0.020500000566244125, 0, 0), (0.010839199647307396, 0.05600009858608246, 0.164000004529953, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_6" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.0201, -0.03055, -0.0205), (0.0201, 0.03055, 0.0205)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (0, 0, -0.020099999383091927, 0), (0.030549999326467514, 0, 0, 0), (0, -0.020500000566244125, 0, 0), (0.010839199647307396, -0.05599990114569664, 0.164000004529953, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+        }
+
+        def "visuals"
+        {
+            def Cube "_geom_0" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.0725, -0.057796, -0.003), (0.0725, 0.057796, 0.003)]
+                rel material:binding = </sigmaban/torso/visuals/Looks/material_rgba>
+                matrix4d xformOp:transform = ( (0, -0.07249999791383743, 0, 0), (0, 0, -0.05779600143432617, 0), (0.003000000026077032, 0, 0, 0), (0.0603891983628273, 1.471740063152538e-7, 0.0680823028087616, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_1" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.0201, -0.03055, -0.0205), (0.0201, 0.03055, 0.0205)]
+                rel material:binding = </sigmaban/torso/visuals/Looks/material_rgba_1>
+                matrix4d xformOp:transform = ( (-2.7006129324624545e-9, -0.020100002083704858, 0, 0), (-0.030550003431130488, -4.104662975123242e-9, 0, 0), (0, 0, -0.020500006074957392, 0), (0.02093919925391674, 0.046400099992752075, 0.02199999988079071, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_2" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.0201, -0.03055, -0.0205), (0.0201, 0.03055, 0.0205)]
+                rel material:binding = </sigmaban/torso/visuals/Looks/material_rgba_2>
+                matrix4d xformOp:transform = ( (-2.7006129324624545e-9, -0.020100002083704858, 0, 0), (-0.030550003431130488, -4.104662975123242e-9, 0, 0), (0, -0, -0.020500006074957392, 0), (0.02093919925391674, -0.04639989882707596, 0.02199999988079071, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_3" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.0201, -0.03055, -0.0205), (0.0201, 0.03055, 0.0205)]
+                rel material:binding = </sigmaban/torso/visuals/Looks/material_rgba_3>
+                matrix4d xformOp:transform = ( (-2.7006129324624545e-9, -0.020100002083704858, 0, 0), (0.030550003431130488, -4.104662975123242e-9, 0, 0), (0, 0, 0.020500000566244125, 0), (0.01583920046687126, 1.471740063152538e-7, 0.15700000524520874, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_4" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.0725, -0.057796, -0.003), (0.0725, 0.057796, 0.003)]
+                rel material:binding = </sigmaban/torso/visuals/Looks/material_rgba_4>
+                matrix4d xformOp:transform = ( (0, 0.07249999791383743, 0, 0), (0, 0, 0.05779600143432617, 0), (0.003000000026077032, 0, 0, 0), (-0.059610798954963684, 1.471740063152538e-7, 0.07191769778728485, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_5" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.0201, -0.03055, -0.0205), (0.0201, 0.03055, 0.0205)]
+                rel material:binding = </sigmaban/torso/visuals/Looks/material_rgba_5>
+                matrix4d xformOp:transform = ( (0, 0, 0.020099999383091927, 0), (0.030549999326467514, 0, 0, 0), (0, 0.020500000566244125, 0, 0), (0.010839199647307396, 0.05600009858608246, 0.164000004529953, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_6" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.0201, -0.03055, -0.0205), (0.0201, 0.03055, 0.0205)]
+                rel material:binding = </sigmaban/torso/visuals/Looks/material_rgba_6>
+                matrix4d xformOp:transform = ( (0, 0, -0.020099999383091927, 0), (0.030549999326467514, 0, 0, 0), (0, -0.020500000566244125, 0, 0), (0.010839199647307396, -0.05599990114569664, 0.164000004529953, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+        }
+    }
+
+    def Xform "u_neck" (
+        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysxRigidBodyAPI", "PhysicsMassAPI", "PhysicsFilteredPairsAPI"]
+    )
+    {
+        point3f physics:centerOfMass = (0, 0, 0.0206334)
+        float3 physics:diagonalInertia = (0.0000516952, 0.0000305787, 0.0000298525)
+        float physics:mass = 0.0544799
+        matrix4d xformOp:transform = ( (-1.3435885648505064e-7, -1.0000001343588565, -0, 0), (1.0000001343588565, -1.3435885648505064e-7, 0, 0), (0, -0, 1, 0), (0.033389199525117874, 1.471740063152538e-7, 0.18050000071525574, 1) )
+        uniform token[] xformOpOrder = ["xformOp:transform"]
+
+        def "collisions"
+        {
+            def Cube "_geom_7" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.015, -0.032901, -0.0015), (0.015, 0.032901, 0.0015)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (0, -0.014999999664723873, 0, 0), (0, 0, 0.03290100023150444, 0), (-0.001500000013038516, 0, 0, 0), (0.02500000037252903, 0, 0.03290100023150444, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_8" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.015, -0.032901, -0.0015), (0.015, 0.032901, 0.0015)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (0, 0.014999999664723873, 0, 0), (0, 0, 0.03290100023150444, 0), (0.001500000013038516, 0, 0, 0), (-0.02500000037252903, 0, 0.03290100023150444, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_9" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.0245, -0.015, -0.003125), (0.0245, 0.015, 0.003125)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (0.02449999935925007, 0, 0, 0), (0, -0.014999999664723873, 0, 0), (0, 0, -0.0031250000465661287, 0), (0, 0, 0.0031250000465661287, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+        }
+
+        def "visuals"
+        {
+            def Cube "_geom_7" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.015, -0.032901, -0.0015), (0.015, 0.032901, 0.0015)]
+                rel material:binding = </sigmaban/u_neck/visuals/Looks/material_rgba>
+                matrix4d xformOp:transform = ( (0, -0.014999999664723873, 0, 0), (0, 0, 0.03290100023150444, 0), (-0.001500000013038516, 0, 0, 0), (0.02500000037252903, 0, 0.03290100023150444, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_8" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.015, -0.032901, -0.0015), (0.015, 0.032901, 0.0015)]
+                rel material:binding = </sigmaban/u_neck/visuals/Looks/material_rgba_1>
+                matrix4d xformOp:transform = ( (0, 0.014999999664723873, 0, 0), (0, 0, 0.03290100023150444, 0), (0.001500000013038516, 0, 0, 0), (-0.02500000037252903, 0, 0.03290100023150444, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_9" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.0245, -0.015, -0.003125), (0.0245, 0.015, 0.003125)]
+                rel material:binding = </sigmaban/u_neck/visuals/Looks/material_rgba_2>
+                matrix4d xformOp:transform = ( (0.02449999935925007, 0, 0, 0), (0, -0.014999999664723873, 0, 0), (0, 0, -0.0031250000465661287, 0), (0, 0, 0.0031250000465661287, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+        }
+    }
+
+    def "joints"
+    {
+        def PhysicsRevoluteJoint "head_yaw" (
+            prepend apiSchemas = ["PhysxJointAPI", "PhysxLimitAPI:X", "PhysicsDriveAPI:X"]
+        )
+        {
+            float drive:X:physics:damping = 0
+            float drive:X:physics:maxForce = 3.4028235e38
+            float drive:X:physics:stiffness = 0
+            uniform token drive:X:physics:type = "force"
+            uniform token physics:axis = "X"
+            rel physics:body0 = </sigmaban/torso>
+            rel physics:body1 = </sigmaban/u_neck>
+            float physics:breakForce = 3.4028235e38
+            float physics:breakTorque = 3.4028235e38
+            point3f physics:localPos0 = (0.0333892, 1.47174e-7, 0.1805)
+            point3f physics:localPos1 = (0, 0, 0)
+            quatf physics:localRot0 = (0.50000006, -0.50000006, -0.50000006, -0.50000006)
+            quatf physics:localRot1 = (0.7071069, 0, -0.7071069, 0)
+            float physics:lowerLimit = -120
+            float physics:upperLimit = 120
+            float physxJoint:armature = 0
+            float physxLimit:X:damping = 0
+            float physxLimit:X:stiffness = 0
+        }
+
+        def PhysicsRevoluteJoint "head_pitch" (
+            prepend apiSchemas = ["PhysxJointAPI", "PhysxLimitAPI:X", "PhysicsDriveAPI:X"]
+        )
+        {
+            float drive:X:physics:damping = 0
+            float drive:X:physics:maxForce = 3.4028235e38
+            float drive:X:physics:stiffness = 0
+            uniform token drive:X:physics:type = "force"
+            uniform token physics:axis = "X"
+            rel physics:body0 = </sigmaban/u_neck>
+            rel physics:body1 = </sigmaban/head>
+            float physics:breakForce = 3.4028235e38
+            float physics:breakTorque = 3.4028235e38
+            point3f physics:localPos0 = (-0.023500005, 0, 0.058302045)
+            point3f physics:localPos1 = (-7.450579e-9, 2.9802319e-8, 7.450583e-9)
+            quatf physics:localRot0 = (0, 0, -0.7071069, -0.7071069)
+            quatf physics:localRot1 = (-0.7071067, -1.4346722e-15, 0.7071068, -2.107343e-8)
+            float physics:lowerLimit = -45
+            float physics:upperLimit = 90
+            float physxJoint:armature = 0
+            float physxLimit:X:damping = 0
+            float physxLimit:X:stiffness = 0
+        }
+
+        def PhysicsRevoluteJoint "left_shoulder_pitch" (
+            prepend apiSchemas = ["PhysxJointAPI", "PhysxLimitAPI:X", "PhysicsDriveAPI:X"]
+        )
+        {
+            float drive:X:physics:damping = 0
+            float drive:X:physics:maxForce = 3.4028235e38
+            float drive:X:physics:stiffness = 0
+            uniform token drive:X:physics:type = "force"
+            uniform token physics:axis = "X"
+            rel physics:body0 = </sigmaban/torso>
+            rel physics:body1 = </sigmaban/left_u_shoulder>
+            float physics:breakForce = 3.4028235e38
+            float physics:breakTorque = 3.4028235e38
+            point3f physics:localPos0 = (0.0283892, 0.0795001, 0.164)
+            point3f physics:localPos1 = (-3.469447e-18, 2.7755576e-17, -1.3877788e-17)
+            quatf physics:localRot0 = (0.50000006, -0.50000006, -0.50000006, 0.50000006)
+            quatf physics:localRot1 = (-0.70710677, -4.7503022e-8, 0.70710677, 4.7503022e-8)
+            float physics:lowerLimit = -125
+            float physics:upperLimit = 125
+            float physxJoint:armature = 0
+            float physxLimit:X:damping = 0
+            float physxLimit:X:stiffness = 0
+        }
+
+        def PhysicsRevoluteJoint "left_shoulder_roll" (
+            prepend apiSchemas = ["PhysxJointAPI", "PhysxLimitAPI:X", "PhysicsDriveAPI:X"]
+        )
+        {
+            float drive:X:physics:damping = 0
+            float drive:X:physics:maxForce = 3.4028235e38
+            float drive:X:physics:stiffness = 0
+            uniform token drive:X:physics:type = "force"
+            uniform token physics:axis = "X"
+            rel physics:body0 = </sigmaban/left_u_shoulder>
+            rel physics:body1 = </sigmaban/left_humerus>
+            float physics:breakForce = 3.4028235e38
+            float physics:breakTorque = 3.4028235e38
+            point3f physics:localPos0 = (0.023500003, 0.029999994, 0.030000009)
+            point3f physics:localPos1 = (0, 0, 0)
+            quatf physics:localRot0 = (-0.13052642, 0.9914448, 3.33165e-8, 1.4114784e-8)
+            quatf physics:localRot1 = (0.70710695, 0, -0.70710695, 0)
+            float physics:lowerLimit = -15
+            float physics:upperLimit = 75
+            float physxJoint:armature = 0
+            float physxLimit:X:damping = 0
+            float physxLimit:X:stiffness = 0
+        }
+
+        def PhysicsRevoluteJoint "left_elbow" (
+            prepend apiSchemas = ["PhysxJointAPI", "PhysxLimitAPI:X", "PhysicsDriveAPI:X"]
+        )
+        {
+            float drive:X:physics:damping = 0
+            float drive:X:physics:maxForce = 3.4028235e38
+            float drive:X:physics:stiffness = 0
+            uniform token drive:X:physics:type = "force"
+            uniform token physics:axis = "X"
+            rel physics:body0 = </sigmaban/left_humerus>
+            rel physics:body1 = </sigmaban/left_radius>
+            float physics:breakForce = 3.4028235e38
+            float physics:breakTorque = 3.4028235e38
+            point3f physics:localPos0 = (0.023499995, -0.14200002, -0.0024999976)
+            point3f physics:localPos1 = (7.4505753e-9, -2.6863104e-8, 3.9082476e-8)
+            quatf physics:localRot0 = (1.0000002, 0, 0, 2.9802322e-8)
+            quatf physics:localRot1 = (0.7071068, -2.497373e-8, -0.70710677, 8.6531706e-8)
+            float physics:lowerLimit = -160
+            float physics:upperLimit = 15
+            float physxJoint:armature = 0
+            float physxLimit:X:damping = 0
+            float physxLimit:X:stiffness = 0
+        }
+
+        def PhysicsRevoluteJoint "right_shoulder_pitch" (
+            prepend apiSchemas = ["PhysxJointAPI", "PhysxLimitAPI:X", "PhysicsDriveAPI:X"]
+        )
+        {
+            float drive:X:physics:damping = 0
+            float drive:X:physics:maxForce = 3.4028235e38
+            float drive:X:physics:stiffness = 0
+            uniform token drive:X:physics:type = "force"
+            uniform token physics:axis = "X"
+            rel physics:body0 = </sigmaban/torso>
+            rel physics:body1 = </sigmaban/right_u_shoulder>
+            float physics:breakForce = 3.4028235e38
+            float physics:breakTorque = 3.4028235e38
+            point3f physics:localPos0 = (0.0283892, -0.0794999, 0.164)
+            point3f physics:localPos1 = (0, -2.7755576e-17, 0)
+            quatf physics:localRot0 = (-0.50000006, -0.50000006, -0.50000006, -0.50000006)
+            quatf physics:localRot1 = (-0.70710677, -1.871696e-23, 0.70710677, -1.871696e-23)
+            float physics:lowerLimit = -125
+            float physics:upperLimit = 125
+            float physxJoint:armature = 0
+            float physxLimit:X:damping = 0
+            float physxLimit:X:stiffness = 0
+        }
+
+        def PhysicsRevoluteJoint "right_shoulder_roll" (
+            prepend apiSchemas = ["PhysxJointAPI", "PhysxLimitAPI:X", "PhysicsDriveAPI:X"]
+        )
+        {
+            float drive:X:physics:damping = 0
+            float drive:X:physics:maxForce = 3.4028235e38
+            float drive:X:physics:stiffness = 0
+            uniform token drive:X:physics:type = "force"
+            uniform token physics:axis = "X"
+            rel physics:body0 = </sigmaban/right_u_shoulder>
+            rel physics:body1 = </sigmaban/right_humerus>
+            float physics:breakForce = 3.4028235e38
+            float physics:breakTorque = 3.4028235e38
+            point3f physics:localPos0 = (-0.023499994, -0.030000001, -0.030000009)
+            point3f physics:localPos1 = (0, 0, 0)
+            quatf physics:localRot0 = (-1.5902151e-7, -1.011855e-7, 0.9914448, 0.13052626)
+            quatf physics:localRot1 = (0.70710707, 0, -0.70710707, 0)
+            float physics:lowerLimit = -75
+            float physics:upperLimit = 15
+            float physxJoint:armature = 0
+            float physxLimit:X:damping = 0
+            float physxLimit:X:stiffness = 0
+        }
+
+        def PhysicsRevoluteJoint "right_elbow" (
+            prepend apiSchemas = ["PhysxJointAPI", "PhysxLimitAPI:X", "PhysicsDriveAPI:X"]
+        )
+        {
+            float drive:X:physics:damping = 0
+            float drive:X:physics:maxForce = 3.4028235e38
+            float drive:X:physics:stiffness = 0
+            uniform token drive:X:physics:type = "force"
+            uniform token physics:axis = "X"
+            rel physics:body0 = </sigmaban/right_humerus>
+            rel physics:body1 = </sigmaban/right_radius>
+            float physics:breakForce = 3.4028235e38
+            float physics:breakTorque = 3.4028235e38
+            point3f physics:localPos0 = (-0.023500055, -0.14200012, -0.0025000423)
+            point3f physics:localPos1 = (-2.2351742e-8, 8.973389e-8, 2.4044196e-8)
+            quatf physics:localRot0 = (0, -1.0000005, 2.9802322e-8, 0)
+            quatf physics:localRot1 = (-0.7071067, -2.2078383e-7, 0.7071069, 1.3840977e-7)
+            float physics:lowerLimit = -160
+            float physics:upperLimit = 15
+            float physxJoint:armature = 0
+            float physxLimit:X:damping = 0
+            float physxLimit:X:stiffness = 0
+        }
+
+        def PhysicsRevoluteJoint "left_hip_yaw" (
+            prepend apiSchemas = ["PhysxJointAPI", "PhysxLimitAPI:X", "PhysicsDriveAPI:X"]
+        )
+        {
+            float drive:X:physics:damping = 0
+            float drive:X:physics:maxForce = 3.4028235e38
+            float drive:X:physics:stiffness = 0
+            uniform token drive:X:physics:type = "force"
+            uniform token physics:axis = "X"
+            rel physics:body0 = </sigmaban/torso>
+            rel physics:body1 = </sigmaban/left_u_block>
+            float physics:breakForce = 3.4028235e38
+            float physics:breakTorque = 3.4028235e38
+            point3f physics:localPos0 = (0.0033892, 0.0464001, -0.021)
+            point3f physics:localPos1 = (0, 0, 0)
+            quatf physics:localRot0 = (0, -0.7071068, 0, -0.7071068)
+            quatf physics:localRot1 = (-0.70710677, -2.2993472e-17, 0.70710677, -1.6081228e-16)
+            float physics:lowerLimit = -60
+            float physics:upperLimit = 60
+            float physxJoint:armature = 0
+            float physxLimit:X:damping = 0
+            float physxLimit:X:stiffness = 0
+        }
+
+        def PhysicsRevoluteJoint "left_hip_roll" (
+            prepend apiSchemas = ["PhysxJointAPI", "PhysxLimitAPI:X", "PhysicsDriveAPI:X"]
+        )
+        {
+            float drive:X:physics:damping = 0
+            float drive:X:physics:maxForce = 3.4028235e38
+            float drive:X:physics:stiffness = 0
+            uniform token drive:X:physics:type = "force"
+            uniform token physics:axis = "X"
+            rel physics:body0 = </sigmaban/left_u_block>
+            rel physics:body1 = </sigmaban/left_mx106_block_hip>
+            float physics:breakForce = 3.4028235e38
+            float physics:breakTorque = 3.4028235e38
+            point3f physics:localPos0 = (0.0234, 0, -0.04)
+            point3f physics:localPos1 = (0, 0, 0)
+            quatf physics:localRot0 = (-4.750303e-8, -4.750303e-8, 0.70710677, 0.70710677)
+            quatf physics:localRot1 = (0.7071068, -1.21016175e-8, -0.7071067, -1.2101614e-8)
+            float physics:lowerLimit = -30
+            float physics:upperLimit = 35
+            float physxJoint:armature = 0
+            float physxLimit:X:damping = 0
+            float physxLimit:X:stiffness = 0
+        }
+
+        def PhysicsRevoluteJoint "left_hip_pitch" (
+            prepend apiSchemas = ["PhysxJointAPI", "PhysxLimitAPI:X", "PhysicsDriveAPI:X"]
+        )
+        {
+            float drive:X:physics:damping = 0
+            float drive:X:physics:maxForce = 3.4028235e38
+            float drive:X:physics:stiffness = 0
+            uniform token drive:X:physics:type = "force"
+            uniform token physics:axis = "X"
+            rel physics:body0 = </sigmaban/left_mx106_block_hip>
+            rel physics:body1 = </sigmaban/left_knee>
+            float physics:breakForce = 3.4028235e38
+            float physics:breakTorque = 3.4028235e38
+            point3f physics:localPos0 = (0.0295, 0, 0.023400001)
+            point3f physics:localPos1 = (-4.3368087e-19, 6.938894e-18, 0)
+            quatf physics:localRot0 = (1.7763568e-15, 1, -5.9604645e-8, 5.960464e-8)
+            quatf physics:localRot1 = (0.7071068, 5.3561746e-9, -0.7071067, -5.3561715e-9)
+            float physics:lowerLimit = -90
+            float physics:upperLimit = 38.38817
+            float physxJoint:armature = 0
+            float physxLimit:X:damping = 0
+            float physxLimit:X:stiffness = 0
+        }
+
+        def PhysicsRevoluteJoint "left_knee" (
+            prepend apiSchemas = ["PhysxJointAPI", "PhysxLimitAPI:X", "PhysicsDriveAPI:X"]
+        )
+        {
+            float drive:X:physics:damping = 0
+            float drive:X:physics:maxForce = 3.4028235e38
+            float drive:X:physics:stiffness = 0
+            uniform token drive:X:physics:type = "force"
+            uniform token physics:axis = "X"
+            rel physics:body0 = </sigmaban/left_knee>
+            rel physics:body1 = </sigmaban/left_tibia>
+            float physics:breakForce = 3.4028235e38
+            float physics:breakTorque = 3.4028235e38
+            point3f physics:localPos0 = (-4.3368087e-19, 0.13999999, -0.0009999681)
+            point3f physics:localPos1 = (-4.3368087e-19, 0, 1.3877788e-17)
+            quatf physics:localRot0 = (0.7071068, 5.3561746e-9, -0.7071067, -5.3561715e-9)
+            quatf physics:localRot1 = (0.7071068, 5.3561746e-9, -0.7071067, -5.3561715e-9)
+            float physics:lowerLimit = 0
+            float physics:upperLimit = 130
+            float physxJoint:armature = 0
+            float physxLimit:X:damping = 0
+            float physxLimit:X:stiffness = 0
+        }
+
+        def PhysicsRevoluteJoint "left_ankle_pitch" (
+            prepend apiSchemas = ["PhysxJointAPI", "PhysxLimitAPI:X", "PhysicsDriveAPI:X"]
+        )
+        {
+            float drive:X:physics:damping = 0
+            float drive:X:physics:maxForce = 3.4028235e38
+            float drive:X:physics:stiffness = 0
+            uniform token drive:X:physics:type = "force"
+            uniform token physics:axis = "X"
+            rel physics:body0 = </sigmaban/left_tibia>
+            rel physics:body1 = </sigmaban/left_mx106_block_ankle>
+            float physics:breakForce = 3.4028235e38
+            float physics:breakTorque = 3.4028235e38
+            point3f physics:localPos0 = (-4.3368087e-19, 0.14, 3.3711395e-8)
+            point3f physics:localPos1 = (0, -5.551115e-17, 1.3877788e-17)
+            quatf physics:localRot0 = (-6.857644e-8, 0.7071067, -4.750303e-8, 0.7071068)
+            quatf physics:localRot1 = (0.7071069, 7.1130105e-16, -0.7071067, 3.161014e-8)
+            float physics:lowerLimit = -75
+            float physics:upperLimit = 75
+            float physxJoint:armature = 0
+            float physxLimit:X:damping = 0
+            float physxLimit:X:stiffness = 0
+        }
+
+        def PhysicsRevoluteJoint "left_ankle_roll" (
+            prepend apiSchemas = ["PhysxJointAPI", "PhysxLimitAPI:X", "PhysicsDriveAPI:X"]
+        )
+        {
+            float drive:X:physics:damping = 0
+            float drive:X:physics:maxForce = 3.4028235e38
+            float drive:X:physics:stiffness = 0
+            uniform token drive:X:physics:type = "force"
+            uniform token physics:axis = "X"
+            rel physics:body0 = </sigmaban/left_mx106_block_ankle>
+            rel physics:body1 = </sigmaban/left_foot>
+            float physics:breakForce = 3.4028235e38
+            float physics:breakTorque = 3.4028235e38
+            point3f physics:localPos0 = (0.023399994, -3.829227e-9, -0.028500002)
+            point3f physics:localPos1 = (6.938894e-18, 0, 3.469447e-18)
+            quatf physics:localRot0 = (-4.249036e-8, -5.960463e-8, 1, -6.7179435e-8)
+            quatf physics:localRot1 = (-0.70710677, -5.3561977e-9, 0.70710677, -5.3561973e-9)
+            float physics:lowerLimit = -45
+            float physics:upperLimit = 45
+            float physxJoint:armature = 0
+            float physxLimit:X:damping = 0
+            float physxLimit:X:stiffness = 0
+        }
+
+        def PhysicsRevoluteJoint "right_hip_yaw" (
+            prepend apiSchemas = ["PhysxJointAPI", "PhysxLimitAPI:X", "PhysicsDriveAPI:X"]
+        )
+        {
+            float drive:X:physics:damping = 0
+            float drive:X:physics:maxForce = 3.4028235e38
+            float drive:X:physics:stiffness = 0
+            uniform token drive:X:physics:type = "force"
+            uniform token physics:axis = "X"
+            rel physics:body0 = </sigmaban/torso>
+            rel physics:body1 = </sigmaban/right_u_block>
+            float physics:breakForce = 3.4028235e38
+            float physics:breakTorque = 3.4028235e38
+            point3f physics:localPos0 = (0.0033892, -0.0463999, -0.021)
+            point3f physics:localPos1 = (0, 0, 0)
+            quatf physics:localRot0 = (0, -0.7071068, 0, -0.7071068)
+            quatf physics:localRot1 = (-0.70710677, -2.2993472e-17, 0.70710677, -1.6081228e-16)
+            float physics:lowerLimit = -60
+            float physics:upperLimit = 60
+            float physxJoint:armature = 0
+            float physxLimit:X:damping = 0
+            float physxLimit:X:stiffness = 0
+        }
+
+        def PhysicsRevoluteJoint "right_hip_roll" (
+            prepend apiSchemas = ["PhysxJointAPI", "PhysxLimitAPI:X", "PhysicsDriveAPI:X"]
+        )
+        {
+            float drive:X:physics:damping = 0
+            float drive:X:physics:maxForce = 3.4028235e38
+            float drive:X:physics:stiffness = 0
+            uniform token drive:X:physics:type = "force"
+            uniform token physics:axis = "X"
+            rel physics:body0 = </sigmaban/right_u_block>
+            rel physics:body1 = </sigmaban/right_mx106_block_hip>
+            float physics:breakForce = 3.4028235e38
+            float physics:breakTorque = 3.4028235e38
+            point3f physics:localPos0 = (0.0234, 0, -0.04)
+            point3f physics:localPos1 = (0, 0, 0)
+            quatf physics:localRot0 = (-4.750303e-8, -4.750303e-8, 0.70710677, 0.70710677)
+            quatf physics:localRot1 = (0.7071068, -1.21016175e-8, -0.7071067, -1.2101614e-8)
+            float physics:lowerLimit = -34
+            float physics:upperLimit = 30
+            float physxJoint:armature = 0
+            float physxLimit:X:damping = 0
+            float physxLimit:X:stiffness = 0
+        }
+
+        def PhysicsRevoluteJoint "right_hip_pitch" (
+            prepend apiSchemas = ["PhysxJointAPI", "PhysxLimitAPI:X", "PhysicsDriveAPI:X"]
+        )
+        {
+            float drive:X:physics:damping = 0
+            float drive:X:physics:maxForce = 3.4028235e38
+            float drive:X:physics:stiffness = 0
+            uniform token drive:X:physics:type = "force"
+            uniform token physics:axis = "X"
+            rel physics:body0 = </sigmaban/right_mx106_block_hip>
+            rel physics:body1 = </sigmaban/right_knee>
+            float physics:breakForce = 3.4028235e38
+            float physics:breakTorque = 3.4028235e38
+            point3f physics:localPos0 = (-0.0295, 0, 0.023400001)
+            point3f physics:localPos1 = (0, -6.938894e-18, -1.3877788e-17)
+            quatf physics:localRot0 = (1, 1.490116e-8, 1.0430813e-7, 1.490116e-8)
+            quatf physics:localRot1 = (-0.70710677, -1.871696e-23, 0.70710677, -1.871696e-23)
+            float physics:lowerLimit = -90
+            float physics:upperLimit = 38.38817
+            float physxJoint:armature = 0
+            float physxLimit:X:damping = 0
+            float physxLimit:X:stiffness = 0
+        }
+
+        def PhysicsRevoluteJoint "right_knee" (
+            prepend apiSchemas = ["PhysxJointAPI", "PhysxLimitAPI:X", "PhysicsDriveAPI:X"]
+        )
+        {
+            float drive:X:physics:damping = 0
+            float drive:X:physics:maxForce = 3.4028235e38
+            float drive:X:physics:stiffness = 0
+            uniform token drive:X:physics:type = "force"
+            uniform token physics:axis = "X"
+            rel physics:body0 = </sigmaban/right_knee>
+            rel physics:body1 = </sigmaban/right_tibia>
+            float physics:breakForce = 3.4028235e38
+            float physics:breakTorque = 3.4028235e38
+            point3f physics:localPos0 = (0, -0.13999999, 0.0009999681)
+            point3f physics:localPos1 = (-4.3368087e-19, 0, -1.3877788e-17)
+            quatf physics:localRot0 = (-4.2146848e-8, 0.7071067, -4.214685e-8, 0.7071068)
+            quatf physics:localRot1 = (0.7071068, 5.3561746e-9, -0.7071067, -5.3561715e-9)
+            float physics:lowerLimit = 0
+            float physics:upperLimit = 130
+            float physxJoint:armature = 0
+            float physxLimit:X:damping = 0
+            float physxLimit:X:stiffness = 0
+        }
+
+        def PhysicsRevoluteJoint "right_ankle_pitch" (
+            prepend apiSchemas = ["PhysxJointAPI", "PhysxLimitAPI:X", "PhysicsDriveAPI:X"]
+        )
+        {
+            float drive:X:physics:damping = 0
+            float drive:X:physics:maxForce = 3.4028235e38
+            float drive:X:physics:stiffness = 0
+            uniform token drive:X:physics:type = "force"
+            uniform token physics:axis = "X"
+            rel physics:body0 = </sigmaban/right_tibia>
+            rel physics:body1 = </sigmaban/right_mx106_block_ankle>
+            float physics:breakForce = 3.4028235e38
+            float physics:breakTorque = 3.4028235e38
+            point3f physics:localPos0 = (-4.3368087e-19, 0.14, 3.3711395e-8)
+            point3f physics:localPos1 = (-4.3368087e-19, 5.551115e-17, 0)
+            quatf physics:localRot0 = (0.7071068, 5.3561746e-9, -0.7071067, -5.3561715e-9)
+            quatf physics:localRot1 = (0.7071068, 5.3561746e-9, -0.7071067, -5.3561715e-9)
+            float physics:lowerLimit = -75
+            float physics:upperLimit = 75
+            float physxJoint:armature = 0
+            float physxLimit:X:damping = 0
+            float physxLimit:X:stiffness = 0
+        }
+
+        def PhysicsRevoluteJoint "right_ankle_roll" (
+            prepend apiSchemas = ["PhysxJointAPI", "PhysxLimitAPI:X", "PhysicsDriveAPI:X"]
+        )
+        {
+            float drive:X:physics:damping = 0
+            float drive:X:physics:maxForce = 3.4028235e38
+            float drive:X:physics:stiffness = 0
+            uniform token drive:X:physics:type = "force"
+            uniform token physics:axis = "X"
+            rel physics:body0 = </sigmaban/right_mx106_block_ankle>
+            rel physics:body1 = </sigmaban/right_foot>
+            float physics:breakForce = 3.4028235e38
+            float physics:breakTorque = 3.4028235e38
+            point3f physics:localPos0 = (-0.023400005, -3.829227e-9, 0.028500002)
+            point3f physics:localPos1 = (6.938894e-18, 0, -3.469447e-18)
+            quatf physics:localRot0 = (-1.3435886e-7, 1, 5.9604627e-8, 4.2490363e-8)
+            quatf physics:localRot1 = (-0.70710677, -5.3561977e-9, 0.70710677, -5.3561977e-9)
+            float physics:lowerLimit = -45
+            float physics:upperLimit = 45
+            float physxJoint:armature = 0
+            float physxLimit:X:damping = 0
+            float physxLimit:X:stiffness = 0
+        }
+    }
+
+    def Xform "left_humerus" (
+        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysxRigidBodyAPI", "PhysicsMassAPI", "PhysicsFilteredPairsAPI"]
+    )
+    {
+        point3f physics:centerOfMass = (0.000340637, -0.0522685, -0.0268822)
+        float3 physics:diagonalInertia = (0.0007708, 0.000757172, 0.0000790289)
+        float physics:mass = 0.243502
+        matrix4d xformOp:transform = ( (-1.4441619988758703e-7, 0.965925896656536, 0.25881934046876687, 0), (0, -0.25881948488496676, 0.965925896656536, 0), (1.0000001444161999, 0, -1.4441619988758703e-7, 0), (0.05188920348882675, 0.10950011014938354, 0.1340000033378601, 1) )
+        uniform token[] xformOpOrder = ["xformOp:transform"]
+
+        def "collisions"
+        {
+            def Cube "_geom_16" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.0201, -0.03055, -0.0205), (0.0201, 0.03055, 0.0205)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (0.020099999383091927, 0, 0, 0), (0, 0.030549999326467514, 0, 0), (0, 0, 0.020500000566244125, 0), (0, -0.017550000920891762, -0.023499999195337296, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_17" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.0525, -0.015, -0.0015), (0.0525, 0.015, 0.0015)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (-7.053839745233831e-9, -0.05250000541471202, 0, 0), (-0.015000001680106675, -2.0153828022284425e-9, 0, 0), (0, -0, -0.001500000416115089, 0), (0, -0.10450000315904617, -0.03999999910593033, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+        }
+
+        def "visuals"
+        {
+            def Cube "_geom_16" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.0201, -0.03055, -0.0205), (0.0201, 0.03055, 0.0205)]
+                rel material:binding = </sigmaban/left_humerus/visuals/Looks/material_rgba>
+                matrix4d xformOp:transform = ( (0.020099999383091927, 0, 0, 0), (0, 0.030549999326467514, 0, 0), (0, 0, 0.020500000566244125, 0), (0, -0.017550000920891762, -0.023499999195337296, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_17" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.0525, -0.015, -0.0015), (0.0525, 0.015, 0.0015)]
+                rel material:binding = </sigmaban/left_humerus/visuals/Looks/material_rgba_1>
+                matrix4d xformOp:transform = ( (-7.053839745233831e-9, -0.05250000541471202, 0, 0), (-0.015000001680106675, -2.0153828022284425e-9, 0, 0), (0, -0, -0.001500000416115089, 0), (0, -0.10450000315904617, -0.03999999910593033, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+        }
+    }
+
+    def Xform "right_humerus" (
+        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysxRigidBodyAPI", "PhysicsMassAPI", "PhysicsFilteredPairsAPI"]
+    )
+    {
+        point3f physics:centerOfMass = (-0.000172255, -0.0522685, -0.0268669)
+        float3 physics:diagonalInertia = (0.000770875, 0.000757172, 0.0000790454)
+        float physics:mass = 0.243502
+        matrix4d xformOp:transform = ( (-3.294803505582422e-7, 0.9659260661607334, -0.2588194229034215, 0), (0, 0.25881909342307097, 0.9659260661607334, 0), (1.0000003294803506, 0, -3.294803505582422e-7, 0), (0.05188919976353645, -0.10949990898370743, 0.1340000033378601, 1) )
+        uniform token[] xformOpOrder = ["xformOp:transform"]
+
+        def "collisions"
+        {
+            def Cube "_geom_24" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.0525, -0.015, -0.0015), (0.0525, 0.015, 0.0015)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (-7.053839745233831e-9, -0.05250000541471202, 0, 0), (-0.015000001680106675, -2.0153828022284425e-9, 0, 0), (0, -0, -0.001500000416115089, 0), (0, -0.10450000315904617, -0.03999999910593033, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_25" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.0201, -0.03055, -0.0205), (0.0201, 0.03055, 0.0205)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (0.020099999383091927, 0, 0, 0), (0, 0.030549999326467514, 0, 0), (0, 0, 0.020500000566244125, 0), (0, -0.017550000920891762, -0.023499999195337296, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+        }
+
+        def "visuals"
+        {
+            def Cube "_geom_24" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.0525, -0.015, -0.0015), (0.0525, 0.015, 0.0015)]
+                rel material:binding = </sigmaban/right_humerus/visuals/Looks/material_rgba>
+                matrix4d xformOp:transform = ( (-7.053839745233831e-9, -0.05250000541471202, 0, 0), (-0.015000001680106675, -2.0153828022284425e-9, 0, 0), (0, -0, -0.001500000416115089, 0), (0, -0.10450000315904617, -0.03999999910593033, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_25" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            { 
+                float3[] extent = [(-0.0201, -0.03055, -0.0205), (0.0201, 0.03055, 0.0205)]
+                rel material:binding = </sigmaban/right_humerus/visuals/Looks/material_rgba_1>
+                matrix4d xformOp:transform = ( (0.020099999383091927, 0, 0, 0), (0, 0.030549999326467514, 0, 0), (0, 0, 0.020500000566244125, 0), (0, -0.017550000920891762, -0.023499999195337296, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+        }
+    }
+
+    def Xform "head" (
+        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysxRigidBodyAPI", "PhysicsMassAPI", "PhysicsFilteredPairsAPI"]
+    )
+    {
+        point3f physics:centerOfMass = (-0.000139838, 0.00397747, -0.0233757)
+        float3 physics:diagonalInertia = (0.000251953, 0.000245992, 0.000105535)
+        float physics:mass = 0.257265
+        matrix4d xformOp:transform = ( (-1.000000268717713, -0, 0, 0), (0, -1.3435885648505064e-7, 1.0000001343588565, 0), (-0, 1.0000001343588565, -1.3435885648505064e-7, 0), (0.033389195799827576, 0.023500148206949234, 0.2388020157814026, 1) )
+        uniform token[] xformOpOrder = ["xformOp:transform"]
+
+        def "collisions"
+        {
+            def Cylinder "_geom_10" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                uniform token axis = "Z"
+                float3[] extent = [(-0.0015, -0.0235, -0.0235), (0.0015, 0.0235, 0.0235)]
+                double height = 0.003000000026077032
+                uniform token physics:approximation = "convexHull"
+                uniform token purpose = "guide"
+                double radius = 0.023499999195337296
+                matrix4d xformOp:transform = ( (-1, 0, 0, 0), (0, 1, 0, 0), (0, 0, -1, 0), (-0.023800000548362732, 0.0364999994635582, -0.004999999888241291, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_11" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.0308, -0.0235, -0.0015), (0.0308, 0.0235, 0.0015)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (-0.030799999833106995, 0, 0, 0), (0, 0.023499999195337296, 0, 0), (0, 0, -0.001500000013038516, 0), (0.009999999776482582, 0.0364999994635582, -0.004999999888241291, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cylinder "_geom_12" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                uniform token axis = "Z"
+                float3[] extent = [(-0.0015, -0.0235, -0.0235), (0.0015, 0.0235, 0.0235)]
+                double height = 0.003000000026077032
+                uniform token physics:approximation = "convexHull"
+                uniform token purpose = "guide"
+                double radius = 0.023499999195337296
+                matrix4d xformOp:transform = ( (-1, 0, 0, 0), (0, 1, 0, 0), (0, 0, -1, 0), (-0.023800000548362732, 0.0364999994635582, -0.04899999871850014, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_13" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.0308, -0.0235, -0.0015), (0.0308, 0.0235, 0.0015)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (-0.030799999833106995, 0, 0, 0), (0, 0.023499999195337296, 0, 0), (0, 0, -0.001500000013038516, 0), (0.009999999776482582, 0.0364999994635582, -0.04899999871850014, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_14" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.0201, -0.03055, -0.0205), (0.0201, 0.03055, 0.0205)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (0.020099999383091927, 0, 0, 0), (0, 0.030549999326467514, 0, 0), (0, 0, 0.020500000566244125, 0), (0, -0.017550000920891762, -0.023499999195337296, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+        }
+
+        def "visuals"
+        {
+            def Cylinder "_geom_10" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                uniform token axis = "Z"
+                float3[] extent = [(-0.0015, -0.0235, -0.0235), (0.0015, 0.0235, 0.0235)]
+                double height = 0.003000000026077032
+                rel material:binding = </sigmaban/head/visuals/Looks/material_rgba>
+                double radius = 0.023499999195337296
+                matrix4d xformOp:transform = ( (-1, 0, 0, 0), (0, 1, 0, 0), (0, 0, -1, 0), (-0.023800000548362732, 0.0364999994635582, -0.004999999888241291, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_11" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.0308, -0.0235, -0.0015), (0.0308, 0.0235, 0.0015)]
+                rel material:binding = </sigmaban/head/visuals/Looks/material_rgba_1>
+                matrix4d xformOp:transform = ( (-0.030799999833106995, 0, 0, 0), (0, 0.023499999195337296, 0, 0), (0, 0, -0.001500000013038516, 0), (0.009999999776482582, 0.0364999994635582, -0.004999999888241291, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cylinder "_geom_12" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                uniform token axis = "Z"
+                float3[] extent = [(-0.0015, -0.0235, -0.0235), (0.0015, 0.0235, 0.0235)]
+                double height = 0.003000000026077032
+                rel material:binding = </sigmaban/head/visuals/Looks/material_rgba_2>
+                double radius = 0.023499999195337296
+                matrix4d xformOp:transform = ( (-1, 0, 0, 0), (0, 1, 0, 0), (0, 0, -1, 0), (-0.023800000548362732, 0.0364999994635582, -0.04899999871850014, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_13" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.0308, -0.0235, -0.0015), (0.0308, 0.0235, 0.0015)]
+                rel material:binding = </sigmaban/head/visuals/Looks/material_rgba_3>
+                matrix4d xformOp:transform = ( (-0.030799999833106995, 0, 0, 0), (0, 0.023499999195337296, 0, 0), (0, 0, -0.001500000013038516, 0), (0.009999999776482582, 0.0364999994635582, -0.04899999871850014, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_14" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.0201, -0.03055, -0.0205), (0.0201, 0.03055, 0.0205)]
+                rel material:binding = </sigmaban/head/visuals/Looks/material_rgba_4>
+                matrix4d xformOp:transform = ( (0.020099999383091927, 0, 0, 0), (0, 0.030549999326467514, 0, 0), (0, 0, 0.020500000566244125, 0), (0, -0.017550000920891762, -0.023499999195337296, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+        }
+    }
+
+    def Xform "left_u_shoulder" (
+        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysxRigidBodyAPI", "PhysicsMassAPI", "PhysicsFilteredPairsAPI"]
+    )
+    {
+        point3f physics:centerOfMass = (0, 0.00364642, 0.0214003)
+        float3 physics:diagonalInertia = (0.0000570899, 0.0000453448, 0.0000335766)
+        float physics:mass = 0.0751043
+        matrix4d xformOp:transform = ( (1, 0, -0, 0), (-0, -1.3435885648505064e-7, -1.0000001343588565, 0), (0, 1.0000001343588565, -1.3435885648505064e-7, 0), (0.028389200568199158, 0.07950010150671005, 0.164000004529953, 1) )
+        uniform token[] xformOpOrder = ["xformOp:transform"]
+
+        def "collisions"
+        {
+            def Cube "_geom_15" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.0245, -0.015, -0.003125), (0.0245, 0.015, 0.003125)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (0.02449999935925007, 0, 0, 0), (0, -0.014999999664723873, 0, 0), (0, 0, -0.0031250000465661287, 0), (0, 0, 0.00712500000372529, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+        }
+
+        def "visuals"
+        {
+            def Cube "_geom_15" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.0245, -0.015, -0.003125), (0.0245, 0.015, 0.003125)]
+                rel material:binding = </sigmaban/left_u_shoulder/visuals/Looks/material_rgba>
+                matrix4d xformOp:transform = ( (0.02449999935925007, 0, 0, 0), (0, -0.014999999664723873, 0, 0), (0, 0, -0.0031250000465661287, 0), (0, 0, 0.00712500000372529, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+        }
+    }
+
+    def Xform "right_radius" (
+        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysxRigidBodyAPI", "PhysicsMassAPI", "PhysicsFilteredPairsAPI"]
+    )
+    {
+        point3f physics:centerOfMass = (0.0000798171, 0.0556905, 0.0234333)
+        float3 physics:diagonalInertia = (0.000947096, 0.000937203, 0.000130591)
+        float physics:mass = 0.256846
+        matrix4d xformOp:transform = ( (1, 0, 0, 0), (0, -0.2588199238210862, -0.9659261646556416, 0), (0, 0.9659261646556416, -0.2588199238210862, 0), (0.04938918724656105, -0.16895157098770142, 0.0029207468032836914, 1) )
+        uniform token[] xformOpOrder = ["xformOp:transform"]
+
+        def "collisions"
+        {
+            def Cylinder "_geom_26" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                uniform token axis = "Z"
+                float3[] extent = [(-0.0015, -0.04, -0.04), (0.0015, 0.04, 0.04)]
+                double height = 0.003000000026077032
+                uniform token physics:approximation = "convexHull"
+                uniform token purpose = "guide"
+                double radius = 0.03999999910593033
+                matrix4d xformOp:transform = ( (-1.3435885648505064e-7, 1.0000001343588565, 0, 0), (1.0000001343588565, -1.3435885648505064e-7, 0, 0), (0, 0, -1.000000268717713, 0), (0, 0.14959999918937683, 0.004999999888241291, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_27" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.0497756, -0.0206, -0.0015), (0.0497756, 0.0206, 0.0015)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (-6.6877927550816445e-9, 0.049775607121142366, 0, 0), (0.020600003164163383, -2.7677924968479824e-9, 0, 0), (0, 0, -0.001500000416115089, 0), (0, 0.06497559696435928, 0.004999999888241291, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cylinder "_geom_28" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                uniform token axis = "Z"
+                float3[] extent = [(-0.0015, -0.04, -0.04), (0.0015, 0.04, 0.04)]
+                double height = 0.003000000026077032
+                uniform token physics:approximation = "convexHull"
+                uniform token purpose = "guide"
+                double radius = 0.03999999910593033
+                matrix4d xformOp:transform = ( (-1.3435885648505064e-7, 1.0000001343588565, 0, 0), (1.0000001343588565, -1.3435885648505064e-7, 0, 0), (0, 0, -1.000000268717713, 0), (0, 0.14959999918937683, 0.041999999433755875, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_29" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.0497756, -0.0206, -0.0015), (0.0497756, 0.0206, 0.0015)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (-6.6877927550816445e-9, 0.049775607121142366, 0, 0), (0.020600003164163383, -2.7677924968479824e-9, 0, 0), (0, 0, -0.001500000416115089, 0), (0, 0.06497559696435928, 0.041999999433755875, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_30" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.0201, -0.03055, -0.0205), (0.0201, 0.03055, 0.0205)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (0.020099999383091927, 0, 0, 0), (0, -0.030549999326467514, 0, 0), (0, 0, -0.020500000566244125, 0), (0, 0.017550000920891762, 0.023499999195337296, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+        }
+
+        def "visuals"
+        {
+            def Cylinder "_geom_26" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                uniform token axis = "Z"
+                float3[] extent = [(-0.0015, -0.04, -0.04), (0.0015, 0.04, 0.04)]
+                double height = 0.003000000026077032
+                rel material:binding = </sigmaban/right_radius/visuals/Looks/material_rgba>
+                double radius = 0.03999999910593033
+                matrix4d xformOp:transform = ( (-1.3435885648505064e-7, 1.0000001343588565, 0, 0), (1.0000001343588565, -1.3435885648505064e-7, 0, 0), (0, 0, -1.000000268717713, 0), (0, 0.14959999918937683, 0.004999999888241291, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_27" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.0497756, -0.0206, -0.0015), (0.0497756, 0.0206, 0.0015)]
+                rel material:binding = </sigmaban/right_radius/visuals/Looks/material_rgba_1>
+                matrix4d xformOp:transform = ( (-6.6877927550816445e-9, 0.049775607121142366, 0, 0), (0.020600003164163383, -2.7677924968479824e-9, 0, 0), (0, 0, -0.001500000416115089, 0), (0, 0.06497559696435928, 0.004999999888241291, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cylinder "_geom_28" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                uniform token axis = "Z"
+                float3[] extent = [(-0.0015, -0.04, -0.04), (0.0015, 0.04, 0.04)]
+                double height = 0.003000000026077032
+                rel material:binding = </sigmaban/right_radius/visuals/Looks/material_rgba_2>
+                double radius = 0.03999999910593033
+                matrix4d xformOp:transform = ( (-1.3435885648505064e-7, 1.0000001343588565, 0, 0), (1.0000001343588565, -1.3435885648505064e-7, 0, 0), (0, 0, -1.000000268717713, 0), (0, 0.14959999918937683, 0.041999999433755875, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_29" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.0497756, -0.0206, -0.0015), (0.0497756, 0.0206, 0.0015)]
+                rel material:binding = </sigmaban/right_radius/visuals/Looks/material_rgba_3>
+                matrix4d xformOp:transform = ( (-6.6877927550816445e-9, 0.049775607121142366, 0, 0), (0.020600003164163383, -2.7677924968479824e-9, 0, 0), (0, 0, -0.001500000416115089, 0), (0, 0.06497559696435928, 0.041999999433755875, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_30" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.0201, -0.03055, -0.0205), (0.0201, 0.03055, 0.0205)]
+                rel material:binding = </sigmaban/right_radius/visuals/Looks/material_rgba_4>
+                matrix4d xformOp:transform = ( (0.020099999383091927, 0, 0, 0), (0, -0.030549999326467514, 0, 0), (0, 0, -0.020500000566244125, 0), (0, 0.017550000920891762, 0.023499999195337296, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+        }
+    }
+
+    def Xform "left_u_block" (
+        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysxRigidBodyAPI", "PhysicsMassAPI", "PhysicsFilteredPairsAPI"]
+    )
+    {
+        point3f physics:centerOfMass = (-0.00509532, -8.44195e-7, -0.00985131)
+        float3 physics:diagonalInertia = (0.0000424266, 0.000035526, 0.0000200009)
+        float physics:mass = 0.0630136
+        matrix4d xformOp:transform = ( (-1, 0, -0, 0), (0, -1, 0, 0), (0, -0, 1, 0), (0.003389199962839484, 0.046400099992752075, -0.020999999716877937, 1) )
+        uniform token[] xformOpOrder = ["xformOp:transform"]
+
+        def "collisions"
+        {
+            def Cube "_geom_31" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.01875, -0.02375, -0.0015), (0.01875, 0.02375, 0.0015)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (0, 0.01875000074505806, 0, 0), (0, 0, 0.023749999701976776, 0), (0.001500000013038516, 0, 0, 0), (-0.03144000098109245, 0, -0.023749999701976776, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_32" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.01875, -0.02375, -0.0015), (0.01875, 0.02375, 0.0015)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (0, -0.01875000074505806, 0, 0), (0, 0, -0.023749999701976776, 0), (0.001500000013038516, 0, 0, 0), (0.021900000050663948, 0, -0.023749999701976776, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+        }
+
+        def "visuals"
+        {
+            def Cube "_geom_31" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.01875, -0.02375, -0.0015), (0.01875, 0.02375, 0.0015)]
+                rel material:binding = </sigmaban/left_u_block/visuals/Looks/material_rgba>
+                matrix4d xformOp:transform = ( (0, 0.01875000074505806, 0, 0), (0, 0, 0.023749999701976776, 0), (0.001500000013038516, 0, 0, 0), (-0.03144000098109245, 0, -0.023749999701976776, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_32" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.01875, -0.02375, -0.0015), (0.01875, 0.02375, 0.0015)]
+                rel material:binding = </sigmaban/left_u_block/visuals/Looks/material_rgba_1>
+                matrix4d xformOp:transform = ( (0, -0.01875000074505806, 0, 0), (0, 0, -0.023749999701976776, 0), (0.001500000013038516, 0, 0, 0), (0.021900000050663948, 0, -0.023749999701976776, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+        }
+    }
+
+    def Xform "left_mx106_block_hip" (
+        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysxRigidBodyAPI", "PhysicsMassAPI", "PhysicsFilteredPairsAPI"]
+    )
+    {
+        point3f physics:centerOfMass = (-0.000525167, -0.0153964, 0.00382779)
+        float3 physics:diagonalInertia = (0.000428697, 0.000375755, 0.000176713)
+        float physics:mass = 0.397097
+        matrix4d xformOp:transform = ( (0, 1, 0, 0), (0, 0, 1, 0), (1, 0, 0, 0), (-0.020010799169540405, 0.046400099992752075, -0.060999996960163116, 1) )
+        uniform token[] xformOpOrder = ["xformOp:transform"]
+
+        def "collisions"
+        {
+            def Cube "_geom_33" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.0201, -0.03255, -0.023), (0.0201, 0.03255, 0.023)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (0.020099999383091927, 0, 0, 0), (0, 0.03254999965429306, 0, 0), (0, 0, 0.023000000044703484, 0), (0, -0.018050000071525574, -0.026000000536441803, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_34" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.0201, -0.03255, -0.023), (0.0201, 0.03255, 0.023)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (-2.7006129324624545e-9, 0, -0.020100002083704858, 0), (0, 0.03254999965429306, 0, 0), (0.02300000313495719, 0, -3.0902537051624736e-9, 0), (0, -0.018050000071525574, 0.023399999365210533, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+        }
+
+        def "visuals"
+        {
+            def Cube "_geom_33" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.0201, -0.03255, -0.023), (0.0201, 0.03255, 0.023)]
+                rel material:binding = </sigmaban/left_mx106_block_hip/visuals/Looks/material_rgba>
+                matrix4d xformOp:transform = ( (0.020099999383091927, 0, 0, 0), (0, 0.03254999965429306, 0, 0), (0, 0, 0.023000000044703484, 0), (0, -0.018050000071525574, -0.026000000536441803, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_34" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.0201, -0.03255, -0.023), (0.0201, 0.03255, 0.023)]
+                rel material:binding = </sigmaban/left_mx106_block_hip/visuals/Looks/material_rgba_1>
+                matrix4d xformOp:transform = ( (-2.7006129324624545e-9, 0, -0.020100002083704858, 0), (0, 0.03254999965429306, 0, 0), (0.02300000313495719, 0, -3.0902537051624736e-9, 0), (0, -0.018050000071525574, 0.023399999365210533, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+        }
+    }
+
+    def Xform "left_knee" (
+        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysxRigidBodyAPI", "PhysicsMassAPI", "PhysicsFilteredPairsAPI"]
+    )
+    {
+        point3f physics:centerOfMass = (-0.0000304946, 0.100616, -0.0296228)
+        float3 physics:diagonalInertia = (0.000539256, 0.000462483, 0.000122223)
+        float physics:mass = 0.268473
+        matrix4d xformOp:transform = ( (1, 0, -0, 0), (-0, -1.3435885648505064e-7, -1.0000001343588565, 0), (0, 1.0000001343588565, -1.3435885648505064e-7, 0), (0.003389202058315277, 0.07590010017156601, -0.060999996960163116, 1) )
+        uniform token[] xformOpOrder = ["xformOp:transform"]
+
+        def "collisions"
+        {
+            def Cube "_geom_35" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.0201, -0.03255, -0.023), (0.0201, 0.03255, 0.023)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (0.020099999383091927, 0, 0, 0), (0, 0.03254999965429306, 0, 0), (0, 0, 0.023000000044703484, 0), (0, 0.12195000052452087, -0.029500000178813934, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_36" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.015, -0.04825, -0.0015), (0.015, 0.04825, 0.0015)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (0.014999999664723873, 0, 0, 0), (0, -0.048250000923871994, 0, 0), (0, 0, -0.001500000013038516, 0), (0, 0.03725000098347664, -0.05700000002980232, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_37" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.015, -0.04825, -0.0015), (0.015, 0.04825, 0.0015)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (0.014999999664723873, 0, 0, 0), (0, 0.048250000923871994, 0, 0), (0, 0, 0.001500000013038516, 0), (0, 0.03725000098347664, 0.001500000013038516, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+        }
+
+        def "visuals"
+        {
+            def Cube "_geom_35" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.0201, -0.03255, -0.023), (0.0201, 0.03255, 0.023)]
+                rel material:binding = </sigmaban/left_knee/visuals/Looks/material_rgba>
+                matrix4d xformOp:transform = ( (0.020099999383091927, 0, 0, 0), (0, 0.03254999965429306, 0, 0), (0, 0, 0.023000000044703484, 0), (0, 0.12195000052452087, -0.029500000178813934, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_36" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.015, -0.04825, -0.0015), (0.015, 0.04825, 0.0015)]
+                rel material:binding = </sigmaban/left_knee/visuals/Looks/material_rgba_1>
+                matrix4d xformOp:transform = ( (0.014999999664723873, 0, 0, 0), (0, -0.048250000923871994, 0, 0), (0, 0, -0.001500000013038516, 0), (0, 0.03725000098347664, -0.05700000002980232, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_37" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.015, -0.04825, -0.0015), (0.015, 0.04825, 0.0015)]
+                rel material:binding = </sigmaban/left_knee/visuals/Looks/material_rgba_2>
+                matrix4d xformOp:transform = ( (0.014999999664723873, 0, 0, 0), (0, 0.048250000923871994, 0, 0), (0, 0, 0.001500000013038516, 0), (0, 0.03725000098347664, 0.001500000013038516, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+        }
+    }
+
+    def Xform "left_tibia" (
+        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysxRigidBodyAPI", "PhysicsMassAPI", "PhysicsFilteredPairsAPI"]
+    )
+    {
+        point3f physics:centerOfMass = (-0.00296199, 0.0631405, -0.0268398)
+        float3 physics:diagonalInertia = (0.000351979, 0.00027164, 0.000103748)
+        float physics:mass = 0.113077
+        matrix4d xformOp:transform = ( (1, 0, -0, 0), (-0, -1.3435885648505064e-7, -1.0000001343588565, 0), (0, 1.0000001343588565, -1.3435885648505064e-7, 0), (0.003389202058315277, 0.07490011304616928, -0.20100000500679016, 1) )
+        uniform token[] xformOpOrder = ["xformOp:transform"]
+
+        def "collisions"
+        {
+            def Cube "_geom_38" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.0202131, -0.0850495, -0.0015), (0.0202131, 0.0850495, 0.0015)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (-0.02021309919655323, 0, 0, 0), (0, 0.08504950255155563, 0, 0), (0, 0, -0.001500000013038516, 0), (-0.006213100161403418, 0.06895100325345993, 0.001500000013038516, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_39" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.0202131, -0.0850495, -0.0015), (0.0202131, 0.0850495, 0.0015)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (-0.02021309919655323, 0, 0, 0), (0, 0.08504950255155563, 0, 0), (0, 0, -0.001500000013038516, 0), (-0.006213100161403418, 0.06895100325345993, -0.05593999847769737, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+        }
+
+        def "visuals"
+        {
+            def Cube "_geom_38" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.0202131, -0.0850495, -0.0015), (0.0202131, 0.0850495, 0.0015)]
+                rel material:binding = </sigmaban/left_tibia/visuals/Looks/material_rgba>
+                matrix4d xformOp:transform = ( (-0.02021309919655323, 0, 0, 0), (0, 0.08504950255155563, 0, 0), (0, 0, -0.001500000013038516, 0), (-0.006213100161403418, 0.06895100325345993, 0.001500000013038516, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_39" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.0202131, -0.0850495, -0.0015), (0.0202131, 0.0850495, 0.0015)]
+                rel material:binding = </sigmaban/left_tibia/visuals/Looks/material_rgba_1>
+                matrix4d xformOp:transform = ( (-0.02021309919655323, 0, 0, 0), (0, 0.08504950255155563, 0, 0), (0, 0, -0.001500000013038516, 0), (-0.006213100161403418, 0.06895100325345993, -0.05593999847769737, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+        }
+    }
+
+    def Xform "left_mx106_block_ankle" (
+        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysxRigidBodyAPI", "PhysicsMassAPI", "PhysicsFilteredPairsAPI"]
+    )
+    {
+        point3f physics:centerOfMass = (0.0195695, 0.0153964, -0.0290274)
+        float3 physics:diagonalInertia = (0.000428738, 0.000375795, 0.000176713)
+        float physics:mass = 0.397097
+        matrix4d xformOp:transform = ( (-1.000000268717713, 0, 0, 0), (0, -1.3435885648505064e-7, 1.0000001343588565, 0), (0, 1.0000001343588565, -1.3435885648505064e-7, 0), (0.003389202058315277, 0.07490012794733047, -0.3410000205039978, 1) )
+        uniform token[] xformOpOrder = ["xformOp:transform"]
+
+        def "collisions"
+        {
+            def Cube "_geom_40" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.0201, -0.03255, -0.023), (0.0201, 0.03255, 0.023)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (-0.020099999383091927, 0, 0, 0), (0, -0.03254999965429306, 0, 0), (0, 0, 0.023000000044703484, 0), (0, 0.018050000071525574, -0.02850000001490116, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_41" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.0201, -0.03255, -0.023), (0.0201, 0.03255, 0.023)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (-2.7006129324624545e-9, 0, -0.020100002083704858, 0), (0, -0.03255000840105452, 0, 0), (-0.02300000313495719, 0, -3.0902537051624736e-9, 0), (0.049400001764297485, 0.018050000071525574, -0.02850000001490116, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+        }
+
+        def "visuals"
+        {
+            def Cube "_geom_40" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.0201, -0.03255, -0.023), (0.0201, 0.03255, 0.023)]
+                rel material:binding = </sigmaban/left_mx106_block_ankle/visuals/Looks/material_rgba>
+                matrix4d xformOp:transform = ( (-0.020099999383091927, 0, 0, 0), (0, -0.03254999965429306, 0, 0), (0, 0, 0.023000000044703484, 0), (0, 0.018050000071525574, -0.02850000001490116, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_41" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.0201, -0.03255, -0.023), (0.0201, 0.03255, 0.023)]
+                rel material:binding = </sigmaban/left_mx106_block_ankle/visuals/Looks/material_rgba_1>
+                matrix4d xformOp:transform = ( (-2.7006129324624545e-9, 0, -0.020100002083704858, 0), (0, -0.03255000840105452, 0, 0), (-0.02300000313495719, 0, -3.0902537051624736e-9, 0), (0.049400001764297485, 0.018050000071525574, -0.02850000001490116, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+        }
+    }
+
+    def Xform "left_foot" (
+        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysxRigidBodyAPI", "PhysicsMassAPI", "PhysicsFilteredPairsAPI"]
+    )
+    {
+        point3f physics:centerOfMass = (0.00454445, -0.0365542, 0.0466461)
+        float3 physics:diagonalInertia = (0.000922792, 0.000718237, 0.000264953)
+        float physics:mass = 0.281856
+        matrix4d xformOp:transform = ( (-2.384185933124172e-7, 1.0000002384185933, 0, 0), (0, -2.384185933124172e-7, 1.0000002384185933, 0), (1.0000002384185933, 0, -2.384185933124172e-7, 0), (-0.020010797306895256, 0.046400122344493866, -0.3410000205039978, 1) )
+        uniform token[] xformOpOrder = ["xformOp:transform"]
+
+        def "collisions"
+        {
+            def Cylinder "_geom_42" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                uniform token axis = "Z"
+                float3[] extent = [(-0.008, -0.008, -0.008), (0.008, 0.008, 0.008)]
+                double height = 0.01600000075995922
+                uniform token physics:approximation = "convexHull"
+                uniform token purpose = "guide"
+                double radius = 0.00800000037997961
+                matrix4d xformOp:transform = ( (1, 0, 0, 0), (0, -1.3435885648505064e-7, 1.0000001343588565, 0), (0, -1.0000001343588565, -1.3435885648505064e-7, 0), (0.04349999874830246, -0.05350000038743019, -0.03212999925017357, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_43" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.02617, -0.015, -0.003125), (0.02617, 0.015, 0.003125)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (0, 0, -0.026170000433921814, 0), (0.014999999664723873, 0, 0, 0), (0, -0.0031250000465661287, 0, 0), (0, -0.03687499836087227, 0.02817000076174736, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cylinder "_geom_44" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                uniform token axis = "Z"
+                float3[] extent = [(-0.008, -0.008, -0.008), (0.008, 0.008, 0.008)]
+                double height = 0.01600000075995922
+                uniform token physics:approximation = "convexHull"
+                uniform token purpose = "guide"
+                double radius = 0.00800000037997961
+                matrix4d xformOp:transform = ( (1, 0, 0, 0), (0, -1.3435885648505064e-7, 1.0000001343588565, 0), (0, -1.0000001343588565, -1.3435885648505064e-7, 0), (-0.032499998807907104, -0.05350000038743019, -0.03212999925017357, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cylinder "_geom_45" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                uniform token axis = "Z"
+                float3[] extent = [(-0.008, -0.008, -0.008), (0.008, 0.008, 0.008)]
+                double height = 0.01600000075995922
+                uniform token physics:approximation = "convexHull"
+                uniform token purpose = "guide"
+                double radius = 0.00800000037997961
+                matrix4d xformOp:transform = ( (-1.000000268717713, 0, 0, 0), (0, -1.3435885648505064e-7, -1.0000001343588565, 0), (0, -1.0000001343588565, -1.3435885648505064e-7, 0), (0.04349999874830246, -0.05350000038743019, 0.10947000235319138, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_46" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.046, -0.0788, -0.0015), (0.046, 0.0788, 0.0015)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (0.04600000008940697, 0, 0, 0), (0, -1.058747792465732e-8, -0.07880001083781743, 0), (0, 0.0015000002145768025, -2.0153828647941606e-10, 0), (0.005499999970197678, -0.04149999842047691, 0.038669999688863754, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cylinder "_geom_47" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                uniform token axis = "Z"
+                float3[] extent = [(-0.008, -0.008, -0.008), (0.008, 0.008, 0.008)]
+                double height = 0.01600000075995922
+                uniform token physics:approximation = "convexHull"
+                uniform token purpose = "guide"
+                double radius = 0.00800000037997961
+                matrix4d xformOp:transform = ( (-1.000000268717713, 0, 0, 0), (0, -1.3435885648505064e-7, -1.0000001343588565, 0), (0, -1.0000001343588565, -1.3435885648505064e-7, 0), (-0.032499998807907104, -0.05350000038743019, 0.10947000235319138, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+        }
+
+        def "visuals"
+        {
+            def Cylinder "_geom_42" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                uniform token axis = "Z"
+                float3[] extent = [(-0.008, -0.008, -0.008), (0.008, 0.008, 0.008)]
+                double height = 0.01600000075995922
+                rel material:binding = </sigmaban/left_foot/visuals/Looks/material_rgba>
+                double radius = 0.00800000037997961
+                matrix4d xformOp:transform = ( (1, 0, 0, 0), (0, -1.3435885648505064e-7, 1.0000001343588565, 0), (0, -1.0000001343588565, -1.3435885648505064e-7, 0), (0.04349999874830246, -0.05350000038743019, -0.03212999925017357, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_43" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.02617, -0.015, -0.003125), (0.02617, 0.015, 0.003125)]
+                rel material:binding = </sigmaban/left_foot/visuals/Looks/material_rgba_1>
+                matrix4d xformOp:transform = ( (0, 0, -0.026170000433921814, 0), (0.014999999664723873, 0, 0, 0), (0, -0.0031250000465661287, 0, 0), (0, -0.03687499836087227, 0.02817000076174736, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cylinder "_geom_44" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                uniform token axis = "Z"
+                float3[] extent = [(-0.008, -0.008, -0.008), (0.008, 0.008, 0.008)]
+                double height = 0.01600000075995922
+                rel material:binding = </sigmaban/left_foot/visuals/Looks/material_rgba_2>
+                double radius = 0.00800000037997961
+                matrix4d xformOp:transform = ( (1, 0, 0, 0), (0, -1.3435885648505064e-7, 1.0000001343588565, 0), (0, -1.0000001343588565, -1.3435885648505064e-7, 0), (-0.032499998807907104, -0.05350000038743019, -0.03212999925017357, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cylinder "_geom_45" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                uniform token axis = "Z"
+                float3[] extent = [(-0.008, -0.008, -0.008), (0.008, 0.008, 0.008)]
+                double height = 0.01600000075995922
+                rel material:binding = </sigmaban/left_foot/visuals/Looks/material_rgba_3>
+                double radius = 0.00800000037997961
+                matrix4d xformOp:transform = ( (-1.000000268717713, 0, 0, 0), (0, -1.3435885648505064e-7, -1.0000001343588565, 0), (0, -1.0000001343588565, -1.3435885648505064e-7, 0), (0.04349999874830246, -0.05350000038743019, 0.10947000235319138, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_46" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.046, -0.0788, -0.0015), (0.046, 0.0788, 0.0015)]
+                rel material:binding = </sigmaban/left_foot/visuals/Looks/material_rgba_4>
+                matrix4d xformOp:transform = ( (0.04600000008940697, 0, 0, 0), (0, -1.058747792465732e-8, -0.07880001083781743, 0), (0, 0.0015000002145768025, -2.0153828647941606e-10, 0), (0.005499999970197678, -0.04149999842047691, 0.038669999688863754, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cylinder "_geom_47" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                uniform token axis = "Z"
+                float3[] extent = [(-0.008, -0.008, -0.008), (0.008, 0.008, 0.008)]
+                double height = 0.01600000075995922
+                rel material:binding = </sigmaban/left_foot/visuals/Looks/material_rgba_5>
+                double radius = 0.00800000037997961
+                matrix4d xformOp:transform = ( (-1.000000268717713, 0, 0, 0), (0, -1.3435885648505064e-7, -1.0000001343588565, 0), (0, -1.0000001343588565, -1.3435885648505064e-7, 0), (-0.032499998807907104, -0.05350000038743019, 0.10947000235319138, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+        }
+    }
+
+    def Xform "right_u_block" (
+        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysxRigidBodyAPI", "PhysicsMassAPI", "PhysicsFilteredPairsAPI"]
+    )
+    {
+        point3f physics:centerOfMass = (-0.00509532, -8.44195e-7, -0.00985131)
+        float3 physics:diagonalInertia = (0.0000424266, 0.000035526, 0.0000200009)
+        float physics:mass = 0.0630136
+        matrix4d xformOp:transform = ( (-1, 0, -0, 0), (0, -1, 0, 0), (0, -0, 1, 0), (0.003389199962839484, -0.04639989882707596, -0.020999999716877937, 1) )
+        uniform token[] xformOpOrder = ["xformOp:transform"]
+
+        def "collisions"
+        {
+            def Cube "_geom_48" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.01875, -0.02375, -0.0015), (0.01875, 0.02375, 0.0015)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (0, 0.01875000074505806, 0, 0), (0, 0, 0.023749999701976776, 0), (0.001500000013038516, 0, 0, 0), (-0.03144000098109245, 0, -0.023749999701976776, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_49" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.01875, -0.02375, -0.0015), (0.01875, 0.02375, 0.0015)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (0, -0.01875000074505806, 0, 0), (0, 0, -0.023749999701976776, 0), (0.001500000013038516, 0, 0, 0), (0.021900000050663948, 0, -0.023749999701976776, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+        }
+
+        def "visuals"
+        {
+            def Cube "_geom_48" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.01875, -0.02375, -0.0015), (0.01875, 0.02375, 0.0015)]
+                rel material:binding = </sigmaban/right_u_block/visuals/Looks/material_rgba>
+                matrix4d xformOp:transform = ( (0, 0.01875000074505806, 0, 0), (0, 0, 0.023749999701976776, 0), (0.001500000013038516, 0, 0, 0), (-0.03144000098109245, 0, -0.023749999701976776, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_49" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.01875, -0.02375, -0.0015), (0.01875, 0.02375, 0.0015)]
+                rel material:binding = </sigmaban/right_u_block/visuals/Looks/material_rgba_1>
+                matrix4d xformOp:transform = ( (0, -0.01875000074505806, 0, 0), (0, 0, -0.023749999701976776, 0), (0.001500000013038516, 0, 0, 0), (0.021900000050663948, 0, -0.023749999701976776, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+        }
+    }
+
+    def Xform "right_mx106_block_hip" (
+        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysxRigidBodyAPI", "PhysicsMassAPI", "PhysicsFilteredPairsAPI"]
+    )
+    {
+        point3f physics:centerOfMass = (0.000527445, -0.0153964, 0.00383064)
+        float3 physics:diagonalInertia = (0.000428741, 0.000375798, 0.000176713)
+        float physics:mass = 0.397097
+        matrix4d xformOp:transform = ( (0, 1, 0, 0), (0, 0, 1, 0), (1, 0, 0, 0), (-0.020010799169540405, -0.04639989882707596, -0.060999996960163116, 1) )
+        uniform token[] xformOpOrder = ["xformOp:transform"]
+
+        def "collisions"
+        {
+            def Cube "_geom_50" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.0201, -0.03255, -0.023), (0.0201, 0.03255, 0.023)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (0.020099999383091927, 0, 0, 0), (0, 0.03254999965429306, 0, 0), (0, 0, 0.023000000044703484, 0), (0, -0.018050000071525574, -0.026000000536441803, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_51" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.0201, -0.03255, -0.023), (0.0201, 0.03255, 0.023)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (-2.7006129324624545e-9, 0, 0.020100002083704858, 0), (0, 0.03254999965429306, 0, 0), (-0.02300000313495719, 0, -3.0902537051624736e-9, 0), (0, -0.018050000071525574, 0.023399999365210533, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+        }
+
+        def "visuals"
+        {
+            def Cube "_geom_50" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.0201, -0.03255, -0.023), (0.0201, 0.03255, 0.023)]
+                rel material:binding = </sigmaban/right_mx106_block_hip/visuals/Looks/material_rgba>
+                matrix4d xformOp:transform = ( (0.020099999383091927, 0, 0, 0), (0, 0.03254999965429306, 0, 0), (0, 0, 0.023000000044703484, 0), (0, -0.018050000071525574, -0.026000000536441803, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_51" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.0201, -0.03255, -0.023), (0.0201, 0.03255, 0.023)]
+                rel material:binding = </sigmaban/right_mx106_block_hip/visuals/Looks/material_rgba_1>
+                matrix4d xformOp:transform = ( (-2.7006129324624545e-9, 0, 0.020100002083704858, 0), (0, 0.03254999965429306, 0, 0), (-0.02300000313495719, 0, -3.0902537051624736e-9, 0), (0, -0.018050000071525574, 0.023399999365210533, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+        }
+    }
+
+    def Xform "right_knee" (
+        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysxRigidBodyAPI", "PhysicsMassAPI", "PhysicsFilteredPairsAPI"]
+    )
+    {
+        point3f physics:centerOfMass = (-0.0000304946, -0.100616, 0.0296089)
+        float3 physics:diagonalInertia = (0.000539257, 0.000462486, 0.000122221)
+        float physics:mass = 0.268473
+        matrix4d xformOp:transform = ( (-1.000000268717713, -0, 0, 0), (0, -1.3435885648505064e-7, 1.0000001343588565, 0), (-0, 1.0000001343588565, -1.3435885648505064e-7, 0), (0.003389202058315277, -0.07589989900588989, -0.060999996960163116, 1) )
+        uniform token[] xformOpOrder = ["xformOp:transform"]
+
+        def "collisions"
+        {
+            def Cube "_geom_52" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.015, -0.04825, -0.0015), (0.015, 0.04825, 0.0015)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (0.014999999664723873, 0, 0, 0), (0, -0.048250000923871994, 0, 0), (0, 0, -0.001500000013038516, 0), (0, -0.03725000098347664, -0.001500000013038516, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_53" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.015, -0.04825, -0.0015), (0.015, 0.04825, 0.0015)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (0.014999999664723873, 0, 0, 0), (0, 0.048250000923871994, 0, 0), (0, 0, 0.001500000013038516, 0), (0, -0.03725000098347664, 0.05700000002980232, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_54" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.0201, -0.03255, -0.023), (0.0201, 0.03255, 0.023)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (0.020099999383091927, 0, 0, 0), (0, -0.03254999965429306, 0, 0), (0, 0, -0.023000000044703484, 0), (0, -0.12195000052452087, 0.029500000178813934, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+        }
+
+        def "visuals"
+        {
+            def Cube "_geom_52" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.015, -0.04825, -0.0015), (0.015, 0.04825, 0.0015)]
+                rel material:binding = </sigmaban/right_knee/visuals/Looks/material_rgba>
+                matrix4d xformOp:transform = ( (0.014999999664723873, 0, 0, 0), (0, -0.048250000923871994, 0, 0), (0, 0, -0.001500000013038516, 0), (0, -0.03725000098347664, -0.001500000013038516, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_53" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.015, -0.04825, -0.0015), (0.015, 0.04825, 0.0015)]
+                rel material:binding = </sigmaban/right_knee/visuals/Looks/material_rgba_1>
+                matrix4d xformOp:transform = ( (0.014999999664723873, 0, 0, 0), (0, 0.048250000923871994, 0, 0), (0, 0, 0.001500000013038516, 0), (0, -0.03725000098347664, 0.05700000002980232, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_54" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.0201, -0.03255, -0.023), (0.0201, 0.03255, 0.023)]
+                rel material:binding = </sigmaban/right_knee/visuals/Looks/material_rgba_2>
+                matrix4d xformOp:transform = ( (0.020099999383091927, 0, 0, 0), (0, -0.03254999965429306, 0, 0), (0, 0, -0.023000000044703484, 0), (0, -0.12195000052452087, 0.029500000178813934, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+        }
+    }
+
+    def Xform "right_tibia" (
+        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysxRigidBodyAPI", "PhysicsMassAPI", "PhysicsFilteredPairsAPI"]
+    )
+    {
+        point3f physics:centerOfMass = (-0.00296199, 0.0631406, 0.0268398)
+        float3 physics:diagonalInertia = (0.000351979, 0.00027164, 0.000103748)
+        float physics:mass = 0.113077
+        matrix4d xformOp:transform = ( (1, 0, 0, 0), (0, -1.3435885648505064e-7, -1.0000001343588565, 0), (0, 1.0000001343588565, -1.3435885648505064e-7, 0), (0.003389202058315277, -0.07489991188049316, -0.20100000500679016, 1) )
+        uniform token[] xformOpOrder = ["xformOp:transform"]
+
+        def "collisions"
+        {
+            def Cube "_geom_55" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.0202131, -0.0850495, -0.0015), (0.0202131, 0.0850495, 0.0015)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (-0.02021309919655323, 0, 0, 0), (0, 0.08504950255155563, 0, 0), (0, 0, -0.001500000013038516, 0), (-0.006213100161403418, 0.06895100325345993, 0.05593999847769737, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_56" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.0202131, -0.0850495, -0.0015), (0.0202131, 0.0850495, 0.0015)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (-0.02021309919655323, 0, 0, 0), (0, 0.08504950255155563, 0, 0), (0, 0, -0.001500000013038516, 0), (-0.006213100161403418, 0.06895100325345993, -0.001500000013038516, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+        }
+
+        def "visuals"
+        {
+            def Cube "_geom_55" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.0202131, -0.0850495, -0.0015), (0.0202131, 0.0850495, 0.0015)]
+                rel material:binding = </sigmaban/right_tibia/visuals/Looks/material_rgba>
+                matrix4d xformOp:transform = ( (-0.02021309919655323, 0, 0, 0), (0, 0.08504950255155563, 0, 0), (0, 0, -0.001500000013038516, 0), (-0.006213100161403418, 0.06895100325345993, 0.05593999847769737, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_56" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.0202131, -0.0850495, -0.0015), (0.0202131, 0.0850495, 0.0015)]
+                rel material:binding = </sigmaban/right_tibia/visuals/Looks/material_rgba_1>
+                matrix4d xformOp:transform = ( (-0.02021309919655323, 0, 0, 0), (0, 0.08504950255155563, 0, 0), (0, 0, -0.001500000013038516, 0), (-0.006213100161403418, 0.06895100325345993, -0.001500000013038516, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+        }
+    }
+
+    def Xform "right_mx106_block_ankle" (
+        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysxRigidBodyAPI", "PhysicsMassAPI", "PhysicsFilteredPairsAPI"]
+    )
+    {
+        point3f physics:centerOfMass = (-0.0195724, -0.0153964, 0.0290252)
+        float3 physics:diagonalInertia = (0.000428694, 0.000375752, 0.000176714)
+        float physics:mass = 0.397097
+        matrix4d xformOp:transform = ( (1, 0, 0, 0), (0, -1.3435885648505064e-7, -1.0000001343588565, 0), (0, 1.0000001343588565, -1.3435885648505064e-7, 0), (0.003389202058315277, -0.07489989697933197, -0.3410000205039978, 1) )
+        uniform token[] xformOpOrder = ["xformOp:transform"]
+
+        def "collisions"
+        {
+            def Cube "_geom_57" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.0201, -0.03255, -0.023), (0.0201, 0.03255, 0.023)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (-0.020099999383091927, 0, 0, 0), (0, 0.03254999965429306, 0, 0), (0, 0, -0.023000000044703484, 0), (0, -0.018050000071525574, 0.02850000001490116, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_58" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.0201, -0.03255, -0.023), (0.0201, 0.03255, 0.023)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (-2.7006129324624545e-9, 0, -0.020100002083704858, 0), (0, 0.03254999965429306, 0, 0), (0.02300000313495719, 0, -3.0902537051624736e-9, 0), (-0.049400001764297485, -0.018050000071525574, 0.02850000001490116, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+        }
+
+        def "visuals"
+        {
+            def Cube "_geom_57" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.0201, -0.03255, -0.023), (0.0201, 0.03255, 0.023)]
+                rel material:binding = </sigmaban/right_mx106_block_ankle/visuals/Looks/material_rgba>
+                matrix4d xformOp:transform = ( (-0.020099999383091927, 0, 0, 0), (0, 0.03254999965429306, 0, 0), (0, 0, -0.023000000044703484, 0), (0, -0.018050000071525574, 0.02850000001490116, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_58" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.0201, -0.03255, -0.023), (0.0201, 0.03255, 0.023)]
+                rel material:binding = </sigmaban/right_mx106_block_ankle/visuals/Looks/material_rgba_1>
+                matrix4d xformOp:transform = ( (-2.7006129324624545e-9, 0, -0.020100002083704858, 0), (0, 0.03254999965429306, 0, 0), (0.02300000313495719, 0, -3.0902537051624736e-9, 0), (-0.049400001764297485, -0.018050000071525574, 0.02850000001490116, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+        }
+    }
+
+    def Xform "right_foot" (
+        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysxRigidBodyAPI", "PhysicsMassAPI", "PhysicsFilteredPairsAPI"]
+    )
+    {
+        point3f physics:centerOfMass = (-0.00454439, -0.0365542, 0.0466461)
+        float3 physics:diagonalInertia = (0.000922792, 0.000718237, 0.000264953)
+        float physics:mass = 0.281856
+        matrix4d xformOp:transform = ( (-2.384185933124172e-7, 1.0000002384185933, 0, 0), (0, -2.384185933124172e-7, 1.0000002384185933, 0), (1.0000002384185933, 0, -2.384185933124172e-7, 0), (-0.020010802894830704, -0.04639989137649536, -0.3410000205039978, 1) )
+        uniform token[] xformOpOrder = ["xformOp:transform"]
+
+        def "collisions"
+        {
+            def Cube "_geom_59" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.02617, -0.015, -0.003125), (0.02617, 0.015, 0.003125)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (0, 0, -0.026170000433921814, 0), (0.014999999664723873, 0, 0, 0), (0, -0.0031250000465661287, 0, 0), (0, -0.03687499836087227, 0.02817000076174736, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cylinder "_geom_60" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                uniform token axis = "Z"
+                float3[] extent = [(-0.008, -0.008, -0.008), (0.008, 0.008, 0.008)]
+                double height = 0.01600000075995922
+                uniform token physics:approximation = "convexHull"
+                uniform token purpose = "guide"
+                double radius = 0.00800000037997961
+                matrix4d xformOp:transform = ( (1, 0, 0, 0), (0, -1.3435885648505064e-7, 1.0000001343588565, 0), (0, -1.0000001343588565, -1.3435885648505064e-7, 0), (-0.04349999874830246, -0.05350000038743019, -0.03212999925017357, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_61" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.046, -0.0788, -0.0015), (0.046, 0.0788, 0.0015)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (0.04600000008940697, 0, 0, 0), (0, -1.058747792465732e-8, -0.07880001083781743, 0), (0, 0.0015000002145768025, -2.0153828647941606e-10, 0), (-0.005499999970197678, -0.04149999842047691, 0.038669999688863754, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cylinder "_geom_62" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                uniform token axis = "Z"
+                float3[] extent = [(-0.008, -0.008, -0.008), (0.008, 0.008, 0.008)]
+                double height = 0.01600000075995922
+                uniform token physics:approximation = "convexHull"
+                uniform token purpose = "guide"
+                double radius = 0.00800000037997961
+                matrix4d xformOp:transform = ( (1, 0, 0, 0), (0, -1.3435885648505064e-7, 1.0000001343588565, 0), (0, -1.0000001343588565, -1.3435885648505064e-7, 0), (0.032499998807907104, -0.05350000038743019, -0.03212999925017357, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cylinder "_geom_63" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                uniform token axis = "Z"
+                float3[] extent = [(-0.008, -0.008, -0.008), (0.008, 0.008, 0.008)]
+                double height = 0.01600000075995922
+                uniform token physics:approximation = "convexHull"
+                uniform token purpose = "guide"
+                double radius = 0.00800000037997961
+                matrix4d xformOp:transform = ( (-1.000000268717713, 0, 0, 0), (0, -1.3435885648505064e-7, -1.0000001343588565, 0), (0, -1.0000001343588565, -1.3435885648505064e-7, 0), (-0.04349999874830246, -0.05350000038743019, 0.10947000235319138, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cylinder "_geom_64" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                uniform token axis = "Z"
+                float3[] extent = [(-0.008, -0.008, -0.008), (0.008, 0.008, 0.008)]
+                double height = 0.01600000075995922
+                uniform token physics:approximation = "convexHull"
+                uniform token purpose = "guide"
+                double radius = 0.00800000037997961
+                matrix4d xformOp:transform = ( (-1.000000268717713, 0, 0, 0), (0, -1.3435885648505064e-7, -1.0000001343588565, 0), (0, -1.0000001343588565, -1.3435885648505064e-7, 0), (0.032499998807907104, -0.05350000038743019, 0.10947000235319138, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+        }
+
+        def "visuals"
+        {
+            def Cube "_geom_59" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.02617, -0.015, -0.003125), (0.02617, 0.015, 0.003125)]
+                rel material:binding = </sigmaban/right_foot/visuals/Looks/material_rgba>
+                matrix4d xformOp:transform = ( (0, 0, -0.026170000433921814, 0), (0.014999999664723873, 0, 0, 0), (0, -0.0031250000465661287, 0, 0), (0, -0.03687499836087227, 0.02817000076174736, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cylinder "_geom_60" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                uniform token axis = "Z"
+                float3[] extent = [(-0.008, -0.008, -0.008), (0.008, 0.008, 0.008)]
+                double height = 0.01600000075995922
+                rel material:binding = </sigmaban/right_foot/visuals/Looks/material_rgba_1>
+                double radius = 0.00800000037997961
+                matrix4d xformOp:transform = ( (1, 0, 0, 0), (0, -1.3435885648505064e-7, 1.0000001343588565, 0), (0, -1.0000001343588565, -1.3435885648505064e-7, 0), (-0.04349999874830246, -0.05350000038743019, -0.03212999925017357, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_61" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.046, -0.0788, -0.0015), (0.046, 0.0788, 0.0015)]
+                rel material:binding = </sigmaban/right_foot/visuals/Looks/material_rgba_2>
+                matrix4d xformOp:transform = ( (0.04600000008940697, 0, 0, 0), (0, -1.058747792465732e-8, -0.07880001083781743, 0), (0, 0.0015000002145768025, -2.0153828647941606e-10, 0), (-0.005499999970197678, -0.04149999842047691, 0.038669999688863754, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cylinder "_geom_62" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                uniform token axis = "Z"
+                float3[] extent = [(-0.008, -0.008, -0.008), (0.008, 0.008, 0.008)]
+                double height = 0.01600000075995922
+                rel material:binding = </sigmaban/right_foot/visuals/Looks/material_rgba_3>
+                double radius = 0.00800000037997961
+                matrix4d xformOp:transform = ( (1, 0, 0, 0), (0, -1.3435885648505064e-7, 1.0000001343588565, 0), (0, -1.0000001343588565, -1.3435885648505064e-7, 0), (0.032499998807907104, -0.05350000038743019, -0.03212999925017357, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cylinder "_geom_63" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                uniform token axis = "Z"
+                float3[] extent = [(-0.008, -0.008, -0.008), (0.008, 0.008, 0.008)]
+                double height = 0.01600000075995922
+                rel material:binding = </sigmaban/right_foot/visuals/Looks/material_rgba_4>
+                double radius = 0.00800000037997961
+                matrix4d xformOp:transform = ( (-1.000000268717713, 0, 0, 0), (0, -1.3435885648505064e-7, -1.0000001343588565, 0), (0, -1.0000001343588565, -1.3435885648505064e-7, 0), (-0.04349999874830246, -0.05350000038743019, 0.10947000235319138, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cylinder "_geom_64" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                uniform token axis = "Z"
+                float3[] extent = [(-0.008, -0.008, -0.008), (0.008, 0.008, 0.008)]
+                double height = 0.01600000075995922
+                rel material:binding = </sigmaban/right_foot/visuals/Looks/material_rgba_5>
+                double radius = 0.00800000037997961
+                matrix4d xformOp:transform = ( (-1.000000268717713, 0, 0, 0), (0, -1.3435885648505064e-7, -1.0000001343588565, 0), (0, -1.0000001343588565, -1.3435885648505064e-7, 0), (0.032499998807907104, -0.05350000038743019, 0.10947000235319138, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+        }
+    }
+
+    def Xform "right_u_shoulder" (
+        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysxRigidBodyAPI", "PhysicsMassAPI", "PhysicsFilteredPairsAPI"]
+    )
+    {
+        point3f physics:centerOfMass = (0, -0.00364642, -0.0214003)
+        float3 physics:diagonalInertia = (0.0000570899, 0.0000453448, 0.0000335766)
+        float physics:mass = 0.0751043
+        matrix4d xformOp:transform = ( (-1.000000268717713, -0, 0, 0), (0, -1.3435885648505064e-7, 1.0000001343588565, 0), (-0, 1.0000001343588565, -1.3435885648505064e-7, 0), (0.028389200568199158, -0.07949990034103394, 0.164000004529953, 1) )
+        uniform token[] xformOpOrder = ["xformOp:transform"]
+
+        def "collisions"
+        {
+            def Cube "_geom_23" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.0245, -0.015, -0.003125), (0.0245, 0.015, 0.003125)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (0.02449999935925007, 0, 0, 0), (0, 0.014999999664723873, 0, 0), (0, 0, 0.0031250000465661287, 0), (0, 0, -0.00712500000372529, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+        }
+
+        def "visuals"
+        {
+            def Cube "_geom_23" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.0245, -0.015, -0.003125), (0.0245, 0.015, 0.003125)]
+                rel material:binding = </sigmaban/right_u_shoulder/visuals/Looks/material_rgba>
+                matrix4d xformOp:transform = ( (0.02449999935925007, 0, 0, 0), (0, 0.014999999664723873, 0, 0), (0, 0, 0.0031250000465661287, 0), (0, 0, -0.00712500000372529, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+        }
+    }
+
+    def Xform "left_radius" (
+        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysxRigidBodyAPI", "PhysicsMassAPI", "PhysicsFilteredPairsAPI"]
+    )
+    {
+        point3f physics:centerOfMass = (0.0000798171, -0.0556905, -0.0234333)
+        float3 physics:diagonalInertia = (0.000947096, 0.000937203, 0.000130591)
+        float physics:mass = 0.256846
+        matrix4d xformOp:transform = ( (-1.0000006914627022, -0, 0, 0), (0, -0.2588197346708512, 0.9659260920856241, 0), (-0, 0.9659260920856241, 0.25881904320814897, 0), (0.04938920959830284, 0.16895169019699097, 0.002920776605606079, 1) )
+        uniform token[] xformOpOrder = ["xformOp:transform"]
+
+        def "collisions"
+        {
+            def Cylinder "_geom_18" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                uniform token axis = "Z"
+                float3[] extent = [(-0.0015, -0.04, -0.04), (0.0015, 0.04, 0.04)]
+                double height = 0.003000000026077032
+                uniform token physics:approximation = "convexHull"
+                uniform token purpose = "guide"
+                double radius = 0.03999999910593033
+                matrix4d xformOp:transform = ( (-1.3435885648505064e-7, -1.0000001343588565, 0, 0), (1.0000001343588565, -1.3435885648505064e-7, 0, 0), (0, -0, 1, 0), (0, -0.14959999918937683, -0.041999999433755875, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_19" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.0497756, -0.0206, -0.0015), (0.0497756, 0.0206, 0.0015)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (-6.6877927550816445e-9, -0.049775607121142366, 0, 0), (0.020600003164163383, -2.7677924968479824e-9, 0, 0), (0, -0, 0.001500000013038516, 0), (0, -0.06497559696435928, -0.041999999433755875, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_20" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.0201, -0.03055, -0.0205), (0.0201, 0.03055, 0.0205)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (0.020099999383091927, 0, 0, 0), (0, 0.030549999326467514, 0, 0), (0, 0, 0.020500000566244125, 0), (0, -0.017550000920891762, -0.023499999195337296, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cylinder "_geom_21" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                uniform token axis = "Z"
+                float3[] extent = [(-0.0015, -0.04, -0.04), (0.0015, 0.04, 0.04)]
+                double height = 0.003000000026077032
+                uniform token physics:approximation = "convexHull"
+                uniform token purpose = "guide"
+                double radius = 0.03999999910593033
+                matrix4d xformOp:transform = ( (-1.3435885648505064e-7, -1.0000001343588565, 0, 0), (1.0000001343588565, -1.3435885648505064e-7, 0, 0), (0, -0, 1, 0), (0, -0.14959999918937683, -0.004999999888241291, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_22" (
+                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+            )
+            {
+                float3[] extent = [(-0.0497756, -0.0206, -0.0015), (0.0497756, 0.0206, 0.0015)]
+                uniform token physics:approximation = "boundingCube"
+                uniform token purpose = "guide"
+                matrix4d xformOp:transform = ( (-6.6877927550816445e-9, -0.049775607121142366, 0, 0), (0.020600003164163383, -2.7677924968479824e-9, 0, 0), (0, -0, 0.001500000013038516, 0), (0, -0.06497559696435928, -0.004999999888241291, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+        }
+
+        def "visuals"
+        {
+            def Cylinder "_geom_18" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                uniform token axis = "Z"
+                float3[] extent = [(-0.0015, -0.04, -0.04), (0.0015, 0.04, 0.04)]
+                double height = 0.003000000026077032
+                rel material:binding = </sigmaban/left_radius/visuals/Looks/material_rgba>
+                double radius = 0.03999999910593033
+                matrix4d xformOp:transform = ( (-1.3435885648505064e-7, -1.0000001343588565, 0, 0), (1.0000001343588565, -1.3435885648505064e-7, 0, 0), (0, -0, 1, 0), (0, -0.14959999918937683, -0.041999999433755875, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_19" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.0497756, -0.0206, -0.0015), (0.0497756, 0.0206, 0.0015)]
+                rel material:binding = </sigmaban/left_radius/visuals/Looks/material_rgba_1>
+                matrix4d xformOp:transform = ( (-6.6877927550816445e-9, -0.049775607121142366, 0, 0), (0.020600003164163383, -2.7677924968479824e-9, 0, 0), (0, -0, 0.001500000013038516, 0), (0, -0.06497559696435928, -0.041999999433755875, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_20" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.0201, -0.03055, -0.0205), (0.0201, 0.03055, 0.0205)]
+                rel material:binding = </sigmaban/left_radius/visuals/Looks/material_rgba_2>
+                matrix4d xformOp:transform = ( (0.020099999383091927, 0, 0, 0), (0, 0.030549999326467514, 0, 0), (0, 0, 0.020500000566244125, 0), (0, -0.017550000920891762, -0.023499999195337296, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cylinder "_geom_21" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                uniform token axis = "Z"
+                float3[] extent = [(-0.0015, -0.04, -0.04), (0.0015, 0.04, 0.04)]
+                double height = 0.003000000026077032
+                rel material:binding = </sigmaban/left_radius/visuals/Looks/material_rgba_3>
+                double radius = 0.03999999910593033
+                matrix4d xformOp:transform = ( (-1.3435885648505064e-7, -1.0000001343588565, 0, 0), (1.0000001343588565, -1.3435885648505064e-7, 0, 0), (0, -0, 1, 0), (0, -0.14959999918937683, -0.004999999888241291, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+
+            def Cube "_geom_22" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.0497756, -0.0206, -0.0015), (0.0497756, 0.0206, 0.0015)]
+                rel material:binding = </sigmaban/left_radius/visuals/Looks/material_rgba_4>
+                matrix4d xformOp:transform = ( (-6.6877927550816445e-9, -0.049775607121142366, 0, 0), (0.020600003164163383, -2.7677924968479824e-9, 0, 0), (0, -0, 0.001500000013038516, 0), (0, -0.06497559696435928, -0.004999999888241291, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+            }
+        }
+    }
+}
+
