@@ -15,9 +15,9 @@ simulation_app = AppLauncher(headless=True).app
 import torch
 import unittest
 
-import omni.isaac.core.utils.prims as prim_utils
-import omni.isaac.core.utils.stage as stage_utils
-from omni.isaac.cloner import GridCloner
+import isaacsim.core.utils.prims as prim_utils
+import isaacsim.core.utils.stage as stage_utils
+from isaacsim.core.cloner import GridCloner
 
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.assets import Articulation
@@ -839,8 +839,8 @@ class TestOperationalSpaceController(unittest.TestCase):
         # obtain dynamics related quantities from simulation
         ee_jacobi_idx = ee_frame_idx - 1
         jacobian_w = robot.root_physx_view.get_jacobians()[:, ee_jacobi_idx, :, arm_joint_ids]
-        mass_matrix = robot.root_physx_view.get_mass_matrices()[:, arm_joint_ids, :][:, :, arm_joint_ids]
-        gravity = robot.root_physx_view.get_generalized_gravity_forces()[:, arm_joint_ids]
+        mass_matrix = robot.root_physx_view.get_generalized_mass_matrices()[:, arm_joint_ids, :][:, :, arm_joint_ids]
+        gravity = robot.root_physx_view.get_gravity_compensation_forces()[:, arm_joint_ids]
         # Convert the Jacobian from world to root frame
         jacobian_b = jacobian_w.clone()
         root_rot_matrix = matrix_from_quat(quat_inv(robot.data.root_quat_w))

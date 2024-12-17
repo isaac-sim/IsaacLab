@@ -7,7 +7,7 @@ import numpy as np
 import torch
 
 import carb
-import omni.isaac.core.utils.torch as torch_utils
+import isaacsim.core.utils.torch as torch_utils
 
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.assets import Articulation
@@ -205,7 +205,7 @@ class FactoryEnv(DirectRLEnv):
         self.left_finger_jacobian = jacobians[:, self.left_finger_body_idx - 1, 0:6, 0:7]
         self.right_finger_jacobian = jacobians[:, self.right_finger_body_idx - 1, 0:6, 0:7]
         self.fingertip_midpoint_jacobian = (self.left_finger_jacobian + self.right_finger_jacobian) * 0.5
-        self.arm_mass_matrix = self._robot.root_physx_view.get_mass_matrices()[:, 0:7, 0:7]
+        self.arm_mass_matrix = self._robot.root_physx_view.get_generalized_mass_matrices()[:, 0:7, 0:7]
         self.joint_pos = self._robot.data.joint_pos.clone()
         self.joint_vel = self._robot.data.joint_vel.clone()
 

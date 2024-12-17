@@ -11,7 +11,7 @@ Imported by base, environment, and task classes. Not directly executed.
 import math
 import torch
 
-import omni.isaac.core.utils.torch as torch_utils
+import isaacsim.core.utils.torch as torch_utils
 
 from omni.isaac.lab.utils.math import axis_angle_from_quat
 

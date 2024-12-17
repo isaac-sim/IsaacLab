@@ -194,6 +194,7 @@ class TestRigidObject(unittest.TestCase):
             for device in ("cuda:0", "cpu"):
                 with self.subTest(num_cubes=num_cubes, device=device):
                     with build_simulation_context(device=device, auto_add_lighting=True) as sim:
+                        sim._app_control_on_stop_handle = None
                         # Generate cubes scene
                         cube_object, _ = generate_cubes_scene(
                             num_cubes=num_cubes, api="articulation_root", device=device
@@ -792,6 +793,7 @@ class TestRigidObject(unittest.TestCase):
                         with build_simulation_context(
                             device=device, gravity_enabled=False, auto_add_lighting=True
                         ) as sim:
+                            sim._app_control_on_stop_handle = None
                             # Create a scene with random cubes
                             cube_object, env_pos = generate_cubes_scene(num_cubes=num_cubes, height=0.0, device=device)
                             env_idx = torch.tensor([x for x in range(num_cubes)])
@@ -911,6 +913,7 @@ class TestRigidObject(unittest.TestCase):
                             with build_simulation_context(
                                 device=device, gravity_enabled=False, auto_add_lighting=True
                             ) as sim:
+                                sim._app_control_on_stop_handle = None
                                 # Create a scene with random cubes
                                 cube_object, env_pos = generate_cubes_scene(
                                     num_cubes=num_cubes, height=0.0, device=device

@@ -459,6 +459,7 @@ class TestRigidObjectCollection(unittest.TestCase):
                             with build_simulation_context(
                                 device=device, gravity_enabled=False, auto_add_lighting=True
                             ) as sim:
+                                sim._app_control_on_stop_handle = None
                                 # Create a scene with random cubes
                                 cube_object, env_pos = generate_cubes_scene(
                                     num_envs=num_envs, num_cubes=num_cubes, height=0.0, device=device
@@ -578,6 +579,7 @@ class TestRigidObjectCollection(unittest.TestCase):
                                 with build_simulation_context(
                                     device=device, gravity_enabled=False, auto_add_lighting=True
                                 ) as sim:
+                                    sim._app_control_on_stop_handle = None
                                     # Create a scene with random cubes
                                     cube_object, env_pos = generate_cubes_scene(
                                         num_envs=num_envs, num_cubes=num_cubes, height=0.0, device=device
