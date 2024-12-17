@@ -624,13 +624,13 @@ def push_by_setting_velocity(
     asset: RigidObject | Articulation = env.scene[asset_cfg.name]
 
     # velocities
-    vel_w = asset.data.root_vel_w[env_ids]
+    vel_w = asset.data.root_com_vel_w[env_ids]
     # sample random velocities
     range_list = [velocity_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
     ranges = torch.tensor(range_list, device=asset.device)
     vel_w[:] = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], vel_w.shape, device=asset.device)
     # set the velocities into the physics simulation
-    asset.write_root_velocity_to_sim(vel_w, env_ids=env_ids)
+    asset.write_root_com_velocity_to_sim(vel_w, env_ids=env_ids)
 
 
 def reset_root_state_uniform(
@@ -674,8 +674,8 @@ def reset_root_state_uniform(
     velocities = root_states[:, 7:13] + rand_samples
 
     # set into the physics simulation
-    asset.write_root_pose_to_sim(torch.cat([positions, orientations], dim=-1), env_ids=env_ids)
-    asset.write_root_velocity_to_sim(velocities, env_ids=env_ids)
+    asset.write_root_link_pose_to_sim(torch.cat([positions, orientations], dim=-1), env_ids=env_ids)
+    asset.write_root_com_velocity_to_sim(velocities, env_ids=env_ids)
 
 
 def reset_root_state_with_random_orientation(
@@ -726,8 +726,8 @@ def reset_root_state_with_random_orientation(
     velocities = root_states[:, 7:13] + rand_samples
 
     # set into the physics simulation
-    asset.write_root_pose_to_sim(torch.cat([positions, orientations], dim=-1), env_ids=env_ids)
-    asset.write_root_velocity_to_sim(velocities, env_ids=env_ids)
+    asset.write_root_link_pose_to_sim(torch.cat([positions, orientations], dim=-1), env_ids=env_ids)
+    asset.write_root_com_velocity_to_sim(velocities, env_ids=env_ids)
 
 
 def reset_root_state_from_terrain(
@@ -793,8 +793,8 @@ def reset_root_state_from_terrain(
     velocities = asset.data.default_root_state[:, 7:13] + rand_samples
 
     # set into the physics simulation
-    asset.write_root_pose_to_sim(torch.cat([positions, orientations], dim=-1), env_ids=env_ids)
-    asset.write_root_velocity_to_sim(velocities, env_ids=env_ids)
+    asset.write_root_link_pose_to_sim(torch.cat([positions, orientations], dim=-1), env_ids=env_ids)
+    asset.write_root_com_velocity_to_sim(velocities, env_ids=env_ids)
 
 
 def reset_joints_by_scale(
@@ -914,14 +914,16 @@ def reset_scene_to_default(env: ManagerBasedEnv, env_ids: torch.Tensor):
         default_root_state = rigid_object.data.default_root_state[env_ids].clone()
         default_root_state[:, 0:3] += env.scene.env_origins[env_ids]
         # set into the physics simulation
-        rigid_object.write_root_state_to_sim(default_root_state, env_ids=env_ids)
+        rigid_object.write_root_link_pose_to_sim(default_root_state[:, :7], env_ids=env_ids)
+        rigid_object.write_root_com_velocity_to_sim(default_root_state[:, 7:], env_ids=env_ids)
     # articulations
     for articulation_asset in env.scene.articulations.values():
         # obtain default and deal with the offset for env origins
         default_root_state = articulation_asset.data.default_root_state[env_ids].clone()
         default_root_state[:, 0:3] += env.scene.env_origins[env_ids]
         # set into the physics simulation
-        articulation_asset.write_root_state_to_sim(default_root_state, env_ids=env_ids)
+        articulation_asset.write_root_link_pose_to_sim(default_root_state[:, :7], env_ids=env_ids)
+        articulation_asset.write_root_com_velocity_to_sim(default_root_state[:, 7:], env_ids=env_ids)
         # obtain default joint positions
         default_joint_pos = articulation_asset.data.default_joint_pos[env_ids].clone()
         default_joint_vel = articulation_asset.data.default_joint_vel[env_ids].clone()

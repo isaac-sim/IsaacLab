@@ -39,7 +39,7 @@ def success_bonus(
     # obtain the threshold for the orientation error
     threshold = command_term.cfg.orientation_success_threshold
     # calculate the orientation error
-    dtheta = math_utils.quat_error_magnitude(asset.data.root_quat_w, goal_quat_w)
+    dtheta = math_utils.quat_error_magnitude(asset.data.root_link_quat_w, goal_quat_w)
 
     return dtheta <= threshold
 
@@ -63,7 +63,7 @@ def track_pos_l2(
     # obtain the goal position
     goal_pos_e = command_term.command[:, 0:3]
     # obtain the object position in the environment frame
-    object_pos_e = asset.data.root_pos_w - env.scene.env_origins
+    object_pos_e = asset.data.root_link_pos_w - env.scene.env_origins
 
     return torch.norm(goal_pos_e - object_pos_e, p=2, dim=-1)
 
@@ -91,6 +91,6 @@ def track_orientation_inv_l2(
     # obtain the goal orientation
     goal_quat_w = command_term.command[:, 3:7]
     # calculate the orientation error
-    dtheta = math_utils.quat_error_magnitude(asset.data.root_quat_w, goal_quat_w)
+    dtheta = math_utils.quat_error_magnitude(asset.data.root_link_quat_w, goal_quat_w)
 
     return 1.0 / (dtheta + rot_eps)

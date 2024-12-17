@@ -79,7 +79,7 @@ joint positions, current end-effector pose, and the Jacobian matrix.
 
 While the attribute :attr:`assets.ArticulationData.joint_pos` provides the joint positions,
 we only want the joint positions of the robot's arm, and not the gripper. Similarly, while
-the attribute :attr:`assets.ArticulationData.body_state_w` provides the state of all the
+the attribute :attr:`assets.ArticulationData.body_link_state_w` provides the state of all the
 robot's bodies, we only want the state of the robot's end-effector. Thus, we need to
 index into these arrays to obtain the desired quantities.
 

@@ -69,7 +69,7 @@ def root_height_below_minimum(
     """
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
-    return asset.data.root_pos_w[:, 2] < minimum_height
+    return asset.data.root_link_pos_w[:, 2] < minimum_height
 
 
 """

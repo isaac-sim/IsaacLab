@@ -33,7 +33,7 @@ from omni.isaac.lab.assets import RigidObject, RigidObjectCfg
 from omni.isaac.lab.sim import build_simulation_context
 from omni.isaac.lab.sim.spawners import materials
 from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
-from omni.isaac.lab.utils.math import default_orientation, random_orientation
+from omni.isaac.lab.utils.math import default_orientation, quat_mul, quat_rotate_inverse, random_orientation
 
 
 def generate_cubes_scene(
@@ -119,8 +119,8 @@ class TestRigidObject(unittest.TestCase):
                         self.assertEqual(len(cube_object.body_names), 1)
 
                         # Check buffers that exists and have correct shapes
-                        self.assertEqual(cube_object.data.root_pos_w.shape, (num_cubes, 3))
-                        self.assertEqual(cube_object.data.root_quat_w.shape, (num_cubes, 4))
+                        self.assertEqual(cube_object.data.root_link_pos_w.shape, (num_cubes, 3))
+                        self.assertEqual(cube_object.data.root_link_quat_w.shape, (num_cubes, 4))
                         self.assertEqual(cube_object.data.default_mass.shape, (num_cubes, 1))
                         self.assertEqual(cube_object.data.default_inertia.shape, (num_cubes, 9))
 
@@ -153,8 +153,8 @@ class TestRigidObject(unittest.TestCase):
                         self.assertEqual(len(cube_object.body_names), 1)
 
                         # Check buffers that exists and have correct shapes
-                        self.assertEqual(cube_object.data.root_pos_w.shape, (num_cubes, 3))
-                        self.assertEqual(cube_object.data.root_quat_w.shape, (num_cubes, 4))
+                        self.assertEqual(cube_object.data.root_link_pos_w.shape, (num_cubes, 3))
+                        self.assertEqual(cube_object.data.root_link_quat_w.shape, (num_cubes, 4))
 
                         # Simulate physics
                         for _ in range(2):
@@ -237,7 +237,8 @@ class TestRigidObject(unittest.TestCase):
 
                             # need to shift the position of the cubes otherwise they will be on top of each other
                             root_state[:, :3] = origins
-                            cube_object.write_root_state_to_sim(root_state)
+                            cube_object.write_root_link_pose_to_sim(root_state[:, :7])
+                            cube_object.write_root_com_velocity_to_sim(root_state[:, 7:])
 
                             # reset object
                             cube_object.reset()
@@ -259,10 +260,10 @@ class TestRigidObject(unittest.TestCase):
 
                             # First object should still be at the same Z position (1.0)
                             torch.testing.assert_close(
-                                cube_object.data.root_pos_w[0::2, 2], torch.ones(num_cubes // 2, device=sim.device)
+                                cube_object.data.root_link_pos_w[0::2, 2], torch.ones(num_cubes // 2, device=sim.device)
                             )
                             # Second object should have fallen, so it's Z height should be less than initial height of 1.0
-                            self.assertTrue(torch.all(cube_object.data.root_pos_w[1::2, 2] < 1.0))
+                            self.assertTrue(torch.all(cube_object.data.root_link_pos_w[1::2, 2] < 1.0))
 
     def test_set_rigid_object_state(self):
         """Test setting the state of the rigid object.
@@ -288,10 +289,14 @@ class TestRigidObject(unittest.TestCase):
                         # Set each state type individually as they are dependent on each other
                         for state_type_to_randomize in state_types:
                             state_dict = {
-                                "root_pos_w": torch.zeros_like(cube_object.data.root_pos_w, device=sim.device),
+                                "root_pos_w": torch.zeros_like(cube_object.data.root_link_pos_w, device=sim.device),
                                 "root_quat_w": default_orientation(num=num_cubes, device=sim.device),
-                                "root_lin_vel_w": torch.zeros_like(cube_object.data.root_lin_vel_w, device=sim.device),
-                                "root_ang_vel_w": torch.zeros_like(cube_object.data.root_ang_vel_w, device=sim.device),
+                                "root_lin_vel_w": torch.zeros_like(
+                                    cube_object.data.root_com_lin_vel_w, device=sim.device
+                                ),
+                                "root_ang_vel_w": torch.zeros_like(
+                                    cube_object.data.root_com_ang_vel_w, device=sim.device
+                                ),
                             }
 
                             # Now we are ready!
@@ -319,7 +324,8 @@ class TestRigidObject(unittest.TestCase):
                                         dim=-1,
                                     )
                                     # reset root state
-                                    cube_object.write_root_state_to_sim(root_state=root_state)
+                                    cube_object.write_root_link_pose_to_sim(root_state[:, :7])
+                                    cube_object.write_root_com_velocity_to_sim(root_state[:, 7:])
 
                                     sim.step()
 
@@ -355,7 +361,8 @@ class TestRigidObject(unittest.TestCase):
 
                             # Random orientation
                             root_state[:, 3:7] = random_orientation(num=num_cubes, device=sim.device)
-                            cube_object.write_root_state_to_sim(root_state)
+                            cube_object.write_root_link_pose_to_sim(root_state[:, :7])
+                            cube_object.write_root_com_velocity_to_sim(root_state[:, 7:])
 
                             if i % 2 == 0:
                                 # reset object
@@ -440,7 +447,7 @@ class TestRigidObject(unittest.TestCase):
                         initial_velocity = torch.zeros((num_cubes, 6), device=sim.cfg.device)
                         initial_velocity[:, 0] = 0.1
 
-                        cube_object.write_root_velocity_to_sim(initial_velocity)
+                        cube_object.write_root_com_velocity_to_sim(initial_velocity)
 
                         # Simulate physics
                         for _ in range(5):
@@ -505,7 +512,7 @@ class TestRigidObject(unittest.TestCase):
                         for _ in range(100):
                             sim.step()
                             cube_object.update(sim.cfg.dt)
-                        cube_object.write_root_velocity_to_sim(torch.zeros((num_cubes, 6), device=sim.device))
+                        cube_object.write_root_com_velocity_to_sim(torch.zeros((num_cubes, 6), device=sim.device))
                         cube_mass = cube_object.root_physx_view.get_masses()
                         gravity_magnitude = abs(sim.cfg.gravity[2])
                         # 2 cases: force applied is below and above mu
@@ -514,7 +521,9 @@ class TestRigidObject(unittest.TestCase):
                         for force in "below_mu", "above_mu":
                             with self.subTest(force=force):
                                 # set initial velocity to zero
-                                cube_object.write_root_velocity_to_sim(torch.zeros((num_cubes, 6), device=sim.device))
+                                cube_object.write_root_com_velocity_to_sim(
+                                    torch.zeros((num_cubes, 6), device=sim.device)
+                                )
 
                                 external_wrench_b = torch.zeros((num_cubes, 1, 6), device=sim.device)
                                 if force == "below_mu":
@@ -532,7 +541,7 @@ class TestRigidObject(unittest.TestCase):
                                 )
 
                                 # Get root state
-                                initial_root_pos = cube_object.data.root_pos_w.clone()
+                                initial_root_pos = cube_object.data.root_link_pos_w.clone()
                                 # Simulate physics
                                 for _ in range(200):
                                     # apply the wrench
@@ -543,7 +552,7 @@ class TestRigidObject(unittest.TestCase):
                                     if force == "below_mu":
                                         # Assert that the block has not moved
                                         torch.testing.assert_close(
-                                            cube_object.data.root_pos_w, initial_root_pos, rtol=1e-3, atol=1e-3
+                                            cube_object.data.root_link_pos_w, initial_root_pos, rtol=1e-3, atol=1e-3
                                         )
                                 if force == "above_mu":
                                     self.assertTrue(
@@ -595,7 +604,8 @@ class TestRigidObject(unittest.TestCase):
                             root_state[:, 2] = 1.0  # Set an initial drop height
                             root_state[:, 9] = -1.0  # Set an initial downward velocity
 
-                            cube_object.write_root_state_to_sim(root_state=root_state)
+                            cube_object.write_root_link_pose_to_sim(root_state[:, :7])
+                            cube_object.write_root_com_velocity_to_sim(root_state[:, 7:])
 
                             static_friction = torch.zeros(num_cubes, 1)
                             dynamic_friction = torch.zeros(num_cubes, 1)
@@ -606,14 +616,14 @@ class TestRigidObject(unittest.TestCase):
                             # Add restitution to cube
                             cube_object.root_physx_view.set_material_properties(cube_object_materials, indices)
 
-                            curr_z_velocity = cube_object.data.root_lin_vel_w[:, 2].clone()
+                            curr_z_velocity = cube_object.data.root_com_lin_vel_w[:, 2].clone()
 
                             for _ in range(100):
                                 sim.step()
 
                                 # update object
                                 cube_object.update(sim.cfg.dt)
-                                curr_z_velocity = cube_object.data.root_lin_vel_w[:, 2].clone()
+                                curr_z_velocity = cube_object.data.root_com_lin_vel_w[:, 2].clone()
 
                                 if expected_collision_type == "inelastic":
                                     # assert that the block has not bounced by checking that the z velocity is less than or equal to 0
@@ -708,6 +718,182 @@ class TestRigidObject(unittest.TestCase):
                                     gravity[:, :, 2] = -9.81
                                 # Check the body accelerations are correct
                                 torch.testing.assert_close(cube_object.data.body_acc_w, gravity)
+
+    def test_body_root_state_properties(self):
+        """Test the root_com_state_w, root_link_state_w, body_com_state_w, and body_link_state_w properties."""
+        for num_cubes in (1, 2):
+            for device in ("cuda:0", "cpu"):
+                for with_offset in [True, False]:
+                    with self.subTest(num_cubes=num_cubes, device=device, with_offset=with_offset):
+                        with build_simulation_context(
+                            device=device, gravity_enabled=False, auto_add_lighting=True
+                        ) as sim:
+                            # Create a scene with random cubes
+                            cube_object, env_pos = generate_cubes_scene(num_cubes=num_cubes, height=0.0, device=device)
+                            env_idx = torch.tensor([x for x in range(num_cubes)])
+
+                            # Play sim
+                            sim.reset()
+
+                            # Check if cube_object is initialized
+                            self.assertTrue(cube_object.is_initialized)
+
+                            # change center of mass offset from link frame
+                            if with_offset:
+                                offset = torch.tensor([0.1, 0.0, 0.0], device=device).repeat(num_cubes, 1)
+                            else:
+                                offset = torch.tensor([0.0, 0.0, 0.0], device=device).repeat(num_cubes, 1)
+
+                            com = cube_object.root_physx_view.get_coms()
+                            com[..., :3] = offset.to("cpu")
+                            cube_object.root_physx_view.set_coms(com, env_idx)
+
+                            # check ceter of mass has been set
+                            torch.testing.assert_close(cube_object.root_physx_view.get_coms(), com)
+
+                            # random z spin velocity
+                            spin_twist = torch.zeros(6, device=device)
+                            spin_twist[5] = torch.randn(1, device=device)
+
+                            # Simulate physics
+                            for _ in range(100):
+                                # spin the object around Z axis (com)
+                                cube_object.write_root_com_velocity_to_sim(spin_twist.repeat(num_cubes, 1))
+                                # perform rendering
+                                sim.step()
+                                # update object
+                                cube_object.update(sim.cfg.dt)
+
+                                # get state properties
+                                root_state_w = cube_object.data.root_state_w
+                                root_link_state_w = cube_object.data.root_link_state_w
+                                root_com_state_w = cube_object.data.root_com_state_w
+                                body_state_w = cube_object.data.body_state_w
+                                body_link_state_w = cube_object.data.body_link_state_w
+                                body_com_state_w = cube_object.data.body_com_state_w
+
+                                # if offset is [0,0,0] all root_state_%_w will match and all body_%_w will match
+                                if not with_offset:
+                                    torch.testing.assert_close(root_state_w, root_com_state_w)
+                                    torch.testing.assert_close(root_state_w, root_link_state_w)
+                                    torch.testing.assert_close(body_state_w, body_com_state_w)
+                                    torch.testing.assert_close(body_state_w, body_link_state_w)
+                                else:
+                                    # cubes are spinning around center of mass
+                                    # position will not match
+                                    # center of mass position will be constant (i.e. spining around com)
+                                    torch.testing.assert_close(env_pos + offset, root_com_state_w[..., :3])
+                                    torch.testing.assert_close(env_pos + offset, body_com_state_w[..., :3].squeeze(-2))
+                                    # link position will be moving but should stay constant away from center of mass
+                                    root_link_state_pos_rel_com = quat_rotate_inverse(
+                                        root_link_state_w[..., 3:7],
+                                        root_link_state_w[..., :3] - root_com_state_w[..., :3],
+                                    )
+                                    torch.testing.assert_close(-offset, root_link_state_pos_rel_com)
+                                    body_link_state_pos_rel_com = quat_rotate_inverse(
+                                        body_link_state_w[..., 3:7],
+                                        body_link_state_w[..., :3] - body_com_state_w[..., :3],
+                                    )
+                                    torch.testing.assert_close(-offset, body_link_state_pos_rel_com.squeeze(-2))
+
+                                    # orientation of com will be a constant rotation from link orientation
+                                    com_quat_b = cube_object.data.com_quat_b
+                                    com_quat_w = quat_mul(body_link_state_w[..., 3:7], com_quat_b)
+                                    torch.testing.assert_close(com_quat_w, body_com_state_w[..., 3:7])
+                                    torch.testing.assert_close(com_quat_w.squeeze(-2), root_com_state_w[..., 3:7])
+
+                                    # orientation of link will match root state will always match
+                                    torch.testing.assert_close(root_state_w[..., 3:7], root_link_state_w[..., 3:7])
+                                    torch.testing.assert_close(body_state_w[..., 3:7], body_link_state_w[..., 3:7])
+
+                                    # lin_vel will not match
+                                    # center of mass vel will be constant (i.e. spining around com)
+                                    torch.testing.assert_close(
+                                        torch.zeros_like(root_com_state_w[..., 7:10]), root_com_state_w[..., 7:10]
+                                    )
+                                    torch.testing.assert_close(
+                                        torch.zeros_like(body_com_state_w[..., 7:10]), body_com_state_w[..., 7:10]
+                                    )
+                                    # link frame will be moving, and should be equal to input angular velocity cross offset
+                                    lin_vel_rel_root_gt = quat_rotate_inverse(
+                                        root_link_state_w[..., 3:7], root_link_state_w[..., 7:10]
+                                    )
+                                    lin_vel_rel_body_gt = quat_rotate_inverse(
+                                        body_link_state_w[..., 3:7], body_link_state_w[..., 7:10]
+                                    )
+                                    lin_vel_rel_gt = torch.linalg.cross(
+                                        spin_twist.repeat(num_cubes, 1)[..., 3:], -offset
+                                    )
+                                    torch.testing.assert_close(
+                                        lin_vel_rel_gt, lin_vel_rel_root_gt, atol=1e-4, rtol=1e-4
+                                    )
+                                    torch.testing.assert_close(
+                                        lin_vel_rel_gt, lin_vel_rel_body_gt.squeeze(-2), atol=1e-4, rtol=1e-4
+                                    )
+
+                                    # ang_vel will always match
+                                    torch.testing.assert_close(root_state_w[..., 10:], root_com_state_w[..., 10:])
+                                    torch.testing.assert_close(root_state_w[..., 10:], root_link_state_w[..., 10:])
+                                    torch.testing.assert_close(body_state_w[..., 10:], body_com_state_w[..., 10:])
+                                    torch.testing.assert_close(body_state_w[..., 10:], body_link_state_w[..., 10:])
+
+    def test_write_root_state(self):
+        """Test the setters for root_state using both the link frame and center of mass as reference frame."""
+        for num_cubes in (1, 2):
+            for device in ("cuda:0", "cpu"):
+                for with_offset in [True, False]:
+                    for state_location in ("com", "link"):
+                        with self.subTest(num_cubes=num_cubes, device=device, with_offset=with_offset):
+                            with build_simulation_context(
+                                device=device, gravity_enabled=False, auto_add_lighting=True
+                            ) as sim:
+                                # Create a scene with random cubes
+                                cube_object, env_pos = generate_cubes_scene(
+                                    num_cubes=num_cubes, height=0.0, device=device
+                                )
+                                env_idx = torch.tensor([x for x in range(num_cubes)])
+
+                                # Play sim
+                                sim.reset()
+
+                                # Check if cube_object is initialized
+                                self.assertTrue(cube_object.is_initialized)
+
+                                # change center of mass offset from link frame
+                                if with_offset:
+                                    offset = torch.tensor([0.1, 0.0, 0.0], device=device).repeat(num_cubes, 1)
+                                else:
+                                    offset = torch.tensor([0.0, 0.0, 0.0], device=device).repeat(num_cubes, 1)
+
+                                com = cube_object.root_physx_view.get_coms()
+                                com[..., :3] = offset.to("cpu")
+                                cube_object.root_physx_view.set_coms(com, env_idx)
+
+                                # check ceter of mass has been set
+                                torch.testing.assert_close(cube_object.root_physx_view.get_coms(), com)
+
+                                rand_state = torch.zeros_like(cube_object.data.root_link_state_w)
+                                rand_state[..., :7] = cube_object.data.default_root_state[..., :7]
+                                rand_state[..., :3] += env_pos
+                                # make quaternion a unit vector
+                                rand_state[..., 3:7] = torch.nn.functional.normalize(rand_state[..., 3:7], dim=-1)
+
+                                for i in range(10):
+
+                                    # perform step
+                                    sim.step()
+                                    # update buffers
+                                    cube_object.update(sim.cfg.dt)
+
+                                    if state_location == "com":
+                                        cube_object.write_root_com_state_to_sim(rand_state)
+                                    elif state_location == "link":
+                                        cube_object.write_root_link_state_to_sim(rand_state)
+
+                                    if state_location == "com":
+                                        torch.testing.assert_close(rand_state, cube_object.data.root_com_state_w)
+                                    elif state_location == "link":
+                                        torch.testing.assert_close(rand_state, cube_object.data.root_link_state_w)
 
 
 if __name__ == "__main__":

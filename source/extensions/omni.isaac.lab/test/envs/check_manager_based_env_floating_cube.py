@@ -128,11 +128,11 @@ class CubeActionTerm(ActionTerm):
 
     def apply_actions(self):
         # implement a PD controller to track the target position
-        pos_error = self._processed_actions - (self._asset.data.root_pos_w - self._env.scene.env_origins)
-        vel_error = -self._asset.data.root_lin_vel_w
+        pos_error = self._processed_actions - (self._asset.data.root_link_pos_w - self._env.scene.env_origins)
+        vel_error = -self._asset.data.root_com_lin_vel_w
         # set velocity targets
         self._vel_command[:, :3] = self.p_gain * pos_error + self.d_gain * vel_error
-        self._asset.write_root_velocity_to_sim(self._vel_command)
+        self._asset.write_root_com_velocity_to_sim(self._vel_command)
 
 
 @configclass
@@ -151,7 +151,7 @@ def base_position(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg) -> torch.Tens
     """Root linear velocity in the asset's root frame."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
-    return asset.data.root_pos_w - env.scene.env_origins
+    return asset.data.root_link_pos_w - env.scene.env_origins
 
 
 ##
