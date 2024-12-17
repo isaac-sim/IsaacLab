@@ -198,7 +198,7 @@ class StandUpEnv(DirectRLEnv):
         # [shoulder_pitch, elbow, hip_pitch, knee, ankle_pitch, IMU_pitch]
         # in rad : [-0.864, 0.340, -0.907, 1.378, -0.638, -0.148]
         self.desired_state = torch.deg2rad(
-            torch.tensor([19.5, -49.5, -52, 79, -36.5, 8.5], dtype=torch.float32, device=self.sim.device)
+            torch.tensor([-19.5, 49.5, -52, 79, -36.5, 8.5], dtype=torch.float32, device=self.sim.device)
         )
 
         # Window for qdot delay simulation
@@ -396,9 +396,9 @@ class StandUpEnv(DirectRLEnv):
 
         default_root_state[:, 3:7] = rotation_to_apply
 
-        self.robot.write_root_state_to_sim(default_root_state, env_ids)
+        self.robot.write_root_link_pose_to_sim(default_root_state[:, :7], env_ids)
 
-        self.robot.write_root_velocity_to_sim(default_root_state[:, 7:], env_ids)
+        self.robot.write_root_com_velocity_to_sim(default_root_state[:, 7:], env_ids)
         self.robot.write_joint_state_to_sim(default_joint_pos, default_joint_vel, None, env_ids)
 
         # print("Initial Q/Velocity: ", initial_q, default_joint_vel[:, self.left_dofs_ctrled_idx])
@@ -512,6 +512,8 @@ def compute_rewards(
 ) -> tuple[torch.Tensor, torch.Tensor]:
     device = actions.device
 
+    desired_target = desired_target.unsqueeze(0).repeat(num_envs, 1)
+
     current_state = torch.cat((q_history[:, -1, :], tilt_history[:, -1].unsqueeze(-1)), dim=-1)
 
     action_variation = torch.abs(actions - previous_actions_old[:, -1, :])
@@ -536,10 +538,7 @@ def compute_rewards(
         + variation_cost * variation_cost_scale
         # + self_collision_cost * self_collision_cost_scale
     )
-
-    # print(f"Total Reward: {total_reward}")
-    # adjust reward for fallen agents
-    # total_reward = torch.where(reset_terminated, torch.ones_like(total_reward) * death_cost, total_reward)
+    
     return total_reward, previous_actions
 
 
