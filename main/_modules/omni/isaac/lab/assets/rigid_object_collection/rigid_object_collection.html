@@ -614,7 +614,11 @@
             <span class="n">order</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
         <span class="p">)</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">_debug_vis_handle</span> <span class="o">=</span> <span class="kc">None</span></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_debug_vis_handle</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_root_state_dep_warn</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_root_pose_dep_warn</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_root_vel_dep_warn</span> <span class="o">=</span> <span class="kc">False</span></div>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Properties</span>
@@ -733,9 +737,55 @@
 <span class="sd">            env_ids: Environment indices. If None, then all indices are used.</span>
 <span class="sd">            object_ids: Object indices. If None, then all indices are used.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># deprecation warning</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_root_state_dep_warn</span><span class="p">:</span>
+            <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+                <span class="s2">&quot;DeprecationWarning: RigidObjectCollection.write_object_state_to_sim will be removed in a future&quot;</span>
+                <span class="s2">&quot; release. Please use write_object_link_state_to_sim or write_object_com_state_to_sim instead.&quot;</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_root_state_dep_warn</span> <span class="o">=</span> <span class="kc">True</span>
+
         <span class="c1"># set into simulation</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">write_object_pose_to_sim</span><span class="p">(</span><span class="n">object_state</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">7</span><span class="p">],</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">object_ids</span><span class="o">=</span><span class="n">object_ids</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">write_object_velocity_to_sim</span><span class="p">(</span><span class="n">object_state</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">7</span><span class="p">:],</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">object_ids</span><span class="o">=</span><span class="n">object_ids</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="RigidObjectCollection.write_object_com_state_to_sim"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObjectCollection.write_object_com_state_to_sim">[docs]</a>    <span class="k">def</span> <span class="nf">write_object_com_state_to_sim</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">object_state</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">object_ids</span><span class="p">:</span> <span class="nb">slice</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Set the object center of mass state over selected environment indices into the simulation.</span>
+<span class="sd">        The object state comprises of the cartesian position, quaternion orientation in (w, x, y, z), and linear</span>
+<span class="sd">        and angular velocity. All the quantities are in the simulation frame.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            object_state: Object state in simulation frame. Shape is (len(env_ids), len(object_ids), 13).</span>
+<span class="sd">            env_ids: Environment indices. If None, then all indices are used.</span>
+<span class="sd">            object_ids: Object indices. If None, then all indices are used.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># set into simulation</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">write_object_com_pose_to_sim</span><span class="p">(</span><span class="n">object_state</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">7</span><span class="p">],</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">object_ids</span><span class="o">=</span><span class="n">object_ids</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">write_object_com_velocity_to_sim</span><span class="p">(</span><span class="n">object_state</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">7</span><span class="p">:],</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">object_ids</span><span class="o">=</span><span class="n">object_ids</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="RigidObjectCollection.write_object_link_state_to_sim"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObjectCollection.write_object_link_state_to_sim">[docs]</a>    <span class="k">def</span> <span class="nf">write_object_link_state_to_sim</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">object_state</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">object_ids</span><span class="p">:</span> <span class="nb">slice</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Set the object link state over selected environment indices into the simulation.</span>
+<span class="sd">        The object state comprises of the cartesian position, quaternion orientation in (w, x, y, z), and linear</span>
+<span class="sd">        and angular velocity. All the quantities are in the simulation frame.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            object_state: Object state in simulation frame. Shape is (len(env_ids), len(object_ids), 13).</span>
+<span class="sd">            env_ids: Environment indices. If None, then all indices are used.</span>
+<span class="sd">            object_ids: Object indices. If None, then all indices are used.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># set into simulation</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">write_object_link_pose_to_sim</span><span class="p">(</span><span class="n">object_state</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">7</span><span class="p">],</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">object_ids</span><span class="o">=</span><span class="n">object_ids</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">write_object_link_velocity_to_sim</span><span class="p">(</span><span class="n">object_state</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">7</span><span class="p">:],</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">object_ids</span><span class="o">=</span><span class="n">object_ids</span><span class="p">)</span></div>
 
 <div class="viewcode-block" id="RigidObjectCollection.write_object_pose_to_sim"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObjectCollection.write_object_pose_to_sim">[docs]</a>    <span class="k">def</span> <span class="nf">write_object_pose_to_sim</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
@@ -752,6 +802,32 @@
 <span class="sd">            env_ids: Environment indices. If None, then all indices are used.</span>
 <span class="sd">            object_ids: Object indices. If None, then all indices are used.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># deprecation warning</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_root_pose_dep_warn</span><span class="p">:</span>
+            <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+                <span class="s2">&quot;DeprecationWarning: RigidObjectCollection.write_object_pose_to_sim will be removed in a future&quot;</span>
+                <span class="s2">&quot; release. Please use write_object_link_pose_to_sim or write_object_com_pose_to_sim instead.&quot;</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_root_pose_dep_warn</span> <span class="o">=</span> <span class="kc">True</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">write_object_link_pose_to_sim</span><span class="p">(</span><span class="n">object_pose</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">,</span> <span class="n">object_ids</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="RigidObjectCollection.write_object_link_pose_to_sim"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObjectCollection.write_object_link_pose_to_sim">[docs]</a>    <span class="k">def</span> <span class="nf">write_object_link_pose_to_sim</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">object_pose</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">object_ids</span><span class="p">:</span> <span class="nb">slice</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Set the object pose over selected environment and object indices into the simulation.</span>
+
+<span class="sd">        The object pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            object_pose: Object poses in simulation frame. Shape is (len(env_ids), len(object_ids), 7).</span>
+<span class="sd">            env_ids: Environment indices. If None, then all indices are used.</span>
+<span class="sd">            object_ids: Object indices. If None, then all indices are used.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
         <span class="c1"># resolve all indices</span>
         <span class="c1"># -- env_ids</span>
         <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
@@ -761,13 +837,54 @@
             <span class="n">object_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_OBJ_INDICES</span>
         <span class="c1"># note: we need to do this here since tensors are not set into simulation until step.</span>
         <span class="c1"># set into internal buffers</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">object_link_state_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">object_ids</span><span class="p">,</span> <span class="p">:</span><span class="mi">7</span><span class="p">]</span> <span class="o">=</span> <span class="n">object_pose</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">_ignore_dep_warn</span> <span class="o">=</span> <span class="kc">True</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">object_state_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">object_ids</span><span class="p">,</span> <span class="p">:</span><span class="mi">7</span><span class="p">]</span> <span class="o">=</span> <span class="n">object_pose</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">_ignore_dep_warn</span> <span class="o">=</span> <span class="kc">False</span>
         <span class="c1"># convert the quaternion from wxyz to xyzw</span>
-        <span class="n">poses_xyzw</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">object_state_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">7</span><span class="p">]</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+        <span class="n">poses_xyzw</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">object_link_state_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">7</span><span class="p">]</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
         <span class="n">poses_xyzw</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:]</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">convert_quat</span><span class="p">(</span><span class="n">poses_xyzw</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:],</span> <span class="n">to</span><span class="o">=</span><span class="s2">&quot;xyzw&quot;</span><span class="p">)</span>
         <span class="c1"># set into simulation</span>
         <span class="n">view_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_env_obj_ids_to_view_ids</span><span class="p">(</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">object_ids</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">set_transforms</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">reshape_data_to_view</span><span class="p">(</span><span class="n">poses_xyzw</span><span class="p">),</span> <span class="n">indices</span><span class="o">=</span><span class="n">view_ids</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="RigidObjectCollection.write_object_com_pose_to_sim"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObjectCollection.write_object_com_pose_to_sim">[docs]</a>    <span class="k">def</span> <span class="nf">write_object_com_pose_to_sim</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">object_pose</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">object_ids</span><span class="p">:</span> <span class="nb">slice</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Set the object center of mass pose over selected environment indices into the simulation.</span>
+<span class="sd">        The object pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).</span>
+<span class="sd">        The orientation is the orientation of the principle axes of inertia.</span>
+<span class="sd">        Args:</span>
+<span class="sd">            object_pose: Object poses in simulation frame. Shape is (len(env_ids), len(object_ids), 7).</span>
+<span class="sd">            env_ids: Environment indices. If None, then all indices are used.</span>
+<span class="sd">            object_ids: Object indices. If None, then all indices are used.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># resolve all indices</span>
+        <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">local_env_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">local_env_ids</span> <span class="o">=</span> <span class="n">env_ids</span>
+        <span class="k">if</span> <span class="n">object_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">local_object_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="n">object_ids</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">local_object_ids</span> <span class="o">=</span> <span class="n">object_ids</span>
+
+        <span class="n">com_pos</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">com_pos_b</span><span class="p">[</span><span class="n">local_env_ids</span><span class="p">,</span> <span class="n">local_object_ids</span><span class="p">,</span> <span class="p">:]</span>
+        <span class="n">com_quat</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">com_quat_b</span><span class="p">[</span><span class="n">local_env_ids</span><span class="p">,</span> <span class="n">local_object_ids</span><span class="p">,</span> <span class="p">:]</span>
+
+        <span class="n">object_link_pos</span><span class="p">,</span> <span class="n">object_link_quat</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">combine_frame_transforms</span><span class="p">(</span>
+            <span class="n">object_pose</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">],</span>
+            <span class="n">object_pose</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">],</span>
+            <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_rotate</span><span class="p">(</span><span class="n">math_utils</span><span class="o">.</span><span class="n">quat_inv</span><span class="p">(</span><span class="n">com_quat</span><span class="p">),</span> <span class="o">-</span><span class="n">com_pos</span><span class="p">),</span>
+            <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_inv</span><span class="p">(</span><span class="n">com_quat</span><span class="p">),</span>
+        <span class="p">)</span>
+
+        <span class="n">object_link_pose</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">((</span><span class="n">object_link_pos</span><span class="p">,</span> <span class="n">object_link_quat</span><span class="p">),</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">write_object_link_pose_to_sim</span><span class="p">(</span><span class="n">object_pose</span><span class="o">=</span><span class="n">object_link_pose</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">object_ids</span><span class="o">=</span><span class="n">object_ids</span><span class="p">)</span></div>
 
 <div class="viewcode-block" id="RigidObjectCollection.write_object_velocity_to_sim"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObjectCollection.write_object_velocity_to_sim">[docs]</a>    <span class="k">def</span> <span class="nf">write_object_velocity_to_sim</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
@@ -782,6 +899,29 @@
 <span class="sd">            env_ids: Environment indices. If None, then all indices are used.</span>
 <span class="sd">            object_ids: Object indices. If None, then all indices are used.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># deprecation warning</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_root_vel_dep_warn</span><span class="p">:</span>
+            <span class="n">omni</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+                <span class="s2">&quot;DeprecationWarning: RigidObjectCollection.write_object_velocity_to_sim will be removed in a future&quot;</span>
+                <span class="s2">&quot; release. Please use write_object_link_velocity_to_sim or write_object_com_velocity_to_sim instead.&quot;</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_root_vel_dep_warn</span> <span class="o">=</span> <span class="kc">True</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">write_object_com_velocity_to_sim</span><span class="p">(</span><span class="n">object_velocity</span><span class="o">=</span><span class="n">object_velocity</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">object_ids</span><span class="o">=</span><span class="n">object_ids</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="RigidObjectCollection.write_object_com_velocity_to_sim"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObjectCollection.write_object_com_velocity_to_sim">[docs]</a>    <span class="k">def</span> <span class="nf">write_object_com_velocity_to_sim</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">object_velocity</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">object_ids</span><span class="p">:</span> <span class="nb">slice</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Set the object center of mass velocity over selected environment and object indices into the simulation.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            object_velocity: Object velocities in simulation frame. Shape is (len(env_ids), len(object_ids), 6).</span>
+<span class="sd">            env_ids: Environment indices. If None, then all indices are used.</span>
+<span class="sd">            object_ids: Object indices. If None, then all indices are used.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># resolve all indices</span>
         <span class="c1"># -- env_ids</span>
         <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
@@ -790,13 +930,52 @@
         <span class="k">if</span> <span class="n">object_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">object_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_OBJ_INDICES</span>
 
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">object_com_state_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">object_ids</span><span class="p">,</span> <span class="mi">7</span><span class="p">:]</span> <span class="o">=</span> <span class="n">object_velocity</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">_ignore_dep_warn</span> <span class="o">=</span> <span class="kc">True</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">object_state_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">object_ids</span><span class="p">,</span> <span class="mi">7</span><span class="p">:]</span> <span class="o">=</span> <span class="n">object_velocity</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">_ignore_dep_warn</span> <span class="o">=</span> <span class="kc">False</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">object_acc_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">object_ids</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
 
         <span class="c1"># set into simulation</span>
         <span class="n">view_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_env_obj_ids_to_view_ids</span><span class="p">(</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">object_ids</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">set_velocities</span><span class="p">(</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">reshape_data_to_view</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">object_state_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">7</span><span class="p">:]),</span> <span class="n">indices</span><span class="o">=</span><span class="n">view_ids</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">reshape_data_to_view</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">object_com_state_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">7</span><span class="p">:]),</span> <span class="n">indices</span><span class="o">=</span><span class="n">view_ids</span>
+        <span class="p">)</span></div>
+
+<div class="viewcode-block" id="RigidObjectCollection.write_object_link_velocity_to_sim"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObjectCollection.write_object_link_velocity_to_sim">[docs]</a>    <span class="k">def</span> <span class="nf">write_object_link_velocity_to_sim</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">object_velocity</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">object_ids</span><span class="p">:</span> <span class="nb">slice</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Set the object link velocity over selected environment indices into the simulation.</span>
+<span class="sd">        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.</span>
+<span class="sd">        NOTE: This sets the velocity of the object&#39;s frame rather than the objects center of mass.</span>
+<span class="sd">        Args:</span>
+<span class="sd">            object_velocity: Object velocities in simulation frame. Shape is (len(env_ids), len(object_ids), 6).</span>
+<span class="sd">            env_ids: Environment indices. If None, then all indices are used.</span>
+<span class="sd">            object_ids: Object indices. If None, then all indices are used.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># resolve all indices</span>
+        <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">local_env_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">local_env_ids</span> <span class="o">=</span> <span class="n">env_ids</span>
+        <span class="k">if</span> <span class="n">object_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">local_object_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="n">object_ids</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">local_object_ids</span> <span class="o">=</span> <span class="n">object_ids</span>
+
+        <span class="n">object_com_velocity</span> <span class="o">=</span> <span class="n">object_velocity</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+        <span class="n">quat</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">object_link_state_w</span><span class="p">[</span><span class="n">local_env_ids</span><span class="p">,</span> <span class="n">local_object_ids</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span>
+        <span class="n">com_pos_b</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">com_pos_b</span><span class="p">[</span><span class="n">local_env_ids</span><span class="p">,</span> <span class="n">local_object_ids</span><span class="p">,</span> <span class="p">:]</span>
+        <span class="c1"># transform given velocity to center of mass</span>
+        <span class="n">object_com_velocity</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="n">torch</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">cross</span><span class="p">(</span>
+            <span class="n">object_com_velocity</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:],</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_rotate</span><span class="p">(</span><span class="n">quat</span><span class="p">,</span> <span class="n">com_pos_b</span><span class="p">),</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span>
+        <span class="p">)</span>
+        <span class="c1"># write center of mass velocity to sim</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">write_object_com_velocity_to_sim</span><span class="p">(</span>
+            <span class="n">object_velocity</span><span class="o">=</span><span class="n">object_com_velocity</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">object_ids</span><span class="o">=</span><span class="n">object_ids</span>
         <span class="p">)</span></div>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>

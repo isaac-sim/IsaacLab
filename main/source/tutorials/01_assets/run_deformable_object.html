@@ -910,13 +910,6 @@ inside the <a class="reference internal" href="../../api/lab/omni.isaac.lab.asse
 <p>At a fixed interval, we print the root position of the deformable object to the terminal. As mentioned
 earlier, there is no concept of a root state for deformable objects. However, we compute the root position as
 the average position of all the nodes in the mesh.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span>        <span class="c1"># update buffers</span>
-        <span class="n">cube_object</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">sim_dt</span><span class="p">)</span>
-        <span class="c1"># print the root position</span>
-        <span class="k">if</span> <span class="n">count</span> <span class="o">%</span> <span class="mi">50</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Root position (in world): </span><span class="si">{</span><span class="n">cube_object</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_pos_w</span><span class="p">[:,</span><span class="w"> </span><span class="p">:</span><span class="mi">3</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-</pre></div>
-</div>
 </section>
 </section>
 </section>

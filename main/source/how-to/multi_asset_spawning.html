@@ -852,67 +852,70 @@ environment has a different asset.</p></li>
 <span class="linenos">240</span>            <span class="c1"># object</span>
 <span class="linenos">241</span>            <span class="n">root_state</span> <span class="o">=</span> <span class="n">rigid_object</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_root_state</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
 <span class="linenos">242</span>            <span class="n">root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="n">scene</span><span class="o">.</span><span class="n">env_origins</span>
-<span class="linenos">243</span>            <span class="n">rigid_object</span><span class="o">.</span><span class="n">write_root_state_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">)</span>
-<span class="linenos">244</span>            <span class="c1"># object collection</span>
-<span class="linenos">245</span>            <span class="n">object_state</span> <span class="o">=</span> <span class="n">rigid_object_collection</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_object_state</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
-<span class="linenos">246</span>            <span class="n">object_state</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="n">scene</span><span class="o">.</span><span class="n">env_origins</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
-<span class="linenos">247</span>            <span class="n">rigid_object_collection</span><span class="o">.</span><span class="n">write_object_state_to_sim</span><span class="p">(</span><span class="n">object_state</span><span class="p">)</span>
-<span class="linenos">248</span>            <span class="c1"># robot</span>
-<span class="linenos">249</span>            <span class="c1"># -- root state</span>
-<span class="linenos">250</span>            <span class="n">root_state</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_root_state</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
-<span class="linenos">251</span>            <span class="n">root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="n">scene</span><span class="o">.</span><span class="n">env_origins</span>
-<span class="linenos">252</span>            <span class="n">robot</span><span class="o">.</span><span class="n">write_root_state_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">)</span>
-<span class="linenos">253</span>            <span class="c1"># -- joint state</span>
-<span class="linenos">254</span>            <span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_pos</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_vel</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
-<span class="linenos">255</span>            <span class="n">robot</span><span class="o">.</span><span class="n">write_joint_state_to_sim</span><span class="p">(</span><span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span><span class="p">)</span>
-<span class="linenos">256</span>            <span class="c1"># clear internal buffers</span>
-<span class="linenos">257</span>            <span class="n">scene</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
-<span class="linenos">258</span>            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Resetting scene state...&quot;</span><span class="p">)</span>
-<span class="linenos">259</span>
-<span class="linenos">260</span>        <span class="c1"># Apply action to robot</span>
-<span class="linenos">261</span>        <span class="n">robot</span><span class="o">.</span><span class="n">set_joint_position_target</span><span class="p">(</span><span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_pos</span><span class="p">)</span>
-<span class="linenos">262</span>        <span class="c1"># Write data to sim</span>
-<span class="linenos">263</span>        <span class="n">scene</span><span class="o">.</span><span class="n">write_data_to_sim</span><span class="p">()</span>
-<span class="linenos">264</span>        <span class="c1"># Perform step</span>
-<span class="linenos">265</span>        <span class="n">sim</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
-<span class="linenos">266</span>        <span class="c1"># Increment counter</span>
-<span class="linenos">267</span>        <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
-<span class="linenos">268</span>        <span class="c1"># Update buffers</span>
-<span class="linenos">269</span>        <span class="n">scene</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">sim_dt</span><span class="p">)</span>
-<span class="linenos">270</span>
-<span class="linenos">271</span>
-<span class="linenos">272</span><span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
-<span class="linenos">273</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Main function.&quot;&quot;&quot;</span>
-<span class="linenos">274</span>    <span class="c1"># Load kit helper</span>
-<span class="linenos">275</span>    <span class="n">sim_cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationCfg</span><span class="p">(</span><span class="n">dt</span><span class="o">=</span><span class="mf">0.005</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
-<span class="linenos">276</span>    <span class="n">sim</span> <span class="o">=</span> <span class="n">SimulationContext</span><span class="p">(</span><span class="n">sim_cfg</span><span class="p">)</span>
-<span class="linenos">277</span>    <span class="c1"># Set main camera</span>
-<span class="linenos">278</span>    <span class="n">sim</span><span class="o">.</span><span class="n">set_camera_view</span><span class="p">([</span><span class="mf">2.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">4.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">])</span>
-<span class="linenos">279</span>
-<span class="linenos">280</span>    <span class="c1"># Design scene</span>
-<span class="linenos">281</span>    <span class="n">scene_cfg</span> <span class="o">=</span> <span class="n">MultiObjectSceneCfg</span><span class="p">(</span><span class="n">num_envs</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">env_spacing</span><span class="o">=</span><span class="mf">2.0</span><span class="p">,</span> <span class="n">replicate_physics</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-<span class="linenos">282</span>    <span class="k">with</span> <span class="n">Timer</span><span class="p">(</span><span class="s2">&quot;[INFO] Time to create scene: &quot;</span><span class="p">):</span>
-<span class="linenos">283</span>        <span class="n">scene</span> <span class="o">=</span> <span class="n">InteractiveScene</span><span class="p">(</span><span class="n">scene_cfg</span><span class="p">)</span>
-<span class="linenos">284</span>
-<span class="linenos">285</span>    <span class="k">with</span> <span class="n">Timer</span><span class="p">(</span><span class="s2">&quot;[INFO] Time to randomize scene: &quot;</span><span class="p">):</span>
-<span class="linenos">286</span>        <span class="c1"># DO YOUR OWN OTHER KIND OF RANDOMIZATION HERE!</span>
-<span class="linenos">287</span>        <span class="c1"># Note: Just need to acquire the right attribute about the property you want to set</span>
-<span class="linenos">288</span>        <span class="c1"># Here is an example on setting color randomly</span>
-<span class="linenos">289</span>        <span class="n">randomize_shape_color</span><span class="p">(</span><span class="n">scene_cfg</span><span class="o">.</span><span class="n">object</span><span class="o">.</span><span class="n">prim_path</span><span class="p">)</span>
-<span class="linenos">290</span>
-<span class="linenos">291</span>    <span class="c1"># Play the simulator</span>
-<span class="linenos">292</span>    <span class="n">sim</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
-<span class="linenos">293</span>    <span class="c1"># Now we are ready!</span>
-<span class="linenos">294</span>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Setup complete...&quot;</span><span class="p">)</span>
-<span class="linenos">295</span>    <span class="c1"># Run the simulator</span>
-<span class="linenos">296</span>    <span class="n">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">,</span> <span class="n">scene</span><span class="p">)</span>
-<span class="linenos">297</span>
-<span class="linenos">298</span>
-<span class="linenos">299</span><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
-<span class="linenos">300</span>    <span class="c1"># run the main execution</span>
-<span class="linenos">301</span>    <span class="n">main</span><span class="p">()</span>
-<span class="linenos">302</span>    <span class="c1"># close sim app</span>
-<span class="linenos">303</span>    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+<span class="linenos">243</span>            <span class="n">rigid_object</span><span class="o">.</span><span class="n">write_root_link_pose_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">7</span><span class="p">])</span>
+<span class="linenos">244</span>            <span class="n">rigid_object</span><span class="o">.</span><span class="n">write_root_com_velocity_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">[:,</span> <span class="mi">7</span><span class="p">:])</span>
+<span class="linenos">245</span>            <span class="c1"># object collection</span>
+<span class="linenos">246</span>            <span class="n">object_state</span> <span class="o">=</span> <span class="n">rigid_object_collection</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_object_state</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+<span class="linenos">247</span>            <span class="n">object_state</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="n">scene</span><span class="o">.</span><span class="n">env_origins</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<span class="linenos">248</span>            <span class="n">rigid_object_collection</span><span class="o">.</span><span class="n">write_object_link_pose_to_sim</span><span class="p">(</span><span class="n">object_state</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">7</span><span class="p">])</span>
+<span class="linenos">249</span>            <span class="n">rigid_object_collection</span><span class="o">.</span><span class="n">write_object_com_velocity_to_sim</span><span class="p">(</span><span class="n">object_state</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">7</span><span class="p">:])</span>
+<span class="linenos">250</span>            <span class="c1"># robot</span>
+<span class="linenos">251</span>            <span class="c1"># -- root state</span>
+<span class="linenos">252</span>            <span class="n">root_state</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_root_state</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+<span class="linenos">253</span>            <span class="n">root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="n">scene</span><span class="o">.</span><span class="n">env_origins</span>
+<span class="linenos">254</span>            <span class="n">robot</span><span class="o">.</span><span class="n">write_root_link_pose_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">7</span><span class="p">])</span>
+<span class="linenos">255</span>            <span class="n">robot</span><span class="o">.</span><span class="n">write_root_com_velocity_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">[:,</span> <span class="mi">7</span><span class="p">:])</span>
+<span class="linenos">256</span>            <span class="c1"># -- joint state</span>
+<span class="linenos">257</span>            <span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_pos</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_vel</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+<span class="linenos">258</span>            <span class="n">robot</span><span class="o">.</span><span class="n">write_joint_state_to_sim</span><span class="p">(</span><span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span><span class="p">)</span>
+<span class="linenos">259</span>            <span class="c1"># clear internal buffers</span>
+<span class="linenos">260</span>            <span class="n">scene</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+<span class="linenos">261</span>            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Resetting scene state...&quot;</span><span class="p">)</span>
+<span class="linenos">262</span>
+<span class="linenos">263</span>        <span class="c1"># Apply action to robot</span>
+<span class="linenos">264</span>        <span class="n">robot</span><span class="o">.</span><span class="n">set_joint_position_target</span><span class="p">(</span><span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_pos</span><span class="p">)</span>
+<span class="linenos">265</span>        <span class="c1"># Write data to sim</span>
+<span class="linenos">266</span>        <span class="n">scene</span><span class="o">.</span><span class="n">write_data_to_sim</span><span class="p">()</span>
+<span class="linenos">267</span>        <span class="c1"># Perform step</span>
+<span class="linenos">268</span>        <span class="n">sim</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+<span class="linenos">269</span>        <span class="c1"># Increment counter</span>
+<span class="linenos">270</span>        <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
+<span class="linenos">271</span>        <span class="c1"># Update buffers</span>
+<span class="linenos">272</span>        <span class="n">scene</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">sim_dt</span><span class="p">)</span>
+<span class="linenos">273</span>
+<span class="linenos">274</span>
+<span class="linenos">275</span><span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+<span class="linenos">276</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Main function.&quot;&quot;&quot;</span>
+<span class="linenos">277</span>    <span class="c1"># Load kit helper</span>
+<span class="linenos">278</span>    <span class="n">sim_cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationCfg</span><span class="p">(</span><span class="n">dt</span><span class="o">=</span><span class="mf">0.005</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+<span class="linenos">279</span>    <span class="n">sim</span> <span class="o">=</span> <span class="n">SimulationContext</span><span class="p">(</span><span class="n">sim_cfg</span><span class="p">)</span>
+<span class="linenos">280</span>    <span class="c1"># Set main camera</span>
+<span class="linenos">281</span>    <span class="n">sim</span><span class="o">.</span><span class="n">set_camera_view</span><span class="p">([</span><span class="mf">2.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">4.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">])</span>
+<span class="linenos">282</span>
+<span class="linenos">283</span>    <span class="c1"># Design scene</span>
+<span class="linenos">284</span>    <span class="n">scene_cfg</span> <span class="o">=</span> <span class="n">MultiObjectSceneCfg</span><span class="p">(</span><span class="n">num_envs</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">env_spacing</span><span class="o">=</span><span class="mf">2.0</span><span class="p">,</span> <span class="n">replicate_physics</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="linenos">285</span>    <span class="k">with</span> <span class="n">Timer</span><span class="p">(</span><span class="s2">&quot;[INFO] Time to create scene: &quot;</span><span class="p">):</span>
+<span class="linenos">286</span>        <span class="n">scene</span> <span class="o">=</span> <span class="n">InteractiveScene</span><span class="p">(</span><span class="n">scene_cfg</span><span class="p">)</span>
+<span class="linenos">287</span>
+<span class="linenos">288</span>    <span class="k">with</span> <span class="n">Timer</span><span class="p">(</span><span class="s2">&quot;[INFO] Time to randomize scene: &quot;</span><span class="p">):</span>
+<span class="linenos">289</span>        <span class="c1"># DO YOUR OWN OTHER KIND OF RANDOMIZATION HERE!</span>
+<span class="linenos">290</span>        <span class="c1"># Note: Just need to acquire the right attribute about the property you want to set</span>
+<span class="linenos">291</span>        <span class="c1"># Here is an example on setting color randomly</span>
+<span class="linenos">292</span>        <span class="n">randomize_shape_color</span><span class="p">(</span><span class="n">scene_cfg</span><span class="o">.</span><span class="n">object</span><span class="o">.</span><span class="n">prim_path</span><span class="p">)</span>
+<span class="linenos">293</span>
+<span class="linenos">294</span>    <span class="c1"># Play the simulator</span>
+<span class="linenos">295</span>    <span class="n">sim</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+<span class="linenos">296</span>    <span class="c1"># Now we are ready!</span>
+<span class="linenos">297</span>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Setup complete...&quot;</span><span class="p">)</span>
+<span class="linenos">298</span>    <span class="c1"># Run the simulator</span>
+<span class="linenos">299</span>    <span class="n">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">,</span> <span class="n">scene</span><span class="p">)</span>
+<span class="linenos">300</span>
+<span class="linenos">301</span>
+<span class="linenos">302</span><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+<span class="linenos">303</span>    <span class="c1"># run the main execution</span>
+<span class="linenos">304</span>    <span class="n">main</span><span class="p">()</span>
+<span class="linenos">305</span>    <span class="c1"># close sim app</span>
+<span class="linenos">306</span>    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
 </pre></div>
 </div>
 </div>
@@ -1079,10 +1082,10 @@ engine that the simulation environments are copies of one another so it just nee
 to understand the entire simulation scene. This helps speed up the simulation scene parsing.</p>
 <p>However, in the case of spawning different assets in different environments, this assumption does not hold
 anymore. Hence the flag <code class="xref py py-attr docutils literal notranslate"><span class="pre">scene.InteractiveScene.replicate_physics</span></code> must be disabled.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Design scene</span>
-<span class="n">scene_cfg</span> <span class="o">=</span> <span class="n">MultiObjectSceneCfg</span><span class="p">(</span><span class="n">num_envs</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">env_spacing</span><span class="o">=</span><span class="mf">2.0</span><span class="p">,</span> <span class="n">replicate_physics</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-<span class="k">with</span> <span class="n">Timer</span><span class="p">(</span><span class="s2">&quot;[INFO] Time to create scene: &quot;</span><span class="p">):</span>
-    <span class="n">scene</span> <span class="o">=</span> <span class="n">InteractiveScene</span><span class="p">(</span><span class="n">scene_cfg</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Set main camera</span>
+<span class="n">sim</span><span class="o">.</span><span class="n">set_camera_view</span><span class="p">([</span><span class="mf">2.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">4.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">])</span>
+
+<span class="c1"># Design scene</span>
 </pre></div>
 </div>
 </section>

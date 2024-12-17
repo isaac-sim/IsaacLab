@@ -704,52 +704,53 @@ directory.</p>
 </span><span class="hll"><span class="linenos"> 94</span>            <span class="c1"># if this is not done, then the robots will be spawned at the (0, 0, 0) of the simulation world</span>
 </span><span class="hll"><span class="linenos"> 95</span>            <span class="n">root_state</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_root_state</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
 </span><span class="hll"><span class="linenos"> 96</span>            <span class="n">root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="n">origins</span>
-</span><span class="hll"><span class="linenos"> 97</span>            <span class="n">robot</span><span class="o">.</span><span class="n">write_root_state_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">)</span>
-</span><span class="hll"><span class="linenos"> 98</span>            <span class="c1"># set joint positions with some noise</span>
-</span><span class="hll"><span class="linenos"> 99</span>            <span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_pos</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_vel</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
-</span><span class="hll"><span class="linenos">100</span>            <span class="n">joint_pos</span> <span class="o">+=</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand_like</span><span class="p">(</span><span class="n">joint_pos</span><span class="p">)</span> <span class="o">*</span> <span class="mf">0.1</span>
-</span><span class="hll"><span class="linenos">101</span>            <span class="n">robot</span><span class="o">.</span><span class="n">write_joint_state_to_sim</span><span class="p">(</span><span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span><span class="p">)</span>
-</span><span class="hll"><span class="linenos">102</span>            <span class="c1"># clear internal buffers</span>
-</span><span class="hll"><span class="linenos">103</span>            <span class="n">robot</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
-</span><span class="hll"><span class="linenos">104</span>            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Resetting robot state...&quot;</span><span class="p">)</span>
-</span><span class="linenos">105</span>        <span class="c1"># Apply random action</span>
-<span class="linenos">106</span>        <span class="c1"># -- generate random joint efforts</span>
-<span class="linenos">107</span>        <span class="n">efforts</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn_like</span><span class="p">(</span><span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">joint_pos</span><span class="p">)</span> <span class="o">*</span> <span class="mf">5.0</span>
-<span class="hll"><span class="linenos">108</span>        <span class="c1"># -- apply action to the robot</span>
-</span><span class="hll"><span class="linenos">109</span>        <span class="n">robot</span><span class="o">.</span><span class="n">set_joint_effort_target</span><span class="p">(</span><span class="n">efforts</span><span class="p">)</span>
-</span><span class="hll"><span class="linenos">110</span>        <span class="c1"># -- write data to sim</span>
-</span><span class="hll"><span class="linenos">111</span>        <span class="n">robot</span><span class="o">.</span><span class="n">write_data_to_sim</span><span class="p">()</span>
-</span><span class="linenos">112</span>        <span class="c1"># Perform step</span>
-<span class="linenos">113</span>        <span class="n">sim</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
-<span class="linenos">114</span>        <span class="c1"># Increment counter</span>
-<span class="linenos">115</span>        <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
-<span class="hll"><span class="linenos">116</span>        <span class="c1"># Update buffers</span>
-</span><span class="hll"><span class="linenos">117</span>        <span class="n">robot</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">sim_dt</span><span class="p">)</span>
-</span><span class="linenos">118</span>
+</span><span class="hll"><span class="linenos"> 97</span>            <span class="n">robot</span><span class="o">.</span><span class="n">write_root_link_pose_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">7</span><span class="p">])</span>
+</span><span class="hll"><span class="linenos"> 98</span>            <span class="n">robot</span><span class="o">.</span><span class="n">write_root_com_velocity_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">[:,</span> <span class="mi">7</span><span class="p">:])</span>
+</span><span class="hll"><span class="linenos"> 99</span>            <span class="c1"># set joint positions with some noise</span>
+</span><span class="hll"><span class="linenos">100</span>            <span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_pos</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_vel</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+</span><span class="hll"><span class="linenos">101</span>            <span class="n">joint_pos</span> <span class="o">+=</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand_like</span><span class="p">(</span><span class="n">joint_pos</span><span class="p">)</span> <span class="o">*</span> <span class="mf">0.1</span>
+</span><span class="hll"><span class="linenos">102</span>            <span class="n">robot</span><span class="o">.</span><span class="n">write_joint_state_to_sim</span><span class="p">(</span><span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span><span class="p">)</span>
+</span><span class="hll"><span class="linenos">103</span>            <span class="c1"># clear internal buffers</span>
+</span><span class="hll"><span class="linenos">104</span>            <span class="n">robot</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+</span><span class="linenos">105</span>            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Resetting robot state...&quot;</span><span class="p">)</span>
+<span class="linenos">106</span>        <span class="c1"># Apply random action</span>
+<span class="linenos">107</span>        <span class="c1"># -- generate random joint efforts</span>
+<span class="hll"><span class="linenos">108</span>        <span class="n">efforts</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn_like</span><span class="p">(</span><span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">joint_pos</span><span class="p">)</span> <span class="o">*</span> <span class="mf">5.0</span>
+</span><span class="hll"><span class="linenos">109</span>        <span class="c1"># -- apply action to the robot</span>
+</span><span class="hll"><span class="linenos">110</span>        <span class="n">robot</span><span class="o">.</span><span class="n">set_joint_effort_target</span><span class="p">(</span><span class="n">efforts</span><span class="p">)</span>
+</span><span class="hll"><span class="linenos">111</span>        <span class="c1"># -- write data to sim</span>
+</span><span class="linenos">112</span>        <span class="n">robot</span><span class="o">.</span><span class="n">write_data_to_sim</span><span class="p">()</span>
+<span class="linenos">113</span>        <span class="c1"># Perform step</span>
+<span class="linenos">114</span>        <span class="n">sim</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+<span class="linenos">115</span>        <span class="c1"># Increment counter</span>
+<span class="hll"><span class="linenos">116</span>        <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
+</span><span class="hll"><span class="linenos">117</span>        <span class="c1"># Update buffers</span>
+</span><span class="linenos">118</span>        <span class="n">robot</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">sim_dt</span><span class="p">)</span>
 <span class="linenos">119</span>
-<span class="linenos">120</span><span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
-<span class="linenos">121</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Main function.&quot;&quot;&quot;</span>
-<span class="linenos">122</span>    <span class="c1"># Load kit helper</span>
-<span class="linenos">123</span>    <span class="n">sim_cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationCfg</span><span class="p">(</span><span class="n">device</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
-<span class="linenos">124</span>    <span class="n">sim</span> <span class="o">=</span> <span class="n">SimulationContext</span><span class="p">(</span><span class="n">sim_cfg</span><span class="p">)</span>
-<span class="linenos">125</span>    <span class="c1"># Set main camera</span>
-<span class="linenos">126</span>    <span class="n">sim</span><span class="o">.</span><span class="n">set_camera_view</span><span class="p">([</span><span class="mf">2.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">4.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">])</span>
-<span class="linenos">127</span>    <span class="c1"># Design scene</span>
-<span class="linenos">128</span>    <span class="n">scene_entities</span><span class="p">,</span> <span class="n">scene_origins</span> <span class="o">=</span> <span class="n">design_scene</span><span class="p">()</span>
-<span class="linenos">129</span>    <span class="n">scene_origins</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">scene_origins</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
-<span class="linenos">130</span>    <span class="c1"># Play the simulator</span>
-<span class="linenos">131</span>    <span class="n">sim</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
-<span class="linenos">132</span>    <span class="c1"># Now we are ready!</span>
-<span class="linenos">133</span>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Setup complete...&quot;</span><span class="p">)</span>
-<span class="linenos">134</span>    <span class="c1"># Run the simulator</span>
-<span class="linenos">135</span>    <span class="n">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">,</span> <span class="n">scene_entities</span><span class="p">,</span> <span class="n">scene_origins</span><span class="p">)</span>
-<span class="linenos">136</span>
+<span class="linenos">120</span>
+<span class="linenos">121</span><span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+<span class="linenos">122</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Main function.&quot;&quot;&quot;</span>
+<span class="linenos">123</span>    <span class="c1"># Load kit helper</span>
+<span class="linenos">124</span>    <span class="n">sim_cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationCfg</span><span class="p">(</span><span class="n">device</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+<span class="linenos">125</span>    <span class="n">sim</span> <span class="o">=</span> <span class="n">SimulationContext</span><span class="p">(</span><span class="n">sim_cfg</span><span class="p">)</span>
+<span class="linenos">126</span>    <span class="c1"># Set main camera</span>
+<span class="linenos">127</span>    <span class="n">sim</span><span class="o">.</span><span class="n">set_camera_view</span><span class="p">([</span><span class="mf">2.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">4.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">])</span>
+<span class="linenos">128</span>    <span class="c1"># Design scene</span>
+<span class="linenos">129</span>    <span class="n">scene_entities</span><span class="p">,</span> <span class="n">scene_origins</span> <span class="o">=</span> <span class="n">design_scene</span><span class="p">()</span>
+<span class="linenos">130</span>    <span class="n">scene_origins</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">scene_origins</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+<span class="linenos">131</span>    <span class="c1"># Play the simulator</span>
+<span class="linenos">132</span>    <span class="n">sim</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+<span class="linenos">133</span>    <span class="c1"># Now we are ready!</span>
+<span class="linenos">134</span>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Setup complete...&quot;</span><span class="p">)</span>
+<span class="linenos">135</span>    <span class="c1"># Run the simulator</span>
+<span class="linenos">136</span>    <span class="n">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">,</span> <span class="n">scene_entities</span><span class="p">,</span> <span class="n">scene_origins</span><span class="p">)</span>
 <span class="linenos">137</span>
-<span class="linenos">138</span><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
-<span class="linenos">139</span>    <span class="c1"># run the main function</span>
-<span class="linenos">140</span>    <span class="n">main</span><span class="p">()</span>
-<span class="linenos">141</span>    <span class="c1"># close sim app</span>
-<span class="linenos">142</span>    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+<span class="linenos">138</span>
+<span class="linenos">139</span><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+<span class="linenos">140</span>    <span class="c1"># run the main function</span>
+<span class="linenos">141</span>    <span class="n">main</span><span class="p">()</span>
+<span class="linenos">142</span>    <span class="c1"># close sim app</span>
+<span class="linenos">143</span>    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
 </pre></div>
 </div>
 </div>
@@ -793,8 +794,8 @@ step the simulation, and update the articulation’s internal buffers.</p>
 <p>Similar to a rigid object, an articulation also has a root state. This state corresponds to the root body in the
 articulation tree. On top of the root state, an articulation also has joint states. These states correspond to the
 joint positions and velocities.</p>
-<p>To reset the articulation, we first set the root state by calling the <code class="xref py py-meth docutils literal notranslate"><span class="pre">Articulation.write_root_state_to_sim()</span></code>
-method. Similarly, we set the joint states by calling the <code class="xref py py-meth docutils literal notranslate"><span class="pre">Articulation.write_joint_state_to_sim()</span></code> method.
+<p>To reset the articulation, we first set the root state by calling the <code class="xref py py-meth docutils literal notranslate"><span class="pre">Articulation.write_root_link_pose_to_sim()</span></code> and <code class="xref py py-meth docutils literal notranslate"><span class="pre">Articulation.write_root_com_velocity_to_sim()</span></code>
+methods. Similarly, we set the joint states by calling the <code class="xref py py-meth docutils literal notranslate"><span class="pre">Articulation.write_joint_state_to_sim()</span></code> method.
 Finally, we call the <code class="xref py py-meth docutils literal notranslate"><span class="pre">Articulation.reset()</span></code> method to reset any internal buffers and caches.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span>            <span class="c1"># reset the scene entities</span>
             <span class="c1"># root state</span>
@@ -802,7 +803,8 @@ Finally, we call the <code class="xref py py-meth docutils literal notranslate">
             <span class="c1"># if this is not done, then the robots will be spawned at the (0, 0, 0) of the simulation world</span>
             <span class="n">root_state</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_root_state</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
             <span class="n">root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="n">origins</span>
-            <span class="n">robot</span><span class="o">.</span><span class="n">write_root_state_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">)</span>
+            <span class="n">robot</span><span class="o">.</span><span class="n">write_root_link_pose_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">7</span><span class="p">])</span>
+            <span class="n">robot</span><span class="o">.</span><span class="n">write_root_com_velocity_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">[:,</span> <span class="mi">7</span><span class="p">:])</span>
             <span class="c1"># set joint positions with some noise</span>
             <span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_pos</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_vel</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
             <span class="n">joint_pos</span> <span class="o">+=</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand_like</span><span class="p">(</span><span class="n">joint_pos</span><span class="p">)</span> <span class="o">*</span> <span class="mf">0.1</span>

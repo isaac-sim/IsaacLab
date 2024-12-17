@@ -906,153 +906,155 @@ tilted wall surface while tracking a desired end-effector pose in all the other 
 <span class="linenos">291</span>    <span class="n">gravity</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">get_generalized_gravity_forces</span><span class="p">()[:,</span> <span class="n">arm_joint_ids</span><span class="p">]</span>
 <span class="linenos">292</span>    <span class="c1"># Convert the Jacobian from world to root frame</span>
 <span class="linenos">293</span>    <span class="n">jacobian_b</span> <span class="o">=</span> <span class="n">jacobian_w</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
-<span class="linenos">294</span>    <span class="n">root_rot_matrix</span> <span class="o">=</span> <span class="n">matrix_from_quat</span><span class="p">(</span><span class="n">quat_inv</span><span class="p">(</span><span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_state_w</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">]))</span>
+<span class="linenos">294</span>    <span class="n">root_rot_matrix</span> <span class="o">=</span> <span class="n">matrix_from_quat</span><span class="p">(</span><span class="n">quat_inv</span><span class="p">(</span><span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_link_quat_w</span><span class="p">))</span>
 <span class="linenos">295</span>    <span class="n">jacobian_b</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">bmm</span><span class="p">(</span><span class="n">root_rot_matrix</span><span class="p">,</span> <span class="n">jacobian_b</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">,</span> <span class="p">:])</span>
 <span class="linenos">296</span>    <span class="n">jacobian_b</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">bmm</span><span class="p">(</span><span class="n">root_rot_matrix</span><span class="p">,</span> <span class="n">jacobian_b</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:,</span> <span class="p">:])</span>
 <span class="linenos">297</span>
 <span class="linenos">298</span>    <span class="c1"># Compute current pose of the end-effector</span>
-<span class="linenos">299</span>    <span class="n">root_pose_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_state_w</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span>
-<span class="linenos">300</span>    <span class="n">ee_pose_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">body_state_w</span><span class="p">[:,</span> <span class="n">ee_frame_idx</span><span class="p">,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span>
-<span class="linenos">301</span>    <span class="n">ee_pos_b</span><span class="p">,</span> <span class="n">ee_quat_b</span> <span class="o">=</span> <span class="n">subtract_frame_transforms</span><span class="p">(</span>
-<span class="linenos">302</span>        <span class="n">root_pose_w</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">],</span> <span class="n">root_pose_w</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">],</span> <span class="n">ee_pose_w</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">],</span> <span class="n">ee_pose_w</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span>
-<span class="linenos">303</span>    <span class="p">)</span>
-<span class="linenos">304</span>    <span class="n">ee_pose_b</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">ee_pos_b</span><span class="p">,</span> <span class="n">ee_quat_b</span><span class="p">],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
-<span class="linenos">305</span>
-<span class="linenos">306</span>    <span class="c1"># Compute the current velocity of the end-effector</span>
-<span class="linenos">307</span>    <span class="n">ee_vel_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">body_vel_w</span><span class="p">[:,</span> <span class="n">ee_frame_idx</span><span class="p">,</span> <span class="p">:]</span>  <span class="c1"># Extract end-effector velocity in the world frame</span>
-<span class="linenos">308</span>    <span class="n">root_vel_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_vel_w</span>  <span class="c1"># Extract root velocity in the world frame</span>
-<span class="linenos">309</span>    <span class="n">relative_vel_w</span> <span class="o">=</span> <span class="n">ee_vel_w</span> <span class="o">-</span> <span class="n">root_vel_w</span>  <span class="c1"># Compute the relative velocity in the world frame</span>
-<span class="linenos">310</span>    <span class="n">ee_lin_vel_b</span> <span class="o">=</span> <span class="n">quat_rotate_inverse</span><span class="p">(</span><span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_quat_w</span><span class="p">,</span> <span class="n">relative_vel_w</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">])</span>  <span class="c1"># From world to root frame</span>
-<span class="linenos">311</span>    <span class="n">ee_ang_vel_b</span> <span class="o">=</span> <span class="n">quat_rotate_inverse</span><span class="p">(</span><span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_quat_w</span><span class="p">,</span> <span class="n">relative_vel_w</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">6</span><span class="p">])</span>
-<span class="linenos">312</span>    <span class="n">ee_vel_b</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">ee_lin_vel_b</span><span class="p">,</span> <span class="n">ee_ang_vel_b</span><span class="p">],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
-<span class="linenos">313</span>
-<span class="linenos">314</span>    <span class="c1"># Calculate the contact force</span>
-<span class="linenos">315</span>    <span class="n">ee_force_w</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
-<span class="linenos">316</span>    <span class="n">sim_dt</span> <span class="o">=</span> <span class="n">sim</span><span class="o">.</span><span class="n">get_physics_dt</span><span class="p">()</span>
-<span class="linenos">317</span>    <span class="n">contact_forces</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">sim_dt</span><span class="p">)</span>  <span class="c1"># update contact sensor</span>
-<span class="linenos">318</span>    <span class="c1"># Calculate the contact force by averaging over last four time steps (i.e., to smoothen) and</span>
-<span class="linenos">319</span>    <span class="c1"># taking the max of three surfaces as only one should be the contact of interest</span>
-<span class="linenos">320</span>    <span class="n">ee_force_w</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">contact_forces</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">net_forces_w_history</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
-<span class="linenos">321</span>
-<span class="linenos">322</span>    <span class="c1"># This is a simplification, only for the sake of testing.</span>
-<span class="linenos">323</span>    <span class="n">ee_force_b</span> <span class="o">=</span> <span class="n">ee_force_w</span>
-<span class="linenos">324</span>
-<span class="linenos">325</span>    <span class="k">return</span> <span class="n">jacobian_b</span><span class="p">,</span> <span class="n">mass_matrix</span><span class="p">,</span> <span class="n">gravity</span><span class="p">,</span> <span class="n">ee_pose_b</span><span class="p">,</span> <span class="n">ee_vel_b</span><span class="p">,</span> <span class="n">root_pose_w</span><span class="p">,</span> <span class="n">ee_pose_w</span><span class="p">,</span> <span class="n">ee_force_b</span>
+<span class="linenos">299</span>    <span class="n">root_pos_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_link_pos_w</span>
+<span class="linenos">300</span>    <span class="n">root_quat_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_link_quat_w</span>
+<span class="linenos">301</span>    <span class="n">ee_pos_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">body_link_pos_w</span><span class="p">[:,</span> <span class="n">ee_frame_idx</span><span class="p">]</span>
+<span class="linenos">302</span>    <span class="n">ee_quat_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">body_link_quat_w</span><span class="p">[:,</span> <span class="n">ee_frame_idx</span><span class="p">]</span>
+<span class="linenos">303</span>    <span class="n">ee_pos_b</span><span class="p">,</span> <span class="n">ee_quat_b</span> <span class="o">=</span> <span class="n">subtract_frame_transforms</span><span class="p">(</span><span class="n">root_pos_w</span><span class="p">,</span> <span class="n">root_quat_w</span><span class="p">,</span> <span class="n">ee_pos_w</span><span class="p">,</span> <span class="n">ee_quat_w</span><span class="p">)</span>
+<span class="linenos">304</span>    <span class="n">root_pose_w</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">root_pos_w</span><span class="p">,</span> <span class="n">root_quat_w</span><span class="p">],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+<span class="linenos">305</span>    <span class="n">ee_pose_w</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">ee_pos_w</span><span class="p">,</span> <span class="n">ee_quat_w</span><span class="p">],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+<span class="linenos">306</span>    <span class="n">ee_pose_b</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">ee_pos_b</span><span class="p">,</span> <span class="n">ee_quat_b</span><span class="p">],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+<span class="linenos">307</span>
+<span class="linenos">308</span>    <span class="c1"># Compute the current velocity of the end-effector</span>
+<span class="linenos">309</span>    <span class="n">ee_vel_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">body_com_vel_w</span><span class="p">[:,</span> <span class="n">ee_frame_idx</span><span class="p">,</span> <span class="p">:]</span>  <span class="c1"># Extract end-effector velocity in the world frame</span>
+<span class="linenos">310</span>    <span class="n">root_vel_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_com_vel_w</span>  <span class="c1"># Extract root velocity in the world frame</span>
+<span class="linenos">311</span>    <span class="n">relative_vel_w</span> <span class="o">=</span> <span class="n">ee_vel_w</span> <span class="o">-</span> <span class="n">root_vel_w</span>  <span class="c1"># Compute the relative velocity in the world frame</span>
+<span class="linenos">312</span>    <span class="n">ee_lin_vel_b</span> <span class="o">=</span> <span class="n">quat_rotate_inverse</span><span class="p">(</span><span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_link_quat_w</span><span class="p">,</span> <span class="n">relative_vel_w</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">])</span>  <span class="c1"># From world to root frame</span>
+<span class="linenos">313</span>    <span class="n">ee_ang_vel_b</span> <span class="o">=</span> <span class="n">quat_rotate_inverse</span><span class="p">(</span><span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_link_quat_w</span><span class="p">,</span> <span class="n">relative_vel_w</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">6</span><span class="p">])</span>
+<span class="linenos">314</span>    <span class="n">ee_vel_b</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">ee_lin_vel_b</span><span class="p">,</span> <span class="n">ee_ang_vel_b</span><span class="p">],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+<span class="linenos">315</span>
+<span class="linenos">316</span>    <span class="c1"># Calculate the contact force</span>
+<span class="linenos">317</span>    <span class="n">ee_force_w</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+<span class="linenos">318</span>    <span class="n">sim_dt</span> <span class="o">=</span> <span class="n">sim</span><span class="o">.</span><span class="n">get_physics_dt</span><span class="p">()</span>
+<span class="linenos">319</span>    <span class="n">contact_forces</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">sim_dt</span><span class="p">)</span>  <span class="c1"># update contact sensor</span>
+<span class="linenos">320</span>    <span class="c1"># Calculate the contact force by averaging over last four time steps (i.e., to smoothen) and</span>
+<span class="linenos">321</span>    <span class="c1"># taking the max of three surfaces as only one should be the contact of interest</span>
+<span class="linenos">322</span>    <span class="n">ee_force_w</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">contact_forces</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">net_forces_w_history</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="linenos">323</span>
+<span class="linenos">324</span>    <span class="c1"># This is a simplification, only for the sake of testing.</span>
+<span class="linenos">325</span>    <span class="n">ee_force_b</span> <span class="o">=</span> <span class="n">ee_force_w</span>
 <span class="linenos">326</span>
-<span class="linenos">327</span>
-<span class="linenos">328</span><span class="c1"># Update the target commands</span>
-<span class="linenos">329</span><span class="k">def</span> <span class="nf">update_target</span><span class="p">(</span>
-<span class="linenos">330</span>    <span class="n">sim</span><span class="p">:</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">,</span>
-<span class="linenos">331</span>    <span class="n">scene</span><span class="p">:</span> <span class="n">InteractiveScene</span><span class="p">,</span>
-<span class="linenos">332</span>    <span class="n">osc</span><span class="p">:</span> <span class="n">OperationalSpaceController</span><span class="p">,</span>
-<span class="linenos">333</span>    <span class="n">root_pose_w</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">,</span>
-<span class="linenos">334</span>    <span class="n">ee_target_set</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">,</span>
-<span class="linenos">335</span>    <span class="n">current_goal_idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
-<span class="linenos">336</span><span class="p">):</span>
-<span class="linenos">337</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Update the targets for the operational space controller.</span>
-<span class="linenos">338</span>
-<span class="linenos">339</span><span class="sd">    Args:</span>
-<span class="linenos">340</span><span class="sd">        sim: (SimulationContext) Simulation context.</span>
-<span class="linenos">341</span><span class="sd">        scene: (InteractiveScene) Interactive scene.</span>
-<span class="linenos">342</span><span class="sd">        osc: (OperationalSpaceController) Operational space controller.</span>
-<span class="linenos">343</span><span class="sd">        root_pose_w: (torch.tensor) Root pose in the world frame.</span>
-<span class="linenos">344</span><span class="sd">        ee_target_set: (torch.tensor) End-effector target set.</span>
-<span class="linenos">345</span><span class="sd">        current_goal_idx: (int) Current goal index.</span>
-<span class="linenos">346</span>
-<span class="linenos">347</span><span class="sd">    Returns:</span>
-<span class="linenos">348</span><span class="sd">        command (torch.tensor): Updated target command.</span>
-<span class="linenos">349</span><span class="sd">        ee_target_pose_b (torch.tensor): Updated target pose in the body frame.</span>
-<span class="linenos">350</span><span class="sd">        ee_target_pose_w (torch.tensor): Updated target pose in the world frame.</span>
-<span class="linenos">351</span><span class="sd">        next_goal_idx (int): Next goal index.</span>
-<span class="linenos">352</span>
-<span class="linenos">353</span><span class="sd">    Raises:</span>
-<span class="linenos">354</span><span class="sd">        ValueError: Undefined target_type.</span>
-<span class="linenos">355</span><span class="sd">    &quot;&quot;&quot;</span>
-<span class="linenos">356</span>
-<span class="linenos">357</span>    <span class="c1"># update the ee desired command</span>
-<span class="linenos">358</span>    <span class="n">command</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">osc</span><span class="o">.</span><span class="n">action_dim</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
-<span class="linenos">359</span>    <span class="n">command</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">ee_target_set</span><span class="p">[</span><span class="n">current_goal_idx</span><span class="p">]</span>
-<span class="linenos">360</span>
-<span class="linenos">361</span>    <span class="c1"># update the ee desired pose</span>
-<span class="linenos">362</span>    <span class="n">ee_target_pose_b</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
-<span class="linenos">363</span>    <span class="k">for</span> <span class="n">target_type</span> <span class="ow">in</span> <span class="n">osc</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">target_types</span><span class="p">:</span>
-<span class="linenos">364</span>        <span class="k">if</span> <span class="n">target_type</span> <span class="o">==</span> <span class="s2">&quot;pose_abs&quot;</span><span class="p">:</span>
-<span class="linenos">365</span>            <span class="n">ee_target_pose_b</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">command</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">7</span><span class="p">]</span>
-<span class="linenos">366</span>        <span class="k">elif</span> <span class="n">target_type</span> <span class="o">==</span> <span class="s2">&quot;wrench_abs&quot;</span><span class="p">:</span>
-<span class="linenos">367</span>            <span class="k">pass</span>  <span class="c1"># ee_target_pose_b could stay at the root frame for force control, what matters is ee_target_b</span>
-<span class="linenos">368</span>        <span class="k">else</span><span class="p">:</span>
-<span class="linenos">369</span>            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Undefined target_type within update_target().&quot;</span><span class="p">)</span>
-<span class="linenos">370</span>
-<span class="linenos">371</span>    <span class="c1"># update the target desired pose in world frame (for marker)</span>
-<span class="linenos">372</span>    <span class="n">ee_target_pos_w</span><span class="p">,</span> <span class="n">ee_target_quat_w</span> <span class="o">=</span> <span class="n">combine_frame_transforms</span><span class="p">(</span>
-<span class="linenos">373</span>        <span class="n">root_pose_w</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">],</span> <span class="n">root_pose_w</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">],</span> <span class="n">ee_target_pose_b</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">],</span> <span class="n">ee_target_pose_b</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span>
-<span class="linenos">374</span>    <span class="p">)</span>
-<span class="linenos">375</span>    <span class="n">ee_target_pose_w</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">ee_target_pos_w</span><span class="p">,</span> <span class="n">ee_target_quat_w</span><span class="p">],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
-<span class="linenos">376</span>
-<span class="linenos">377</span>    <span class="n">next_goal_idx</span> <span class="o">=</span> <span class="p">(</span><span class="n">current_goal_idx</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">%</span> <span class="nb">len</span><span class="p">(</span><span class="n">ee_target_set</span><span class="p">)</span>
+<span class="linenos">327</span>    <span class="k">return</span> <span class="n">jacobian_b</span><span class="p">,</span> <span class="n">mass_matrix</span><span class="p">,</span> <span class="n">gravity</span><span class="p">,</span> <span class="n">ee_pose_b</span><span class="p">,</span> <span class="n">ee_vel_b</span><span class="p">,</span> <span class="n">root_pose_w</span><span class="p">,</span> <span class="n">ee_pose_w</span><span class="p">,</span> <span class="n">ee_force_b</span>
+<span class="linenos">328</span>
+<span class="linenos">329</span>
+<span class="linenos">330</span><span class="c1"># Update the target commands</span>
+<span class="linenos">331</span><span class="k">def</span> <span class="nf">update_target</span><span class="p">(</span>
+<span class="linenos">332</span>    <span class="n">sim</span><span class="p">:</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">,</span>
+<span class="linenos">333</span>    <span class="n">scene</span><span class="p">:</span> <span class="n">InteractiveScene</span><span class="p">,</span>
+<span class="linenos">334</span>    <span class="n">osc</span><span class="p">:</span> <span class="n">OperationalSpaceController</span><span class="p">,</span>
+<span class="linenos">335</span>    <span class="n">root_pose_w</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">,</span>
+<span class="linenos">336</span>    <span class="n">ee_target_set</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">,</span>
+<span class="linenos">337</span>    <span class="n">current_goal_idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+<span class="linenos">338</span><span class="p">):</span>
+<span class="linenos">339</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Update the targets for the operational space controller.</span>
+<span class="linenos">340</span>
+<span class="linenos">341</span><span class="sd">    Args:</span>
+<span class="linenos">342</span><span class="sd">        sim: (SimulationContext) Simulation context.</span>
+<span class="linenos">343</span><span class="sd">        scene: (InteractiveScene) Interactive scene.</span>
+<span class="linenos">344</span><span class="sd">        osc: (OperationalSpaceController) Operational space controller.</span>
+<span class="linenos">345</span><span class="sd">        root_pose_w: (torch.tensor) Root pose in the world frame.</span>
+<span class="linenos">346</span><span class="sd">        ee_target_set: (torch.tensor) End-effector target set.</span>
+<span class="linenos">347</span><span class="sd">        current_goal_idx: (int) Current goal index.</span>
+<span class="linenos">348</span>
+<span class="linenos">349</span><span class="sd">    Returns:</span>
+<span class="linenos">350</span><span class="sd">        command (torch.tensor): Updated target command.</span>
+<span class="linenos">351</span><span class="sd">        ee_target_pose_b (torch.tensor): Updated target pose in the body frame.</span>
+<span class="linenos">352</span><span class="sd">        ee_target_pose_w (torch.tensor): Updated target pose in the world frame.</span>
+<span class="linenos">353</span><span class="sd">        next_goal_idx (int): Next goal index.</span>
+<span class="linenos">354</span>
+<span class="linenos">355</span><span class="sd">    Raises:</span>
+<span class="linenos">356</span><span class="sd">        ValueError: Undefined target_type.</span>
+<span class="linenos">357</span><span class="sd">    &quot;&quot;&quot;</span>
+<span class="linenos">358</span>
+<span class="linenos">359</span>    <span class="c1"># update the ee desired command</span>
+<span class="linenos">360</span>    <span class="n">command</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">osc</span><span class="o">.</span><span class="n">action_dim</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+<span class="linenos">361</span>    <span class="n">command</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">ee_target_set</span><span class="p">[</span><span class="n">current_goal_idx</span><span class="p">]</span>
+<span class="linenos">362</span>
+<span class="linenos">363</span>    <span class="c1"># update the ee desired pose</span>
+<span class="linenos">364</span>    <span class="n">ee_target_pose_b</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+<span class="linenos">365</span>    <span class="k">for</span> <span class="n">target_type</span> <span class="ow">in</span> <span class="n">osc</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">target_types</span><span class="p">:</span>
+<span class="linenos">366</span>        <span class="k">if</span> <span class="n">target_type</span> <span class="o">==</span> <span class="s2">&quot;pose_abs&quot;</span><span class="p">:</span>
+<span class="linenos">367</span>            <span class="n">ee_target_pose_b</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">command</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">7</span><span class="p">]</span>
+<span class="linenos">368</span>        <span class="k">elif</span> <span class="n">target_type</span> <span class="o">==</span> <span class="s2">&quot;wrench_abs&quot;</span><span class="p">:</span>
+<span class="linenos">369</span>            <span class="k">pass</span>  <span class="c1"># ee_target_pose_b could stay at the root frame for force control, what matters is ee_target_b</span>
+<span class="linenos">370</span>        <span class="k">else</span><span class="p">:</span>
+<span class="linenos">371</span>            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Undefined target_type within update_target().&quot;</span><span class="p">)</span>
+<span class="linenos">372</span>
+<span class="linenos">373</span>    <span class="c1"># update the target desired pose in world frame (for marker)</span>
+<span class="linenos">374</span>    <span class="n">ee_target_pos_w</span><span class="p">,</span> <span class="n">ee_target_quat_w</span> <span class="o">=</span> <span class="n">combine_frame_transforms</span><span class="p">(</span>
+<span class="linenos">375</span>        <span class="n">root_pose_w</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">],</span> <span class="n">root_pose_w</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">],</span> <span class="n">ee_target_pose_b</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">],</span> <span class="n">ee_target_pose_b</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span>
+<span class="linenos">376</span>    <span class="p">)</span>
+<span class="linenos">377</span>    <span class="n">ee_target_pose_w</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">ee_target_pos_w</span><span class="p">,</span> <span class="n">ee_target_quat_w</span><span class="p">],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
 <span class="linenos">378</span>
-<span class="linenos">379</span>    <span class="k">return</span> <span class="n">command</span><span class="p">,</span> <span class="n">ee_target_pose_b</span><span class="p">,</span> <span class="n">ee_target_pose_w</span><span class="p">,</span> <span class="n">next_goal_idx</span>
+<span class="linenos">379</span>    <span class="n">next_goal_idx</span> <span class="o">=</span> <span class="p">(</span><span class="n">current_goal_idx</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">%</span> <span class="nb">len</span><span class="p">(</span><span class="n">ee_target_set</span><span class="p">)</span>
 <span class="linenos">380</span>
-<span class="linenos">381</span>
-<span class="linenos">382</span><span class="c1"># Convert the target commands to the task frame</span>
-<span class="linenos">383</span><span class="k">def</span> <span class="nf">convert_to_task_frame</span><span class="p">(</span><span class="n">osc</span><span class="p">:</span> <span class="n">OperationalSpaceController</span><span class="p">,</span> <span class="n">command</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">,</span> <span class="n">ee_target_pose_b</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">):</span>
-<span class="linenos">384</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Converts the target commands to the task frame.</span>
-<span class="linenos">385</span>
-<span class="linenos">386</span><span class="sd">    Args:</span>
-<span class="linenos">387</span><span class="sd">        osc: OperationalSpaceController object.</span>
-<span class="linenos">388</span><span class="sd">        command: Command to be converted.</span>
-<span class="linenos">389</span><span class="sd">        ee_target_pose_b: Target pose in the body frame.</span>
-<span class="linenos">390</span>
-<span class="linenos">391</span><span class="sd">    Returns:</span>
-<span class="linenos">392</span><span class="sd">        command (torch.tensor): Target command in the task frame.</span>
-<span class="linenos">393</span><span class="sd">        task_frame_pose_b (torch.tensor): Target pose in the task frame.</span>
-<span class="linenos">394</span>
-<span class="linenos">395</span><span class="sd">    Raises:</span>
-<span class="linenos">396</span><span class="sd">        ValueError: Undefined target_type.</span>
-<span class="linenos">397</span><span class="sd">    &quot;&quot;&quot;</span>
-<span class="linenos">398</span>    <span class="n">command</span> <span class="o">=</span> <span class="n">command</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
-<span class="linenos">399</span>    <span class="n">task_frame_pose_b</span> <span class="o">=</span> <span class="n">ee_target_pose_b</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
-<span class="linenos">400</span>
-<span class="linenos">401</span>    <span class="n">cmd_idx</span> <span class="o">=</span> <span class="mi">0</span>
-<span class="linenos">402</span>    <span class="k">for</span> <span class="n">target_type</span> <span class="ow">in</span> <span class="n">osc</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">target_types</span><span class="p">:</span>
-<span class="linenos">403</span>        <span class="k">if</span> <span class="n">target_type</span> <span class="o">==</span> <span class="s2">&quot;pose_abs&quot;</span><span class="p">:</span>
-<span class="linenos">404</span>            <span class="n">command</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">],</span> <span class="n">command</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span> <span class="o">=</span> <span class="n">subtract_frame_transforms</span><span class="p">(</span>
-<span class="linenos">405</span>                <span class="n">task_frame_pose_b</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">],</span> <span class="n">task_frame_pose_b</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:],</span> <span class="n">command</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">],</span> <span class="n">command</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span>
-<span class="linenos">406</span>            <span class="p">)</span>
-<span class="linenos">407</span>            <span class="n">cmd_idx</span> <span class="o">+=</span> <span class="mi">7</span>
-<span class="linenos">408</span>        <span class="k">elif</span> <span class="n">target_type</span> <span class="o">==</span> <span class="s2">&quot;wrench_abs&quot;</span><span class="p">:</span>
-<span class="linenos">409</span>            <span class="c1"># These are already defined in target frame for ee_goal_wrench_set_tilted_task (since it is</span>
-<span class="linenos">410</span>            <span class="c1"># easier), so not transforming</span>
-<span class="linenos">411</span>            <span class="n">cmd_idx</span> <span class="o">+=</span> <span class="mi">6</span>
-<span class="linenos">412</span>        <span class="k">else</span><span class="p">:</span>
-<span class="linenos">413</span>            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Undefined target_type within _convert_to_task_frame().&quot;</span><span class="p">)</span>
-<span class="linenos">414</span>
-<span class="linenos">415</span>    <span class="k">return</span> <span class="n">command</span><span class="p">,</span> <span class="n">task_frame_pose_b</span>
+<span class="linenos">381</span>    <span class="k">return</span> <span class="n">command</span><span class="p">,</span> <span class="n">ee_target_pose_b</span><span class="p">,</span> <span class="n">ee_target_pose_w</span><span class="p">,</span> <span class="n">next_goal_idx</span>
+<span class="linenos">382</span>
+<span class="linenos">383</span>
+<span class="linenos">384</span><span class="c1"># Convert the target commands to the task frame</span>
+<span class="linenos">385</span><span class="k">def</span> <span class="nf">convert_to_task_frame</span><span class="p">(</span><span class="n">osc</span><span class="p">:</span> <span class="n">OperationalSpaceController</span><span class="p">,</span> <span class="n">command</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">,</span> <span class="n">ee_target_pose_b</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">):</span>
+<span class="linenos">386</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Converts the target commands to the task frame.</span>
+<span class="linenos">387</span>
+<span class="linenos">388</span><span class="sd">    Args:</span>
+<span class="linenos">389</span><span class="sd">        osc: OperationalSpaceController object.</span>
+<span class="linenos">390</span><span class="sd">        command: Command to be converted.</span>
+<span class="linenos">391</span><span class="sd">        ee_target_pose_b: Target pose in the body frame.</span>
+<span class="linenos">392</span>
+<span class="linenos">393</span><span class="sd">    Returns:</span>
+<span class="linenos">394</span><span class="sd">        command (torch.tensor): Target command in the task frame.</span>
+<span class="linenos">395</span><span class="sd">        task_frame_pose_b (torch.tensor): Target pose in the task frame.</span>
+<span class="linenos">396</span>
+<span class="linenos">397</span><span class="sd">    Raises:</span>
+<span class="linenos">398</span><span class="sd">        ValueError: Undefined target_type.</span>
+<span class="linenos">399</span><span class="sd">    &quot;&quot;&quot;</span>
+<span class="linenos">400</span>    <span class="n">command</span> <span class="o">=</span> <span class="n">command</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+<span class="linenos">401</span>    <span class="n">task_frame_pose_b</span> <span class="o">=</span> <span class="n">ee_target_pose_b</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+<span class="linenos">402</span>
+<span class="linenos">403</span>    <span class="n">cmd_idx</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="linenos">404</span>    <span class="k">for</span> <span class="n">target_type</span> <span class="ow">in</span> <span class="n">osc</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">target_types</span><span class="p">:</span>
+<span class="linenos">405</span>        <span class="k">if</span> <span class="n">target_type</span> <span class="o">==</span> <span class="s2">&quot;pose_abs&quot;</span><span class="p">:</span>
+<span class="linenos">406</span>            <span class="n">command</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">],</span> <span class="n">command</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span> <span class="o">=</span> <span class="n">subtract_frame_transforms</span><span class="p">(</span>
+<span class="linenos">407</span>                <span class="n">task_frame_pose_b</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">],</span> <span class="n">task_frame_pose_b</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:],</span> <span class="n">command</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">],</span> <span class="n">command</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span>
+<span class="linenos">408</span>            <span class="p">)</span>
+<span class="linenos">409</span>            <span class="n">cmd_idx</span> <span class="o">+=</span> <span class="mi">7</span>
+<span class="linenos">410</span>        <span class="k">elif</span> <span class="n">target_type</span> <span class="o">==</span> <span class="s2">&quot;wrench_abs&quot;</span><span class="p">:</span>
+<span class="linenos">411</span>            <span class="c1"># These are already defined in target frame for ee_goal_wrench_set_tilted_task (since it is</span>
+<span class="linenos">412</span>            <span class="c1"># easier), so not transforming</span>
+<span class="linenos">413</span>            <span class="n">cmd_idx</span> <span class="o">+=</span> <span class="mi">6</span>
+<span class="linenos">414</span>        <span class="k">else</span><span class="p">:</span>
+<span class="linenos">415</span>            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Undefined target_type within _convert_to_task_frame().&quot;</span><span class="p">)</span>
 <span class="linenos">416</span>
-<span class="linenos">417</span>
-<span class="linenos">418</span><span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
-<span class="linenos">419</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Main function.&quot;&quot;&quot;</span>
-<span class="linenos">420</span>    <span class="c1"># Load kit helper</span>
-<span class="linenos">421</span>    <span class="n">sim_cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationCfg</span><span class="p">(</span><span class="n">dt</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
-<span class="linenos">422</span>    <span class="n">sim</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">(</span><span class="n">sim_cfg</span><span class="p">)</span>
-<span class="linenos">423</span>    <span class="c1"># Set main camera</span>
-<span class="linenos">424</span>    <span class="n">sim</span><span class="o">.</span><span class="n">set_camera_view</span><span class="p">([</span><span class="mf">2.5</span><span class="p">,</span> <span class="mf">2.5</span><span class="p">,</span> <span class="mf">2.5</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">])</span>
-<span class="linenos">425</span>    <span class="c1"># Design scene</span>
-<span class="linenos">426</span>    <span class="n">scene_cfg</span> <span class="o">=</span> <span class="n">SceneCfg</span><span class="p">(</span><span class="n">num_envs</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">env_spacing</span><span class="o">=</span><span class="mf">2.0</span><span class="p">)</span>
-<span class="linenos">427</span>    <span class="n">scene</span> <span class="o">=</span> <span class="n">InteractiveScene</span><span class="p">(</span><span class="n">scene_cfg</span><span class="p">)</span>
-<span class="linenos">428</span>    <span class="c1"># Play the simulator</span>
-<span class="linenos">429</span>    <span class="n">sim</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
-<span class="linenos">430</span>    <span class="c1"># Now we are ready!</span>
-<span class="linenos">431</span>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Setup complete...&quot;</span><span class="p">)</span>
-<span class="linenos">432</span>    <span class="c1"># Run the simulator</span>
-<span class="linenos">433</span>    <span class="n">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">,</span> <span class="n">scene</span><span class="p">)</span>
-<span class="linenos">434</span>
-<span class="linenos">435</span>
-<span class="linenos">436</span><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
-<span class="linenos">437</span>    <span class="c1"># run the main function</span>
-<span class="linenos">438</span>    <span class="n">main</span><span class="p">()</span>
-<span class="linenos">439</span>    <span class="c1"># close sim app</span>
-<span class="linenos">440</span>    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+<span class="linenos">417</span>    <span class="k">return</span> <span class="n">command</span><span class="p">,</span> <span class="n">task_frame_pose_b</span>
+<span class="linenos">418</span>
+<span class="linenos">419</span>
+<span class="linenos">420</span><span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+<span class="linenos">421</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Main function.&quot;&quot;&quot;</span>
+<span class="linenos">422</span>    <span class="c1"># Load kit helper</span>
+<span class="linenos">423</span>    <span class="n">sim_cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationCfg</span><span class="p">(</span><span class="n">dt</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+<span class="linenos">424</span>    <span class="n">sim</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">(</span><span class="n">sim_cfg</span><span class="p">)</span>
+<span class="linenos">425</span>    <span class="c1"># Set main camera</span>
+<span class="linenos">426</span>    <span class="n">sim</span><span class="o">.</span><span class="n">set_camera_view</span><span class="p">([</span><span class="mf">2.5</span><span class="p">,</span> <span class="mf">2.5</span><span class="p">,</span> <span class="mf">2.5</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">])</span>
+<span class="linenos">427</span>    <span class="c1"># Design scene</span>
+<span class="linenos">428</span>    <span class="n">scene_cfg</span> <span class="o">=</span> <span class="n">SceneCfg</span><span class="p">(</span><span class="n">num_envs</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">env_spacing</span><span class="o">=</span><span class="mf">2.0</span><span class="p">)</span>
+<span class="linenos">429</span>    <span class="n">scene</span> <span class="o">=</span> <span class="n">InteractiveScene</span><span class="p">(</span><span class="n">scene_cfg</span><span class="p">)</span>
+<span class="linenos">430</span>    <span class="c1"># Play the simulator</span>
+<span class="linenos">431</span>    <span class="n">sim</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+<span class="linenos">432</span>    <span class="c1"># Now we are ready!</span>
+<span class="linenos">433</span>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Setup complete...&quot;</span><span class="p">)</span>
+<span class="linenos">434</span>    <span class="c1"># Run the simulator</span>
+<span class="linenos">435</span>    <span class="n">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">,</span> <span class="n">scene</span><span class="p">)</span>
+<span class="linenos">436</span>
+<span class="linenos">437</span>
+<span class="linenos">438</span><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+<span class="linenos">439</span>    <span class="c1"># run the main function</span>
+<span class="linenos">440</span>    <span class="n">main</span><span class="p">()</span>
+<span class="linenos">441</span>    <span class="c1"># close sim app</span>
+<span class="linenos">442</span>    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
 </pre></div>
 </div>
 </div>
@@ -1165,24 +1167,26 @@ contact force, all in the root frame. Moreover, the user should provide gravity 
     <span class="n">gravity</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">get_generalized_gravity_forces</span><span class="p">()[:,</span> <span class="n">arm_joint_ids</span><span class="p">]</span>
     <span class="c1"># Convert the Jacobian from world to root frame</span>
     <span class="n">jacobian_b</span> <span class="o">=</span> <span class="n">jacobian_w</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
-    <span class="n">root_rot_matrix</span> <span class="o">=</span> <span class="n">matrix_from_quat</span><span class="p">(</span><span class="n">quat_inv</span><span class="p">(</span><span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_state_w</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">]))</span>
+    <span class="n">root_rot_matrix</span> <span class="o">=</span> <span class="n">matrix_from_quat</span><span class="p">(</span><span class="n">quat_inv</span><span class="p">(</span><span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_link_quat_w</span><span class="p">))</span>
     <span class="n">jacobian_b</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">bmm</span><span class="p">(</span><span class="n">root_rot_matrix</span><span class="p">,</span> <span class="n">jacobian_b</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">,</span> <span class="p">:])</span>
     <span class="n">jacobian_b</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">bmm</span><span class="p">(</span><span class="n">root_rot_matrix</span><span class="p">,</span> <span class="n">jacobian_b</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:,</span> <span class="p">:])</span>
 
     <span class="c1"># Compute current pose of the end-effector</span>
-    <span class="n">root_pose_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_state_w</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span>
-    <span class="n">ee_pose_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">body_state_w</span><span class="p">[:,</span> <span class="n">ee_frame_idx</span><span class="p">,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span>
-    <span class="n">ee_pos_b</span><span class="p">,</span> <span class="n">ee_quat_b</span> <span class="o">=</span> <span class="n">subtract_frame_transforms</span><span class="p">(</span>
-        <span class="n">root_pose_w</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">],</span> <span class="n">root_pose_w</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">],</span> <span class="n">ee_pose_w</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">],</span> <span class="n">ee_pose_w</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span>
-    <span class="p">)</span>
+    <span class="n">root_pos_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_link_pos_w</span>
+    <span class="n">root_quat_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_link_quat_w</span>
+    <span class="n">ee_pos_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">body_link_pos_w</span><span class="p">[:,</span> <span class="n">ee_frame_idx</span><span class="p">]</span>
+    <span class="n">ee_quat_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">body_link_quat_w</span><span class="p">[:,</span> <span class="n">ee_frame_idx</span><span class="p">]</span>
+    <span class="n">ee_pos_b</span><span class="p">,</span> <span class="n">ee_quat_b</span> <span class="o">=</span> <span class="n">subtract_frame_transforms</span><span class="p">(</span><span class="n">root_pos_w</span><span class="p">,</span> <span class="n">root_quat_w</span><span class="p">,</span> <span class="n">ee_pos_w</span><span class="p">,</span> <span class="n">ee_quat_w</span><span class="p">)</span>
+    <span class="n">root_pose_w</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">root_pos_w</span><span class="p">,</span> <span class="n">root_quat_w</span><span class="p">],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">ee_pose_w</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">ee_pos_w</span><span class="p">,</span> <span class="n">ee_quat_w</span><span class="p">],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
     <span class="n">ee_pose_b</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">ee_pos_b</span><span class="p">,</span> <span class="n">ee_quat_b</span><span class="p">],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
 
     <span class="c1"># Compute the current velocity of the end-effector</span>
-    <span class="n">ee_vel_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">body_vel_w</span><span class="p">[:,</span> <span class="n">ee_frame_idx</span><span class="p">,</span> <span class="p">:]</span>  <span class="c1"># Extract end-effector velocity in the world frame</span>
-    <span class="n">root_vel_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_vel_w</span>  <span class="c1"># Extract root velocity in the world frame</span>
+    <span class="n">ee_vel_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">body_com_vel_w</span><span class="p">[:,</span> <span class="n">ee_frame_idx</span><span class="p">,</span> <span class="p">:]</span>  <span class="c1"># Extract end-effector velocity in the world frame</span>
+    <span class="n">root_vel_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_com_vel_w</span>  <span class="c1"># Extract root velocity in the world frame</span>
     <span class="n">relative_vel_w</span> <span class="o">=</span> <span class="n">ee_vel_w</span> <span class="o">-</span> <span class="n">root_vel_w</span>  <span class="c1"># Compute the relative velocity in the world frame</span>
-    <span class="n">ee_lin_vel_b</span> <span class="o">=</span> <span class="n">quat_rotate_inverse</span><span class="p">(</span><span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_quat_w</span><span class="p">,</span> <span class="n">relative_vel_w</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">])</span>  <span class="c1"># From world to root frame</span>
-    <span class="n">ee_ang_vel_b</span> <span class="o">=</span> <span class="n">quat_rotate_inverse</span><span class="p">(</span><span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_quat_w</span><span class="p">,</span> <span class="n">relative_vel_w</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">6</span><span class="p">])</span>
+    <span class="n">ee_lin_vel_b</span> <span class="o">=</span> <span class="n">quat_rotate_inverse</span><span class="p">(</span><span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_link_quat_w</span><span class="p">,</span> <span class="n">relative_vel_w</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">])</span>  <span class="c1"># From world to root frame</span>
+    <span class="n">ee_ang_vel_b</span> <span class="o">=</span> <span class="n">quat_rotate_inverse</span><span class="p">(</span><span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_link_quat_w</span><span class="p">,</span> <span class="n">relative_vel_w</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">6</span><span class="p">])</span>
     <span class="n">ee_vel_b</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">ee_lin_vel_b</span><span class="p">,</span> <span class="n">ee_ang_vel_b</span><span class="p">],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
 
     <span class="c1"># Calculate the contact force</span>

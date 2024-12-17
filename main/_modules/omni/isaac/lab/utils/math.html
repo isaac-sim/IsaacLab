@@ -1257,8 +1257,8 @@
     <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">pos</span><span class="p">,</span> <span class="n">pos_identity</span><span class="p">)</span> <span class="ow">and</span> <span class="n">torch</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">rot</span><span class="p">,</span> <span class="n">rot_identity</span><span class="p">)</span></div>
 
 
-<span class="c1"># @torch.jit.script</span>
-<div class="viewcode-block" id="combine_frame_transforms"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.math.combine_frame_transforms">[docs]</a><span class="k">def</span> <span class="nf">combine_frame_transforms</span><span class="p">(</span>
+<span class="nd">@torch</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">script</span>
+<span class="k">def</span> <span class="nf">combine_frame_transforms</span><span class="p">(</span>
     <span class="n">t01</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">q01</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">t12</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">q12</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
 <span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Combine transformations between two reference frames into a stationary frame.</span>
@@ -1289,7 +1289,7 @@
     <span class="k">else</span><span class="p">:</span>
         <span class="n">t02</span> <span class="o">=</span> <span class="n">t01</span>
 
-    <span class="k">return</span> <span class="n">t02</span><span class="p">,</span> <span class="n">q02</span></div>
+    <span class="k">return</span> <span class="n">t02</span><span class="p">,</span> <span class="n">q02</span>
 
 
 <span class="c1"># @torch.jit.script</span>
