@@ -189,12 +189,12 @@ class TestImu(unittest.TestCase):
 
         for idx in range(200):
             # set velocity
-            self.scene.rigid_objects["balls"].write_root_velocity_to_sim(
+            self.scene.rigid_objects["balls"].write_root_com_velocity_to_sim(
                 torch.tensor([[1.0, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=self.scene.device).repeat(
                     self.scene.num_envs, 1
                 )
             )
-            self.scene.rigid_objects["cube"].write_root_velocity_to_sim(
+            self.scene.rigid_objects["cube"].write_root_com_velocity_to_sim(
                 torch.tensor([[1.0, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=self.scene.device).repeat(
                     self.scene.num_envs, 1
                 )
@@ -236,7 +236,7 @@ class TestImu(unittest.TestCase):
                 )
 
                 # check the imu velocities
-                # NOTE: the expected lin_vel_b is the same as the set velocity, as write_root_velocity_to_sim is
+                # NOTE: the expected lin_vel_b is the same as the set velocity, as write_root_com_velocity_to_sim is
                 #       setting v_0 (initial velocity) and then a calculation step of v_i = v_0 + a*dt. Consequently,
                 #       the data.lin_vel_b is returning approx. v_i.
                 torch.testing.assert_close(
@@ -266,7 +266,7 @@ class TestImu(unittest.TestCase):
         """Test the Imu sensor with a constant acceleration."""
         for idx in range(100):
             # set acceleration
-            self.scene.rigid_objects["balls"].write_root_velocity_to_sim(
+            self.scene.rigid_objects["balls"].write_root_com_velocity_to_sim(
                 torch.tensor([[0.1, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=self.scene.device).repeat(
                     self.scene.num_envs, 1
                 )
@@ -287,7 +287,7 @@ class TestImu(unittest.TestCase):
             torch.testing.assert_close(
                 self.scene.sensors["imu_ball"].data.lin_acc_b,
                 math_utils.quat_rotate_inverse(
-                    self.scene.rigid_objects["balls"].data.root_quat_w,
+                    self.scene.rigid_objects["balls"].data.root_link_quat_w,
                     torch.tensor([[0.1, 0.0, 0.0]], dtype=torch.float32, device=self.scene.device).repeat(
                         self.scene.num_envs, 1
                     )
@@ -300,7 +300,7 @@ class TestImu(unittest.TestCase):
             # check the angular velocity
             torch.testing.assert_close(
                 self.scene.sensors["imu_ball"].data.ang_vel_b,
-                self.scene.rigid_objects["balls"].data.root_ang_vel_b,
+                self.scene.rigid_objects["balls"].data.root_com_ang_vel_b,
                 rtol=1e-4,
                 atol=1e-4,
             )
@@ -438,7 +438,7 @@ class TestImu(unittest.TestCase):
         # should achieve same results between the two imu sensors on the robot
         for idx in range(500):
             # set acceleration
-            self.scene.articulations["robot"].write_root_velocity_to_sim(
+            self.scene.articulations["robot"].write_root_com_velocity_to_sim(
                 torch.tensor([[0.05, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=self.scene.device).repeat(
                     self.scene.num_envs, 1
                 )
@@ -504,7 +504,7 @@ class TestImu(unittest.TestCase):
 
         for idx in range(10):
             # set acceleration
-            self.scene.articulations["robot"].write_root_velocity_to_sim(
+            self.scene.articulations["robot"].write_root_com_velocity_to_sim(
                 torch.tensor([[0.5, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=self.scene.device).repeat(
                     self.scene.num_envs, 1
                 )

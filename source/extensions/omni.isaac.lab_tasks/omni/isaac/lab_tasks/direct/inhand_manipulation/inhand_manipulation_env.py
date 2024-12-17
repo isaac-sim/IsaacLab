@@ -221,7 +221,8 @@ class InHandManipulationEnv(DirectRLEnv):
         )
 
         object_default_state[:, 7:] = torch.zeros_like(self.object.data.default_root_state[env_ids, 7:])
-        self.object.write_root_state_to_sim(object_default_state, env_ids)
+        self.object.write_root_link_pose_to_sim(object_default_state[:, :7], env_ids)
+        self.object.write_root_com_velocity_to_sim(object_default_state[:, 7:], env_ids)
 
         # reset hand
         delta_max = self.hand_dof_upper_limits[env_ids] - self.hand.data.default_joint_pos[env_ids]
@@ -260,22 +261,22 @@ class InHandManipulationEnv(DirectRLEnv):
 
     def _compute_intermediate_values(self):
         # data for hand
-        self.fingertip_pos = self.hand.data.body_pos_w[:, self.finger_bodies]
-        self.fingertip_rot = self.hand.data.body_quat_w[:, self.finger_bodies]
+        self.fingertip_pos = self.hand.data.body_link_pos_w[:, self.finger_bodies]
+        self.fingertip_rot = self.hand.data.body_link_quat_w[:, self.finger_bodies]
         self.fingertip_pos -= self.scene.env_origins.repeat((1, self.num_fingertips)).reshape(
             self.num_envs, self.num_fingertips, 3
         )
-        self.fingertip_velocities = self.hand.data.body_vel_w[:, self.finger_bodies]
+        self.fingertip_velocities = self.hand.data.body_com_vel_w[:, self.finger_bodies]
 
         self.hand_dof_pos = self.hand.data.joint_pos
         self.hand_dof_vel = self.hand.data.joint_vel
 
         # data for object
-        self.object_pos = self.object.data.root_pos_w - self.scene.env_origins
-        self.object_rot = self.object.data.root_quat_w
-        self.object_velocities = self.object.data.root_vel_w
-        self.object_linvel = self.object.data.root_lin_vel_w
-        self.object_angvel = self.object.data.root_ang_vel_w
+        self.object_pos = self.object.data.root_link_pos_w - self.scene.env_origins
+        self.object_rot = self.object.data.root_link_quat_w
+        self.object_velocities = self.object.data.root_com_vel_w
+        self.object_linvel = self.object.data.root_com_lin_vel_w
+        self.object_angvel = self.object.data.root_com_ang_vel_w
 
     def compute_reduced_observations(self):
         # Per https://arxiv.org/pdf/1808.00177.pdf Table 2
