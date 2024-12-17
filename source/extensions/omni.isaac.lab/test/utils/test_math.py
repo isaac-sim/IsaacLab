@@ -19,11 +19,22 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import math
+import numpy as np
 import torch
 import torch.utils.benchmark as benchmark
 from math import pi as PI
+from scipy.spatial.transform import Rotation as R
+from scipy.spatial.transform import Slerp
 
 import omni.isaac.lab.utils.math as math_utils
+
+# Number of iterations to run the batched tests
+NUM_ITERS = 100
+# This value is set to because "float operations are inexact".
+# Details: https://github.com/pytorch/pytorch/issues/17678
+DECIMAL_PRECISION = 5
+ATOL = 10 ** (-DECIMAL_PRECISION)
+RTOL = 10 ** (-DECIMAL_PRECISION)
 
 
 class TestMathUtilities(unittest.TestCase):
@@ -434,6 +445,143 @@ class TestMathUtilities(unittest.TestCase):
 
             # Assert that the output is close to the expected result
             torch.testing.assert_close(orthogonal_depth, expected_orthogonal_depth)
+
+    """
+    Tests for math_utils.pose_inv function
+    This class checks the pose_inv function's output against the np.linalg.inv function's output.
+    1. test_single_numpy_comparison: Checks if the inverse of a random transformation matrix
+    matches NumPy's built-in inverse.
+    2. test_multi_numpy_comparison: Verifies the same for a batch of NUM_ITERS random matrices.
+    """
+
+    def test_single_numpy_comparison(self):
+        for _ in range(NUM_ITERS):
+            test_mat = math_utils.generate_random_transformation_matrix(pos_boundary=10, rot_boundary=(2 * np.pi))
+            result = np.array(math_utils.pose_inv(test_mat))
+            expected = np.linalg.inv(np.array(test_mat))
+            np.testing.assert_array_almost_equal(result, expected, decimal=DECIMAL_PRECISION)
+
+    def test_multi_numpy_comparison(self):
+        # Generate NUM_ITERS random transformation matrices
+        test_mats = torch.stack([
+            math_utils.generate_random_transformation_matrix(pos_boundary=10, rot_boundary=(2 * math.pi))
+            for _ in range(NUM_ITERS)
+        ])
+        result = np.array(math_utils.pose_inv(test_mats))
+        expected = np.linalg.inv(np.array(test_mats))
+        np.testing.assert_array_almost_equal(result, expected, decimal=DECIMAL_PRECISION)
+
+    """
+    Tests for math_utils.quat_slerp function.
+    This class checks the quat_slerp function's output against the output from scipy.spatial.transform.Slerp.
+    1. test_quat_slerp_multi_scipy_comparison: Generates 20x2 random rotation matrices, find the interpolation rotation
+        and compares it to the output of scipy.spatial.transform.Slerp.
+    """
+
+    def test_quat_slerp_multi_scipy_comparison(self):
+        # Generate NUM_ITERS random rotation matrices
+        random_rotation_matrices_1 = [math_utils.generate_random_rotation() for _ in range(NUM_ITERS)]
+        random_rotation_matrices_2 = [math_utils.generate_random_rotation() for _ in range(NUM_ITERS)]
+
+        tau_values = np.random.rand(10)  # Random values in the range [0, 1]
+
+        for rmat1, rmat2 in zip(random_rotation_matrices_1, random_rotation_matrices_2):
+            # Convert the rotation matrices to quaternions
+            q1 = R.from_matrix(rmat1).as_quat()  # (x, y, z, w)
+            q2 = R.from_matrix(rmat2).as_quat()  # (x, y, z, w)
+
+            # Compute expected results using scipy's Slerp
+            key_rots = R.from_quat(np.array([q1, q2]))
+            key_times = [0, 1]
+            slerp = Slerp(key_times, key_rots)
+
+            for tau in tau_values:
+                expected = slerp(tau).as_quat()  # (x, y, z, w)
+                result = math_utils.quat_slerp(torch.tensor(q1), torch.tensor(q2), tau)
+                # Assert that the result is almost equal to the expected quaternion
+                np.testing.assert_array_almost_equal(result, expected, decimal=DECIMAL_PRECISION)
+
+    """
+    Tests for math_utils.interpolate_rotations function.
+    This class checks the interpolate_rotations function's output against the output from scipy.spatial.transform.Slerp.
+    1. test_interpolate_rotations_multi_scipy_comparison: Generates 20x2 random rotation matrices, finds an array of interpolated rotations
+        and compares it to the output of scipy.spatial.transform.Slerp.
+    """
+
+    def test_interpolate_rotations_multi_scipy_comparison(self):
+        # Generate NUM_ITERS random rotation matrices
+        random_rotation_matrices_1 = [math_utils.generate_random_rotation() for _ in range(NUM_ITERS)]
+        random_rotation_matrices_2 = [math_utils.generate_random_rotation() for _ in range(NUM_ITERS)]
+
+        for rmat1, rmat2 in zip(random_rotation_matrices_1, random_rotation_matrices_2):
+            # Compute expected results using scipy's Slerp
+            key_rots = R.from_matrix(np.array([rmat1, rmat2]))
+
+            # Create a Slerp object and interpolate create the interpolated matrices
+            # Minimum 2 required because Interpolate_rotations returns one extra rotation matrix
+            num_steps = np.random.randint(2, 51)
+            key_times = [0, 1]
+            slerp = Slerp(key_times, key_rots)
+            interp_times = np.linspace(0, 1, num_steps)
+            expected = slerp(interp_times).as_matrix()
+
+            # Test 1:
+            # Interpolate_rotations using interpolate_rotations and quat_slerp
+            # interpolate_rotations returns one extra rotation matrix hence num_steps-1
+            result_quat = math_utils.interpolate_rotations(rmat1, rmat2, num_steps - 1)
+
+            # Assert that the result is almost equal to the expected quaternion
+            np.testing.assert_array_almost_equal(result_quat, expected, decimal=DECIMAL_PRECISION)
+
+            # Test 2:
+            # Interpolate_rotations using axis_angle and ensure the result is still the same
+            # interpolate_rotations returns one extra rotation matrix hence num_steps-1
+            result_axis_angle = math_utils.interpolate_rotations(rmat1, rmat2, num_steps - 1, axis_angle=True)
+
+            # Assert that the result is almost equal to the expected quaternion
+            np.testing.assert_array_almost_equal(result_axis_angle, expected, decimal=DECIMAL_PRECISION)
+
+    """
+    Tests for math_utils.interpolate_poses function.
+    This class checks the interpolate_poses function's output against the output from scipy.spatial.transform.Slerp.
+    1. test_interpolate_poses_multi_scipy_comparison: Generates 20x2 random transformation matrices,
+        computes an array of interpolated transformations
+        and compares it to the output of scipy.spatial.transform.Slerp and np.linspace
+    """
+
+    def test_interpolate_poses_multi_scipy_comparison(self):
+        # Generate NUM_ITERS random transformation matrices
+        random_mat_1 = [math_utils.generate_random_transformation_matrix() for _ in range(NUM_ITERS)]
+        random_mat_2 = [math_utils.generate_random_transformation_matrix() for _ in range(NUM_ITERS)]
+
+        for mat1, mat2 in zip(random_mat_1, random_mat_2):
+            pos_1, rmat1 = math_utils.unmake_pose(mat1)
+            pos_2, rmat2 = math_utils.unmake_pose(mat2)
+
+            # Compute expected results using scipy's Slerp
+            key_rots = R.from_matrix(np.array([rmat1, rmat2]))
+
+            # Create a Slerp object and interpolate create the interpolated rotation matrices
+            # Minimum 3 required because interpolate_poses returns extra staring and ending pose matrices
+            num_steps = np.random.randint(3, 51)
+            key_times = [0, 1]
+            slerp = Slerp(key_times, key_rots)
+            interp_times = np.linspace(0, 1, num_steps)
+            expected_quat = slerp(interp_times).as_matrix()
+
+            # Test interpolation against expected result using np.linspace
+            expected_pos = np.linspace(pos_1, pos_2, num_steps)
+
+            # interpolate_poses using interpolate_poses and quat_slerp
+            # interpolate_poses returns extra staring and ending pose matrices hence num_steps-2
+            interpolated_poses, _ = math_utils.interpolate_poses(
+                math_utils.make_pose(pos_1, rmat1), math_utils.make_pose(pos_2, rmat2), num_steps - 2
+            )
+            result_pos, result_quat = math_utils.unmake_pose(interpolated_poses)
+
+            # Assert that the result is almost equal to the expected quaternion
+            np.testing.assert_array_almost_equal(result_quat, expected_quat, decimal=DECIMAL_PRECISION)
+            np.testing.assert_array_almost_equal(result_pos, expected_pos, decimal=DECIMAL_PRECISION)
 
 
 if __name__ == "__main__":

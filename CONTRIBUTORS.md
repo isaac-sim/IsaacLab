@@ -39,6 +39,7 @@ Guidelines for modifications:
 * Andrej Orsula
 * Anton Bjørndahl Mortensen
 * Arjun Bhardwaj
+* Ashwin Varghese Kuruttukulam
 * Brayden Zhang
 * Cameron Upright
 * Calvin Yu

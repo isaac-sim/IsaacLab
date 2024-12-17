@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.31.7 (2025-01-30)
+0.32.7 (2025-01-30)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -12,7 +12,7 @@ Fixed
   to the event being triggered at the wrong time after the reset.
 
 
-0.31.6 (2025-01-17)
+0.32.6 (2025-01-17)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -42,7 +42,7 @@ Fixed
   the :class:`omni.isaac.lab.assets.RigidObjectCollection` class.
 
 
-0.31.5 (2025-01-14)
+0.32.5 (2025-01-14)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -51,7 +51,7 @@ Fixed
 * Fixed the respawn of only wrong object samples in :func:`repeated_objects_terrain` of :mod:`omni.isaac.lab.terrains.trimesh` module. Previously, the function was respawning all objects in the scene instead of only the wrong object samples, which in worst case could lead to infinite respawn loop.
 
 
-0.31.4 (2025-01-08)
+0.32.4 (2025-01-08)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -61,7 +61,7 @@ Fixed
   In body properties sections, the second dimension should be num_bodies but was documented as 1.
 
 
-0.31.3 (2025-01-02)
+0.32.3 (2025-01-02)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -70,7 +70,7 @@ Added
 * Added body tracking as an origin type to :class:`omni.isaac.lab.envs.ViewerCfg` and :class:`omni.isaac.lab.envs.ui.ViewportCameraController`.
 
 
-0.31.2 (2024-12-22)
+0.32.2 (2024-12-22)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -79,7 +79,7 @@ Fixed
 * Fixed populating default_joint_stiffness and default_joint_damping values for ImplicitActuator instances in :class:`omni.isaac.lab.assets.Articulation`
 
 
-0.31.1 (2024-12-17)
+0.32.1 (2024-12-17)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -93,13 +93,22 @@ Added
   :class:`omni.isaac.lab.envs.mdp.actions.OperationalSpaceControllerAction` class.
 
 
-0.31.0 (2024-12-16)
+0.32.0 (2024-12-16)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
 ^^^^^^^
 
 * Previously, physx returns the rigid bodies and articulations velocities in the com of bodies rather than the link frame, while poses are in link frames. We now explicitly provide :attr:`body_link_state` and :attr:`body_com_state` APIs replacing the previous :attr:`body_state` API. Previous APIs are now marked as deprecated. Please update any code using the previous pose and velocity APIs to use the new ``*_link_*`` or ``*_com_*`` APIs in :attr:`omni.isaac_lab.assets.RigidBody`, :attr:`omni.isaac_lab.assets.RigidBodyCollection`, and :attr:`omni.isaac_lab.assets.Articulation`.
+
+
+0.31.0 (2024-12-16)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`ManagerBasedRLMimicEnv` and config classes for mimic data generation workflow for imitation learning.
 
 
 0.30.3 (2024-12-16)

@@ -119,12 +119,16 @@ class Se3SpaceMouse(DeviceBase):
         # implement a timeout for device search
         for _ in range(5):
             for device in hid.enumerate():
-                if device["product_string"] == "SpaceMouse Compact":
+                if (
+                    device["product_string"] == "SpaceMouse Compact"
+                    or device["product_string"] == "SpaceMouse Wireless"
+                ):
                     # set found flag
                     found = True
                     vendor_id = device["vendor_id"]
                     product_id = device["product_id"]
                     # connect to the device
+                    self._device.close()
                     self._device.open(vendor_id, product_id)
             # check if device found
             if not found:
@@ -150,7 +154,7 @@ class Se3SpaceMouse(DeviceBase):
                 elif data[0] == 2 and not self._read_rotation:
                     self._delta_rot[1] = self.rot_sensitivity * convert_buffer(data[1], data[2])
                     self._delta_rot[0] = self.rot_sensitivity * convert_buffer(data[3], data[4])
-                    self._delta_rot[2] = self.rot_sensitivity * convert_buffer(data[5], data[6])
+                    self._delta_rot[2] = self.rot_sensitivity * convert_buffer(data[5], data[6]) * -1.0
                 # readings from the side buttons
                 elif data[0] == 3:
                     # press left button
@@ -159,13 +163,13 @@ class Se3SpaceMouse(DeviceBase):
                         self._close_gripper = not self._close_gripper
                         # additional callbacks
                         if "L" in self._additional_callbacks:
-                            self._additional_callbacks["L"]
+                            self._additional_callbacks["L"]()
                     # right button is for reset
                     if data[1] == 2:
                         # reset layer
                         self.reset()
                         # additional callbacks
                         if "R" in self._additional_callbacks:
-                            self._additional_callbacks["R"]
+                            self._additional_callbacks["R"]()
                     if data[1] == 3:
                         self._read_rotation = not self._read_rotation

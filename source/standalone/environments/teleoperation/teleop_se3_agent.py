@@ -95,7 +95,7 @@ def main():
         )
     elif args_cli.teleop_device.lower() == "spacemouse":
         teleop_interface = Se3SpaceMouse(
-            pos_sensitivity=0.05 * args_cli.sensitivity, rot_sensitivity=0.005 * args_cli.sensitivity
+            pos_sensitivity=0.05 * args_cli.sensitivity, rot_sensitivity=0.05 * args_cli.sensitivity
         )
     elif args_cli.teleop_device.lower() == "gamepad":
         teleop_interface = Se3Gamepad(
@@ -108,9 +108,15 @@ def main():
         teleop_interface.add_callback("RESET", env.reset)
     else:
         raise ValueError(f"Invalid device interface '{args_cli.teleop_device}'. Supported: 'keyboard', 'spacemouse'.")
+
     # add teleoperation key for env reset
-    teleop_interface.add_callback("L", env.reset)
-    # print helper for keyboard
+    should_reset_recording_instance = False
+
+    def reset_recording_instance():
+        nonlocal should_reset_recording_instance
+        should_reset_recording_instance = True
+
+    teleop_interface.add_callback("R", reset_recording_instance)
     print(teleop_interface)
 
     # reset environment
@@ -130,6 +136,10 @@ def main():
             actions = pre_process_actions(delta_pose, gripper_command)
             # apply actions
             env.step(actions)
+
+            if should_reset_recording_instance:
+                env.reset()
+                should_reset_recording_instance = False
 
     # close the simulator
     env.close()

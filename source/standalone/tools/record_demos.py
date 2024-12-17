@@ -18,6 +18,7 @@ optional arguments:
     --teleop_device           Device for interacting with environment. (default: keyboard)
     --dataset_file            File path to export recorded demos. (default: "./datasets/dataset.hdf5")
     --step_hz                 Environment stepping rate in Hz. (default: 30)
+    --num_demos               Number of demonstrations to record. (default: 0)
 """
 
 """Launch Isaac Sim Simulator first."""
@@ -35,6 +36,9 @@ parser.add_argument(
     "--dataset_file", type=str, default="./datasets/dataset.hdf5", help="File path to export recorded demos."
 )
 parser.add_argument("--step_hz", type=int, default=30, help="Environment stepping rate in Hz.")
+parser.add_argument(
+    "--num_demos", type=int, default=0, help="Number of demonstrations to record. Set to 0 for infinite."
+)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -164,6 +168,7 @@ def main():
     teleop_interface.reset()
 
     # simulate environment -- run everything in inference mode
+    current_recorded_demo_count = 0
     with contextlib.suppress(KeyboardInterrupt) and torch.inference_mode():
         while True:
             # get keyboard command
@@ -180,6 +185,18 @@ def main():
                 env.unwrapped.recorder_manager.reset()
                 env.reset()
                 should_reset_recording_instance = False
+
+            # print out the current demo count if it has changed
+            if env.unwrapped.recorder_manager.exported_successful_episode_count > current_recorded_demo_count:
+                current_recorded_demo_count = env.unwrapped.recorder_manager.exported_successful_episode_count
+                print(f"Recorded {current_recorded_demo_count} demonstrations.")
+
+            if (
+                args_cli.num_demos > 0
+                and env.unwrapped.recorder_manager.exported_successful_episode_count >= args_cli.num_demos
+            ):
+                print(f"All {args_cli.num_demos} demonstrations recorded. Exiting the app.")
+                break
 
             # check that simulation is stopped or not
             if env.unwrapped.sim.is_stopped():

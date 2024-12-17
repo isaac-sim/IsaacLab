@@ -15,6 +15,7 @@ PER_TEST_TIMEOUTS = {
     "test_env_rendering_logic.py": 300,
     "test_camera.py": 500,
     "test_tiled_camera.py": 300,
+    "test_generate_dataset.py": 300,  # This test runs annotation for 10 demos and generation until one succeeds
     "test_rsl_rl_wrapper.py": 200,
     "test_sb3_wrapper.py": 200,
     "test_skrl_wrapper.py": 200,
