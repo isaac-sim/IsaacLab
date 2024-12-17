@@ -38,8 +38,8 @@ compatibility issues with some Linux distributions. If you encounter any issues,
 
          .. code-block:: bash
 
-            conda create -n isaaclab python=3.10
-            conda activate isaaclab
+            conda create -n env_isaaclab python=3.10
+            conda activate env_isaaclab
 
       .. tab-item:: venv environment
 
@@ -51,20 +51,20 @@ compatibility issues with some Linux distributions. If you encounter any issues,
 
                .. code-block:: bash
 
-                  # create a virtual environment named isaaclab with python3.10
-                  python3.10 -m venv isaaclab
+                  # create a virtual environment named env_isaaclab with python3.10
+                  python3.10 -m venv env_isaaclab
                   # activate the virtual environment
-                  source isaaclab/bin/activate
+                  source env_isaaclab/bin/activate
 
             .. tab-item:: :icon:`fa-brands fa-windows` Windows
                :sync: windows
 
                .. code-block:: batch
 
-                  # create a virtual environment named isaaclab with python3.10
-                  python3.10 -m venv isaaclab
+                  # create a virtual environment named env_isaaclab with python3.10
+                  python3.10 -m venv env_isaaclab
                   # activate the virtual environment
-                  isaaclab\Scripts\activate
+                  env_isaaclab\Scripts\activate
 
 
 -  Next, install a CUDA-enabled PyTorch 2.4.0 build based on the CUDA version available on your system. This step is optional for Linux, but required for Windows to ensure a CUDA-compatible version of PyTorch is installed.
@@ -204,7 +204,7 @@ Clone the Isaac Lab repository into your workspace:
                -o, --docker         Run the docker container helper script (docker/container.sh).
                -v, --vscode         Generate the VSCode settings file from template.
                -d, --docs           Build the documentation from source using sphinx.
-               -c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is 'isaaclab'.
+               -c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is 'env_isaaclab'.
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
@@ -224,7 +224,7 @@ Clone the Isaac Lab repository into your workspace:
                -t, --test           Run all python unittest tests.
                -v, --vscode         Generate the VSCode settings file from template.
                -d, --docs           Build the documentation from source using sphinx.
-               -c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is 'isaaclab'.
+               -c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is 'env_isaaclab'.
 
 Installation
 ~~~~~~~~~~~~
