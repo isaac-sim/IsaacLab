@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 import carb
 import omni.kit.app
-from omni.isaac.core.simulation_context import SimulationContext
+from isaacsim.core.api.simulation_context import SimulationContext
 
 from omni.isaac.lab.managers import ManagerBase
 from omni.isaac.lab.utils import configclass

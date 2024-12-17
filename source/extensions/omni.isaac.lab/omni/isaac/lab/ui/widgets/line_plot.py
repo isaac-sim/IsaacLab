@@ -10,7 +10,7 @@ import numpy as np
 from typing import TYPE_CHECKING
 
 import omni
-from omni.isaac.core.simulation_context import SimulationContext
+from isaacsim.core.api.simulation_context import SimulationContext
 
 from .ui_widget_wrapper import UIWidgetWrapper
 

@@ -568,10 +568,10 @@ class OperationalSpaceControllerAction(ActionTerm):
     def _compute_dynamic_quantities(self):
         """Computes the dynamic quantities for operational space control."""
 
-        self._mass_matrix[:] = self._asset.root_physx_view.get_mass_matrices()[:, self._joint_ids, :][
+        self._mass_matrix[:] = self._asset.root_physx_view.get_generalized_mass_matrices()[:, self._joint_ids, :][
             :, :, self._joint_ids
         ]
-        self._gravity[:] = self._asset.root_physx_view.get_generalized_gravity_forces()[:, self._joint_ids]
+        self._gravity[:] = self._asset.root_physx_view.get_gravity_compensation_forces()[:, self._joint_ids]
 
     def _compute_ee_jacobian(self):
         """Computes the geometric Jacobian of the ee body frame in root frame.
