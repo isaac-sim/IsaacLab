@@ -247,7 +247,7 @@ echo     -s, --sim            Run the simulator executable (isaac-sim.bat) provi
 echo     -t, --test           Run all python unittest tests.
 echo     -v, --vscode         Generate the VSCode settings file from template.
 echo     -d, --docs           Build the documentation from source using sphinx.
-echo     -c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is 'isaaclab'.
+echo     -c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is 'env_isaaclab'.
 echo.
 goto :eof
 
@@ -328,8 +328,8 @@ if "%arg%"=="-i" (
         set conda_env_name=%2
         shift
     ) else (
-        echo [INFO] Using default conda environment name: isaaclab
-        set conda_env_name=isaaclab
+        echo [INFO] Using default conda environment name: env_isaaclab
+        set conda_env_name=env_isaaclab
     )
     call :setup_conda_env %conda_env_name%
     shift
@@ -340,8 +340,8 @@ if "%arg%"=="-i" (
         set conda_env_name=%2
         shift
     ) else (
-        echo [INFO] Using default conda environment name: isaaclab
-        set conda_env_name=isaaclab
+        echo [INFO] Using default conda environment name: env_isaaclab
+        set conda_env_name=env_isaaclab
     )
     call :setup_conda_env %conda_env_name%
     shift

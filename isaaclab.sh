@@ -241,7 +241,7 @@ print_help () {
     echo -e "\t-o, --docker         Run the docker container helper script (docker/container.sh)."
     echo -e "\t-v, --vscode         Generate the VSCode settings file from template."
     echo -e "\t-d, --docs           Build the documentation from source using sphinx."
-    echo -e "\t-c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is 'isaaclab'."
+    echo -e "\t-c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is 'env_isaaclab'."
     echo -e "\n" >&2
 }
 
@@ -307,8 +307,8 @@ while [[ $# -gt 0 ]]; do
         -c|--conda)
             # use default name if not provided
             if [ -z "$2" ]; then
-                echo "[INFO] Using default conda environment name: isaaclab"
-                conda_env_name="isaaclab"
+                echo "[INFO] Using default conda environment name: env_isaaclab"
+                conda_env_name="env_isaaclab"
             else
                 echo "[INFO] Using conda environment name: $2"
                 conda_env_name=$2

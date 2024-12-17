@@ -204,7 +204,7 @@ Clone the Isaac Lab repository into your workspace:
                -o, --docker         Run the docker container helper script (docker/container.sh).
                -v, --vscode         Generate the VSCode settings file from template.
                -d, --docs           Build the documentation from source using sphinx.
-               -c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is 'isaaclab'.
+               -c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is 'env_isaaclab'.
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
@@ -224,7 +224,7 @@ Clone the Isaac Lab repository into your workspace:
                -t, --test           Run all python unittest tests.
                -v, --vscode         Generate the VSCode settings file from template.
                -d, --docs           Build the documentation from source using sphinx.
-               -c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is 'isaaclab'.
+               -c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is 'env_isaaclab'.
 
 
 Creating the Isaac Sim Symbolic Link
@@ -289,7 +289,7 @@ use the following command:
 
       .. code:: bash
 
-         # Option 1: Default name for conda environment is 'isaaclab'
+         # Option 1: Default name for conda environment is 'env_isaaclab'
          ./isaaclab.sh --conda  # or "./isaaclab.sh -c"
          # Option 2: Custom name for conda environment
          ./isaaclab.sh --conda my_env  # or "./isaaclab.sh -c my_env"
@@ -299,7 +299,7 @@ use the following command:
 
       .. code:: batch
 
-         :: Option 1: Default name for conda environment is 'isaaclab'
+         :: Option 1: Default name for conda environment is 'env_isaaclab'
          isaaclab.bat --conda  :: or "isaaclab.bat -c"
          :: Option 2: Custom name for conda environment
          isaaclab.bat --conda my_env  :: or "isaaclab.bat -c my_env"
@@ -310,7 +310,7 @@ activate the environment before running any scripts. For example:
 
 .. code:: bash
 
-   conda activate isaaclab  # or "conda activate my_env"
+   conda activate env_isaaclab  # or "conda activate my_env"
 
 Once you are in the virtual environment, you do not need to use ``./isaaclab.sh -p`` / ``isaaclab.bat -p``
 to run python scripts. You can use the default python executable in your environment
