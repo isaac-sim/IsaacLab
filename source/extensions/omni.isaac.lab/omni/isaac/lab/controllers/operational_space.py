@@ -383,10 +383,12 @@ class OperationalSpaceController:
             ValueError: When closed-loop force control is enabled but the current end-effector force is not provided.
             ValueError: When gravity compensation is enabled but the gravity vector is not provided.
             ValueError: When null-space control is enabled but the system is not redundant.
-            ValueError: When dynamically consistent pseudo-inverse is enabled but the mass matrix inverse is not provided.
-            ValueError: When null-space control is enabled but the current joint positions and velocities are not provided.
-            ValueError: When target joint positions are provided for null-space control but their dimensions do not match
-                the current joint positions.
+            ValueError: When dynamically consistent pseudo-inverse is enabled but the mass matrix inverse is not
+                provided.
+            ValueError: When null-space control is enabled but the current joint positions and velocities are not
+                provided.
+            ValueError: When target joint positions are provided for null-space control but their dimensions do not
+                match the current joint positions.
             ValueError: When an invalid null-space control method is provided.
 
         Returns:
