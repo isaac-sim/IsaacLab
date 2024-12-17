@@ -28,9 +28,9 @@ class FrankaCabinetEnvCfg(DirectRLEnvCfg):
     # env
     episode_length_s = 8.3333  # 500 timesteps
     decimation = 2
-    num_actions = 9
-    num_observations = 23
-    num_states = 0
+    action_space = 9
+    observation_space = 23
+    state_space = 0
 
     # simulation
     sim: SimulationCfg = SimulationCfg(
@@ -299,8 +299,8 @@ class FrankaCabinetEnv(DirectRLEnv):
     def _get_rewards(self) -> torch.Tensor:
         # Refresh the intermediate values after the physics steps
         self._compute_intermediate_values()
-        robot_left_finger_pos = self._robot.data.body_pos_w[:, self.left_finger_link_idx]
-        robot_right_finger_pos = self._robot.data.body_pos_w[:, self.right_finger_link_idx]
+        robot_left_finger_pos = self._robot.data.body_link_pos_w[:, self.left_finger_link_idx]
+        robot_right_finger_pos = self._robot.data.body_link_pos_w[:, self.right_finger_link_idx]
 
         return self._compute_rewards(
             self.actions,
@@ -372,10 +372,10 @@ class FrankaCabinetEnv(DirectRLEnv):
         if env_ids is None:
             env_ids = self._robot._ALL_INDICES
 
-        hand_pos = self._robot.data.body_pos_w[env_ids, self.hand_link_idx]
-        hand_rot = self._robot.data.body_quat_w[env_ids, self.hand_link_idx]
-        drawer_pos = self._cabinet.data.body_pos_w[env_ids, self.drawer_link_idx]
-        drawer_rot = self._cabinet.data.body_quat_w[env_ids, self.drawer_link_idx]
+        hand_pos = self._robot.data.body_link_pos_w[env_ids, self.hand_link_idx]
+        hand_rot = self._robot.data.body_link_quat_w[env_ids, self.hand_link_idx]
+        drawer_pos = self._cabinet.data.body_link_pos_w[env_ids, self.drawer_link_idx]
+        drawer_rot = self._cabinet.data.body_link_quat_w[env_ids, self.drawer_link_idx]
         (
             self.robot_grasp_rot[env_ids],
             self.robot_grasp_pos[env_ids],

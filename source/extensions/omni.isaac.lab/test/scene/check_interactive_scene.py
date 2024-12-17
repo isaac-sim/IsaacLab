@@ -130,11 +130,13 @@ def main():
             joint_vel = scene.articulations["robot_1"].data.default_joint_vel
             # -- set root state
             # -- robot 1
-            scene.articulations["robot_1"].write_root_state_to_sim(root_state)
+            scene.articulations["robot_1"].write_root_link_pose_to_sim(root_state[:, :7])
+            scene.articulations["robot_1"].write_root_com_velocity_to_sim(root_state[:, 7:])
             scene.articulations["robot_1"].write_joint_state_to_sim(joint_pos, joint_vel)
             # -- robot 2
             root_state[:, 1] += 1.0
-            scene.articulations["robot_2"].write_root_state_to_sim(root_state)
+            scene.articulations["robot_2"].write_root_link_pose_to_sim(root_state[:, :7])
+            scene.articulations["robot_2"].write_root_com_velocity_to_sim(root_state[:, 7:])
             scene.articulations["robot_2"].write_joint_state_to_sim(joint_pos, joint_vel)
             # reset buffers
             scene.reset()

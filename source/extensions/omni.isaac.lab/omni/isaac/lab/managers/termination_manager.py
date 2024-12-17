@@ -53,6 +53,12 @@ class TerminationManager(ManagerBase):
             cfg: The configuration object or dictionary (``dict[str, TerminationTermCfg]``).
             env: An environment object.
         """
+        # create buffers to parse and store terms
+        self._term_names: list[str] = list()
+        self._term_cfgs: list[TerminationTermCfg] = list()
+        self._class_term_cfgs: list[TerminationTermCfg] = list()
+
+        # call the base class constructor (this will parse the terms config)
         super().__init__(cfg, env)
         # prepare extra info to store individual termination term information
         self._term_dones = dict()
@@ -178,6 +184,22 @@ class TerminationManager(ManagerBase):
         """
         return self._term_dones[name]
 
+    def get_active_iterable_terms(self, env_idx: int) -> Sequence[tuple[str, Sequence[float]]]:
+        """Returns the active terms as iterable sequence of tuples.
+
+        The first element of the tuple is the name of the term and the second element is the raw value(s) of the term.
+
+        Args:
+            env_idx: The specific environment to pull the active terms from.
+
+        Returns:
+            The active terms.
+        """
+        terms = []
+        for key in self._term_dones.keys():
+            terms.append((key, [self._term_dones[key][env_idx].float().cpu().item()]))
+        return terms
+
     """
     Operations - Term settings.
     """
@@ -219,12 +241,6 @@ class TerminationManager(ManagerBase):
     """
 
     def _prepare_terms(self):
-        """Prepares a list of termination functions."""
-        # parse remaining termination terms and decimate their information
-        self._term_names: list[str] = list()
-        self._term_cfgs: list[TerminationTermCfg] = list()
-        self._class_term_cfgs: list[TerminationTermCfg] = list()
-
         # check if config is dict already
         if isinstance(self.cfg, dict):
             cfg_items = self.cfg.items()

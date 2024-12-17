@@ -106,6 +106,7 @@ class ActionTerm(ManagerTermBase):
         # check if debug visualization is supported
         if not self.has_debug_vis_implementation:
             return False
+
         # toggle debug visualization objects
         self._set_debug_vis_impl(debug_vis)
         # toggle debug visualization handles
@@ -181,12 +182,21 @@ class ActionManager(ManagerBase):
         Args:
             cfg: The configuration object or dictionary (``dict[str, ActionTermCfg]``).
             env: The environment instance.
+
+        Raises:
+            ValueError: If the configuration is None.
         """
+        # check if config is None
+        if cfg is None:
+            raise ValueError("Action manager configuration is None. Please provide a valid configuration.")
+
+        # call the base class constructor (this prepares the terms)
         super().__init__(cfg, env)
         # create buffers to store actions
         self._action = torch.zeros((self.num_envs, self.total_action_dim), device=self.device)
         self._prev_action = torch.zeros_like(self._action)
 
+        # check if any term has debug visualization implemented
         self.cfg.debug_vis = False
         for term in self._terms.values():
             self.cfg.debug_vis |= term.cfg.debug_vis
@@ -253,7 +263,26 @@ class ActionManager(ManagerBase):
     Operations.
     """
 
-    def set_debug_vis(self, debug_vis: bool) -> bool:
+    def get_active_iterable_terms(self, env_idx: int) -> Sequence[tuple[str, Sequence[float]]]:
+        """Returns the active terms as iterable sequence of tuples.
+
+        The first element of the tuple is the name of the term and the second element is the raw value(s) of the term.
+
+        Args:
+            env_idx: The specific environment to pull the active terms from.
+
+        Returns:
+            The active terms.
+        """
+        terms = []
+        idx = 0
+        for name, term in self._terms.items():
+            term_actions = self._action[env_idx, idx : idx + term.action_dim].cpu()
+            terms.append((name, term_actions.tolist()))
+            idx += term.action_dim
+        return terms
+
+    def set_debug_vis(self, debug_vis: bool):
         """Sets whether to visualize the action data.
         Args:
             debug_vis: Whether to visualize the action data.
@@ -334,8 +363,7 @@ class ActionManager(ManagerBase):
     """
 
     def _prepare_terms(self):
-        """Prepares a list of action terms."""
-        # parse action terms from the config
+        # create buffers to parse and store terms
         self._term_names: list[str] = list()
         self._terms: dict[str, ActionTerm] = dict()
 
@@ -344,6 +372,7 @@ class ActionManager(ManagerBase):
             cfg_items = self.cfg.items()
         else:
             cfg_items = self.cfg.__dict__.items()
+        # parse action terms from the config
         for term_name, term_cfg in cfg_items:
             # check if term config is None
             if term_cfg is None:

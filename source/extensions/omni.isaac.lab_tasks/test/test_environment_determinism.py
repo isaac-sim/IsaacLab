@@ -101,13 +101,20 @@ class TestEnvironmentDeterminism(unittest.TestCase):
         """Run random actions and obtain transition tuples after fixed number of steps."""
         # create a new stage
         omni.usd.get_context().new_stage()
-        # parse configuration
-        env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
-        # set seed
-        env_cfg.seed = 42
-
-        # create environment
-        env = gym.make(task_name, cfg=env_cfg)
+        try:
+            # parse configuration
+            env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
+            # set seed
+            env_cfg.seed = 42
+            # create environment
+            env = gym.make(task_name, cfg=env_cfg)
+        except Exception as e:
+            if "env" in locals() and hasattr(env, "_is_closed"):
+                env.close()
+            else:
+                if hasattr(e, "obj") and hasattr(e.obj, "_is_closed"):
+                    e.obj.close()
+            self.fail(f"Failed to set-up the environment for task {task_name}. Error: {e}")
 
         # disable control on stop
         env.unwrapped.sim._app_control_on_stop_handle = None  # type: ignore

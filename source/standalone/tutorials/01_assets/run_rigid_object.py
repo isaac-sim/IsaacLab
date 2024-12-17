@@ -103,7 +103,8 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, RigidObj
                 radius=0.1, h_range=(0.25, 0.5), size=cone_object.num_instances, device=cone_object.device
             )
             # write root state to simulation
-            cone_object.write_root_state_to_sim(root_state)
+            cone_object.write_root_link_pose_to_sim(root_state[:, :7])
+            cone_object.write_root_com_velocity_to_sim(root_state[:, 7:])
             # reset buffers
             cone_object.reset()
             print("----------------------------------------")
@@ -119,7 +120,7 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, RigidObj
         cone_object.update(sim_dt)
         # print the root position
         if count % 50 == 0:
-            print(f"Root position (in world): {cone_object.data.root_state_w[:, :3]}")
+            print(f"Root position (in world): {cone_object.data.root_link_state_w[:, :3]}")
 
 
 def main():

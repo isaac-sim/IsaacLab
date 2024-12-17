@@ -74,4 +74,4 @@ The following figure shows the actuator groups for a legged mobile manipulator:
 .. seealso::
 
     We provide implementations for various explicit actuator models. These are detailed in
-    `omni.isaac.lab.actuators <../api/lab/omni.isaac.lab.actuators.html>`_ sub-package.
+    `omni.isaac.lab.actuators <../../api/lab/omni.isaac.lab.actuators.html>`_ sub-package.

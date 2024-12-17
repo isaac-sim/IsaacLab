@@ -1,6 +1,420 @@
 Changelog
 ---------
 
+0.30.0 (2024-12-16)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Previously, physx returns the rigid bodies and articulations velocities in the com of bodies rather than the link frame, while poses are in link frames. We now explicitly provide :attr:`body_link_state` and :attr:`body_com_state` APIs replacing the previous :attr:`body_state` API. Previous APIs are now marked as deprecated. Please update any code using the previous pose and velocity APIs to use the new ``*_link_*`` or ``*_com_*`` APIs in :attr:`omni.isaac_lab.assets.RigidBody`, :attr:`omni.isaac_lab.assets.RigidBodyCollection`, and :attr:`omni.isaac_lab.assets.Articulation`.
+
+
+0.29.3 (2024-12-16)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ordering of logging and resamping in the command manager, where we were logging the metrics after resampling the commands. This leads to incorrect logging of metrics when inside the resample call, the metrics tensors get reset.
+
+
+0.29.2 (2024-12-16)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed errors within the calculations of :class:`omni.isaac.lab.controllers.OperationalSpaceController`.
+
+Added
+^^^^^
+
+* Added :class:`omni.isaac.lab.controllers.OperationalSpaceController` to API documentation.
+* Added test cases for :class:`omni.isaac.lab.controllers.OperationalSpaceController`.
+* Added a tutorial for :class:`omni.isaac.lab.controllers.OperationalSpaceController`.
+* Added the implementation of :class:`omni.isaac.lab.envs.mdp.actions.OperationalSpaceControllerAction` class.
+
+
+0.29.1 (2024-12-15)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Added call to update articulation kinematics after reset to ensure states are updated for non-rendering sensors. Previously, some changes in reset such as modifying joint states would not be reflected in the rigid body states immediately after reset.
+
+
+0.29.0 (2024-12-15)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added UI interface to the Managers in the ManagerBasedEnv and MangerBasedRLEnv classes.
+* Added UI widgets for :class:`LiveLinePlot` and :class:`ImagePlot`.
+* Added ``ManagerLiveVisualizer/Cfg``: Given a ManagerBase (i.e. action_manager, observation_manager, etc) and a config file this class creates the the interface between managers and the UI.
+* Added :class:`EnvLiveVisualizer`: A 'manager' of ManagerLiveVisualizer. This is added to the ManagerBasedEnv but is only called during the initialization of the managers in load_managers
+* Added ``get_active_iterable_terms`` implementation methods to ActionManager, ObservationManager, CommandsManager, CurriculumManager, RewardManager, and TerminationManager. This method exports the active term data and labels for each manager and is called by ManagerLiveVisualizer.
+* Additions to :class:`BaseEnvWindow` and :class:`RLEnvWindow` to register ManagerLiveVisualizer UI interfaces for the chosen managers.
+
+
+0.28.0 (2024-12-15)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added observation history computation to :class:`omni.isaac.lab.manager.observation_manager.ObservationManager`.
+* Added ``history_length`` and ``flatten_history_dim`` configuration parameters to :class:`omni.isaac.lab.manager.manager_term_cfg.ObservationTermCfg`
+* Added ``history_length`` and ``flatten_history_dim`` configuration parameters to :class:`omni.isaac.lab.manager.manager_term_cfg.ObservationGroupCfg`
+* Added full buffer property to :class:`omni.isaac.lab.utils.buffers.circular_buffer.CircularBuffer`
+
+
+0.27.29 (2024-12-15)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added action clip to all :class:`omni.isaac.lab.envs.mdp.actions`.
+
+
+0.27.28 (2024-12-14)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Added check for error below threshold in state machines to ensure the state has been reached.
+
+
+0.27.27 (2024-12-13)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the shape of ``quat_w`` in the ``apply_actions`` method of :attr:`~omni.isaac.lab.env.mdp.NonHolonomicAction` (previously (N,B,4), now (N,4) since the number of root bodies B is required to be 1). Previously ``apply_actions`` errored because ``euler_xyz_from_quat`` requires inputs of shape (N,4).
+
+
+0.27.26 (2024-12-11)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Introduced an optional ``sensor_cfg`` parameter to the :meth:`~omni.isaac.lab.envs.mdp.rewards.base_height_l2` function, enabling the use of
+  :class:`~omni.isaac.lab.sensors.RayCaster` for height adjustments. For flat terrains, the function retains its previous behavior.
+* Improved documentation to clarify the usage of the :meth:`~omni.isaac.lab.envs.mdp.rewards.base_height_l2` function in both flat and rough terrain settings.
+
+
+0.27.25 (2024-12-11)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Modified :class:`omni.isaac.lab.envs.mdp.actions.DifferentialInverseKinematicsAction` class to use the geometric
+  Jacobian computed w.r.t. to the root frame of the robot. This helps ensure that root pose does not affect the tracking.
+
+
+0.27.24 (2024-12-09)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the initial state recorder term in :class:`omni.isaac.lab.envs.mdp.recorders.InitialStateRecorder` to
+  return only the states of the specified environment IDs.
+
+
+0.27.23 (2024-12-06)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the enforcement of :attr:`~omni.isaac.lab.actuators.ActuatorBaseCfg.velocity_limits` at the
+  :attr:`~omni.isaac.lab.assets.Articulation.root_physx_view` level.
+
+
+0.27.22 (2024-12-06)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* If a USD that contains an articulation root is loaded using a
+  :attr:`omni.isaac_lab.assets.RigidBody` we now fail unless the articulation root is explicitly
+  disabled. Using an articulation root for rigid bodies is not needed and decreases overall performance.
+
+
+0.27.21 (2024-12-06)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Corrected the projection types of fisheye camera in :class:`omni.isaac.lab.sim.spawners.sensors.sensors_cfg.FisheyeCameraCfg`.
+  Earlier, the projection names used snakecase instead of camelcase.
+
+
+0.27.20 (2024-12-06)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added option to define the clipping behavior for depth images generated by
+  :class:`~omni.isaac.lab.sensors.RayCasterCamera`, :class:`~omni.isaac.lab.sensors.Camera`, and :class:`~omni.isaac.lab.sensors.TiledCamera`
+
+Changed
+^^^^^^^
+
+* Unified the clipping behavior for the depth images of all camera implementations. Per default, all values exceeding
+  the range are clipped to zero for both ``distance_to_image_plane`` and ``distance_to_camera`` depth images. Prev.
+  :class:`~omni.isaac.lab.sensors.RayCasterCamera` clipped the values to the maximum value of the depth image,
+  :class:`~omni.isaac.lab.sensors.Camera` did not clip them and had a different behavior for both types.
+
+
+0.27.19 (2024-12-05)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the condition in ``isaaclab.sh`` that checks whether ``pre-commit`` is installed before attempting installation.
+
+
+0.27.18 (2024-12-04)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the order of the incoming parameters in :class:`omni.isaac.lab.envs.DirectMARLEnv` to correctly use ``NoiseModel`` in marl-envs.
+
+
+0.27.17 (2024-12-02)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~omni.isaac.lab.managers.RecorderManager` and its utility classes to record data from the simulation.
+* Added :class:`~omni.isaac.lab.utils.datasets.EpisodeData` to store data for an episode.
+* Added :class:`~omni.isaac.lab.utils.datasets.DatasetFileHandlerBase` as a base class for handling dataset files.
+* Added :class:`~omni.isaac.lab.utils.datasets.HDF5DatasetFileHandler` as a dataset file handler implementation to
+  export and load episodes from HDF5 files.
+* Added ``record_demos.py`` script to record human-teleoperated demos for a specified task and export to an HDF5 file.
+* Added ``replay_demos.py`` script to replay demos loaded from an HDF5 file.
+
+
+0.27.16 (2024-11-21)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed :class:`omni.isaac.lab.envs.DirectMARLEnv` to inherit from ``Gymnasium.Env`` due to requirement from Gymnasium v1.0.0 requiring all environments to be a subclass of ``Gymnasium.Env`` when using the ``make`` interface.
+
+
+0.27.15 (2024-11-09)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed indexing in :meth:`omni.isaac.lab.assets.Articulation.write_joint_limits_to_sim` to correctly process non-None ``env_ids`` and ``joint_ids``.
+
+
+0.27.14 (2024-10-23)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the class :class:`~omni.isaac.lab.assets.RigidObjectCollection` which allows to spawn
+  multiple objects in each environment and access/modify the quantities with a unified (env_ids, object_ids) API.
+
+
+0.27.13 (2024-10-30)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the attributes :attr:`~omni.isaac.lab.sim.converters.MeshConverterCfg.translation`, :attr:`~omni.isaac.lab.sim.converters.MeshConverterCfg.rotation`,
+  :attr:`~omni.isaac.lab.sim.converters.MeshConverterCfg.scale` to translate, rotate, and scale meshes
+  when importing them with :class:`~omni.isaac.lab.sim.converters.MeshConverter`.
+
+
+0.27.12 (2024-01-04)
+~~~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed TensorDict usage in favor of Python dictionary in sensors
+
+
+0.27.11 (2024-10-31)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added support to define tuple of floats to scale observation terms by expanding the
+  :attr:`omni.isaac.lab.managers.manager_term_cfg.ObservationManagerCfg.scale` attribute.
+
+
+0.27.10 (2024-11-01)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Cached the PhysX view's joint paths before looping over them when processing fixed joint tendons
+  inside the :class:`Articulation` class. This helps improve the processing time for the tendons.
+
+
+0.27.9 (2024-11-01)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the :class:`omni.isaac.lab.utils.types.ArticulationActions` class to store the joint actions
+  for an articulation. Earlier, the class from Isaac Sim was being used. However, it used a different
+  type for the joint actions which was not compatible with the Isaac Lab framework.
+
+
+0.27.8 (2024-11-01)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added sanity check if the term is a valid type inside the command manager.
+* Corrected the iteration over ``group_cfg_items`` inside the observation manager.
+
+
+0.27.7 (2024-10-28)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added frozen encoder feature extraction observation space with ResNet and Theia
+
+
+0.27.6 (2024-10-25)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed usage of ``meshes`` property in :class:`omni.isaac.lab.sensors.RayCasterCamera` to use ``self.meshes`` instead of the undefined ``RayCaster.meshes``.
+* Fixed issue in :class:`omni.isaac.lab.envs.ui.BaseEnvWindow` where undefined configs were being accessed when creating debug visualization elements in UI.
+
+
+0.27.5 (2024-10-25)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added utilities for serializing/deserializing Gymnasium spaces.
+
+
+0.27.4 (2024-10-18)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Updated installation path instructions for Windows in the Isaac Lab documentation to remove redundancy in the use of %USERPROFILE% for path definitions.
+
+
+0.27.3 (2024-10-22)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the issue with using list or tuples of ``configclass`` within a ``configclass``. Earlier, the list of
+  configclass objects were not converted to dictionary properly when ``to_dict`` function was called.
+
+
+0.27.2 (2024-10-21)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``--kit_args`` to :class:`~omni.isaac.lab.app.AppLauncher` to allow passing command line arguments directly to Omniverse Kit SDK.
+
+
+0.27.1 (2024-10-20)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~omni.isaac.lab.sim.RenderCfg` and the attribute :attr:`~omni.isaac.lab.sim.SimulationCfg.render` for
+  specifying render related settings.
+
+
+0.27.0 (2024-10-14)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a method to :class:`~omni.isaac.lab.utils.configclass` to check for attributes with values of
+  type ``MISSING``. This is useful when the user wants to check if a certain attribute has been set or not.
+* Added the configuration validation check inside the constructor of all the core classes
+  (such as sensor base, asset base, scene and environment base classes).
+* Added support for environments without commands by leaving the attribute
+  :attr:`omni.isaac.lab.envs.ManagerBasedRLEnvCfg.commands` as None. Before, this had to be done using
+  the class :class:`omni.isaac.lab.command_generators.NullCommandGenerator`.
+* Moved the ``meshes`` attribute in the :class:`omni.isaac.lab.sensors.RayCaster` class from class variable to instance variable.
+  This prevents the meshes to overwrite each other.
+
+
+0.26.0 (2024-10-16)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added Imu sensor implementation that directly accesses the physx view :class:`omni.isaac.lab.sensors.Imu`. The
+  sensor comes with a configuration class :class:`omni.isaac.lab.sensors.ImuCfg` and data class
+  :class:`omni.isaac.lab.sensors.ImuData`.
+* Moved and renamed :meth:`omni.isaac.lab.sensors.camera.utils.convert_orientation_convention` to :meth:`omni.isaac.lab.utils.math.convert_camera_frame_orientation_convention`
+* Moved :meth:`omni.isaac.lab.sensors.camera.utils.create_rotation_matrix_from_view` to :meth:`omni.isaac.lab.utils.math.create_rotation_matrix_from_view`
+
+
+0.25.2 (2024-10-16)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added support for different Gymnasium spaces (``Box``, ``Discrete``, ``MultiDiscrete``, ``Tuple`` and ``Dict``)
+  to define observation, action and state spaces in the direct workflow.
+* Added :meth:`sample_space` to environment utils to sample supported spaces where data containers are torch tensors.
+
+Changed
+^^^^^^^
+
+* Mark the :attr:`num_observations`, :attr:`num_actions` and :attr:`num_states` in :class:`DirectRLEnvCfg` as deprecated
+  in favor of :attr:`observation_space`, :attr:`action_space` and :attr:`state_space` respectively.
+* Mark the :attr:`num_observations`, :attr:`num_actions` and :attr:`num_states` in :class:`DirectMARLEnvCfg` as deprecated
+  in favor of :attr:`observation_spaces`, :attr:`action_spaces` and :attr:`state_space` respectively.
+
+
 0.25.1 (2024-10-10)
 ~~~~~~~~~~~~~~~~~~~
 

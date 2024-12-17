@@ -83,7 +83,8 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             # if this is not done, then the robots will be spawned at the (0, 0, 0) of the simulation world
             root_state = robot.data.default_root_state.clone()
             root_state[:, :3] += scene.env_origins
-            robot.write_root_state_to_sim(root_state)
+            robot.write_root_link_pose_to_sim(root_state[:, :7])
+            robot.write_root_com_velocity_to_sim(root_state[:, 7:])
             # set joint positions with some noise
             joint_pos, joint_vel = robot.data.default_joint_pos.clone(), robot.data.default_joint_vel.clone()
             joint_pos += torch.rand_like(joint_pos) * 0.1

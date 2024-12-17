@@ -46,9 +46,9 @@ Below is an example skeleton of a task config class:
       # env
       decimation = 2
       episode_length_s = 5.0
-      num_actions = 1
-      num_observations = 4
-      num_states = 0
+      action_space = 1
+      observation_space = 4
+      state_space = 0
       # task-specific parameters
       ...
 
@@ -158,9 +158,9 @@ The following parameters must be set for each environment config:
 
    decimation = 2
    episode_length_s = 5.0
-   num_actions = 1
-   num_observations = 4
-   num_states = 0
+   action_space = 1
+   observation_space = 4
+   state_space = 0
 
 
 RL Config Setup
@@ -219,7 +219,7 @@ will automatically be created for the actor. This avoids the need to separately 
 |     self._cartpoles = ArticulationView(                                      |     # clone, filter, and replicate                                     |
 |                  prim_paths_expr="/World/envs/.*/Cartpole",                  |     self.scene.clone_environments(copy_from_source=False)              |
 |                  name="cartpole_view", reset_xform_properties=False          |     self.scene.filter_collisions(global_prim_paths=[])                 |
-|     )                                                                        |     # add articultion to scene                                         |
+|     )                                                                        |     # add articulation to scene                                        |
 |     scene.add(self._cartpoles)                                               |     self.scene.articulations["cartpole"] = self.cartpole               |
 |                                                                              |     # add lights                                                       |
 |                                                                              |     light_cfg = sim_utils.DomeLightCfg(intensity=2000.0)               |
@@ -364,8 +364,8 @@ In Isaac Lab, ``root_pose`` and ``root_velocity`` have been combined into single
 
 .. code-block::python
 
-    self.cartpole.write_root_pose_to_sim(default_root_state[:, :7], env_ids)
-    self.cartpole.write_root_velocity_to_sim(default_root_state[:, 7:], env_ids)
+    self.cartpole.write_root_link_pose_to_sim(default_root_state[:, :7], env_ids)
+    self.cartpole.write_root_com_velocity_to_sim(default_root_state[:, 7:], env_ids)
 
 
 Creating a New Environment
@@ -501,9 +501,9 @@ Task config in Isaac Lab can be split into the main task configuration class and
 |   clipObservations: 5.0                                         |     decimation = 2                                              |
 |   clipActions: 1.0                                              |     episode_length_s = 5.0                                      |
 |   controlFrequencyInv: 2 # 60 Hz                                |     action_scale = 100.0  # [N]                                 |
-|                                                                 |     num_actions = 1                                             |
-| sim:                                                            |     num_observations = 4                                        |
-|                                                                 |     num_states = 0                                              |
+|                                                                 |     action_space = 1                                            |
+| sim:                                                            |     observation_space = 4                                       |
+|                                                                 |     state_space = 0                                             |
 |   dt: 0.0083 # 1/120 s                                          |     # reset                                                     |
 |   use_gpu_pipeline: ${eq:${...pipeline},"gpu"}                  |     max_cart_pos = 3.0                                          |
 |   gravity: [0.0, 0.0, -9.81]                                    |     initial_pole_angle_range = [-0.25, 0.25]                    |
@@ -638,7 +638,7 @@ Adding actors to the scene has been replaced by ``self.scene.articulations["cart
 |         reset_xform_properties=False                      |         copy_from_source=False)                          |
 |     )                                                     |     self.scene.filter_collisions(                        |
 |     scene.add(self._cartpoles)                            |         global_prim_paths=[])                            |
-|     return                                                |     # add articultion to scene                           |
+|     return                                                |     # add articulation to scene                          |
 |                                                           |     self.scene.articulations["cartpole"] = self.cartpole |
 | def get_cartpole(self):                                   |                                                          |
 |     cartpole = Cartpole(                                  |     # add lights                                         |
@@ -738,9 +738,9 @@ reset the ``episode_length_buf`` buffer.
 |       1.0 - 2.0 * torch.rand(num_resets, device=self._device))   |     self.joint_pos[env_ids] = joint_pos                                  |
 |                                                                  |     self.joint_vel[env_ids] = joint_vel                                  |
 |   # apply resets                                                 |                                                                          |
-|   indices = env_ids.to(dtype=torch.int32)                        |     self.cartpole.write_root_pose_to_sim(                                |
+|   indices = env_ids.to(dtype=torch.int32)                        |     self.cartpole.write_root_link_pose_to_sim(                           |
 |   self._cartpoles.set_joint_positions(dof_pos, indices=indices)  |         default_root_state[:, :7], env_ids)                              |
-|   self._cartpoles.set_joint_velocities(dof_vel, indices=indices) |     self.cartpole.write_root_velocity_to_sim(                            |
+|   self._cartpoles.set_joint_velocities(dof_vel, indices=indices) |     self.cartpole.write_root_com_velocity_to_sim(                        |
 |                                                                  |         default_root_state[:, 7:], env_ids)                              |
 |   # bookkeeping                                                  |     self.cartpole.write_joint_state_to_sim(                              |
 |   self.reset_buf[env_ids] = 0                                    |         joint_pos, joint_vel, None, env_ids)                             |

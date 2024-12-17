@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from .action_manager import ActionTerm
     from .command_manager import CommandTerm
     from .manager_base import ManagerTermBase
+    from .recorder_manager import RecorderTerm
 
 
 @configclass
@@ -52,6 +53,22 @@ class ManagerTermBaseCfg:
 
 
 ##
+# Recorder manager.
+##
+
+
+@configclass
+class RecorderTermCfg:
+    """Configuration for an recorder term."""
+
+    class_type: type[RecorderTerm] = MISSING
+    """The associated recorder term class.
+
+    The class should inherit from :class:`omni.isaac.lab.managers.action_manager.RecorderTerm`.
+    """
+
+
+##
 # Action manager.
 ##
 
@@ -75,6 +92,9 @@ class ActionTermCfg:
 
     debug_vis: bool = False
     """Whether to visualize debug information. Defaults to False."""
+
+    clip: dict[str, tuple] | None = None
+    """Clip range for the action (dict of regex expressions). Defaults to None."""
 
 
 ##
@@ -152,9 +172,26 @@ class ObservationTermCfg(ManagerTermBaseCfg):
     """The clipping range for the observation after adding noise. Defaults to None,
     in which case no clipping is applied."""
 
-    scale: float | None = None
+    scale: tuple[float, ...] | float | None = None
     """The scale to apply to the observation after clipping. Defaults to None,
-    in which case no scaling is applied (same as setting scale to :obj:`1`)."""
+    in which case no scaling is applied (same as setting scale to :obj:`1`).
+
+    We leverage PyTorch broadcasting to scale the observation tensor with the provided value. If a tuple is provided,
+    please make sure the length of the tuple matches the dimensions of the tensor outputted from the term.
+    """
+
+    history_length: int = 0
+    """Number of past observations to store in the observation buffers. Defaults to 0, meaning no history.
+
+    Observation history initializes to empty, but is filled with the first append after reset or initialization. Subsequent history
+    only adds a single entry to the history buffer. If flatten_history_dim is set to True, the source data of shape
+    (N, H, D, ...) where N is the batch dimension and H is the history length will be reshaped to a 2D tensor of shape
+    (N, H*D*...). Otherwise, the data will be returned as is.
+    """
+
+    flatten_history_dim: bool = True
+    """Whether or not the observation manager should flatten history-based observation terms to a 2D (N, D) tensor.
+    Defaults to True."""
 
 
 @configclass
@@ -175,6 +212,22 @@ class ObservationGroupCfg:
 
     If true, the observation terms in the group are corrupted by adding noise (if specified).
     Otherwise, no corruption is applied.
+    """
+
+    history_length: int | None = None
+    """Number of past observation to store in the observation buffers for all observation terms in group.
+
+    This parameter will override :attr:`ObservationTermCfg.history_length` if set. Defaults to None. If None, each
+    terms history will be controlled on a per term basis. See :class:`ObservationTermCfg` for details on history_length
+    implementation.
+    """
+
+    flatten_history_dim: bool = True
+    """Flag to flatten history-based observation terms to a 2D (num_env, D) tensor for all observation terms in group.
+    Defaults to True.
+
+    This parameter will override all :attr:`ObservationTermCfg.flatten_history_dim` in the group if
+    ObservationGroupCfg.history_length is set.
     """
 
 

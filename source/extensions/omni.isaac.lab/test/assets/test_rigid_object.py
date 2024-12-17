@@ -24,6 +24,7 @@ simulation_app = app_launcher.app
 import ctypes
 import torch
 import unittest
+from typing import Literal
 
 import omni.isaac.core.utils.prims as prim_utils
 
@@ -31,19 +32,23 @@ import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.assets import RigidObject, RigidObjectCfg
 from omni.isaac.lab.sim import build_simulation_context
 from omni.isaac.lab.sim.spawners import materials
-from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
-from omni.isaac.lab.utils.math import default_orientation, random_orientation
+from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
+from omni.isaac.lab.utils.math import default_orientation, quat_mul, quat_rotate_inverse, random_orientation
 
 
 def generate_cubes_scene(
-    num_cubes: int = 1, height=1.0, has_api: bool = True, kinematic_enabled: bool = False, device: str = "cuda:0"
+    num_cubes: int = 1,
+    height=1.0,
+    api: Literal["none", "rigid_body", "articulation_root"] = "rigid_body",
+    kinematic_enabled: bool = False,
+    device: str = "cuda:0",
 ) -> tuple[RigidObject, torch.Tensor]:
     """Generate a scene with the provided number of cubes.
 
     Args:
         num_cubes: Number of cubes to generate.
         height: Height of the cubes.
-        has_api: Whether the cubes have a rigid body API on them.
+        api: The type of API that the cubes should have.
         kinematic_enabled: Whether the cubes are kinematic.
         device: Device to use for the simulation.
 
@@ -57,17 +62,25 @@ def generate_cubes_scene(
         prim_utils.create_prim(f"/World/Table_{i}", "Xform", translation=origin)
 
     # Resolve spawn configuration
-    if has_api:
-        spawn_cfg = sim_utils.UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=kinematic_enabled),
-        )
-    else:
+    if api == "none":
         # since no rigid body properties defined, this is just a static collider
         spawn_cfg = sim_utils.CuboidCfg(
             size=(0.1, 0.1, 0.1),
             collision_props=sim_utils.CollisionPropertiesCfg(),
         )
+    elif api == "rigid_body":
+        spawn_cfg = sim_utils.UsdFileCfg(
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=kinematic_enabled),
+        )
+    elif api == "articulation_root":
+        spawn_cfg = sim_utils.UsdFileCfg(
+            usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Tests/RigidObject/Cube/dex_cube_instanceable_with_articulation_root.usd",
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=kinematic_enabled),
+        )
+    else:
+        raise ValueError(f"Unknown api: {api}")
+
     # Create rigid object
     cube_object_cfg = RigidObjectCfg(
         prim_path="/World/Table_.*/Object",
@@ -106,8 +119,8 @@ class TestRigidObject(unittest.TestCase):
                         self.assertEqual(len(cube_object.body_names), 1)
 
                         # Check buffers that exists and have correct shapes
-                        self.assertEqual(cube_object.data.root_pos_w.shape, (num_cubes, 3))
-                        self.assertEqual(cube_object.data.root_quat_w.shape, (num_cubes, 4))
+                        self.assertEqual(cube_object.data.root_link_pos_w.shape, (num_cubes, 3))
+                        self.assertEqual(cube_object.data.root_link_quat_w.shape, (num_cubes, 4))
                         self.assertEqual(cube_object.data.default_mass.shape, (num_cubes, 1))
                         self.assertEqual(cube_object.data.default_inertia.shape, (num_cubes, 9))
 
@@ -140,8 +153,8 @@ class TestRigidObject(unittest.TestCase):
                         self.assertEqual(len(cube_object.body_names), 1)
 
                         # Check buffers that exists and have correct shapes
-                        self.assertEqual(cube_object.data.root_pos_w.shape, (num_cubes, 3))
-                        self.assertEqual(cube_object.data.root_quat_w.shape, (num_cubes, 4))
+                        self.assertEqual(cube_object.data.root_link_pos_w.shape, (num_cubes, 3))
+                        self.assertEqual(cube_object.data.root_link_quat_w.shape, (num_cubes, 4))
 
                         # Simulate physics
                         for _ in range(2):
@@ -161,7 +174,27 @@ class TestRigidObject(unittest.TestCase):
                 with self.subTest(num_cubes=num_cubes, device=device):
                     with build_simulation_context(device=device, auto_add_lighting=True) as sim:
                         # Generate cubes scene
-                        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, has_api=False, device=device)
+                        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, api="none", device=device)
+
+                        # Check that boundedness of rigid object is correct
+                        self.assertEqual(ctypes.c_long.from_address(id(cube_object)).value, 1)
+
+                        # Play sim
+                        sim.reset()
+
+                        # Check if object is initialized
+                        self.assertFalse(cube_object.is_initialized)
+
+    def test_initialization_with_articulation_root(self):
+        """Test that initialization fails when an articulation root is found at the provided prim path."""
+        for num_cubes in (1, 2):
+            for device in ("cuda:0", "cpu"):
+                with self.subTest(num_cubes=num_cubes, device=device):
+                    with build_simulation_context(device=device, auto_add_lighting=True) as sim:
+                        # Generate cubes scene
+                        cube_object, _ = generate_cubes_scene(
+                            num_cubes=num_cubes, api="articulation_root", device=device
+                        )
 
                         # Check that boundedness of rigid object is correct
                         self.assertEqual(ctypes.c_long.from_address(id(cube_object)).value, 1)
@@ -204,7 +237,8 @@ class TestRigidObject(unittest.TestCase):
 
                             # need to shift the position of the cubes otherwise they will be on top of each other
                             root_state[:, :3] = origins
-                            cube_object.write_root_state_to_sim(root_state)
+                            cube_object.write_root_link_pose_to_sim(root_state[:, :7])
+                            cube_object.write_root_com_velocity_to_sim(root_state[:, 7:])
 
                             # reset object
                             cube_object.reset()
@@ -226,10 +260,10 @@ class TestRigidObject(unittest.TestCase):
 
                             # First object should still be at the same Z position (1.0)
                             torch.testing.assert_close(
-                                cube_object.data.root_pos_w[0::2, 2], torch.ones(num_cubes // 2, device=sim.device)
+                                cube_object.data.root_link_pos_w[0::2, 2], torch.ones(num_cubes // 2, device=sim.device)
                             )
                             # Second object should have fallen, so it's Z height should be less than initial height of 1.0
-                            self.assertTrue(torch.all(cube_object.data.root_pos_w[1::2, 2] < 1.0))
+                            self.assertTrue(torch.all(cube_object.data.root_link_pos_w[1::2, 2] < 1.0))
 
     def test_set_rigid_object_state(self):
         """Test setting the state of the rigid object.
@@ -255,10 +289,14 @@ class TestRigidObject(unittest.TestCase):
                         # Set each state type individually as they are dependent on each other
                         for state_type_to_randomize in state_types:
                             state_dict = {
-                                "root_pos_w": torch.zeros_like(cube_object.data.root_pos_w, device=sim.device),
+                                "root_pos_w": torch.zeros_like(cube_object.data.root_link_pos_w, device=sim.device),
                                 "root_quat_w": default_orientation(num=num_cubes, device=sim.device),
-                                "root_lin_vel_w": torch.zeros_like(cube_object.data.root_lin_vel_w, device=sim.device),
-                                "root_ang_vel_w": torch.zeros_like(cube_object.data.root_ang_vel_w, device=sim.device),
+                                "root_lin_vel_w": torch.zeros_like(
+                                    cube_object.data.root_com_lin_vel_w, device=sim.device
+                                ),
+                                "root_ang_vel_w": torch.zeros_like(
+                                    cube_object.data.root_com_ang_vel_w, device=sim.device
+                                ),
                             }
 
                             # Now we are ready!
@@ -286,7 +324,8 @@ class TestRigidObject(unittest.TestCase):
                                         dim=-1,
                                     )
                                     # reset root state
-                                    cube_object.write_root_state_to_sim(root_state=root_state)
+                                    cube_object.write_root_link_pose_to_sim(root_state[:, :7])
+                                    cube_object.write_root_com_velocity_to_sim(root_state[:, 7:])
 
                                     sim.step()
 
@@ -322,7 +361,8 @@ class TestRigidObject(unittest.TestCase):
 
                             # Random orientation
                             root_state[:, 3:7] = random_orientation(num=num_cubes, device=sim.device)
-                            cube_object.write_root_state_to_sim(root_state)
+                            cube_object.write_root_link_pose_to_sim(root_state[:, :7])
+                            cube_object.write_root_com_velocity_to_sim(root_state[:, 7:])
 
                             if i % 2 == 0:
                                 # reset object
@@ -407,7 +447,7 @@ class TestRigidObject(unittest.TestCase):
                         initial_velocity = torch.zeros((num_cubes, 6), device=sim.cfg.device)
                         initial_velocity[:, 0] = 0.1
 
-                        cube_object.write_root_velocity_to_sim(initial_velocity)
+                        cube_object.write_root_com_velocity_to_sim(initial_velocity)
 
                         # Simulate physics
                         for _ in range(5):
@@ -426,175 +466,180 @@ class TestRigidObject(unittest.TestCase):
                                 cube_object.data.root_lin_vel_w, initial_velocity[:, :3], rtol=1e-5, atol=tolerance
                             )
 
-    # def test_rigid_body_with_static_friction(self):
-    #     """Test that static friction applied to rigid object works as expected.
+    def test_rigid_body_with_static_friction(self):
+        """Test that static friction applied to rigid object works as expected.
 
-    #     This test works by applying a force to the object and checking if the object moves or not based on the
-    #     mu (coefficient of static friction) value set for the object. We set the static friction to be non-zero and
-    #     apply a force to the object. When the force applied is below mu, the object should not move. When the force
-    #     applied is above mu, the object should move.
-    #     """
-    #     for num_cubes in (1, 2):
-    #         for device in ("cuda:0", "cpu"):
-    #             with self.subTest(num_cubes=num_cubes, device=device):
-    #                 with build_simulation_context(device=device, add_ground_plane=True, auto_add_lighting=True) as sim:
-    #                     cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, height=0.03125, device=device)
+        This test works by applying a force to the object and checking if the object moves or not based on the
+        mu (coefficient of static friction) value set for the object. We set the static friction to be non-zero and
+        apply a force to the object. When the force applied is below mu, the object should not move. When the force
+        applied is above mu, the object should move.
+        """
+        for num_cubes in (1, 2):
+            for device in ("cuda", "cpu"):
+                with self.subTest(num_cubes=num_cubes, device=device):
+                    with build_simulation_context(
+                        device=device, dt=0.01, add_ground_plane=False, auto_add_lighting=True
+                    ) as sim:
+                        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, height=0.03125, device=device)
 
-    #                     # Create ground plane with no friction
-    #                     cfg = sim_utils.GroundPlaneCfg(
-    #                         physics_material=materials.RigidBodyMaterialCfg(
-    #                             static_friction=0.0,
-    #                             dynamic_friction=0.0,
-    #                         )
-    #                     )
-    #                     cfg.func("/World/GroundPlane", cfg)
+                        # Create ground plane
+                        static_friction_coefficient = 0.5
+                        cfg = sim_utils.GroundPlaneCfg(
+                            physics_material=materials.RigidBodyMaterialCfg(
+                                static_friction=static_friction_coefficient,
+                                dynamic_friction=static_friction_coefficient,  # This shouldn't be required but is due to a bug in PhysX
+                            )
+                        )
+                        cfg.func("/World/GroundPlane", cfg)
 
-    #                     # Play sim
-    #                     sim.reset()
+                        # Play sim
+                        sim.reset()
 
-    #                     # Set static friction to be non-zero
-    #                     static_friction_coefficient = 0.5
-    #                     static_friction = torch.Tensor([[static_friction_coefficient]] * num_cubes)
-    #                     dynamic_friction = torch.zeros(num_cubes, 1)
-    #                     restitution = torch.FloatTensor(num_cubes, 1).uniform_(0.0, 0.2)
+                        # Set static friction to be non-zero
+                        # Dynamic friction also needs to be zero due to a bug in PhysX
+                        static_friction = torch.Tensor([[static_friction_coefficient]] * num_cubes)
+                        dynamic_friction = torch.Tensor([[static_friction_coefficient]] * num_cubes)
+                        restitution = torch.zeros(num_cubes, 1)
 
-    #                     cube_object_materials = torch.cat([static_friction, dynamic_friction, restitution], dim=-1)
+                        cube_object_materials = torch.cat([static_friction, dynamic_friction, restitution], dim=-1)
 
-    #                     indices = torch.tensor(range(num_cubes), dtype=torch.int)
+                        indices = torch.tensor(range(num_cubes), dtype=torch.int)
 
-    #                     # Add friction to cube
-    #                     cube_object.root_physx_view.set_material_properties(cube_object_materials, indices)
+                        # Add friction to cube
+                        cube_object.root_physx_view.set_material_properties(cube_object_materials, indices)
 
-    #                     # 2 cases: force applied is below and above mu
-    #                     # below mu: block should not move as the force applied is <= mu
-    #                     # above mu: block should move as the force applied is > mu
-    #                     for force in "below_mu", "above_mu":
-    #                         with self.subTest(force=force):
-    #                             external_wrench_b = torch.zeros((num_cubes, 1, 6), device=sim.device)
+                        # let everything settle
+                        for _ in range(100):
+                            sim.step()
+                            cube_object.update(sim.cfg.dt)
+                        cube_object.write_root_com_velocity_to_sim(torch.zeros((num_cubes, 6), device=sim.device))
+                        cube_mass = cube_object.root_physx_view.get_masses()
+                        gravity_magnitude = abs(sim.cfg.gravity[2])
+                        # 2 cases: force applied is below and above mu
+                        # below mu: block should not move as the force applied is <= mu
+                        # above mu: block should move as the force applied is > mu
+                        for force in "below_mu", "above_mu":
+                            with self.subTest(force=force):
+                                # set initial velocity to zero
+                                cube_object.write_root_com_velocity_to_sim(
+                                    torch.zeros((num_cubes, 6), device=sim.device)
+                                )
 
-    #                             if force == "below_mu":
-    #                                 external_wrench_b[:, 0, 0] = static_friction_coefficient * 0.999
-    #                             else:
-    #                                 external_wrench_b[:, 0, 0] = static_friction_coefficient * 1.001
+                                external_wrench_b = torch.zeros((num_cubes, 1, 6), device=sim.device)
+                                if force == "below_mu":
+                                    external_wrench_b[..., 0] = (
+                                        static_friction_coefficient * cube_mass * gravity_magnitude * 0.99
+                                    )
+                                else:
+                                    external_wrench_b[..., 0] = (
+                                        static_friction_coefficient * cube_mass * gravity_magnitude * 1.01
+                                    )
 
-    #                             cube_object.set_external_force_and_torque(
-    #                                 external_wrench_b[..., :3],
-    #                                 external_wrench_b[..., 3:],
-    #                             )
+                                cube_object.set_external_force_and_torque(
+                                    external_wrench_b[..., :3],
+                                    external_wrench_b[..., 3:],
+                                )
 
-    #                             # Get root state
-    #                             initial_root_state = cube_object.data.root_state_w
+                                # Get root state
+                                initial_root_pos = cube_object.data.root_link_pos_w.clone()
+                                # Simulate physics
+                                for _ in range(200):
+                                    # apply the wrench
+                                    cube_object.write_data_to_sim()
+                                    sim.step()
+                                    # update object
+                                    cube_object.update(sim.cfg.dt)
+                                    if force == "below_mu":
+                                        # Assert that the block has not moved
+                                        torch.testing.assert_close(
+                                            cube_object.data.root_link_pos_w, initial_root_pos, rtol=1e-3, atol=1e-3
+                                        )
+                                if force == "above_mu":
+                                    self.assertTrue(
+                                        (cube_object.data.root_state_w[..., 0] - initial_root_pos[..., 0] > 0.02).all()
+                                    )
 
-    #                             # Simulate physics
-    #                             for _ in range(10):
-    #                                 # perform rendering
-    #                                 sim.step()
-    #                                 # update object
-    #                                 cube_object.update(sim.cfg.dt)
+    def test_rigid_body_with_restitution(self):
+        """Test that restitution when applied to rigid object works as expected.
 
-    #                                 if force == "below_mu":
-    #                                     # Assert that the block has not moved
-    #                                     torch.testing.assert_close(
-    #                                         cube_object.data.root_state_w, initial_root_state, rtol=1e-5, atol=1e-5
-    #                                     )
-    #                                 else:
-    #                                     torch.testing.assert_close(
-    #                                         cube_object.data.root_state_w, initial_root_state, rtol=1e-5, atol=1e-5
-    #                                     )
+        This test works by dropping a block from a height and checking if the block bounces or not based on the
+        restitution value set for the object. We set the restitution to be non-zero and drop the block from a height.
+        When the restitution is 0, the block should not bounce. When the restitution is between 0 and 1, the block
+        should bounce with less energy.
+        """
+        for num_cubes in (1, 2):
+            for device in ("cuda:0", "cpu"):
+                for expected_collision_type in "partially_elastic", "inelastic":
+                    with self.subTest(
+                        expected_collision_type=expected_collision_type, num_cubes=num_cubes, device=device
+                    ):
+                        with build_simulation_context(
+                            device=device, add_ground_plane=False, auto_add_lighting=True
+                        ) as sim:
+                            cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, height=1.0, device=device)
 
-    # def test_rigid_body_with_restitution(self):
-    #     """Test that restitution when applied to rigid object works as expected.
+                            # Set static friction to be non-zero
+                            if expected_collision_type == "inelastic":
+                                restitution_coefficient = 0.0
+                            elif expected_collision_type == "partially_elastic":
+                                restitution_coefficient = 0.5
 
-    #     This test works by dropping a block from a height and checking if the block bounces or not based on the
-    #     restitution value set for the object. We set the restitution to be non-zero and drop the block from a height.
-    #     When the restitution is 0, the block should not bounce. When the restitution is 1, the block should bounce
-    #     with the same energy. When the restitution is between 0 and 1, the block should bounce with less energy.
+                            # Create ground plane such that has a restitution of 1.0 (perfectly elastic collision)
+                            cfg = sim_utils.GroundPlaneCfg(
+                                physics_material=materials.RigidBodyMaterialCfg(
+                                    restitution=restitution_coefficient,
+                                )
+                            )
+                            cfg.func("/World/GroundPlane", cfg)
 
-    #     """
-    #     for num_cubes in (1, 2):
-    #         for device in ("cuda:0", "cpu"):
-    #             with self.subTest(num_cubes=num_cubes, device=device):
-    #                 with build_simulation_context(device=device, add_ground_plane=True, auto_add_lighting=True) as sim:
-    #                     cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, height=1.0, device=device)
+                            indices = torch.tensor(range(num_cubes), dtype=torch.int)
 
-    #                     # Create ground plane such that has a restitution of 1.0 (perfectly elastic collision)
-    #                     cfg = sim_utils.GroundPlaneCfg(
-    #                         physics_material=materials.RigidBodyMaterialCfg(
-    #                             restitution=1.0,
-    #                         )
-    #                     )
-    #                     cfg.func("/World/GroundPlane", cfg)
+                            # Play sim
+                            sim.reset()
 
-    #                     indices = torch.tensor(range(num_cubes), dtype=torch.int)
+                            root_state = torch.zeros(num_cubes, 13, device=sim.device)
+                            root_state[:, 3] = 1.0  # To make orientation a quaternion
+                            for i in range(num_cubes):
+                                root_state[i, 1] = 1.0 * i
+                            root_state[:, 2] = 1.0  # Set an initial drop height
+                            root_state[:, 9] = -1.0  # Set an initial downward velocity
 
-    #                     # Play sim
-    #                     sim.reset()
+                            cube_object.write_root_link_pose_to_sim(root_state[:, :7])
+                            cube_object.write_root_com_velocity_to_sim(root_state[:, 7:])
 
-    #                     # 3 cases: inelastic, partially elastic, elastic
-    #                     # inelastic: resitution = 0, block should not bounce
-    #                     # partially elastic: 0 <= restitution <= 1, block should bounce with less energy
-    #                     # elastic: restitution = 1, block should bounce with same energy
-    #                     for expected_collision_type in "inelastic", "partially_elastic", "elastic":
-    #                         root_state = torch.zeros(1, 13, device=sim.device)
-    #                         root_state[0, 3] = 1.0  # To make orientation a quaternion
-    #                         root_state[0, 2] = 0.1  # Set an initial drop height
-    #                         root_state[0, 9] = -1.0  # Set an initial downward velocity
+                            static_friction = torch.zeros(num_cubes, 1)
+                            dynamic_friction = torch.zeros(num_cubes, 1)
+                            restitution = torch.Tensor([[restitution_coefficient]] * num_cubes)
 
-    #                         cube_object.write_root_state_to_sim(root_state=root_state)
+                            cube_object_materials = torch.cat([static_friction, dynamic_friction, restitution], dim=-1)
 
-    #                         prev_z_velocity = 0.0
-    #                         curr_z_velocity = 0.0
+                            # Add restitution to cube
+                            cube_object.root_physx_view.set_material_properties(cube_object_materials, indices)
 
-    #                         with self.subTest(expected_collision_type=expected_collision_type):
-    #                             # cube_object.reset()
-    #                             # Set static friction to be non-zero
-    #                             if expected_collision_type == "inelastic":
-    #                                 restitution_coefficient = 0.0
-    #                             elif expected_collision_type == "partially_elastic":
-    #                                 restitution_coefficient = 0.5
-    #                             else:
-    #                                 restitution_coefficient = 1.0
+                            curr_z_velocity = cube_object.data.root_com_lin_vel_w[:, 2].clone()
 
-    #                             restitution = 0.5
-    #                             static_friction = torch.zeros(num_cubes, 1)
-    #                             dynamic_friction = torch.zeros(num_cubes, 1)
-    #                             restitution = torch.Tensor([[restitution_coefficient]] * num_cubes)
+                            for _ in range(100):
+                                sim.step()
 
-    #                             cube_object_materials = torch.cat(
-    #                                 [static_friction, dynamic_friction, restitution], dim=-1
-    #                             )
+                                # update object
+                                cube_object.update(sim.cfg.dt)
+                                curr_z_velocity = cube_object.data.root_com_lin_vel_w[:, 2].clone()
 
-    #                             # Add friction to cube
-    #                             cube_object.root_physx_view.set_material_properties(cube_object_materials, indices)
+                                if expected_collision_type == "inelastic":
+                                    # assert that the block has not bounced by checking that the z velocity is less than or equal to 0
+                                    self.assertTrue((curr_z_velocity <= 0.0).all())
 
-    #                             curr_z_velocity = cube_object.data.root_lin_vel_w[:, 2]
+                                if torch.all(curr_z_velocity <= 0.0):
+                                    # Still in the air
+                                    prev_z_velocity = curr_z_velocity
+                                else:
+                                    # collision has happened, exit the for loop
+                                    break
 
-    #                             while torch.all(curr_z_velocity <= 0.0):
-    #                                 # Simulate physics
-    #                                 curr_z_velocity = cube_object.data.root_lin_vel_w[:, 2]
-
-    #                                 # perform rendering
-    #                                 sim.step()
-
-    #                                 # update object
-    #                                 cube_object.update(sim.cfg.dt)
-    #                                 if torch.all(curr_z_velocity <= 0.0):
-    #                                     # Still in the air
-    #                                     prev_z_velocity = curr_z_velocity
-
-    #                             # We have made contact with the ground and can verify expected collision type
-    #                             # based on how velocity has changed after the collision
-    #                             if expected_collision_type == "inelastic":
-    #                                 # Assert that the block has lost most energy by checking that the z velocity is < 1/2 previous
-    #                                 # velocity. This is because the floor's resitution means it will bounce back an object that itself
-    #                                 # has restitution set to 0.0
-    #                                 self.assertTrue(torch.all(torch.le(curr_z_velocity / 2, abs(prev_z_velocity))))
-    #                             elif expected_collision_type == "partially_elastic":
-    #                                 # Assert that the block has lost some energy by checking that the z velocity is less
-    #                                 self.assertTrue(torch.all(torch.le(abs(curr_z_velocity), abs(prev_z_velocity))))
-    #                             elif expected_collision_type == "elastic":
-    #                                 # Assert that the block has not lost any energy by checking that the z velocity is the same
-    #                                 torch.testing.assert_close(abs(curr_z_velocity), abs(prev_z_velocity))
+                            if expected_collision_type == "partially_elastic":
+                                # Assert that the block has lost some energy by checking that the z velocity is less
+                                self.assertTrue(torch.all(torch.le(abs(curr_z_velocity), abs(prev_z_velocity))))
+                                self.assertTrue((curr_z_velocity > 0.0).all())
 
     def test_rigid_body_set_mass(self):
         """Test getting and setting mass of rigid object."""
@@ -673,6 +718,182 @@ class TestRigidObject(unittest.TestCase):
                                     gravity[:, :, 2] = -9.81
                                 # Check the body accelerations are correct
                                 torch.testing.assert_close(cube_object.data.body_acc_w, gravity)
+
+    def test_body_root_state_properties(self):
+        """Test the root_com_state_w, root_link_state_w, body_com_state_w, and body_link_state_w properties."""
+        for num_cubes in (1, 2):
+            for device in ("cuda:0", "cpu"):
+                for with_offset in [True, False]:
+                    with self.subTest(num_cubes=num_cubes, device=device, with_offset=with_offset):
+                        with build_simulation_context(
+                            device=device, gravity_enabled=False, auto_add_lighting=True
+                        ) as sim:
+                            # Create a scene with random cubes
+                            cube_object, env_pos = generate_cubes_scene(num_cubes=num_cubes, height=0.0, device=device)
+                            env_idx = torch.tensor([x for x in range(num_cubes)])
+
+                            # Play sim
+                            sim.reset()
+
+                            # Check if cube_object is initialized
+                            self.assertTrue(cube_object.is_initialized)
+
+                            # change center of mass offset from link frame
+                            if with_offset:
+                                offset = torch.tensor([0.1, 0.0, 0.0], device=device).repeat(num_cubes, 1)
+                            else:
+                                offset = torch.tensor([0.0, 0.0, 0.0], device=device).repeat(num_cubes, 1)
+
+                            com = cube_object.root_physx_view.get_coms()
+                            com[..., :3] = offset.to("cpu")
+                            cube_object.root_physx_view.set_coms(com, env_idx)
+
+                            # check ceter of mass has been set
+                            torch.testing.assert_close(cube_object.root_physx_view.get_coms(), com)
+
+                            # random z spin velocity
+                            spin_twist = torch.zeros(6, device=device)
+                            spin_twist[5] = torch.randn(1, device=device)
+
+                            # Simulate physics
+                            for _ in range(100):
+                                # spin the object around Z axis (com)
+                                cube_object.write_root_com_velocity_to_sim(spin_twist.repeat(num_cubes, 1))
+                                # perform rendering
+                                sim.step()
+                                # update object
+                                cube_object.update(sim.cfg.dt)
+
+                                # get state properties
+                                root_state_w = cube_object.data.root_state_w
+                                root_link_state_w = cube_object.data.root_link_state_w
+                                root_com_state_w = cube_object.data.root_com_state_w
+                                body_state_w = cube_object.data.body_state_w
+                                body_link_state_w = cube_object.data.body_link_state_w
+                                body_com_state_w = cube_object.data.body_com_state_w
+
+                                # if offset is [0,0,0] all root_state_%_w will match and all body_%_w will match
+                                if not with_offset:
+                                    torch.testing.assert_close(root_state_w, root_com_state_w)
+                                    torch.testing.assert_close(root_state_w, root_link_state_w)
+                                    torch.testing.assert_close(body_state_w, body_com_state_w)
+                                    torch.testing.assert_close(body_state_w, body_link_state_w)
+                                else:
+                                    # cubes are spinning around center of mass
+                                    # position will not match
+                                    # center of mass position will be constant (i.e. spining around com)
+                                    torch.testing.assert_close(env_pos + offset, root_com_state_w[..., :3])
+                                    torch.testing.assert_close(env_pos + offset, body_com_state_w[..., :3].squeeze(-2))
+                                    # link position will be moving but should stay constant away from center of mass
+                                    root_link_state_pos_rel_com = quat_rotate_inverse(
+                                        root_link_state_w[..., 3:7],
+                                        root_link_state_w[..., :3] - root_com_state_w[..., :3],
+                                    )
+                                    torch.testing.assert_close(-offset, root_link_state_pos_rel_com)
+                                    body_link_state_pos_rel_com = quat_rotate_inverse(
+                                        body_link_state_w[..., 3:7],
+                                        body_link_state_w[..., :3] - body_com_state_w[..., :3],
+                                    )
+                                    torch.testing.assert_close(-offset, body_link_state_pos_rel_com.squeeze(-2))
+
+                                    # orientation of com will be a constant rotation from link orientation
+                                    com_quat_b = cube_object.data.com_quat_b
+                                    com_quat_w = quat_mul(body_link_state_w[..., 3:7], com_quat_b)
+                                    torch.testing.assert_close(com_quat_w, body_com_state_w[..., 3:7])
+                                    torch.testing.assert_close(com_quat_w.squeeze(-2), root_com_state_w[..., 3:7])
+
+                                    # orientation of link will match root state will always match
+                                    torch.testing.assert_close(root_state_w[..., 3:7], root_link_state_w[..., 3:7])
+                                    torch.testing.assert_close(body_state_w[..., 3:7], body_link_state_w[..., 3:7])
+
+                                    # lin_vel will not match
+                                    # center of mass vel will be constant (i.e. spining around com)
+                                    torch.testing.assert_close(
+                                        torch.zeros_like(root_com_state_w[..., 7:10]), root_com_state_w[..., 7:10]
+                                    )
+                                    torch.testing.assert_close(
+                                        torch.zeros_like(body_com_state_w[..., 7:10]), body_com_state_w[..., 7:10]
+                                    )
+                                    # link frame will be moving, and should be equal to input angular velocity cross offset
+                                    lin_vel_rel_root_gt = quat_rotate_inverse(
+                                        root_link_state_w[..., 3:7], root_link_state_w[..., 7:10]
+                                    )
+                                    lin_vel_rel_body_gt = quat_rotate_inverse(
+                                        body_link_state_w[..., 3:7], body_link_state_w[..., 7:10]
+                                    )
+                                    lin_vel_rel_gt = torch.linalg.cross(
+                                        spin_twist.repeat(num_cubes, 1)[..., 3:], -offset
+                                    )
+                                    torch.testing.assert_close(
+                                        lin_vel_rel_gt, lin_vel_rel_root_gt, atol=1e-4, rtol=1e-4
+                                    )
+                                    torch.testing.assert_close(
+                                        lin_vel_rel_gt, lin_vel_rel_body_gt.squeeze(-2), atol=1e-4, rtol=1e-4
+                                    )
+
+                                    # ang_vel will always match
+                                    torch.testing.assert_close(root_state_w[..., 10:], root_com_state_w[..., 10:])
+                                    torch.testing.assert_close(root_state_w[..., 10:], root_link_state_w[..., 10:])
+                                    torch.testing.assert_close(body_state_w[..., 10:], body_com_state_w[..., 10:])
+                                    torch.testing.assert_close(body_state_w[..., 10:], body_link_state_w[..., 10:])
+
+    def test_write_root_state(self):
+        """Test the setters for root_state using both the link frame and center of mass as reference frame."""
+        for num_cubes in (1, 2):
+            for device in ("cuda:0", "cpu"):
+                for with_offset in [True, False]:
+                    for state_location in ("com", "link"):
+                        with self.subTest(num_cubes=num_cubes, device=device, with_offset=with_offset):
+                            with build_simulation_context(
+                                device=device, gravity_enabled=False, auto_add_lighting=True
+                            ) as sim:
+                                # Create a scene with random cubes
+                                cube_object, env_pos = generate_cubes_scene(
+                                    num_cubes=num_cubes, height=0.0, device=device
+                                )
+                                env_idx = torch.tensor([x for x in range(num_cubes)])
+
+                                # Play sim
+                                sim.reset()
+
+                                # Check if cube_object is initialized
+                                self.assertTrue(cube_object.is_initialized)
+
+                                # change center of mass offset from link frame
+                                if with_offset:
+                                    offset = torch.tensor([0.1, 0.0, 0.0], device=device).repeat(num_cubes, 1)
+                                else:
+                                    offset = torch.tensor([0.0, 0.0, 0.0], device=device).repeat(num_cubes, 1)
+
+                                com = cube_object.root_physx_view.get_coms()
+                                com[..., :3] = offset.to("cpu")
+                                cube_object.root_physx_view.set_coms(com, env_idx)
+
+                                # check ceter of mass has been set
+                                torch.testing.assert_close(cube_object.root_physx_view.get_coms(), com)
+
+                                rand_state = torch.zeros_like(cube_object.data.root_link_state_w)
+                                rand_state[..., :7] = cube_object.data.default_root_state[..., :7]
+                                rand_state[..., :3] += env_pos
+                                # make quaternion a unit vector
+                                rand_state[..., 3:7] = torch.nn.functional.normalize(rand_state[..., 3:7], dim=-1)
+
+                                for i in range(10):
+
+                                    # perform step
+                                    sim.step()
+                                    # update buffers
+                                    cube_object.update(sim.cfg.dt)
+
+                                    if state_location == "com":
+                                        cube_object.write_root_com_state_to_sim(rand_state)
+                                    elif state_location == "link":
+                                        cube_object.write_root_link_state_to_sim(rand_state)
+
+                                    if state_location == "com":
+                                        torch.testing.assert_close(rand_state, cube_object.data.root_com_state_w)
+                                    elif state_location == "link":
+                                        torch.testing.assert_close(rand_state, cube_object.data.root_link_state_w)
 
 
 if __name__ == "__main__":

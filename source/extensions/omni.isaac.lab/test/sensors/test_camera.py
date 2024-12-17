@@ -121,7 +121,7 @@ class TestCamera(unittest.TestCase):
             # update camera
             camera.update(self.dt)
             # check image data
-            for im_data in camera.data.output.to_dict().values():
+            for im_data in camera.data.output.values():
                 self.assertEqual(im_data.shape, (1, self.camera_cfg.height, self.camera_cfg.width, 1))
 
     def test_camera_init_offset(self):
@@ -228,7 +228,7 @@ class TestCamera(unittest.TestCase):
             cam_2.update(self.dt)
             # check image data
             for cam in [cam_1, cam_2]:
-                for im_data in cam.data.output.to_dict().values():
+                for im_data in cam.data.output.values():
                     self.assertEqual(im_data.shape, (1, self.camera_cfg.height, self.camera_cfg.width, 1))
 
     def test_multi_camera_with_different_resolution(self):
@@ -392,6 +392,137 @@ class TestCamera(unittest.TestCase):
             #       This is a bug in the simulator.
             torch.testing.assert_close(rs_intrinsic_matrix[0, 0, 0], camera.data.intrinsic_matrices[0, 0, 0])
             # torch.testing.assert_close(rs_intrinsic_matrix[0, 1, 1], camera.data.intrinsic_matrices[0, 1, 1])
+
+    def test_depth_clipping(self):
+        """Test depth clipping.
+
+        .. note::
+
+            This test is the same for all camera models to enforce the same clipping behavior.
+        """
+        # get camera cfgs
+        camera_cfg_zero = CameraCfg(
+            prim_path="/World/CameraZero",
+            offset=CameraCfg.OffsetCfg(pos=(2.5, 2.5, 6.0), rot=(-0.125, 0.362, 0.873, -0.302), convention="ros"),
+            spawn=sim_utils.PinholeCameraCfg().from_intrinsic_matrix(
+                focal_length=38.0,
+                intrinsic_matrix=[380.08, 0.0, 467.79, 0.0, 380.08, 262.05, 0.0, 0.0, 1.0],
+                height=540,
+                width=960,
+                clipping_range=(0.1, 10),
+            ),
+            height=540,
+            width=960,
+            data_types=["distance_to_image_plane", "distance_to_camera"],
+            depth_clipping_behavior="zero",
+        )
+        camera_zero = Camera(camera_cfg_zero)
+
+        camera_cfg_none = copy.deepcopy(camera_cfg_zero)
+        camera_cfg_none.prim_path = "/World/CameraNone"
+        camera_cfg_none.depth_clipping_behavior = "none"
+        camera_none = Camera(camera_cfg_none)
+
+        camera_cfg_max = copy.deepcopy(camera_cfg_zero)
+        camera_cfg_max.prim_path = "/World/CameraMax"
+        camera_cfg_max.depth_clipping_behavior = "max"
+        camera_max = Camera(camera_cfg_max)
+
+        # Play sim
+        self.sim.reset()
+
+        # note: This is a workaround to ensure that the textures are loaded.
+        #   Check "Known Issues" section in the documentation for more details.
+        for _ in range(5):
+            self.sim.step()
+
+        camera_zero.update(self.dt)
+        camera_none.update(self.dt)
+        camera_max.update(self.dt)
+
+        # none clipping should contain inf values
+        self.assertTrue(torch.isinf(camera_none.data.output["distance_to_camera"]).any())
+        self.assertTrue(torch.isinf(camera_none.data.output["distance_to_image_plane"]).any())
+        self.assertTrue(
+            camera_none.data.output["distance_to_camera"][
+                ~torch.isinf(camera_none.data.output["distance_to_camera"])
+            ].min()
+            >= camera_cfg_zero.spawn.clipping_range[0]
+        )
+        self.assertTrue(
+            camera_none.data.output["distance_to_camera"][
+                ~torch.isinf(camera_none.data.output["distance_to_camera"])
+            ].max()
+            <= camera_cfg_zero.spawn.clipping_range[1]
+        )
+        self.assertTrue(
+            camera_none.data.output["distance_to_image_plane"][
+                ~torch.isinf(camera_none.data.output["distance_to_image_plane"])
+            ].min()
+            >= camera_cfg_zero.spawn.clipping_range[0]
+        )
+        self.assertTrue(
+            camera_none.data.output["distance_to_image_plane"][
+                ~torch.isinf(camera_none.data.output["distance_to_camera"])
+            ].max()
+            <= camera_cfg_zero.spawn.clipping_range[1]
+        )
+
+        # zero clipping should result in zero values
+        self.assertTrue(
+            torch.all(
+                camera_zero.data.output["distance_to_camera"][
+                    torch.isinf(camera_none.data.output["distance_to_camera"])
+                ]
+                == 0.0
+            )
+        )
+        self.assertTrue(
+            torch.all(
+                camera_zero.data.output["distance_to_image_plane"][
+                    torch.isinf(camera_none.data.output["distance_to_image_plane"])
+                ]
+                == 0.0
+            )
+        )
+        self.assertTrue(
+            camera_zero.data.output["distance_to_camera"][camera_zero.data.output["distance_to_camera"] != 0.0].min()
+            >= camera_cfg_zero.spawn.clipping_range[0]
+        )
+        self.assertTrue(camera_zero.data.output["distance_to_camera"].max() <= camera_cfg_zero.spawn.clipping_range[1])
+        self.assertTrue(
+            camera_zero.data.output["distance_to_image_plane"][
+                camera_zero.data.output["distance_to_image_plane"] != 0.0
+            ].min()
+            >= camera_cfg_zero.spawn.clipping_range[0]
+        )
+        self.assertTrue(
+            camera_zero.data.output["distance_to_image_plane"].max() <= camera_cfg_zero.spawn.clipping_range[1]
+        )
+
+        # max clipping should result in max values
+        self.assertTrue(
+            torch.all(
+                camera_max.data.output["distance_to_camera"][torch.isinf(camera_none.data.output["distance_to_camera"])]
+                == camera_cfg_zero.spawn.clipping_range[1]
+            )
+        )
+        self.assertTrue(
+            torch.all(
+                camera_max.data.output["distance_to_image_plane"][
+                    torch.isinf(camera_none.data.output["distance_to_image_plane"])
+                ]
+                == camera_cfg_zero.spawn.clipping_range[1]
+            )
+        )
+        self.assertTrue(camera_max.data.output["distance_to_camera"].min() >= camera_cfg_zero.spawn.clipping_range[0])
+        self.assertTrue(camera_max.data.output["distance_to_camera"].max() <= camera_cfg_zero.spawn.clipping_range[1])
+        self.assertTrue(
+            camera_max.data.output["distance_to_image_plane"].min() >= camera_cfg_zero.spawn.clipping_range[0]
+        )
+        self.assertTrue(
+            camera_max.data.output["distance_to_image_plane"].max() <= camera_cfg_zero.spawn.clipping_range[1]
+        )
 
     def test_camera_resolution_all_colorize(self):
         """Test camera resolution is correctly set for all types with colorization enabled."""
@@ -705,7 +836,7 @@ class TestCamera(unittest.TestCase):
             with Timer(f"Time taken for writing data with shape {camera.image_shape}   "):
                 # Pack data back into replicator format to save them using its writer
                 rep_output = {"annotators": {}}
-                camera_data = convert_dict_to_backend(camera.data.output[0].to_dict(), backend="numpy")
+                camera_data = convert_dict_to_backend({k: v[0] for k, v in camera.data.output.items()}, backend="numpy")
                 for key, data, info in zip(camera_data.keys(), camera_data.values(), camera.data.info[0].values()):
                     if info is not None:
                         rep_output["annotators"][key] = {"render_product": {"data": data, **info}}
@@ -718,6 +849,15 @@ class TestCamera(unittest.TestCase):
             # Check image data
             for im_data in camera.data.output.values():
                 self.assertEqual(im_data.shape, (1, camera_cfg.height, camera_cfg.width, 1))
+
+    def test_sensor_print(self):
+        """Test sensor print is working correctly."""
+        # Create sensor
+        sensor = Camera(cfg=self.camera_cfg)
+        # Play sim
+        self.sim.reset()
+        # print info
+        print(sensor)
 
     """
     Helper functions.

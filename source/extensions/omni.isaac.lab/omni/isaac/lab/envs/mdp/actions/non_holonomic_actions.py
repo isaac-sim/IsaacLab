@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 
 import omni.log
 
+import omni.isaac.lab.utils.string as string_utils
 from omni.isaac.lab.assets.articulation import Articulation
 from omni.isaac.lab.managers.action_manager import ActionTerm
 from omni.isaac.lab.utils.math import euler_xyz_from_quat
@@ -59,6 +60,8 @@ class NonHolonomicAction(ActionTerm):
     """The scaling factor applied to the input action. Shape is (1, 2)."""
     _offset: torch.Tensor
     """The offset applied to the input action. Shape is (1, 2)."""
+    _clip: torch.Tensor
+    """The clip applied to the input action."""
 
     def __init__(self, cfg: actions_cfg.NonHolonomicActionCfg, env: ManagerBasedEnv):
         # initialize the action term
@@ -104,6 +107,16 @@ class NonHolonomicAction(ActionTerm):
         # save the scale and offset as tensors
         self._scale = torch.tensor(self.cfg.scale, device=self.device).unsqueeze(0)
         self._offset = torch.tensor(self.cfg.offset, device=self.device).unsqueeze(0)
+        # parse clip
+        if self.cfg.clip is not None:
+            if isinstance(cfg.clip, dict):
+                self._clip = torch.tensor([[-float("inf"), float("inf")]], device=self.device).repeat(
+                    self.num_envs, self.action_dim, 1
+                )
+                index_list, _, value_list = string_utils.resolve_matching_names_values(self.cfg.clip, self._joint_names)
+                self._clip[:, index_list] = torch.tensor(value_list, device=self.device)
+            else:
+                raise ValueError(f"Unsupported clip type: {type(cfg.clip)}. Supported types are dict.")
 
     """
     Properties.
@@ -129,10 +142,15 @@ class NonHolonomicAction(ActionTerm):
         # store the raw actions
         self._raw_actions[:] = actions
         self._processed_actions = self.raw_actions * self._scale + self._offset
+        # clip actions
+        if self.cfg.clip is not None:
+            self._processed_actions = torch.clamp(
+                self._processed_actions, min=self._clip[:, :, 0], max=self._clip[:, :, 1]
+            )
 
     def apply_actions(self):
         # obtain current heading
-        quat_w = self._asset.data.body_quat_w[:, self._body_idx]
+        quat_w = self._asset.data.body_link_quat_w[:, self._body_idx].view(self.num_envs, 4)
         yaw_w = euler_xyz_from_quat(quat_w)[2]
         # compute joint velocities targets
         self._joint_vel_command[:, 0] = torch.cos(yaw_w) * self.processed_actions[:, 0]  # x

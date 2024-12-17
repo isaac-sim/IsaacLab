@@ -27,9 +27,9 @@ class CartDoublePendulumEnvCfg(DirectMARLEnvCfg):
     decimation = 2
     episode_length_s = 5.0
     possible_agents = ["cart", "pendulum"]
-    num_actions = {"cart": 1, "pendulum": 1}
-    num_observations = {"cart": 4, "pendulum": 3}
-    num_states = -1
+    action_spaces = {"cart": 1, "pendulum": 1}
+    observation_spaces = {"cart": 4, "pendulum": 3}
+    state_space = -1
 
     # simulation
     sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation)
@@ -182,8 +182,8 @@ class CartDoublePendulumEnv(DirectMARLEnv):
         self.joint_pos[env_ids] = joint_pos
         self.joint_vel[env_ids] = joint_vel
 
-        self.robot.write_root_pose_to_sim(default_root_state[:, :7], env_ids)
-        self.robot.write_root_velocity_to_sim(default_root_state[:, 7:], env_ids)
+        self.robot.write_root_link_pose_to_sim(default_root_state[:, :7], env_ids)
+        self.robot.write_root_com_velocity_to_sim(default_root_state[:, 7:], env_ids)
         self.robot.write_joint_state_to_sim(joint_pos, joint_vel, None, env_ids)
 
 

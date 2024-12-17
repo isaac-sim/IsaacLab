@@ -294,6 +294,27 @@ class TestContactSensor(unittest.TestCase):
                             contact_sensor_2.data.force_matrix_w[:, :, 0], contact_sensor.data.force_matrix_w[:, :, 0]
                         )
 
+    def test_sensor_print(self):
+        """Test sensor print is working correctly."""
+        with build_simulation_context(device="cuda:0", dt=self.sim_dt, add_lighting=False) as sim:
+            # Spawn things into stage
+            scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=1.0, lazy_sensor_update=False)
+            scene_cfg.terrain = FLAT_TERRAIN_CFG.replace(prim_path="/World/ground")
+            scene_cfg.shape = CUBE_CFG
+            scene_cfg.contact_sensor = ContactSensorCfg(
+                prim_path=scene_cfg.shape.prim_path,
+                track_pose=True,
+                debug_vis=False,
+                update_period=0.0,
+                track_air_time=True,
+                history_length=3,
+            )
+            scene = InteractiveScene(scene_cfg)
+            # Play the simulator
+            sim.reset()
+            # print info
+            print(scene.sensors["contact_sensor"])
+
     """
     Internal helpers.
     """
@@ -384,7 +405,7 @@ class TestContactSensor(unittest.TestCase):
             duration = self.durations[idx]
             while current_test_time < duration:
                 # set object states to contact the ground plane
-                shape.write_root_pose_to_sim(root_pose=test_pose)
+                shape.write_root_link_pose_to_sim(root_pose=test_pose)
                 # perform simulation step
                 self._perform_sim_step()
                 # increment contact time
@@ -411,7 +432,7 @@ class TestContactSensor(unittest.TestCase):
                     dt=duration + self.sim_dt,
                 )
             # switch the contact mode for 1 dt step before the next contact test begins.
-            shape.write_root_pose_to_sim(root_pose=reset_pose)
+            shape.write_root_link_pose_to_sim(root_pose=reset_pose)
             # perform simulation step
             self._perform_sim_step()
             # set the last air time to 2 sim_dt steps, because last_air_time and last_contact_time

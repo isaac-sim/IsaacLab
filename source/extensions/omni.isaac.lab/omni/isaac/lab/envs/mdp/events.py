@@ -300,54 +300,57 @@ def randomize_actuator_gains(
     .. tip::
         For implicit actuators, this function uses CPU tensors to assign the actuator gains into the simulation.
         In such cases, it is recommended to use this function only during the initialization of the environment.
-
-    Raises:
-        NotImplementedError: If the joint indices are in explicit motor mode. This operation is currently
-            not supported for explicit actuator models.
     """
-    # extract the used quantities (to enable type-hinting)
+    # Extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
 
-    # resolve environment ids
+    # Resolve environment ids
     if env_ids is None:
         env_ids = torch.arange(env.scene.num_envs, device=asset.device)
 
-    # resolve joint indices
-    if asset_cfg.joint_ids == slice(None):
-        joint_ids_list = range(asset.num_joints)
-        joint_ids = slice(None)  # for optimization purposes
-    else:
-        joint_ids_list = asset_cfg.joint_ids
-        joint_ids = torch.tensor(asset_cfg.joint_ids, dtype=torch.int, device=asset.device)
+    def randomize(data: torch.Tensor, params: tuple[float, float]) -> torch.Tensor:
+        return _randomize_prop_by_op(
+            data, params, dim_0_ids=None, dim_1_ids=actuator_indices, operation=operation, distribution=distribution
+        )
 
-    # check if none of the joint indices are in explicit motor mode
-    for joint_index in joint_ids_list:
-        for act_name, actuator in asset.actuators.items():
-            # if joint indices are a slice (i.e., all joints are captured) or the joint index is in the actuator
-            if actuator.joint_indices == slice(None) or joint_index in actuator.joint_indices:
-                if not isinstance(actuator, ImplicitActuator):
-                    raise NotImplementedError(
-                        "Event term 'randomize_actuator_stiffness_and_damping' is performed on asset"
-                        f" '{asset_cfg.name}' on the joint '{asset.joint_names[joint_index]}' ('{joint_index}') which"
-                        f" uses an explicit actuator model '{act_name}<{actuator.__class__.__name__}>'. This operation"
-                        " is currently not supported for explicit actuator models."
-                    )
-
-    # sample joint properties from the given ranges and set into the physics simulation
-    # -- stiffness
-    if stiffness_distribution_params is not None:
-        stiffness = asset.data.default_joint_stiffness.to(asset.device).clone()
-        stiffness = _randomize_prop_by_op(
-            stiffness, stiffness_distribution_params, env_ids, joint_ids, operation=operation, distribution=distribution
-        )[env_ids][:, joint_ids]
-        asset.write_joint_stiffness_to_sim(stiffness, joint_ids=joint_ids, env_ids=env_ids)
-    # -- damping
-    if damping_distribution_params is not None:
-        damping = asset.data.default_joint_damping.to(asset.device).clone()
-        damping = _randomize_prop_by_op(
-            damping, damping_distribution_params, env_ids, joint_ids, operation=operation, distribution=distribution
-        )[env_ids][:, joint_ids]
-        asset.write_joint_damping_to_sim(damping, joint_ids=joint_ids, env_ids=env_ids)
+    # Loop through actuators and randomize gains
+    for actuator in asset.actuators.values():
+        if isinstance(asset_cfg.joint_ids, slice):
+            # we take all the joints of the actuator
+            actuator_indices = slice(None)
+            if isinstance(actuator.joint_indices, slice):
+                global_indices = slice(None)
+            else:
+                global_indices = torch.tensor(actuator.joint_indices, device=asset.device)
+        elif isinstance(actuator.joint_indices, slice):
+            # we take the joints defined in the asset config
+            global_indices = actuator_indices = torch.tensor(asset_cfg.joint_ids, device=asset.device)
+        else:
+            # we take the intersection of the actuator joints and the asset config joints
+            actuator_joint_indices = torch.tensor(actuator.joint_indices, device=asset.device)
+            asset_joint_ids = torch.tensor(asset_cfg.joint_ids, device=asset.device)
+            # the indices of the joints in the actuator that have to be randomized
+            actuator_indices = torch.nonzero(torch.isin(actuator_joint_indices, asset_joint_ids)).view(-1)
+            if len(actuator_indices) == 0:
+                continue
+            # maps actuator indices that have to be randomized to global joint indices
+            global_indices = actuator_joint_indices[actuator_indices]
+        # Randomize stiffness
+        if stiffness_distribution_params is not None:
+            stiffness = actuator.stiffness[env_ids].clone()
+            stiffness[:, actuator_indices] = asset.data.default_joint_stiffness[env_ids][:, global_indices].clone()
+            randomize(stiffness, stiffness_distribution_params)
+            actuator.stiffness[env_ids] = stiffness
+            if isinstance(actuator, ImplicitActuator):
+                asset.write_joint_stiffness_to_sim(stiffness, joint_ids=actuator.joint_indices, env_ids=env_ids)
+        # Randomize damping
+        if damping_distribution_params is not None:
+            damping = actuator.damping[env_ids].clone()
+            damping[:, actuator_indices] = asset.data.default_joint_damping[env_ids][:, global_indices].clone()
+            randomize(damping, damping_distribution_params)
+            actuator.damping[env_ids] = damping
+            if isinstance(actuator, ImplicitActuator):
+                asset.write_joint_damping_to_sim(damping, joint_ids=actuator.joint_indices, env_ids=env_ids)
 
 
 def randomize_joint_parameters(
@@ -621,13 +624,13 @@ def push_by_setting_velocity(
     asset: RigidObject | Articulation = env.scene[asset_cfg.name]
 
     # velocities
-    vel_w = asset.data.root_vel_w[env_ids]
+    vel_w = asset.data.root_com_vel_w[env_ids]
     # sample random velocities
     range_list = [velocity_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
     ranges = torch.tensor(range_list, device=asset.device)
     vel_w[:] = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], vel_w.shape, device=asset.device)
     # set the velocities into the physics simulation
-    asset.write_root_velocity_to_sim(vel_w, env_ids=env_ids)
+    asset.write_root_com_velocity_to_sim(vel_w, env_ids=env_ids)
 
 
 def reset_root_state_uniform(
@@ -671,8 +674,8 @@ def reset_root_state_uniform(
     velocities = root_states[:, 7:13] + rand_samples
 
     # set into the physics simulation
-    asset.write_root_pose_to_sim(torch.cat([positions, orientations], dim=-1), env_ids=env_ids)
-    asset.write_root_velocity_to_sim(velocities, env_ids=env_ids)
+    asset.write_root_link_pose_to_sim(torch.cat([positions, orientations], dim=-1), env_ids=env_ids)
+    asset.write_root_com_velocity_to_sim(velocities, env_ids=env_ids)
 
 
 def reset_root_state_with_random_orientation(
@@ -723,8 +726,8 @@ def reset_root_state_with_random_orientation(
     velocities = root_states[:, 7:13] + rand_samples
 
     # set into the physics simulation
-    asset.write_root_pose_to_sim(torch.cat([positions, orientations], dim=-1), env_ids=env_ids)
-    asset.write_root_velocity_to_sim(velocities, env_ids=env_ids)
+    asset.write_root_link_pose_to_sim(torch.cat([positions, orientations], dim=-1), env_ids=env_ids)
+    asset.write_root_com_velocity_to_sim(velocities, env_ids=env_ids)
 
 
 def reset_root_state_from_terrain(
@@ -790,8 +793,8 @@ def reset_root_state_from_terrain(
     velocities = asset.data.default_root_state[:, 7:13] + rand_samples
 
     # set into the physics simulation
-    asset.write_root_pose_to_sim(torch.cat([positions, orientations], dim=-1), env_ids=env_ids)
-    asset.write_root_velocity_to_sim(velocities, env_ids=env_ids)
+    asset.write_root_link_pose_to_sim(torch.cat([positions, orientations], dim=-1), env_ids=env_ids)
+    asset.write_root_com_velocity_to_sim(velocities, env_ids=env_ids)
 
 
 def reset_joints_by_scale(
@@ -911,14 +914,16 @@ def reset_scene_to_default(env: ManagerBasedEnv, env_ids: torch.Tensor):
         default_root_state = rigid_object.data.default_root_state[env_ids].clone()
         default_root_state[:, 0:3] += env.scene.env_origins[env_ids]
         # set into the physics simulation
-        rigid_object.write_root_state_to_sim(default_root_state, env_ids=env_ids)
+        rigid_object.write_root_link_pose_to_sim(default_root_state[:, :7], env_ids=env_ids)
+        rigid_object.write_root_com_velocity_to_sim(default_root_state[:, 7:], env_ids=env_ids)
     # articulations
     for articulation_asset in env.scene.articulations.values():
         # obtain default and deal with the offset for env origins
         default_root_state = articulation_asset.data.default_root_state[env_ids].clone()
         default_root_state[:, 0:3] += env.scene.env_origins[env_ids]
         # set into the physics simulation
-        articulation_asset.write_root_state_to_sim(default_root_state, env_ids=env_ids)
+        articulation_asset.write_root_link_pose_to_sim(default_root_state[:, :7], env_ids=env_ids)
+        articulation_asset.write_root_com_velocity_to_sim(default_root_state[:, 7:], env_ids=env_ids)
         # obtain default joint positions
         default_joint_pos = articulation_asset.data.default_joint_pos[env_ids].clone()
         default_joint_vel = articulation_asset.data.default_joint_vel[env_ids].clone()
@@ -967,7 +972,8 @@ def _randomize_prop_by_op(
         dim_0_ids = slice(None)
     else:
         n_dim_0 = len(dim_0_ids)
-        dim_0_ids = dim_0_ids[:, None]
+        if not isinstance(dim_1_ids, slice):
+            dim_0_ids = dim_0_ids[:, None]
     # -- dim 1
     if isinstance(dim_1_ids, slice):
         n_dim_1 = data.shape[1]
