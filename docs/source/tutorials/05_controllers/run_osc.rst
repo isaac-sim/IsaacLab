@@ -89,10 +89,10 @@ should be set to ``True``.
 A final consideration regarding the operational space control is what to do with the null-space of redundant robots.
 The null-space is the subspace of the joint space that does not affect the task space coordinates. If nothing is done
 to control the null-space, the robot joints will float without moving the end-effector. This might be undesired (e.g.,
-the robot joints might get close to its limits), and one might want to control the robot behaviour within its
-null-space. One way to do is to set ``nullspace_control`` to ``position`` (by default it is ``none``) which integrates
-a null-space PD controller to attract the robot joints to desired setpoints without affecting the task space. The
-behaviour of this null-space controller can be defined using the ``nullspace_stiffness`` and
+the robot joints might get close to their limits), and one might want to control the robot behaviour within its
+null-space. One way to do is to set ``nullspace_control`` to ``"position"`` (by default it is ``"none"``) which
+integrates a null-space PD controller to attract the robot joints to desired targets without affecting the task
+space. The behaviour of this null-space controller can be defined using the ``nullspace_stiffness`` and
 ``nullspace_damping_ratio`` arguments. Please note that theoratical decoupling of the null-space and task space
 accelerations is only possible when ``inertial_dynamics_decoupling`` is set to ``True`` and
 ``partial_inertial_dynamics_decoupling`` is set to ``False``.
@@ -104,7 +104,7 @@ In this tutorial, we will use ``"pose_abs"`` for controlling the motion in all a
 the motion control and not include the gravity compensation, as the gravity is disabled from the robot configuration.
 We set the impedance mode to ``"variable_kp"`` to dynamically change the stiffness values
 (``motion_damping_ratio_task`` is set to ``1``: the kd values adapt according to kp values to maintain a critically
-damped response). Finally, ``nullspace_control`` is set to use ``position`` where the joint set points are provided
+damped response). Finally, ``nullspace_control`` is set to use ``"position"`` where the joint set points are provided
 to be the center of the joint position limits.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/05_controllers/run_osc.py
@@ -123,7 +123,7 @@ gravity compensation vector and null-space joint position targets if required.
 .. literalinclude:: ../../../../source/standalone/tutorials/05_controllers/run_osc.py
    :language: python
    :start-at: # Update robot states
-   :end-before: )  # end of update_states
+   :end-before: # Update the target commands
 
 
 Computing robot command

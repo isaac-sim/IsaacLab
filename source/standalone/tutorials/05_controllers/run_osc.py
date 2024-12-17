@@ -366,7 +366,7 @@ def update_states(
         ee_force_b,
         joint_pos,
         joint_vel,
-    )  # end of update_states
+    )
 
 
 # Update the target commands
