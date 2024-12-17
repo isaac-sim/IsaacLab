@@ -24,7 +24,7 @@ INSTALL_REQUIRES = [
     "prettytable==3.3.0",
     "toml",
     # devices
-    "hidapi",
+    "hidapi==0.14.0.post2",
     # reinforcement learning
     "gymnasium",
     # procedural-generation

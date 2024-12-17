@@ -47,6 +47,9 @@ class RecorderManagerBaseCfg:
     dataset_export_mode: DatasetExportMode = DatasetExportMode.EXPORT_ALL
     """The mode to handle episode exports."""
 
+    export_in_record_pre_reset: bool = True
+    """Whether to export episodes in the record_pre_reset call."""
+
 
 class RecorderTerm(ManagerTermBase):
     """Base class for recorder terms.
@@ -166,6 +169,9 @@ class RecorderManager(ManagerBase):
                 os.path.join(cfg.dataset_export_dir_path, f"{cfg.dataset_filename}_failed"), env_name=env_name
             )
 
+        self._exported_successful_episode_count = {}
+        self._exported_failed_episode_count = {}
+
     def __str__(self) -> str:
         """Returns: A string representation for recorder manager."""
         msg = f"<RecorderManager> contains {len(self._term_names)} active terms.\n"
@@ -200,6 +206,34 @@ class RecorderManager(ManagerBase):
     def active_terms(self) -> list[str]:
         """Name of active recorder terms."""
         return self._term_names
+
+    @property
+    def exported_successful_episode_count(self, env_id=None) -> int:
+        """Number of successful episodes.
+
+        Args:
+            env_id: The environment id. Defaults to None, in which case all environments are considered.
+
+        Returns:
+            The number of successful episodes.
+        """
+        if env_id is not None:
+            return self._exported_successful_episode_count.get(env_id, 0)
+        return sum(self._exported_successful_episode_count.values())
+
+    @property
+    def exported_failed_episode_count(self, env_id=None) -> int:
+        """Number of failed episodes.
+
+        Args:
+            env_id: The environment id. Defaults to None, in which case all environments are considered.
+
+        Returns:
+            The number of failed episodes.
+        """
+        if env_id is not None:
+            return self._exported_failed_episode_count.get(env_id, 0)
+        return sum(self._exported_failed_episode_count.values())
 
     """
     Operations.
@@ -345,7 +379,8 @@ class RecorderManager(ManagerBase):
             success_results |= self._env.termination_manager.get_term("success")[env_ids]
         self.set_success_to_episodes(env_ids, success_results)
 
-        self.export_episodes(env_ids)
+        if self.cfg.export_in_record_pre_reset:
+            self.export_episodes(env_ids)
 
     def record_post_reset(self, env_ids: Sequence[int] | None) -> None:
         """Trigger recorder terms for post-reset functions.
@@ -395,6 +430,13 @@ class RecorderManager(ManagerBase):
                 if target_dataset_file_handler is not None:
                     target_dataset_file_handler.write_episode(self._episodes[env_id])
                     need_to_flush = True
+                # Update episode count
+                if episode_succeeded:
+                    self._exported_successful_episode_count[env_id] = (
+                        self._exported_successful_episode_count.get(env_id, 0) + 1
+                    )
+                else:
+                    self._exported_failed_episode_count[env_id] = self._exported_failed_episode_count.get(env_id, 0) + 1
             # Reset the episode buffer for the given environment after export
             self._episodes[env_id] = EpisodeData()
 
@@ -421,6 +463,7 @@ class RecorderManager(ManagerBase):
                 "dataset_filename",
                 "dataset_export_dir_path",
                 "dataset_export_mode",
+                "export_in_record_pre_reset",
             ]:
                 continue
             # check if term config is None
