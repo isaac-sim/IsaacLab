@@ -405,7 +405,7 @@ class TestCamera(unittest.TestCase):
 
         # get local poses
         local_pos, local_quat = camera._view.get_local_poses(indices=camera._ALL_INDICES)
-        
+
         # check if transform correctly set in output
         torch.testing.assert_close(local_pos, position)
         torch.testing.assert_close(local_quat, orientation)
