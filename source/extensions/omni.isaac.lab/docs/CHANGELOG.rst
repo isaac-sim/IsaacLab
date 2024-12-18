@@ -1,6 +1,20 @@
 Changelog
 ---------
 
+0.30.1 (2024-12-17)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added null-space (position) control option to :class:`omni.isaac.lab.controllers.OperationalSpaceController`.
+* Added test cases that uses null-space control for :class:`omni.isaac.lab.controllers.OperationalSpaceController`.
+* Added information regarding null-space control to the tutorial script and documentation of
+  :class:`omni.isaac.lab.controllers.OperationalSpaceController`.
+* Added arguments to set specific null-space joint position targets within
+  :class:`omni.isaac.lab.envs.mdp.actions.OperationalSpaceControllerAction` class.
+
+
 0.30.0 (2024-12-16)
 ~~~~~~~~~~~~~~~~~~~
 

@@ -574,6 +574,100 @@ class TestOperationalSpaceController(unittest.TestCase):
 
         self._run_op_space_controller(robot, osc, "panda_leftfinger", ["panda_joint.*"], self.target_hybrid_set_tilted)
 
+    def test_franka_pose_abs_without_inertial_decoupling_with_nullspace_centering(self):
+        """Test absolute pose control with fixed impedance and nullspace centerin but without inertial decoupling."""
+        robot = Articulation(cfg=self.robot_cfg)
+        osc_cfg = OperationalSpaceControllerCfg(
+            target_types=["pose_abs"],
+            impedance_mode="fixed",
+            inertial_dynamics_decoupling=False,
+            gravity_compensation=False,
+            motion_stiffness_task=[400.0, 400.0, 400.0, 100.0, 100.0, 100.0],
+            motion_damping_ratio_task=[5.0, 5.0, 5.0, 0.001, 0.001, 0.001],
+            nullspace_control="position",
+        )
+        osc = OperationalSpaceController(osc_cfg, num_envs=self.num_envs, device=self.sim.device)
+
+        self._run_op_space_controller(robot, osc, "panda_hand", ["panda_joint.*"], self.target_abs_pose_set_b)
+
+    def test_franka_pose_abs_with_partial_inertial_decoupling_nullspace_centering(self):
+        """Test absolute pose control with fixed impedance, partial inertial decoupling and nullspace centering."""
+        robot = Articulation(cfg=self.robot_cfg)
+        osc_cfg = OperationalSpaceControllerCfg(
+            target_types=["pose_abs"],
+            impedance_mode="fixed",
+            inertial_dynamics_decoupling=True,
+            partial_inertial_dynamics_decoupling=True,
+            gravity_compensation=False,
+            motion_stiffness_task=1000.0,
+            motion_damping_ratio_task=1.0,
+            nullspace_control="position",
+        )
+        osc = OperationalSpaceController(osc_cfg, num_envs=self.num_envs, device=self.sim.device)
+
+        self._run_op_space_controller(robot, osc, "panda_hand", ["panda_joint.*"], self.target_abs_pose_set_b)
+
+    def test_franka_pose_abs_with_nullspace_centering(self):
+        """Test absolute pose control with fixed impedance, inertial decoupling and nullspace centering."""
+        robot = Articulation(cfg=self.robot_cfg)
+        osc_cfg = OperationalSpaceControllerCfg(
+            target_types=["pose_abs"],
+            impedance_mode="fixed",
+            inertial_dynamics_decoupling=True,
+            partial_inertial_dynamics_decoupling=False,
+            gravity_compensation=False,
+            motion_stiffness_task=500.0,
+            motion_damping_ratio_task=1.0,
+            nullspace_control="position",
+        )
+        osc = OperationalSpaceController(osc_cfg, num_envs=self.num_envs, device=self.sim.device)
+
+        self._run_op_space_controller(robot, osc, "panda_hand", ["panda_joint.*"], self.target_abs_pose_set_b)
+
+    def test_franka_taskframe_hybrid_with_nullspace_centering(self):
+        """Test hybrid control in task frame with fixed impedance, inertial decoupling and nullspace centering."""
+        robot = Articulation(cfg=self.robot_cfg)
+        self.frame = "task"
+
+        obstacle_spawn_cfg = sim_utils.CuboidCfg(
+            size=(2.0, 1.5, 0.01),
+            collision_props=sim_utils.CollisionPropertiesCfg(),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), opacity=0.1),
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+            activate_contact_sensors=True,
+        )
+        obstacle_spawn_cfg.func(
+            "/World/envs/env_.*/obstacle1",
+            obstacle_spawn_cfg,
+            translation=(self.target_hybrid_set_tilted[0, 0] + 0.085, 0.0, 0.3),
+            orientation=(0.9238795325, 0.0, -0.3826834324, 0.0),
+        )
+        contact_forces_cfg = ContactSensorCfg(
+            prim_path="/World/envs/env_.*/obstacle.*",
+            update_period=0.0,
+            history_length=2,
+            debug_vis=False,
+            force_threshold=0.1,
+        )
+        self.contact_forces = ContactSensor(contact_forces_cfg)
+
+        osc_cfg = OperationalSpaceControllerCfg(
+            target_types=["pose_abs", "wrench_abs"],
+            impedance_mode="fixed",
+            inertial_dynamics_decoupling=True,
+            partial_inertial_dynamics_decoupling=False,
+            gravity_compensation=False,
+            motion_stiffness_task=400.0,
+            motion_damping_ratio_task=1.0,
+            contact_wrench_stiffness_task=[0.0, 0.0, 0.1, 0.0, 0.0, 0.0],
+            motion_control_axes_task=[1, 1, 0, 1, 1, 1],
+            contact_wrench_control_axes_task=[0, 0, 1, 0, 0, 0],
+            nullspace_control="position",
+        )
+        osc = OperationalSpaceController(osc_cfg, num_envs=self.num_envs, device=self.sim.device)
+
+        self._run_op_space_controller(robot, osc, "panda_leftfinger", ["panda_joint.*"], self.target_hybrid_set_tilted)
+
     """
     Helper functions
     """
@@ -615,10 +709,22 @@ class TestOperationalSpaceController(unittest.TestCase):
         # Note: We need to update buffers before the first step for the controller.
         robot.update(dt=sim_dt)
 
+        # Get the center of the robot soft joint limits
+        joint_centers = torch.mean(robot.data.soft_joint_pos_limits[:, arm_joint_ids, :], dim=-1)
+
         # get the updated states
-        jacobian_b, mass_matrix, gravity, ee_pose_b, ee_vel_b, root_pose_w, ee_pose_w, ee_force_b = self._update_states(
-            robot, ee_frame_idx, arm_joint_ids
-        )
+        (
+            jacobian_b,
+            mass_matrix,
+            gravity,
+            ee_pose_b,
+            ee_vel_b,
+            root_pose_w,
+            ee_pose_w,
+            ee_force_b,
+            joint_pos,
+            joint_vel,
+        ) = self._update_states(robot, ee_frame_idx, arm_joint_ids)
 
         # Track the given target command
         current_goal_idx = 0  # Current goal index for the arm
@@ -653,7 +759,7 @@ class TestOperationalSpaceController(unittest.TestCase):
                     self.contact_forces.reset()
                 # reset target pose
                 robot.update(sim_dt)
-                _, _, _, ee_pose_b, _, _, _, _ = self._update_states(
+                _, _, _, ee_pose_b, _, _, _, _, _, _ = self._update_states(
                     robot, ee_frame_idx, arm_joint_ids
                 )  # at reset, the jacobians are not updated to the latest state
                 command, ee_target_pose_b, ee_target_pose_w, current_goal_idx = self._update_target(
@@ -669,9 +775,18 @@ class TestOperationalSpaceController(unittest.TestCase):
                 )
             else:
                 # get the updated states
-                jacobian_b, mass_matrix, gravity, ee_pose_b, ee_vel_b, root_pose_w, ee_pose_w, ee_force_b = (
-                    self._update_states(robot, ee_frame_idx, arm_joint_ids)
-                )
+                (
+                    jacobian_b,
+                    mass_matrix,
+                    gravity,
+                    ee_pose_b,
+                    ee_vel_b,
+                    root_pose_w,
+                    ee_pose_w,
+                    ee_force_b,
+                    joint_pos,
+                    joint_vel,
+                ) = self._update_states(robot, ee_frame_idx, arm_joint_ids)
                 # compute the joint commands
                 joint_efforts = osc.compute(
                     jacobian_b=jacobian_b,
@@ -680,6 +795,9 @@ class TestOperationalSpaceController(unittest.TestCase):
                     current_ee_force_b=ee_force_b,
                     mass_matrix=mass_matrix,
                     gravity=gravity,
+                    current_joint_pos=joint_pos,
+                    current_joint_vel=joint_vel,
+                    nullspace_joint_pos_target=joint_centers,
                 )
                 robot.set_joint_effort_target(joint_efforts, joint_ids=arm_joint_ids)
                 robot.write_data_to_sim()
@@ -715,6 +833,8 @@ class TestOperationalSpaceController(unittest.TestCase):
             root_pose_w (torch.tensor): The root pose in the world frame.
             ee_pose_w (torch.tensor): The end-effector pose in the world frame.
             ee_force_b (torch.tensor): The end-effector force in the root frame.
+            joint_pos (torch.tensor): The joint positions.
+            joint_vel (torch.tensor): The joint velocities.
         """
         # obtain dynamics related quantities from simulation
         ee_jacobi_idx = ee_frame_idx - 1
@@ -757,7 +877,22 @@ class TestOperationalSpaceController(unittest.TestCase):
         # This is a simplification, only for the sake of testing.
         ee_force_b = ee_force_w
 
-        return jacobian_b, mass_matrix, gravity, ee_pose_b, ee_vel_b, root_pose_w, ee_pose_w, ee_force_b
+        # Get joint positions and velocities
+        joint_pos = robot.data.joint_pos[:, arm_joint_ids]
+        joint_vel = robot.data.joint_vel[:, arm_joint_ids]
+
+        return (
+            jacobian_b,
+            mass_matrix,
+            gravity,
+            ee_pose_b,
+            ee_vel_b,
+            root_pose_w,
+            ee_pose_w,
+            ee_force_b,
+            joint_pos,
+            joint_vel,
+        )
 
     def _update_target(
         self,
