@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.32.7 (2025-01-30)
+0.32.8 (2025-01-30)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -12,7 +12,7 @@ Fixed
   to the event being triggered at the wrong time after the reset.
 
 
-0.32.6 (2025-01-17)
+0.32.7 (2025-01-17)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -42,7 +42,7 @@ Fixed
   the :class:`omni.isaac.lab.assets.RigidObjectCollection` class.
 
 
-0.32.5 (2025-01-14)
+0.32.6 (2025-01-14)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -51,7 +51,7 @@ Fixed
 * Fixed the respawn of only wrong object samples in :func:`repeated_objects_terrain` of :mod:`omni.isaac.lab.terrains.trimesh` module. Previously, the function was respawning all objects in the scene instead of only the wrong object samples, which in worst case could lead to infinite respawn loop.
 
 
-0.32.4 (2025-01-08)
+0.32.5 (2025-01-08)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -61,7 +61,7 @@ Fixed
   In body properties sections, the second dimension should be num_bodies but was documented as 1.
 
 
-0.32.3 (2025-01-02)
+0.32.4 (2025-01-02)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -70,7 +70,7 @@ Added
 * Added body tracking as an origin type to :class:`omni.isaac.lab.envs.ViewerCfg` and :class:`omni.isaac.lab.envs.ui.ViewportCameraController`.
 
 
-0.32.2 (2024-12-22)
+0.32.3 (2024-12-22)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -79,7 +79,7 @@ Fixed
 * Fixed populating default_joint_stiffness and default_joint_damping values for ImplicitActuator instances in :class:`omni.isaac.lab.assets.Articulation`
 
 
-0.32.1 (2024-12-17)
+0.32.2 (2024-12-17)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -91,6 +91,19 @@ Added
   :class:`omni.isaac.lab.controllers.OperationalSpaceController`.
 * Added arguments to set specific null-space joint position targets within
   :class:`omni.isaac.lab.envs.mdp.actions.OperationalSpaceControllerAction` class.
+
+
+0.32.1 (2024-12-17)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Added a default and generic implementation of the :meth:`get_object_poses` function
+  in the :class:`ManagerBasedRLMimicEnv` class.
+* Added a ``EXPORT_NONE`` mode in the :class:`DatasetExportMode` class and updated
+  :class:`~omni.isaac.lab.managers.RecorderManager` to enable recording without exporting
+  the data to a file.
 
 
 0.32.0 (2024-12-16)

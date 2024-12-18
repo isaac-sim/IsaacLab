@@ -14,7 +14,7 @@ import argparse
 from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
-parser = argparse.ArgumentParser(description="Record demonstrations for Isaac Lab environments.")
+parser = argparse.ArgumentParser(description="Generate demonstrations for Isaac Lab environments.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("--generation_num_trials", type=int, help="Number of demos to be generated.", default=None)
 parser.add_argument(

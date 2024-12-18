@@ -27,9 +27,10 @@ if TYPE_CHECKING:
 class DatasetExportMode(enum.IntEnum):
     """The mode to handle episode exports."""
 
-    EXPORT_ALL = 0  # Export all episodes to a single dataset file
-    EXPORT_SUCCEEDED_FAILED_IN_SEPARATE_FILES = 1  # Export succeeded and failed episodes in separate files
-    EXPORT_SUCCEEDED_ONLY = 2  # Export only succeeded episodes to a single dataset file
+    EXPORT_NONE = 0  # Export none of the episodes
+    EXPORT_ALL = 1  # Export all episodes to a single dataset file
+    EXPORT_SUCCEEDED_FAILED_IN_SEPARATE_FILES = 2  # Export succeeded and failed episodes in separate files
+    EXPORT_SUCCEEDED_ONLY = 3  # Export only succeeded episodes to a single dataset file
 
 
 @configclass
@@ -157,10 +158,12 @@ class RecorderManager(ManagerBase):
 
         env_name = getattr(env.cfg, "env_name", None)
 
-        self._dataset_file_handler = cfg.dataset_file_handler_class_type()
-        self._dataset_file_handler.create(
-            os.path.join(cfg.dataset_export_dir_path, cfg.dataset_filename), env_name=env_name
-        )
+        self._dataset_file_handler = None
+        if cfg.dataset_export_mode != DatasetExportMode.EXPORT_NONE:
+            self._dataset_file_handler = cfg.dataset_file_handler_class_type()
+            self._dataset_file_handler.create(
+                os.path.join(cfg.dataset_export_dir_path, cfg.dataset_filename), env_name=env_name
+            )
 
         self._failed_episode_dataset_file_handler = None
         if cfg.dataset_export_mode == DatasetExportMode.EXPORT_SUCCEEDED_FAILED_IN_SEPARATE_FILES:
@@ -197,6 +200,9 @@ class RecorderManager(ManagerBase):
 
         if self._dataset_file_handler is not None:
             self._dataset_file_handler.close()
+
+        if self._failed_episode_dataset_file_handler is not None:
+            self._failed_episode_dataset_file_handler.close()
 
     """
     Properties.
@@ -441,7 +447,8 @@ class RecorderManager(ManagerBase):
             self._episodes[env_id] = EpisodeData()
 
         if need_to_flush:
-            self._dataset_file_handler.flush()
+            if self._dataset_file_handler is not None:
+                self._dataset_file_handler.flush()
             if self._failed_episode_dataset_file_handler is not None:
                 self._failed_episode_dataset_file_handler.flush()
 

@@ -124,31 +124,6 @@ class FrankaCubeStackIKRelMimicEnv(ManagerBasedRLMimicEnv):
         # last dimension is gripper action
         return action[:, -1:]
 
-    def get_object_poses(self, env_ind=0):
-        """
-        Gets the pose of each object relevant to Isaac Lab Mimic data generation in the current scene.
-
-        Returns:
-            object_poses (dict): dictionary that maps object name (str) to object pose matrix (4x4 torch.Tensor)
-        """
-        # three relevant objects - three cubes
-        # Retrieve end effector pose from the observation buffer
-        cube_positions = self.obs_buf["policy"]["cube_positions"][env_ind]
-        cube_orientations = self.obs_buf["policy"]["cube_orientations"][env_ind]
-        cube_1_pos = cube_positions[:3]
-        cube_1_rot = cube_orientations[:4]
-        cube_2_pos = cube_positions[3:6]
-        cube_2_rot = cube_orientations[4:8]
-        cube_3_pos = cube_positions[6:]
-        cube_3_rot = cube_orientations[8:]
-
-        # Quaternion format is w,x,y,z
-        return dict(
-            cube_1=PoseUtils.make_pose(cube_1_pos, PoseUtils.matrix_from_quat(cube_1_rot)),
-            cube_2=PoseUtils.make_pose(cube_2_pos, PoseUtils.matrix_from_quat(cube_2_rot)),
-            cube_3=PoseUtils.make_pose(cube_3_pos, PoseUtils.matrix_from_quat(cube_3_rot)),
-        )
-
     def get_subtask_term_signals(self, env_ind=0):
         """
         Gets a dictionary of binary flags for each subtask in a task. The flag is 1
