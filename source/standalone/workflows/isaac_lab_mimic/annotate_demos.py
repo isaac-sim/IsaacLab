@@ -3,16 +3,18 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Script to add mimic annotations to demos to be used as source demos for mimic dataset generation."""
+"""
+Script to add mimic annotations to demos to be used as source demos for mimic dataset generation.
+"""
 
-"""Launch Isaac Sim Simulator first."""
+# Launching Isaac Sim Simulator first.
 
 import argparse
 
 from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
-parser = argparse.ArgumentParser(description="Collect demonstrations for Isaac Lab environments.")
+parser = argparse.ArgumentParser(description="Annotate demonstrations for Isaac Lab environments.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument(
     "--input_file", type=str, default="./datasets/dataset.hdf5", help="File name of the dataset to be annotated."

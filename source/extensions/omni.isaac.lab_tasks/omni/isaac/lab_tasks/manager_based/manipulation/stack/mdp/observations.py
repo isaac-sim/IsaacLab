@@ -244,7 +244,7 @@ def instance_randomize_object_obs(
 
 def ee_frame_pos(env: ManagerBasedRLEnv, ee_frame_cfg: SceneEntityCfg = SceneEntityCfg("ee_frame")) -> torch.Tensor:
     ee_frame: FrameTransformer = env.scene[ee_frame_cfg.name]
-    ee_frame_pos = ee_frame.data.target_pos_w[:, 0, :]
+    ee_frame_pos = ee_frame.data.target_pos_w[:, 0, :] - env.scene.env_origins[:, 0:3]
 
     return ee_frame_pos
 

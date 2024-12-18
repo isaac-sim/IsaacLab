@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import omni.isaac.lab.utils.math as PoseUtils
 from omni.isaac.lab.envs import ManagerBasedRLEnv
 
 
@@ -86,7 +87,13 @@ class ManagerBasedRLMimicEnv(ManagerBasedRLEnv):
         Returns:
             object_poses (dict): dictionary that maps object name (str) to object pose matrix (4x4 torch.Tensor)
         """
-        raise NotImplementedError
+        rigid_object_states = self.scene.get_state(is_relative=True)["rigid_object"]
+        object_pose_matrix = dict()
+        for obj_name, obj_state in rigid_object_states.items():
+            object_pose_matrix[obj_name] = PoseUtils.make_pose(
+                obj_state["root_pose"][env_ind, :3], PoseUtils.matrix_from_quat(obj_state["root_pose"][env_ind, 3:7])
+            )
+        return object_pose_matrix
 
     def get_subtask_term_signals(self, env_ind=0):
         """

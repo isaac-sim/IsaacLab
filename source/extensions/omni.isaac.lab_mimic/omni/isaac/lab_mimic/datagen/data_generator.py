@@ -194,6 +194,7 @@ class DataGenerator:
         transform_first_robot_pose=False,
         interpolate_from_last_target_pose=True,
         pause_subtask=False,
+        export_demo=True,
     ):
         """
         Attempt to generate a new demonstration.
@@ -415,7 +416,8 @@ class DataGenerator:
         self.env.recorder_manager.set_success_to_episodes(
             env_id_tensor, torch.tensor([[generated_success]], dtype=torch.bool, device=self.env.device)
         )
-        self.env.recorder_manager.export_episodes(env_id_tensor)
+        if export_demo:
+            self.env.recorder_manager.export_episodes(env_id_tensor)
 
         results = dict(
             initial_state=new_initial_state,
