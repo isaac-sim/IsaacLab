@@ -93,7 +93,7 @@ the robot joints might get close to their limits), and one might want to control
 null-space. One way to do is to set ``nullspace_control`` to ``"position"`` (by default it is ``"none"``) which
 integrates a null-space PD controller to attract the robot joints to desired targets without affecting the task
 space. The behaviour of this null-space controller can be defined using the ``nullspace_stiffness`` and
-``nullspace_damping_ratio`` arguments. Please note that theoratical decoupling of the null-space and task space
+``nullspace_damping_ratio`` arguments. Please note that theoretical decoupling of the null-space and task space
 accelerations is only possible when ``inertial_dynamics_decoupling`` is set to ``True`` and
 ``partial_inertial_dynamics_decoupling`` is set to ``False``.
 
