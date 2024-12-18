@@ -80,6 +80,7 @@ Guidelines for modifications:
 * Vladimir Fokow
 * Wei Yang
 * Xavier Nal
+* Xin Xu
 * Yang Jin
 * Yujian Zhang
 * Zhengyu Zhang
