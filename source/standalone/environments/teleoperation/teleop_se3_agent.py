@@ -108,7 +108,9 @@ def main():
         viewer = ViewerCfg(eye=(-0.25, -0.3, 0.5), lookat=(0.6, 0, 0), asset_name="viewer")
         ViewportCameraController(env, viewer)
     else:
-        raise ValueError(f"Invalid device interface '{args_cli.teleop_device}'. Supported: 'keyboard', 'spacemouse'.")
+        raise ValueError(
+            f"Invalid device interface '{args_cli.teleop_device}'. Supported: 'keyboard', 'spacemouse''handtracking'."
+        )
 
     # add teleoperation key for env reset
     should_reset_recording_instance = False
