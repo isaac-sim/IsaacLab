@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.3.0" />
-    <meta name="docbuild:last-update" content="Dec 17, 2024"/>
+    <meta name="docbuild:last-update" content="Dec 18, 2024"/>
   </head>
   
   
@@ -593,11 +593,15 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_selection_matrix_force_b</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_selection_matrix_force_task</span><span class="p">)</span>
         <span class="c1"># -- commands</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_task_space_target_task</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">target_dim</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
-        <span class="c1"># -- buffers for motion/force control</span>
+        <span class="c1"># -- Placeholders for motion/force control</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">desired_ee_pose_task</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">desired_ee_pose_b</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">desired_ee_wrench_task</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">desired_ee_wrench_b</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="c1"># -- buffer for operational space mass matrix</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_os_mass_matrix_b</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+        <span class="c1"># -- Placeholder for the inverse of joint space mass matrix</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_mass_matrix_inv</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="c1"># -- motion control gains</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_motion_p_gains_task</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">diag_embed</span><span class="p">(</span>
             <span class="n">torch</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
@@ -641,7 +645,15 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">motion_damping_ratio_limits_task</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
         <span class="p">)</span>
         <span class="c1"># -- end-effector contact wrench</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_ee_contact_wrench_b</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ee_contact_wrench_b</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+
+        <span class="c1"># -- buffers for null-space control gains</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_nullspace_p_gain</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">nullspace_stiffness</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_nullspace_d_gain</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="mi">2</span>
+            <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_nullspace_p_gain</span><span class="p">)</span>
+            <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">nullspace_damping_ratio</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+        <span class="p">)</span></div>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Properties.</span>
@@ -854,6 +866,9 @@
         <span class="n">current_ee_force_b</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">mass_matrix</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">gravity</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">current_joint_pos</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">current_joint_vel</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">nullspace_joint_pos_target</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Performs inference with the controller.</span>
 
@@ -864,12 +879,18 @@
 <span class="sd">                (``num_envs``, 7), which contains the position and quaternion ``(w, x, y, z)``. Defaults to ``None``.</span>
 <span class="sd">            current_ee_vel_b: The current end-effector velocity in root frame. It is a tensor of shape</span>
 <span class="sd">                (``num_envs``, 6), which contains the linear and angular velocities. Defaults to None.</span>
-<span class="sd">            current_ee_force_b: The current external force on the end-effector in root frame.</span>
-<span class="sd">                It is a tensor of shape (``num_envs``, 3), which contains the linear force. Defaults to ``None``.</span>
+<span class="sd">            current_ee_force_b: The current external force on the end-effector in root frame. It is a tensor of</span>
+<span class="sd">                shape (``num_envs``, 3), which contains the linear force. Defaults to ``None``.</span>
 <span class="sd">            mass_matrix: The joint-space mass/inertia matrix. It is a tensor of shape (``num_envs``, ``num_DoF``,</span>
-<span class="sd">            ``num_DoF``). Defaults to ``None``.</span>
+<span class="sd">                ``num_DoF``). Defaults to ``None``.</span>
 <span class="sd">            gravity: The joint-space gravity vector. It is a tensor of shape (``num_envs``, ``num_DoF``). Defaults</span>
-<span class="sd">            to ``None``.</span>
+<span class="sd">                to ``None``.</span>
+<span class="sd">            current_joint_pos: The current joint positions. It is a tensor of shape (``num_envs``, ``num_DoF``).</span>
+<span class="sd">                Defaults to ``None``.</span>
+<span class="sd">            current_joint_vel: The current joint velocities. It is a tensor of shape (``num_envs``, ``num_DoF``).</span>
+<span class="sd">                Defaults to ``None``.</span>
+<span class="sd">            nullspace_joint_pos_target: The target joint positions the null space controller is trying to enforce, when</span>
+<span class="sd">                possible. It is a tensor of shape (``num_envs``, ``num_DoF``).</span>
 
 <span class="sd">        Raises:</span>
 <span class="sd">            ValueError: When motion-control is enabled but the current end-effector pose or velocity is not provided.</span>
@@ -877,6 +898,14 @@
 <span class="sd">            ValueError: When the current end-effector pose is not provided for the ``pose_rel`` command.</span>
 <span class="sd">            ValueError: When closed-loop force control is enabled but the current end-effector force is not provided.</span>
 <span class="sd">            ValueError: When gravity compensation is enabled but the gravity vector is not provided.</span>
+<span class="sd">            ValueError: When null-space control is enabled but the system is not redundant.</span>
+<span class="sd">            ValueError: When dynamically consistent pseudo-inverse is enabled but the mass matrix inverse is not</span>
+<span class="sd">                provided.</span>
+<span class="sd">            ValueError: When null-space control is enabled but the current joint positions and velocities are not</span>
+<span class="sd">                provided.</span>
+<span class="sd">            ValueError: When target joint positions are provided for null-space control but their dimensions do not</span>
+<span class="sd">                match the current joint positions.</span>
+<span class="sd">            ValueError: When an invalid null-space control method is provided.</span>
 
 <span class="sd">        Returns:</span>
 <span class="sd">            Tensor: The joint efforts computed by the controller. It is a tensor of shape (``num_envs``, ``num_DoF``).</span>
@@ -914,23 +943,21 @@
                 <span class="k">if</span> <span class="n">mass_matrix</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
                     <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Mass matrix is required for inertial decoupling.&quot;</span><span class="p">)</span>
                 <span class="c1"># Compute operational space mass matrix</span>
-                <span class="n">mass_matrix_inv</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">inverse</span><span class="p">(</span><span class="n">mass_matrix</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_mass_matrix_inv</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">inverse</span><span class="p">(</span><span class="n">mass_matrix</span><span class="p">)</span>
                 <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">partial_inertial_dynamics_decoupling</span><span class="p">:</span>
-                    <span class="c1"># Create a zero tensor representing the mass matrix, to fill in the non-zero elements later</span>
-                    <span class="n">os_mass_matrix</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
                     <span class="c1"># Fill in the translational and rotational parts of the inertia separately, ignoring their coupling</span>
-                    <span class="n">os_mass_matrix</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">inverse</span><span class="p">(</span>
-                        <span class="n">jacobian_b</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">@</span> <span class="n">mass_matrix_inv</span> <span class="o">@</span> <span class="n">jacobian_b</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">]</span><span class="o">.</span><span class="n">mT</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_os_mass_matrix_b</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">inverse</span><span class="p">(</span>
+                        <span class="n">jacobian_b</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">@</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mass_matrix_inv</span> <span class="o">@</span> <span class="n">jacobian_b</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">]</span><span class="o">.</span><span class="n">mT</span>
                     <span class="p">)</span>
-                    <span class="n">os_mass_matrix</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">6</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">6</span><span class="p">]</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">inverse</span><span class="p">(</span>
-                        <span class="n">jacobian_b</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">6</span><span class="p">]</span> <span class="o">@</span> <span class="n">mass_matrix_inv</span> <span class="o">@</span> <span class="n">jacobian_b</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">6</span><span class="p">]</span><span class="o">.</span><span class="n">mT</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_os_mass_matrix_b</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">6</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">6</span><span class="p">]</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">inverse</span><span class="p">(</span>
+                        <span class="n">jacobian_b</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">6</span><span class="p">]</span> <span class="o">@</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mass_matrix_inv</span> <span class="o">@</span> <span class="n">jacobian_b</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">6</span><span class="p">]</span><span class="o">.</span><span class="n">mT</span>
                     <span class="p">)</span>
                 <span class="k">else</span><span class="p">:</span>
                     <span class="c1"># Calculate the operational space mass matrix fully accounting for the couplings</span>
-                    <span class="n">os_mass_matrix</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">inverse</span><span class="p">(</span><span class="n">jacobian_b</span> <span class="o">@</span> <span class="n">mass_matrix_inv</span> <span class="o">@</span> <span class="n">jacobian_b</span><span class="o">.</span><span class="n">mT</span><span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_os_mass_matrix_b</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">inverse</span><span class="p">(</span><span class="n">jacobian_b</span> <span class="o">@</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mass_matrix_inv</span> <span class="o">@</span> <span class="n">jacobian_b</span><span class="o">.</span><span class="n">mT</span><span class="p">)</span>
                 <span class="c1"># (Generalized) operational space command forces</span>
                 <span class="c1"># F = (J M^(-1) J^T)^(-1) * \ddot(x_des) = M_task * \ddot(x_des)</span>
-                <span class="n">os_command_forces_b</span> <span class="o">=</span> <span class="n">os_mass_matrix</span> <span class="o">@</span> <span class="n">des_ee_acc_b</span>
+                <span class="n">os_command_forces_b</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_os_mass_matrix_b</span> <span class="o">@</span> <span class="n">des_ee_acc_b</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="c1"># Task-space impedance control: command forces = \ddot(x_des).</span>
                 <span class="c1"># Please note that the definition of task-space impedance control varies in literature.</span>
@@ -970,6 +997,69 @@
                 <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Gravity vector is required for gravity compensation.&quot;</span><span class="p">)</span>
             <span class="c1"># add gravity compensation</span>
             <span class="n">joint_efforts</span> <span class="o">+=</span> <span class="n">gravity</span>
+
+        <span class="c1"># Add null-space control</span>
+        <span class="c1"># -- Free null-space control</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">nullspace_control</span> <span class="o">==</span> <span class="s2">&quot;none&quot;</span><span class="p">:</span>
+            <span class="c1"># No additional control is applied in the null space.</span>
+            <span class="k">pass</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Check if the system is redundant</span>
+            <span class="k">if</span> <span class="n">num_DoF</span> <span class="o">&lt;=</span> <span class="mi">6</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Null-space control is only applicable for redundant manipulators.&quot;</span><span class="p">)</span>
+
+            <span class="c1"># Calculate the pseudo-inverse of the Jacobian</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">inertial_dynamics_decoupling</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">partial_inertial_dynamics_decoupling</span><span class="p">:</span>
+                <span class="c1"># Dynamically consistent pseudo-inverse allows decoupling of null space and task space</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mass_matrix_inv</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">mass_matrix</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Mass matrix inverse is required for dynamically consistent pseudo-inverse&quot;</span><span class="p">)</span>
+                <span class="n">jacobian_pinv_transpose</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_os_mass_matrix_b</span> <span class="o">@</span> <span class="n">jacobian_b</span> <span class="o">@</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mass_matrix_inv</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># Moore-Penrose pseudo-inverse if full inertia matrix is not available (e.g., no/partial decoupling)</span>
+                <span class="n">jacobian_pinv_transpose</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">pinverse</span><span class="p">(</span><span class="n">jacobian_b</span><span class="p">)</span><span class="o">.</span><span class="n">mT</span>
+
+            <span class="c1"># Calculate the null-space projector</span>
+            <span class="n">nullspace_jacobian_transpose</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="n">torch</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">n</span><span class="o">=</span><span class="n">num_DoF</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span> <span class="o">-</span> <span class="n">jacobian_b</span><span class="o">.</span><span class="n">mT</span> <span class="o">@</span> <span class="n">jacobian_pinv_transpose</span>
+            <span class="p">)</span>
+
+            <span class="c1"># Null space position control</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">nullspace_control</span> <span class="o">==</span> <span class="s2">&quot;position&quot;</span><span class="p">:</span>
+
+                <span class="c1"># Check if the current joint positions and velocities are provided</span>
+                <span class="k">if</span> <span class="n">current_joint_pos</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">current_joint_vel</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Current joint positions and velocities are required for null-space control.&quot;</span><span class="p">)</span>
+
+                <span class="c1"># Calculate the joint errors for nullspace position control</span>
+                <span class="k">if</span> <span class="n">nullspace_joint_pos_target</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">nullspace_joint_pos_target</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">current_joint_pos</span><span class="p">)</span>
+                <span class="c1"># Check if the dimensions of the target nullspace joint positions match the current joint positions</span>
+                <span class="k">elif</span> <span class="n">nullspace_joint_pos_target</span><span class="o">.</span><span class="n">shape</span> <span class="o">!=</span> <span class="n">current_joint_pos</span><span class="o">.</span><span class="n">shape</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;The target nullspace joint positions shape &#39;</span><span class="si">{</span><span class="n">nullspace_joint_pos_target</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&#39; does not&quot;</span>
+                        <span class="sa">f</span><span class="s2">&quot;match the current joint positions shape &#39;</span><span class="si">{</span><span class="n">current_joint_pos</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&#39;.&quot;</span>
+                    <span class="p">)</span>
+
+                <span class="n">joint_pos_error_nullspace</span> <span class="o">=</span> <span class="n">nullspace_joint_pos_target</span> <span class="o">-</span> <span class="n">current_joint_pos</span>
+                <span class="n">joint_vel_error_nullspace</span> <span class="o">=</span> <span class="o">-</span><span class="n">current_joint_vel</span>
+
+                <span class="c1"># Calculate the desired joint accelerations</span>
+                <span class="n">joint_acc_nullspace</span> <span class="o">=</span> <span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_nullspace_p_gain</span> <span class="o">*</span> <span class="n">joint_pos_error_nullspace</span>
+                    <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_nullspace_d_gain</span> <span class="o">*</span> <span class="n">joint_vel_error_nullspace</span>
+                <span class="p">)</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+
+                <span class="c1"># Calculate the projected torques in null-space</span>
+                <span class="k">if</span> <span class="n">mass_matrix</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">tau_null</span> <span class="o">=</span> <span class="p">(</span><span class="n">nullspace_jacobian_transpose</span> <span class="o">@</span> <span class="n">mass_matrix</span> <span class="o">@</span> <span class="n">joint_acc_nullspace</span><span class="p">)</span><span class="o">.</span><span class="n">squeeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">tau_null</span> <span class="o">=</span> <span class="n">nullspace_jacobian_transpose</span> <span class="o">@</span> <span class="n">joint_acc_nullspace</span>
+
+                <span class="c1"># Add the null-space joint efforts to the total joint efforts</span>
+                <span class="n">joint_efforts</span> <span class="o">+=</span> <span class="n">tau_null</span>
+
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Invalid null-space control method: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">nullspace_control</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
 
         <span class="k">return</span> <span class="n">joint_efforts</span></div></div>
 </pre></div>
@@ -1019,7 +1109,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Dec 17, 2024.
+  Last updated on Dec 18, 2024.
   <br/>
 </p>
   </div>

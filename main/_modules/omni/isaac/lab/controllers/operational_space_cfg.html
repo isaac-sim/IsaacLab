@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.3.0" />
-    <meta name="docbuild:last-update" content="Dec 17, 2024"/>
+    <meta name="docbuild:last-update" content="Dec 18, 2024"/>
   </head>
   
   
@@ -590,7 +590,20 @@
 
 <span class="sd">    Note: since only the linear forces could be measured at the moment,</span>
 <span class="sd">    only the first three elements are used for the feedback loop.</span>
-<span class="sd">    &quot;&quot;&quot;</span></div>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">nullspace_control</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;none&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The null space control method for redundant manipulators: ``&quot;none&quot;``, ``&quot;position&quot;``.</span>
+
+<span class="sd">    Note: ``&quot;position&quot;`` is used to drive the redundant manipulator to zero configuration by default. If</span>
+<span class="sd">    ``target_joint_pos`` is provided in the ``compute()`` method, it will be driven to this configuration.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">nullspace_stiffness</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">10.0</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The stiffness for null space control.&quot;&quot;&quot;</span>
+
+    <span class="n">nullspace_damping_ratio</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The damping ratio for null space control.&quot;&quot;&quot;</span></div>
 </pre></div>
 
                 </article>
@@ -638,7 +651,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Dec 17, 2024.
+  Last updated on Dec 18, 2024.
   <br/>
 </p>
   </div>

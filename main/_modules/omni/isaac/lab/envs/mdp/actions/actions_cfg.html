@@ -58,7 +58,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.3.0" />
-    <meta name="docbuild:last-update" content="Dec 17, 2024"/>
+    <meta name="docbuild:last-update" content="Dec 18, 2024"/>
   </head>
   
   
@@ -818,7 +818,14 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Scale factor for the stiffness commands. Defaults to 1.0.&quot;&quot;&quot;</span>
 
     <span class="n">damping_ratio_scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Scale factor for the damping ratio commands. Defaults to 1.0.&quot;&quot;&quot;</span></div>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Scale factor for the damping ratio commands. Defaults to 1.0.&quot;&quot;&quot;</span>
+
+    <span class="n">nullspace_joint_pos_target</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;none&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The joint targets for the null-space control: ``&quot;none&quot;``, ``&quot;zero&quot;``, ``&quot;default&quot;``, ``&quot;center&quot;``.</span>
+
+<span class="sd">    Note: Functional only when ``nullspace_control`` is set to ``&quot;position&quot;`` within the</span>
+<span class="sd">        ``OperationalSpaceControllerCfg``.</span>
+<span class="sd">    &quot;&quot;&quot;</span></div>
 </pre></div>
 
                 </article>
@@ -866,7 +873,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Dec 17, 2024.
+  Last updated on Dec 18, 2024.
   <br/>
 </p>
   </div>
