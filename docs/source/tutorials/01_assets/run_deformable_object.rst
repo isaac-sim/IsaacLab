@@ -149,7 +149,7 @@ the average position of all the nodes in the mesh.
 .. literalinclude:: ../../../../source/standalone/tutorials/01_assets/run_deformable_object.py
    :language: python
    :start-at: # update buffers
-   :end-at: print(f"Root position (in world): {cube_object.data.root_pos_w[:, :3]}")
+   :end-at: print(f"Root position (in world): {cube_object.data.root_link_pos_w[:, :3]}")
 
 
 The Code Execution

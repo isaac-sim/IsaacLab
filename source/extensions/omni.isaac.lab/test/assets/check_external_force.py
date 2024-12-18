@@ -99,7 +99,8 @@ def main():
             root_state = robot.data.default_root_state.clone()
             root_state[0, :2] = torch.tensor([0.0, -0.5], device=sim.device)
             root_state[1, :2] = torch.tensor([0.0, 0.5], device=sim.device)
-            robot.write_root_state_to_sim(root_state)
+            robot.write_root_link_pose_to_sim(root_state[:, :7])
+            robot.write_root_com_velocity_to_sim(root_state[:, 7:])
             # reset dof state
             joint_pos, joint_vel = robot.data.default_joint_pos, robot.data.default_joint_vel
             robot.write_joint_state_to_sim(joint_pos, joint_vel)

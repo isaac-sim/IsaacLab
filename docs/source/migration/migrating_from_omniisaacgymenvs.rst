@@ -364,8 +364,8 @@ In Isaac Lab, ``root_pose`` and ``root_velocity`` have been combined into single
 
 .. code-block::python
 
-    self.cartpole.write_root_pose_to_sim(default_root_state[:, :7], env_ids)
-    self.cartpole.write_root_velocity_to_sim(default_root_state[:, 7:], env_ids)
+    self.cartpole.write_root_link_pose_to_sim(default_root_state[:, :7], env_ids)
+    self.cartpole.write_root_com_velocity_to_sim(default_root_state[:, 7:], env_ids)
 
 
 Creating a New Environment
@@ -738,9 +738,9 @@ reset the ``episode_length_buf`` buffer.
 |       1.0 - 2.0 * torch.rand(num_resets, device=self._device))   |     self.joint_pos[env_ids] = joint_pos                                  |
 |                                                                  |     self.joint_vel[env_ids] = joint_vel                                  |
 |   # apply resets                                                 |                                                                          |
-|   indices = env_ids.to(dtype=torch.int32)                        |     self.cartpole.write_root_pose_to_sim(                                |
+|   indices = env_ids.to(dtype=torch.int32)                        |     self.cartpole.write_root_link_pose_to_sim(                           |
 |   self._cartpoles.set_joint_positions(dof_pos, indices=indices)  |         default_root_state[:, :7], env_ids)                              |
-|   self._cartpoles.set_joint_velocities(dof_vel, indices=indices) |     self.cartpole.write_root_velocity_to_sim(                            |
+|   self._cartpoles.set_joint_velocities(dof_vel, indices=indices) |     self.cartpole.write_root_com_velocity_to_sim(                        |
 |                                                                  |         default_root_state[:, 7:], env_ids)                              |
 |   # bookkeeping                                                  |     self.cartpole.write_joint_state_to_sim(                              |
 |   self.reset_buf[env_ids] = 0                                    |         joint_pos, joint_vel, None, env_ids)                             |

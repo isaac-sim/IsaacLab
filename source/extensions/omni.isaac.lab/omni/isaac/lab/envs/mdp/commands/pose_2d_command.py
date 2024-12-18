@@ -81,7 +81,9 @@ class UniformPose2dCommand(CommandTerm):
 
     def _update_metrics(self):
         # logs data
-        self.metrics["error_pos_2d"] = torch.norm(self.pos_command_w[:, :2] - self.robot.data.root_pos_w[:, :2], dim=1)
+        self.metrics["error_pos_2d"] = torch.norm(
+            self.pos_command_w[:, :2] - self.robot.data.root_link_pos_w[:, :2], dim=1
+        )
         self.metrics["error_heading"] = torch.abs(wrap_to_pi(self.heading_command_w - self.robot.data.heading_w))
 
     def _resample_command(self, env_ids: Sequence[int]):
@@ -95,7 +97,7 @@ class UniformPose2dCommand(CommandTerm):
 
         if self.cfg.simple_heading:
             # set heading command to point towards target
-            target_vec = self.pos_command_w[env_ids] - self.robot.data.root_pos_w[env_ids]
+            target_vec = self.pos_command_w[env_ids] - self.robot.data.root_link_pos_w[env_ids]
             target_direction = torch.atan2(target_vec[:, 1], target_vec[:, 0])
             flipped_target_direction = wrap_to_pi(target_direction + torch.pi)
 
@@ -116,8 +118,8 @@ class UniformPose2dCommand(CommandTerm):
 
     def _update_command(self):
         """Re-target the position command to the current root state."""
-        target_vec = self.pos_command_w - self.robot.data.root_pos_w[:, :3]
-        self.pos_command_b[:] = quat_rotate_inverse(yaw_quat(self.robot.data.root_quat_w), target_vec)
+        target_vec = self.pos_command_w - self.robot.data.root_link_pos_w[:, :3]
+        self.pos_command_b[:] = quat_rotate_inverse(yaw_quat(self.robot.data.root_link_quat_w), target_vec)
         self.heading_command_b[:] = wrap_to_pi(self.heading_command_w - self.robot.data.heading_w)
 
     def _set_debug_vis_impl(self, debug_vis: bool):
@@ -182,7 +184,7 @@ class TerrainBasedPose2dCommand(UniformPose2dCommand):
 
         if self.cfg.simple_heading:
             # set heading command to point towards target
-            target_vec = self.pos_command_w[env_ids] - self.robot.data.root_pos_w[env_ids]
+            target_vec = self.pos_command_w[env_ids] - self.robot.data.root_link_pos_w[env_ids]
             target_direction = torch.atan2(target_vec[:, 1], target_vec[:, 0])
             flipped_target_direction = wrap_to_pi(target_direction + torch.pi)
 

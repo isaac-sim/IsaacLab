@@ -80,6 +80,11 @@ class PickSmWaitTime:
     OPEN_GRIPPER = wp.constant(0.0)
 
 
+@wp.func
+def distance_below_threshold(current_pos: wp.vec3, desired_pos: wp.vec3, threshold: float) -> bool:
+    return wp.length(current_pos - desired_pos) < threshold
+
+
 @wp.kernel
 def infer_state_machine(
     dt: wp.array(dtype=float),
@@ -91,6 +96,7 @@ def infer_state_machine(
     des_ee_pose: wp.array(dtype=wp.transform),
     gripper_state: wp.array(dtype=float),
     offset: wp.array(dtype=wp.transform),
+    position_threshold: float,
 ):
     # retrieve thread id
     tid = wp.tid()
@@ -108,21 +114,29 @@ def infer_state_machine(
     elif state == PickSmState.APPROACH_ABOVE_OBJECT:
         des_ee_pose[tid] = wp.transform_multiply(offset[tid], object_pose[tid])
         gripper_state[tid] = GripperState.OPEN
-        # TODO: error between current and desired ee pose below threshold
-        # wait for a while
-        if sm_wait_time[tid] >= PickSmWaitTime.APPROACH_OBJECT:
-            # move to next state and reset wait time
-            sm_state[tid] = PickSmState.APPROACH_OBJECT
-            sm_wait_time[tid] = 0.0
+        if distance_below_threshold(
+            wp.transform_get_translation(ee_pose[tid]),
+            wp.transform_get_translation(des_ee_pose[tid]),
+            position_threshold,
+        ):
+            # wait for a while
+            if sm_wait_time[tid] >= PickSmWaitTime.APPROACH_OBJECT:
+                # move to next state and reset wait time
+                sm_state[tid] = PickSmState.APPROACH_OBJECT
+                sm_wait_time[tid] = 0.0
     elif state == PickSmState.APPROACH_OBJECT:
         des_ee_pose[tid] = object_pose[tid]
         gripper_state[tid] = GripperState.OPEN
-        # TODO: error between current and desired ee pose below threshold
-        # wait for a while
-        if sm_wait_time[tid] >= PickSmWaitTime.APPROACH_OBJECT:
-            # move to next state and reset wait time
-            sm_state[tid] = PickSmState.GRASP_OBJECT
-            sm_wait_time[tid] = 0.0
+        if distance_below_threshold(
+            wp.transform_get_translation(ee_pose[tid]),
+            wp.transform_get_translation(des_ee_pose[tid]),
+            position_threshold,
+        ):
+            # wait for a while
+            if sm_wait_time[tid] >= PickSmWaitTime.APPROACH_OBJECT:
+                # move to next state and reset wait time
+                sm_state[tid] = PickSmState.GRASP_OBJECT
+                sm_wait_time[tid] = 0.0
     elif state == PickSmState.GRASP_OBJECT:
         des_ee_pose[tid] = object_pose[tid]
         gripper_state[tid] = GripperState.CLOSE
@@ -134,12 +148,16 @@ def infer_state_machine(
     elif state == PickSmState.LIFT_OBJECT:
         des_ee_pose[tid] = des_object_pose[tid]
         gripper_state[tid] = GripperState.CLOSE
-        # TODO: error between current and desired ee pose below threshold
-        # wait for a while
-        if sm_wait_time[tid] >= PickSmWaitTime.LIFT_OBJECT:
-            # move to next state and reset wait time
-            sm_state[tid] = PickSmState.OPEN_GRIPPER
-            sm_wait_time[tid] = 0.0
+        if distance_below_threshold(
+            wp.transform_get_translation(ee_pose[tid]),
+            wp.transform_get_translation(des_ee_pose[tid]),
+            position_threshold,
+        ):
+            # wait for a while
+            if sm_wait_time[tid] >= PickSmWaitTime.LIFT_OBJECT:
+                # move to next state and reset wait time
+                sm_state[tid] = PickSmState.OPEN_GRIPPER
+                sm_wait_time[tid] = 0.0
     elif state == PickSmState.OPEN_GRIPPER:
         # des_ee_pose[tid] = object_pose[tid]
         gripper_state[tid] = GripperState.OPEN
@@ -167,7 +185,7 @@ class PickAndLiftSm:
     5. LIFT_OBJECT: The robot lifts the object to the desired pose. This is the final state.
     """
 
-    def __init__(self, dt: float, num_envs: int, device: torch.device | str = "cpu"):
+    def __init__(self, dt: float, num_envs: int, device: torch.device | str = "cpu", position_threshold=0.01):
         """Initialize the state machine.
 
         Args:
@@ -179,6 +197,7 @@ class PickAndLiftSm:
         self.dt = float(dt)
         self.num_envs = num_envs
         self.device = device
+        self.position_threshold = position_threshold
         # initialize state machine
         self.sm_dt = torch.full((self.num_envs,), self.dt, device=self.device)
         self.sm_state = torch.full((self.num_envs,), 0, dtype=torch.int32, device=self.device)
@@ -234,6 +253,7 @@ class PickAndLiftSm:
                 self.des_ee_pose_wp,
                 self.des_gripper_state_wp,
                 self.offset_wp,
+                self.position_threshold,
             ],
             device=self.device,
         )

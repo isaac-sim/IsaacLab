@@ -27,7 +27,7 @@ def cube_positions_in_world_frame(
     cube_2: RigidObject = env.scene[cube_2_cfg.name]
     cube_3: RigidObject = env.scene[cube_3_cfg.name]
 
-    return torch.cat((cube_1.data.root_pos_w, cube_2.data.root_pos_w, cube_3.data.root_pos_w), dim=1)
+    return torch.cat((cube_1.data.root_link_pos_w, cube_2.data.root_link_pos_w, cube_3.data.root_link_pos_w), dim=1)
 
 
 def instance_randomize_cube_positions_in_world_frame(
@@ -69,7 +69,7 @@ def cube_orientations_in_world_frame(
     cube_2: RigidObject = env.scene[cube_2_cfg.name]
     cube_3: RigidObject = env.scene[cube_3_cfg.name]
 
-    return torch.cat((cube_1.data.root_quat_w, cube_2.data.root_quat_w, cube_3.data.root_quat_w), dim=1)
+    return torch.cat((cube_1.data.root_link_quat_w, cube_2.data.root_link_quat_w, cube_3.data.root_link_quat_w), dim=1)
 
 
 def instance_randomize_cube_orientations_in_world_frame(
@@ -127,14 +127,14 @@ def object_obs(
     cube_3: RigidObject = env.scene[cube_3_cfg.name]
     ee_frame: FrameTransformer = env.scene[ee_frame_cfg.name]
 
-    cube_1_pos_w = cube_1.data.root_pos_w
-    cube_1_quat_w = cube_1.data.root_quat_w
+    cube_1_pos_w = cube_1.data.root_link_pos_w
+    cube_1_quat_w = cube_1.data.root_link_quat_w
 
-    cube_2_pos_w = cube_2.data.root_pos_w
-    cube_2_quat_w = cube_2.data.root_quat_w
+    cube_2_pos_w = cube_2.data.root_link_pos_w
+    cube_2_quat_w = cube_2.data.root_link_quat_w
 
-    cube_3_pos_w = cube_3.data.root_pos_w
-    cube_3_quat_w = cube_3.data.root_quat_w
+    cube_3_pos_w = cube_3.data.root_link_pos_w
+    cube_3_quat_w = cube_3.data.root_link_quat_w
 
     ee_pos_w = ee_frame.data.target_pos_w[:, 0, :]
     gripper_to_cube_1 = cube_1_pos_w - ee_pos_w
@@ -279,7 +279,7 @@ def object_grasped(
     ee_frame: FrameTransformer = env.scene[ee_frame_cfg.name]
     object: RigidObject = env.scene[object_cfg.name]
 
-    object_pos = object.data.root_pos_w
+    object_pos = object.data.root_link_pos_w
     end_effector_pos = ee_frame.data.target_pos_w[:, 0, :]
     pose_diff = torch.linalg.vector_norm(object_pos - end_effector_pos, dim=1)
 
@@ -310,7 +310,7 @@ def object_stacked(
     upper_object: RigidObject = env.scene[upper_object_cfg.name]
     lower_object: RigidObject = env.scene[lower_object_cfg.name]
 
-    pos_diff = upper_object.data.root_pos_w - lower_object.data.root_pos_w
+    pos_diff = upper_object.data.root_link_pos_w - lower_object.data.root_link_pos_w
     height_dist = torch.linalg.vector_norm(pos_diff[:, 2:], dim=1)
     xy_dist = torch.linalg.vector_norm(pos_diff[:, :2], dim=1)
 
