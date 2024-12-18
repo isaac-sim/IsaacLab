@@ -360,6 +360,107 @@ class TestCamera(unittest.TestCase):
         torch.testing.assert_close(camera.data.pos_w, eyes)
         torch.testing.assert_close(camera.data.quat_w_ros, quat_ros_gt)
 
+    def test_camera_get_world_poses(self):
+        """Test camera function to get world pose."""
+        camera = Camera(self.camera_cfg)
+        # play sim
+        self.sim.reset()
+
+        # convert to torch tensors
+        position = torch.tensor([POSITION], dtype=torch.float32, device=camera.device)
+        orientation = torch.tensor([QUAT_OPENGL], dtype=torch.float32, device=camera.device)
+        # set new pose
+        camera.set_world_poses(position.clone(), orientation.clone(), convention="opengl")
+
+        # Simulate for a few steps
+        # note: This is a workaround to ensure that the textures are loaded.
+        #   Check "Known Issues" section in the documentation for more details.
+        for _ in range(5):
+            self.sim.step()
+
+        pos_w = camera.get_world_poses()[0]
+        quat_w_world = camera.get_world_poses()[1]
+
+        # check if transform correctly set in output
+        torch.testing.assert_close(pos_w, position)
+        torch.testing.assert_close(quat_w_world, orientation)
+
+    def test_camera_set_local_poses(self):
+        """Test camera function to set specific local pose."""
+        camera = Camera(self.camera_cfg)
+        # play sim
+        self.sim.reset()
+
+        # convert to torch tensors
+        position = torch.tensor([POSITION], dtype=torch.float32, device=camera.device)
+        orientation = torch.tensor([QUAT_WORLD], dtype=torch.float32, device=camera.device)
+        # set new local pose
+        camera.set_local_poses(position.clone(), orientation.clone(), convention="opengl")
+
+        # Simulate for a few steps
+        # note: This is a workaround to ensure that the textures are loaded.
+        #   Check "Known Issues" section in the documentation for more details.
+        for _ in range(5):
+            self.sim.step()
+
+        # get local poses
+        local_pos, local_quat = camera._view.get_local_poses(indices=camera._ALL_INDICES)
+
+        # check if transform correctly set in output
+        torch.testing.assert_close(local_pos, position)
+        torch.testing.assert_close(local_quat, orientation)
+
+    def test_camera_set_local_poses_from_view(self):
+        """Test camera function to set specific local pose from view."""
+        camera = Camera(self.camera_cfg)
+        # play sim
+        self.sim.reset()
+
+        # convert to torch tensors
+        eyes = torch.tensor([POSITION], dtype=torch.float32, device=camera.device)
+        targets = torch.tensor([[0.0, 0.0, 0.0]], dtype=torch.float32, device=camera.device)
+        quat_ros_gt = torch.tensor([QUAT_OPENGL], dtype=torch.float32, device=camera.device)
+        # set new pose
+        camera.set_local_poses_from_view(eyes.clone(), targets.clone())
+
+        # Simulate for a few steps
+        # note: This is a workaround to ensure that the textures are loaded.
+        #   Check "Known Issues" section in the documentation for more details.
+        for _ in range(5):
+            self.sim.step()
+
+        # get local poses
+        local_pos, local_quat = camera._view.get_local_poses(indices=camera._ALL_INDICES)
+
+        # check if transform correctly set in output
+        torch.testing.assert_close(local_pos, eyes)
+        torch.testing.assert_close(local_quat, quat_ros_gt)
+
+    def test_camera_get_local_poses(self):
+        """Test camera function to get local pose."""
+        camera = Camera(self.camera_cfg)
+        # play sim
+        self.sim.reset()
+
+        # convert to torch tensors
+        position = torch.tensor([POSITION], dtype=torch.float32, device=camera.device)
+        orientation = torch.tensor([QUAT_OPENGL], dtype=torch.float32, device=camera.device)
+        # set new pose
+        camera.set_local_poses(position.clone(), orientation.clone(), convention="opengl")
+
+        # Simulate for a few steps
+        # note: This is a workaround to ensure that the textures are loaded.
+        #   Check "Known Issues" section in the documentation for more details.
+        for _ in range(5):
+            self.sim.step()
+
+        pos_local = camera.get_local_poses()[0]
+        quat_local = camera.get_local_poses()[1]
+
+        # check if transform correctly set in output
+        torch.testing.assert_close(pos_local, position)
+        torch.testing.assert_close(quat_local, orientation)
+
     def test_intrinsic_matrix(self):
         """Checks that the camera's set and retrieve methods work for intrinsic matrix."""
         camera_cfg = copy.deepcopy(self.camera_cfg)
