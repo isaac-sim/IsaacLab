@@ -138,3 +138,36 @@ learning from demonstrations (LfD). For this, we provide scripts to collect data
    .. code:: bash
 
       ./isaaclab.sh -p source/standalone/workflows/robomimic/play.py --task Isaac-Stack-Cube-Franka-IK-Rel-v0 --checkpoint /PATH/TO/desired_model_checkpoint.pth
+
+Creating Your Own Isaac Lab Mimic Compatible Environments
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In order to use Isaac Lab Mimic to generate additional demonstrations automatically with an existing Isaac Lab environment, the environment
+needs to be made "Mimic compatible" by implementing additional functions which are used during data generation.
+
+Mimic compatible environments are derived from the ``ManagerBasedRLMimicEnv`` base class and must implement the following functions:
+
+* ``get_robot_eef_pose``: Returns the current robot end effector pose in the same frame as used by the robot end effector controller.
+
+* ``target_eef_pose_to_action``: Takes a target pose for the end effector controller and returns an action which achieves the target pose.
+
+* ``action_to_target_eef_pos``: Takes an action and returns a target pose for the end effector controller.
+
+* ``action_to_gripper_action``: Takes an action and returns the gripper actuation part of the action.
+
+* ``get_object_poses``: Returns the pose of each object in the scene that is used for data generation.
+
+* ``get_subtask_term_signals``: Returns a dictionary of binary flags for each subtask in a task. The flag of 1 is set when the subtask has been completed and 0 otherwise.
+
+* ``is_success``: Returns a boolean indicator of whether the task has been successfully completed.
+
+The class ``FrankaCubeStackIKRelMimicEnv`` shows an example of creating a Mimic compatible environment from an existing Isaac Lab environment.
+It can be found under ``source/extensions/omni.isaac.lab_mimic/omni/isaac/lab_mimic/envs``.
+
+A Mimic compatible environment config class must also be created by extending the existing environment config with additional Mimic required parameters.
+All Mimic required config parameters are specified in the ``MimicEnvCfg`` class found under ``source/extensions/omni.isaac.lab/omni/isaac/lab/envs``.
+The config class ``FrankaCubeStackIKRelMimicEnvCfg`` shows an example of creating a Mimic compatible environment config class for the Franka stacking task
+and can be found under ``source/extensions/omni.isaac.lab_mimic/omni/isaac/lab_mimic/envs``.
+
+Once both Mimic compatible environment and environment config classes have been created, a new Mimic compatible environment can be registered using ``gym.register`` and used
+with Isaac Lab Mimic data generation. For the Franka stacking task in the examples above, the Mimic environment is registered as ``Isaac-Stack-Cube-Franka-IK-Rel-Mimic-v0``.
