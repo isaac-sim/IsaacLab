@@ -59,7 +59,9 @@ import time
 import torch
 
 from omni.isaac.lab.devices import Se3HandTracking, Se3Keyboard, Se3SpaceMouse
+from omni.isaac.lab.envs import ViewerCfg
 from omni.isaac.lab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
+from omni.isaac.lab.envs.ui import ViewportCameraController
 
 import omni.isaac.lab_tasks  # noqa: F401
 from omni.isaac.lab_tasks.utils.parse_cfg import parse_env_cfg
@@ -155,6 +157,8 @@ def main():
 
         teleop_interface = Se3HandTracking(OpenXRSpec.XrHandEXT.XR_HAND_RIGHT_EXT, False, True)
         teleop_interface.add_callback("RESET", reset_recording_instance)
+        viewer = ViewerCfg(eye=(-0.25, -0.3, 0.5), lookat=(0.6, 0, 0), asset_name="viewer")
+        ViewportCameraController(env, viewer)
     else:
         raise ValueError(
             f"Invalid device interface '{args_cli.teleop_device}'. Supported: 'keyboard', 'spacemouse', 'handtracking'."

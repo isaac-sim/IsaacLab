@@ -26,14 +26,11 @@ AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
 args_cli = parser.parse_args()
 
-app_launcher_args = {}
+app_launcher_args = vars(args_cli)
 if args_cli.teleop_device.lower() == "handtracking":
-    app_launcher_args = {
-        "experience": f'{os.environ["ISAACLAB_PATH"]}/source/apps/isaaclab.python.xr.openxr.kit',
-    }
-
+    app_launcher_args["experience"] = f'{os.environ["ISAACLAB_PATH"]}/source/apps/isaaclab.python.xr.openxr.kit'
 # launch omniverse app
-app_launcher = AppLauncher(app_launcher_args, headless=args_cli.headless)
+app_launcher = AppLauncher(app_launcher_args)
 simulation_app = app_launcher.app
 
 """Rest everything follows."""
@@ -45,6 +42,8 @@ import torch
 import omni.log
 
 from omni.isaac.lab.devices import Se3Gamepad, Se3HandTracking, Se3Keyboard, Se3SpaceMouse
+from omni.isaac.lab.envs import ViewerCfg
+from omni.isaac.lab.envs.ui import ViewportCameraController
 from omni.isaac.lab.managers import TerminationTermCfg as DoneTerm
 
 import omni.isaac.lab_tasks  # noqa: F401
@@ -106,6 +105,8 @@ def main():
 
         teleop_interface = Se3HandTracking(OpenXRSpec.XrHandEXT.XR_HAND_RIGHT_EXT, False)
         teleop_interface.add_callback("RESET", env.reset)
+        viewer = ViewerCfg(eye=(-0.25, -0.3, 0.5), lookat=(0.6, 0, 0), asset_name="viewer")
+        ViewportCameraController(env, viewer)
     else:
         raise ValueError(f"Invalid device interface '{args_cli.teleop_device}'. Supported: 'keyboard', 'spacemouse'.")
 
