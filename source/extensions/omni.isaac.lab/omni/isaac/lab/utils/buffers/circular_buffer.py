@@ -75,6 +75,16 @@ class CircularBuffer:
         """
         return torch.minimum(self._num_pushes, self._max_len)
 
+    @property
+    def buffer(self) -> torch.Tensor:
+        """Complete circular buffer with most recent entry at the end and oldest entry at the beginning.
+        Returns:
+            Complete circular buffer with most recent entry at the end and oldest entry at the beginning of dimension 1. The shape is [batch_size, max_length, data.shape[1:]].
+        """
+        buf = self._buffer.clone()
+        buf = torch.roll(buf, shifts=self.max_length - self._pointer - 1, dims=0)
+        return torch.transpose(buf, dim0=0, dim1=1)
+
     """
     Operations.
     """
@@ -89,8 +99,10 @@ class CircularBuffer:
         if batch_ids is None:
             batch_ids = slice(None)
         # reset the number of pushes for the specified batch indices
-        # note: we don't need to reset the buffer since it will be overwritten. The pointer handles this.
         self._num_pushes[batch_ids] = 0
+        if self._buffer is not None:
+            # set buffer at batch_id reset indices to 0.0 so that the buffer() getter returns the cleared circular buffer after reset.
+            self._buffer[:, batch_ids, :] = 0.0
 
     def append(self, data: torch.Tensor):
         """Append the data to the circular buffer.
@@ -106,7 +118,7 @@ class CircularBuffer:
         if data.shape[0] != self.batch_size:
             raise ValueError(f"The input data has {data.shape[0]} environments while expecting {self.batch_size}")
 
-        # at the fist call, initialize the buffer
+        # at the first call, initialize the buffer size
         if self._buffer is None:
             self._pointer = -1
             self._buffer = torch.empty((self.max_length, *data.shape), dtype=data.dtype, device=self._device)
@@ -114,7 +126,12 @@ class CircularBuffer:
         self._pointer = (self._pointer + 1) % self.max_length
         # add the new data to the last layer
         self._buffer[self._pointer] = data.to(self._device)
-        # increment number of number of pushes
+        # Check for batches with zero pushes and initialize all values in batch to first append
+        if 0 in self._num_pushes.tolist():
+            fill_ids = [i for i, x in enumerate(self._num_pushes.tolist()) if x == 0]
+            self._num_pushes.tolist().index(0) if 0 in self._num_pushes.tolist() else None
+            self._buffer[:, fill_ids, :] = data.to(self._device)[fill_ids]
+        # increment number of number of pushes for all batches
         self._num_pushes += 1
 
     def __getitem__(self, key: torch.Tensor) -> torch.Tensor:

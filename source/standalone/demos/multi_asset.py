@@ -240,16 +240,19 @@ def run_simulator(sim: SimulationContext, scene: InteractiveScene):
             # object
             root_state = rigid_object.data.default_root_state.clone()
             root_state[:, :3] += scene.env_origins
-            rigid_object.write_root_state_to_sim(root_state)
+            rigid_object.write_root_link_pose_to_sim(root_state[:, :7])
+            rigid_object.write_root_com_velocity_to_sim(root_state[:, 7:])
             # object collection
             object_state = rigid_object_collection.data.default_object_state.clone()
             object_state[..., :3] += scene.env_origins.unsqueeze(1)
-            rigid_object_collection.write_object_state_to_sim(object_state)
+            rigid_object_collection.write_object_link_pose_to_sim(object_state[..., :7])
+            rigid_object_collection.write_object_com_velocity_to_sim(object_state[..., 7:])
             # robot
             # -- root state
             root_state = robot.data.default_root_state.clone()
             root_state[:, :3] += scene.env_origins
-            robot.write_root_state_to_sim(root_state)
+            robot.write_root_link_pose_to_sim(root_state[:, :7])
+            robot.write_root_com_velocity_to_sim(root_state[:, 7:])
             # -- joint state
             joint_pos, joint_vel = robot.data.default_joint_pos.clone(), robot.data.default_joint_vel.clone()
             robot.write_joint_state_to_sim(joint_pos, joint_vel)

@@ -31,7 +31,7 @@ import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.assets import RigidObjectCfg, RigidObjectCollection, RigidObjectCollectionCfg
 from omni.isaac.lab.sim import build_simulation_context
 from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
-from omni.isaac.lab.utils.math import default_orientation, random_orientation
+from omni.isaac.lab.utils.math import default_orientation, quat_mul, quat_rotate_inverse, random_orientation
 
 
 def generate_cubes_scene(
@@ -120,8 +120,8 @@ class TestRigidObjectCollection(unittest.TestCase):
                             self.assertEqual(len(object_collection.object_names), num_cubes)
 
                             # Check buffers that exists and have correct shapes
-                            self.assertEqual(object_collection.data.object_pos_w.shape, (num_envs, num_cubes, 3))
-                            self.assertEqual(object_collection.data.object_quat_w.shape, (num_envs, num_cubes, 4))
+                            self.assertEqual(object_collection.data.object_link_pos_w.shape, (num_envs, num_cubes, 3))
+                            self.assertEqual(object_collection.data.object_link_quat_w.shape, (num_envs, num_cubes, 4))
                             self.assertEqual(object_collection.data.default_mass.shape, (num_envs, num_cubes, 1))
                             self.assertEqual(object_collection.data.default_inertia.shape, (num_envs, num_cubes, 9))
 
@@ -190,8 +190,8 @@ class TestRigidObjectCollection(unittest.TestCase):
                             self.assertEqual(len(object_collection.object_names), num_cubes)
 
                             # Check buffers that exists and have correct shapes
-                            self.assertEqual(object_collection.data.object_pos_w.shape, (num_envs, num_cubes, 3))
-                            self.assertEqual(object_collection.data.object_quat_w.shape, (num_envs, num_cubes, 4))
+                            self.assertEqual(object_collection.data.object_link_pos_w.shape, (num_envs, num_cubes, 3))
+                            self.assertEqual(object_collection.data.object_link_quat_w.shape, (num_envs, num_cubes, 4))
 
                             # Simulate physics
                             for _ in range(2):
@@ -202,7 +202,9 @@ class TestRigidObjectCollection(unittest.TestCase):
                                 # check that the object is kinematic
                                 default_object_state = object_collection.data.default_object_state.clone()
                                 default_object_state[..., :3] += origins.unsqueeze(1)
-                                torch.testing.assert_close(object_collection.data.object_state_w, default_object_state)
+                                torch.testing.assert_close(
+                                    object_collection.data.object_link_state_w, default_object_state
+                                )
 
     def test_initialization_with_no_rigid_body(self):
         """Test that initialization fails when no rigid body is found at the provided prim path."""
@@ -283,11 +285,11 @@ class TestRigidObjectCollection(unittest.TestCase):
 
                                 # First object should still be at the same Z position (1.0)
                                 torch.testing.assert_close(
-                                    object_collection.data.object_pos_w[:, 0::2, 2],
+                                    object_collection.data.object_link_pos_w[:, 0::2, 2],
                                     torch.ones_like(object_collection.data.object_pos_w[:, 0::2, 2]),
                                 )
                                 # Second object should have fallen, so it's Z height should be less than initial height of 1.0
-                                self.assertTrue(torch.all(object_collection.data.object_pos_w[:, 1::2, 2] < 1.0))
+                                self.assertTrue(torch.all(object_collection.data.object_link_pos_w[:, 1::2, 2] < 1.0))
 
     def test_set_object_state(self):
         """Test setting the state of the object.
@@ -374,6 +376,193 @@ class TestRigidObjectCollection(unittest.TestCase):
                                             torch.testing.assert_close(value, expected_value, rtol=1e-5, atol=1e-5)
 
                                         object_collection.update(sim.cfg.dt)
+
+    def test_object_state_properties(self):
+        """Test the object_com_state_w and object_link_state_w properties."""
+        for num_envs in (1, 4):
+            for num_cubes in (1, 2):
+                for device in ("cuda:0", "cpu"):
+                    for with_offset in [True, False]:
+                        with self.subTest(
+                            num_envs=num_envs, num_cubes=num_cubes, device=device, with_offset=with_offset
+                        ):
+                            with build_simulation_context(
+                                device=device, gravity_enabled=False, auto_add_lighting=True
+                            ) as sim:
+                                # Create a scene with random cubes
+                                cube_object, env_pos = generate_cubes_scene(
+                                    num_envs=num_envs, num_cubes=num_cubes, height=0.0, device=device
+                                )
+                                view_ids = torch.tensor([x for x in range(num_cubes * num_envs)])
+
+                                # Play sim
+                                sim.reset()
+
+                                # Check if cube_object is initialized
+                                self.assertTrue(cube_object.is_initialized)
+
+                                # change center of mass offset from link frame
+                                if with_offset:
+                                    offset = torch.tensor([0.1, 0.0, 0.0], device=device).repeat(num_envs, num_cubes, 1)
+                                else:
+                                    offset = torch.tensor([0.0, 0.0, 0.0], device=device).repeat(num_envs, num_cubes, 1)
+
+                                com = cube_object.reshape_view_to_data(cube_object.root_physx_view.get_coms())
+                                com[..., :3] = offset.to("cpu")
+                                cube_object.root_physx_view.set_coms(
+                                    cube_object.reshape_data_to_view(com.clone()), view_ids
+                                )
+
+                                # check center of mass has been set
+                                torch.testing.assert_close(
+                                    cube_object.reshape_view_to_data(cube_object.root_physx_view.get_coms()), com
+                                )
+
+                                # random z spin velocity
+                                spin_twist = torch.zeros(6, device=device)
+                                spin_twist[5] = torch.randn(1, device=device)
+
+                                # initial spawn point
+                                init_com = cube_object.data.object_com_state_w[..., :3]
+
+                                # Simulate physics
+                                for i in range(10):
+                                    # spin the object around Z axis (com)
+                                    cube_object.write_object_com_velocity_to_sim(
+                                        spin_twist.repeat(num_envs, num_cubes, 1)
+                                    )
+                                    # perform rendering
+                                    sim.step()
+                                    # update object
+                                    cube_object.update(sim.cfg.dt)
+
+                                    # get state properties
+                                    object_state_w = cube_object.data.object_state_w
+                                    object_link_state_w = cube_object.data.object_link_state_w
+                                    object_com_state_w = cube_object.data.object_com_state_w
+
+                                    # if offset is [0,0,0] all object_state_%_w will match and all body_%_w will match
+                                    if not with_offset:
+                                        torch.testing.assert_close(object_state_w, object_com_state_w)
+                                        torch.testing.assert_close(object_state_w, object_link_state_w)
+                                    else:
+                                        # cubes are spinning around center of mass
+                                        # position will not match
+                                        # center of mass position will be constant (i.e. spinning around com)
+                                        torch.testing.assert_close(init_com, object_com_state_w[..., :3])
+
+                                        # link position will be moving but should stay constant away from center of mass
+                                        object_link_state_pos_rel_com = quat_rotate_inverse(
+                                            object_link_state_w[..., 3:7],
+                                            object_link_state_w[..., :3] - object_com_state_w[..., :3],
+                                        )
+
+                                        torch.testing.assert_close(-offset, object_link_state_pos_rel_com)
+
+                                        # orientation of com will be a constant rotation from link orientation
+                                        com_quat_b = cube_object.data.com_quat_b
+                                        com_quat_w = quat_mul(object_link_state_w[..., 3:7], com_quat_b)
+                                        torch.testing.assert_close(com_quat_w, object_com_state_w[..., 3:7])
+
+                                        # orientation of link will match object state will always match
+                                        torch.testing.assert_close(
+                                            object_state_w[..., 3:7], object_link_state_w[..., 3:7]
+                                        )
+
+                                        # lin_vel will not match
+                                        # center of mass vel will be constant (i.e. spining around com)
+                                        torch.testing.assert_close(
+                                            torch.zeros_like(object_com_state_w[..., 7:10]),
+                                            object_com_state_w[..., 7:10],
+                                        )
+
+                                        # link frame will be moving, and should be equal to input angular velocity cross offset
+                                        lin_vel_rel_object_gt = quat_rotate_inverse(
+                                            object_link_state_w[..., 3:7], object_link_state_w[..., 7:10]
+                                        )
+                                        lin_vel_rel_gt = torch.linalg.cross(
+                                            spin_twist.repeat(num_envs, num_cubes, 1)[..., 3:], -offset
+                                        )
+                                        torch.testing.assert_close(
+                                            lin_vel_rel_gt, lin_vel_rel_object_gt, atol=1e-4, rtol=1e-3
+                                        )
+
+                                        # ang_vel will always match
+                                        torch.testing.assert_close(
+                                            object_state_w[..., 10:], object_com_state_w[..., 10:]
+                                        )
+                                        torch.testing.assert_close(
+                                            object_state_w[..., 10:], object_link_state_w[..., 10:]
+                                        )
+
+    def test_write_object_state(self):
+        """Test the setters for object_state using both the link frame and center of mass as reference frame."""
+        for num_envs in (1, 3):
+            for num_cubes in (1, 2):
+                for device in ("cuda:0", "cpu"):
+                    for with_offset in [True, False]:
+                        for state_location in ("com", "link"):
+                            with self.subTest(
+                                num_envs=num_envs, num_cubes=num_cubes, device=device, with_offset=with_offset
+                            ):
+                                with build_simulation_context(
+                                    device=device, gravity_enabled=False, auto_add_lighting=True
+                                ) as sim:
+                                    # Create a scene with random cubes
+                                    cube_object, env_pos = generate_cubes_scene(
+                                        num_envs=num_envs, num_cubes=num_cubes, height=0.0, device=device
+                                    )
+                                    view_ids = torch.tensor([x for x in range(num_cubes * num_cubes)])
+
+                                    # Play sim
+                                    sim.reset()
+
+                                    # Check if cube_object is initialized
+                                    self.assertTrue(cube_object.is_initialized)
+
+                                    # change center of mass offset from link frame
+                                    if with_offset:
+                                        offset = torch.tensor([0.1, 0.0, 0.0], device=device).repeat(
+                                            num_envs, num_cubes, 1
+                                        )
+                                    else:
+                                        offset = torch.tensor([0.0, 0.0, 0.0], device=device).repeat(
+                                            num_envs, num_cubes, 1
+                                        )
+
+                                    com = cube_object.reshape_view_to_data(cube_object.root_physx_view.get_coms())
+                                    com[..., :3] = offset.to("cpu")
+                                    cube_object.root_physx_view.set_coms(
+                                        cube_object.reshape_data_to_view(com.clone()), view_ids
+                                    )
+
+                                    # check center of mass has been set
+                                    torch.testing.assert_close(
+                                        cube_object.reshape_view_to_data(cube_object.root_physx_view.get_coms()), com
+                                    )
+
+                                    rand_state = torch.zeros_like(cube_object.data.object_link_state_w)
+                                    rand_state[..., :7] = cube_object.data.default_object_state[..., :7]
+                                    rand_state[..., :3] += cube_object.data.object_link_pos_w
+                                    # make quaternion a unit vector
+                                    rand_state[..., 3:7] = torch.nn.functional.normalize(rand_state[..., 3:7], dim=-1)
+
+                                    for i in range(10):
+
+                                        # perform step
+                                        sim.step()
+                                        # update buffers
+                                        cube_object.update(sim.cfg.dt)
+
+                                        if state_location == "com":
+                                            cube_object.write_object_com_state_to_sim(rand_state)
+                                        elif state_location == "link":
+                                            cube_object.write_object_link_state_to_sim(rand_state)
+
+                                        if state_location == "com":
+                                            torch.testing.assert_close(rand_state, cube_object.data.object_com_state_w)
+                                        elif state_location == "link":
+                                            torch.testing.assert_close(rand_state, cube_object.data.object_link_state_w)
 
     def test_reset_object_collection(self):
         """Test resetting the state of the rigid object."""
