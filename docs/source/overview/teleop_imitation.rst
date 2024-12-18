@@ -32,6 +32,87 @@ For smoother operation and off-axis operation, we recommend using a SpaceMouse a
    from the prior step.
 
 
+We also provide handtracking as a teleoperation device. This feature requires an Apple Vision Pro as the teleoperation
+device.
+
+.. dropdown:: Apple Vision Pro Client Application Installation
+
+   .. Note:: A Mac with XCode installed is required to build the client application. See installation repo for exact requirements.
+
+   The IsaacSim XR Teleop Apple Vision Pro application can be downloaded and built from source following the instructions at:
+   `IsaacSim GitHub <https://github.com/orgs/isaac-sim/repositories>`__
+
+   In order to use the client application UI without hand gestures, we will take advantage of VisionOS accessibility features.
+   Settings > Accessibility > Voice Control
+   Turn on Voice Control
+
+
+   .. image:: ../_static/setup/teleop_avp_voice_control.jpg
+       :align: center
+       :width: 50%
+
+
+   Commands > Basic Navigation > <item name> > Enabled
+
+
+   .. image:: ../_static/setup/teleop_avp_voice_item_name.jpg
+       :align: center
+       :width: 50%
+
+
+   Now the UI elements you wish to select can simply be spoken, such as "Start Teleop", "Stop Teleop".
+
+.. dropdown:: CloudXR Runtime Server Installation
+
+   The Nvidia CloudXR runtime brokers the network connection between the XR device (Apple Vision Pro) and the IsaacSim application.
+   This enables an OpenXR like Python API for consuming XR input (hand tracking, etc).
+
+   .. Note:: Currently only Ubuntu 22.04 is supported.
+   .. Note:: CUDA 12 is required to have been previously installed.
+
+   Download the appropriate CloudXR runtime package from DevZone and install via:
+
+       .. code-block:: text
+
+           sudo dpkg -i <Debian package name>.deb
+
+   Create a folder for the runtime:
+
+       .. code-block:: text
+
+           mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/openxr/1"
+
+   Set the CloudXR Open Runtime as your active runtime:
+
+       .. code-block:: text
+
+           ln -s -f /opt/nvidia/cloudxr/share/openxr/1/openxr_cloudxr.json ${XDG_CONFIG_HOME:-$HOME/.config}/openxr/1/active_runtime.json
+
+   Disable the firewall:
+
+       .. code-block:: text
+
+           sudo ufw disable
+
+   The runtime can now be started via:
+
+       .. code-block:: text
+
+           env NV_PACER_FIXED_TIME_STEP_MS=32 /opt/nvidia/cloudxr/bin/cloudxr-service
+
+   .. Note:: The environment variable ``NV_PACER_FIXED_TIME_STEP_MS`` is needed to make sure the simulation steps in real-time.
+
+
+Once the setup is complete, you can control the system using handtracking by running the following command:
+
+.. code:: bash
+
+   ./isaaclab.sh -p source/standalone/environments/teleoperation/teleop_se3_agent.py --task Isaac-Lift-Cube-Franka-IK-Rel-v0 --num_envs 1 --teleop_device handtracking
+
+**Note** Make sure CloudXR runtime is running and then connect to the IsaacLab machine from the Client App in
+Apple Vision Pro to control the robot. For more info, follow the instructions below in
+**Collect demonstrations with teleoperation for the environment**
+
 The script prints the teleoperation events configured. For keyboard,
 these are as follows:
 
@@ -46,6 +127,13 @@ these are as follows:
        Rotate arm along x-axis: Z/X
        Rotate arm along y-axis: T/G
        Rotate arm along z-axis: C/V
+
+The handtracking controller supports the following actions:
+
+.. code:: text
+
+   Handtracking Controller for SE(3): Se3HandTracking
+       Close/open the gripper: Closing and opening between thumb and index finger
 
 Imitation Learning
 ~~~~~~~~~~~~~~~~~~
@@ -81,6 +169,82 @@ learning from demonstrations (LfD). For this, we provide scripts to collect data
    * Do not pause. Perform smooth, continuous motions instead. It is not obvious for a policy why and when to pause, hence continuous motions are easier to learn.
 
    If, while performing a demonstration, a mistake is made, or the current demonstration should not be recorded for some other reason, press the ``R`` key to discard the current demonstration, and reset to a new starting position.
+
+   .. dropdown:: Collect with Apple Vision Pro
+
+      To collect demonstration with handtracking, follow the workflow as below
+
+      a. Start CloudXR runtime
+
+         Disable firewall:
+
+         .. code:: bash
+
+            sudo ufw disable
+
+         Start the CloudXR runtime
+
+         .. code:: bash
+
+            env NV_PACER_FIXED_TIME_STEP_MS=32 /opt/cloudxr/bin/cloudxr-service
+
+      b. Start data collection with handtracking in another terminal
+
+         .. code:: bash
+
+            ./isaaclab.sh -p source/standalone/tools/record_demos.py --task Isaac-Stack-Cube-Franka-IK-Rel-v0 --teleop_device handtracking
+
+      c. Configure the renderer and start AR
+
+         i. Select ``Renderer`` and ensure it is set to **RTX - Real-Time**.
+
+            .. image:: ../_static/demos/renderer_rtx_realtime.jpg
+
+         ii. Select the ``AR`` tab, then click ``Start AR``
+
+            .. image:: ../_static/demos/start_ar.jpg
+
+      d. Connect the client application on Apple Vision Pro
+
+         Open client application on Vision Pro, enter the IP address of the IsaacLab machine and click ``Connect``
+
+         **Voice Command Tip:**
+
+         Enable voice control for a better experience. Follow these steps to set it up:
+
+            i. Navigate to the Voice Control Page:
+
+               In Settings in Apple Vision Pro select Accessibility > Voice Control
+
+            ii. Turn on Voice Control
+
+               Toggle Voice Control at the top to turn it on
+
+            iii. Enable Commands
+
+               In the Voice Control settings, selects Commands > Basic Navigation > <item name> > Enabled
+
+      e. Start collecting demos
+
+         In order to keep the recorded demonstration short, reset the scene by pressing the ``Reset Teleop`` button
+         after you connect through the Client
+
+         **Suggested Workflow for Apple Vision Pro:**
+
+            i. Find a suitable position where the cubes are clearly visible, and prepare your right hand in a starting
+               position.
+
+            ii. Start teleoperation using voice control by saying ``Start Teleop``.
+
+            iii. Stack the cubes smoothly. Use the "close/open" gesture (thumb and index finger) to operate the gripper.
+
+            iv. After stacking cubes in the order Blue - Red - Green (bottom to top), the scene will automatically reset.
+
+            v. Stop teleoperation using voice control by saying ``Stop Teleop``.
+
+            vi. Prepare your hand in the starting position again, then press ``Reset Teleop``.
+
+            vii. Repeat steps ii-vi for each new demonstration.
 
 2. Generate additional demonstrations using Isaac Lab Mimic
 
