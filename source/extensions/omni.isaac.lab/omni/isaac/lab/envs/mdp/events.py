@@ -604,6 +604,7 @@ def apply_external_force_torque(
     # note: these are only applied when you call: `asset.write_data_to_sim()`
     asset.set_external_force_and_torque(forces, torques, env_ids=env_ids, body_ids=asset_cfg.body_ids)
 
+
 def apply_external_force_torque_duration(
     env: ManagerBasedEnv,
     env_ids: torch.Tensor,
@@ -638,6 +639,7 @@ def apply_external_force_torque_duration(
     # set the forces and torques into the buffers
     # note: these are only applied when you call: `asset.write_data_to_sim()`
     asset.set_external_force_and_torque(forces, torques, env_ids=env_ids, body_ids=asset_cfg.body_ids)
+
 
 def push_by_setting_velocity(
     env: ManagerBasedEnv,

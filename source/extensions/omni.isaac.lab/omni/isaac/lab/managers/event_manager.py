@@ -217,7 +217,7 @@ class EventManager(ManagerBase):
                 time_left -= dt
 
                 # update duration time
-                started_env_ids=self._duration_term_started
+                started_env_ids = self._duration_term_started
                 duration_left = self._duration_term_duration_time_left[index]
                 duration_left[started_env_ids] -= dt
 
@@ -231,13 +231,13 @@ class EventManager(ManagerBase):
                         self._duration_term_interval_time_left[index][:] = sampled_interval
 
                         # call the event term (with None for env_ids)
-                        term_cfg.params["open"]=True
+                        term_cfg.params["open"] = True
                         term_cfg.func(self._env, None, **term_cfg.params)
                         self._duration_term_started[index][:] = True
 
                     # duration check
                     if duration_left < 1e-6:
-                        term_cfg.params["open"]=False
+                        term_cfg.params["open"] = False
                         term_cfg.func(self._env, None, **term_cfg.params)
                         self._duration_term_started[index][:] = False
 
@@ -251,23 +251,25 @@ class EventManager(ManagerBase):
                         lower, upper = term_cfg.interval_range_s
                         sampled_time = torch.rand(len(valid_env_ids), device=self.device) * (upper - lower) + lower
                         self._duration_term_interval_time_left[index][valid_env_ids] = sampled_time
-                        
+
                         # call the event term
-                        term_cfg.params["open"]=True
+                        term_cfg.params["open"] = True
                         term_cfg.func(self._env, valid_env_ids, **term_cfg.params)
                         self._duration_term_started[index][valid_env_ids] = True
 
                     # duration check
                     valid_env_ids_duration = (duration_left < 1e-6).nonzero().flatten()
                     if len(valid_env_ids_duration) > 0:
-                        term_cfg.params["open"]=False
+                        term_cfg.params["open"] = False
                         term_cfg.func(self._env, valid_env_ids_duration, **term_cfg.params)
                         self._duration_term_started[index][valid_env_ids_duration] = False
 
                         lower, upper = term_cfg.duration_range_s
-                        duration_left = torch.rand(len(valid_env_ids_duration), device=self.device) * (upper - lower) + lower
+                        duration_left = (
+                            torch.rand(len(valid_env_ids_duration), device=self.device) * (upper - lower) + lower
+                        )
                         self._duration_term_duration_time_left[index][valid_env_ids_duration] = duration_left
-            
+
             elif mode == "reset":
                 # obtain the minimum step count between resets
                 min_step_count = term_cfg.min_step_count_between_reset
@@ -441,7 +443,6 @@ class EventManager(ManagerBase):
                     raise ValueError(
                         f"Event term '{term_name}' has mode 'duration' but 'duration_range_s' is not specified."
                     )
-
 
                 # sample the time left for global
                 if term_cfg.is_global_time:
