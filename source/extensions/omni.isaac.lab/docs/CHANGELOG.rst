@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.30.1 (2024-12-18)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added world pose getter 
+* Added local pose getter and setter
+
+
 0.30.0 (2024-12-16)
 ~~~~~~~~~~~~~~~~~~~
 
