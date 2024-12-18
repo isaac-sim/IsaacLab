@@ -7,7 +7,7 @@ Changelog
 Added
 ^^^^^
 
-* Added world pose getter 
+* Added world pose getter
 * Added local pose getter and setter
 
 
