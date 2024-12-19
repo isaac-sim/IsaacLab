@@ -9,10 +9,11 @@ import collections.abc
 import hashlib
 import json
 from collections.abc import Iterable, Mapping
+from dataclasses import is_dataclass
 from typing import Any
 
 from .array import TENSOR_TYPE_CONVERSIONS, TENSOR_TYPES
-from .string import callable_to_string, string_to_callable, string_to_slice
+from .string import callable_to_string, string_to_callable, string_to_dataclass_instance, string_to_slice
 
 """
 Dictionary <-> Class operations.
@@ -112,6 +113,8 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
             elif callable(obj_mem):
                 # update function name
                 value = string_to_callable(value)
+            elif is_dataclass(obj_mem):
+                value = string_to_dataclass_instance(value)
             elif isinstance(value, type(obj_mem)) or value is None:
                 pass
             else:
