@@ -1,7 +1,7 @@
 Creating an empty scene
 =======================
 
-.. currentmodule:: omni.isaac.lab
+.. currentmodule:: isaaclab
 
 This tutorial shows how to launch and control Isaac Sim simulator from a standalone Python script. It sets up an
 empty scene in Isaac Lab and introduces the two main classes used in the framework, :class:`app.AppLauncher` and
@@ -14,12 +14,12 @@ an initial understanding of working with the simulator.
 The Code
 ~~~~~~~~
 
-The tutorial corresponds to the ``create_empty.py`` script in the ``source/standalone/tutorials/00_sim`` directory.
+The tutorial corresponds to the ``create_empty.py`` script in the ``scripts/tutorials/00_sim`` directory.
 
 .. dropdown:: Code for create_empty.py
    :icon: code
 
-   .. literalinclude:: ../../../../source/standalone/tutorials/00_sim/create_empty.py
+   .. literalinclude:: ../../../../scripts/tutorials/00_sim/create_empty.py
       :language: python
       :emphasize-lines: 18-30,34,40-44,46-47,51-54,60-61
       :linenos:
@@ -45,7 +45,7 @@ For this tutorial, we mainly look at adding the command-line options to a user-d
 to it. These include launching the app headless, configuring different Livestream options,
 and enabling off-screen rendering.
 
-.. literalinclude:: ../../../../source/standalone/tutorials/00_sim/create_empty.py
+.. literalinclude:: ../../../../scripts/tutorials/00_sim/create_empty.py
    :language: python
    :start-at: import argparse
    :end-at: simulation_app = app_launcher.app
@@ -56,12 +56,12 @@ Importing python modules
 Once the simulation app is running, it is possible to import different Python modules from
 Isaac Sim and other libraries. Here we import the following module:
 
-* :mod:`omni.isaac.lab.sim`: A sub-package in Isaac Lab for all the core simulator-related operations.
+* :mod:`isaaclab.sim`: A sub-package in Isaac Lab for all the core simulator-related operations.
 
-.. literalinclude:: ../../../../source/standalone/tutorials/00_sim/create_empty.py
+.. literalinclude:: ../../../../scripts/tutorials/00_sim/create_empty.py
    :language: python
-   :start-at: from omni.isaac.lab.sim import SimulationCfg, SimulationContext
-   :end-at: from omni.isaac.lab.sim import SimulationCfg, SimulationContext
+   :start-at: from isaaclab.sim import SimulationCfg, SimulationContext
+   :end-at: from isaaclab.sim import SimulationCfg, SimulationContext
 
 
 Configuring the simulation context
@@ -80,7 +80,7 @@ For this tutorial, we set the physics and rendering time step to 0.01 seconds. T
 by passing these quantities to the :class:`sim.SimulationCfg`, which is then used to create an
 instance of the simulation context.
 
-.. literalinclude:: ../../../../source/standalone/tutorials/00_sim/create_empty.py
+.. literalinclude:: ../../../../scripts/tutorials/00_sim/create_empty.py
    :language: python
    :start-at: # Initialize the simulation context
    :end-at: sim.set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
@@ -115,7 +115,7 @@ while the simulation app is running. The method :meth:`sim.SimulationContext.ste
 which dictates whether the step includes updating the rendering-related events or not. By default, this flag is
 set to True.
 
-.. literalinclude:: ../../../../source/standalone/tutorials/00_sim/create_empty.py
+.. literalinclude:: ../../../../scripts/tutorials/00_sim/create_empty.py
    :language: python
    :start-at: # Play the simulator
    :end-at: sim.step()
@@ -126,7 +126,7 @@ Exiting the simulation
 Lastly, the simulation application is stopped and its window is closed by calling
 :meth:`isaacsim.SimulationApp.close` method.
 
-.. literalinclude:: ../../../../source/standalone/tutorials/00_sim/create_empty.py
+.. literalinclude:: ../../../../scripts/tutorials/00_sim/create_empty.py
    :language: python
    :start-at: # close sim app
    :end-at: simulation_app.close()
@@ -139,7 +139,7 @@ Now that we have gone through the code, let's run the script and see the result:
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p source/standalone/tutorials/00_sim/create_empty.py
+   ./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py
 
 
 The simulation should be playing, and the stage should be rendering. To stop the simulation,
@@ -156,7 +156,7 @@ following:
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p source/standalone/tutorials/00_sim/create_empty.py --headless
+   ./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py --headless
 
 
 Now that we have a basic understanding of how to run a simulation, let's move on to the

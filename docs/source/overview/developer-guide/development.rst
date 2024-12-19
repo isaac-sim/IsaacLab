@@ -117,7 +117,7 @@ To install all dependencies for all extensions, run the following command:
    # execute from the root of the repository
    # the script expects the type of dependencies to install and the path to the extensions directory
    # available types are: 'apt', 'rosdep' and 'all'
-   python tools/install_deps.py all ${ISAACLAB_PATH}/source/extensions
+   python tools/install_deps.py all ${ISAACLAB_PATH}/source
 
 .. note::
    Currently, this script is automatically executed during the build process of the ``Dockerfile.base``
@@ -135,8 +135,8 @@ workflow, it is not always possible to use this workflow.
 For example, for robot learning, it is essential to have complete control over simulation stepping
 and all the other functionalities instead of asynchronously waiting for the simulator to step. In
 such cases, it is necessary to write a standalone application that launches the simulator using
-:class:`~omni.isaac.lab.app.AppLauncher` and allows complete control over the simulation through
-the :class:`~omni.isaac.lab.sim.SimulationContext` class.
+:class:`~isaaclab.app.AppLauncher` and allows complete control over the simulation through
+the :class:`~isaaclab.sim.SimulationContext` class.
 
 The following snippet shows how to write a standalone application:
 
@@ -144,7 +144,7 @@ The following snippet shows how to write a standalone application:
 
    """Launch Isaac Sim Simulator first."""
 
-   from omni.isaac.lab.app import AppLauncher
+   from isaaclab.app import AppLauncher
 
    # launch omniverse app
    app_launcher = AppLauncher(headless=False)
@@ -153,7 +153,7 @@ The following snippet shows how to write a standalone application:
 
    """Rest everything follows."""
 
-   from omni.isaac.lab.sim import SimulationContext
+   from isaaclab.sim import SimulationContext
 
    if __name__ == "__main__":
       # get simulation context
@@ -171,6 +171,6 @@ The following snippet shows how to write a standalone application:
 
 It is necessary to launch the simulator before running any other code because extensions are hot-loaded
 when the simulator starts. Many Omniverse modules become available only after the simulator is launched.
-To do this, use the :class:~omni.isaac.lab.app.AppLauncher class to start the simulator. After that,
-the :class:~omni.isaac.lab.sim.SimulationContext class can be used to control the simulation. For further
+To do this, use the :class:~isaaclab.app.AppLauncher class to start the simulator. After that,
+the :class:~isaaclab.sim.SimulationContext class can be used to control the simulation. For further
 details, we recommend exploring the Isaac Lab tutorials.

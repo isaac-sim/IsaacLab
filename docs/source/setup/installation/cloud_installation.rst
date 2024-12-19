@@ -126,14 +126,14 @@ For example:
 
       .. code-block:: bash
 
-         ./isaaclab.sh -p source/standalone/workflows/rl_games/train.py --task=Isaac-Cartpole-v0
+         ./isaaclab.sh -p scripts/reinforcement_learning/rl_games/train.py --task=Isaac-Cartpole-v0
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code-block:: batch
 
-         ./isaaclab.bat -p source/standalone/workflows/rl_games/train.py --task=Isaac-Cartpole-v0
+         ./isaaclab.bat -p scripts/reinforcement_learning/rl_games/train.py --task=Isaac-Cartpole-v0
 
 
 Destroying a Development

@@ -345,10 +345,7 @@ def warm_start_app():
         [
             sys.executable,
             "-c",
-            (
-                "from omni.isaac.lab.app import AppLauncher; app_launcher = AppLauncher(headless=True);"
-                " app_launcher.app.close()"
-            ),
+            "from isaaclab.app import AppLauncher; app_launcher = AppLauncher(headless=True); app_launcher.app.close()",
         ],
         capture_output=True,
     )
@@ -362,7 +359,7 @@ def warm_start_app():
             sys.executable,
             "-c",
             (
-                "from omni.isaac.lab.app import AppLauncher; app_launcher = AppLauncher(headless=True,"
+                "from isaaclab.app import AppLauncher; app_launcher = AppLauncher(headless=True,"
                 " enable_cameras=True); app_launcher.app.close()"
             ),
         ],

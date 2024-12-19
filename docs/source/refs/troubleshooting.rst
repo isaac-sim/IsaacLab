@@ -51,7 +51,7 @@ For instance, to run a standalone script with verbose logging, you can use the f
 .. code-block:: bash
 
     # Run the standalone script with info logging
-    ./isaaclab.sh -p source/standalone/tutorials/00_sim/create_empty.py --headless --info
+    ./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py --headless --info
 
 For more fine-grained control, you can modify the logging channels through the ``omni.log`` module.
 For more information, please refer to its `documentation <https://docs.omniverse.nvidia.com/kit/docs/carbonite/latest/docs/omni.log/Logging.html>`__.
@@ -114,20 +114,20 @@ exceeds the size of the buffers, the simulation will fail with an error such as 
     parameter to 3072, otherwise the simulation will miss interactions
 
 In this case, you need to increase the size of the buffers passed to the
-:class:`~omni.isaac.lab.sim.SimulationContext` class. The size of the buffers can be increased by setting
-the :attr:`~omni.isaac.lab.sim.PhysxCfg.gpu_found_lost_pairs_capacity` parameter in the
-:class:`~omni.isaac.lab.sim.PhysxCfg` class. For example, to increase the size of the buffers to
+:class:`~isaaclab.sim.SimulationContext` class. The size of the buffers can be increased by setting
+the :attr:`~isaaclab.sim.PhysxCfg.gpu_found_lost_pairs_capacity` parameter in the
+:class:`~isaaclab.sim.PhysxCfg` class. For example, to increase the size of the buffers to
 4096, you can use the following code:
 
 .. code:: python
 
-    import omni.isaac.lab.sim as sim_utils
+    import isaaclab.sim as sim_utils
 
     sim_cfg = sim_utils.SimulationConfig()
     sim_cfg.physx.gpu_found_lost_pairs_capacity = 4096
     sim = SimulationContext(sim_params=sim_cfg)
 
-Please see the documentation for :class:`~omni.isaac.lab.sim.SimulationCfg` for more details
+Please see the documentation for :class:`~isaaclab.sim.SimulationCfg` for more details
 on the parameters that can be used to configure the simulation.
 
 
@@ -216,11 +216,11 @@ simulation application. These typically look like the following:
     [INFO]: Completed setting up the environment...
 
     Traceback (most recent call last):
-    File "source/standalone/workflows/robomimic/collect_demonstrations.py", line 166, in <module>
+    File "scripts/imitation_learning/robomimic/collect_demonstrations.py", line 166, in <module>
         main()
-    File "source/standalone/workflows/robomimic/collect_demonstrations.py", line 126, in main
+    File "scripts/imitation_learning/robomimic/collect_demonstrations.py", line 126, in main
         actions = pre_process_actions(delta_pose, gripper_command)
-    File "source/standalone/workflows/robomimic/collect_demonstrations.py", line 57, in pre_process_actions
+    File "scripts/imitation_learning/robomimic/collect_demonstrations.py", line 57, in pre_process_actions
         return torch.concat([delta_pose, gripper_vel], dim=1)
     TypeError: expected Tensor as element 1 in argument 0, but got int
     Exception ignored in: <function _make_registry.<locals>._Registry.__del__ at 0x7f94ac097f80>
@@ -255,10 +255,10 @@ In the above case, the actual error is:
 .. code:: bash
 
     Traceback (most recent call last):
-    File "source/standalone/workflows/robomimic/tools/collect_demonstrations.py", line 166, in <module>
+    File "scripts/imitation_learning/robomimic/tools/collect_demonstrations.py", line 166, in <module>
         main()
-    File "source/standalone/workflows/robomimic/tools/collect_demonstrations.py", line 126, in main
+    File "scripts/imitation_learning/robomimic/tools/collect_demonstrations.py", line 126, in main
         actions = pre_process_actions(delta_pose, gripper_command)
-    File "source/standalone/workflows/robomimic/tools/collect_demonstrations.py", line 57, in pre_process_actions
+    File "scripts/imitation_learning/robomimic/tools/collect_demonstrations.py", line 57, in pre_process_actions
         return torch.concat([delta_pose, gripper_vel], dim=1)
     TypeError: expected Tensor as element 1 in argument 0, but got int

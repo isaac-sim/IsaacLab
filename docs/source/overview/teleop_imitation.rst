@@ -14,13 +14,13 @@ To play inverse kinematics (IK) control with a keyboard device:
 
 .. code:: bash
 
-   ./isaaclab.sh -p source/standalone/environments/teleoperation/teleop_se3_agent.py --task Isaac-Lift-Cube-Franka-IK-Rel-v0 --num_envs 1 --teleop_device keyboard
+   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py --task Isaac-Lift-Cube-Franka-IK-Rel-v0 --num_envs 1 --teleop_device keyboard
 
 For smoother operation and off-axis operation, we recommend using a SpaceMouse as input device. Providing smoother demonstration will make it easier for the policy to clone the behavior. To use a SpaceMouse, simply change the teleop device accordingly:
 
 .. code:: bash
 
-   ./isaaclab.sh -p source/standalone/environments/teleoperation/teleop_se3_agent.py --task Isaac-Lift-Cube-Franka-IK-Rel-v0 --num_envs 1 --teleop_device spacemouse
+   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py --task Isaac-Lift-Cube-Franka-IK-Rel-v0 --num_envs 1 --teleop_device spacemouse
 
 .. note::
 
@@ -107,7 +107,7 @@ Once the setup is complete, you can control the system using handtracking by run
 
 .. code:: bash
 
-   ./isaaclab.sh -p source/standalone/environments/teleoperation/teleop_se3_agent.py --task Isaac-Lift-Cube-Franka-IK-Rel-v0 --num_envs 1 --teleop_device handtracking
+   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py --task Isaac-Lift-Cube-Franka-IK-Rel-v0 --num_envs 1 --teleop_device handtracking
 
 **Note** Make sure CloudXR runtime is running and then connect to the IsaacLab machine from the Client App in
 Apple Vision Pro to control the robot. For more info, follow the instructions below in
@@ -151,9 +151,9 @@ learning from demonstrations (LfD). For this, we provide scripts to collect data
    .. code:: bash
 
       # step a: collect data with spacemouse
-      ./isaaclab.sh -p source/standalone/tools/record_demos.py --task Isaac-Stack-Cube-Franka-IK-Rel-v0 --teleop_device spacemouse --dataset_file ./datasets/dataset.hdf5 --num_demos 10
+      ./isaaclab.sh -p scripts/tools/record_demos.py --task Isaac-Stack-Cube-Franka-IK-Rel-v0 --teleop_device spacemouse --dataset_file ./datasets/dataset.hdf5 --num_demos 10
       # step b: replay the collected dataset
-      ./isaaclab.sh -p source/standalone/tools/replay_demos.py --task Isaac-Stack-Cube-Franka-IK-Rel-v0 --dataset_file ./datasets/dataset.hdf5
+      ./isaaclab.sh -p scripts/tools/replay_demos.py --task Isaac-Stack-Cube-Franka-IK-Rel-v0 --dataset_file ./datasets/dataset.hdf5
 
 
    .. note::
@@ -192,7 +192,7 @@ learning from demonstrations (LfD). For this, we provide scripts to collect data
 
          .. code:: bash
 
-            ./isaaclab.sh -p source/standalone/tools/record_demos.py --task Isaac-Stack-Cube-Franka-IK-Rel-v0 --teleop_device handtracking
+            ./isaaclab.sh -p scripts/tools/record_demos.py --task Isaac-Stack-Cube-Franka-IK-Rel-v0 --teleop_device handtracking
 
       c. Configure the renderer and start AR
 
@@ -254,13 +254,13 @@ learning from demonstrations (LfD). For this, we provide scripts to collect data
 
    .. code:: bash
 
-      ./isaaclab.sh -p source/standalone/workflows/isaac_lab_mimic/annotate_demos.py --input_file ./datasets/dataset.hdf5 --output_file ./datasets/annotated_dataset.hdf5 --task Isaac-Stack-Cube-Franka-IK-Rel-Mimic-v0 --auto
+      ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/annotate_demos.py --input_file ./datasets/dataset.hdf5 --output_file ./datasets/annotated_dataset.hdf5 --task Isaac-Stack-Cube-Franka-IK-Rel-Mimic-v0 --auto
 
    Then, use Isaac Lab Mimic to generate some additional demonstrations:
 
    .. code:: bash
 
-      ./isaaclab.sh -p source/standalone/workflows/isaac_lab_mimic/generate_dataset.py --input_file ./datasets/annotated_dataset.hdf5 --output_file ./datasets/generated_dataset_small.hdf5 --num_envs 10 --generation_num_trials 10
+      ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py --input_file ./datasets/annotated_dataset.hdf5 --output_file ./datasets/generated_dataset_small.hdf5 --num_envs 10 --generation_num_trials 10
 
    .. note::
 
@@ -272,7 +272,7 @@ learning from demonstrations (LfD). For this, we provide scripts to collect data
 
    Inspect the output of generated data (filename: ``generated_dataset_small.hdf5``), and if satisfactory, generate the full dataset:
 
-      ./isaaclab.sh -p source/standalone/workflows/isaac_lab_mimic/generate_dataset.py --input_file ./datasets/annotated_dataset.hdf5 --output_file ./datasets/generated_dataset.hdf5 --num_envs 10 --generation_num_trials 1000 --headless
+      ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py --input_file ./datasets/annotated_dataset.hdf5 --output_file ./datasets/generated_dataset.hdf5 --num_envs 10 --generation_num_trials 1000 --headless
 
    The number of demonstrations can be increased or decreased, 1000 demonstrations have been shown to provide good training results for this task.
 
@@ -293,7 +293,7 @@ learning from demonstrations (LfD). For this, we provide scripts to collect data
 
    .. code:: bash
 
-      ./isaaclab.sh -p source/standalone/workflows/robomimic/train.py --task Isaac-Stack-Cube-Franka-IK-Rel-v0 --algo bc --dataset ./datasets/generated_dataset.hdf5
+      ./isaaclab.sh -p scripts/imitation_learning/robomimic/train.py --task Isaac-Stack-Cube-Franka-IK-Rel-v0 --algo bc --dataset ./datasets/generated_dataset.hdf5
 
    By default, the training script will save a model checkpoint every 100 epochs. The trained models and logs will be saved to logs/robomimic/Isaac-Stack-Cube-Franka-IK-Rel-v0/bc
 
@@ -301,7 +301,7 @@ learning from demonstrations (LfD). For this, we provide scripts to collect data
 
    .. code:: bash
 
-      ./isaaclab.sh -p source/standalone/workflows/robomimic/play.py --task Isaac-Stack-Cube-Franka-IK-Rel-v0 --checkpoint /PATH/TO/desired_model_checkpoint.pth
+      ./isaaclab.sh -p scripts/imitation_learning/robomimic/play.py --task Isaac-Stack-Cube-Franka-IK-Rel-v0 --checkpoint /PATH/TO/desired_model_checkpoint.pth
 
 Creating Your Own Isaac Lab Mimic Compatible Environments
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -326,12 +326,12 @@ Mimic compatible environments are derived from the ``ManagerBasedRLMimicEnv`` ba
 * ``is_success``: Returns a boolean indicator of whether the task has been successfully completed.
 
 The class ``FrankaCubeStackIKRelMimicEnv`` shows an example of creating a Mimic compatible environment from an existing Isaac Lab environment.
-It can be found under ``source/extensions/omni.isaac.lab_mimic/omni/isaac/lab_mimic/envs``.
+It can be found under ``source/isaaclab_mimic/isaaclab_mimic/envs``.
 
 A Mimic compatible environment config class must also be created by extending the existing environment config with additional Mimic required parameters.
-All Mimic required config parameters are specified in the ``MimicEnvCfg`` class found under ``source/extensions/omni.isaac.lab/omni/isaac/lab/envs``.
+All Mimic required config parameters are specified in the ``MimicEnvCfg`` class found under ``source/isaaclab/isaaclab/envs``.
 The config class ``FrankaCubeStackIKRelMimicEnvCfg`` shows an example of creating a Mimic compatible environment config class for the Franka stacking task
-and can be found under ``source/extensions/omni.isaac.lab_mimic/omni/isaac/lab_mimic/envs``.
+and can be found under ``source/isaaclab_mimic/isaaclab_mimic/envs``.
 
 Once both Mimic compatible environment and environment config classes have been created, a new Mimic compatible environment can be registered using ``gym.register`` and used
 with Isaac Lab Mimic data generation. For the Franka stacking task in the examples above, the Mimic environment is registered as ``Isaac-Stack-Cube-Franka-IK-Rel-Mimic-v0``.

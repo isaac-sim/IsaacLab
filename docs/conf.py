@@ -18,10 +18,10 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.abspath("../source/extensions/omni.isaac.lab"))
-sys.path.insert(0, os.path.abspath("../source/extensions/omni.isaac.lab/omni/isaac/lab"))
-sys.path.insert(0, os.path.abspath("../source/extensions/omni.isaac.lab_tasks"))
-sys.path.insert(0, os.path.abspath("../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab/isaaclab"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_tasks"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_tasks/isaaclab_tasks"))
 
 # -- Project information -----------------------------------------------------
 
@@ -129,6 +129,7 @@ autodoc_mock_imports = [
     "warp",
     "pxr",
     "isaacsim",
+    "omni",
     "omni.kit",
     "omni.log",
     "omni.usd",
