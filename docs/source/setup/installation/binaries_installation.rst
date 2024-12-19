@@ -329,7 +329,7 @@ Installation
       # these dependency are needed by robomimic which is not available on Windows
       sudo apt install cmake build-essential
 
-- Run the install command that iterates over all the extensions in ``source/extensions`` directory and installs them
+- Run the install command that iterates over all the extensions in ``source`` directory and installs them
   using pip (with ``--editable`` flag):
 
 .. tab-set::
@@ -389,10 +389,10 @@ top of the repository:
 
          # Option 1: Using the isaaclab.sh executable
          # note: this works for both the bundled python and the virtual environment
-         ./isaaclab.sh -p source/standalone/tutorials/00_sim/create_empty.py
+         ./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py
 
          # Option 2: Using python in your virtual environment
-         python source/standalone/tutorials/00_sim/create_empty.py
+         python scripts/tutorials/00_sim/create_empty.py
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -401,10 +401,10 @@ top of the repository:
 
          :: Option 1: Using the isaaclab.bat executable
          :: note: this works for both the bundled python and the virtual environment
-         isaaclab.bat -p source\standalone\tutorials\00_sim\create_empty.py
+         isaaclab.bat -p scripts\tutorials\00_sim\create_empty.py
 
          :: Option 2: Using python in your virtual environment
-         python source\standalone\tutorials\00_sim\create_empty.py
+         python scripts\tutorials\00_sim\create_empty.py
 
 
 The above command should launch the simulator and display a window with a black

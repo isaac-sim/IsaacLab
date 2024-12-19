@@ -90,6 +90,6 @@ In this case, the contact sensor has two bodies: the left and right hind feet.  
 .. dropdown:: Code for contact_sensor.py
    :icon: code
 
-   .. literalinclude:: ../../../../source/standalone/demos/sensors/contact_sensor.py
+   .. literalinclude:: ../../../../scripts/demos/sensors/contact_sensor.py
       :language: python
       :linenos:

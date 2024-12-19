@@ -100,6 +100,6 @@ Here, the sensor is tracking all rigid body children of ``Robot/base``, but this
 .. dropdown:: Code for frame_transformer_sensor.py
    :icon: code
 
-   .. literalinclude:: ../../../../source/standalone/demos/sensors/frame_transformer_sensor.py
+   .. literalinclude:: ../../../../scripts/demos/sensors/frame_transformer_sensor.py
       :language: python
       :linenos:

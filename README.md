@@ -58,7 +58,7 @@ or opening a question on its [forums](https://forums.developer.nvidia.com/c/agx-
 
 ## License
 
-The Isaac Lab framework is released under [BSD-3 License](LICENSE). The `omni.isaac.lab_mimic` extension and its corresponding standalone scripts are released under [Apache 2.0](LICENSE-mimic). The license files of its dependencies and assets are present in the [`docs/licenses`](docs/licenses) directory.
+The Isaac Lab framework is released under [BSD-3 License](LICENSE). The `isaaclab_mimic` extension and its corresponding standalone scripts are released under [Apache 2.0](LICENSE-mimic). The license files of its dependencies and assets are present in the [`docs/licenses`](docs/licenses) directory.
 
 ## Acknowledgement
 

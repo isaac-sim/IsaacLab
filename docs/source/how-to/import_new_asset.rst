@@ -1,7 +1,7 @@
 Importing a New Asset
 =====================
 
-.. currentmodule:: omni.isaac.lab
+.. currentmodule:: isaaclab
 
 NVIDIA Omniverse relies on the Universal Scene Description (USD) file format to
 import and export assets. USD is an open source file format developed by Pixar
@@ -89,14 +89,14 @@ The following shows the steps to clone the repository and run the converter:
   # go to top of the Isaac Lab repository
   cd IsaacLab
   # run the converter
-  ./isaaclab.sh -p source/standalone/tools/convert_urdf.py \
+  ./isaaclab.sh -p scripts/tools/convert_urdf.py \
     ~/git/anymal_d_simple_description/urdf/anymal.urdf \
-    source/extensions/omni.isaac.lab_assets/data/Robots/ANYbotics/anymal_d.usd \
+    source/isaaclab_assets/data/Robots/ANYbotics/anymal_d.usd \
     --merge-joints
 
 
 Executing the above script will create a USD file inside the
-``source/extensions/omni.isaac.lab_assets/data/Robots/ANYbotics/`` directory:
+``source/isaaclab_assets/data/Robots/ANYbotics/`` directory:
 
 * ``anymal_d.usd`` - This is the main asset file.
 
@@ -149,14 +149,14 @@ The following shows the steps to clone the repository and run the converter:
   # go to top of the Isaac Lab repository
   cd IsaacLab
   # run the converter
-  ./isaaclab.sh -p source/standalone/tools/convert_mjcf.py \
+  ./isaaclab.sh -p scripts/tools/convert_mjcf.py \
     ~/git/mujoco_menagerie/unitree_h1/h1.xml \
-    source/extensions/omni.isaac.lab_assets/data/Robots/Unitree/h1.usd \
+    source/isaaclab_assets/data/Robots/Unitree/h1.usd \
     --import-sites \
     --make-instanceable
 
 Executing the above script will create USD files inside the
-``source/extensions/omni.isaac.lab_assets/data/Robots/Unitree/`` directory:
+``source/isaaclab_assets/data/Robots/Unitree/`` directory:
 
 * ``h1.usd`` - This is the main asset file. It contains all the non-mesh data.
 * ``Props/instanceable_assets.usd`` - This is the mesh data file.
@@ -203,9 +203,9 @@ the steps to clone the repository and run the converter:
   # go to top of the Isaac Lab repository
   cd IsaacLab
   # run the converter
-  ./isaaclab.sh -p source/standalone/tools/convert_mesh.py \
+  ./isaaclab.sh -p scripts/tools/convert_mesh.py \
     ~/git/IsaacGymEnvs/assets/trifinger/objects/meshes/cube_multicolor.obj \
-    source/extensions/omni.isaac.lab_assets/data/Props/CubeMultiColor/cube_multicolor.usd \
+    source/isaaclab_assets/data/Props/CubeMultiColor/cube_multicolor.usd \
     --make-instanceable \
     --collision-approximation convexDecomposition \
     --mass 1.0
@@ -213,7 +213,7 @@ the steps to clone the repository and run the converter:
 You may need to press 'F' to zoom in on the asset after import.
 
 Similar to the URDF and MJCF converter, executing the above script will create two USD files inside the
-``source/extensions/omni.isaac.lab_assets/data/Props/CubeMultiColor/`` directory. Additionally,
+``source/isaaclab_assets/data/Props/CubeMultiColor/`` directory. Additionally,
 if you press play on the opened window, you should see the asset fall down under the influence
 of gravity.
 

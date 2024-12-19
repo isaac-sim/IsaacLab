@@ -1,7 +1,7 @@
 Deep-dive into AppLauncher
 ==========================
 
-.. currentmodule:: omni.isaac.lab
+.. currentmodule:: isaaclab
 
 In this tutorial, we will dive into the :class:`app.AppLauncher` class to configure the simulator using
 CLI arguments and environment variables (envars). Particularly, we will demonstrate how to use
@@ -23,12 +23,12 @@ The Code
 --------
 
 The tutorial corresponds to the ``launch_app.py`` script in the
-``source/standalone/tutorials/00_sim`` directory.
+``scripts/tutorials/00_sim`` directory.
 
 .. dropdown:: Code for launch_app.py
    :icon: code
 
-   .. literalinclude:: ../../../../source/standalone/tutorials/00_sim/launch_app.py
+   .. literalinclude:: ../../../../scripts/tutorials/00_sim/launch_app.py
       :language: python
       :emphasize-lines: 18-40
       :linenos:
@@ -54,7 +54,7 @@ arguments appended. This can then be processed into an :class:`argparse.Namespac
 standard :meth:`argparse.ArgumentParser.parse_args` method and passed directly to
 :class:`~app.AppLauncher` for instantiation.
 
-.. literalinclude::  ../../../../source/standalone/tutorials/00_sim/launch_app.py
+.. literalinclude::  ../../../../scripts/tutorials/00_sim/launch_app.py
    :language: python
    :start-at: import argparse
    :end-at: simulation_app = app_launcher.app
@@ -70,7 +70,7 @@ custom arguments and those from :class:`~app.AppLauncher`.
 
 .. code-block:: console
 
-   ./isaaclab.sh -p source/standalone/tutorials/00_sim/launch_app.py --help
+   ./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py --help
 
    [INFO] Using python from: /isaac-sim/python.sh
    [INFO][AppLauncher]: The argument 'width' will be used to configure the SimulationApp.
@@ -113,7 +113,7 @@ Using environment variables
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 As noted in the help message, the :class:`~app.AppLauncher` arguments (``--livestream``, ``--headless``)
-have corresponding environment variables (envar) as well. These are detailed in :mod:`omni.isaac.lab.app`
+have corresponding environment variables (envar) as well. These are detailed in :mod:`isaaclab.app`
 documentation. Providing any of these arguments through CLI is equivalent to running the script in a shell
 environment where the corresponding envar is set.
 
@@ -124,7 +124,7 @@ as we will demonstrate later in this tutorial.
 
 These arguments can be used with any script that starts the simulation using :class:`~app.AppLauncher`,
 with one exception, ``--enable_cameras``. This setting sets the rendering pipeline to use the
-offscreen renderer. However, this setting is only compatible with the :class:`omni.isaac.lab.sim.SimulationContext`.
+offscreen renderer. However, this setting is only compatible with the :class:`isaaclab.sim.SimulationContext`.
 It will not work with Isaac Sim's :class:`isaacsim.core.api.simulation_context.SimulationContext` class.
 For more information on this flag, please see the :class:`~app.AppLauncher` API documentation.
 
@@ -136,7 +136,7 @@ We will now run the example script:
 
 .. code-block:: console
 
-   LIVESTREAM=2 ./isaaclab.sh -p source/standalone/tutorials/00_sim/launch_app.py --size 0.5
+   LIVESTREAM=2 ./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py --size 0.5
 
 This will spawn a 0.5m\ :sup:`3` volume cuboid in the simulation. No GUI will appear, equivalent
 to if we had passed the ``--headless`` flag because headlessness is implied by our ``LIVESTREAM``
@@ -153,7 +153,7 @@ Now, let's look at how :class:`~app.AppLauncher` handles conflicting commands:
 
 .. code-block:: console
 
-   LIVESTREAM=0 ./isaaclab.sh -p source/standalone/tutorials/00_sim/launch_app.py --size 0.5 --livestream 2
+   LIVESTREAM=0 ./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py --size 0.5 --livestream 2
 
 This will cause the same behavior as in the previous run, because although we have set ``LIVESTREAM=0``
 in our envars, CLI args such as ``--livestream`` take precedence in determining behavior. The process can
@@ -164,7 +164,7 @@ Finally, we will examine passing arguments to :class:`~isaacsim.simulation_app.S
 
 .. code-block:: console
 
-   LIVESTREAM=2 ./isaaclab.sh -p source/standalone/tutorials/00_sim/launch_app.py --size 0.5 --width 1920 --height 1080
+   LIVESTREAM=2 ./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py --size 0.5 --width 1920 --height 1080
 
 This will cause the same behavior as before, but now the viewport will be rendered at 1920x1080p resolution.
 This can be useful when we want to gather high-resolution video, or we can specify a lower resolution if we
@@ -172,5 +172,5 @@ want our simulation to be more performant. The process can be killed by pressing
 terminal.
 
 
-.. _specification: https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/isaacsim.simulation_app/docs/index.html#isaacsim.simulation_app.SimulationApp.DEFAULT_LAUNCHER_CONFIG
+.. _specification: https://docs.omniverse.nvidia.com/py/isaacsim/source/isaacsim.simulation_app/docs/index.html#isaacsim.simulation_app.SimulationApp.DEFAULT_LAUNCHER_CONFIG
 .. _WebRTC Livestreaming: https://docs.omniverse.nvidia.com/isaacsim/latest/installation/manual_livestream_clients.html#isaac-sim-short-webrtc-streaming-client

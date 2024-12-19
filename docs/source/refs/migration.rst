@@ -67,3 +67,30 @@ The exact renamings of the classes are as follow:
 * ``RigidPrimView`` --> ``RigidPrim``
 * ``XFormPrim`` --> ``SingleXFormPrim``
 * ``XFormPrimView`` --> ``XFormPrim``
+
+
+Renaming of Isaac Lab Extensions and Folders
+--------------------------------------------
+
+Corresponding to Isaac Sim 4.5 changes, we have also made some updates to the Isaac Lab directories and extensions.
+All extensions that were previously under ``source/extensions`` are now under the ``source/`` directory directly.
+The ``source/apps`` and ``source/standalone`` folders have been moved to the root directory and are now called
+``apps/`` and ``scripts/``.
+
+Isaac Lab extensions have been renamed to:
+
+* ``omni.isaac.lab`` --> ``isaaclab``
+* ``omni.isaac.lab_assets`` --> ``isaaclab_assets``
+* ``omni.isaac.lab_tasks`` --> ``isaaclab_tasks``
+
+In addition, we have split up the previous ``source/standalone/workflows`` directory into ``scripts/imitation_learning``
+and ``scripts/reinforcement_learning`` directories. The RSL RL, Stable-Baselines, RL_Games, SKRL, and Ray directories
+are under ``scripts/reinforcement_learning``, while Robomimic and the new Isaac Lab Mimic directories are under
+``scripts/imitation_learning``.
+
+To assist with the renaming of Isaac Lab extensions in your project, we have provided a `simple script`_ that will traverse
+through the ``source`` and ``docs`` directories in your local Isaac Lab project and replace any instance of the renamed
+directories and imports. **Please use the script at your own risk as it will overwrite source files directly.**
+
+
+.. _simple script: https://gist.github.com/kellyguo11/3e8f73f739b1c013b1069ad372277a85

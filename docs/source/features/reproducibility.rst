@@ -17,7 +17,7 @@ NumPy.
 In the included workflow scripts, the seed specified in the learning agent's configuration file or the
 command line argument is used to set the random seed for the environment. This ensures that the
 simulation results are reproducible across different runs. The seed is set into the environment
-parameters :attr:`omni.isaac.lab.envs.ManagerBasedEnvCfg.seed` or :attr:`omni.isaac.lab.envs.DirectRLEnvCfg.seed`
+parameters :attr:`isaaclab.envs.ManagerBasedEnvCfg.seed` or :attr:`isaaclab.envs.DirectRLEnvCfg.seed`
 depending on the manager-based or direct environment implementation respectively.
 
 For results on our determinacy testing for RL training, please check the GitHub Pull Request `#940`_.

@@ -70,6 +70,6 @@ You can use this script to experiment with pattern configurations and build an i
 .. dropdown:: Code for raycaster_sensor.py
    :icon: code
 
-   .. literalinclude:: ../../../../source/standalone/demos/sensors/raycaster_sensor.py
+   .. literalinclude:: ../../../../scripts/demos/sensors/raycaster_sensor.py
       :language: python
       :linenos:

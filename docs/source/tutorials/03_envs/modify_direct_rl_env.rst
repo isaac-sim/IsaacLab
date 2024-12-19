@@ -4,7 +4,7 @@
 Modifying an existing Direct RL Environment
 ===========================================
 
-.. currentmodule:: omni.isaac.lab
+.. currentmodule:: isaaclab
 
 Having learnt how to create a task in :ref:`tutorial-create-direct-rl-env`, register it in :ref:`tutorial-register-rl-env-gym`,
 and train it in :ref:`tutorial-run-rl-training`, we will now look at how to make minor modifications to an existing task.
@@ -19,12 +19,12 @@ humanoid model to the Unitree H1 humanoid robot without affecting the original c
 The Base Code
 ~~~~~~~~~~~~~
 
-For this tutorial, we start from the direct workflow Humanoid environment defined in ``omni.isaac.lab_tasks.direct.humanoid`` module.
+For this tutorial, we start from the direct workflow Humanoid environment defined in ``isaaclab_tasks.direct.humanoid`` module.
 
 .. dropdown:: Code for humanoid_env.py
    :icon: code
 
-   .. literalinclude:: ../../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/humanoid/humanoid_env.py
+   .. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/direct/humanoid/humanoid_env.py
       :language: python
       :linenos:
 
@@ -37,7 +37,7 @@ Duplicating the file and registering a new task
 
 To avoid modifying the code of the existing task, we will make a copy of the file containing the Python
 code and perform the modification on this copy. Then, in the Isaac Lab project
-``source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/humanoid``
+``source/isaaclab_tasks/isaaclab_tasks/direct/humanoid``
 folder we make a copy of the ``humanoid_env.py`` file and rename it to ``h1_env.py``.
 
 Open the ``h1_env.py`` file in a code editor and replace all the humanoid task name (``HumanoidEnv``) and its configuration
@@ -71,16 +71,16 @@ Changing the robot
 The ``H1EnvCfg`` class (in the new created ``h1_env.py`` file) encapsulates the configuration values of the environment,
 including the assets to be instantiated. Particularly in this example, the ``robot`` property holds the target articulation configuration.
 
-Since the Unitree H1 robot is included in the Isaac Lab assets extension (``omni.isaac.lab_assets``) we can just import it
+Since the Unitree H1 robot is included in the Isaac Lab assets extension (``isaaclab_assets``) we can just import it
 and do the replacement directly (under the ``H1EnvCfg.robot`` property), as shown below. Note that we also need to modify the
 ``joint_gears`` property as it holds robot-specific configuration values.
 
-.. |franka-direct-link| replace:: `Isaac-Franka-Cabinet-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/franka_cabinet/franka_cabinet_env.py>`__
+.. |franka-direct-link| replace:: `Isaac-Franka-Cabinet-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/franka_cabinet/franka_cabinet_env.py>`__
 
 .. hint::
 
    If the target robot is not included in the Isaac Lab assets extension, it is possible to load and configure it, from a USD file,
-   by using the :class:`~omni.isaac.lab.assets.ArticulationCfg` class.
+   by using the :class:`~isaaclab.assets.ArticulationCfg` class.
 
    * See the |franka-direct-link| source code for an example of loading and configuring a robot from a USD file.
    * Refer to the `Importing a New Asset <../../how-to/import_new_asset.html>`_ tutorial for details on how to import an asset from URDF or MJCF file, and other formats.
@@ -111,7 +111,7 @@ After the minor modification has been done, and similar to the previous tutorial
 
 .. code-block:: bash
 
-  ./isaaclab.sh -p source/standalone/workflows/rl_games/train.py --task Isaac-H1-Direct-v0 --headless
+  ./isaaclab.sh -p scripts/reinforcement_learning/rl_games/train.py --task Isaac-H1-Direct-v0 --headless
 
 When the training is finished, we can visualize the result with the following command.
 To stop the simulation, you can either close the window, or press ``Ctrl+C`` in the terminal
@@ -119,7 +119,7 @@ where you started the simulation.
 
 .. code-block:: bash
 
-  ./isaaclab.sh -p source/standalone/workflows/rl_games/play.py --task Isaac-H1-Direct-v0 --num_envs 64
+  ./isaaclab.sh -p scripts/reinforcement_learning/rl_games/play.py --task Isaac-H1-Direct-v0 --num_envs 64
 
 .. figure:: ../../_static/tutorials/tutorial_modify_direct_rl_env.jpg
     :align: center

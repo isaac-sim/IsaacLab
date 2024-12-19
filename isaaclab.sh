@@ -93,7 +93,7 @@ extract_isaacsim_exe() {
         # check for installation using Isaac Sim pip
         if [ $(python -m pip list | grep -c 'isaacsim-rl') -gt 0 ]; then
             # Isaac Sim - Python packages entry point
-            local isaacsim_exe="isaacsim omni.isaac.sim"
+            local isaacsim_exe="isaacsim isaacsim.exp.full"
         else
             echo "[ERROR] No Isaac Sim executable found at path: ${isaac_path}" >&2
             exit 1
@@ -270,7 +270,7 @@ while [[ $# -gt 0 ]]; do
             export -f extract_python_exe
             export -f install_isaaclab_extension
             # source directory
-            find -L "${ISAACLAB_PATH}/source/extensions" -mindepth 1 -maxdepth 1 -type d -exec bash -c 'install_isaaclab_extension "{}"' \;
+            find -L "${ISAACLAB_PATH}/source" -mindepth 1 -maxdepth 1 -type d -exec bash -c 'install_isaaclab_extension "{}"' \;
             # install the python packages for supported reinforcement learning frameworks
             echo "[INFO] Installing extra requirements such as learning frameworks..."
             # check if specified which rl-framework to install
@@ -287,7 +287,7 @@ while [[ $# -gt 0 ]]; do
                 shift # past argument
             fi
             # install the rl-frameworks specified
-            ${python_exe} -m pip install -e ${ISAACLAB_PATH}/source/extensions/omni.isaac.lab_tasks["${framework_name}"]
+            ${python_exe} -m pip install -e ${ISAACLAB_PATH}/source/isaaclab_tasks["${framework_name}"]
 
             # check if we are inside a docker container or are building a docker image
             # in that case don't setup VSCode since it asks for EULA agreement which triggers user interaction
@@ -359,7 +359,7 @@ while [[ $# -gt 0 ]]; do
             isaacsim_exe=$(extract_isaacsim_exe)
             echo "[INFO] Running isaac-sim from: ${isaacsim_exe}"
             shift # past argument
-            ${isaacsim_exe} --ext-folder ${ISAACLAB_PATH}/source/extensions $@
+            ${isaacsim_exe} --ext-folder ${ISAACLAB_PATH}/source $@
             # exit neatly
             break
             ;;

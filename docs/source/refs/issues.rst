@@ -37,7 +37,7 @@ timeline for this feature request.
 
 .. note::
     With Isaac Lab 1.2, we have introduced a PhysX kinematic update call inside the
-    :attr:`~omni.isaac.lab.assets.ArticulationData.body_state_w` attribute. This workaround
+    :attr:`~isaaclab.assets.ArticulationData.body_state_w` attribute. This workaround
     ensures that the states of the links are updated when the root state or joint state
     of an articulation is set.
 
@@ -45,7 +45,7 @@ timeline for this feature request.
 Blank initial frames from the camera
 ------------------------------------
 
-When using the :class:`~omni.isaac.lab.sensors.Camera` sensor in standalone scripts, the first few frames
+When using the :class:`~isaaclab.sensors.Camera` sensor in standalone scripts, the first few frames
 may be blank. This is a known issue with the simulator where it needs a few steps to load the material
 textures properly and fill up the render targets.
 
@@ -54,7 +54,7 @@ its pose:
 
 .. code-block:: python
 
-    from omni.isaac.lab.sim import SimulationContext
+    from isaaclab.sim import SimulationContext
 
     sim = SimulationContext.instance()
 
