@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.3.0" />
-    <meta name="docbuild:last-update" content="Dec 18, 2024"/>
+    <meta name="docbuild:last-update" content="Dec 20, 2024"/>
   </head>
   
   
@@ -715,9 +715,14 @@ isaaclab.bat -p source\standalone\workflows\skrl\play.py --task Isaac-Reach-Fran
 <input id="sd-tab-item-5" name="sd-tab-set-2" type="radio">
 <label class="sd-tab-label" for="sd-tab-item-5">
 JAX</label><div class="sd-tab-content docutils">
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>It is recommended to <a class="reference external" href="https://jax.readthedocs.io/en/latest/installation.html">install JAX</a> manually before proceeding to install skrl and its dependencies, as JAX installs its CPU version by default. For example, <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">-U</span> <span class="pre">&quot;jax[cuda12]&quot;</span></code> can be used to install JAX for CUDA 12.
+Visit the <strong>skrl</strong> <a class="reference external" href="https://skrl.readthedocs.io/en/latest/intro/installation.html">installation</a> page for more details.</p>
+</div>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># install python module (for skrl)</span>
 ./isaaclab.sh<span class="w"> </span>-i<span class="w"> </span>skrl
-<span class="c1"># install skrl dependencies for JAX. Visit https://skrl.readthedocs.io/en/latest/intro/installation.html for more details</span>
+<span class="c1"># install skrl dependencies for JAX</span>
 ./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>skrl<span class="o">[</span><span class="s2">&quot;jax&quot;</span><span class="o">]</span>
 <span class="c1"># run script for training</span>
 ./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/skrl/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Reach-Franka-v0<span class="w"> </span>--headless<span class="w"> </span>--ml_framework<span class="w"> </span>jax
@@ -910,7 +915,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Dec 18, 2024.
+  Last updated on Dec 20, 2024.
   <br/>
 </p>
   </div>
