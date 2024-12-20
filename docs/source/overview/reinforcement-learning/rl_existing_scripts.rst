@@ -122,11 +122,16 @@ SKRL
 
       .. tab-item:: JAX
 
+         .. warning::
+
+            It is recommended to `install JAX <https://jax.readthedocs.io/en/latest/installation.html>`_ manually before proceeding to install skrl and its dependencies, as JAX installs its CPU version by default. For example, ``pip install -U "jax[cuda12]"`` can be used to install JAX for CUDA 12.
+            Visit the **skrl** `installation <https://skrl.readthedocs.io/en/latest/intro/installation.html>`_ page for more details.
+
          .. code:: bash
 
             # install python module (for skrl)
             ./isaaclab.sh -i skrl
-            # install skrl dependencies for JAX. Visit https://skrl.readthedocs.io/en/latest/intro/installation.html for more details
+            # install skrl dependencies for JAX
             ./isaaclab.sh -p -m pip install skrl["jax"]
             # run script for training
             ./isaaclab.sh -p source/standalone/workflows/skrl/train.py --task Isaac-Reach-Franka-v0 --headless --ml_framework jax
