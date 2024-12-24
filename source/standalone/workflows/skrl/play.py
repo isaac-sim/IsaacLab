@@ -120,7 +120,7 @@ def main():
     # convert to single-agent instance if required by the RL algorithm
     if isinstance(env.unwrapped, DirectMARLEnv) and algorithm in ["ppo"]:
         env = multi_agent_to_single_agent(env)
-    
+
     # wrap for video recording
     if args_cli.video:
         video_kwargs = {
