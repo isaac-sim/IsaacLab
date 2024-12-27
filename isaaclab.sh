@@ -22,6 +22,15 @@ export ISAACLAB_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && p
 # Helper functions
 #==
 
+# check if running in docker
+is_docker() {
+    [ -f /.dockerenv ] || \
+    grep -q docker /proc/1/cgroup || \
+    [[ $(cat /proc/1/comm) == "containerd-shim" ]] || \
+    grep -q docker /proc/mounts || \
+    [[ "$(hostname)" == *"."* ]]
+}
+
 # extract isaac sim path
 extract_isaacsim_path() {
     # Use the sym-link path to Isaac Sim directory
@@ -291,7 +300,7 @@ while [[ $# -gt 0 ]]; do
 
             # check if we are inside a docker container or are building a docker image
             # in that case don't setup VSCode since it asks for EULA agreement which triggers user interaction
-            if [ -f /.dockerenv ]; then
+            if is_docker; then
                 echo "[INFO] Running inside a docker container. Skipping VSCode settings setup."
                 echo "[INFO] To setup VSCode settings, run 'isaaclab -v'."
             else
