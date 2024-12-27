@@ -1,0 +1,1221 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+    <title>Spawning Multiple Assets &#8212; Isaac Lab Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css" />
+    <link rel="stylesheet" href="../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.10.15/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.4cbf315f70debaebd550c87a6162cf0f.min.css" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+    <script src="../../_static/doctools.js"></script>
+    <script src="../../_static/sphinx_highlight.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.10.15/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="../../_static/clipboard.min.js"></script>
+    <script src="../../_static/copybutton.js"></script>
+    <script src="../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
+    <script src="../../_static/design-tabs.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'source/how-to/multi_asset_spawning';</script>
+    <link rel="icon" href="../../_static/favicon.ico"/>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Saving rendered images and 3D re-projection" href="save_camera_output.html" />
+    <link rel="prev" title="Making a physics prim fixed in the simulation" href="make_fixed_prim.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="1.3.0" />
+    <meta name="docbuild:last-update" content="Dec 27, 2024"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/NVIDIA-logo-white.png" class="logo__image only-light" alt=""/>
+    <img src="../../_static/NVIDIA-logo-black.png" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">Isaac Lab Documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+<nav class="bd-links bd-docs-nav">
+    <div class="bd-toc-item navbar-nav">
+      <ul class="nav bd-sidenav">
+        <li class="toctree-l1 has-children" style="display: flex; justify-content: center; align-items: center; flex-direction: column;">
+          <div  style ="text-align:center;">
+            <label for="version-select" style="font-weight: bold; display: block;">Version</label>
+          </div>
+          <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="../../../main/source/how-to/multi_asset_spawning.html" >main</option>
+            <option value="multi_asset_spawning.html" selected>v1.4.0</option>
+            <option value="../../../v1.3.0/source/how-to/multi_asset_spawning.html" >v1.3.0</option>
+            <option value="../../../v1.2.0/index.html" >v1.2.0</option>
+            <option value="../../../v1.1.0/index.html" >v1.1.0</option>
+            <option value="../../../v1.0.0/index.html" >v1.0.0</option>
+          </select>
+        </li>
+      </ul>
+    </div>
+</nav>
+</div>
+        <div class="sidebar-primary-item"><ul class="navbar-icon-links"
+    aria-label="Quick Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/isaac-sim/IsaacLab" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.2.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://img.shields.io/github/stars/isaac-sim/IsaacLab?color=fedcba" title="Stars" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/github/stars/isaac-sim/IsaacLab?color=fedcba" class="icon-link-image" alt="Stars"/></a>
+        </li>
+</ul></div>
+        <div class="sidebar-primary-item">
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../setup/ecosystem.html">Isaac Lab Ecosystem</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../setup/installation/pip_installation.html">Pip installation (recommended for Ubuntu 22.04 and Windows)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../setup/installation/binaries_installation.html">Binary installation (recommended for Ubuntu 20.04)</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../setup/faq.html">Frequently Asked Questions</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Overview</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../overview/developer-guide/index.html">Developer’s Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
+
+<li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/repo_structure.html">Repository organization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/development.html">Application Development</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/template.html">Building your Own Project</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../overview/core-concepts/index.html">Core Concepts</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../overview/core-concepts/task_workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/core-concepts/actuators.html">Actuators</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../overview/sensors/index.html">Sensors</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../overview/sensors/camera.html">Camera</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/sensors/contact_sensor.html">Contact Sensor</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/sensors/frame_transformer.html">Frame Transformer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/sensors/ray_caster.html">Ray Caster</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../overview/environments.html">Available Environments</a></li>
+
+<li class="toctree-l1 has-children"><a class="reference internal" href="../overview/reinforcement-learning/index.html">Reinforcement Learning</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../overview/reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Wrappers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/reinforcement-learning/rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/reinforcement-learning/performance_benchmarks.html">Performance Benchmarks</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../overview/teleop_imitation.html">Teleoperation and Imitation Learning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../overview/showroom.html">Showroom Demos</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../overview/simple_agents.html">Simple Agents</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../features/hydra.html">Hydra Configuration System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../overview/sensors/camera.html">Tiled Rendering</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../features/ray.html">Ray Job Dispatch and Tuning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../features/reproducibility.html">Reproducibility and Determinism</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/00_sim/spawn_prims.html">Spawning prims into the scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/00_sim/launch_app.html">Deep-dive into AppLauncher</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/01_assets/run_rigid_object.html">Interacting with a rigid object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/01_assets/run_articulation.html">Interacting with an articulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/01_assets/run_deformable_object.html">Interacting with a deformable object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/02_scene/create_scene.html">Using the Interactive Scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/create_manager_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/create_manager_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/05_controllers/run_osc.html">Using an operational space controller</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="index.html">How-to Guides</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="import_new_asset.html">Importing a New Asset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="write_articulation_cfg.html">Writing an Asset Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="make_fixed_prim.html">Making a physics prim fixed in the simulation</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">Spawning Multiple Assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="save_camera_output.html">Saving rendered images and 3D re-projection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="estimate_how_many_cameras_can_run.html">Find How Many/What Cameras You Should Train With</a></li>
+<li class="toctree-l2"><a class="reference internal" href="draw_markers.html">Creating Visualization Markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="wrap_rl_env.html">Wrapping environments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="add_own_library.html">Adding your own learning library</a></li>
+<li class="toctree-l2"><a class="reference internal" href="record_animation.html">Recording Animations of Simulations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="record_video.html">Recording video clips during training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="master_omniverse.html">Mastering Omniverse for Robotics</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../deployment/index.html">Container Deployment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../deployment/docker.html">Docker Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../deployment/cluster.html">Cluster Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../deployment/run_docker_example.html">Running an example with Docker</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Migration Guides</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../migration/migrating_from_isaacgymenvs.html">From IsaacGymEnvs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../migration/migrating_from_omniisaacgymenvs.html">From OmniIsaacGymEnvs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../migration/migrating_from_orbit.html">From Orbit</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Source API</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../api/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.app.html">omni.isaac.lab.app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.actuators.html">omni.isaac.lab.actuators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html">omni.isaac.lab.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.controllers.html">omni.isaac.lab.controllers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.devices.html">omni.isaac.lab.devices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.envs.html">omni.isaac.lab.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.managers.html">omni.isaac.lab.managers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.markers.html">omni.isaac.lab.markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.scene.html">omni.isaac.lab.scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.html">omni.isaac.lab.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.sim.html">omni.isaac.lab.sim</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.terrains.html">omni.isaac.lab.terrains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.utils.html">omni.isaac.lab.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.envs.mdp.html">omni.isaac.lab.envs.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.envs.ui.html">omni.isaac.lab.envs.ui</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.patterns.html">omni.isaac.lab.sensors.patterns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.sim.converters.html">omni.isaac.lab.sim.converters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.sim.schemas.html">omni.isaac.lab.sim.schemas</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/omni.isaac.lab.sim.spawners.html">omni.isaac.lab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab_tasks/omni.isaac.lab_tasks.utils.html">omni.isaac.lab_tasks.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html">omni.isaac.lab_tasks.utils.wrappers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab_tasks/omni.isaac.lab_tasks.utils.data_collector.html">omni.isaac.lab_tasks.utils.data_collector</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../refs/reference_architecture/index.html">Reference Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../refs/additional_resources.html">Additional Resources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../refs/contributing.html">Contribution Guidelines</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../refs/troubleshooting.html">Tricks and Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../refs/issues.html">Known Issues</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../refs/changelog.html">Extensions Changelog</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../refs/license.html">License</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../refs/bibliography.html">Bibliography</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/index.html">NVIDIA PhysX</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</label></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-source-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Source repositories">
+    <i class="fab fa-github"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab" target="_blank"
+   class="btn btn-sm btn-source-repository-button dropdown-item"
+   title="Source repository"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+<span class="btn__text-container">Repository</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab/edit/main/source/how-to/multi_asset_spawning.rst" target="_blank"
+   class="btn btn-sm btn-source-edit-button dropdown-item"
+   title="Suggest edit"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-pencil-alt"></i>
+  </span>
+<span class="btn__text-container">Suggest edit</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2Fsource/how-to/multi_asset_spawning.html&body=Your%20issue%20content%20here." target="_blank"
+   class="btn btn-sm btn-source-issues-button dropdown-item"
+   title="Open an issue"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-lightbulb"></i>
+  </span>
+<span class="btn__text-container">Open issue</span>
+</a>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../../_sources/source/how-to/multi_asset_spawning.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+<label class="sidebar-toggle secondary-toggle btn btn-sm" for="__secondary"title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</label>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Spawning Multiple Assets</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#rigid-object-collections">Rigid Object Collections</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#spawning-different-assets-under-the-same-prim-path">Spawning different assets under the same prim path</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#things-to-note">Things to Note</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#similar-asset-structuring">Similar asset structuring</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#disabling-physics-replication-in-interactive-scene">Disabling physics replication in interactive scene</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-code-execution">The Code Execution</a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="spawning-multiple-assets">
+<h1>Spawning Multiple Assets<a class="headerlink" href="#spawning-multiple-assets" title="Permalink to this heading">#</a></h1>
+<p>Typical spawning configurations (introduced in the <a class="reference internal" href="../tutorials/00_sim/spawn_prims.html#tutorial-spawn-prims"><span class="std std-ref">Spawning prims into the scene</span></a> tutorial) copy the same
+asset (or USD primitive) across the different resolved prim paths from the expressions.
+For instance, if the user specifies to spawn the asset at “/World/Table_.*/Object”, the same
+asset is created at the paths “/World/Table_0/Object”, “/World/Table_1/Object” and so on.</p>
+<p>However, we also support multi-asset spawning with two mechanisms:</p>
+<ol class="arabic simple">
+<li><p>Rigid object collections. This allows the user to spawn multiple rigid objects in each environment and access/modify
+them with a unified API, improving performance.</p></li>
+<li><p>Spawning different assets under the same prim path. This allows the user to create diverse simulations, where each
+environment has a different asset.</p></li>
+</ol>
+<p>This guide describes how to use these two mechanisms.</p>
+<p>The sample script <code class="docutils literal notranslate"><span class="pre">multi_asset.py</span></code> is used as a reference, located in the
+<code class="docutils literal notranslate"><span class="pre">IsaacLab/source/standalone/demos</span></code> directory.</p>
+<details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
+<summary class="sd-summary-title sd-card-header">
+<span class="sd-summary-icon"><svg version="1.1" width="1.0em" height="1.0em" class="sd-octicon sd-octicon-code" viewBox="0 0 16 16" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg></span><span class="sd-summary-text">Code for multi_asset.py</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="linenos">  1</span><span class="c1"># Copyright (c) 2022-2024, The Isaac Lab Project Developers.</span>
+<span class="linenos">  2</span><span class="c1"># All rights reserved.</span>
+<span class="linenos">  3</span><span class="c1">#</span>
+<span class="linenos">  4</span><span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
+<span class="linenos">  5</span>
+<span class="linenos">  6</span><span class="sd">&quot;&quot;&quot;This script demonstrates how to spawn multiple objects in multiple environments.</span>
+<span class="linenos">  7</span>
+<span class="linenos">  8</span><span class="sd">.. code-block:: bash</span>
+<span class="linenos">  9</span>
+<span class="linenos"> 10</span><span class="sd">    # Usage</span>
+<span class="linenos"> 11</span><span class="sd">    ./isaaclab.sh -p source/standalone/demos/multi_asset.py --num_envs 2048</span>
+<span class="linenos"> 12</span>
+<span class="linenos"> 13</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="linenos"> 14</span>
+<span class="linenos"> 15</span><span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">annotations</span>
+<span class="linenos"> 16</span>
+<span class="linenos"> 17</span><span class="sd">&quot;&quot;&quot;Launch Isaac Sim Simulator first.&quot;&quot;&quot;</span>
+<span class="linenos"> 18</span>
+<span class="linenos"> 19</span>
+<span class="linenos"> 20</span><span class="kn">import</span> <span class="nn">argparse</span>
+<span class="linenos"> 21</span>
+<span class="linenos"> 22</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.app</span> <span class="kn">import</span> <span class="n">AppLauncher</span>
+<span class="linenos"> 23</span>
+<span class="linenos"> 24</span><span class="c1"># add argparse arguments</span>
+<span class="linenos"> 25</span><span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;Demo on spawning different objects in multiple environments.&quot;</span><span class="p">)</span>
+<span class="linenos"> 26</span><span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--num_envs&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">512</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Number of environments to spawn.&quot;</span><span class="p">)</span>
+<span class="linenos"> 27</span><span class="c1"># append AppLauncher cli args</span>
+<span class="linenos"> 28</span><span class="n">AppLauncher</span><span class="o">.</span><span class="n">add_app_launcher_args</span><span class="p">(</span><span class="n">parser</span><span class="p">)</span>
+<span class="linenos"> 29</span><span class="c1"># parse the arguments</span>
+<span class="linenos"> 30</span><span class="n">args_cli</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
+<span class="linenos"> 31</span>
+<span class="linenos"> 32</span><span class="c1"># launch omniverse app</span>
+<span class="linenos"> 33</span><span class="n">app_launcher</span> <span class="o">=</span> <span class="n">AppLauncher</span><span class="p">(</span><span class="n">args_cli</span><span class="p">)</span>
+<span class="linenos"> 34</span><span class="n">simulation_app</span> <span class="o">=</span> <span class="n">app_launcher</span><span class="o">.</span><span class="n">app</span>
+<span class="linenos"> 35</span>
+<span class="linenos"> 36</span><span class="sd">&quot;&quot;&quot;Rest everything follows.&quot;&quot;&quot;</span>
+<span class="linenos"> 37</span>
+<span class="linenos"> 38</span><span class="kn">import</span> <span class="nn">random</span>
+<span class="linenos"> 39</span>
+<span class="linenos"> 40</span><span class="kn">import</span> <span class="nn">omni.usd</span>
+<span class="linenos"> 41</span><span class="kn">from</span> <span class="nn">pxr</span> <span class="kn">import</span> <span class="n">Gf</span><span class="p">,</span> <span class="n">Sdf</span>
+<span class="linenos"> 42</span>
+<span class="linenos"> 43</span><span class="kn">import</span> <span class="nn">omni.isaac.lab.sim</span> <span class="k">as</span> <span class="nn">sim_utils</span>
+<span class="linenos"> 44</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.assets</span> <span class="kn">import</span> <span class="p">(</span>
+<span class="linenos"> 45</span>    <span class="n">Articulation</span><span class="p">,</span>
+<span class="linenos"> 46</span>    <span class="n">ArticulationCfg</span><span class="p">,</span>
+<span class="linenos"> 47</span>    <span class="n">AssetBaseCfg</span><span class="p">,</span>
+<span class="linenos"> 48</span>    <span class="n">RigidObject</span><span class="p">,</span>
+<span class="linenos"> 49</span>    <span class="n">RigidObjectCfg</span><span class="p">,</span>
+<span class="linenos"> 50</span>    <span class="n">RigidObjectCollection</span><span class="p">,</span>
+<span class="linenos"> 51</span>    <span class="n">RigidObjectCollectionCfg</span><span class="p">,</span>
+<span class="linenos"> 52</span><span class="p">)</span>
+<span class="linenos"> 53</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.scene</span> <span class="kn">import</span> <span class="n">InteractiveScene</span><span class="p">,</span> <span class="n">InteractiveSceneCfg</span>
+<span class="linenos"> 54</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.sim</span> <span class="kn">import</span> <span class="n">SimulationContext</span>
+<span class="linenos"> 55</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.utils</span> <span class="kn">import</span> <span class="n">Timer</span><span class="p">,</span> <span class="n">configclass</span>
+<span class="linenos"> 56</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.utils.assets</span> <span class="kn">import</span> <span class="n">ISAACLAB_NUCLEUS_DIR</span>
+<span class="linenos"> 57</span>
+<span class="linenos"> 58</span><span class="c1">##</span>
+<span class="linenos"> 59</span><span class="c1"># Pre-defined Configuration</span>
+<span class="linenos"> 60</span><span class="c1">##</span>
+<span class="linenos"> 61</span>
+<span class="linenos"> 62</span><span class="kn">from</span> <span class="nn">omni.isaac.lab_assets.anymal</span> <span class="kn">import</span> <span class="n">ANYDRIVE_3_LSTM_ACTUATOR_CFG</span>  <span class="c1"># isort: skip</span>
+<span class="linenos"> 63</span>
+<span class="linenos"> 64</span>
+<span class="linenos"> 65</span><span class="c1">##</span>
+<span class="linenos"> 66</span><span class="c1"># Randomization events.</span>
+<span class="linenos"> 67</span><span class="c1">##</span>
+<span class="linenos"> 68</span>
+<span class="linenos"> 69</span>
+<span class="linenos"> 70</span><span class="k">def</span> <span class="nf">randomize_shape_color</span><span class="p">(</span><span class="n">prim_path_expr</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<span class="linenos"> 71</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Randomize the color of the geometry.&quot;&quot;&quot;</span>
+<span class="linenos"> 72</span>    <span class="c1"># acquire stage</span>
+<span class="linenos"> 73</span>    <span class="n">stage</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">usd</span><span class="o">.</span><span class="n">get_context</span><span class="p">()</span><span class="o">.</span><span class="n">get_stage</span><span class="p">()</span>
+<span class="linenos"> 74</span>    <span class="c1"># resolve prim paths for spawning and cloning</span>
+<span class="linenos"> 75</span>    <span class="n">prim_paths</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">find_matching_prim_paths</span><span class="p">(</span><span class="n">prim_path_expr</span><span class="p">)</span>
+<span class="linenos"> 76</span>    <span class="c1"># manually clone prims if the source prim path is a regex expression</span>
+<span class="linenos"> 77</span>    <span class="k">with</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">ChangeBlock</span><span class="p">():</span>
+<span class="linenos"> 78</span>        <span class="k">for</span> <span class="n">prim_path</span> <span class="ow">in</span> <span class="n">prim_paths</span><span class="p">:</span>
+<span class="linenos"> 79</span>            <span class="c1"># spawn single instance</span>
+<span class="linenos"> 80</span>            <span class="n">prim_spec</span> <span class="o">=</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">CreatePrimInLayer</span><span class="p">(</span><span class="n">stage</span><span class="o">.</span><span class="n">GetRootLayer</span><span class="p">(),</span> <span class="n">prim_path</span><span class="p">)</span>
+<span class="linenos"> 81</span>
+<span class="linenos"> 82</span>            <span class="c1"># DO YOUR OWN OTHER KIND OF RANDOMIZATION HERE!</span>
+<span class="linenos"> 83</span>            <span class="c1"># Note: Just need to acquire the right attribute about the property you want to set</span>
+<span class="linenos"> 84</span>            <span class="c1"># Here is an example on setting color randomly</span>
+<span class="linenos"> 85</span>            <span class="n">color_spec</span> <span class="o">=</span> <span class="n">prim_spec</span><span class="o">.</span><span class="n">GetAttributeAtPath</span><span class="p">(</span><span class="n">prim_path</span> <span class="o">+</span> <span class="s2">&quot;/geometry/material/Shader.inputs:diffuseColor&quot;</span><span class="p">)</span>
+<span class="linenos"> 86</span>            <span class="n">color_spec</span><span class="o">.</span><span class="n">default</span> <span class="o">=</span> <span class="n">Gf</span><span class="o">.</span><span class="n">Vec3f</span><span class="p">(</span><span class="n">random</span><span class="o">.</span><span class="n">random</span><span class="p">(),</span> <span class="n">random</span><span class="o">.</span><span class="n">random</span><span class="p">(),</span> <span class="n">random</span><span class="o">.</span><span class="n">random</span><span class="p">())</span>
+<span class="linenos"> 87</span>
+<span class="linenos"> 88</span>
+<span class="linenos"> 89</span><span class="c1">##</span>
+<span class="linenos"> 90</span><span class="c1"># Scene Configuration</span>
+<span class="linenos"> 91</span><span class="c1">##</span>
+<span class="linenos"> 92</span>
+<span class="linenos"> 93</span>
+<span class="linenos"> 94</span><span class="nd">@configclass</span>
+<span class="linenos"> 95</span><span class="k">class</span> <span class="nc">MultiObjectSceneCfg</span><span class="p">(</span><span class="n">InteractiveSceneCfg</span><span class="p">):</span>
+<span class="linenos"> 96</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a multi-object scene.&quot;&quot;&quot;</span>
+<span class="linenos"> 97</span>
+<span class="linenos"> 98</span>    <span class="c1"># ground plane</span>
+<span class="linenos"> 99</span>    <span class="n">ground</span> <span class="o">=</span> <span class="n">AssetBaseCfg</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/defaultGroundPlane&quot;</span><span class="p">,</span> <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">GroundPlaneCfg</span><span class="p">())</span>
+<span class="linenos">100</span>
+<span class="linenos">101</span>    <span class="c1"># lights</span>
+<span class="linenos">102</span>    <span class="n">dome_light</span> <span class="o">=</span> <span class="n">AssetBaseCfg</span><span class="p">(</span>
+<span class="linenos">103</span>        <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/Light&quot;</span><span class="p">,</span> <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">DomeLightCfg</span><span class="p">(</span><span class="n">intensity</span><span class="o">=</span><span class="mf">3000.0</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">))</span>
+<span class="linenos">104</span>    <span class="p">)</span>
+<span class="linenos">105</span>
+<span class="linenos">106</span>    <span class="c1"># rigid object</span>
+<span class="linenos">107</span>    <span class="nb">object</span><span class="p">:</span> <span class="n">RigidObjectCfg</span> <span class="o">=</span> <span class="n">RigidObjectCfg</span><span class="p">(</span>
+<span class="linenos">108</span>        <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/envs/env_.*/Object&quot;</span><span class="p">,</span>
+<span class="hll"><span class="linenos">109</span>        <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">MultiAssetSpawnerCfg</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos">110</span>            <span class="n">assets_cfg</span><span class="o">=</span><span class="p">[</span>
+</span><span class="hll"><span class="linenos">111</span>                <span class="n">sim_utils</span><span class="o">.</span><span class="n">ConeCfg</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos">112</span>                    <span class="n">radius</span><span class="o">=</span><span class="mf">0.3</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">113</span>                    <span class="n">height</span><span class="o">=</span><span class="mf">0.6</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">114</span>                    <span class="n">visual_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PreviewSurfaceCfg</span><span class="p">(</span><span class="n">diffuse_color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span> <span class="n">metallic</span><span class="o">=</span><span class="mf">0.2</span><span class="p">),</span>
+</span><span class="hll"><span class="linenos">115</span>                <span class="p">),</span>
+</span><span class="hll"><span class="linenos">116</span>                <span class="n">sim_utils</span><span class="o">.</span><span class="n">CuboidCfg</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos">117</span>                    <span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="mf">0.3</span><span class="p">,</span> <span class="mf">0.3</span><span class="p">,</span> <span class="mf">0.3</span><span class="p">),</span>
+</span><span class="hll"><span class="linenos">118</span>                    <span class="n">visual_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PreviewSurfaceCfg</span><span class="p">(</span><span class="n">diffuse_color</span><span class="o">=</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span> <span class="n">metallic</span><span class="o">=</span><span class="mf">0.2</span><span class="p">),</span>
+</span><span class="hll"><span class="linenos">119</span>                <span class="p">),</span>
+</span><span class="hll"><span class="linenos">120</span>                <span class="n">sim_utils</span><span class="o">.</span><span class="n">SphereCfg</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos">121</span>                    <span class="n">radius</span><span class="o">=</span><span class="mf">0.3</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">122</span>                    <span class="n">visual_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PreviewSurfaceCfg</span><span class="p">(</span><span class="n">diffuse_color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">),</span> <span class="n">metallic</span><span class="o">=</span><span class="mf">0.2</span><span class="p">),</span>
+</span><span class="hll"><span class="linenos">123</span>                <span class="p">),</span>
+</span><span class="hll"><span class="linenos">124</span>            <span class="p">],</span>
+</span><span class="hll"><span class="linenos">125</span>            <span class="n">random_choice</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">126</span>            <span class="n">rigid_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">RigidBodyPropertiesCfg</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos">127</span>                <span class="n">solver_position_iteration_count</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">solver_velocity_iteration_count</span><span class="o">=</span><span class="mi">0</span>
+</span><span class="hll"><span class="linenos">128</span>            <span class="p">),</span>
+</span><span class="hll"><span class="linenos">129</span>            <span class="n">mass_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">MassPropertiesCfg</span><span class="p">(</span><span class="n">mass</span><span class="o">=</span><span class="mf">1.0</span><span class="p">),</span>
+</span><span class="hll"><span class="linenos">130</span>            <span class="n">collision_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">CollisionPropertiesCfg</span><span class="p">(),</span>
+</span><span class="hll"><span class="linenos">131</span>        <span class="p">),</span>
+</span><span class="linenos">132</span>        <span class="n">init_state</span><span class="o">=</span><span class="n">RigidObjectCfg</span><span class="o">.</span><span class="n">InitialStateCfg</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">)),</span>
+<span class="linenos">133</span>    <span class="p">)</span>
+<span class="linenos">134</span>
+<span class="hll"><span class="linenos">135</span>    <span class="c1"># object collection</span>
+</span><span class="hll"><span class="linenos">136</span>    <span class="n">object_collection</span><span class="p">:</span> <span class="n">RigidObjectCollectionCfg</span> <span class="o">=</span> <span class="n">RigidObjectCollectionCfg</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos">137</span>        <span class="n">rigid_objects</span><span class="o">=</span><span class="p">{</span>
+</span><span class="hll"><span class="linenos">138</span>            <span class="s2">&quot;object_A&quot;</span><span class="p">:</span> <span class="n">RigidObjectCfg</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos">139</span>                <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/envs/env_.*/Object_A&quot;</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">140</span>                <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">SphereCfg</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos">141</span>                    <span class="n">radius</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">142</span>                    <span class="n">visual_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PreviewSurfaceCfg</span><span class="p">(</span><span class="n">diffuse_color</span><span class="o">=</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span> <span class="n">metallic</span><span class="o">=</span><span class="mf">0.2</span><span class="p">),</span>
+</span><span class="hll"><span class="linenos">143</span>                    <span class="n">rigid_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">RigidBodyPropertiesCfg</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos">144</span>                        <span class="n">solver_position_iteration_count</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">solver_velocity_iteration_count</span><span class="o">=</span><span class="mi">0</span>
+</span><span class="hll"><span class="linenos">145</span>                    <span class="p">),</span>
+</span><span class="hll"><span class="linenos">146</span>                    <span class="n">mass_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">MassPropertiesCfg</span><span class="p">(</span><span class="n">mass</span><span class="o">=</span><span class="mf">1.0</span><span class="p">),</span>
+</span><span class="hll"><span class="linenos">147</span>                    <span class="n">collision_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">CollisionPropertiesCfg</span><span class="p">(),</span>
+</span><span class="hll"><span class="linenos">148</span>                <span class="p">),</span>
+</span><span class="hll"><span class="linenos">149</span>                <span class="n">init_state</span><span class="o">=</span><span class="n">RigidObjectCfg</span><span class="o">.</span><span class="n">InitialStateCfg</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">)),</span>
+</span><span class="hll"><span class="linenos">150</span>            <span class="p">),</span>
+</span><span class="hll"><span class="linenos">151</span>            <span class="s2">&quot;object_B&quot;</span><span class="p">:</span> <span class="n">RigidObjectCfg</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos">152</span>                <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/envs/env_.*/Object_B&quot;</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">153</span>                <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">CuboidCfg</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos">154</span>                    <span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">),</span>
+</span><span class="hll"><span class="linenos">155</span>                    <span class="n">visual_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PreviewSurfaceCfg</span><span class="p">(</span><span class="n">diffuse_color</span><span class="o">=</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span> <span class="n">metallic</span><span class="o">=</span><span class="mf">0.2</span><span class="p">),</span>
+</span><span class="hll"><span class="linenos">156</span>                    <span class="n">rigid_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">RigidBodyPropertiesCfg</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos">157</span>                        <span class="n">solver_position_iteration_count</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">solver_velocity_iteration_count</span><span class="o">=</span><span class="mi">0</span>
+</span><span class="hll"><span class="linenos">158</span>                    <span class="p">),</span>
+</span><span class="hll"><span class="linenos">159</span>                    <span class="n">mass_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">MassPropertiesCfg</span><span class="p">(</span><span class="n">mass</span><span class="o">=</span><span class="mf">1.0</span><span class="p">),</span>
+</span><span class="hll"><span class="linenos">160</span>                    <span class="n">collision_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">CollisionPropertiesCfg</span><span class="p">(),</span>
+</span><span class="hll"><span class="linenos">161</span>                <span class="p">),</span>
+</span><span class="hll"><span class="linenos">162</span>                <span class="n">init_state</span><span class="o">=</span><span class="n">RigidObjectCfg</span><span class="o">.</span><span class="n">InitialStateCfg</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">)),</span>
+</span><span class="hll"><span class="linenos">163</span>            <span class="p">),</span>
+</span><span class="hll"><span class="linenos">164</span>            <span class="s2">&quot;object_C&quot;</span><span class="p">:</span> <span class="n">RigidObjectCfg</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos">165</span>                <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/envs/env_.*/Object_C&quot;</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">166</span>                <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">ConeCfg</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos">167</span>                    <span class="n">radius</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">168</span>                    <span class="n">height</span><span class="o">=</span><span class="mf">0.3</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">169</span>                    <span class="n">visual_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PreviewSurfaceCfg</span><span class="p">(</span><span class="n">diffuse_color</span><span class="o">=</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span> <span class="n">metallic</span><span class="o">=</span><span class="mf">0.2</span><span class="p">),</span>
+</span><span class="hll"><span class="linenos">170</span>                    <span class="n">rigid_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">RigidBodyPropertiesCfg</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos">171</span>                        <span class="n">solver_position_iteration_count</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">solver_velocity_iteration_count</span><span class="o">=</span><span class="mi">0</span>
+</span><span class="hll"><span class="linenos">172</span>                    <span class="p">),</span>
+</span><span class="hll"><span class="linenos">173</span>                    <span class="n">mass_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">MassPropertiesCfg</span><span class="p">(</span><span class="n">mass</span><span class="o">=</span><span class="mf">1.0</span><span class="p">),</span>
+</span><span class="hll"><span class="linenos">174</span>                    <span class="n">collision_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">CollisionPropertiesCfg</span><span class="p">(),</span>
+</span><span class="hll"><span class="linenos">175</span>                <span class="p">),</span>
+</span><span class="hll"><span class="linenos">176</span>                <span class="n">init_state</span><span class="o">=</span><span class="n">RigidObjectCfg</span><span class="o">.</span><span class="n">InitialStateCfg</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">)),</span>
+</span><span class="hll"><span class="linenos">177</span>            <span class="p">),</span>
+</span><span class="hll"><span class="linenos">178</span>        <span class="p">}</span>
+</span><span class="hll"><span class="linenos">179</span>    <span class="p">)</span>
+</span><span class="linenos">180</span>
+<span class="linenos">181</span>    <span class="c1"># articulation</span>
+<span class="linenos">182</span>    <span class="n">robot</span><span class="p">:</span> <span class="n">ArticulationCfg</span> <span class="o">=</span> <span class="n">ArticulationCfg</span><span class="p">(</span>
+<span class="linenos">183</span>        <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/envs/env_.*/Robot&quot;</span><span class="p">,</span>
+<span class="hll"><span class="linenos">184</span>        <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">MultiUsdFileCfg</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos">185</span>            <span class="n">usd_path</span><span class="o">=</span><span class="p">[</span>
+</span><span class="hll"><span class="linenos">186</span>                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">ISAACLAB_NUCLEUS_DIR</span><span class="si">}</span><span class="s2">/Robots/ANYbotics/ANYmal-C/anymal_c.usd&quot;</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">187</span>                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">ISAACLAB_NUCLEUS_DIR</span><span class="si">}</span><span class="s2">/Robots/ANYbotics/ANYmal-D/anymal_d.usd&quot;</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">188</span>            <span class="p">],</span>
+</span><span class="hll"><span class="linenos">189</span>            <span class="n">random_choice</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">190</span>            <span class="n">rigid_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">RigidBodyPropertiesCfg</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos">191</span>                <span class="n">disable_gravity</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">192</span>                <span class="n">retain_accelerations</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">193</span>                <span class="n">linear_damping</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">194</span>                <span class="n">angular_damping</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">195</span>                <span class="n">max_linear_velocity</span><span class="o">=</span><span class="mf">1000.0</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">196</span>                <span class="n">max_angular_velocity</span><span class="o">=</span><span class="mf">1000.0</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">197</span>                <span class="n">max_depenetration_velocity</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">198</span>            <span class="p">),</span>
+</span><span class="hll"><span class="linenos">199</span>            <span class="n">articulation_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">ArticulationRootPropertiesCfg</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos">200</span>                <span class="n">enabled_self_collisions</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">solver_position_iteration_count</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">solver_velocity_iteration_count</span><span class="o">=</span><span class="mi">0</span>
+</span><span class="hll"><span class="linenos">201</span>            <span class="p">),</span>
+</span><span class="hll"><span class="linenos">202</span>            <span class="n">activate_contact_sensors</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">203</span>        <span class="p">),</span>
+</span><span class="linenos">204</span>        <span class="n">init_state</span><span class="o">=</span><span class="n">ArticulationCfg</span><span class="o">.</span><span class="n">InitialStateCfg</span><span class="p">(</span>
+<span class="linenos">205</span>            <span class="n">pos</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.6</span><span class="p">),</span>
+<span class="linenos">206</span>            <span class="n">joint_pos</span><span class="o">=</span><span class="p">{</span>
+<span class="linenos">207</span>                <span class="s2">&quot;.*HAA&quot;</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span>  <span class="c1"># all HAA</span>
+<span class="linenos">208</span>                <span class="s2">&quot;.*F_HFE&quot;</span><span class="p">:</span> <span class="mf">0.4</span><span class="p">,</span>  <span class="c1"># both front HFE</span>
+<span class="linenos">209</span>                <span class="s2">&quot;.*H_HFE&quot;</span><span class="p">:</span> <span class="o">-</span><span class="mf">0.4</span><span class="p">,</span>  <span class="c1"># both hind HFE</span>
+<span class="linenos">210</span>                <span class="s2">&quot;.*F_KFE&quot;</span><span class="p">:</span> <span class="o">-</span><span class="mf">0.8</span><span class="p">,</span>  <span class="c1"># both front KFE</span>
+<span class="linenos">211</span>                <span class="s2">&quot;.*H_KFE&quot;</span><span class="p">:</span> <span class="mf">0.8</span><span class="p">,</span>  <span class="c1"># both hind KFE</span>
+<span class="linenos">212</span>            <span class="p">},</span>
+<span class="linenos">213</span>        <span class="p">),</span>
+<span class="linenos">214</span>        <span class="n">actuators</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;legs&quot;</span><span class="p">:</span> <span class="n">ANYDRIVE_3_LSTM_ACTUATOR_CFG</span><span class="p">},</span>
+<span class="linenos">215</span>    <span class="p">)</span>
+<span class="linenos">216</span>
+<span class="linenos">217</span>
+<span class="linenos">218</span><span class="c1">##</span>
+<span class="linenos">219</span><span class="c1"># Simulation Loop</span>
+<span class="linenos">220</span><span class="c1">##</span>
+<span class="linenos">221</span>
+<span class="linenos">222</span>
+<span class="linenos">223</span><span class="k">def</span> <span class="nf">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">:</span> <span class="n">SimulationContext</span><span class="p">,</span> <span class="n">scene</span><span class="p">:</span> <span class="n">InteractiveScene</span><span class="p">):</span>
+<span class="linenos">224</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Runs the simulation loop.&quot;&quot;&quot;</span>
+<span class="linenos">225</span>    <span class="c1"># Extract scene entities</span>
+<span class="linenos">226</span>    <span class="c1"># note: we only do this here for readability.</span>
+<span class="linenos">227</span>    <span class="n">rigid_object</span><span class="p">:</span> <span class="n">RigidObject</span> <span class="o">=</span> <span class="n">scene</span><span class="p">[</span><span class="s2">&quot;object&quot;</span><span class="p">]</span>
+<span class="linenos">228</span>    <span class="n">rigid_object_collection</span><span class="p">:</span> <span class="n">RigidObjectCollection</span> <span class="o">=</span> <span class="n">scene</span><span class="p">[</span><span class="s2">&quot;object_collection&quot;</span><span class="p">]</span>
+<span class="linenos">229</span>    <span class="n">robot</span><span class="p">:</span> <span class="n">Articulation</span> <span class="o">=</span> <span class="n">scene</span><span class="p">[</span><span class="s2">&quot;robot&quot;</span><span class="p">]</span>
+<span class="linenos">230</span>    <span class="c1"># Define simulation stepping</span>
+<span class="linenos">231</span>    <span class="n">sim_dt</span> <span class="o">=</span> <span class="n">sim</span><span class="o">.</span><span class="n">get_physics_dt</span><span class="p">()</span>
+<span class="linenos">232</span>    <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="linenos">233</span>    <span class="c1"># Simulation loop</span>
+<span class="linenos">234</span>    <span class="k">while</span> <span class="n">simulation_app</span><span class="o">.</span><span class="n">is_running</span><span class="p">():</span>
+<span class="linenos">235</span>        <span class="c1"># Reset</span>
+<span class="linenos">236</span>        <span class="k">if</span> <span class="n">count</span> <span class="o">%</span> <span class="mi">250</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+<span class="linenos">237</span>            <span class="c1"># reset counter</span>
+<span class="linenos">238</span>            <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="linenos">239</span>            <span class="c1"># reset the scene entities</span>
+<span class="linenos">240</span>            <span class="c1"># object</span>
+<span class="linenos">241</span>            <span class="n">root_state</span> <span class="o">=</span> <span class="n">rigid_object</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_root_state</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+<span class="linenos">242</span>            <span class="n">root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="n">scene</span><span class="o">.</span><span class="n">env_origins</span>
+<span class="linenos">243</span>            <span class="n">rigid_object</span><span class="o">.</span><span class="n">write_root_link_pose_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">7</span><span class="p">])</span>
+<span class="linenos">244</span>            <span class="n">rigid_object</span><span class="o">.</span><span class="n">write_root_com_velocity_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">[:,</span> <span class="mi">7</span><span class="p">:])</span>
+<span class="linenos">245</span>            <span class="c1"># object collection</span>
+<span class="linenos">246</span>            <span class="n">object_state</span> <span class="o">=</span> <span class="n">rigid_object_collection</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_object_state</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+<span class="linenos">247</span>            <span class="n">object_state</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="n">scene</span><span class="o">.</span><span class="n">env_origins</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<span class="linenos">248</span>            <span class="n">rigid_object_collection</span><span class="o">.</span><span class="n">write_object_link_pose_to_sim</span><span class="p">(</span><span class="n">object_state</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">7</span><span class="p">])</span>
+<span class="linenos">249</span>            <span class="n">rigid_object_collection</span><span class="o">.</span><span class="n">write_object_com_velocity_to_sim</span><span class="p">(</span><span class="n">object_state</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">7</span><span class="p">:])</span>
+<span class="linenos">250</span>            <span class="c1"># robot</span>
+<span class="linenos">251</span>            <span class="c1"># -- root state</span>
+<span class="linenos">252</span>            <span class="n">root_state</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_root_state</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+<span class="linenos">253</span>            <span class="n">root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="n">scene</span><span class="o">.</span><span class="n">env_origins</span>
+<span class="linenos">254</span>            <span class="n">robot</span><span class="o">.</span><span class="n">write_root_link_pose_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">7</span><span class="p">])</span>
+<span class="linenos">255</span>            <span class="n">robot</span><span class="o">.</span><span class="n">write_root_com_velocity_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">[:,</span> <span class="mi">7</span><span class="p">:])</span>
+<span class="linenos">256</span>            <span class="c1"># -- joint state</span>
+<span class="linenos">257</span>            <span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_pos</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_vel</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+<span class="linenos">258</span>            <span class="n">robot</span><span class="o">.</span><span class="n">write_joint_state_to_sim</span><span class="p">(</span><span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span><span class="p">)</span>
+<span class="linenos">259</span>            <span class="c1"># clear internal buffers</span>
+<span class="linenos">260</span>            <span class="n">scene</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+<span class="linenos">261</span>            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Resetting scene state...&quot;</span><span class="p">)</span>
+<span class="linenos">262</span>
+<span class="linenos">263</span>        <span class="c1"># Apply action to robot</span>
+<span class="linenos">264</span>        <span class="n">robot</span><span class="o">.</span><span class="n">set_joint_position_target</span><span class="p">(</span><span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_pos</span><span class="p">)</span>
+<span class="linenos">265</span>        <span class="c1"># Write data to sim</span>
+<span class="linenos">266</span>        <span class="n">scene</span><span class="o">.</span><span class="n">write_data_to_sim</span><span class="p">()</span>
+<span class="linenos">267</span>        <span class="c1"># Perform step</span>
+<span class="linenos">268</span>        <span class="n">sim</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+<span class="linenos">269</span>        <span class="c1"># Increment counter</span>
+<span class="linenos">270</span>        <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
+<span class="linenos">271</span>        <span class="c1"># Update buffers</span>
+<span class="linenos">272</span>        <span class="n">scene</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">sim_dt</span><span class="p">)</span>
+<span class="linenos">273</span>
+<span class="linenos">274</span>
+<span class="linenos">275</span><span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+<span class="linenos">276</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Main function.&quot;&quot;&quot;</span>
+<span class="linenos">277</span>    <span class="c1"># Load kit helper</span>
+<span class="linenos">278</span>    <span class="n">sim_cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationCfg</span><span class="p">(</span><span class="n">dt</span><span class="o">=</span><span class="mf">0.005</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+<span class="linenos">279</span>    <span class="n">sim</span> <span class="o">=</span> <span class="n">SimulationContext</span><span class="p">(</span><span class="n">sim_cfg</span><span class="p">)</span>
+<span class="linenos">280</span>    <span class="c1"># Set main camera</span>
+<span class="linenos">281</span>    <span class="n">sim</span><span class="o">.</span><span class="n">set_camera_view</span><span class="p">([</span><span class="mf">2.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">4.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">])</span>
+<span class="linenos">282</span>
+<span class="linenos">283</span>    <span class="c1"># Design scene</span>
+<span class="linenos">284</span>    <span class="n">scene_cfg</span> <span class="o">=</span> <span class="n">MultiObjectSceneCfg</span><span class="p">(</span><span class="n">num_envs</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">env_spacing</span><span class="o">=</span><span class="mf">2.0</span><span class="p">,</span> <span class="n">replicate_physics</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="linenos">285</span>    <span class="k">with</span> <span class="n">Timer</span><span class="p">(</span><span class="s2">&quot;[INFO] Time to create scene: &quot;</span><span class="p">):</span>
+<span class="linenos">286</span>        <span class="n">scene</span> <span class="o">=</span> <span class="n">InteractiveScene</span><span class="p">(</span><span class="n">scene_cfg</span><span class="p">)</span>
+<span class="linenos">287</span>
+<span class="linenos">288</span>    <span class="k">with</span> <span class="n">Timer</span><span class="p">(</span><span class="s2">&quot;[INFO] Time to randomize scene: &quot;</span><span class="p">):</span>
+<span class="linenos">289</span>        <span class="c1"># DO YOUR OWN OTHER KIND OF RANDOMIZATION HERE!</span>
+<span class="linenos">290</span>        <span class="c1"># Note: Just need to acquire the right attribute about the property you want to set</span>
+<span class="linenos">291</span>        <span class="c1"># Here is an example on setting color randomly</span>
+<span class="linenos">292</span>        <span class="n">randomize_shape_color</span><span class="p">(</span><span class="n">scene_cfg</span><span class="o">.</span><span class="n">object</span><span class="o">.</span><span class="n">prim_path</span><span class="p">)</span>
+<span class="linenos">293</span>
+<span class="linenos">294</span>    <span class="c1"># Play the simulator</span>
+<span class="linenos">295</span>    <span class="n">sim</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+<span class="linenos">296</span>    <span class="c1"># Now we are ready!</span>
+<span class="linenos">297</span>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Setup complete...&quot;</span><span class="p">)</span>
+<span class="linenos">298</span>    <span class="c1"># Run the simulator</span>
+<span class="linenos">299</span>    <span class="n">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">,</span> <span class="n">scene</span><span class="p">)</span>
+<span class="linenos">300</span>
+<span class="linenos">301</span>
+<span class="linenos">302</span><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+<span class="linenos">303</span>    <span class="c1"># run the main execution</span>
+<span class="linenos">304</span>    <span class="n">main</span><span class="p">()</span>
+<span class="linenos">305</span>    <span class="c1"># close sim app</span>
+<span class="linenos">306</span>    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+</details><p>This script creates multiple environments, where each environment has:</p>
+<ul class="simple">
+<li><p>a rigid object collection containing a cone, a cube, and a sphere</p></li>
+<li><p>a rigid object that is either a cone, a cube, or a sphere, chosen at random</p></li>
+<li><p>an articulation that is either the ANYmal-C or ANYmal-D robot, chosen at random</p></li>
+</ul>
+<a class="reference internal image-reference" href="../../_images/multi_asset.jpg"><img alt="result of multi_asset.py" src="../../_images/multi_asset.jpg" style="width: 100%;" /></a>
+<section id="rigid-object-collections">
+<h2>Rigid Object Collections<a class="headerlink" href="#rigid-object-collections" title="Permalink to this heading">#</a></h2>
+<p>Multiple rigid objects can be spawned in each environment and accessed/modified with a unified <code class="docutils literal notranslate"><span class="pre">(env_ids,</span> <span class="pre">obj_ids)</span></code> API.
+While the user could also create multiple rigid objects by spawning them individually, the API is more user-friendly and
+more efficient since it uses a single physics view under the hood to handle all the objects.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># object collection</span>
+<span class="n">object_collection</span><span class="p">:</span> <span class="n">RigidObjectCollectionCfg</span> <span class="o">=</span> <span class="n">RigidObjectCollectionCfg</span><span class="p">(</span>
+    <span class="n">rigid_objects</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">&quot;object_A&quot;</span><span class="p">:</span> <span class="n">RigidObjectCfg</span><span class="p">(</span>
+            <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/envs/env_.*/Object_A&quot;</span><span class="p">,</span>
+            <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">SphereCfg</span><span class="p">(</span>
+                <span class="n">radius</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+                <span class="n">visual_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PreviewSurfaceCfg</span><span class="p">(</span><span class="n">diffuse_color</span><span class="o">=</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span> <span class="n">metallic</span><span class="o">=</span><span class="mf">0.2</span><span class="p">),</span>
+                <span class="n">rigid_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">RigidBodyPropertiesCfg</span><span class="p">(</span>
+                    <span class="n">solver_position_iteration_count</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">solver_velocity_iteration_count</span><span class="o">=</span><span class="mi">0</span>
+                <span class="p">),</span>
+                <span class="n">mass_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">MassPropertiesCfg</span><span class="p">(</span><span class="n">mass</span><span class="o">=</span><span class="mf">1.0</span><span class="p">),</span>
+                <span class="n">collision_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">CollisionPropertiesCfg</span><span class="p">(),</span>
+            <span class="p">),</span>
+            <span class="n">init_state</span><span class="o">=</span><span class="n">RigidObjectCfg</span><span class="o">.</span><span class="n">InitialStateCfg</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">)),</span>
+        <span class="p">),</span>
+        <span class="s2">&quot;object_B&quot;</span><span class="p">:</span> <span class="n">RigidObjectCfg</span><span class="p">(</span>
+            <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/envs/env_.*/Object_B&quot;</span><span class="p">,</span>
+            <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">CuboidCfg</span><span class="p">(</span>
+                <span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">),</span>
+                <span class="n">visual_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PreviewSurfaceCfg</span><span class="p">(</span><span class="n">diffuse_color</span><span class="o">=</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span> <span class="n">metallic</span><span class="o">=</span><span class="mf">0.2</span><span class="p">),</span>
+                <span class="n">rigid_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">RigidBodyPropertiesCfg</span><span class="p">(</span>
+                    <span class="n">solver_position_iteration_count</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">solver_velocity_iteration_count</span><span class="o">=</span><span class="mi">0</span>
+                <span class="p">),</span>
+                <span class="n">mass_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">MassPropertiesCfg</span><span class="p">(</span><span class="n">mass</span><span class="o">=</span><span class="mf">1.0</span><span class="p">),</span>
+                <span class="n">collision_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">CollisionPropertiesCfg</span><span class="p">(),</span>
+            <span class="p">),</span>
+            <span class="n">init_state</span><span class="o">=</span><span class="n">RigidObjectCfg</span><span class="o">.</span><span class="n">InitialStateCfg</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">)),</span>
+        <span class="p">),</span>
+        <span class="s2">&quot;object_C&quot;</span><span class="p">:</span> <span class="n">RigidObjectCfg</span><span class="p">(</span>
+            <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/envs/env_.*/Object_C&quot;</span><span class="p">,</span>
+            <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">ConeCfg</span><span class="p">(</span>
+                <span class="n">radius</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+                <span class="n">height</span><span class="o">=</span><span class="mf">0.3</span><span class="p">,</span>
+                <span class="n">visual_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PreviewSurfaceCfg</span><span class="p">(</span><span class="n">diffuse_color</span><span class="o">=</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span> <span class="n">metallic</span><span class="o">=</span><span class="mf">0.2</span><span class="p">),</span>
+                <span class="n">rigid_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">RigidBodyPropertiesCfg</span><span class="p">(</span>
+                    <span class="n">solver_position_iteration_count</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">solver_velocity_iteration_count</span><span class="o">=</span><span class="mi">0</span>
+                <span class="p">),</span>
+                <span class="n">mass_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">MassPropertiesCfg</span><span class="p">(</span><span class="n">mass</span><span class="o">=</span><span class="mf">1.0</span><span class="p">),</span>
+                <span class="n">collision_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">CollisionPropertiesCfg</span><span class="p">(),</span>
+            <span class="p">),</span>
+            <span class="n">init_state</span><span class="o">=</span><span class="n">RigidObjectCfg</span><span class="o">.</span><span class="n">InitialStateCfg</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">)),</span>
+        <span class="p">),</span>
+    <span class="p">}</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>The configuration <a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObjectCollectionCfg" title="omni.isaac.lab.assets.RigidObjectCollectionCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">RigidObjectCollectionCfg</span></code></a> is used to create the collection. It’s attribute <a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObjectCollectionCfg.rigid_objects" title="omni.isaac.lab.assets.RigidObjectCollectionCfg.rigid_objects"><code class="xref py py-attr docutils literal notranslate"><span class="pre">rigid_objects</span></code></a>
+is a dictionary containing <a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObjectCfg" title="omni.isaac.lab.assets.RigidObjectCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">RigidObjectCfg</span></code></a> objects. The keys serve as unique identifiers for each
+rigid object in the collection.</p>
+</section>
+<section id="spawning-different-assets-under-the-same-prim-path">
+<h2>Spawning different assets under the same prim path<a class="headerlink" href="#spawning-different-assets-under-the-same-prim-path" title="Permalink to this heading">#</a></h2>
+<p>It is possible to spawn different assets and USDs under the same prim path in each environment using the spawners
+<a class="reference internal" href="../api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg" title="omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">MultiAssetSpawnerCfg</span></code></a> and <a class="reference internal" href="../api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg" title="omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">MultiUsdFileCfg</span></code></a>:</p>
+<ul>
+<li><p>We set the spawn configuration in <a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObjectCfg" title="omni.isaac.lab.assets.RigidObjectCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">RigidObjectCfg</span></code></a> to be
+<a class="reference internal" href="../api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg" title="omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">MultiAssetSpawnerCfg</span></code></a>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nb">object</span><span class="p">:</span> <span class="n">RigidObjectCfg</span> <span class="o">=</span> <span class="n">RigidObjectCfg</span><span class="p">(</span>
+    <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/envs/env_.*/Object&quot;</span><span class="p">,</span>
+    <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">MultiAssetSpawnerCfg</span><span class="p">(</span>
+        <span class="n">assets_cfg</span><span class="o">=</span><span class="p">[</span>
+            <span class="n">sim_utils</span><span class="o">.</span><span class="n">ConeCfg</span><span class="p">(</span>
+                <span class="n">radius</span><span class="o">=</span><span class="mf">0.3</span><span class="p">,</span>
+                <span class="n">height</span><span class="o">=</span><span class="mf">0.6</span><span class="p">,</span>
+                <span class="n">visual_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PreviewSurfaceCfg</span><span class="p">(</span><span class="n">diffuse_color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span> <span class="n">metallic</span><span class="o">=</span><span class="mf">0.2</span><span class="p">),</span>
+            <span class="p">),</span>
+            <span class="n">sim_utils</span><span class="o">.</span><span class="n">CuboidCfg</span><span class="p">(</span>
+                <span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="mf">0.3</span><span class="p">,</span> <span class="mf">0.3</span><span class="p">,</span> <span class="mf">0.3</span><span class="p">),</span>
+                <span class="n">visual_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PreviewSurfaceCfg</span><span class="p">(</span><span class="n">diffuse_color</span><span class="o">=</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span> <span class="n">metallic</span><span class="o">=</span><span class="mf">0.2</span><span class="p">),</span>
+            <span class="p">),</span>
+            <span class="n">sim_utils</span><span class="o">.</span><span class="n">SphereCfg</span><span class="p">(</span>
+                <span class="n">radius</span><span class="o">=</span><span class="mf">0.3</span><span class="p">,</span>
+                <span class="n">visual_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PreviewSurfaceCfg</span><span class="p">(</span><span class="n">diffuse_color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">),</span> <span class="n">metallic</span><span class="o">=</span><span class="mf">0.2</span><span class="p">),</span>
+            <span class="p">),</span>
+        <span class="p">],</span>
+        <span class="n">random_choice</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">rigid_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">RigidBodyPropertiesCfg</span><span class="p">(</span>
+            <span class="n">solver_position_iteration_count</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">solver_velocity_iteration_count</span><span class="o">=</span><span class="mi">0</span>
+        <span class="p">),</span>
+        <span class="n">mass_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">MassPropertiesCfg</span><span class="p">(</span><span class="n">mass</span><span class="o">=</span><span class="mf">1.0</span><span class="p">),</span>
+        <span class="n">collision_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">CollisionPropertiesCfg</span><span class="p">(),</span>
+    <span class="p">),</span>
+    <span class="n">init_state</span><span class="o">=</span><span class="n">RigidObjectCfg</span><span class="o">.</span><span class="n">InitialStateCfg</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">)),</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>This function allows you to define a list of different assets that can be spawned as rigid objects.
+When <a class="reference internal" href="../api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.random_choice" title="omni.isaac.lab.sim.spawners.wrappers.MultiAssetSpawnerCfg.random_choice"><code class="xref py py-attr docutils literal notranslate"><span class="pre">random_choice</span></code></a> is set to True, one asset from the list
+is randomly selected and spawned at the specified prim path.</p>
+</li>
+<li><p>Similarly, we set the spawn configuration in <a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.ArticulationCfg" title="omni.isaac.lab.assets.ArticulationCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">ArticulationCfg</span></code></a> to be
+<a class="reference internal" href="../api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg" title="omni.isaac.lab.sim.spawners.wrappers.MultiUsdFileCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">MultiUsdFileCfg</span></code></a>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">robot</span><span class="p">:</span> <span class="n">ArticulationCfg</span> <span class="o">=</span> <span class="n">ArticulationCfg</span><span class="p">(</span>
+    <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/envs/env_.*/Robot&quot;</span><span class="p">,</span>
+    <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">MultiUsdFileCfg</span><span class="p">(</span>
+        <span class="n">usd_path</span><span class="o">=</span><span class="p">[</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">ISAACLAB_NUCLEUS_DIR</span><span class="si">}</span><span class="s2">/Robots/ANYbotics/ANYmal-C/anymal_c.usd&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">ISAACLAB_NUCLEUS_DIR</span><span class="si">}</span><span class="s2">/Robots/ANYbotics/ANYmal-D/anymal_d.usd&quot;</span><span class="p">,</span>
+        <span class="p">],</span>
+        <span class="n">random_choice</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">rigid_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">RigidBodyPropertiesCfg</span><span class="p">(</span>
+            <span class="n">disable_gravity</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">retain_accelerations</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">linear_damping</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+            <span class="n">angular_damping</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+            <span class="n">max_linear_velocity</span><span class="o">=</span><span class="mf">1000.0</span><span class="p">,</span>
+            <span class="n">max_angular_velocity</span><span class="o">=</span><span class="mf">1000.0</span><span class="p">,</span>
+            <span class="n">max_depenetration_velocity</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
+        <span class="p">),</span>
+        <span class="n">articulation_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">ArticulationRootPropertiesCfg</span><span class="p">(</span>
+            <span class="n">enabled_self_collisions</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">solver_position_iteration_count</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">solver_velocity_iteration_count</span><span class="o">=</span><span class="mi">0</span>
+        <span class="p">),</span>
+        <span class="n">activate_contact_sensors</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">init_state</span><span class="o">=</span><span class="n">ArticulationCfg</span><span class="o">.</span><span class="n">InitialStateCfg</span><span class="p">(</span>
+        <span class="n">pos</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.6</span><span class="p">),</span>
+        <span class="n">joint_pos</span><span class="o">=</span><span class="p">{</span>
+            <span class="s2">&quot;.*HAA&quot;</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span>  <span class="c1"># all HAA</span>
+            <span class="s2">&quot;.*F_HFE&quot;</span><span class="p">:</span> <span class="mf">0.4</span><span class="p">,</span>  <span class="c1"># both front HFE</span>
+            <span class="s2">&quot;.*H_HFE&quot;</span><span class="p">:</span> <span class="o">-</span><span class="mf">0.4</span><span class="p">,</span>  <span class="c1"># both hind HFE</span>
+            <span class="s2">&quot;.*F_KFE&quot;</span><span class="p">:</span> <span class="o">-</span><span class="mf">0.8</span><span class="p">,</span>  <span class="c1"># both front KFE</span>
+            <span class="s2">&quot;.*H_KFE&quot;</span><span class="p">:</span> <span class="mf">0.8</span><span class="p">,</span>  <span class="c1"># both hind KFE</span>
+        <span class="p">},</span>
+    <span class="p">),</span>
+    <span class="n">actuators</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;legs&quot;</span><span class="p">:</span> <span class="n">ANYDRIVE_3_LSTM_ACTUATOR_CFG</span><span class="p">},</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>Similar to before, this configuration allows the selection of different USD files representing articulated assets.</p>
+</li>
+</ul>
+<section id="things-to-note">
+<h3>Things to Note<a class="headerlink" href="#things-to-note" title="Permalink to this heading">#</a></h3>
+</section>
+<section id="similar-asset-structuring">
+<h3>Similar asset structuring<a class="headerlink" href="#similar-asset-structuring" title="Permalink to this heading">#</a></h3>
+<p>While spawning and handling multiple assets using the same physics interface (the rigid object or articulation classes),
+it is essential to have the assets at all the prim locations follow a similar structure. In case of an articulation,
+this means that they all must have the same number of links and joints, the same number of collision bodies and
+the same names for them. If that is not the case, the physics parsing of the prims can get affected and fail.</p>
+<p>The main purpose of this functionality is to enable the user to create randomized versions of the same asset,
+for example robots with different link lengths, or rigid objects with different collider shapes.</p>
+</section>
+<section id="disabling-physics-replication-in-interactive-scene">
+<h3>Disabling physics replication in interactive scene<a class="headerlink" href="#disabling-physics-replication-in-interactive-scene" title="Permalink to this heading">#</a></h3>
+<p>By default, the flag <code class="xref py py-attr docutils literal notranslate"><span class="pre">scene.InteractiveScene.replicate_physics</span></code> is set to True. This flag informs the physics
+engine that the simulation environments are copies of one another so it just needs to parse the first environment
+to understand the entire simulation scene. This helps speed up the simulation scene parsing.</p>
+<p>However, in the case of spawning different assets in different environments, this assumption does not hold
+anymore. Hence the flag <code class="xref py py-attr docutils literal notranslate"><span class="pre">scene.InteractiveScene.replicate_physics</span></code> must be disabled.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Set main camera</span>
+<span class="n">sim</span><span class="o">.</span><span class="n">set_camera_view</span><span class="p">([</span><span class="mf">2.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">4.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">])</span>
+
+<span class="c1"># Design scene</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="the-code-execution">
+<h2>The Code Execution<a class="headerlink" href="#the-code-execution" title="Permalink to this heading">#</a></h2>
+<p>To execute the script with multiple environments and randomized assets, use the following command:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/demos/multi_asset.py<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">2048</span>
+</pre></div>
+</div>
+<p>This command runs the simulation with 2048 environments, each with randomly selected assets.
+To stop the simulation, you can close the window, or press <code class="docutils literal notranslate"><span class="pre">Ctrl+C</span></code> in the terminal.</p>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="make_fixed_prim.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Making a physics prim fixed in the simulation</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="save_camera_output.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Saving rendered images and 3D re-projection</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#rigid-object-collections">Rigid Object Collections</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#spawning-different-assets-under-the-same-prim-path">Spawning different assets under the same prim path</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#things-to-note">Things to Note</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#similar-asset-structuring">Similar asset structuring</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#disabling-physics-replication-in-interactive-scene">Disabling physics replication in interactive scene</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-code-execution">The Code Execution</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By The Isaac Lab Project Developers.
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2022-2024, The Isaac Lab Project Developers..
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    <p class="last-updated">
+  Last updated on Dec 27, 2024.
+  <br/>
+</p>
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>
