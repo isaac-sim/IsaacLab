@@ -138,7 +138,7 @@ def main():
     teleop_interface = Se3Keyboard(pos_sensitivity=0.1, rot_sensitivity=0.1)
     teleop_interface.add_callback("N", play_cb)
     teleop_interface.add_callback("B", pause_cb)
-    print(teleop_interface)
+    print('Press "B" to pause and "N" to resume the replayed actions.')
 
     # Determine if state validation should be conducted
     state_validation_enabled = False
