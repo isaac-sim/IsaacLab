@@ -144,8 +144,9 @@ class BasicDemoTorchCfg:
 
 
 @configclass
-class BasicActuatorCfg():
+class BasicActuatorCfg:
     """Dummy configuration class for ActuatorBase config."""
+
     joint_names_expr: list[str] = ["some_string"]
     joint_parameter_lookup: torch.Tensor = torch.Tensor([1, 2, 3])
     stiffness: float = 1.0
