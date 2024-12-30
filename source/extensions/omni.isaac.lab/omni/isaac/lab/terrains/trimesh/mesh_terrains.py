@@ -816,21 +816,22 @@ def repeated_objects_terrain(
     platform_corners[0, :] *= 1 - platform_clearance
     platform_corners[1, :] *= 1 + platform_clearance
     # sample center for objects
-    while True:
-        object_centers = np.zeros((num_objects, 3))
-        object_centers[:, 0] = np.random.uniform(0, cfg.size[0], num_objects)
-        object_centers[:, 1] = np.random.uniform(0, cfg.size[1], num_objects)
+    object_centers = np.zeros((num_objects, 3))
+    mask_objects_left = np.ones((num_objects,), dtype=bool)
+    while np.any(mask_objects_left):
+        num_objects_left = mask_objects_left.sum()
+        object_centers[mask_objects_left, 0] = np.random.uniform(0, cfg.size[0], num_objects_left)
+        object_centers[mask_objects_left, 1] = np.random.uniform(0, cfg.size[1], num_objects_left)
         # filter out the centers that are on the platform
         is_within_platform_x = np.logical_and(
-            object_centers[:, 0] >= platform_corners[0, 0], object_centers[:, 0] <= platform_corners[1, 0]
+            object_centers[mask_objects_left, 0] >= platform_corners[0, 0],
+            object_centers[mask_objects_left, 0] <= platform_corners[1, 0],
         )
         is_within_platform_y = np.logical_and(
-            object_centers[:, 1] >= platform_corners[0, 1], object_centers[:, 1] <= platform_corners[1, 1]
+            object_centers[mask_objects_left, 1] >= platform_corners[0, 1],
+            object_centers[mask_objects_left, 1] <= platform_corners[1, 1],
         )
-        masks = np.logical_and(is_within_platform_x, is_within_platform_y)
-        # if there are no objects on the platform, break
-        if not np.any(masks):
-            break
+        mask_objects_left[mask_objects_left] = np.logical_and(is_within_platform_x, is_within_platform_y)
 
     # generate obstacles (but keep platform clean)
     for index in range(len(object_centers)):

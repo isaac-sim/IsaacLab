@@ -66,6 +66,7 @@ Guidelines for modifications:
 * Michael Gussert
 * Michael Noseworthy
 * Muhong Guo
+* Nicola Loi
 * Nuralem Abizov
 * Oyindamola Omotuyi
 * Özhan Özen
