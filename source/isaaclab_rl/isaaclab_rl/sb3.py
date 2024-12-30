@@ -9,7 +9,7 @@ The following example shows how to wrap an environment for Stable-Baselines3:
 
 .. code-block:: python
 
-    from isaaclab_tasks.utils.wrappers.sb3 import Sb3VecEnvWrapper
+    from isaaclab_rl.sb3 import Sb3VecEnvWrapper
 
     env = Sb3VecEnvWrapper(env)
 

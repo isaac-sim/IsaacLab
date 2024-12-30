@@ -20,6 +20,8 @@ The Isaac Lab repository is structured as follows:
    ├── source
    │   ├── isaaclab
    │   ├── isaaclab_assets
+   │   ├── isaaclab_mimic
+   │   ├── isaaclab_rl
    │   └── isaaclab_tasks
    ├── scripts
    │   ├── demos
@@ -49,8 +51,9 @@ The extensions are organized as follows:
 * **isaaclab**: Contains the core interface extension for Isaac Lab. This provides the main modules for actuators,
   objects, robots and sensors.
 * **isaaclab_assets**: Contains the extension with pre-configured assets for Isaac Lab.
-* **isaaclab_tasks**: Contains the extension with pre-configured environments for Isaac Lab. It also includes
-  wrappers for using these environments with different agents.
+* **isaaclab_tasks**: Contains the extension with pre-configured environments for Isaac Lab.
+* **isaaclab_mimic**: Contains APIs and pre-configured environments for data generation for imitation learning.
+* **isaaclab_rl**: Contains wrappers for using the above environments with different reinforcement learning agents.
 
 
 Standalone

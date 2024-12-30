@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from isaaclab_assets.ant import ANT_CFG
+from isaaclab_assets.robots.ant import ANT_CFG
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg

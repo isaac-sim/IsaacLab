@@ -42,6 +42,28 @@ From the Isaac Sim UI, both URDF and MJCF importers can now be accessed directly
 menu when selecting a corresponding .urdf or .xml file in the file browser.
 
 
+Changes in URDF Importer
+------------------------
+
+Isaac Sim 4.5 brings some updates to the URDF Importer, with a fresh UI to allow for better configurations
+when importing robots from URDF. As a result, the Isaac Lab URDF Converter has also been updated to
+reflect these changes. The :class:`UrdfConverterCfg` includes some new settings, such as :class:`PDGainsCfg`
+and :class:`NaturalFrequencyGainsCfg` classes for configuring the gains of the drives.
+
+One breaking change to note is that the :attr:`UrdfConverterCfg.JointDriveCfg.gains` attribute must
+be of class type :class:`PDGainsCfg` or :class:`NaturalFrequencyGainsCfg`.
+
+The stiffness of the :class:`PDGainsCfg` must be specified, as such:
+
+.. code::python
+
+    joint_drive=sim_utils.UrdfConverterCfg.JointDriveCfg(
+        gains=sim_utils.UrdfConverterCfg.JointDriveCfg.PDGainsCfg(stiffness=None, damping=None)
+    )
+
+The :attr:`natural_frequency` must be specified for :class:`NaturalFrequencyGainsCfg`.
+
+
 Renaming of omni.isaac.core Classes
 -----------------------------------
 
@@ -91,6 +113,23 @@ are under ``scripts/reinforcement_learning``, while Robomimic and the new Isaac 
 To assist with the renaming of Isaac Lab extensions in your project, we have provided a `simple script`_ that will traverse
 through the ``source`` and ``docs`` directories in your local Isaac Lab project and replace any instance of the renamed
 directories and imports. **Please use the script at your own risk as it will overwrite source files directly.**
+
+
+Restructuring of Isaac Lab Extensions
+-------------------------------------
+
+With the introduction of ``isaaclab_mimic``, designed for supporting data generation workflows for imitation learning,
+we have also split out the previous ``wrappers`` folder under ``isaaclab_tasks`` to its own module, named ``isaaclab_rl``.
+This new extension will contain reinforcement learning specific wrappers for the various RL libraries supported by Isaac Lab.
+
+The new ``isaaclab_mimic`` extension will also replace the previous imitation learning scripts under the ``robomimic`` folder.
+We have removed the old scripts for data collection and dataset preparation in favor of the new mimic workflow. For users
+who prefer to use the previous scripts, they will be available in previous release branches.
+
+Additionally, we have also restructured the ``isaaclab_assets`` extension to be split into ``robots`` and ``sensors``
+subdirectories. This allows for clearer separation between the pre-defined configurations provided in the extension.
+For any existing imports such as ``from omni.isaac.lab_assets.anymal import ANYMAL_C_CFG``, please replace it with
+``from isaaclab.robots.anymal import ANYMAL_C_CFG``.
 
 
 .. _simple script: https://gist.github.com/kellyguo11/3e8f73f739b1c013b1069ad372277a85

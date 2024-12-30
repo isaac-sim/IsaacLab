@@ -31,7 +31,7 @@ class InteractiveSceneCfg:
         from isaaclab.sensors.ray_caster import GridPatternCfg, RayCasterCfg
         from isaaclab.utils import configclass
 
-        from isaaclab_assets.anymal import ANYMAL_C_CFG
+        from isaaclab_assets.robots.anymal import ANYMAL_C_CFG
 
         @configclass
         class MySceneCfg(InteractiveSceneCfg):

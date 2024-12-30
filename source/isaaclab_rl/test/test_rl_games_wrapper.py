@@ -20,16 +20,16 @@ import unittest
 
 import carb
 import omni.usd
+from isaaclab_rl.rl_games import RlGamesVecEnvWrapper
 
 from isaaclab.envs import DirectMARLEnv, multi_agent_to_single_agent
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
-from isaaclab_tasks.utils.wrappers.skrl import SkrlVecEnvWrapper
 
 
-class TestSKRLVecEnvWrapper(unittest.TestCase):
-    """Test that SKRL VecEnv wrapper works as expected."""
+class TestRlGamesVecEnvWrapper(unittest.TestCase):
+    """Test that RL-Games VecEnv wrapper works as expected."""
 
     @classmethod
     def setUpClass(cls):
@@ -37,7 +37,7 @@ class TestSKRLVecEnvWrapper(unittest.TestCase):
         cls.registered_tasks = list()
         for task_spec in gym.registry.values():
             if "Isaac" in task_spec.id:
-                cfg_entry_point = gym.spec(task_spec.id).kwargs.get("skrl_cfg_entry_point")
+                cfg_entry_point = gym.spec(task_spec.id).kwargs.get("rl_games_cfg_entry_point")
                 if cfg_entry_point is not None:
                     cls.registered_tasks.append(task_spec.id)
         # sort environments by name
@@ -71,10 +71,11 @@ class TestSKRLVecEnvWrapper(unittest.TestCase):
                     env_cfg = parse_env_cfg(task_name, device=self.device, num_envs=self.num_envs)
                     # create environment
                     env = gym.make(task_name, cfg=env_cfg)
+                    # convert to single-agent instance if required by the RL algorithm
                     if isinstance(env.unwrapped, DirectMARLEnv):
                         env = multi_agent_to_single_agent(env)
                     # wrap environment
-                    env = SkrlVecEnvWrapper(env)
+                    env = RlGamesVecEnvWrapper(env, "cuda:0", 100, 100)
                 except Exception as e:
                     if "env" in locals() and hasattr(env, "_is_closed"):
                         env.close()
@@ -87,18 +88,15 @@ class TestSKRLVecEnvWrapper(unittest.TestCase):
                 env.unwrapped.sim._app_control_on_stop_handle = None
 
                 # reset environment
-                obs, extras = env.reset()
+                obs = env.reset()
                 # check signal
                 self.assertTrue(self._check_valid_tensor(obs))
-                self.assertTrue(self._check_valid_tensor(extras))
 
                 # simulate environment for 100 steps
                 with torch.inference_mode():
                     for _ in range(100):
                         # sample actions from -1 to 1
-                        actions = (
-                            2 * torch.rand(self.num_envs, *env.action_space.shape, device=env.unwrapped.device) - 1
-                        )
+                        actions = 2 * torch.rand(env.num_envs, *env.action_space.shape, device=env.device) - 1
                         # apply actions
                         transition = env.step(actions)
                         # check signals
@@ -129,7 +127,7 @@ class TestSKRLVecEnvWrapper(unittest.TestCase):
             valid_tensor = True
             for value in data.values():
                 if isinstance(value, dict):
-                    valid_tensor &= TestSKRLVecEnvWrapper._check_valid_tensor(value)
+                    valid_tensor &= TestRlGamesVecEnvWrapper._check_valid_tensor(value)
                 elif isinstance(value, torch.Tensor):
                     valid_tensor &= not torch.any(torch.isnan(value))
             return valid_tensor

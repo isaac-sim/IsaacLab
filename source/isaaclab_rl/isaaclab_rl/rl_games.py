@@ -12,7 +12,7 @@ for RL-Games :class:`Runner` class:
 
     from rl_games.common import env_configurations, vecenv
 
-    from isaaclab_tasks.utils.wrappers.rl_games import RlGamesGpuEnv, RlGamesVecEnvWrapper
+    from isaaclab_rl.rl_games import RlGamesGpuEnv, RlGamesVecEnvWrapper
 
     # configuration parameters
     rl_device = "cuda:0"

@@ -12,7 +12,6 @@ TESTS_TO_SKIP = [
     "test_kwarg_launch.py",  # app.close issue
     "test_differential_ik.py",  # Failing
     # lab_tasks
-    "test_data_collector.py",  # Failing
     "test_record_video.py",  # Failing
     "test_tiled_camera_env.py",  # Need to improve the logic
 ]

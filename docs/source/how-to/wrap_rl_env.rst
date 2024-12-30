@@ -135,7 +135,7 @@ As an example of how to use the RL task environment with Stable-Baselines3:
 
 .. code:: python
 
-    from isaaclab_tasks.utils.wrappers.sb3 import Sb3VecEnvWrapper
+    from isaaclab_rl.sb3 import Sb3VecEnvWrapper
 
     # create isaac-env instance
     env = gym.make(task_name, cfg=env_cfg)
@@ -153,7 +153,7 @@ As an example of how to use the RL task environment with Stable-Baselines3:
 Adding new wrappers
 -------------------
 
-All new wrappers should be added to the :mod:`isaaclab_tasks.utils.wrappers` module.
+All new wrappers should be added to the :mod:`isaaclab_rl` module.
 They should check that the underlying environment is an instance of :class:`isaaclab.envs.ManagerBasedRLEnv`
 or :class:`~envs.DirectRLEnv`
 before applying the wrapper. This can be done by using the :func:`unwrapped` property.

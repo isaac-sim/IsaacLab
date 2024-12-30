@@ -31,7 +31,7 @@ from isaaclab.utils import configclass
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets.anymal import ANYMAL_C_CFG  # isort:skip
+from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # isort:skip
 
 
 def quat_from_euler_rpy(roll, pitch, yaw, degrees=False):

@@ -15,21 +15,22 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import gymnasium as gym
+import numpy as np
 import torch
 import unittest
 
 import carb
 import omni.usd
+from isaaclab_rl.sb3 import Sb3VecEnvWrapper
 
 from isaaclab.envs import DirectMARLEnv, multi_agent_to_single_agent
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
-from isaaclab_tasks.utils.wrappers.rsl_rl import RslRlVecEnvWrapper
 
 
-class TestRslRlVecEnvWrapper(unittest.TestCase):
-    """Test that RSL-RL VecEnv wrapper works as expected."""
+class TestStableBaselines3VecEnvWrapper(unittest.TestCase):
+    """Test that SB3 VecEnv wrapper works as expected."""
 
     @classmethod
     def setUpClass(cls):
@@ -37,7 +38,7 @@ class TestRslRlVecEnvWrapper(unittest.TestCase):
         cls.registered_tasks = list()
         for task_spec in gym.registry.values():
             if "Isaac" in task_spec.id:
-                cfg_entry_point = gym.spec(task_spec.id).kwargs.get("rsl_rl_cfg_entry_point")
+                cfg_entry_point = gym.spec(task_spec.id).kwargs.get("sb3_cfg_entry_point")
                 if cfg_entry_point is not None:
                     cls.registered_tasks.append(task_spec.id)
         # sort environments by name
@@ -75,7 +76,7 @@ class TestRslRlVecEnvWrapper(unittest.TestCase):
                     if isinstance(env.unwrapped, DirectMARLEnv):
                         env = multi_agent_to_single_agent(env)
                     # wrap environment
-                    env = RslRlVecEnvWrapper(env)
+                    env = Sb3VecEnvWrapper(env)
                 except Exception as e:
                     if "env" in locals() and hasattr(env, "_is_closed"):
                         env.close()
@@ -85,59 +86,20 @@ class TestRslRlVecEnvWrapper(unittest.TestCase):
                     self.fail(f"Failed to set-up the environment for task {task_name}. Error: {e}")
 
                 # reset environment
-                obs, extras = env.reset()
+                obs = env.reset()
                 # check signal
-                self.assertTrue(self._check_valid_tensor(obs))
-                self.assertTrue(self._check_valid_tensor(extras))
+                self.assertTrue(self._check_valid_array(obs))
 
                 # simulate environment for 100 steps
                 with torch.inference_mode():
                     for _ in range(100):
                         # sample actions from -1 to 1
-                        actions = 2 * torch.rand(env.action_space.shape, device=env.unwrapped.device) - 1
+                        actions = 2 * np.random.rand(env.num_envs, *env.action_space.shape) - 1
                         # apply actions
                         transition = env.step(actions)
                         # check signals
                         for data in transition:
-                            self.assertTrue(self._check_valid_tensor(data), msg=f"Invalid data: {data}")
-
-                # close the environment
-                print(f">>> Closing environment: {task_name}")
-                env.close()
-
-    def test_no_time_outs(self):
-        """Check that environments with finite horizon do not send time-out signals."""
-        for task_name in self.registered_tasks:
-            with self.subTest(task_name=task_name):
-                print(f">>> Running test for environment: {task_name}")
-                # create a new stage
-                omni.usd.get_context().new_stage()
-                # parse configuration
-                env_cfg = parse_env_cfg(task_name, device=self.device, num_envs=self.num_envs)
-                # change to finite horizon
-                env_cfg.is_finite_horizon = True
-
-                # create environment
-                env = gym.make(task_name, cfg=env_cfg)
-                # wrap environment
-                env = RslRlVecEnvWrapper(env)
-
-                # reset environment
-                _, extras = env.reset()
-                # check signal
-                self.assertNotIn("time_outs", extras, msg="Time-out signal found in finite horizon environment.")
-
-                # simulate environment for 10 steps
-                with torch.inference_mode():
-                    for _ in range(10):
-                        # sample actions from -1 to 1
-                        actions = 2 * torch.rand(env.action_space.shape, device=env.unwrapped.device) - 1
-                        # apply actions
-                        extras = env.step(actions)[-1]
-                        # check signals
-                        self.assertNotIn(
-                            "time_outs", extras, msg="Time-out signal found in finite horizon environment."
-                        )
+                            self.assertTrue(self._check_valid_array(data), msg=f"Invalid data: {data}")
 
                 # close the environment
                 print(f">>> Closing environment: {task_name}")
@@ -148,7 +110,7 @@ class TestRslRlVecEnvWrapper(unittest.TestCase):
     """
 
     @staticmethod
-    def _check_valid_tensor(data: torch.Tensor | dict) -> bool:
+    def _check_valid_array(data: np.ndarray | dict | list) -> bool:
         """Checks if given data does not have corrupted values.
 
         Args:
@@ -157,16 +119,21 @@ class TestRslRlVecEnvWrapper(unittest.TestCase):
         Returns:
             True if the data is valid.
         """
-        if isinstance(data, torch.Tensor):
-            return not torch.any(torch.isnan(data))
+        if isinstance(data, np.ndarray):
+            return not np.any(np.isnan(data))
         elif isinstance(data, dict):
-            valid_tensor = True
+            valid_array = True
             for value in data.values():
                 if isinstance(value, dict):
-                    valid_tensor &= TestRslRlVecEnvWrapper._check_valid_tensor(value)
-                elif isinstance(value, torch.Tensor):
-                    valid_tensor &= not torch.any(torch.isnan(value))
-            return valid_tensor
+                    valid_array &= TestStableBaselines3VecEnvWrapper._check_valid_array(value)
+                elif isinstance(value, np.ndarray):
+                    valid_array &= not np.any(np.isnan(value))
+            return valid_array
+        elif isinstance(data, list):
+            valid_array = True
+            for value in data:
+                valid_array &= TestStableBaselines3VecEnvWrapper._check_valid_array(value)
+            return valid_array
         else:
             raise ValueError(f"Input data of invalid type: {type(data)}.")
 

@@ -2,7 +2,6 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-
 """Package containing asset and sensor configurations."""
 
 import os
@@ -21,22 +20,5 @@ ISAACLAB_ASSETS_METADATA = toml.load(os.path.join(ISAACLAB_ASSETS_EXT_DIR, "conf
 # Configure the module-level variables
 __version__ = ISAACLAB_ASSETS_METADATA["package"]["version"]
 
-
-##
-# Configuration for different assets.
-##
-
-from .allegro import *
-from .ant import *
-from .anymal import *
-from .cart_double_pendulum import *
-from .cartpole import *
-from .franka import *
-from .humanoid import *
-from .kinova import *
-from .quadcopter import *
-from .ridgeback_franka import *
-from .sawyer import *
-from .shadow_hand import *
-from .unitree import *
-from .universal_robots import *
+from .robots import *
+from .sensors import *

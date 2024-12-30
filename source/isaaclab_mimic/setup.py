@@ -6,6 +6,7 @@
 """Installation script for the 'isaaclab_mimic' python package."""
 
 import os
+import platform
 import toml
 
 from setuptools import setup
@@ -14,6 +15,14 @@ from setuptools import setup
 EXTENSION_PATH = os.path.dirname(os.path.realpath(__file__))
 # Read the extension.toml file
 EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extension.toml"))
+
+# Extra dependencies for IL agents
+EXTRAS_REQUIRE = {"robomimic": []}
+
+# Check if the platform is Linux and add the dependency
+if platform.system() == "Linux":
+    EXTRAS_REQUIRE["robomimic"].append("robomimic@git+https://github.com/ARISE-Initiative/robomimic.git")
+
 
 # Installation operation
 setup(
@@ -25,6 +34,7 @@ setup(
     version=EXTENSION_TOML_DATA["package"]["version"],
     description=EXTENSION_TOML_DATA["package"]["description"],
     keywords=EXTENSION_TOML_DATA["package"]["keywords"],
+    extras_require=EXTRAS_REQUIRE,
     license="MIT",
     include_package_data=True,
     python_requires=">=3.10",

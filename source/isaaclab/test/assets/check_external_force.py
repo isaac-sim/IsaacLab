@@ -45,7 +45,7 @@ from isaaclab.sim import SimulationContext
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets.anymal import ANYMAL_C_CFG  # isort:skip
+from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # isort:skip
 
 
 def main():

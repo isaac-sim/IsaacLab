@@ -698,8 +698,9 @@ class SimulationContext(_SimulationContext):
         logging.set_level_threshold(carb.logging.LEVEL_ERROR)
 
         # App shutdown is disabled to prevent crashes on shutdown. Terminating carb is faster
-        # self._app.shutdown()
+        self._app.shutdown()
         self._framework.unload_all_plugins()
+        sys.exit(0)
 
 
 @contextmanager

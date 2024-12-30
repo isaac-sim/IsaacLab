@@ -22,6 +22,10 @@ sys.path.insert(0, os.path.abspath("../source/isaaclab"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab/isaaclab"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_tasks"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_tasks/isaaclab_tasks"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_rl"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_rl/isaaclab_rl"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_mimic"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_mimic/isaaclab_mimic"))
 
 # -- Project information -----------------------------------------------------
 

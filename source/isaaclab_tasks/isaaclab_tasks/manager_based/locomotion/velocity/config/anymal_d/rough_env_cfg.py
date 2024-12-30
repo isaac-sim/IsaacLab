@@ -10,7 +10,7 @@ from isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg import Lo
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets.anymal import ANYMAL_D_CFG  # isort: skip
+from isaaclab_assets.robots.anymal import ANYMAL_D_CFG  # isort: skip
 
 
 @configclass
