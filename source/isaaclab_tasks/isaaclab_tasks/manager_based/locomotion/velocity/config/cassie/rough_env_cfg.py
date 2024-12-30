@@ -13,7 +13,7 @@ from isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg import Lo
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets.cassie import CASSIE_CFG  # isort: skip
+from isaaclab_assets.robots.cassie import CASSIE_CFG  # isort: skip
 
 
 @configclass

@@ -26,7 +26,7 @@ from isaaclab_tasks.manager_based.manipulation.stack.stack_instance_randomize_en
 # Pre-defined configs
 ##
 from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
-from isaaclab_assets.franka import FRANKA_PANDA_CFG  # isort: skip
+from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG  # isort: skip
 
 
 @configclass

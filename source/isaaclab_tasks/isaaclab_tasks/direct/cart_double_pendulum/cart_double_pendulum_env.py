@@ -9,7 +9,7 @@ import math
 import torch
 from collections.abc import Sequence
 
-from isaaclab_assets.cart_double_pendulum import CART_DOUBLE_PENDULUM_CFG
+from isaaclab_assets.robots.cart_double_pendulum import CART_DOUBLE_PENDULUM_CFG
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, ArticulationCfg

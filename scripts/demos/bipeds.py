@@ -40,7 +40,7 @@ from isaaclab.sim import SimulationContext
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets.cassie import CASSIE_CFG  # isort:skip
+from isaaclab_assets.robots.cassie import CASSIE_CFG  # isort:skip
 from isaaclab_assets import H1_CFG  # isort:skip
 from isaaclab_assets import G1_CFG  # isort:skip
 

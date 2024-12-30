@@ -42,7 +42,7 @@ from isaaclab.assets import Articulation
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets.ridgeback_franka import RIDGEBACK_FRANKA_PANDA_CFG  # isort:skip
+from isaaclab_assets.robots.ridgeback_franka import RIDGEBACK_FRANKA_PANDA_CFG  # isort:skip
 
 
 def design_scene():

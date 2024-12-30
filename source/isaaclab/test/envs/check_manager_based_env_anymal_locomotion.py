@@ -54,7 +54,7 @@ from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 # Pre-defined configs
 ##
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG  # isort: skip
-from isaaclab_assets.anymal import ANYMAL_C_CFG  # isort: skip
+from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # isort: skip
 
 
 ##

@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
-from isaaclab_assets.shadow_hand import SHADOW_HAND_CFG
+from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_CFG
 
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils

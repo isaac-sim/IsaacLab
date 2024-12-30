@@ -21,7 +21,7 @@ import isaaclab_tasks.manager_based.classic.humanoid.mdp as mdp
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets.ant import ANT_CFG  # isort: skip
+from isaaclab_assets.robots.ant import ANT_CFG  # isort: skip
 
 
 @configclass

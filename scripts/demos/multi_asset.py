@@ -59,7 +59,7 @@ from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 # Pre-defined Configuration
 ##
 
-from isaaclab_assets.anymal import ANYDRIVE_3_LSTM_ACTUATOR_CFG  # isort: skip
+from isaaclab_assets.robots.anymal import ANYDRIVE_3_LSTM_ACTUATOR_CFG  # isort: skip
 
 
 ##

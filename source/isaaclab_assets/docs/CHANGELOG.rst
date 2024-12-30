@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.2.0 (2024-12-27)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Restructured the assets directory into ``robots`` and ``sensors`` subdirectories.
+
+
 0.1.4 (2024-08-21)
 ~~~~~~~~~~~~~~~~~~
 

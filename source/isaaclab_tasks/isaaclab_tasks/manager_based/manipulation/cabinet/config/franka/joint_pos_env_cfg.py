@@ -17,7 +17,7 @@ from isaaclab_tasks.manager_based.manipulation.cabinet.cabinet_env_cfg import ( 
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets.franka import FRANKA_PANDA_CFG  # isort: skip
+from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG  # isort: skip
 
 
 @configclass

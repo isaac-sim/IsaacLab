@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Sub-module for environment wrappers to different learning frameworks.
+"""Module for environment wrappers to different learning frameworks.
 
 Wrappers allow you to modify the behavior of an environment without modifying the environment itself.
 This is useful for modifying the observation space, action space, or reward function. Additionally,
@@ -21,7 +21,7 @@ For instance, to wrap an environment in the `Stable-Baselines3`_ wrapper, you ca
 
 .. code-block:: python
 
-   from isaaclab_tasks.utils.wrappers.sb3 import Sb3VecEnvWrapper
+   from isaaclab_rl.sb3 import Sb3VecEnvWrapper
 
    env = Sb3VecEnvWrapper(env)
 

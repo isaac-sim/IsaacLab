@@ -20,7 +20,7 @@ For example, `Stable-Baselines3`_ expects the environment to conform to its
 `RSL-RL`_, `RL-Games`_ and `SKRL`_ expect a different interface. Since there is no one-size-fits-all
 solution, we do not base the :class:`envs.ManagerBasedRLEnv` on any particular learning library.
 Instead, we implement wrappers to convert the environment into the expected interface.
-These are specified in the :mod:`isaaclab_tasks.utils.wrappers` module.
+These are specified in the :mod:`isaaclab_rl` module.
 
 In this tutorial, we will use `Stable-Baselines3`_ to train an RL agent to solve the
 cartpole balancing task.

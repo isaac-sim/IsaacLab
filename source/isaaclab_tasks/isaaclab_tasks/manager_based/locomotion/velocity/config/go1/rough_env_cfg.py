@@ -10,7 +10,7 @@ from isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg import Lo
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets.unitree import UNITREE_GO1_CFG  # isort: skip
+from isaaclab_assets.robots.unitree import UNITREE_GO1_CFG  # isort: skip
 
 
 @configclass

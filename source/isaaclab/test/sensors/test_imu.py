@@ -32,7 +32,7 @@ from isaaclab.utils import configclass
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets.anymal import ANYMAL_C_CFG  # isort: skip
+from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # isort: skip
 from isaaclab.utils.assets import NUCLEUS_ASSET_ROOT_DIR  # isort: skip
 
 # offset of imu_link from base_link on anymal_c

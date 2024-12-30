@@ -9,7 +9,7 @@ import math
 import torch
 from collections.abc import Sequence
 
-from isaaclab_assets.cartpole import CARTPOLE_CFG
+from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, ArticulationCfg

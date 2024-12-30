@@ -6,8 +6,3 @@
    :imported-members:
 
    .. rubric:: Submodules
-
-   .. autosummary::
-
-      data_collector
-      wrappers

@@ -49,7 +49,7 @@ from isaaclab.sensors.contact_sensor import ContactSensor, ContactSensorCfg
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets.anymal import ANYMAL_C_CFG  # isort:skip
+from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # isort:skip
 
 
 """

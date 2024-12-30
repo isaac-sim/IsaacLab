@@ -9,7 +9,7 @@ The following example shows how to wrap an environment for skrl:
 
 .. code-block:: python
 
-    from isaaclab_tasks.utils.wrappers.skrl import SkrlVecEnvWrapper
+    from isaaclab_rl.skrl import SkrlVecEnvWrapper
 
     env = SkrlVecEnvWrapper(env, ml_framework="torch")  # or ml_framework="jax"
 

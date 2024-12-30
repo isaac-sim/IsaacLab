@@ -49,6 +49,7 @@ import os
 import random
 from datetime import datetime
 
+from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import CheckpointCallback
 from stable_baselines3.common.logger import configure
@@ -66,7 +67,6 @@ from isaaclab.utils.io import dump_pickle, dump_yaml
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.hydra import hydra_task_config
-from isaaclab_tasks.utils.wrappers.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 
 
 @hydra_task_config(args_cli.task, "sb3_cfg_entry_point")

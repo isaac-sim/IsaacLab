@@ -39,7 +39,7 @@ from isaaclab.utils.timer import Timer
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets.anymal import ANYMAL_C_CFG  # isort: skip
+from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # isort: skip
 
 
 @configclass

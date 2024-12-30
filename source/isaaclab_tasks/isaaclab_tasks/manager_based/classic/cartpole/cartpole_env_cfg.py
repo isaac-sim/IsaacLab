@@ -22,7 +22,7 @@ import isaaclab_tasks.manager_based.classic.cartpole.mdp as mdp
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets.cartpole import CARTPOLE_CFG  # isort:skip
+from isaaclab_assets.robots.cartpole import CARTPOLE_CFG  # isort:skip
 
 
 ##

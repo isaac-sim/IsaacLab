@@ -198,7 +198,7 @@ Some wrappers include:
 Most RL libraries expect their own variation of an environment interface. This means the
 data types needed by each library differs. Isaac Lab provides its own wrappers to convert
 the environment into the expected interface by the RL library a user wants to use. These are
-specified in the `Isaac Lab utils wrapper module <https://isaac-sim.github.io/IsaacLab/main/source/api/lab_tasks/isaaclab_tasks.utils.wrappers.html#module-isaaclab_tasks.utils.wrappers>`__.
+specified in the `Isaac Lab utils wrapper module <https://isaac-sim.github.io/IsaacLab/main/source/api/lab_tasks/isaaclab_rl.html#module-isaaclab_rl>`__.
 
 See the `full list <https://gymnasium.farama.org/api/wrappers/#gymnasium.Wrapper>`__ of other wrappers APIs. For more information on how these wrappers work,
 please refer to the `Wrapping environments <https://isaac-sim.github.io/IsaacLab/main/source/how-to/wrap_rl_env.html#how-to-env-wrappers>`__ documentation.

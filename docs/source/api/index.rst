@@ -4,7 +4,7 @@ API Reference
 This page gives an overview of all the modules and classes in the Isaac Lab extensions.
 
 isaaclab extension
-------------------------
+------------------
 
 The following modules are available in the ``isaaclab`` extension:
 
@@ -38,7 +38,7 @@ The following modules are available in the ``isaaclab`` extension:
    lab/isaaclab.sim.spawners
 
 isaaclab_tasks extension
---------------------------------
+------------------------
 
 The following modules are available in the ``isaaclab_tasks`` extension:
 
@@ -50,8 +50,12 @@ The following modules are available in the ``isaaclab_tasks`` extension:
    utils
 
 
-.. toctree::
-   :hidden:
+isaaclab_rl extension
+---------------------
 
-   lab_tasks/isaaclab_tasks.utils.wrappers
-   lab_tasks/isaaclab_tasks.utils.data_collector
+The following wrappers are available in the ``isaaclab_rl`` extension:
+
+.. currentmodule:: isaaclab_rl
+
+.. autosummary::
+   :toctree: lab_rl
