@@ -71,9 +71,8 @@ class CartpoleEnv(DirectRLEnv):
         self.cartpole = Articulation(self.cfg.robot_cfg)
         # add ground plane
         spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
-        # clone, filter, and replicate
+        # clone and replicate
         self.scene.clone_environments(copy_from_source=False)
-        self.scene.filter_collisions(global_prim_paths=[])
         # add articulation to scene
         self.scene.articulations["cartpole"] = self.cartpole
         # add lights

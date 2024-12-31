@@ -431,6 +431,9 @@ class SimulationContext(_SimulationContext):
 
     def reset(self, soft: bool = False):
         super().reset(soft=soft)
+        # enable kinematic rendering with fabric
+        if self.physics_sim_view:
+            self.physics_sim_view._backend.initialize_kinematic_bodies()
         # perform additional rendering steps to warm up replicator buffers
         # this is only needed for the first time we set the simulation
         if not soft:

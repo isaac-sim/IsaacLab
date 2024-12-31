@@ -138,6 +138,7 @@ class InteractiveScene:
                 prim_paths=self.env_prim_paths,
                 replicate_physics=False,
                 copy_from_source=True,
+                enable_env_ids=True,  # this automatically filters collisions between environments
             )
             self._default_env_origins = torch.tensor(env_origins, device=self.device, dtype=torch.float32)
         else:
@@ -159,9 +160,8 @@ class InteractiveScene:
                     prim_paths=self.env_prim_paths,
                     base_env_path=self.env_ns,
                     root_path=self.env_regex_ns.replace(".*", ""),
+                    enable_env_ids=True,
                 )
-
-            self.filter_collisions(self._global_prim_paths)
 
     def clone_environments(self, copy_from_source: bool = False):
         """Creates clones of the environment ``/World/envs/env_0``.
@@ -188,6 +188,7 @@ class InteractiveScene:
             prim_paths=self.env_prim_paths,
             replicate_physics=self.cfg.replicate_physics,
             copy_from_source=copy_from_source,
+            enable_env_ids=True,  # this automatically filters collisions between environments
         )
 
         # in case of heterogeneous cloning, the env origins is specified at init

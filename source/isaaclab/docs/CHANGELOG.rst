@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.32.8 (2025-01-30)
+0.33.6 (2025-01-30)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -12,7 +12,7 @@ Fixed
   to the event being triggered at the wrong time after the reset.
 
 
-0.32.7 (2025-01-17)
+0.33.5 (2025-01-17)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -42,7 +42,7 @@ Fixed
   the :class:`omni.isaac.lab.assets.RigidObjectCollection` class.
 
 
-0.32.6 (2025-01-14)
+0.33.4 (2025-01-14)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -53,7 +53,7 @@ Added
 * Added :meth:`sim/spawn/sensors/sensors/spawn_lidar` and :class:`sim/spawn/sensors/sensors_cfg/LidarCfg` functionality for spawning both builtin and custom lidar models
 
 
-0.32.5 (2025-01-08)
+0.33.3 (2025-01-08)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -63,7 +63,7 @@ Fixed
   In body properties sections, the second dimension should be num_bodies but was documented as 1.
 
 
-0.32.4 (2025-01-02)
+0.33.2 (2025-01-02)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -72,7 +72,17 @@ Added
 * Added body tracking as an origin type to :class:`omni.isaac.lab.envs.ViewerCfg` and :class:`omni.isaac.lab.envs.ui.ViewportCameraController`.
 
 
-0.32.3 (2024-12-22)
+0.33.1 (2024-12-26)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Added kinematics initialization call for populating kinematic prim transforms to fabric for rendering.
+* Added ``enable_env_ids`` flag for cloning and replication to replace collision filtering.
+
+
+0.33.0 (2024-12-22)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
