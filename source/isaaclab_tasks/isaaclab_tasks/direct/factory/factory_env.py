@@ -173,7 +173,6 @@ class FactoryEnv(DirectRLEnv):
             self._large_gear_asset = Articulation(self.cfg_task.large_gear_cfg)
 
         self.scene.clone_environments(copy_from_source=False)
-        self.scene.filter_collisions()
 
         self.scene.articulations["robot"] = self._robot
         self.scene.articulations["fixed_asset"] = self._fixed_asset
@@ -639,7 +638,6 @@ class FactoryEnv(DirectRLEnv):
         joint_vel = torch.zeros_like(joint_pos)
         joint_effort = torch.zeros_like(joint_pos)
         self.ctrl_target_joint_pos[env_ids, :] = joint_pos
-        print(f"Resetting {len(env_ids)} envs...")
         self._robot.set_joint_position_target(self.ctrl_target_joint_pos[env_ids], env_ids=env_ids)
         self._robot.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
         self._robot.reset()
@@ -761,7 +759,6 @@ class FactoryEnv(DirectRLEnv):
             )
 
             ik_attempt += 1
-            print(f"IK Attempt: {ik_attempt}\tBad Envs: {bad_envs.shape[0]}")
 
         self.step_sim_no_action()
 

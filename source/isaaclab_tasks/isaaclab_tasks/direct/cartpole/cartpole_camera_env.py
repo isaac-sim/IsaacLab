@@ -121,9 +121,8 @@ class CartpoleCameraEnv(DirectRLEnv):
         self._cartpole = Articulation(self.cfg.robot_cfg)
         self._tiled_camera = TiledCamera(self.cfg.tiled_camera)
 
-        # clone, filter, and replicate
+        # clone and replicate
         self.scene.clone_environments(copy_from_source=False)
-        self.scene.filter_collisions(global_prim_paths=[])
 
         # add articulation and sensors to scene
         self.scene.articulations["cartpole"] = self._cartpole
