@@ -15,7 +15,7 @@ from isaacsim.core.api.simulation_context import SimulationContext
 from .ui_widget_wrapper import UIWidgetWrapper
 
 if TYPE_CHECKING:
-    import omni.isaac.ui
+    import isaacsim.gui.components
     import omni.ui
 
 
@@ -397,7 +397,7 @@ class LiveLinePlot(UIWidgetWrapper):
             max_legend = max([len(legend) for legend in self._legends])
             CHAR_WIDTH = 8
             with omni.ui.VGrid(
-                row_height=omni.isaac.ui.ui_utils.LABEL_HEIGHT,
+                row_height=isaacsim.gui.components.ui_utils.LABEL_HEIGHT,
                 column_width=max_legend * CHAR_WIDTH + 6,
             ):
                 for idx in range(len(self._y_data)):
@@ -442,7 +442,7 @@ class LiveLinePlot(UIWidgetWrapper):
             with omni.ui.HStack():
                 omni.ui.Label(
                     "Limits",
-                    width=omni.isaac.ui.ui_utils.LABEL_WIDTH,
+                    width=isaacsim.gui.components.ui_utils.LABEL_WIDTH,
                     alignment=omni.ui.Alignment.LEFT_CENTER,
                 )
 
@@ -460,10 +460,10 @@ class LiveLinePlot(UIWidgetWrapper):
 
                 omni.ui.Button(
                     "Re-Scale",
-                    width=omni.isaac.ui.ui_utils.BUTTON_WIDTH,
+                    width=isaacsim.gui.components.ui_utils.BUTTON_WIDTH,
                     clicked_fn=self._rescale_btn_pressed,
                     alignment=omni.ui.Alignment.LEFT_CENTER,
-                    style=omni.isaac.ui.ui_utils.get_style(),
+                    style=isaacsim.gui.components.ui_utils.get_style(),
                 )
 
                 omni.ui.CheckBox(model=self._autoscale_model, tooltip="", width=4)
@@ -498,7 +498,7 @@ class LiveLinePlot(UIWidgetWrapper):
                     self.clear()
                     self._filter_mode = value
 
-                omni.isaac.ui.ui_utils.dropdown_builder(
+                isaacsim.gui.components.ui_utils.dropdown_builder(
                     label="Filter",
                     type="dropdown",
                     items=["None", "Lowpass", "Integrate", "Derivative"],
@@ -512,10 +512,10 @@ class LiveLinePlot(UIWidgetWrapper):
                 # Button
                 omni.ui.Button(
                     "Play/Pause",
-                    width=omni.isaac.ui.ui_utils.BUTTON_WIDTH,
+                    width=isaacsim.gui.components.ui_utils.BUTTON_WIDTH,
                     clicked_fn=_toggle_paused,
                     alignment=omni.ui.Alignment.LEFT_CENTER,
-                    style=omni.isaac.ui.ui_utils.get_style(),
+                    style=isaacsim.gui.components.ui_utils.get_style(),
                 )
 
     def _create_ui_widget(self):

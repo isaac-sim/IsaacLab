@@ -67,7 +67,7 @@ compatibility issues with some Linux distributions. If you encounter any issues,
                   env_isaaclab\Scripts\activate
 
 
--  Next, install a CUDA-enabled PyTorch 2.4.0 build based on the CUDA version available on your system. This step is optional for Linux, but required for Windows to ensure a CUDA-compatible version of PyTorch is installed.
+-  Next, install a CUDA-enabled PyTorch 2.5.1 build based on the CUDA version available on your system. This step is optional for Linux, but required for Windows to ensure a CUDA-compatible version of PyTorch is installed.
 
    .. tab-set::
 
@@ -75,13 +75,13 @@ compatibility issues with some Linux distributions. If you encounter any issues,
 
          .. code-block:: bash
 
-            pip install torch==2.4.0 --index-url https://download.pytorch.org/whl/cu118
+            pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cu118
 
       .. tab-item:: CUDA 12
 
          .. code-block:: bash
 
-            pip install torch==2.4.0 --index-url https://download.pytorch.org/whl/cu121
+            pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cu121
 
 -  Before installing Isaac Sim, ensure the latest pip version is installed. To update pip, run
 
@@ -117,7 +117,7 @@ Verifying the Isaac Sim installation
    .. code:: bash
 
       # experience files can be absolute path, or relative path searched in isaacsim/apps or omni/apps
-      isaacsim omni.isaac.sim.python.kit
+      isaacsim isaacsim.exp.full.kit
 
 
 .. attention::

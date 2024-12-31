@@ -45,15 +45,8 @@ from isaaclab_assets import H1_CFG  # isort:skip
 from isaaclab_assets import G1_CFG  # isort:skip
 
 
-def main():
-    """Main function."""
-    # Load kit helper
-    sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device)
-    sim = SimulationContext(sim_cfg)
-    # Set main camera
-    sim.set_camera_view(eye=[3.0, 0.0, 2.25], target=[0.0, 0.0, 1.0])
-
-    # Spawn things into stage
+def design_scene(sim: sim_utils.SimulationContext) -> tuple[list, torch.Tensor]:
+    """Designs the scene."""
     # Ground-plane
     cfg = sim_utils.GroundPlaneCfg()
     cfg.func("/World/defaultGroundPlane", cfg)
@@ -74,12 +67,11 @@ def main():
     g1 = Articulation(G1_CFG.replace(prim_path="/World/G1"))
     robots = [cassie, h1, g1]
 
-    # Play the simulator
-    sim.reset()
+    return robots, origins
 
-    # Now we are ready!
-    print("[INFO]: Setup complete...")
 
+def run_simulator(sim: sim_utils.SimulationContext, robots: list[Articulation], origins: torch.Tensor):
+    """Runs the simulation loop."""
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
     sim_time = 0.0
@@ -114,6 +106,27 @@ def main():
         # update buffers
         for robot in robots:
             robot.update(sim_dt)
+
+
+def main():
+    """Main function."""
+    # Load kit helper
+    sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device)
+    sim = SimulationContext(sim_cfg)
+    # Set main camera
+    sim.set_camera_view(eye=[3.0, 0.0, 2.25], target=[0.0, 0.0, 1.0])
+
+    # design scene
+    robots, origins = design_scene(sim)
+
+    # Play the simulator
+    sim.reset()
+
+    # Now we are ready!
+    print("[INFO]: Setup complete...")
+
+    # Run the simulator
+    run_simulator(sim, robots, origins)
 
 
 if __name__ == "__main__":

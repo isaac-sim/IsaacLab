@@ -14,7 +14,7 @@ import omni.log
 from .ui_widget_wrapper import UIWidgetWrapper
 
 if TYPE_CHECKING:
-    import omni.isaac.ui
+    import isaacsim.gui.components
     import omni.ui
 
 
@@ -155,7 +155,9 @@ class ImagePlot(UIWidgetWrapper):
             with omni.ui.HStack():
                 # Write the leftmost label for what this plot is
                 omni.ui.Label(
-                    self._label, width=omni.isaac.ui.ui_utils.LABEL_WIDTH, alignment=omni.ui.Alignment.LEFT_TOP
+                    self._label,
+                    width=isaacsim.gui.components.ui_utils.LABEL_WIDTH,
+                    alignment=omni.ui.Alignment.LEFT_TOP,
                 )
                 with omni.ui.Frame(width=self._aspect_ratio * self._widget_height, height=self._widget_height):
                     self._base_plot = omni.ui.ImageWithProvider(self._byte_provider)
@@ -192,7 +194,7 @@ class ImagePlot(UIWidgetWrapper):
                 def _change_mode(value):
                     self._curr_mode = value
 
-                omni.isaac.ui.ui_utils.dropdown_builder(
+                isaacsim.gui.components.ui_utils.dropdown_builder(
                     label="Mode",
                     type="dropdown",
                     items=["Original", "Normalization", "Colorization"],

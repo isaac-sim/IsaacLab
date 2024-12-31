@@ -14,10 +14,10 @@ Currently, the sub-package provides the following classes:
 .. note::
 
     For some simple use-cases, it may be sufficient to use the debug drawing utilities from Isaac Sim.
-    The debug drawing API is available in the `omni.isaac.debug_drawing`_ module. It allows drawing of
+    The debug drawing API is available in the `isaacsim.util.debug_drawing`_ module. It allows drawing of
     points and splines efficiently on the UI.
 
-    .. _omni.isaac.debug_drawing: https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/ext_omni_isaac_debug_drawing.html
+    .. _isaacsim.util.debug_drawing: https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/ext_omni_isaac_debug_drawing.html
 
 """
 
