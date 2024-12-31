@@ -8,7 +8,7 @@ Utility to convert a MJCF into USD format.
 
 MuJoCo XML Format (MJCF) is an XML file format used in MuJoCo to describe all elements of a robot. For more information, see: http://www.mujoco.org/book/XMLreference.html
 
-This script uses the MJCF importer extension from Isaac Sim (``omni.isaac.mjcf_importer``) to convert a MJCF asset into USD format. It is designed as a convenience script for command-line use. For more information on the MJCF importer, see the documentation for the extension:
+This script uses the MJCF importer extension from Isaac Sim (``isaacsim.asset.importer.mjcf``) to convert a MJCF asset into USD format. It is designed as a convenience script for command-line use. For more information on the MJCF importer, see the documentation for the extension:
 https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/ext_omni_isaac_mjcf.html
 
 

@@ -9,7 +9,7 @@ Utility to convert a URDF into USD format.
 Unified Robot Description Format (URDF) is an XML file format used in ROS to describe all elements of
 a robot. For more information, see: http://wiki.ros.org/urdf
 
-This script uses the URDF importer extension from Isaac Sim (``omni.isaac.urdf_importer``) to convert a
+This script uses the URDF importer extension from Isaac Sim (``isaacsim.asset.importer.urdf``) to convert a
 URDF asset into USD format. It is designed as a convenience script for command-line use. For more
 information on the URDF importer, see the documentation for the extension:
 https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/ext_omni_isaac_urdf.html

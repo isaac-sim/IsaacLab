@@ -59,6 +59,9 @@ For SpaceMouse, these are as follows:
       Move arm along z-axis: Push or pull the SpaceMouse
       Rotate arm: Twist the SpaceMouse
 
+The next section describes how teleoperation devices can be used for data collection for imitation learning.
+
+
 Imitation Learning
 ~~~~~~~~~~~~~~~~~~
 

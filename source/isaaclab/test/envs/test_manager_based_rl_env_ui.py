@@ -32,7 +32,7 @@ from isaaclab.envs.ui import ManagerBasedRLEnvWindow
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
 
-enable_extension("omni.isaac.ui")
+enable_extension("isaacsim.gui.components")
 
 
 @configclass
