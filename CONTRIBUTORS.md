@@ -62,6 +62,7 @@ Guidelines for modifications:
 * Lionel Gulich
 * Louis Le Lay
 * Lorenz Wellhausen
+* Manuel Schweiger
 * Masoud Moghani
 * Michael Gussert
 * Michael Noseworthy
@@ -84,7 +85,6 @@ Guidelines for modifications:
 * Yujian Zhang
 * Zhengyu Zhang
 * Ziqi Fan
-* Manuel Schweiger
 
 ## Acknowledgements
 
