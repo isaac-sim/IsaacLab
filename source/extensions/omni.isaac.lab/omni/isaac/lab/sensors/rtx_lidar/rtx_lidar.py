@@ -144,9 +144,6 @@ class RtxLidar(SensorBase):
         # note: cannot do smart indexing here since we do a for loop over data.
         if env_ids is None:
             env_ids = self._ALL_INDICES
-        # reset the data
-        # note: this recomputation is useful if one performs events such as randomizations on the camera poses.
-        # self._update_poses(env_ids)
         # Reset the frame count
         self._frame[env_ids] = 0
 
@@ -274,7 +271,7 @@ class RtxLidar(SensorBase):
         # lazy allocation of data dictionary
         # since the size of the output data is not known in advance, we leave it as None
         # the memory will be allocated when the buffer() function is called for the first time.
-        self._data.output = TensorDict({}, batch_size=self._view.count, device=self.device)
+        self._data.output = {}
         self._data.info = [{name: None for name in RTX_LIDAR_INFO_FIELDS.keys()} for _ in range(self._view.count)]
 
     def _update_buffers_impl(self, env_ids: Sequence[int]):

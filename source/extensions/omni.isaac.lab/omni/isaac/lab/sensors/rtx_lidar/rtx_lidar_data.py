@@ -39,7 +39,7 @@ class RtxLidarData:
     The product  of ticksPerScan, numChannels, and numEchos will be the same as the number of returns if you initialize
     the annotator with annotator.initialize(keepOnlyPositiveDistance=False) before attaching the render product.
     """
-    output: TensorDict = None
+    output: dict[str, torch.Tensor] = None
     """The data that changes every sample. Some fields of the out will always be returned and some are optionally
     returned when configured in RtxLidarCfg.optional_data_types.
 
