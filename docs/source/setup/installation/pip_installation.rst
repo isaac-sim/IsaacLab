@@ -1,11 +1,9 @@
-.. _isaacsim-pip-installation:
+.. _isaaclab-pip-installation:
 
-Installation using Isaac Sim pip
+Installation using pip
 ================================
 
-.. note::
-
-   If you use Conda, we recommend using `Miniconda <https://docs.anaconda.com/miniconda/miniconda-other-installer-links/>`_.
+Issac Lab requires Isaac Sim. Install Isaac Sim first, then Isaac Lab.
 
 Installing Isaac Sim
 --------------------
@@ -21,11 +19,15 @@ compatibility issues with some Linux distributions. If you encounter any issues,
 
    This may pose compatibility issues with some Linux distributions. For instance, Ubuntu 20.04 LTS has GLIBC 2.31
    by default. If you encounter compatibility issues, we recommend following the
-   :ref:`Isaac Sim Binaries Installation <isaacsim-binaries-installation>` approach.
+   :ref:`Isaac Sim Binaries Installation <isaaclab-binaries-installation>` approach.
 
 .. attention::
 
-      On Windows with CUDA 12, the GPU driver version 552.86 is required.
+   On Windows with CUDA 12, the GPU driver version 552.86 is required.
+
+.. note::
+
+   If you use Conda, we recommend using `Miniconda <https://docs.anaconda.com/miniconda/miniconda-other-installer-links/>`_.
 
 -  To use the pip installation approach for Isaac Sim, we recommend first creating a virtual environment.
    Ensure that the python version of the virtual environment is **Python 3.10**.
@@ -88,19 +90,21 @@ compatibility issues with some Linux distributions. If you encounter any issues,
       pip install --upgrade pip
 
 
--  Then, install the Isaac Sim packages
+-  Then, install the Isaac Sim packages. There are 2 options: A complete installation, or a minimal installation for running Isaac Lab only.
 
-   .. code-block:: bash
+   -  Complete installation:
 
-      pip install isaacsim==4.2.0.2 isaacsim-extscache-physics==4.2.0.2 isaacsim-extscache-kit==4.2.0.2 isaacsim-extscache-kit-sdk==4.2.0.2 --extra-index-url https://pypi.nvidia.com
+      .. code-block:: bash
 
+         pip install isaacsim==4.2.0.2 isaacsim-extscache-physics==4.2.0.2 isaacsim-extscache-kit==4.2.0.2 isaacsim-extscache-kit-sdk==4.2.0.2 --extra-index-url https://pypi.nvidia.com
 
-- To install a minimal set of packages for running Isaac Lab only, the following command can be used. Note that you cannot run ``isaacsim`` with this.
+   -  Minimal set of packages for running Isaac Lab only: 
 
-   .. code-block:: bash
+      .. code-block:: bash
 
-      pip install isaacsim-rl isaacsim-replicator isaacsim-extscache-physics isaacsim-extscache-kit-sdk isaacsim-extscache-kit isaacsim-app --extra-index-url https://pypi.nvidia.com
+         pip install isaacsim-rl isaacsim-replicator isaacsim-extscache-physics isaacsim-extscache-kit-sdk isaacsim-extscache-kit isaacsim-app --extra-index-url https://pypi.nvidia.com
 
+      Note that you cannot run ``isaacsim`` with this.
 
 Verifying the Isaac Sim installation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -131,7 +135,9 @@ Verifying the Isaac Sim installation
    This process can take upwards of 10 minutes and is required on the first run of each experience file.
    Once the extensions are pulled, consecutive runs using the same experience file will use the cached extensions.
 
-   In addition, the first run will prompt users to accept the Nvidia Omniverse License Agreement.
+.. attention::
+
+   The first run will prompt users to accept the Nvidia Omniverse License Agreement.
    To accept the EULA, reply ``Yes`` when prompted with the below message:
 
    .. code:: bash
