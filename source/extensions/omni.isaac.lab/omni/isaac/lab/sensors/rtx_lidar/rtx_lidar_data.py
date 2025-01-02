@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import torch
 from dataclasses import dataclass
-from tensordict import TensorDict
 from typing import Any
 
 RTX_LIDAR_INFO_FIELDS = {
