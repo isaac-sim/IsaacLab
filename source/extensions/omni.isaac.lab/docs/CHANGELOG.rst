@@ -7,9 +7,8 @@ Changelog
 Fixed
 ^^^^^
 
-* Fixed the issue in :class:`omni.isaac.lab.assets.Articulation` where the field
-default_joint_stiffness and default_joint_damping are not correctly set if actuator
-is instance of ImplicitActuator
+* Fixed populating default_joint_stiffness and default_joint_damping values for ImplicitActuator instances
+in :class:`omni.isaac.lab.assets.Articulation` 
 
 
 0.30.1 (2024-12-17)
