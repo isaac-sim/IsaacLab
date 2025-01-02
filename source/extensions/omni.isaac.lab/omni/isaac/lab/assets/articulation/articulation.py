@@ -173,7 +173,7 @@ class Articulation(AssetBase):
         self._external_force_b[env_ids] = 0.0
         self._external_torque_b[env_ids] = 0.0
 
-    def write_data_to_sim(self):
+    def write_data_to_sim(self, is_global=False):
         """Write external wrenches and joint commands to the simulation.
 
         If any explicit actuators are present, then the actuator models are used to compute the
@@ -190,7 +190,7 @@ class Articulation(AssetBase):
                 torque_data=self._external_torque_b.view(-1, 3),
                 position_data=None,
                 indices=self._ALL_INDICES,
-                is_global=False,
+                is_global=False, # Maybe we can expose this flag?
             )
 
         # apply actuator models
