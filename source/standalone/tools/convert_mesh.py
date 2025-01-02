@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -105,10 +105,6 @@ def main():
     dest_path = args_cli.output
     if not os.path.isabs(dest_path):
         dest_path = os.path.abspath(dest_path)
-
-    print(dest_path)
-    print(os.path.dirname(dest_path))
-    print(os.path.basename(dest_path))
 
     # Mass properties
     if args_cli.mass is not None:

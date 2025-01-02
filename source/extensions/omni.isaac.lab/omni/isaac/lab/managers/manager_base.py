@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -192,6 +192,16 @@ class ManagerBase(ABC):
 
         # return the matching names
         return string_utils.resolve_matching_names(name_keys, list_of_strings)[1]
+
+    def get_active_iterable_terms(self, env_idx: int) -> Sequence[tuple[str, Sequence[float]]]:
+        """Returns the active terms as iterable sequence of tuples.
+
+        The first element of the tuple is the name of the term and the second element is the raw value(s) of the term.
+
+        Returns:
+            The active terms.
+        """
+        raise NotImplementedError
 
     """
     Implementation specific.

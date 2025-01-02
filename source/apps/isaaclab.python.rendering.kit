@@ -9,7 +9,7 @@
 [package]
 title = "Isaac Lab Python Camera"
 description = "An app for running Isaac Lab with rendering enabled"
-version = "1.2.0"
+version = "1.3.0"
 
 # That makes it browsable in UI with "experience" filter
 keywords = ["experience", "app", "isaaclab", "python", "camera", "minimal"]
@@ -34,6 +34,10 @@ app.versionFile = "${exe-path}/VERSION"
 app.folder = "${exe-path}/"
 app.name = "Isaac-Sim"
 app.version = "4.2.0"
+
+# Disable print outs on extension startup information
+# this only disables the app print_and_log function
+app.enableStdoutOutput = false
 
 # set the default ros bridge to disable on startup
 isaac.startup.ros_bridge_extension = ""

@@ -6,7 +6,7 @@ To see the full list of contributors, please check the revision history in the s
 
 Guidelines for modifications:
 
-* Please keep the lists sorted alphabetically.
+* Please keep the **lists sorted alphabetically**.
 * Names should be added to this file as: *individual names* or *organizations*.
 * E-mail addresses are tracked elsewhere to avoid spam.
 
@@ -19,6 +19,7 @@ Guidelines for modifications:
 
 ---
 
+* Antonio Serrano-Muñoz
 * David Hoeller
 * Farbod Farshidian
 * Hunter Hansen
@@ -36,20 +37,24 @@ Guidelines for modifications:
 * Amr Mousa
 * Andrej Orsula
 * Anton Bjørndahl Mortensen
-* Antonio Serrano-Muñoz
 * Arjun Bhardwaj
 * Brayden Zhang
 * Calvin Yu
 * Chenyu Yang
+* CY (Chien-Ying) Chen
 * David Yang
 * Dorsa Rohani
 * Felix Yu
 * Gary Lvov
 * Giulio Romualdi
+* Haoran Zhou
 * HoJin Jeon
+* Hongwei Xiong
+* Iretiayo Akinola
 * Jan Kerner
 * Jean Tampon
 * Jia Lin Yuan
+* Jinghuan Shang
 * Jingzhou Liu
 * Johnson Sun
 * Kaixi Bao
@@ -59,22 +64,27 @@ Guidelines for modifications:
 * Lorenz Wellhausen
 * Masoud Moghani
 * Michael Gussert
+* Michael Noseworthy
 * Muhong Guo
 * Nuralem Abizov
+* Oyindamola Omotuyi
 * Özhan Özen
+* Peter Du
+* Qian Wan
 * Qinxi Yu
 * René Zurbrügg
 * Ritvik Singh
 * Rosario Scalise
+* Ryley McCarroll
 * Shafeef Omar
+* Stephan Pleines
 * Vladimir Fokow
 * Wei Yang
 * Xavier Nal
 * Yang Jin
+* Yujian Zhang
 * Zhengyu Zhang
 * Ziqi Fan
-* Qian Wan
-* Wei Yang
 
 ## Acknowledgements
 
@@ -84,3 +94,4 @@ Guidelines for modifications:
 * Gavriel State
 * Hammad Mazhar
 * Marco Hutter
+* Yashraj Narang

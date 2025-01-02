@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -30,7 +30,7 @@ class UrdfConverterCfg(AssetConverterBaseCfg):
     """Decompose a convex mesh into smaller pieces for a closer fit. Defaults to False."""
 
     fix_base: bool = MISSING
-    """Create a fix joint to the root/base link. Defaults to True."""
+    """Create a fix joint to the root/base link."""
 
     merge_fixed_joints: bool = False
     """Consolidate links that are connected by fixed joints. Defaults to False."""

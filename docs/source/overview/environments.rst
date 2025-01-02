@@ -91,7 +91,7 @@ Manipulation
 Environments based on fixed-arm manipulation tasks.
 
 For many of these tasks, we include configurations with different arm action spaces. For example,
-for the reach environment:
+for the lift-cube environment:
 
 * |lift-cube-link|: Franka arm with joint position control
 * |lift-cube-ik-abs-link|: Franka arm with absolute IK control
@@ -108,6 +108,8 @@ for the reach environment:
     | |reach-ur10|       | |reach-ur10-link|       | Move the end-effector to a sampled target pose with the UR10 robot          |
     +--------------------+-------------------------+-----------------------------------------------------------------------------+
     | |lift-cube|        | |lift-cube-link|        | Pick a cube and bring it to a sampled target position with the Franka robot |
+    +--------------------+-------------------------+-----------------------------------------------------------------------------+
+    | |stack-cube|       | |stack-cube-link|       | Stack three cubes (bottom to top: blue, red, green) with the Franka robot   |
     +--------------------+-------------------------+-----------------------------------------------------------------------------+
     | |cabi-franka|      | |cabi-franka-link|      | Grasp the handle of a cabinet's drawer and open it with the Franka robot    |
     |                    |                         |                                                                             |
@@ -132,6 +134,7 @@ for the reach environment:
 .. |cabi-franka| image:: ../_static/tasks/manipulation/franka_open_drawer.jpg
 .. |cube-allegro| image:: ../_static/tasks/manipulation/allegro_cube.jpg
 .. |cube-shadow| image:: ../_static/tasks/manipulation/shadow_cube.jpg
+.. |stack-cube| image:: ../_static/tasks/manipulation/franka_stack.jpg
 
 .. |reach-franka-link| replace:: `Isaac-Reach-Franka-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/manipulation/reach/config/franka/joint_pos_env_cfg.py>`__
 .. |reach-ur10-link| replace:: `Isaac-Reach-UR10-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/manipulation/reach/config/ur_10/joint_pos_env_cfg.py>`__
@@ -142,11 +145,45 @@ for the reach environment:
 .. |franka-direct-link| replace:: `Isaac-Franka-Cabinet-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/franka_cabinet/franka_cabinet_env.py>`__
 .. |cube-allegro-link| replace:: `Isaac-Repose-Cube-Allegro-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/manipulation/inhand/config/allegro_hand/allegro_env_cfg.py>`__
 .. |allegro-direct-link| replace:: `Isaac-Repose-Cube-Allegro-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/allegro_hand/allegro_hand_env_cfg.py>`__
+.. |stack-cube-link| replace:: `Isaac-Stack-Cube-Franka-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/manipulation/stack/config/franka/stack_joint_pos_env_cfg.py>`__
 
 .. |cube-shadow-link| replace:: `Isaac-Repose-Cube-Shadow-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/shadow_hand/shadow_hand_env_cfg.py>`__
 .. |cube-shadow-ff-link| replace:: `Isaac-Repose-Cube-Shadow-OpenAI-FF-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/shadow_hand/shadow_hand_env_cfg.py>`__
 .. |cube-shadow-lstm-link| replace:: `Isaac-Repose-Cube-Shadow-OpenAI-LSTM-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/shadow_hand/shadow_hand_env_cfg.py>`__
 .. |cube-shadow-vis-link| replace:: `Isaac-Repose-Cube-Shadow-Vision-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/shadow_hand/shadow_hand_vision_env.py>`__
+
+Contact-rich Manipulation
+~~~~~~~~~~~~
+
+Environments based on contact-rich manipulation tasks such as peg insertion, gear meshing and nut-bolt fastening.
+
+These tasks share the same task configurations and control options. You can switch between them by specifying the task name.
+For example:
+
+* |factory-peg-link|: Peg insertion with the Franka arm
+* |factory-gear-link|: Gear meshing with the Franka arm
+* |factory-nut-link|: Nut-Bolt fastening with the Franka arm
+
+.. table::
+    :widths: 33 37 30
+
+    +--------------------+-------------------------+-----------------------------------------------------------------------------+
+    | World              | Environment ID          | Description                                                                 |
+    +====================+=========================+=============================================================================+
+    | |factory-peg|      | |factory-peg-link|      | Insert peg into the socket with the Franka robot                            |
+    +--------------------+-------------------------+-----------------------------------------------------------------------------+
+    | |factory-gear|     | |factory-gear-link|     | Insert and mesh gear into the base with other gears, using the Franka robot |
+    +--------------------+-------------------------+-----------------------------------------------------------------------------+
+    | |factory-nut|      | |factory-nut-link|      | Thread the nut onto the first 2 threads of the bolt, using the Franka robot |
+    +--------------------+-------------------------+-----------------------------------------------------------------------------+
+
+.. |factory-peg| image:: ../_static/tasks/factory/peg_insert.jpg
+.. |factory-gear| image:: ../_static/tasks/factory/gear_mesh.jpg
+.. |factory-nut| image:: ../_static/tasks/factory/nut_thread.jpg
+
+.. |factory-peg-link| replace:: `Isaac-Factory-PegInsert-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/factory/factory_env_cfg.py>`__
+.. |factory-gear-link| replace:: `Isaac-Factory-GearMesh-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/factory/factory_env_cfg.py>`__
+.. |factory-nut-link| replace:: `Isaac-Factory-NutThread-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/factory/factory_env_cfg.py>`__
 
 Locomotion
 ~~~~~~~~~~
@@ -365,6 +402,18 @@ Comprehensive List of Environments
       -
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
+    * - Isaac-Factory-GearMesh-Direct-v0
+      -
+      - Direct
+      - **rl_games** (PPO)
+    * - Isaac-Factory-NutThread-Direct-v0
+      -
+      - Direct
+      - **rl_games** (PPO)
+    * - Isaac-Factory-PegInsert-Direct-v0
+      -
+      - Direct
+      - **rl_games** (PPO)
     * - Isaac-Franka-Cabinet-Direct-v0
       -
       - Direct
@@ -417,6 +466,10 @@ Comprehensive List of Environments
       -
       - Manager Based
       -
+    * - Isaac-Reach-Franka-OSC-v0
+      - Isaac-Reach-Franka-OSC-Play-v0
+      - Manager Based
+      - **rsl_rl** (PPO)
     * - Isaac-Reach-Franka-v0
       - Isaac-Reach-Franka-Play-v0
       - Manager Based

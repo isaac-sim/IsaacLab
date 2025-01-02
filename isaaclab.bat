@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableExtensions EnableDelayedExpansion
 
-rem Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+rem Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 rem All rights reserved.
 rem
 rem SPDX-License-Identifier: BSD-3-Clause

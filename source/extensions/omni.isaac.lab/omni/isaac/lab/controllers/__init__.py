@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -13,3 +13,5 @@ commands to be sent to the robot.
 
 from .differential_ik import DifferentialIKController
 from .differential_ik_cfg import DifferentialIKControllerCfg
+from .operational_space import OperationalSpaceController
+from .operational_space_cfg import OperationalSpaceControllerCfg

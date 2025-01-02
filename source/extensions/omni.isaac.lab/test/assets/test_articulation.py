@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -26,6 +26,7 @@ from typing import Literal
 import omni.isaac.core.utils.prims as prim_utils
 
 import omni.isaac.lab.sim as sim_utils
+import omni.isaac.lab.utils.math as math_utils
 import omni.isaac.lab.utils.string as string_utils
 from omni.isaac.lab.actuators import ImplicitActuatorCfg
 from omni.isaac.lab.assets import Articulation, ArticulationCfg
@@ -42,6 +43,8 @@ def generate_articulation_cfg(
     articulation_type: Literal["humanoid", "panda", "anymal", "shadow_hand", "single_joint"],
     stiffness: float | None = 10.0,
     damping: float | None = 2.0,
+    vel_limit: float | None = 100.0,
+    effort_limit: float | None = 400.0,
 ) -> ArticulationCfg:
     """Generate an articulation configuration.
 
@@ -72,8 +75,8 @@ def generate_articulation_cfg(
             actuators={
                 "joint": ImplicitActuatorCfg(
                     joint_names_expr=[".*"],
-                    effort_limit=400.0,
-                    velocity_limit=100.0,
+                    effort_limit=effort_limit,
+                    velocity_limit=vel_limit,
                     stiffness=0.0,
                     damping=10.0,
                 ),
@@ -105,9 +108,9 @@ def generate_articulation(
         The articulation and environment translations.
 
     """
-    # Generate translations of 1.5m in x for each articulation
+    # Generate translations of 2.5 m in x for each articulation
     translations = torch.zeros(num_articulations, 3, device=device)
-    translations[:, 0] = torch.arange(num_articulations) * 1.5
+    translations[:, 0] = torch.arange(num_articulations) * 2.5
 
     # Create Top-level Xforms, one for each articulation
     for i in range(num_articulations):
@@ -147,8 +150,8 @@ class TestArticulation(unittest.TestCase):
                         # Check that is fixed base
                         self.assertFalse(articulation.is_fixed_base)
                         # Check buffers that exists and have correct shapes
-                        self.assertEqual(articulation.data.root_pos_w.shape, (num_articulations, 3))
-                        self.assertEqual(articulation.data.root_quat_w.shape, (num_articulations, 4))
+                        self.assertEqual(articulation.data.root_link_pos_w.shape, (num_articulations, 3))
+                        self.assertEqual(articulation.data.root_link_quat_w.shape, (num_articulations, 4))
                         self.assertEqual(articulation.data.joint_pos.shape, (num_articulations, 21))
 
                         # Check some internal physx data for debugging
@@ -196,8 +199,8 @@ class TestArticulation(unittest.TestCase):
                         # Check that floating base
                         self.assertFalse(articulation.is_fixed_base)
                         # Check buffers that exists and have correct shapes
-                        self.assertEqual(articulation.data.root_pos_w.shape, (num_articulations, 3))
-                        self.assertEqual(articulation.data.root_quat_w.shape, (num_articulations, 4))
+                        self.assertEqual(articulation.data.root_link_pos_w.shape, (num_articulations, 3))
+                        self.assertEqual(articulation.data.root_link_quat_w.shape, (num_articulations, 4))
                         self.assertEqual(articulation.data.joint_pos.shape, (num_articulations, 12))
                         self.assertEqual(
                             articulation.data.default_mass.shape, (num_articulations, articulation.num_bodies)
@@ -249,8 +252,8 @@ class TestArticulation(unittest.TestCase):
                         # Check that fixed base
                         self.assertTrue(articulation.is_fixed_base)
                         # Check buffers that exists and have correct shapes
-                        self.assertEqual(articulation.data.root_pos_w.shape, (num_articulations, 3))
-                        self.assertEqual(articulation.data.root_quat_w.shape, (num_articulations, 4))
+                        self.assertEqual(articulation.data.root_link_pos_w.shape, (num_articulations, 3))
+                        self.assertEqual(articulation.data.root_link_quat_w.shape, (num_articulations, 4))
                         self.assertEqual(articulation.data.joint_pos.shape, (num_articulations, 9))
                         self.assertEqual(
                             articulation.data.default_mass.shape, (num_articulations, articulation.num_bodies)
@@ -308,8 +311,8 @@ class TestArticulation(unittest.TestCase):
                         # Check that fixed base
                         self.assertTrue(articulation.is_fixed_base)
                         # Check buffers that exists and have correct shapes
-                        self.assertEqual(articulation.data.root_pos_w.shape, (num_articulations, 3))
-                        self.assertEqual(articulation.data.root_quat_w.shape, (num_articulations, 4))
+                        self.assertEqual(articulation.data.root_link_pos_w.shape, (num_articulations, 3))
+                        self.assertEqual(articulation.data.root_link_quat_w.shape, (num_articulations, 4))
                         self.assertEqual(articulation.data.joint_pos.shape, (num_articulations, 1))
                         self.assertEqual(
                             articulation.data.default_mass.shape, (num_articulations, articulation.num_bodies)
@@ -367,8 +370,8 @@ class TestArticulation(unittest.TestCase):
                         # Check that fixed base
                         self.assertTrue(articulation.is_fixed_base)
                         # Check buffers that exists and have correct shapes
-                        self.assertTrue(articulation.data.root_pos_w.shape == (num_articulations, 3))
-                        self.assertTrue(articulation.data.root_quat_w.shape == (num_articulations, 4))
+                        self.assertTrue(articulation.data.root_link_pos_w.shape == (num_articulations, 3))
+                        self.assertTrue(articulation.data.root_link_quat_w.shape == (num_articulations, 4))
                         self.assertTrue(articulation.data.joint_pos.shape == (num_articulations, 24))
                         self.assertEqual(
                             articulation.data.default_mass.shape, (num_articulations, articulation.num_bodies)
@@ -417,8 +420,8 @@ class TestArticulation(unittest.TestCase):
                         # Check that is fixed base
                         self.assertTrue(articulation.is_fixed_base)
                         # Check buffers that exists and have correct shapes
-                        self.assertEqual(articulation.data.root_pos_w.shape, (num_articulations, 3))
-                        self.assertEqual(articulation.data.root_quat_w.shape, (num_articulations, 4))
+                        self.assertEqual(articulation.data.root_link_pos_w.shape, (num_articulations, 3))
+                        self.assertEqual(articulation.data.root_link_quat_w.shape, (num_articulations, 4))
                         self.assertEqual(articulation.data.joint_pos.shape, (num_articulations, 12))
 
                         # Check some internal physx data for debugging
@@ -472,8 +475,8 @@ class TestArticulation(unittest.TestCase):
                         # Check that is floating base
                         self.assertFalse(articulation.is_fixed_base)
                         # Check buffers that exists and have correct shapes
-                        self.assertEqual(articulation.data.root_pos_w.shape, (num_articulations, 3))
-                        self.assertEqual(articulation.data.root_quat_w.shape, (num_articulations, 4))
+                        self.assertEqual(articulation.data.root_link_pos_w.shape, (num_articulations, 3))
+                        self.assertEqual(articulation.data.root_link_quat_w.shape, (num_articulations, 4))
                         self.assertEqual(articulation.data.joint_pos.shape, (num_articulations, 9))
 
                         # Check some internal physx data for debugging
@@ -572,6 +575,18 @@ class TestArticulation(unittest.TestCase):
                         torch.testing.assert_close(articulation._data.joint_limits, limits)
                         torch.testing.assert_close(articulation._data.default_joint_pos, default_joint_pos)
 
+                        # Set new joint limits with indexing
+                        env_ids = torch.arange(1, device=device)
+                        joint_ids = torch.arange(2, device=device)
+                        limits = torch.zeros(env_ids.shape[0], joint_ids.shape[0], 2, device=device)
+                        limits[..., 0] = (torch.rand(env_ids.shape[0], joint_ids.shape[0], device=device) + 5.0) * -1.0
+                        limits[..., 1] = torch.rand(env_ids.shape[0], joint_ids.shape[0], device=device) + 5.0
+                        articulation.write_joint_limits_to_sim(limits, env_ids=env_ids, joint_ids=joint_ids)
+
+                        # Check new limits are in place
+                        torch.testing.assert_close(articulation._data.joint_limits[env_ids][:, joint_ids], limits)
+                        torch.testing.assert_close(articulation._data.default_joint_pos, default_joint_pos)
+
                         # Set new joint limits that invalidate default joint pos
                         limits = torch.zeros(num_articulations, articulation.num_joints, 2, device=device)
                         limits[..., 0] = torch.rand(num_articulations, articulation.num_joints, device=device) * -0.1
@@ -582,6 +597,18 @@ class TestArticulation(unittest.TestCase):
                         within_bounds = (articulation._data.default_joint_pos >= limits[..., 0]) & (
                             articulation._data.default_joint_pos <= limits[..., 1]
                         )
+                        self.assertTrue(torch.all(within_bounds))
+
+                        # Set new joint limits that invalidate default joint pos with indexing
+                        limits = torch.zeros(env_ids.shape[0], joint_ids.shape[0], 2, device=device)
+                        limits[..., 0] = torch.rand(env_ids.shape[0], joint_ids.shape[0], device=device) * -0.1
+                        limits[..., 1] = torch.rand(env_ids.shape[0], joint_ids.shape[0], device=device) * 0.1
+                        articulation.write_joint_limits_to_sim(limits, env_ids=env_ids, joint_ids=joint_ids)
+
+                        # Check if all values are within the bounds
+                        within_bounds = (
+                            articulation._data.default_joint_pos[env_ids][:, joint_ids] >= limits[..., 0]
+                        ) & (articulation._data.default_joint_pos[env_ids][:, joint_ids] <= limits[..., 1])
                         self.assertTrue(torch.all(within_bounds))
 
     def test_external_force_on_single_body(self):
@@ -606,7 +633,8 @@ class TestArticulation(unittest.TestCase):
                             # reset root state
                             root_state = articulation.data.default_root_state.clone()
 
-                            articulation.write_root_state_to_sim(root_state)
+                            articulation.write_root_link_pose_to_sim(root_state[:, :7])
+                            articulation.write_root_com_velocity_to_sim(root_state[:, 7:])
                             # reset dof state
                             joint_pos, joint_vel = (
                                 articulation.data.default_joint_pos,
@@ -630,7 +658,7 @@ class TestArticulation(unittest.TestCase):
                                 articulation.update(sim.cfg.dt)
                             # check condition that the articulations have fallen down
                             for i in range(num_articulations):
-                                self.assertLess(articulation.data.root_pos_w[i, 2].item(), 0.2)
+                                self.assertLess(articulation.data.root_link_pos_w[i, 2].item(), 0.2)
 
     def test_external_force_on_multiple_bodies(self):
         """Test application of external force on the legs of the articulation."""
@@ -653,7 +681,12 @@ class TestArticulation(unittest.TestCase):
                         # Now we are ready!
                         for _ in range(5):
                             # reset root state
-                            articulation.write_root_state_to_sim(articulation.data.default_root_state.clone())
+                            articulation.write_root_link_pose_to_sim(
+                                articulation.data.default_root_state.clone()[:, :7]
+                            )
+                            articulation.write_root_com_velocity_to_sim(
+                                articulation.data.default_root_state.clone()[:, 7:]
+                            )
                             # reset dof state
                             joint_pos, joint_vel = (
                                 articulation.data.default_joint_pos,
@@ -678,7 +711,7 @@ class TestArticulation(unittest.TestCase):
                             # check condition
                             for i in range(num_articulations):
                                 # since there is a moment applied on the articulation, the articulation should rotate
-                                self.assertTrue(articulation.data.root_ang_vel_w[i, 2].item() > 0.1)
+                                self.assertTrue(articulation.data.root_com_ang_vel_w[i, 2].item() > 0.1)
 
     def test_loading_gains_from_usd(self):
         """Test that gains are loaded from USD file if actuator model has them as None."""
@@ -789,6 +822,43 @@ class TestArticulation(unittest.TestCase):
                         torch.testing.assert_close(articulation.actuators["body"].stiffness, expected_stiffness)
                         torch.testing.assert_close(articulation.actuators["body"].damping, expected_damping)
 
+    def test_setting_velocity_limits(self):
+        """Test that velocity limits are loaded form the configuration correctly."""
+        for num_articulations in (1, 2):
+            for device in ("cuda:0", "cpu"):
+                for limit in (5.0, None):
+                    with self.subTest(num_articulations=num_articulations, device=device, limit=limit):
+                        with build_simulation_context(
+                            device=device, add_ground_plane=False, auto_add_lighting=True
+                        ) as sim:
+                            articulation_cfg = generate_articulation_cfg(
+                                articulation_type="single_joint", vel_limit=limit, effort_limit=limit
+                            )
+                            articulation, _ = generate_articulation(
+                                articulation_cfg=articulation_cfg, num_articulations=num_articulations, device=device
+                            )
+                            # Play sim
+                            sim.reset()
+
+                            if limit is not None:
+                                # Expected gains
+                                expected_velocity_limit = torch.full(
+                                    (articulation.num_instances, articulation.num_joints),
+                                    limit,
+                                    device=articulation.device,
+                                )
+                                # Check that gains are loaded from USD file
+                                torch.testing.assert_close(
+                                    articulation.actuators["joint"].velocity_limit, expected_velocity_limit
+                                )
+                                torch.testing.assert_close(
+                                    articulation.data.joint_velocity_limits, expected_velocity_limit
+                                )
+                                torch.testing.assert_close(
+                                    articulation.root_physx_view.get_dof_max_velocities().to(device),
+                                    expected_velocity_limit,
+                                )
+
     def test_reset(self):
         """Test that reset method works properly.
 
@@ -858,6 +928,206 @@ class TestArticulation(unittest.TestCase):
                         # the articulation moved. We can't check that it reached it's desired joint position as the gains
                         # are not properly tuned
                         assert not torch.allclose(articulation.data.joint_pos, joint_pos)
+
+    def test_body_root_link_state(self):
+        """Test for the root_link_state_w property"""
+        for num_articulations in (1, 2):
+            # for num_articulations in ( 2,):
+            for device in ("cuda:0", "cpu"):
+                # for device in ("cuda:0",):
+                for with_offset in [True, False]:
+                    # for with_offset in [True,]:
+                    with self.subTest(num_articulations=num_articulations, device=device, with_offset=with_offset):
+                        with build_simulation_context(
+                            device=device, add_ground_plane=False, auto_add_lighting=True
+                        ) as sim:
+                            articulation_cfg = generate_articulation_cfg(articulation_type="single_joint")
+                            articulation, env_pos = generate_articulation(articulation_cfg, num_articulations, device)
+                            env_idx = torch.tensor([x for x in range(num_articulations)])
+                            # Check that boundedness of articulation is correct
+                            self.assertEqual(ctypes.c_long.from_address(id(articulation)).value, 1)
+                            # Play sim
+                            sim.reset()
+                            # Check if articulation is initialized
+                            self.assertTrue(articulation.is_initialized)
+                            # Check that fixed base
+                            self.assertTrue(articulation.is_fixed_base)
+
+                            # change center of mass offset from link frame
+                            if with_offset:
+                                offset = [0.5, 0.0, 0.0]
+                            else:
+                                offset = [0.0, 0.0, 0.0]
+
+                            # create com offsets
+                            num_bodies = articulation.num_bodies
+                            com = articulation.root_physx_view.get_coms()
+                            link_offset = [1.0, 0.0, 0.0]  # the offset from CenterPivot to Arm frames
+                            new_com = torch.tensor(offset, device=device).repeat(num_articulations, 1, 1)
+                            com[:, 1, :3] = new_com.squeeze(-2)
+                            articulation.root_physx_view.set_coms(com, env_idx)
+
+                            # check they are set
+                            torch.testing.assert_close(articulation.root_physx_view.get_coms(), com)
+
+                            for i in range(50):
+                                # perform step
+                                sim.step()
+                                # update buffers
+                                articulation.update(sim.cfg.dt)
+
+                                # get state properties
+                                root_state_w = articulation.data.root_state_w
+                                root_link_state_w = articulation.data.root_link_state_w
+                                root_com_state_w = articulation.data.root_com_state_w
+                                body_state_w = articulation.data.body_state_w
+                                body_link_state_w = articulation.data.body_link_state_w
+                                body_com_state_w = articulation.data.body_com_state_w
+
+                                if with_offset:
+                                    # get joint state
+                                    joint_pos = articulation.data.joint_pos.unsqueeze(-1)
+                                    joint_vel = articulation.data.joint_vel.unsqueeze(-1)
+
+                                    # LINK state
+                                    # pose
+                                    torch.testing.assert_close(root_state_w[..., :7], root_link_state_w[..., :7])
+                                    torch.testing.assert_close(body_state_w[..., :7], body_link_state_w[..., :7])
+
+                                    # lin_vel arm
+                                    lin_vel_gt = torch.zeros(num_articulations, num_bodies, 3, device=device)
+                                    vx = -(link_offset[0]) * joint_vel * torch.sin(joint_pos)
+                                    vy = torch.zeros(num_articulations, 1, 1, device=device)
+                                    vz = (link_offset[0]) * joint_vel * torch.cos(joint_pos)
+                                    lin_vel_gt[:, 1, :] = torch.cat([vx, vy, vz], dim=-1).squeeze(-2)
+
+                                    # linear velocity of root link should be zero
+                                    torch.testing.assert_close(
+                                        lin_vel_gt[:, 0, :], root_link_state_w[..., 7:10], atol=1e-3, rtol=1e-1
+                                    )
+                                    # linear velocity of pendulum link should be
+                                    torch.testing.assert_close(
+                                        lin_vel_gt, body_link_state_w[..., 7:10], atol=1e-3, rtol=1e-1
+                                    )
+
+                                    # ang_vel
+                                    torch.testing.assert_close(root_state_w[..., 10:], root_link_state_w[..., 10:])
+                                    torch.testing.assert_close(body_state_w[..., 10:], body_link_state_w[..., 10:])
+
+                                    # COM state
+                                    # position and orientation shouldn't match for the _state_com_w but everything else will
+                                    pos_gt = torch.zeros(num_articulations, num_bodies, 3, device=device)
+                                    px = (link_offset[0] + offset[0]) * torch.cos(joint_pos)
+                                    py = torch.zeros(num_articulations, 1, 1, device=device)
+                                    pz = (link_offset[0] + offset[0]) * torch.sin(joint_pos)
+                                    pos_gt[:, 1, :] = torch.cat([px, py, pz], dim=-1).squeeze(-2)
+                                    pos_gt += env_pos.unsqueeze(-2).repeat(1, num_bodies, 1)
+                                    torch.testing.assert_close(
+                                        pos_gt[:, 0, :], root_com_state_w[..., :3], atol=1e-3, rtol=1e-1
+                                    )
+                                    torch.testing.assert_close(pos_gt, body_com_state_w[..., :3], atol=1e-3, rtol=1e-1)
+
+                                    # orientation
+                                    com_quat_b = articulation.data.com_quat_b
+                                    com_quat_w = math_utils.quat_mul(body_link_state_w[..., 3:7], com_quat_b)
+                                    torch.testing.assert_close(com_quat_w, body_com_state_w[..., 3:7])
+                                    torch.testing.assert_close(com_quat_w[:, 0, :], root_com_state_w[..., 3:7])
+
+                                    # linear vel, and angular vel
+                                    torch.testing.assert_close(root_state_w[..., 7:], root_com_state_w[..., 7:])
+                                    torch.testing.assert_close(body_state_w[..., 7:], body_com_state_w[..., 7:])
+                                else:
+                                    # single joint center of masses are at link frames so they will be the same
+                                    torch.testing.assert_close(root_state_w, root_link_state_w)
+                                    torch.testing.assert_close(root_state_w, root_com_state_w)
+                                    torch.testing.assert_close(body_state_w, body_link_state_w)
+                                    torch.testing.assert_close(body_state_w, body_com_state_w)
+
+    def test_write_root_state(self):
+        """Test the setters for root_state using both the link frame and center of mass as reference frame."""
+        for num_articulations in (1, 2):
+            for device in ("cuda:0", "cpu"):
+                for with_offset in [True, False]:
+                    for state_location in ("com", "link"):
+                        with self.subTest(
+                            num_articulations=num_articulations,
+                            device=device,
+                            with_offset=with_offset,
+                            state_location=state_location,
+                        ):
+                            with build_simulation_context(
+                                device=device, add_ground_plane=False, auto_add_lighting=True, gravity_enabled=False
+                            ) as sim:
+                                articulation_cfg = generate_articulation_cfg(articulation_type="anymal")
+                                articulation, env_pos = generate_articulation(
+                                    articulation_cfg, num_articulations, device
+                                )
+                                env_idx = torch.tensor([x for x in range(num_articulations)])
+
+                                # Play sim
+                                sim.reset()
+
+                                # change center of mass offset from link frame
+                                if with_offset:
+                                    offset = torch.tensor([1.0, 0.0, 0.0]).repeat(num_articulations, 1, 1)
+                                else:
+                                    offset = torch.tensor([0.0, 0.0, 0.0]).repeat(num_articulations, 1, 1)
+
+                                # create com offsets
+                                com = articulation.root_physx_view.get_coms()
+                                new_com = offset
+                                com[:, 0, :3] = new_com.squeeze(-2)
+                                articulation.root_physx_view.set_coms(com, env_idx)
+
+                                # check they are set
+                                torch.testing.assert_close(articulation.root_physx_view.get_coms(), com)
+
+                                rand_state = torch.zeros_like(articulation.data.root_link_state_w)
+                                rand_state[..., :7] = articulation.data.default_root_state[..., :7]
+                                rand_state[..., :3] += env_pos
+                                # make quaternion a unit vector
+                                rand_state[..., 3:7] = torch.nn.functional.normalize(rand_state[..., 3:7], dim=-1)
+
+                                for i in range(10):
+
+                                    # perform step
+                                    sim.step()
+                                    # update buffers
+                                    articulation.update(sim.cfg.dt)
+
+                                    if state_location == "com":
+                                        articulation.write_root_com_state_to_sim(rand_state)
+                                    elif state_location == "link":
+                                        articulation.write_root_link_state_to_sim(rand_state)
+
+                                    if state_location == "com":
+                                        torch.testing.assert_close(rand_state, articulation.data.root_com_state_w)
+                                    elif state_location == "link":
+                                        torch.testing.assert_close(rand_state, articulation.data.root_link_state_w)
+
+    def test_transform_inverses(self):
+        """Test if math utilities are true inverses of each other."""
+
+        pose01 = torch.rand(1, 7)
+        pose01[:, 3:7] = torch.nn.functional.normalize(pose01[..., 3:7], dim=-1)
+
+        pose12 = torch.rand(1, 7)
+        pose12[:, 3:7] = torch.nn.functional.normalize(pose12[..., 3:7], dim=-1)
+
+        pos02, quat02 = math_utils.combine_frame_transforms(
+            pose01[..., :3], pose01[..., 3:7], pose12[:, :3], pose12[:, 3:7]
+        )
+
+        pos01, quat01 = math_utils.combine_frame_transforms(
+            pos02,
+            quat02,
+            math_utils.quat_rotate(math_utils.quat_inv(pose12[:, 3:7]), -pose12[:, :3]),
+            math_utils.quat_inv(pose12[:, 3:7]),
+        )
+        print("")
+        print(pose01)
+        print(pos01, quat01)
+        torch.testing.assert_close(pose01, torch.cat((pos01, quat01), dim=-1))
 
 
 if __name__ == "__main__":

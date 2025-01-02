@@ -4,130 +4,6 @@ Reinforcement Learning Wrappers
 We provide wrappers to different reinforcement libraries. These wrappers convert the data
 from the environments into the respective libraries function argument and return types.
 
-Stable-Baselines3
------------------
-
--  Training an agent with
-   `Stable-Baselines3 <https://stable-baselines3.readthedocs.io/en/master/index.html>`__
-   on ``Isaac-Cartpole-v0``:
-
-   .. tab-set::
-      :sync-group: os
-
-      .. tab-item:: :icon:`fa-brands fa-linux` Linux
-         :sync: linux
-
-         .. code:: bash
-
-            # install python module (for stable-baselines3)
-            ./isaaclab.sh -i sb3
-            # run script for training
-            # note: we set the device to cpu since SB3 doesn't optimize for GPU anyway
-            ./isaaclab.sh -p source/standalone/workflows/sb3/train.py --task Isaac-Cartpole-v0 --headless --device cpu
-            # run script for playing with 32 environments
-            ./isaaclab.sh -p source/standalone/workflows/sb3/play.py --task Isaac-Cartpole-v0 --num_envs 32 --checkpoint /PATH/TO/model.zip
-            # run script for recording video of a trained agent (requires installing `ffmpeg`)
-            ./isaaclab.sh -p source/standalone/workflows/sb3/play.py --task Isaac-Cartpole-v0 --headless --video --video_length 200
-
-      .. tab-item:: :icon:`fa-brands fa-windows` Windows
-         :sync: windows
-
-         .. code:: batch
-
-            :: install python module (for stable-baselines3)
-            isaaclab.bat -i sb3
-            :: run script for training
-            :: note: we set the device to cpu since SB3 doesn't optimize for GPU anyway
-            isaaclab.bat -p source\standalone\workflows\sb3\train.py --task Isaac-Cartpole-v0 --headless --device cpu
-            :: run script for playing with 32 environments
-            isaaclab.bat -p source\standalone\workflows\sb3\play.py --task Isaac-Cartpole-v0 --num_envs 32 --checkpoint /PATH/TO/model.zip
-            :: run script for recording video of a trained agent (requires installing `ffmpeg`)
-            isaaclab.bat -p source\standalone\workflows\sb3\play.py --task Isaac-Cartpole-v0 --headless --video --video_length 200
-
-SKRL
-----
-
--  Training an agent with
-   `SKRL <https://skrl.readthedocs.io>`__ on ``Isaac-Reach-Franka-v0``:
-
-   .. tab-set::
-
-      .. tab-item:: PyTorch
-
-            .. tab-set::
-               :sync-group: os
-
-               .. tab-item:: :icon:`fa-brands fa-linux` Linux
-                  :sync: linux
-
-                  .. code:: bash
-
-                     # install python module (for skrl)
-                     ./isaaclab.sh -i skrl
-                     # run script for training
-                     ./isaaclab.sh -p source/standalone/workflows/skrl/train.py --task Isaac-Reach-Franka-v0 --headless
-                     # run script for playing with 32 environments
-                     ./isaaclab.sh -p source/standalone/workflows/skrl/play.py --task Isaac-Reach-Franka-v0 --num_envs 32 --checkpoint /PATH/TO/model.pt
-                     # run script for recording video of a trained agent (requires installing `ffmpeg`)
-                     ./isaaclab.sh -p source/standalone/workflows/skrl/play.py --task Isaac-Reach-Franka-v0 --headless --video --video_length 200
-
-               .. tab-item:: :icon:`fa-brands fa-windows` Windows
-                  :sync: windows
-
-                  .. code:: batch
-
-                     :: install python module (for skrl)
-                     isaaclab.bat -i skrl
-                     :: run script for training
-                     isaaclab.bat -p source\standalone\workflows\skrl\train.py --task Isaac-Reach-Franka-v0 --headless
-                     :: run script for playing with 32 environments
-                     isaaclab.bat -p source\standalone\workflows\skrl\play.py --task Isaac-Reach-Franka-v0 --num_envs 32 --checkpoint /PATH/TO/model.pt
-                     :: run script for recording video of a trained agent (requires installing `ffmpeg`)
-                     isaaclab.bat -p source\standalone\workflows\skrl\play.py --task Isaac-Reach-Franka-v0 --headless --video --video_length 200
-
-      .. tab-item:: JAX
-
-         .. code:: bash
-
-            # install python module (for skrl)
-            ./isaaclab.sh -i skrl
-            # install skrl dependencies for JAX. Visit https://skrl.readthedocs.io/en/latest/intro/installation.html for more details
-            ./isaaclab.sh -p -m pip install skrl["jax"]
-            # run script for training
-            ./isaaclab.sh -p source/standalone/workflows/skrl/train.py --task Isaac-Reach-Franka-v0 --headless --ml_framework jax
-            # run script for playing with 32 environments
-            ./isaaclab.sh -p source/standalone/workflows/skrl/play.py --task Isaac-Reach-Franka-v0 --num_envs 32  --ml_framework jax --checkpoint /PATH/TO/model.pt
-            # run script for recording video of a trained agent (requires installing `ffmpeg`)
-            ./isaaclab.sh -p source/standalone/workflows/skrl/play.py --task Isaac-Reach-Franka-v0 --headless --ml_framework jax --video --video_length 200
-
-   - Training the multi-agent environment ``Isaac-Shadow-Hand-Over-Direct-v0`` with skrl:
-
-   .. tab-set::
-      :sync-group: os
-
-      .. tab-item:: :icon:`fa-brands fa-linux` Linux
-         :sync: linux
-
-         .. code:: bash
-
-            # install python module (for skrl)
-            ./isaaclab.sh -i skrl
-            # run script for training with the MAPPO algorithm (IPPO is also supported)
-            ./isaaclab.sh -p source/standalone/workflows/skrl/train.py --task Isaac-Shadow-Hand-Over-Direct-v0 --headless --algorithm MAPPO
-            # run script for playing with 32 environments with the MAPPO algorithm (IPPO is also supported)
-            ./isaaclab.sh -p source/standalone/workflows/skrl/play.py --task Isaac-Shadow-Hand-Over-Direct-v0 --num_envs 32 --algorithm MAPPO --checkpoint /PATH/TO/model.pt
-
-      .. tab-item:: :icon:`fa-brands fa-windows` Windows
-         :sync: windows
-
-         .. code:: batch
-
-            :: install python module (for skrl)
-            isaaclab.bat -i skrl
-            :: run script for training with the MAPPO algorithm (IPPO is also supported)
-            isaaclab.bat -p source\standalone\workflows\skrl\train.py --task Isaac-Shadow-Hand-Over-Direct-v0 --headless --algorithm MAPPO
-            :: run script for playing with 32 environments with the MAPPO algorithm (IPPO is also supported)
-            isaaclab.bat -p source\standalone\workflows\skrl\play.py --task Isaac-Shadow-Hand-Over-Direct-v0 --num_envs 32 --algorithm MAPPO --checkpoint /PATH/TO/model.pt
 
 RL-Games
 --------
@@ -202,6 +78,136 @@ RSL-RL
             isaaclab.bat -p source\standalone\workflows\rsl_rl\play.py --task Isaac-Reach-Franka-v0 --num_envs 32 --load_run run_folder_name --checkpoint model.pt
             :: run script for recording video of a trained agent (requires installing `ffmpeg`)
             isaaclab.bat -p source\standalone\workflows\rsl_rl\play.py --task Isaac-Reach-Franka-v0 --headless --video --video_length 200
+
+SKRL
+----
+
+-  Training an agent with
+   `SKRL <https://skrl.readthedocs.io>`__ on ``Isaac-Reach-Franka-v0``:
+
+   .. tab-set::
+
+      .. tab-item:: PyTorch
+
+            .. tab-set::
+               :sync-group: os
+
+               .. tab-item:: :icon:`fa-brands fa-linux` Linux
+                  :sync: linux
+
+                  .. code:: bash
+
+                     # install python module (for skrl)
+                     ./isaaclab.sh -i skrl
+                     # run script for training
+                     ./isaaclab.sh -p source/standalone/workflows/skrl/train.py --task Isaac-Reach-Franka-v0 --headless
+                     # run script for playing with 32 environments
+                     ./isaaclab.sh -p source/standalone/workflows/skrl/play.py --task Isaac-Reach-Franka-v0 --num_envs 32 --checkpoint /PATH/TO/model.pt
+                     # run script for recording video of a trained agent (requires installing `ffmpeg`)
+                     ./isaaclab.sh -p source/standalone/workflows/skrl/play.py --task Isaac-Reach-Franka-v0 --headless --video --video_length 200
+
+               .. tab-item:: :icon:`fa-brands fa-windows` Windows
+                  :sync: windows
+
+                  .. code:: batch
+
+                     :: install python module (for skrl)
+                     isaaclab.bat -i skrl
+                     :: run script for training
+                     isaaclab.bat -p source\standalone\workflows\skrl\train.py --task Isaac-Reach-Franka-v0 --headless
+                     :: run script for playing with 32 environments
+                     isaaclab.bat -p source\standalone\workflows\skrl\play.py --task Isaac-Reach-Franka-v0 --num_envs 32 --checkpoint /PATH/TO/model.pt
+                     :: run script for recording video of a trained agent (requires installing `ffmpeg`)
+                     isaaclab.bat -p source\standalone\workflows\skrl\play.py --task Isaac-Reach-Franka-v0 --headless --video --video_length 200
+
+      .. tab-item:: JAX
+
+         .. warning::
+
+            It is recommended to `install JAX <https://jax.readthedocs.io/en/latest/installation.html>`_ manually before proceeding to install skrl and its dependencies, as JAX installs its CPU version by default. For example, ``pip install -U "jax[cuda12]"`` can be used to install JAX for CUDA 12.
+            Visit the **skrl** `installation <https://skrl.readthedocs.io/en/latest/intro/installation.html>`_ page for more details.
+
+         .. code:: bash
+
+            # install python module (for skrl)
+            ./isaaclab.sh -i skrl
+            # install skrl dependencies for JAX
+            ./isaaclab.sh -p -m pip install skrl["jax"]
+            # run script for training
+            ./isaaclab.sh -p source/standalone/workflows/skrl/train.py --task Isaac-Reach-Franka-v0 --headless --ml_framework jax
+            # run script for playing with 32 environments
+            ./isaaclab.sh -p source/standalone/workflows/skrl/play.py --task Isaac-Reach-Franka-v0 --num_envs 32  --ml_framework jax --checkpoint /PATH/TO/model.pt
+            # run script for recording video of a trained agent (requires installing `ffmpeg`)
+            ./isaaclab.sh -p source/standalone/workflows/skrl/play.py --task Isaac-Reach-Franka-v0 --headless --ml_framework jax --video --video_length 200
+
+   - Training the multi-agent environment ``Isaac-Shadow-Hand-Over-Direct-v0`` with skrl:
+
+   .. tab-set::
+      :sync-group: os
+
+      .. tab-item:: :icon:`fa-brands fa-linux` Linux
+         :sync: linux
+
+         .. code:: bash
+
+            # install python module (for skrl)
+            ./isaaclab.sh -i skrl
+            # run script for training with the MAPPO algorithm (IPPO is also supported)
+            ./isaaclab.sh -p source/standalone/workflows/skrl/train.py --task Isaac-Shadow-Hand-Over-Direct-v0 --headless --algorithm MAPPO
+            # run script for playing with 32 environments with the MAPPO algorithm (IPPO is also supported)
+            ./isaaclab.sh -p source/standalone/workflows/skrl/play.py --task Isaac-Shadow-Hand-Over-Direct-v0 --num_envs 32 --algorithm MAPPO --checkpoint /PATH/TO/model.pt
+
+      .. tab-item:: :icon:`fa-brands fa-windows` Windows
+         :sync: windows
+
+         .. code:: batch
+
+            :: install python module (for skrl)
+            isaaclab.bat -i skrl
+            :: run script for training with the MAPPO algorithm (IPPO is also supported)
+            isaaclab.bat -p source\standalone\workflows\skrl\train.py --task Isaac-Shadow-Hand-Over-Direct-v0 --headless --algorithm MAPPO
+            :: run script for playing with 32 environments with the MAPPO algorithm (IPPO is also supported)
+            isaaclab.bat -p source\standalone\workflows\skrl\play.py --task Isaac-Shadow-Hand-Over-Direct-v0 --num_envs 32 --algorithm MAPPO --checkpoint /PATH/TO/model.pt
+
+Stable-Baselines3
+-----------------
+
+-  Training an agent with
+   `Stable-Baselines3 <https://stable-baselines3.readthedocs.io/en/master/index.html>`__
+   on ``Isaac-Cartpole-v0``:
+
+   .. tab-set::
+      :sync-group: os
+
+      .. tab-item:: :icon:`fa-brands fa-linux` Linux
+         :sync: linux
+
+         .. code:: bash
+
+            # install python module (for stable-baselines3)
+            ./isaaclab.sh -i sb3
+            # run script for training
+            # note: we set the device to cpu since SB3 doesn't optimize for GPU anyway
+            ./isaaclab.sh -p source/standalone/workflows/sb3/train.py --task Isaac-Cartpole-v0 --headless --device cpu
+            # run script for playing with 32 environments
+            ./isaaclab.sh -p source/standalone/workflows/sb3/play.py --task Isaac-Cartpole-v0 --num_envs 32 --checkpoint /PATH/TO/model.zip
+            # run script for recording video of a trained agent (requires installing `ffmpeg`)
+            ./isaaclab.sh -p source/standalone/workflows/sb3/play.py --task Isaac-Cartpole-v0 --headless --video --video_length 200
+
+      .. tab-item:: :icon:`fa-brands fa-windows` Windows
+         :sync: windows
+
+         .. code:: batch
+
+            :: install python module (for stable-baselines3)
+            isaaclab.bat -i sb3
+            :: run script for training
+            :: note: we set the device to cpu since SB3 doesn't optimize for GPU anyway
+            isaaclab.bat -p source\standalone\workflows\sb3\train.py --task Isaac-Cartpole-v0 --headless --device cpu
+            :: run script for playing with 32 environments
+            isaaclab.bat -p source\standalone\workflows\sb3\play.py --task Isaac-Cartpole-v0 --num_envs 32 --checkpoint /PATH/TO/model.zip
+            :: run script for recording video of a trained agent (requires installing `ffmpeg`)
+            isaaclab.bat -p source\standalone\workflows\sb3\play.py --task Isaac-Cartpole-v0 --headless --video --video_length 200
 
 All the scripts above log the training progress to `Tensorboard`_ in the ``logs`` directory in the root of
 the repository. The logs directory follows the pattern ``logs/<library>/<task>/<date-time>``, where ``<library>``
