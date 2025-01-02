@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.30.2 (2024-12-31)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``prev_prev_action`` and ``_prev_prev_action`` to :class:`omni.isaac.lab.managers.ActionTerm`
+
+
 0.30.1 (2024-12-17)
 ~~~~~~~~~~~~~~~~~~~
 
