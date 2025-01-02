@@ -89,7 +89,6 @@ compatibility issues with some Linux distributions. If you encounter any issues,
 
       pip install --upgrade pip
 
-
 -  Then, install the Isaac Sim packages.
 
    .. code-block:: none
