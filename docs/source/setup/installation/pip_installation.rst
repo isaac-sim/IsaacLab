@@ -98,7 +98,7 @@ compatibility issues with some Linux distributions. If you encounter any issues,
 
          pip install isaacsim==4.2.0.2 isaacsim-extscache-physics==4.2.0.2 isaacsim-extscache-kit==4.2.0.2 isaacsim-extscache-kit-sdk==4.2.0.2 --extra-index-url https://pypi.nvidia.com
 
-   -  Minimal set of packages for running Isaac Lab only: 
+   -  Minimal set of packages for running Isaac Lab only:
 
       .. code-block:: bash
 
