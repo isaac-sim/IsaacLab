@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -69,7 +69,7 @@ class JointAction(ActionTerm):
         )
 
         # Avoid indexing across all joints for efficiency
-        if self._num_joints == self._asset.num_joints:
+        if self._num_joints == self._asset.num_joints and not self.cfg.preserve_order:
             self._joint_ids = slice(None)
 
         # create tensors for raw and processed actions
