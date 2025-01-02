@@ -53,7 +53,7 @@ For SpaceMouse, these are as follows:
 .. code:: text
 
    SpaceMouse Controller for SE(3): Se3SpaceMouse
-      Reset all commands: R
+      Reset all commands: Right click
       Toggle gripper (open/close): Click the left button on the SpaceMouse
       Move arm along x/y-axis: Tilt the SpaceMouse
       Move arm along z-axis: Push or pull the SpaceMouse
@@ -123,6 +123,8 @@ learning from demonstrations (LfD). For this, we provide scripts to collect data
       Isaac Lab is designed to work with manipulators with grippers. The gripper commands in the demonstrations are extracted separately and temporally replayed during the generation of additional demonstrations.
 
    Inspect the output of generated data (filename: ``generated_dataset_small.hdf5``), and if satisfactory, generate the full dataset:
+
+   .. code:: bash
 
       ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py --input_file ./datasets/annotated_dataset.hdf5 --output_file ./datasets/generated_dataset.hdf5 --num_envs 10 --generation_num_trials 1000 --headless
 
