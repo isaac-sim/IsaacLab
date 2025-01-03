@@ -202,7 +202,7 @@ class RigidObjectData:
     @property
     def body_link_state_w(self):
         """State of all bodies `[pos, quat, lin_vel, ang_vel]` in simulation world frame.
-        Shape is (num_instances,1, 13).
+        Shape is (num_instances, 1, 13).
 
         The position, quaternion, and linear/angular velocity are of the body's link frame relative to the world.
         """

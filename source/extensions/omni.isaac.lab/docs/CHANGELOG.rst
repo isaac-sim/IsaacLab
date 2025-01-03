@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.30.3 (2025-01-02)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added body tracking as an origin type to :class:`omni.isaac.lab.envs.ViewerCfg` and :class:`omni.isaac.lab.envs.ui.ViewportCameraController`.
+
+
 0.30.2 (2024-12-22)
 ~~~~~~~~~~~~~~~~~~~
 
