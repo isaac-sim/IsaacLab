@@ -1,6 +1,35 @@
 Changelog
 ---------
 
+0.31.0 (2025-01-03)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`omni.isaac.lab.sensors.RTXLidar` sensor integration
+* Added :class:`omni.isaac.lab.sensors.RTXLidarCfg` and :class:`omni.isaac.lab.sensors.RTXLidarData` configuration and data classes
+* Added :meth:`sim/spawn/sensors/sensors/spawn_lidar` and :class:`sim/spawn/sensors/sensors_cfg/LidarCfg` functionality for spawning both builtin and custom lidar models
+
+
+0.30.3 (2025-01-02)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added body tracking as an origin type to :class:`omni.isaac.lab.envs.ViewerCfg` and :class:`omni.isaac.lab.envs.ui.ViewportCameraController`.
+
+
+0.30.2 (2024-12-22)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed populating default_joint_stiffness and default_joint_damping values for ImplicitActuator instances in :class:`omni.isaac.lab.assets.Articulation`
+
+
 0.30.1 (2024-12-17)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -312,17 +341,6 @@ Fixed
 
 * Added sanity check if the term is a valid type inside the command manager.
 * Corrected the iteration over ``group_cfg_items`` inside the observation manager.
-
-
-0.28.0 (2024-10-28)
-~~~~~~~~~~~~~~~~~~~
-
-Added
-^^^^^
-
-* Added :class:`omni.isaac.lab.sensors.RTXLidar` sensor integration
-* Added :class:`omni.isaac.lab.sensors.RTXLidarCfg` and :class:`omni.isaac.lab.sensors.RTXLidarData` configuration and data classes
-* Added :meth:`sim/spawn/sensors/sensors/spawn_lidar` and :class:`sim/spawn/sensors/sensors_cfg/LidarCfg` functionality for spawning both builtin and custom lidar models
 
 
 0.27.7 (2024-10-28)
