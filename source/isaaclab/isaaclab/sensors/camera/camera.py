@@ -226,24 +226,25 @@ class Camera(SensorBase):
     ):
         """Set parameters of the USD camera from its intrinsic matrix.
 
-                The intrinsic matrix is used to set the following parameters to the USD camera:
+        The intrinsic matrix is used to set the following parameters to the USD camera:
 
-                - ``focal_length``: The focal length of the camera.
-                - ``horizontal_aperture``: The horizontal aperture of the camera.
-                - ``vertical_aperture``: The vertical aperture of the camera.
-                - ``horizontal_aperture_offset``: The horizontal offset of the camera.
-                - ``vertical_aperture_offset``: The vertical offset of the camera.
+        - ``focal_length``: The focal length of the camera.
+        - ``horizontal_aperture``: The horizontal aperture of the camera.
+        - ``vertical_aperture``: The vertical aperture of the camera.
+        - ``horizontal_aperture_offset``: The horizontal offset of the camera.
+        - ``vertical_aperture_offset``: The vertical offset of the camera.
 
-                .. warning::
+        .. warning::
 
-                    Due to limitations of Omniverse camera, we need to assume that the camera is a spherical lens,
-                    i.e. has square pixels, and the optical center is centered at the camera eye. If this assumption
-                    is not true in the input intrinsic matrix, then the camera will not set up correctly.
+            Due to limitations of Omniverse camera, we need to assume that the camera is a spherical lens,
+            i.e. has square pixels, and the optical center is centered at the camera eye. If this assumption
+            is not true in the input intrinsic matrix, then the camera will not set up correctly.
 
-                Args:
-                    matrices: The intrinsic matrices for the camera. Shape is (N, 3, 3).
-        focal_length: Perspective focal length (in cm) used to calculate pixel size. Defaults to None. If None, focal_length will be calculated 1 / width.
-                    env_ids: A sensor ids to manipulate. Defaults to None, which means all sensor indices.
+        Args:
+            matrices: The intrinsic matrices for the camera. Shape is (N, 3, 3).
+            focal_length: Perspective focal length (in cm) used to calculate pixel size. Defaults to None. If None,
+                focal_length will be calculated 1 / width.
+            env_ids: A sensor ids to manipulate. Defaults to None, which means all sensor indices.
         """
         # resolve env_ids
         if env_ids is None:
