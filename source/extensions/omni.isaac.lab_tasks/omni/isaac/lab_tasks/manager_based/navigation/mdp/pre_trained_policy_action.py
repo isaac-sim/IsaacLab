@@ -50,8 +50,14 @@ class PreTrainedPolicyAction(ActionTerm):
         self._low_level_action_term: ActionTerm = cfg.low_level_actions.class_type(cfg.low_level_actions, env)
         self.low_level_actions = torch.zeros(self.num_envs, self._low_level_action_term.action_dim, device=self.device)
 
+        def last_action():
+            # reset the low level actions if the episode was reset
+            if hasattr(env, "episode_length_buf"):
+                self.low_level_actions[env.episode_length_buf == 0, :] = 0
+            return self.low_level_actions
+
         # remap some of the low level observations to internal observations
-        cfg.low_level_observations.actions.func = lambda dummy_env: self.low_level_actions
+        cfg.low_level_observations.actions.func = lambda dummy_env: last_action()
         cfg.low_level_observations.actions.params = dict()
         cfg.low_level_observations.velocity_commands.func = lambda dummy_env: self._raw_actions
         cfg.low_level_observations.velocity_commands.params = dict()
