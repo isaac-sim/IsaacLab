@@ -600,6 +600,7 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ui.ViewportCameraController.update_view_to_world"><code class="docutils literal notranslate"><span class="pre">ViewportCameraController.update_view_to_world()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ui.ViewportCameraController.update_view_to_env"><code class="docutils literal notranslate"><span class="pre">ViewportCameraController.update_view_to_env()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ui.ViewportCameraController.update_view_to_asset_root"><code class="docutils literal notranslate"><span class="pre">ViewportCameraController.update_view_to_asset_root()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ui.ViewportCameraController.update_view_to_asset_body"><code class="docutils literal notranslate"><span class="pre">ViewportCameraController.update_view_to_asset_body()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ui.ViewportCameraController.update_view_location"><code class="docutils literal notranslate"><span class="pre">ViewportCameraController.update_view_location()</span></code></a></li>
 </ul>
 </li>
@@ -750,7 +751,10 @@ root position. For this, it registers a callback to the post update event stream
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ui.ViewportCameraController.update_view_to_asset_root" title="omni.isaac.lab.envs.ui.ViewportCameraController.update_view_to_asset_root"><code class="xref py py-obj docutils literal notranslate"><span class="pre">update_view_to_asset_root</span></code></a>(asset_name)</p></td>
 <td><p>Updates the viewer's origin based upon the root of an asset in the scene.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ui.ViewportCameraController.update_view_location" title="omni.isaac.lab.envs.ui.ViewportCameraController.update_view_location"><code class="xref py py-obj docutils literal notranslate"><span class="pre">update_view_location</span></code></a>([eye, lookat])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ui.ViewportCameraController.update_view_to_asset_body" title="omni.isaac.lab.envs.ui.ViewportCameraController.update_view_to_asset_body"><code class="xref py py-obj docutils literal notranslate"><span class="pre">update_view_to_asset_body</span></code></a>(asset_name, body_name)</p></td>
+<td><p>Updates the viewer's origin based upon the body of an asset in the scene.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ui.ViewportCameraController.update_view_location" title="omni.isaac.lab.envs.ui.ViewportCameraController.update_view_location"><code class="xref py py-obj docutils literal notranslate"><span class="pre">update_view_location</span></code></a>([eye, lookat])</p></td>
 <td><p>Updates the camera view pose based on the current viewer origin and the eye and lookat positions.</p></td>
 </tr>
 </tbody>
@@ -828,6 +832,24 @@ asset in the scene.</p>
 </dd>
 <dt class="field-even">Raises<span class="colon">:</span></dt>
 <dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.13)"><strong>ValueError</strong></a> – If the asset is not in the scene.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.ui.ViewportCameraController.update_view_to_asset_body">
+<span class="sig-name descname"><span class="pre">update_view_to_asset_body</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">asset_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">body_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/envs/ui/viewport_camera_controller.html#ViewportCameraController.update_view_to_asset_body"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.envs.ui.ViewportCameraController.update_view_to_asset_body" title="Permalink to this definition">#</a></dt>
+<dd><p>Updates the viewer’s origin based upon the body of an asset in the scene.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>asset_name</strong> – The name of the asset in the scene. The name should match the name of the
+asset in the scene.</p></li>
+<li><p><strong>body_name</strong> – The name of the body in the asset.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.13)"><strong>ValueError</strong></a> – If the asset is not in the scene or the body is not valid.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -919,6 +941,7 @@ asset in the scene.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ui.ViewportCameraController.update_view_to_world"><code class="docutils literal notranslate"><span class="pre">ViewportCameraController.update_view_to_world()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ui.ViewportCameraController.update_view_to_env"><code class="docutils literal notranslate"><span class="pre">ViewportCameraController.update_view_to_env()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ui.ViewportCameraController.update_view_to_asset_root"><code class="docutils literal notranslate"><span class="pre">ViewportCameraController.update_view_to_asset_root()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ui.ViewportCameraController.update_view_to_asset_body"><code class="docutils literal notranslate"><span class="pre">ViewportCameraController.update_view_to_asset_body()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ui.ViewportCameraController.update_view_location"><code class="docutils literal notranslate"><span class="pre">ViewportCameraController.update_view_location()</span></code></a></li>
 </ul>
 </li>

@@ -673,7 +673,7 @@ The camera’s pose and image resolution can be configured through the
 <span class="sd">    Default is (1280, 720).</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">origin_type</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;world&quot;</span><span class="p">,</span> <span class="s2">&quot;env&quot;</span><span class="p">,</span> <span class="s2">&quot;asset_root&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;world&quot;</span>
+    <span class="n">origin_type</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;world&quot;</span><span class="p">,</span> <span class="s2">&quot;env&quot;</span><span class="p">,</span> <span class="s2">&quot;asset_root&quot;</span><span class="p">,</span> <span class="s2">&quot;asset_body&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;world&quot;</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The frame in which the camera position (eye) and target (lookat) are defined in. Default is &quot;world&quot;.</span>
 
 <span class="sd">    Available options are:</span>
@@ -681,6 +681,7 @@ The camera’s pose and image resolution can be configured through the
 <span class="sd">    * ``&quot;world&quot;``: The origin of the world.</span>
 <span class="sd">    * ``&quot;env&quot;``: The origin of the environment defined by :attr:`env_index`.</span>
 <span class="sd">    * ``&quot;asset_root&quot;``: The center of the asset defined by :attr:`asset_name` in environment :attr:`env_index`.</span>
+<span class="sd">    * ``&quot;asset_body&quot;``: The center of the body defined by :attr:`body_name` in asset defined by :attr:`asset_name` in environment :attr:`env_index`.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">env_index</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
@@ -693,6 +694,12 @@ The camera’s pose and image resolution can be configured through the
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The asset name in the interactive scene for the frame origin. Default is None.</span>
 
 <span class="sd">    This quantity is only effective if :attr:`origin` is set to &quot;asset_root&quot;.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">body_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The name of the body in :attr:`asset_name` in the interactive scene for the frame origin. Default is None.</span>
+
+<span class="sd">    This quantity is only effective if :attr:`origin` is set to &quot;asset_body&quot;.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 </pre></div>
 </div>

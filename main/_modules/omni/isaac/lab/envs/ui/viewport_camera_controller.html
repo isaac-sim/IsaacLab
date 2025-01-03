@@ -532,6 +532,8 @@
 <span class="kn">import</span> <span class="nn">omni.kit.app</span>
 <span class="kn">import</span> <span class="nn">omni.timeline</span>
 
+<span class="kn">from</span> <span class="nn">omni.isaac.lab.assets.articulation.articulation</span> <span class="kn">import</span> <span class="n">Articulation</span>
+
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
     <span class="kn">from</span> <span class="nn">omni.isaac.lab.envs</span> <span class="kn">import</span> <span class="n">DirectRLEnv</span><span class="p">,</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span> <span class="n">ViewerCfg</span>
 
@@ -576,12 +578,15 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">set_view_env_index</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">env_index</span><span class="p">)</span>
             <span class="c1"># set the camera origin to the center of the environment</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">update_view_to_env</span><span class="p">()</span>
-        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">origin_type</span> <span class="o">==</span> <span class="s2">&quot;asset_root&quot;</span><span class="p">:</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">origin_type</span> <span class="o">==</span> <span class="s2">&quot;asset_root&quot;</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">origin_type</span> <span class="o">==</span> <span class="s2">&quot;asset_body&quot;</span><span class="p">:</span>
             <span class="c1"># note: we do not yet update camera for tracking an asset origin, as the asset may not yet be</span>
             <span class="c1"># in the scene when this is called. Instead, we subscribe to the post update event to update the camera</span>
             <span class="c1"># at each rendering step.</span>
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">asset_name</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;No asset name provided for viewer with origin type: &#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">origin_type</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">origin_type</span> <span class="o">==</span> <span class="s2">&quot;asset_body&quot;</span><span class="p">:</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">body_name</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;No body name provided for viewer with origin type: &#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">origin_type</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="c1"># set the camera origin to the center of the world</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">update_view_to_world</span><span class="p">()</span>
@@ -677,6 +682,41 @@
         <span class="c1"># update the camera view</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">update_view_location</span><span class="p">()</span></div>
 
+<div class="viewcode-block" id="ViewportCameraController.update_view_to_asset_body"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.ui.html#omni.isaac.lab.envs.ui.ViewportCameraController.update_view_to_asset_body">[docs]</a>    <span class="k">def</span> <span class="nf">update_view_to_asset_body</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">asset_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">body_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Updates the viewer&#39;s origin based upon the body of an asset in the scene.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            asset_name: The name of the asset in the scene. The name should match the name of the</span>
+<span class="sd">                asset in the scene.</span>
+<span class="sd">            body_name: The name of the body in the asset.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            ValueError: If the asset is not in the scene or the body is not valid.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># check if the asset is in the scene</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">asset_name</span> <span class="o">!=</span> <span class="n">asset_name</span><span class="p">:</span>
+            <span class="n">asset_entities</span> <span class="o">=</span> <span class="p">[</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">rigid_objects</span><span class="o">.</span><span class="n">keys</span><span class="p">(),</span> <span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">articulations</span><span class="o">.</span><span class="n">keys</span><span class="p">()]</span>
+            <span class="k">if</span> <span class="n">asset_name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">asset_entities</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Asset &#39;</span><span class="si">{</span><span class="n">asset_name</span><span class="si">}</span><span class="s2">&#39; is not in the scene. Available entities: </span><span class="si">{</span><span class="n">asset_entities</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
+        <span class="c1"># check if the body is in the asset</span>
+        <span class="n">asset</span><span class="p">:</span> <span class="n">Articulation</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="o">.</span><span class="n">scene</span><span class="p">[</span><span class="n">asset_name</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">body_name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">asset</span><span class="o">.</span><span class="n">body_names</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">body_name</span><span class="si">}</span><span class="s2">&#39; is not a body of Asset &#39;</span><span class="si">{</span><span class="n">asset_name</span><span class="si">}</span><span class="s2">&#39;. Available bodies: </span><span class="si">{</span><span class="n">asset</span><span class="o">.</span><span class="n">body_names</span><span class="si">}</span><span class="s2">.&quot;</span>
+            <span class="p">)</span>
+        <span class="c1"># get the body index</span>
+        <span class="n">body_id</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">find_bodies</span><span class="p">(</span><span class="n">body_name</span><span class="p">)</span>
+        <span class="c1"># update the asset name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">asset_name</span> <span class="o">=</span> <span class="n">asset_name</span>
+        <span class="c1"># set origin type to asset_body</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">origin_type</span> <span class="o">=</span> <span class="s2">&quot;asset_body&quot;</span>
+        <span class="c1"># update the camera origins</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">viewer_origin</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="o">.</span><span class="n">scene</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">asset_name</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">body_link_pos_w</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">env_index</span><span class="p">,</span> <span class="n">body_id</span><span class="p">]</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="c1"># update the camera view</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">update_view_location</span><span class="p">()</span></div>
+
 <div class="viewcode-block" id="ViewportCameraController.update_view_location"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.ui.html#omni.isaac.lab.envs.ui.ViewportCameraController.update_view_location">[docs]</a>    <span class="k">def</span> <span class="nf">update_view_location</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">eye</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">lookat</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Updates the camera view pose based on the current viewer origin and the eye and lookat positions.</span>
 
@@ -706,7 +746,9 @@
         <span class="c1"># update the camera view if the origin is set to asset_root</span>
         <span class="c1"># in other cases, the camera view is static and does not need to be updated continuously</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">origin_type</span> <span class="o">==</span> <span class="s2">&quot;asset_root&quot;</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">asset_name</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">update_view_to_asset_root</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">asset_name</span><span class="p">)</span></div>
+            <span class="bp">self</span><span class="o">.</span><span class="n">update_view_to_asset_root</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">asset_name</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">origin_type</span> <span class="o">==</span> <span class="s2">&quot;asset_body&quot;</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">asset_name</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">body_name</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">update_view_to_asset_body</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">asset_name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">body_name</span><span class="p">)</span></div>
 </pre></div>
 
                 </article>

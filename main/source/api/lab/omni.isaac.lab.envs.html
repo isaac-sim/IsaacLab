@@ -769,6 +769,7 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ViewerCfg.origin_type"><code class="docutils literal notranslate"><span class="pre">ViewerCfg.origin_type</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ViewerCfg.env_index"><code class="docutils literal notranslate"><span class="pre">ViewerCfg.env_index</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ViewerCfg.asset_name"><code class="docutils literal notranslate"><span class="pre">ViewerCfg.asset_name</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ViewerCfg.body_name"><code class="docutils literal notranslate"><span class="pre">ViewerCfg.body_name</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -3251,6 +3252,9 @@ specification of the space is desired) or basic Python data types (for simplicit
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ViewerCfg.asset_name" title="omni.isaac.lab.envs.ViewerCfg.asset_name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">asset_name</span></code></a></p></td>
 <td><p>The asset name in the interactive scene for the frame origin.</p></td>
 </tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ViewerCfg.body_name" title="omni.isaac.lab.envs.ViewerCfg.body_name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_name</span></code></a></p></td>
+<td><p>The name of the body in <a class="reference internal" href="#omni.isaac.lab.envs.ViewerCfg.asset_name" title="omni.isaac.lab.envs.ViewerCfg.asset_name"><code class="xref py py-attr docutils literal notranslate"><span class="pre">asset_name</span></code></a> in the interactive scene for the frame origin.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -3282,13 +3286,14 @@ Default is (1280, 720).</p>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.envs.ViewerCfg.origin_type">
-<span class="sig-name descname"><span class="pre">origin_type</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.13)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'world'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'env'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'asset_root'</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.envs.ViewerCfg.origin_type" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">origin_type</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.13)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'world'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'env'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'asset_root'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'asset_body'</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.envs.ViewerCfg.origin_type" title="Permalink to this definition">#</a></dt>
 <dd><p>The frame in which the camera position (eye) and target (lookat) are defined in. Default is “world”.</p>
 <p>Available options are:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">&quot;world&quot;</span></code>: The origin of the world.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">&quot;env&quot;</span></code>: The origin of the environment defined by <a class="reference internal" href="#omni.isaac.lab.envs.ViewerCfg.env_index" title="omni.isaac.lab.envs.ViewerCfg.env_index"><code class="xref py py-attr docutils literal notranslate"><span class="pre">env_index</span></code></a>.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">&quot;asset_root&quot;</span></code>: The center of the asset defined by <a class="reference internal" href="#omni.isaac.lab.envs.ViewerCfg.asset_name" title="omni.isaac.lab.envs.ViewerCfg.asset_name"><code class="xref py py-attr docutils literal notranslate"><span class="pre">asset_name</span></code></a> in environment <a class="reference internal" href="#omni.isaac.lab.envs.ViewerCfg.env_index" title="omni.isaac.lab.envs.ViewerCfg.env_index"><code class="xref py py-attr docutils literal notranslate"><span class="pre">env_index</span></code></a>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&quot;asset_body&quot;</span></code>: The center of the body defined by <a class="reference internal" href="#omni.isaac.lab.envs.ViewerCfg.body_name" title="omni.isaac.lab.envs.ViewerCfg.body_name"><code class="xref py py-attr docutils literal notranslate"><span class="pre">body_name</span></code></a> in asset defined by <a class="reference internal" href="#omni.isaac.lab.envs.ViewerCfg.asset_name" title="omni.isaac.lab.envs.ViewerCfg.asset_name"><code class="xref py py-attr docutils literal notranslate"><span class="pre">asset_name</span></code></a> in environment <a class="reference internal" href="#omni.isaac.lab.envs.ViewerCfg.env_index" title="omni.isaac.lab.envs.ViewerCfg.env_index"><code class="xref py py-attr docutils literal notranslate"><span class="pre">env_index</span></code></a>.</p></li>
 </ul>
 </dd></dl>
 
@@ -3304,6 +3309,13 @@ Default is (1280, 720).</p>
 <span class="sig-name descname"><span class="pre">asset_name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.ViewerCfg.asset_name" title="Permalink to this definition">#</a></dt>
 <dd><p>The asset name in the interactive scene for the frame origin. Default is None.</p>
 <p>This quantity is only effective if <code class="xref py py-attr docutils literal notranslate"><span class="pre">origin</span></code> is set to “asset_root”.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.ViewerCfg.body_name">
+<span class="sig-name descname"><span class="pre">body_name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.ViewerCfg.body_name" title="Permalink to this definition">#</a></dt>
+<dd><p>The name of the body in <a class="reference internal" href="#omni.isaac.lab.envs.ViewerCfg.asset_name" title="omni.isaac.lab.envs.ViewerCfg.asset_name"><code class="xref py py-attr docutils literal notranslate"><span class="pre">asset_name</span></code></a> in the interactive scene for the frame origin. Default is None.</p>
+<p>This quantity is only effective if <code class="xref py py-attr docutils literal notranslate"><span class="pre">origin</span></code> is set to “asset_body”.</p>
 </dd></dl>
 
 </dd></dl>
@@ -3548,6 +3560,7 @@ Default is (1280, 720).</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ViewerCfg.origin_type"><code class="docutils literal notranslate"><span class="pre">ViewerCfg.origin_type</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ViewerCfg.env_index"><code class="docutils literal notranslate"><span class="pre">ViewerCfg.env_index</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ViewerCfg.asset_name"><code class="docutils literal notranslate"><span class="pre">ViewerCfg.asset_name</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ViewerCfg.body_name"><code class="docutils literal notranslate"><span class="pre">ViewerCfg.body_name</span></code></a></li>
 </ul>
 </li>
 </ul>
