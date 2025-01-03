@@ -33,6 +33,8 @@
     RayCasterCameraCfg
     Imu
     ImuCfg
+    RtxLidar
+    RtxLidarCfg
 
 Sensor Base
 -----------
@@ -162,6 +164,20 @@ Inertia Measurement Unit
     :show-inheritance:
 
 .. autoclass:: ImuCfg
+    :members:
+    :inherited-members:
+    :show-inheritance:
+    :exclude-members: __init__, class_type
+
+RTX LidarCfg
+------------
+
+.. autoclass:: RtxLidar
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+.. autoclass:: RtxLidarCfg
     :members:
     :inherited-members:
     :show-inheritance:
