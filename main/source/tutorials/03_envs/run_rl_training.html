@@ -739,58 +739,59 @@ modifies the interpretation of environment’s APIs which may no longer be compa
 <span class="linenos">104</span>
 <span class="hll"><span class="linenos">105</span>    <span class="c1"># create isaac environment</span>
 </span><span class="hll"><span class="linenos">106</span>    <span class="n">env</span> <span class="o">=</span> <span class="n">gym</span><span class="o">.</span><span class="n">make</span><span class="p">(</span><span class="n">args_cli</span><span class="o">.</span><span class="n">task</span><span class="p">,</span> <span class="n">cfg</span><span class="o">=</span><span class="n">env_cfg</span><span class="p">,</span> <span class="n">render_mode</span><span class="o">=</span><span class="s2">&quot;rgb_array&quot;</span> <span class="k">if</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">video</span> <span class="k">else</span> <span class="kc">None</span><span class="p">)</span>
-</span><span class="hll"><span class="linenos">107</span>    <span class="c1"># wrap for video recording</span>
-</span><span class="hll"><span class="linenos">108</span>    <span class="k">if</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">video</span><span class="p">:</span>
-</span><span class="hll"><span class="linenos">109</span>        <span class="n">video_kwargs</span> <span class="o">=</span> <span class="p">{</span>
-</span><span class="hll"><span class="linenos">110</span>            <span class="s2">&quot;video_folder&quot;</span><span class="p">:</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">log_dir</span><span class="p">,</span> <span class="s2">&quot;videos&quot;</span><span class="p">,</span> <span class="s2">&quot;train&quot;</span><span class="p">),</span>
-</span><span class="hll"><span class="linenos">111</span>            <span class="s2">&quot;step_trigger&quot;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">step</span><span class="p">:</span> <span class="n">step</span> <span class="o">%</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">video_interval</span> <span class="o">==</span> <span class="mi">0</span><span class="p">,</span>
-</span><span class="hll"><span class="linenos">112</span>            <span class="s2">&quot;video_length&quot;</span><span class="p">:</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">video_length</span><span class="p">,</span>
-</span><span class="hll"><span class="linenos">113</span>            <span class="s2">&quot;disable_logger&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
-</span><span class="linenos">114</span>        <span class="p">}</span>
-<span class="hll"><span class="linenos">115</span>        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO] Recording videos during training.&quot;</span><span class="p">)</span>
-</span><span class="hll"><span class="linenos">116</span>        <span class="n">print_dict</span><span class="p">(</span><span class="n">video_kwargs</span><span class="p">,</span> <span class="n">nesting</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
-</span><span class="linenos">117</span>        <span class="n">env</span> <span class="o">=</span> <span class="n">gym</span><span class="o">.</span><span class="n">wrappers</span><span class="o">.</span><span class="n">RecordVideo</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="o">**</span><span class="n">video_kwargs</span><span class="p">)</span>
-<span class="linenos">118</span>
-<span class="linenos">119</span>    <span class="c1"># convert to single-agent instance if required by the RL algorithm</span>
-<span class="linenos">120</span>    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">unwrapped</span><span class="p">,</span> <span class="n">DirectMARLEnv</span><span class="p">):</span>
-<span class="hll"><span class="linenos">121</span>        <span class="n">env</span> <span class="o">=</span> <span class="n">multi_agent_to_single_agent</span><span class="p">(</span><span class="n">env</span><span class="p">)</span>
-</span><span class="hll"><span class="linenos">122</span>
-</span><span class="hll"><span class="linenos">123</span>    <span class="c1"># wrap around environment for stable baselines</span>
-</span><span class="hll"><span class="linenos">124</span>    <span class="n">env</span> <span class="o">=</span> <span class="n">Sb3VecEnvWrapper</span><span class="p">(</span><span class="n">env</span><span class="p">)</span>
-</span><span class="hll"><span class="linenos">125</span>
-</span><span class="hll"><span class="linenos">126</span>    <span class="k">if</span> <span class="s2">&quot;normalize_input&quot;</span> <span class="ow">in</span> <span class="n">agent_cfg</span><span class="p">:</span>
-</span><span class="linenos">127</span>        <span class="n">env</span> <span class="o">=</span> <span class="n">VecNormalize</span><span class="p">(</span>
-<span class="linenos">128</span>            <span class="n">env</span><span class="p">,</span>
-<span class="linenos">129</span>            <span class="n">training</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-<span class="linenos">130</span>            <span class="n">norm_obs</span><span class="o">=</span><span class="s2">&quot;normalize_input&quot;</span> <span class="ow">in</span> <span class="n">agent_cfg</span> <span class="ow">and</span> <span class="n">agent_cfg</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;normalize_input&quot;</span><span class="p">),</span>
-<span class="linenos">131</span>            <span class="n">norm_reward</span><span class="o">=</span><span class="s2">&quot;normalize_value&quot;</span> <span class="ow">in</span> <span class="n">agent_cfg</span> <span class="ow">and</span> <span class="n">agent_cfg</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;normalize_value&quot;</span><span class="p">),</span>
-<span class="linenos">132</span>            <span class="n">clip_obs</span><span class="o">=</span><span class="s2">&quot;clip_obs&quot;</span> <span class="ow">in</span> <span class="n">agent_cfg</span> <span class="ow">and</span> <span class="n">agent_cfg</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;clip_obs&quot;</span><span class="p">),</span>
-<span class="hll"><span class="linenos">133</span>            <span class="n">gamma</span><span class="o">=</span><span class="n">agent_cfg</span><span class="p">[</span><span class="s2">&quot;gamma&quot;</span><span class="p">],</span>
-</span><span class="hll"><span class="linenos">134</span>            <span class="n">clip_reward</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">,</span>
-</span><span class="hll"><span class="linenos">135</span>        <span class="p">)</span>
-</span><span class="hll"><span class="linenos">136</span>
-</span><span class="linenos">137</span>    <span class="c1"># create agent from stable baselines</span>
-<span class="linenos">138</span>    <span class="n">agent</span> <span class="o">=</span> <span class="n">PPO</span><span class="p">(</span><span class="n">policy_arch</span><span class="p">,</span> <span class="n">env</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="o">**</span><span class="n">agent_cfg</span><span class="p">)</span>
-<span class="linenos">139</span>    <span class="c1"># configure the logger</span>
-<span class="linenos">140</span>    <span class="n">new_logger</span> <span class="o">=</span> <span class="n">configure</span><span class="p">(</span><span class="n">log_dir</span><span class="p">,</span> <span class="p">[</span><span class="s2">&quot;stdout&quot;</span><span class="p">,</span> <span class="s2">&quot;tensorboard&quot;</span><span class="p">])</span>
-<span class="linenos">141</span>    <span class="n">agent</span><span class="o">.</span><span class="n">set_logger</span><span class="p">(</span><span class="n">new_logger</span><span class="p">)</span>
-<span class="linenos">142</span>
-<span class="linenos">143</span>    <span class="c1"># callbacks for agent</span>
-<span class="linenos">144</span>    <span class="n">checkpoint_callback</span> <span class="o">=</span> <span class="n">CheckpointCallback</span><span class="p">(</span><span class="n">save_freq</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span> <span class="n">save_path</span><span class="o">=</span><span class="n">log_dir</span><span class="p">,</span> <span class="n">name_prefix</span><span class="o">=</span><span class="s2">&quot;model&quot;</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
-<span class="linenos">145</span>    <span class="c1"># train the agent</span>
-<span class="linenos">146</span>    <span class="n">agent</span><span class="o">.</span><span class="n">learn</span><span class="p">(</span><span class="n">total_timesteps</span><span class="o">=</span><span class="n">n_timesteps</span><span class="p">,</span> <span class="n">callback</span><span class="o">=</span><span class="n">checkpoint_callback</span><span class="p">)</span>
-<span class="linenos">147</span>    <span class="c1"># save the final model</span>
-<span class="linenos">148</span>    <span class="n">agent</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">log_dir</span><span class="p">,</span> <span class="s2">&quot;model&quot;</span><span class="p">))</span>
-<span class="linenos">149</span>
-<span class="linenos">150</span>    <span class="c1"># close the simulator</span>
-<span class="linenos">151</span>    <span class="n">env</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
-<span class="linenos">152</span>
+</span><span class="hll"><span class="linenos">107</span>
+</span><span class="hll"><span class="linenos">108</span>    <span class="c1"># convert to single-agent instance if required by the RL algorithm</span>
+</span><span class="hll"><span class="linenos">109</span>    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">unwrapped</span><span class="p">,</span> <span class="n">DirectMARLEnv</span><span class="p">):</span>
+</span><span class="hll"><span class="linenos">110</span>        <span class="n">env</span> <span class="o">=</span> <span class="n">multi_agent_to_single_agent</span><span class="p">(</span><span class="n">env</span><span class="p">)</span>
+</span><span class="hll"><span class="linenos">111</span>
+</span><span class="hll"><span class="linenos">112</span>    <span class="c1"># wrap for video recording</span>
+</span><span class="hll"><span class="linenos">113</span>    <span class="k">if</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">video</span><span class="p">:</span>
+</span><span class="linenos">114</span>        <span class="n">video_kwargs</span> <span class="o">=</span> <span class="p">{</span>
+<span class="hll"><span class="linenos">115</span>            <span class="s2">&quot;video_folder&quot;</span><span class="p">:</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">log_dir</span><span class="p">,</span> <span class="s2">&quot;videos&quot;</span><span class="p">,</span> <span class="s2">&quot;train&quot;</span><span class="p">),</span>
+</span><span class="hll"><span class="linenos">116</span>            <span class="s2">&quot;step_trigger&quot;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">step</span><span class="p">:</span> <span class="n">step</span> <span class="o">%</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">video_interval</span> <span class="o">==</span> <span class="mi">0</span><span class="p">,</span>
+</span><span class="linenos">117</span>            <span class="s2">&quot;video_length&quot;</span><span class="p">:</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">video_length</span><span class="p">,</span>
+<span class="linenos">118</span>            <span class="s2">&quot;disable_logger&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+<span class="linenos">119</span>        <span class="p">}</span>
+<span class="linenos">120</span>        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO] Recording videos during training.&quot;</span><span class="p">)</span>
+<span class="hll"><span class="linenos">121</span>        <span class="n">print_dict</span><span class="p">(</span><span class="n">video_kwargs</span><span class="p">,</span> <span class="n">nesting</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
+</span><span class="hll"><span class="linenos">122</span>        <span class="n">env</span> <span class="o">=</span> <span class="n">gym</span><span class="o">.</span><span class="n">wrappers</span><span class="o">.</span><span class="n">RecordVideo</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="o">**</span><span class="n">video_kwargs</span><span class="p">)</span>
+</span><span class="hll"><span class="linenos">123</span>
+</span><span class="hll"><span class="linenos">124</span>    <span class="c1"># wrap around environment for stable baselines</span>
+</span><span class="hll"><span class="linenos">125</span>    <span class="n">env</span> <span class="o">=</span> <span class="n">Sb3VecEnvWrapper</span><span class="p">(</span><span class="n">env</span><span class="p">)</span>
+</span><span class="hll"><span class="linenos">126</span>
+</span><span class="linenos">127</span>    <span class="k">if</span> <span class="s2">&quot;normalize_input&quot;</span> <span class="ow">in</span> <span class="n">agent_cfg</span><span class="p">:</span>
+<span class="linenos">128</span>        <span class="n">env</span> <span class="o">=</span> <span class="n">VecNormalize</span><span class="p">(</span>
+<span class="linenos">129</span>            <span class="n">env</span><span class="p">,</span>
+<span class="linenos">130</span>            <span class="n">training</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<span class="linenos">131</span>            <span class="n">norm_obs</span><span class="o">=</span><span class="s2">&quot;normalize_input&quot;</span> <span class="ow">in</span> <span class="n">agent_cfg</span> <span class="ow">and</span> <span class="n">agent_cfg</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;normalize_input&quot;</span><span class="p">),</span>
+<span class="linenos">132</span>            <span class="n">norm_reward</span><span class="o">=</span><span class="s2">&quot;normalize_value&quot;</span> <span class="ow">in</span> <span class="n">agent_cfg</span> <span class="ow">and</span> <span class="n">agent_cfg</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;normalize_value&quot;</span><span class="p">),</span>
+<span class="hll"><span class="linenos">133</span>            <span class="n">clip_obs</span><span class="o">=</span><span class="s2">&quot;clip_obs&quot;</span> <span class="ow">in</span> <span class="n">agent_cfg</span> <span class="ow">and</span> <span class="n">agent_cfg</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;clip_obs&quot;</span><span class="p">),</span>
+</span><span class="hll"><span class="linenos">134</span>            <span class="n">gamma</span><span class="o">=</span><span class="n">agent_cfg</span><span class="p">[</span><span class="s2">&quot;gamma&quot;</span><span class="p">],</span>
+</span><span class="hll"><span class="linenos">135</span>            <span class="n">clip_reward</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">136</span>        <span class="p">)</span>
+</span><span class="linenos">137</span>
+<span class="linenos">138</span>    <span class="c1"># create agent from stable baselines</span>
+<span class="linenos">139</span>    <span class="n">agent</span> <span class="o">=</span> <span class="n">PPO</span><span class="p">(</span><span class="n">policy_arch</span><span class="p">,</span> <span class="n">env</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="o">**</span><span class="n">agent_cfg</span><span class="p">)</span>
+<span class="linenos">140</span>    <span class="c1"># configure the logger</span>
+<span class="linenos">141</span>    <span class="n">new_logger</span> <span class="o">=</span> <span class="n">configure</span><span class="p">(</span><span class="n">log_dir</span><span class="p">,</span> <span class="p">[</span><span class="s2">&quot;stdout&quot;</span><span class="p">,</span> <span class="s2">&quot;tensorboard&quot;</span><span class="p">])</span>
+<span class="linenos">142</span>    <span class="n">agent</span><span class="o">.</span><span class="n">set_logger</span><span class="p">(</span><span class="n">new_logger</span><span class="p">)</span>
+<span class="linenos">143</span>
+<span class="linenos">144</span>    <span class="c1"># callbacks for agent</span>
+<span class="linenos">145</span>    <span class="n">checkpoint_callback</span> <span class="o">=</span> <span class="n">CheckpointCallback</span><span class="p">(</span><span class="n">save_freq</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span> <span class="n">save_path</span><span class="o">=</span><span class="n">log_dir</span><span class="p">,</span> <span class="n">name_prefix</span><span class="o">=</span><span class="s2">&quot;model&quot;</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+<span class="linenos">146</span>    <span class="c1"># train the agent</span>
+<span class="linenos">147</span>    <span class="n">agent</span><span class="o">.</span><span class="n">learn</span><span class="p">(</span><span class="n">total_timesteps</span><span class="o">=</span><span class="n">n_timesteps</span><span class="p">,</span> <span class="n">callback</span><span class="o">=</span><span class="n">checkpoint_callback</span><span class="p">)</span>
+<span class="linenos">148</span>    <span class="c1"># save the final model</span>
+<span class="linenos">149</span>    <span class="n">agent</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">log_dir</span><span class="p">,</span> <span class="s2">&quot;model&quot;</span><span class="p">))</span>
+<span class="linenos">150</span>
+<span class="linenos">151</span>    <span class="c1"># close the simulator</span>
+<span class="linenos">152</span>    <span class="n">env</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
 <span class="linenos">153</span>
-<span class="linenos">154</span><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
-<span class="linenos">155</span>    <span class="c1"># run the main function</span>
-<span class="linenos">156</span>    <span class="n">main</span><span class="p">()</span>
-<span class="linenos">157</span>    <span class="c1"># close sim app</span>
-<span class="linenos">158</span>    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+<span class="linenos">154</span>
+<span class="linenos">155</span><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+<span class="linenos">156</span>    <span class="c1"># run the main function</span>
+<span class="linenos">157</span>    <span class="n">main</span><span class="p">()</span>
+<span class="linenos">158</span>    <span class="c1"># close sim app</span>
+<span class="linenos">159</span>    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
 </pre></div>
 </div>
 </div>
