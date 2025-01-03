@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.30.2 (2024-12-22)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed populating default_joint_stiffness and default_joint_damping values for ImplicitActuator instances in :class:`omni.isaac.lab.assets.Articulation`
+
+
 0.30.1 (2024-12-17)
 ~~~~~~~~~~~~~~~~~~~
 
