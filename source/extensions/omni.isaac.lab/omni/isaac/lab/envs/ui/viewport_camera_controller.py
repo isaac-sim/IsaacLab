@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 
 import omni.kit.app
 import omni.timeline
+
 from omni.isaac.lab.assets.articulation.articulation import Articulation
 
 if TYPE_CHECKING:
@@ -183,7 +184,9 @@ class ViewportCameraController:
         # check if the body is in the asset
         asset: Articulation = self._env.scene[asset_name]
         if body_name not in asset.body_names:
-            raise ValueError(f"'{body_name}' is not a body of Asset '{asset_name}'. Available bodies: {asset.body_names}.")
+            raise ValueError(
+                f"'{body_name}' is not a body of Asset '{asset_name}'. Available bodies: {asset.body_names}."
+            )
         # get the body index
         body_id, _ = asset.find_bodies(body_name)
         # update the asset name
@@ -191,7 +194,9 @@ class ViewportCameraController:
         # set origin type to asset_body
         self.cfg.origin_type = "asset_body"
         # update the camera origins
-        self.viewer_origin = self._env.scene[self.cfg.asset_name].data.body_link_pos_w[self.cfg.env_index, body_id].view(3)
+        self.viewer_origin = (
+            self._env.scene[self.cfg.asset_name].data.body_link_pos_w[self.cfg.env_index, body_id].view(3)
+        )
         # update the camera view
         self.update_view_location()
 
