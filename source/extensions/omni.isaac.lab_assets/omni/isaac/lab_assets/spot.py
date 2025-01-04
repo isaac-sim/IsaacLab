@@ -11,8 +11,6 @@ The following configuration parameters are available:
 * :obj:`SPOT_CFG`: The Spot robot with delay PD and remote PD actuators.
 """
 
-import torch
-
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.actuators import DelayedPDActuatorCfg, RemotizedPDActuatorCfg
 from omni.isaac.lab.assets.articulation import ArticulationCfg
