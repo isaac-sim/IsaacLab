@@ -19,8 +19,11 @@ To check the minimum system requirements,refer to the documentation
 `here <https://docs.omniverse.nvidia.com/isaacsim/latest/installation/requirements.html>`__.
 
 .. note::
-   We have tested Isaac Lab with Isaac Sim 4.1 release on Ubuntu
-   20.04LTS with NVIDIA driver 525.147.
+   We have tested Isaac Lab with Isaac Sim 4.5 release on Ubuntu
+   22.04LTS with NVIDIA driver 535.129.
+
+   From Isaac Sim 4.5 release, Isaac Sim binaries can be downloaded directly as a zip file.
+   The below steps assume the Isaac Sim folder was unzipped to the Downloads directory.
 
    .. tab-set::
       :sync-group: os
@@ -28,14 +31,14 @@ To check the minimum system requirements,refer to the documentation
       .. tab-item:: :icon:`fa-brands fa-linux` Linux
          :sync: linux
 
-         On Linux systems, by default, Isaac Sim is installed in the directory
-         ``${HOME}/.local/share/ov/pkg/isaac_sim-*``, with ``*`` corresponding to the Isaac Sim version.
+         On Linux systems, Isaac Sim directory will be named
+         ``${HOME}/Downloads/isaac-sim-standalone@*``, with ``*`` corresponding to the Isaac Sim version.
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
 
-         On Windows systems, by default,Isaac Sim is installed in the directory
-         ``%USERPROFILE%\AppData\Local\ov\pkg\isaac_sim-*``, with ``*`` corresponding to the Isaac Sim version.
+         On Windows systems, Isaac Sim directory will be named
+         ``%USERPROFILE%/Downloads/isaac-sim-standalone@*``, with ``*`` corresponding to the Isaac Sim version.
 
 Verifying the Isaac Sim installation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -53,7 +56,7 @@ variables to your terminal for the remaining of the installation instructions:
       .. code:: bash
 
          # Isaac Sim root directory
-         export ISAACSIM_PATH="${HOME}/.local/share/ov/pkg/isaac-sim-4.2.0"
+         export ISAACSIM_PATH="${HOME}/Downloads/isaac-sim-standalone@4.5.0"
          # Isaac Sim python executable
          export ISAACSIM_PYTHON_EXE="${ISAACSIM_PATH}/python.sh"
 
@@ -63,7 +66,7 @@ variables to your terminal for the remaining of the installation instructions:
       .. code:: batch
 
          :: Isaac Sim root directory
-         set ISAACSIM_PATH="%USERPROFILE%\AppData\Local\ov\pkg\isaac-sim-4.2.0"
+         set ISAACSIM_PATH="%USERPROFILE%/Downloads/isaac-sim-standalone@4.5.0"
          :: Isaac Sim python executable
          set ISAACSIM_PYTHON_EXE="%ISAACSIM_PATH:"=%\python.bat"
 
@@ -246,7 +249,7 @@ to index the python modules and look for extensions shipped with Isaac Sim.
          cd IsaacLab
          # create a symbolic link
          ln -s path_to_isaac_sim _isaac_sim
-         # For example: ln -s /home/nvidia/.local/share/ov/pkg/isaac-sim-4.2.0 _isaac_sim
+         # For example: ln -s ${HOME}/Downloads/isaac-sim-standalone@4.5.0 _isaac_sim
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -257,7 +260,7 @@ to index the python modules and look for extensions shipped with Isaac Sim.
          cd IsaacLab
          :: create a symbolic link - requires launching Command Prompt with Administrator access
          mklink /D _isaac_sim path_to_isaac_sim
-         :: For example: mklink /D _isaac_sim C:/Users/nvidia/AppData/Local/ov/pkg/isaac-sim-4.2.0
+         :: For example: mklink /D _isaac_sim C:/Users/nvidia/Downloads/isaac-sim-standalone@4.5.0
 
 
 Setting up the conda environment (optional)

@@ -596,11 +596,7 @@ class AppLauncher:
                 livestream_args += [
                     "--/app/livestream/allowResize=false",
                     "--enable",
-                    "omni.kit.livestream.core-6.1.0",
-                    "--enable",
-                    "omni.kit.livestream.webrtc-6.0.0",
-                    "--enable",
-                    "omni.kit.streamsdk.plugins-6.1.7",
+                    "omni.kit.livestream.webrtc",
                 ]
             else:
                 raise ValueError(f"Invalid value for livestream: {self._livestream}. Expected: 1, 2 .")

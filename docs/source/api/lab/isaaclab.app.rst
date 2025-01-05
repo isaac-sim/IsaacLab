@@ -23,10 +23,11 @@ The following details the behavior of the class based on the environment variabl
 * **Livestreaming**: If the environment variable ``LIVESTREAM={1,2}`` , then `livestream`_ is enabled. Any
   of the livestream modes being true forces the app to run in headless mode.
 
-  * ``LIVESTREAM=1`` enables streaming via the Isaac `Native Livestream`_ extension. This allows users to
-    connect through the Omniverse Streaming Client.
-  * ``LIVESTREAM=2`` enables streaming  via the `WebRTC Livestream`_ extension. This allows users to
-    connect in a browser using the WebRTC protocol.
+  * ``LIVESTREAM=1`` [DEPRECATED] enables streaming via the Isaac `Native Livestream`_ extension. This allows users to
+    connect through the Omniverse Streaming Client. This method is deprecated from Isaac Sim 4.5. Please use the WebRTC
+    livestreaming instead.
+  * ``LIVESTREAM=2`` enables streaming via the `WebRTC Livestream`_ extension. This allows users to
+    connect through the WebRTC Client using the WebRTC protocol.
 
   .. note::
 
@@ -110,6 +111,5 @@ Simulation App Launcher
 
 
 .. _livestream: https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/manual_livestream_clients.html
-.. _`Native Livestream`: https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/manual_livestream_clients.html#isaac-sim-setup-kit-remote
-.. _`Websocket Livestream`: https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/manual_livestream_clients.html#isaac-sim-setup-livestream-webrtc
-.. _`WebRTC Livestream`: https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/manual_livestream_clients.html#isaac-sim-setup-livestream-websocket
+.. _`Native Livestream`: https://docs.omniverse.nvidia.com/isaacsim/latest/installation/manual_livestream_clients.html#omniverse-streaming-client
+.. _`WebRTC Livestream`: https://docs.omniverse.nvidia.com/isaacsim/latest/installation/manual_livestream_clients.html#webrtc-browser-client

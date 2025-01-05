@@ -109,9 +109,7 @@ Verifying the Isaac Sim installation
       # note: you can pass the argument "--help" to see all arguments possible.
       isaacsim
 
-   By default, this will launch an empty mini Kit window.
-
--  To run with a specific experience file, run:
+-  It's also possible to run with a specific experience file, run:
 
    .. code:: bash
 

@@ -50,6 +50,7 @@ import numpy as np
 import os
 import torch
 
+from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import VecNormalize
 
@@ -59,7 +60,6 @@ from isaaclab.utils.pretrained_checkpoint import get_published_pretrained_checkp
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import get_checkpoint_path, load_cfg_from_registry, parse_env_cfg
-from isaaclab_tasks.utils.wrappers.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 
 
 def main():
