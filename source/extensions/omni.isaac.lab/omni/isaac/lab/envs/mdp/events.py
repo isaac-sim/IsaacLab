@@ -14,6 +14,7 @@ the event introduced by the function.
 
 from __future__ import annotations
 
+import math
 import torch
 from typing import TYPE_CHECKING, Literal
 
@@ -160,6 +161,88 @@ class randomize_rigid_body_material(ManagerTermBase):
 
         # apply to simulation
         self.asset.root_physx_view.set_material_properties(materials, env_ids)
+
+
+class randomize_visual_texture_material(ManagerTermBase):
+    """Randomize the visual texture of bodies on an asset using Replicator API.
+
+    This function randomizes the visual texture of the bodies of the asset using the Replicator API.
+    The function samples random textures from the given texture paths and applies them to the bodies
+    of the asset. The textures are projected onto the bodies and rotated by the given angles.
+
+    .. note::
+        The function assumes that the asset follows the prim naming convention as:
+        "{asset_prim_path}/{body_name}/visuals" where the body name is the name of the body to
+        which the texture is applied. This is the default prim ordering when importing assets
+        from the asset converters in Isaac Lab.
+    """
+
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
+        """Initialize the term.
+
+        Args:
+            cfg: The configuration of the event term.
+            env: The environment instance.
+        """
+        super().__init__(cfg, env)
+
+        # import replicator
+        # we import the module here since we may not always need the replicator
+        import omni.replicator.core as rep
+
+        # read parameters from the configuration
+        asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg")
+        texture_paths = cfg.params.get("texture_paths")
+        event_name = cfg.params.get("event_name")
+        texture_rotation = cfg.params.get("texture_rotation", (0.0, 0.0))
+
+        # convert from radians to degrees
+        texture_rotation = tuple(math.degrees(angle) for angle in texture_rotation)
+
+        # obtain the asset entity
+        asset_entity = env.scene[asset_cfg.name]
+        # join all bodies in the asset
+        body_names = asset_cfg.body_names
+        if isinstance(body_names, str):
+            body_names_regex = body_names
+        elif isinstance(body_names, list):
+            body_names_regex = "|".join(body_names)
+        else:
+            body_names_regex = ".*"
+
+        # Create the omni-graph node for the randomization term
+        def rep_texture_randomization():
+            prims_group = rep.get.prims(
+                path_pattern=f"{asset_entity.cfg.prim_path}/{body_names_regex}/visuals"
+            )
+
+            with prims_group:
+                rep.randomizer.texture(
+                    textures=texture_paths, project_uvw=True, texture_rotate=rep.distribution.uniform(*texture_rotation)
+                )
+
+            return prims_group.node
+
+        # Register the event to the replicator
+        with rep.trigger.on_custom_event(event_name=event_name):
+            rep_texture_randomization()
+
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        env_ids: torch.Tensor,
+        event_name: str,
+        asset_cfg: SceneEntityCfg,
+        texture_paths: list[str],
+        texture_rotation: tuple[float, float] = (0.0, 0.0),
+    ):
+        # import replicator
+        import omni.replicator.core as rep
+
+        # only send the event to the replicator
+        # note: This triggers the nodes for all the environments.
+        #   We need to investigate how to make it happen only for a subset based on env_ids.
+        rep.utils.send_og_event(event_name)
 
 
 def randomize_rigid_body_mass(
